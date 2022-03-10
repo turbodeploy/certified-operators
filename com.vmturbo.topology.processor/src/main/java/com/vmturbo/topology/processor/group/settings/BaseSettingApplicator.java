@@ -12,10 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDataStructure;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -35,9 +35,9 @@ public abstract class BaseSettingApplicator implements SettingApplicator {
      * @return sold commodities
      */
     @Nonnull
-    protected static Collection<CommoditySoldDTO.Builder> getCommoditySoldBuilders(
-            @Nonnull TopologyEntityDTO.Builder entity, CommodityType commodityType) {
-        return entity.getCommoditySoldListBuilderList().stream().filter(
+    protected static Collection<CommoditySoldImpl> getCommoditySoldBuilders(
+            @Nonnull TopologyEntityImpl entity, CommodityType commodityType) {
+        return entity.getCommoditySoldListImplList().stream().filter(
                 commodity -> commodity.getCommodityType().getType() == commodityType.getNumber())
                 .collect(Collectors.toList());
     }
@@ -126,13 +126,13 @@ public abstract class BaseSettingApplicator implements SettingApplicator {
      * @param movable is movable or not
      * @param predicate condition function which the commodity should apply the movable or not.
      */
-    protected void applyMovableToCommodities(@Nonnull TopologyEntityDTO.Builder entity,
+    protected void applyMovableToCommodities(@Nonnull TopologyEntityImpl entity,
                                              boolean movable,
-                                             @Nonnull Predicate<Builder> predicate) {
-        entity.getCommoditiesBoughtFromProvidersBuilderList()
+                                             @Nonnull Predicate<CommoditiesBoughtFromProviderImpl> predicate) {
+        entity.getCommoditiesBoughtFromProvidersImplList()
                 .stream()
-                .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderId)
-                .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderEntityType)
+                .filter(CommoditiesBoughtFromProviderView::hasProviderId)
+                .filter(CommoditiesBoughtFromProviderView::hasProviderEntityType)
                 .filter(predicate)
                 .forEach(c -> {
                     // Apply setting value only if move is not disabled by the entity

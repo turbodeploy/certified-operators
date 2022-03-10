@@ -5,20 +5,20 @@ import static org.junit.Assert.assertEquals;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import org.junit.Test;
+
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 public class ApplicationCommodityKeyChangerTest {
@@ -68,7 +68,7 @@ public class ApplicationCommodityKeyChangerTest {
                             commBought(CommodityDTO.CommodityType.APPLICATION_VALUE, yetAnotherKey)));
 
     // create the topology graph
-    private static final Map<Long, Builder> topologyMap = ImmutableMap.of(
+    private static final Map<Long, TopologyEntity.Builder> topologyMap = ImmutableMap.of(
         vmReplica1.getOid(), vmReplica1,
         vmReplica2.getOid(), vmReplica2,
         appReplica1.getOid(), appReplica1,
@@ -76,45 +76,42 @@ public class ApplicationCommodityKeyChangerTest {
         app3.getOid(), app3
     );
 
-    private static TopologyEntity.Builder seller(long oid, int type, CommoditySoldDTO... commoditiesSold) {
+    private static TopologyEntity.Builder seller(long oid, int type, CommoditySoldImpl... commoditiesSold) {
         return TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder()
+                 new TopologyEntityImpl()
                         .setOid(oid)
                         .setEntityType(type)
                         .addAllCommoditySoldList(Sets.newHashSet(commoditiesSold)));
     }
 
-    private static CommoditySoldDTO commSold(int type, String key) {
-        return CommoditySoldDTO.newBuilder()
-                .setCommodityType(CommodityType.newBuilder()
+    private static CommoditySoldImpl commSold(int type, String key) {
+        return new CommoditySoldImpl()
+                .setCommodityType(new CommodityTypeImpl()
                         .setType(type)
-                        .setKey(key))
-                .build();
+                        .setKey(key));
     }
 
     private static TopologyEntity.Builder buyer(long oid, int type,
-            CommoditiesBoughtFromProvider... commoditiesBoughtLists) {
-        return TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+            CommoditiesBoughtFromProviderImpl... commoditiesBoughtLists) {
+        return  TopologyEntity.newBuilder( new TopologyEntityImpl()
                 .setOid(oid)
                 .setEntityType(type)
                 .addAllCommoditiesBoughtFromProviders(Sets.newHashSet(commoditiesBoughtLists)));
     }
 
-    private static CommoditiesBoughtFromProvider commoditiesBoughtList(
-            TopologyEntity.Builder seller, CommodityBoughtDTO... commoditiesBought) {
-        return CommoditiesBoughtFromProvider.newBuilder()
+    private static CommoditiesBoughtFromProviderImpl commoditiesBoughtList(
+            TopologyEntity.Builder seller, CommodityBoughtImpl... commoditiesBought) {
+        return new CommoditiesBoughtFromProviderImpl()
                 .setProviderId(seller.getOid())
                 .setProviderEntityType(seller.getEntityType())
-                .addAllCommodityBought(Sets.newHashSet(commoditiesBought))
-                .build();
+                .addAllCommodityBought(Sets.newHashSet(commoditiesBought));
     }
 
-    private static CommodityBoughtDTO commBought(int type, String key) {
-        return CommodityBoughtDTO.newBuilder()
-                .setCommodityType(CommodityType.newBuilder()
+    private static CommodityBoughtImpl commBought(int type, String key) {
+        return new CommodityBoughtImpl()
+                .setCommodityType(new CommodityTypeImpl()
                         .setType(type)
-                        .setKey(key))
-                .build();
+                        .setKey(key));
     }
 
     private static final TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
@@ -127,52 +124,52 @@ public class ApplicationCommodityKeyChangerTest {
 
         // check that the application commodity key were changed to the vm oid
 
-        CommoditySoldDTO vm1AppComm = getCommSold(vmReplica1oid, CommodityDTO.CommodityType.APPLICATION_VALUE);
-        CommodityBoughtDTO.Builder app1AppComm =
+        CommoditySoldView vm1AppComm = getCommSold(vmReplica1oid, CommodityDTO.CommodityType.APPLICATION_VALUE);
+        CommodityBoughtImpl app1AppComm =
                 getCommBought(appReplica1oid, vmReplica1oid, CommodityDTO.CommodityType.APPLICATION_VALUE);
         assertEquals(Long.toString(vmReplica1oid), vm1AppComm.getCommodityType().getKey());
         assertEquals(Long.toString(vmReplica1oid), app1AppComm.getCommodityType().getKey());
 
-        CommoditySoldDTO vm2AppComm = getCommSold(vmReplica2oid, CommodityDTO.CommodityType.APPLICATION_VALUE);
-        CommodityBoughtDTO.Builder app2AppComm =
+        CommoditySoldView vm2AppComm = getCommSold(vmReplica2oid, CommodityDTO.CommodityType.APPLICATION_VALUE);
+        CommodityBoughtImpl app2AppComm =
                 getCommBought(appReplica2oid, vmReplica2oid, CommodityDTO.CommodityType.APPLICATION_VALUE);
         assertEquals(Long.toString(vmReplica2oid), vm2AppComm.getCommodityType().getKey());
         assertEquals(Long.toString(vmReplica2oid), app2AppComm.getCommodityType().getKey());
 
         // check that the cluster commodity key is the same as before
 
-        CommoditySoldDTO vm1ClusterComm = getCommSold(vmReplica1oid, CommodityDTO.CommodityType.CLUSTER_VALUE);
-        CommodityBoughtDTO.Builder app1ClusterComm =
+        CommoditySoldView vm1ClusterComm = getCommSold(vmReplica1oid, CommodityDTO.CommodityType.CLUSTER_VALUE);
+        CommodityBoughtImpl app1ClusterComm =
                 getCommBought(appReplica1oid, vmReplica1oid, CommodityDTO.CommodityType.CLUSTER_VALUE);
         assertEquals(anotherKey, vm1ClusterComm.getCommodityType().getKey());
         assertEquals(anotherKey, app1ClusterComm.getCommodityType().getKey());
 
-        CommoditySoldDTO vm2ClusterComm = getCommSold(vmReplica2oid, CommodityDTO.CommodityType.CLUSTER_VALUE);
-        CommodityBoughtDTO.Builder app2ClusterComm =
+        CommoditySoldView vm2ClusterComm = getCommSold(vmReplica2oid, CommodityDTO.CommodityType.CLUSTER_VALUE);
+        CommodityBoughtImpl app2ClusterComm =
                 getCommBought(appReplica2oid, vmReplica2oid, CommodityDTO.CommodityType.CLUSTER_VALUE);
         assertEquals(anotherKey, vm2ClusterComm.getCommodityType().getKey());
         assertEquals(anotherKey, app2ClusterComm.getCommodityType().getKey());
 
         // Verify that this application commodity key was not changed
-        CommodityBoughtDTO.Builder app3AppComm =
+        CommodityBoughtImpl app3AppComm =
                 getCommBought(appOid, vmReplica2oid, CommodityDTO.CommodityType.APPLICATION_VALUE);
         assertEquals(yetAnotherKey, app3AppComm.getCommodityType().getKey());
     }
 
-    private static CommoditySoldDTO getCommSold(long sellerOid, int type) {
+    private static CommoditySoldView getCommSold(long sellerOid, int type) {
         return topologyGraph.getEntity(sellerOid).get()
-                .getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                .getTopologyEntityImpl().getCommoditySoldListList().stream()
                     .filter(commSold -> commSold.getCommodityType().getType() == type)
                     .findAny()
                     .get();
     }
 
-    private static CommodityBoughtDTO.Builder getCommBought(long buyerOid, long sellerOid, int type) {
+    private static CommodityBoughtImpl getCommBought(long buyerOid, long sellerOid, int type) {
         return topologyGraph.getEntity(buyerOid).get()
-                .getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList()
+                .getTopologyEntityImpl().getCommoditiesBoughtFromProvidersImplList()
                 .stream()
                 .filter(list -> list.getProviderId() == sellerOid)
-                .map(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList)
+                .map(CommoditiesBoughtFromProviderImpl::getCommodityBoughtImplList)
                 .flatMap(List::stream)
                 .filter(commBought -> commBought.getCommodityType().getType() == type)
                 .findAny()

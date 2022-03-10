@@ -18,10 +18,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.UtilizationDataImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.UtilizationDataView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -41,7 +42,7 @@ import com.vmturbo.topology.processor.history.percentile.PercentileDto.Percentil
  */
 public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
     private static final double DELTA = 0.001;
-    private static final CommodityType commType = CommodityType.newBuilder().setType(1).build();
+    private static final CommodityTypeImpl commType = new CommodityTypeImpl().setType(1);
     private static final EntityCommodityFieldReference field =
                     new EntityCommodityFieldReference(1, commType, CommodityField.USED);
     private static final int UNAVAILABLE_DATA_PERIOD = 30;
@@ -119,8 +120,8 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
         PercentileCommodityData pcd = new PercentileCommodityData();
         pcd.init(field, null, config, context);
         pcd.aggregate(field, config, context);
-        CommoditySoldDTO.Builder commSold =
-                        entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+        CommoditySoldView commSold =
+                        entity.getTopologyEntityImpl().getCommoditySoldListList()
                                         .get(0);
         Assert.assertTrue(commSold.hasHistoricalUsed());
         Assert.assertEquals(used2 / cap, commSold.getHistoricalUsed().getPercentile(), DELTA);
@@ -164,19 +165,19 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
                                                         .setSetting(minObservationPeriodSetting)
                                                         .build()).build();
         Long2ObjectMap<TopologyEntity.Builder> topologyMap = new Long2ObjectOpenHashMap<>();
-        topologyMap.put(1L, TopologyEntity.newBuilder(entity.getTopologyEntityDtoBuilder()));
+        topologyMap.put(1L, TopologyEntity.newBuilder(entity.getTopologyEntityImpl()));
         HistoryAggregationContext ctx = Mockito.spy(new HistoryAggregationContext(topologyInfo,
                 new GraphWithSettings(new TopologyGraphCreator<>(topologyMap).build(),
                         Collections.singletonMap(1L, settings), Collections.emptyMap()), false));
         final ICommodityFieldAccessor accessor = createAccessor(100f, 99d, 12d, 80d, entity, currentTime);
         Mockito.doReturn(accessor).when(ctx).getAccessor();
         pcd.aggregate(field, config, ctx);
-        final CommoditySoldDTO.Builder commSold =
-                        entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+        final CommoditySoldView commSold =
+                        entity.getTopologyEntityImpl().getCommoditySoldListList()
                                         .get(0);
         Assert.assertThat(commSold.getIsResizeable(), CoreMatchers.is(expectedResizable));
-        Assert.assertNotNull(entity.getTopologyEntityDtoBuilder().getAnalysisSettings());
-        entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().forEach(
+        Assert.assertNotNull(entity.getTopologyEntityImpl().getAnalysisSettings());
+        entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList().forEach(
             commBoughtGrouping -> Assert.assertThat(commBoughtGrouping.getScalable(),
                 CoreMatchers.is(expectedResizable)));
     }
@@ -194,10 +195,10 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
                         mockGraph(Collections.singleton(entity))));
         Mockito.doReturn((double)cap).when(accessor).getCapacity(field);
         Mockito.doReturn(realTime).when(accessor).getRealTimeValue(field);
-        UtilizationData data =
-                        UtilizationData.newBuilder().setLastPointTimestampMs(lastPointTimestamp)
+        UtilizationDataView data =
+                        new UtilizationDataImpl().setLastPointTimestampMs(lastPointTimestamp)
                                         .setIntervalMs(10).addPoint(used2 / cap * 100)
-                                        .addPoint(used3 / cap * 100).build();
+                                        .addPoint(used3 / cap * 100);
         Mockito.doReturn(data).when(accessor).getUtilizationData(Mockito.any());
         return accessor;
     }

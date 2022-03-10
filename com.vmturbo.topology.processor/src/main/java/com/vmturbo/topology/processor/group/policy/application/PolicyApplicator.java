@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -106,7 +106,7 @@ public class PolicyApplicator {
      * @param topologyGraph The {@link TopologyGraph} for the currently constructed topology.
      * @return commodity type associated with the policy.
      */
-    public TopologyDTO.CommodityType commodityTypeAssociatedWithPlacementPolicy(
+    public TopologyPOJO.CommodityTypeView commodityTypeAssociatedWithPlacementPolicy(
             @Nonnull final PlacementPolicy policy,
             @Nonnull final GroupResolver groupResolver,
             @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {

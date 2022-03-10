@@ -35,8 +35,8 @@ import io.grpc.stub.AbstractStub;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsView;
 import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
@@ -282,9 +282,9 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
 
     @Override
     public boolean isEntityApplicable(TopologyEntity entity) {
-        final TopologyEntityDTO.Builder builder = entity.getTopologyEntityDtoBuilder();
+        final TopologyEntityImpl entityImpl = entity.getTopologyEntityImpl();
         // check the entity origin from all entity targets
-        if (!builder.hasOrigin() || builder.getOrigin()
+        if (!entityImpl.hasOrigin() || entityImpl.getOrigin()
                 .getDiscoveryOrigin()
                 .getDiscoveredTargetDataMap()
                 .values()
@@ -292,7 +292,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
                 .noneMatch(i -> i.getOrigin() == EntityOrigin.DISCOVERED)) {
             return false;
         }
-        final AnalysisSettings analysisSettings = builder.getAnalysisSettings();
+        final AnalysisSettingsView analysisSettings = entityImpl.getAnalysisSettings();
         return NON_CONTROLLABLE_APPLICABLE_ENTITY_TYPES.contains(entity.getEntityType())
             || !analysisSettings.hasControllable() || analysisSettings.getControllable();
     }

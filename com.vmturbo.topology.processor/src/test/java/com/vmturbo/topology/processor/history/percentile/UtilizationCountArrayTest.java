@@ -10,7 +10,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
@@ -23,10 +23,10 @@ public class UtilizationCountArrayTest {
     private static final double delta = 0.001;
     private static final EntityCommodityFieldReference REF =
             new EntityCommodityFieldReference(134L,
-                    CommodityType.newBuilder().setKey("efds").setType(12).build(), 4857L,
+                    new CommodityTypeImpl().setKey("efds").setType(12), 4857L,
                     CommodityField.USED);
     private static final EntityCommodityFieldReference COMMODITY_WITHOUT_KEY_REF =
-            new EntityCommodityFieldReference(1L, CommodityType.newBuilder().setType(2).build(), 3L,
+            new EntityCommodityFieldReference(1L, new CommodityTypeImpl().setType(2), 3L,
                     CommodityField.USED);
 
 

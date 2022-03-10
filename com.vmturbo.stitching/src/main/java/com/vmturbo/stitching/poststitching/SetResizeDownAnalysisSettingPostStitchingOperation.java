@@ -56,8 +56,8 @@ public class SetResizeDownAnalysisSettingPostStitchingOperation implements PostS
             @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
         entities.filter(this::isEligibleForResizeDown)
                 .forEach(entity -> resultBuilder.queueUpdateEntityAlone(entity, entityForUpdate -> {
-                    entityForUpdate.getTopologyEntityDtoBuilder()
-                            .getAnalysisSettingsBuilder()
+                    entityForUpdate.getTopologyEntityImpl()
+                            .getOrCreateAnalysisSettings()
                             .setIsEligibleForResizeDown(true);
                     logger.debug("Setting resize down to true for entity {}", entityForUpdate.getOid());
                 }));
@@ -76,10 +76,10 @@ public class SetResizeDownAnalysisSettingPostStitchingOperation implements PostS
      */
     private boolean isEligibleForResizeDown(@Nonnull final TopologyEntity entity) {
         // only set resize down to true for active entities.
-        if (entity.getTopologyEntityDtoBuilder().getEntityState() != EntityState.POWERED_ON
+        if (entity.getTopologyEntityImpl().getEntityState() != EntityState.POWERED_ON
                 // It is possible that resize down flag was already set due to action execution.
                 // If it was entity becomes ineligible for setting of this flag again.
-                || entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().hasIsEligibleForResizeDown()) {
+                || entity.getTopologyEntityImpl().getOrCreateAnalysisSettings().hasIsEligibleForResizeDown()) {
             return false;
         }
 

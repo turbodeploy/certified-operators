@@ -70,8 +70,8 @@ public interface PostStitchingOperation extends JournalableOperation {
      */
     @Nonnull
     TopologicalChangelog<TopologyEntity> performOperation(@Nonnull final Stream<TopologyEntity> entities,
-                                                          @Nonnull final EntitySettingsCollection settingsCollection,
-                                                          @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder);
+                                                      @Nonnull final EntitySettingsCollection settingsCollection,
+                                                      @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder);
 
     /**
      * {@inheritDoc}

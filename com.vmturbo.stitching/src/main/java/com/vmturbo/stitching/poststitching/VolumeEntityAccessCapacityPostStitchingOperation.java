@@ -40,7 +40,7 @@ public class VolumeEntityAccessCapacityPostStitchingOperation
         entities.forEach(volume -> {
             Optional<Double> providerCapacity = getProviderCapacity(volume.getProviders(),
                     CommodityType.STORAGE_ACCESS_VALUE, ImmutableSet.of(EntityType.STORAGE_VALUE));
-            final boolean isOnPremVolume = volume.getTopologyEntityDtoBuilder().getEnvironmentType()
+            final boolean isOnPremVolume = volume.getTopologyEntityImpl().getEnvironmentType()
                     == EnvironmentType.ON_PREM;
             final EntitySettingSpecs setting =
                     isOnPremVolume ? EntitySettingSpecs.OnPremIopsCapacity

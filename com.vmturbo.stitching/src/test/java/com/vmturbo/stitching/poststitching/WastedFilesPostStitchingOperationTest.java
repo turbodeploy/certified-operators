@@ -26,7 +26,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
+import com.vmturbo.platform.common.dto.CommonPOJO.EntityImpl.VirtualVolumeDataImpl.VirtualVolumeFileDescriptorView;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
@@ -120,11 +120,11 @@ public class WastedFilesPostStitchingOperationTest {
         assertTrue(virtVol1.getOutboundAssociatedEntities().contains(storageEntity1));
         assertTrue(virtVol2.getOutboundAssociatedEntities().contains(storageEntity1));
         assertTrue(virtVolWasted1.getOutboundAssociatedEntities().contains(storageEntity1));
-        assertEquals(vm1Files.length, virtVol1.getTopologyEntityDtoBuilder()
+        assertEquals(vm1Files.length, virtVol1.getTopologyEntityImpl()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
-        assertEquals(vm2Files.length, virtVol2.getTopologyEntityDtoBuilder()
+        assertEquals(vm2Files.length, virtVol2.getTopologyEntityImpl()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
-        assertEquals(3, virtVolWasted1.getTopologyEntityDtoBuilder()
+        assertEquals(3, virtVolWasted1.getTopologyEntityImpl()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
     }
 
@@ -144,7 +144,7 @@ public class WastedFilesPostStitchingOperationTest {
         storageEntity2 = storage2.build();
         virtVolWasted2 = virtualVolumeWasted2.build();
         assertTrue(virtVolWasted2.getOutboundAssociatedEntities().contains(storageEntity2));
-        assertEquals(allFiles.length, virtVolWasted2.getTopologyEntityDtoBuilder()
+        assertEquals(allFiles.length, virtVolWasted2.getTopologyEntityImpl()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
     }
 
@@ -200,29 +200,29 @@ public class WastedFilesPostStitchingOperationTest {
         wastedFilesPostOp.performOperation(
             Stream.of(storageEntity1), settingsCollection, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
-        assertEquals(vm1Files.length, virtVol1.getTopologyEntityDtoBuilder()
+        assertEquals(vm1Files.length, virtVol1.getTopologyEntityImpl()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
-        assertEquals(vm2Files.length, virtVol2.getTopologyEntityDtoBuilder()
+        assertEquals(vm2Files.length, virtVol2.getTopologyEntityImpl()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
 
         // One of that wasted files was smaller than 1000 KB and should have been filtered out
         final Set<String> expectedWastedFiles = Sets.newHashSet(wastedFilesNoFiltering);
         expectedWastedFiles.remove(wastedFile);
         assertEquals(expectedWastedFiles.size(),
-            virtVolWasted1.getTopologyEntityDtoBuilder().getTypeSpecificInfo()
+            virtVolWasted1.getTopologyEntityImpl().getTypeSpecificInfo()
                 .getVirtualVolume().getFilesCount());
-        assertEquals(expectedWastedFiles, virtVolWasted1.getTopologyEntityDtoBuilder()
+        assertEquals(expectedWastedFiles, virtVolWasted1.getTopologyEntityImpl()
             .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
-            .map(VirtualVolumeFileDescriptor::getPath)
+            .map(VirtualVolumeFileDescriptorView::getPath)
             .collect(Collectors.toSet()));
-        assertThat(virtVol1.getTopologyEntityDtoBuilder()
+        assertThat(virtVol1.getTopologyEntityImpl()
                 .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
-                .map(VirtualVolumeFileDescriptor::getPath)
+                .map(VirtualVolumeFileDescriptorView::getPath)
                 .collect(Collectors.toSet()),
             containsInAnyOrder(vm1Files));
-        assertThat(virtVol2.getTopologyEntityDtoBuilder()
+        assertThat(virtVol2.getTopologyEntityImpl()
                 .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
-                .map(VirtualVolumeFileDescriptor::getPath)
+                .map(VirtualVolumeFileDescriptorView::getPath)
                 .collect(Collectors.toSet()),
             containsInAnyOrder(vm2Files));
     }
@@ -254,9 +254,9 @@ public class WastedFilesPostStitchingOperationTest {
         wastedFilesPostOp.performOperation(
             Stream.of(storageEntity2), settingsCollection, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
-        assertEquals(wastedFilesAfterFiltering, virtVolWasted2.getTopologyEntityDtoBuilder()
+        assertEquals(wastedFilesAfterFiltering, virtVolWasted2.getTopologyEntityImpl()
             .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
-            .map(VirtualVolumeFileDescriptor::getPath)
+            .map(VirtualVolumeFileDescriptorView::getPath)
             .collect(Collectors.toSet()));
     }
 
@@ -277,7 +277,7 @@ public class WastedFilesPostStitchingOperationTest {
         storageEntity3 = storage3.build();
         virtVolWasted3 = virtualVolumeWasted3.build();
         assertTrue(virtVolWasted3.getOutboundAssociatedEntities().contains(storageEntity3));
-        assertEquals(1, virtVolWasted3.getTopologyEntityDtoBuilder()
+        assertEquals(1, virtVolWasted3.getTopologyEntityImpl()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
     }
 
@@ -307,9 +307,9 @@ public class WastedFilesPostStitchingOperationTest {
         wastedFilesPostOp.performOperation(
             Stream.of(storageEntity3), settingsCollection, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
-        assertEquals(Collections.emptySet(), virtVolWasted3.getTopologyEntityDtoBuilder()
+        assertEquals(Collections.emptySet(), virtVolWasted3.getTopologyEntityImpl()
             .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
-            .map(VirtualVolumeFileDescriptor::getPath)
+            .map(VirtualVolumeFileDescriptorView::getPath)
             .collect(Collectors.toSet()));
     }
 

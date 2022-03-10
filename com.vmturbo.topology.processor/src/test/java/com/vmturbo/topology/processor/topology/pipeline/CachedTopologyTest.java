@@ -24,9 +24,9 @@ import com.vmturbo.topology.processor.topology.pipeline.CachedTopology.CachedTop
  */
 public class CachedTopologyTest {
 
-    private final List<TopologyEntityDTO.Builder> entities = Lists.newArrayList(TopologyEntityUtils.topologyEntity(1, EntityType.VIRTUAL_MACHINE).getEntityBuilder(),
-            TopologyEntityUtils.topologyEntity(2, EntityType.PHYSICAL_MACHINE).getEntityBuilder(),
-            TopologyEntityUtils.topologyEntity(3, EntityType.STORAGE).getEntityBuilder());
+    private final List<TopologyEntityDTO.Builder> entities = Lists.newArrayList(TopologyEntityUtils.topologyEntity(1, EntityType.VIRTUAL_MACHINE).getTopologyEntityImpl().toProtoBuilder(),
+            TopologyEntityUtils.topologyEntity(2, EntityType.PHYSICAL_MACHINE).getTopologyEntityImpl().toProtoBuilder(),
+            TopologyEntityUtils.topologyEntity(3, EntityType.STORAGE).getTopologyEntityImpl().toProtoBuilder());
 
     /**
      * Test getting a normal cached topology.

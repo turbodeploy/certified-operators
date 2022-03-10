@@ -6,6 +6,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 
 /**
  * Represents a collection of possible errors encountered during stitching (normally applies to a
@@ -31,6 +32,16 @@ public class StitchingErrors {
 
     @Nonnull
     public static StitchingErrors fromProtobuf(@Nonnull final TopologyEntityDTO entity) {
+        // It's 0 (none) in the default instance. In that case we can save an allocation.
+        if (!entity.getPipelineErrors().hasStitchingErrors()) {
+            return NONE;
+        } else {
+            return new StitchingErrors(entity.getPipelineErrors().getStitchingErrors());
+        }
+    }
+
+    @Nonnull
+    public static StitchingErrors fromTopologyEntityView(@Nonnull final TopologyEntityView entity) {
         // It's 0 (none) in the default instance. In that case we can save an allocation.
         if (!entity.getPipelineErrors().hasStitchingErrors()) {
             return NONE;

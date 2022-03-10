@@ -13,14 +13,11 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -50,30 +47,30 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
     private final long lpOid = 199437L;
 
     // sold commodities
-    private final Collection<CommoditySoldDTO> vmSoldCommodities =
+    private final Collection<CommoditySoldImpl> vmSoldCommodities =
             Arrays.asList(
                 createCommoditySoldDTO(CommodityType.VCPU_VALUE, null),
                 createCommoditySoldDTO(CommodityType.VMEM_VALUE, null),
                 createCommoditySoldDTO(CommodityType.APPLICATION_VALUE, SupplyChainTestUtils.KEY));
-    private final Collection<CommoditySoldDTO> pmSoldCommodities =
+    private final Collection<CommoditySoldImpl> pmSoldCommodities =
             Arrays.asList(
                 createCommoditySoldDTO(CommodityType.CPU_VALUE, null),
                 createCommoditySoldDTO(CommodityType.MEM_VALUE, null),
                 createCommoditySoldDTO(CommodityType.BALLOONING_VALUE, null),
                 createCommoditySoldDTO(CommodityType.IO_THROUGHPUT_VALUE, null),
                 createCommoditySoldDTO(CommodityType.CLUSTER_VALUE, SupplyChainTestUtils.KEY));
-    private final Collection<CommoditySoldDTO> dcSoldCommodities =
+    private final Collection<CommoditySoldImpl> dcSoldCommodities =
             Arrays.asList(
                 createCommoditySoldDTO(CommodityType.POWER_VALUE, null),
                 createCommoditySoldDTO(CommodityType.COOLING_VALUE, null),
                 createCommoditySoldDTO(CommodityType.DATACENTER_VALUE, SupplyChainTestUtils.KEY));
-    private final Collection<CommoditySoldDTO> stSoldCommodities =
+    private final Collection<CommoditySoldImpl> stSoldCommodities =
             Arrays.asList(
                 createCommoditySoldDTO(CommodityType.STORAGE_ACCESS_VALUE, null),
                 createCommoditySoldDTO(CommodityType.STORAGE_AMOUNT_VALUE, null),
                 createCommoditySoldDTO(CommodityType.STORAGE_CLUSTER_VALUE, SupplyChainTestUtils.KEY),
                 createCommoditySoldDTO(CommodityType.DSPM_ACCESS_VALUE, SupplyChainTestUtils.KEY));
-    private final Collection<CommoditySoldDTO> daSoldCommodities =
+    private final Collection<CommoditySoldImpl> daSoldCommodities =
             Arrays.asList(
                 createCommoditySoldDTO(CommodityType.STORAGE_ACCESS_VALUE, null),
                 createCommoditySoldDTO(CommodityType.STORAGE_AMOUNT_VALUE, null),
@@ -81,8 +78,8 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
 
     // bought commodities
     // these are defined as builders so they can change in various tests
-    private final CommoditiesBoughtFromProvider.Builder vmBoughtCommoditiesFromPM =
-            CommoditiesBoughtFromProvider.newBuilder().setProviderId(pmOid).
+    private final CommoditiesBoughtFromProviderImpl vmBoughtCommoditiesFromPM =
+            new CommoditiesBoughtFromProviderImpl().setProviderId(pmOid).
             setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE).addAllCommodityBought(
                     Arrays.asList(
                         createCommodityBoughtDTO(CommodityType.CPU_VALUE, null),
@@ -92,8 +89,8 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
                         createCommodityBoughtDTO(CommodityType.IO_THROUGHPUT_VALUE, null),
                         createCommodityBoughtDTO(CommodityType.CLUSTER_VALUE, SupplyChainTestUtils.KEY),
                         createCommodityBoughtDTO(CommodityType.DATASTORE_VALUE, SupplyChainTestUtils.KEY)));
-    private final CommoditiesBoughtFromProvider.Builder vmBoughtCommoditiesFromSt =
-            CommoditiesBoughtFromProvider.newBuilder().setProviderId(stOid).
+    private final CommoditiesBoughtFromProviderImpl vmBoughtCommoditiesFromSt =
+            new CommoditiesBoughtFromProviderImpl().setProviderId(stOid).
             setProviderEntityType(EntityType.STORAGE_VALUE).addAllCommodityBought(
                     Arrays.asList(
                         createCommodityBoughtDTO(CommodityType.STORAGE_ACCESS_VALUE, null),
@@ -102,21 +99,21 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
                             CommodityType.STORAGE_CLUSTER_VALUE, SupplyChainTestUtils.KEY),
                         createCommodityBoughtDTO(
                             CommodityType.DSPM_ACCESS_VALUE, SupplyChainTestUtils.KEY)));
-    private final CommoditiesBoughtFromProvider.Builder pmBoughtCommoditiesFromDC =
-            CommoditiesBoughtFromProvider.newBuilder().setProviderId(dcOid).
+    private final CommoditiesBoughtFromProviderImpl pmBoughtCommoditiesFromDC =
+            new CommoditiesBoughtFromProviderImpl().setProviderId(dcOid).
             setProviderEntityType(EntityType.DATACENTER_VALUE).addAllCommodityBought(
                     Arrays.asList(
                         createCommodityBoughtDTO(CommodityType.POWER_VALUE, null),
                         createCommodityBoughtDTO(CommodityType.COOLING_VALUE, null),
                         createCommodityBoughtDTO(CommodityType.DATACENTER_VALUE, SupplyChainTestUtils.KEY)));
-    private final CommoditiesBoughtFromProvider.Builder pmBoughtCommoditiesFromSt =
-            CommoditiesBoughtFromProvider.newBuilder().setProviderId(stOid).
+    private final CommoditiesBoughtFromProviderImpl pmBoughtCommoditiesFromSt =
+            new CommoditiesBoughtFromProviderImpl().setProviderId(stOid).
                     setProviderEntityType(EntityType.STORAGE_VALUE).addAllCommodityBought(
                     Arrays.asList(
                         createCommodityBoughtDTO(CommodityType.STORAGE_ACCESS_VALUE, null),
                         createCommodityBoughtDTO(CommodityType.STORAGE_LATENCY_VALUE, null)));
-    private final CommoditiesBoughtFromProvider.Builder stBoughtCommoditiesFromDa =
-            CommoditiesBoughtFromProvider.newBuilder().setProviderId(daOid).
+    private final CommoditiesBoughtFromProviderImpl stBoughtCommoditiesFromDa =
+            new CommoditiesBoughtFromProviderImpl().setProviderId(daOid).
                     setProviderEntityType(EntityType.DISK_ARRAY_VALUE).addAllCommodityBought(
                     Arrays.asList(
                         createCommodityBoughtDTO(CommodityType.STORAGE_ACCESS_VALUE, null),
@@ -125,20 +122,20 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
 
     // entity "prototypes"
     // these are defined as builders so they can change in various tests
-    private final TopologyEntityDTO.Builder vmPrototype =
-            TopologyEntityDTO.newBuilder().setOid(vmOid).setDisplayName("VM entity").
+    private final TopologyEntityImpl vmPrototype =
+            new TopologyEntityImpl().setOid(vmOid).setDisplayName("VM entity").
             setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
-    private final TopologyEntityDTO.Builder pmPrototype =
-            TopologyEntityDTO.newBuilder().setOid(pmOid).setDisplayName("PM entity").
+    private final TopologyEntityImpl pmPrototype =
+            new TopologyEntityImpl().setOid(pmOid).setDisplayName("PM entity").
             setEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
-    private final TopologyEntityDTO.Builder dcPrototype =
-            TopologyEntityDTO.newBuilder().setOid(dcOid).setDisplayName("Datacenter entity").
+    private final TopologyEntityImpl dcPrototype =
+            new TopologyEntityImpl().setOid(dcOid).setDisplayName("Datacenter entity").
             setEntityType(EntityType.DATACENTER_VALUE);
-    private final TopologyEntityDTO.Builder stPrototype =
-            TopologyEntityDTO.newBuilder().setOid(stOid).setDisplayName("Storage entity").
+    private final TopologyEntityImpl stPrototype =
+            new TopologyEntityImpl().setOid(stOid).setDisplayName("Storage entity").
             setEntityType(EntityType.STORAGE_VALUE);
-    private final TopologyEntityDTO.Builder daPrototype =
-            TopologyEntityDTO.newBuilder().setOid(daOid).setDisplayName("Diskarray entity").
+    private final TopologyEntityImpl daPrototype =
+            new TopologyEntityImpl().setOid(daOid).setDisplayName("Diskarray entity").
             setEntityType(EntityType.DISK_ARRAY_VALUE);
 
 
@@ -160,19 +157,19 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
             TopologyEntity.newBuilder(buildEntity(
                 vmPrototype, Collections.singletonList(HYPERVISOR_TARGET_ID), vmSoldCommodities,
                 Arrays.asList(
-                    vmBoughtCommoditiesFromPM.build(), vmBoughtCommoditiesFromSt.build())));
+                    vmBoughtCommoditiesFromPM, vmBoughtCommoditiesFromSt)));
         final TopologyEntity.Builder validPM =
             TopologyEntity.newBuilder(buildEntity(
                 pmPrototype, Collections.singletonList(HYPERVISOR_TARGET_ID), pmSoldCommodities,
                 Arrays.asList(
-                    pmBoughtCommoditiesFromDC.build(), pmBoughtCommoditiesFromSt.build())));
+                    pmBoughtCommoditiesFromDC, pmBoughtCommoditiesFromSt)));
         final TopologyEntity.Builder validDC =
             TopologyEntity.newBuilder(buildEntity(
                 dcPrototype, Collections.singletonList(HYPERVISOR_TARGET_ID), dcSoldCommodities, Collections.emptyList()));
         final TopologyEntity.Builder validSt =
             TopologyEntity.newBuilder(buildEntity(
                 stPrototype, Arrays.asList(HYPERVISOR_TARGET_ID, STORAGE_TARGET_ID), stSoldCommodities,
-                    Collections.singletonList(stBoughtCommoditiesFromDa.build())));
+                    Collections.singletonList(stBoughtCommoditiesFromDa)));
         final TopologyEntity.Builder validDa =
             TopologyEntity.newBuilder(buildEntity(
                 daPrototype, Arrays.asList(HYPERVISOR_TARGET_ID, STORAGE_TARGET_ID), daSoldCommodities,
@@ -225,14 +222,14 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
     @Test
     public void testSingleVMWithMissingSoldCommodity() {
         // VM with missing one commodity
-        final Collection<CommoditySoldDTO> missingSoldCommodity =
+        final Collection<CommoditySoldImpl> missingSoldCommodity =
             Arrays.asList(
                 createCommoditySoldDTO(CommodityType.VCPU_VALUE, null),
                 createCommoditySoldDTO(CommodityType.APPLICATION_VALUE, SupplyChainTestUtils.KEY));
-        final TopologyEntityDTO.Builder vm_missingSoldCommodity =
+        final TopologyEntityImpl vm_missingSoldCommodity =
             buildEntity(vmPrototype,
                 Collections.singletonList(HYPERVISOR_TARGET_ID), missingSoldCommodity,
-                Collections.singletonList(vmBoughtCommoditiesFromPM.build()));
+                Collections.singletonList(vmBoughtCommoditiesFromPM));
 
         final List<SupplyChainValidationFailure> errors =
             supplychainValidator.validateTopologyEntities(
@@ -260,32 +257,32 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
     @Test
     public void testMissingBoughtCommodity() {
         // VM commodities bought from storage: STORAGE_ACCESS is missing and STORAGE_CLUSTER has no key
-        final CommoditiesBoughtFromProvider.Builder vmMissingBoughtCommoditiesFromSt =
-            CommoditiesBoughtFromProvider.newBuilder().setProviderId(stOid).
+        final CommoditiesBoughtFromProviderImpl vmMissingBoughtCommoditiesFromSt =
+            new CommoditiesBoughtFromProviderImpl().setProviderId(stOid).
                 setProviderEntityType(EntityType.STORAGE_VALUE).addAllCommodityBought(
                 Arrays.asList(
                     createCommodityBoughtDTO(CommodityType.STORAGE_AMOUNT_VALUE, null),
                     createCommodityBoughtDTO(CommodityType.STORAGE_CLUSTER_VALUE, ""),
                     createCommodityBoughtDTO(CommodityType.DSPM_ACCESS_VALUE, SupplyChainTestUtils.KEY)));
         final TopologyEntity.Builder vmMissingBoughtCommodity =
-            TopologyEntity.newBuilder(buildEntity(
+             TopologyEntity.newBuilder(buildEntity(
                 vmPrototype, Collections.singletonList(HYPERVISOR_TARGET_ID), vmSoldCommodities,
                 Arrays.asList(
-                   vmMissingBoughtCommoditiesFromSt.build(), vmBoughtCommoditiesFromPM.build())));
+                   vmMissingBoughtCommoditiesFromSt, vmBoughtCommoditiesFromPM)));
         final TopologyEntity.Builder validPM =
-            TopologyEntity.newBuilder(buildEntity(
+             TopologyEntity.newBuilder(buildEntity(
                 pmPrototype, Collections.singletonList(HYPERVISOR_TARGET_ID), pmSoldCommodities,
                 Arrays.asList(
-                    pmBoughtCommoditiesFromDC.build(), pmBoughtCommoditiesFromSt.build())));
+                    pmBoughtCommoditiesFromDC, pmBoughtCommoditiesFromSt)));
         final TopologyEntity.Builder validDC =
-            TopologyEntity.newBuilder(buildEntity(
+             TopologyEntity.newBuilder(buildEntity(
                 dcPrototype, Collections.singletonList(HYPERVISOR_TARGET_ID), dcSoldCommodities, Collections.emptyList()));
         final TopologyEntity.Builder validSt =
-            TopologyEntity.newBuilder(buildEntity(
+             TopologyEntity.newBuilder(buildEntity(
                 stPrototype, Arrays.asList(HYPERVISOR_TARGET_ID, STORAGE_TARGET_ID), stSoldCommodities,
-                    Collections.singletonList(stBoughtCommoditiesFromDa.build())));
+                    Collections.singletonList(stBoughtCommoditiesFromDa)));
         final TopologyEntity.Builder validDa =
-            TopologyEntity.newBuilder(buildEntity(
+             TopologyEntity.newBuilder(buildEntity(
                 daPrototype, Arrays.asList(HYPERVISOR_TARGET_ID, STORAGE_TARGET_ID), daSoldCommodities,
                 Collections.emptyList()));
 
@@ -342,8 +339,8 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
     }
 
     // yet another prototype, for the disjunctive specification test
-    private final TopologyEntityDTO.Builder lpPrototype =
-        TopologyEntityDTO.newBuilder().setOid(lpOid).setDisplayName("Logical pool entity").
+    private final TopologyEntityImpl lpPrototype =
+        new TopologyEntityImpl().setOid(lpOid).setDisplayName("Logical pool entity").
         setEntityType(EntityType.LOGICAL_POOL_VALUE);
 
     /**
@@ -375,15 +372,15 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
     public List<SupplyChainValidationFailure> createAndValidateTopology(
             boolean storageAccessBought, boolean extentBoughtFromLP, boolean extentBoughtFromDA) {
         // sold commodities (by DA and LP)
-        final Collection<CommoditySoldDTO> commoditiesSoldByDA =
+        final Collection<CommoditySoldImpl> commoditiesSoldByDA =
             Arrays.asList(
                 createCommoditySoldDTO(CommodityType.STORAGE_ACCESS_VALUE, null),
                 createCommoditySoldDTO(CommodityType.EXTENT_VALUE, null));
-        final Collection<CommoditySoldDTO> commoditiesSoldByLP =
+        final Collection<CommoditySoldImpl> commoditiesSoldByLP =
             Collections.singleton(createCommoditySoldDTO(CommodityType.EXTENT_VALUE, null));
 
         // bought commodities (by ST)
-        final Collection<CommodityBoughtDTO> commoditiesBoughtbySTfromDA = new ArrayList<>();
+        final Collection<CommodityBoughtImpl> commoditiesBoughtbySTfromDA = new ArrayList<>();
         if (storageAccessBought) {
             commoditiesBoughtbySTfromDA.add(
                 createCommodityBoughtDTO(CommodityType.STORAGE_ACCESS_VALUE, null));
@@ -392,31 +389,31 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
             commoditiesBoughtbySTfromDA.add(
                 createCommodityBoughtDTO(CommodityType.EXTENT_VALUE, null));
         }
-        final Collection<CommodityBoughtDTO> commoditiesBoughtbySTfromLP = new ArrayList<>();
+        final Collection<CommodityBoughtImpl> commoditiesBoughtbySTfromLP = new ArrayList<>();
         if (extentBoughtFromLP) {
             commoditiesBoughtbySTfromLP.add(
                 createCommodityBoughtDTO(CommodityType.EXTENT_VALUE, null));
         }
-        final CommoditiesBoughtFromProvider stFromDA =
-            CommoditiesBoughtFromProvider.newBuilder().setProviderId(daOid).
+        final CommoditiesBoughtFromProviderImpl stFromDA =
+            new CommoditiesBoughtFromProviderImpl().setProviderId(daOid).
             setProviderEntityType(EntityType.DISK_ARRAY_VALUE).
-            addAllCommodityBought(commoditiesBoughtbySTfromDA).build();
-        final CommoditiesBoughtFromProvider lpFromDA =
-            CommoditiesBoughtFromProvider.newBuilder().setProviderId(lpOid).
+            addAllCommodityBought(commoditiesBoughtbySTfromDA);
+        final CommoditiesBoughtFromProviderImpl lpFromDA =
+                new CommoditiesBoughtFromProviderImpl().setProviderId(lpOid).
             setProviderEntityType(EntityType.LOGICAL_POOL_VALUE).
-            addAllCommodityBought(commoditiesBoughtbySTfromLP).build();
+            addAllCommodityBought(commoditiesBoughtbySTfromLP);
 
         // entities
         final TopologyEntity.Builder storage =
-            TopologyEntity.newBuilder(buildEntity(
+             TopologyEntity.newBuilder(buildEntity(
                 stPrototype, Collections.singleton(DISJUNCTION_TARGET_ID),
                 Collections.emptyList(), Arrays.asList(stFromDA, lpFromDA)));
         final TopologyEntity.Builder diskarray =
-            TopologyEntity.newBuilder(buildEntity(
+             TopologyEntity.newBuilder(buildEntity(
                 daPrototype, Collections.singleton(DISJUNCTION_TARGET_ID),
                 commoditiesSoldByDA, Collections.emptyList()));
         final TopologyEntity.Builder logicalPool =
-            TopologyEntity.newBuilder(buildEntity(
+             TopologyEntity.newBuilder(buildEntity(
                 lpPrototype, Collections.singleton(DISJUNCTION_TARGET_ID),
                 commoditiesSoldByLP, Collections.emptyList()));
 
@@ -586,35 +583,35 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
         checkExpectedErrors(errors, false, false, false);
     }
 
-    private CommoditySoldDTO createCommoditySoldDTO(int commodityTypeValue, String key) {
-        final TopologyDTO.CommodityType.Builder commType = TopologyDTO.CommodityType.newBuilder();
+    private CommoditySoldImpl createCommoditySoldDTO(int commodityTypeValue, String key) {
+        final TopologyPOJO.CommodityTypeImpl commType = new TopologyPOJO.CommodityTypeImpl();
         if (key != null) {
             commType.setKey(key);
         }
         final long CAP = 200L;
-        return CommoditySoldDTO.newBuilder().setCommodityType(commType.setType(commodityTypeValue)).setCapacity(CAP)
-                .setUsed(USED).setPeak(PEAK).build();
+        return new TopologyPOJO.CommoditySoldImpl().setCommodityType(commType.setType(commodityTypeValue)).setCapacity(CAP)
+                .setUsed(USED).setPeak(PEAK);
     }
 
-    private CommodityBoughtDTO createCommodityBoughtDTO(int commodityTypeValue, String key) {
-        final TopologyDTO.CommodityType.Builder commType = TopologyDTO.CommodityType.newBuilder();
+    private CommodityBoughtImpl createCommodityBoughtDTO(int commodityTypeValue, String key) {
+        final TopologyPOJO.CommodityTypeImpl commType = new TopologyPOJO.CommodityTypeImpl();
         if (key != null) {
             commType.setKey(key);
         }
-        return CommodityBoughtDTO.newBuilder().setCommodityType(commType.setType(commodityTypeValue))
-                .setUsed(USED).setPeak(PEAK).build();
+        return new TopologyPOJO.CommodityBoughtImpl().setCommodityType(commType.setType(commodityTypeValue))
+                .setUsed(USED).setPeak(PEAK);
     }
 
-    private TopologyEntityDTO.Builder buildEntity(
-            TopologyEntityDTO.Builder prototype, Collection<Long> targetIds,
-            Collection<? extends CommoditySoldDTO> commoditySoldDTOs,
-            Collection<? extends CommoditiesBoughtFromProvider> commodityBoughtDTOs) {
-        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+    private TopologyEntityImpl buildEntity(
+            TopologyEntityImpl prototype, Collection<Long> targetIds,
+            Collection<? extends CommoditySoldImpl> commoditySoldDTOs,
+            Collection<? extends CommoditiesBoughtFromProviderImpl> commodityBoughtDTOs) {
+        TopologyEntityImpl.DiscoveryOriginImpl origin = new TopologyEntityImpl.DiscoveryOriginImpl();
         targetIds.forEach(id -> origin
                         .putDiscoveredTargetData(id,
-                                                 PerTargetEntityInformation.getDefaultInstance()));
-        return TopologyEntityDTO.newBuilder(prototype.build())
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(origin))
+                                                 TopologyPOJO.PerTargetEntityInformationView.getDefaultInstance()));
+        return new TopologyEntityImpl(prototype)
+                .setOrigin(new TopologyEntityImpl.OriginImpl().setDiscoveryOrigin(origin))
                 .addAllCommoditySoldList(commoditySoldDTOs).addAllCommoditiesBoughtFromProviders(commodityBoughtDTOs);
     }
 }

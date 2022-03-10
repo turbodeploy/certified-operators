@@ -29,8 +29,10 @@ import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.GetAllEntity
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.GetAllEntityCustomTagsResponse;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc.EntityCustomTagsServiceBlockingStub;
-import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
-import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.tag.TagPOJO.TagValuesImpl;
+import com.vmturbo.common.protobuf.tag.TagPOJO.TagValuesView;
+import com.vmturbo.common.protobuf.tag.TagPOJO.TagsImpl;
+import com.vmturbo.common.protobuf.tag.TagPOJO.TagsView;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -54,18 +56,17 @@ public class EntityCustomTagsMergerTest {
 
     private final String discoveredValueStr = "discovered_value";
 
-    private final TagValuesDTO discoveredValue = TagValuesDTO.newBuilder()
-            .addValues(discoveredValueStr).build();
+    private final TagValuesImpl discoveredValue = new TagValuesImpl()
+            .addValues(discoveredValueStr);
 
-    private Tags discoveredTags = Tags.newBuilder()
-            .putTags(discoveredKey, discoveredValue)
-            .build();
+    private TagsImpl discoveredTags = new TagsImpl()
+            .putTags(discoveredKey, discoveredValue);
 
     private TopologyEntityDTO.Builder hostInDatacenter = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
             .setDisplayName("ENTITY")
             .setOid(entityID)
-            .setTags(discoveredTags);
+            .setTags(discoveredTags.toProto());
 
     private TopologyEntityDTO.Builder datacenter = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.DATACENTER_VALUE)
@@ -110,13 +111,10 @@ public class EntityCustomTagsMergerTest {
 
         final String customKey = "custom_key";
         final String customValueStr = "custom_value";
-        final TagValuesDTO customValue = TagValuesDTO.newBuilder().addValues(customValueStr).build();
-        EntityCustomTags customTags = EntityCustomTags.newBuilder().setTags(
-                Tags.newBuilder().putTags(
-                                customKey,
-                                customValue)
-                        .build()
-        ).setEntityId(42L).build();
+        final TagValuesImpl customValue = new TagValuesImpl().addValues(customValueStr);
+        EntityCustomTags customTags = EntityCustomTags.newBuilder()
+            .setTags(new TagsImpl().putTags(customKey, customValue).toProto())
+            .setEntityId(42L).build();
 
         List<EntityCustomTags> customTagsList = new ArrayList<>();
         customTagsList.add(customTags);
@@ -129,11 +127,10 @@ public class EntityCustomTagsMergerTest {
         doReturn(response).when(customTagsServiceMole).getAllTags(request);
         recorderSpy.mergeEntityCustomTags(topologyMap);
 
-        Tags finalTags = topologyMap.get(entityID).getEntityBuilder().getTags();
-        Tags expectedTags = Tags.newBuilder()
+        TagsView finalTags = topologyMap.get(entityID).getTopologyEntityImpl().getTags();
+        TagsImpl expectedTags = new TagsImpl()
                 .putTags(customKey, customValue)
-                .putTags(discoveredKey, discoveredValue)
-                .build();
+                .putTags(discoveredKey, discoveredValue);
         assertThat(finalTags, is(expectedTags));
     }
 
@@ -146,13 +143,10 @@ public class EntityCustomTagsMergerTest {
     public void testMergeTagsWithSameKey() throws OperationFailedException {
 
         final String customValueStr = "custom_value";
-        final TagValuesDTO customValue = TagValuesDTO.newBuilder().addValues(customValueStr).build();
-        EntityCustomTags customTags = EntityCustomTags.newBuilder().setTags(
-                Tags.newBuilder().putTags(
-                                discoveredKey,
-                                customValue)
-                        .build()
-        ).setEntityId(42L).build();
+        final TagValuesImpl customValue = new TagValuesImpl().addValues(customValueStr);
+        EntityCustomTags customTags = EntityCustomTags.newBuilder()
+            .setTags(new TagsImpl().putTags(discoveredKey, customValue).toProto())
+            .setEntityId(42L).build();
 
         List<EntityCustomTags> customTagsList = new ArrayList<>();
         customTagsList.add(customTags);
@@ -165,9 +159,9 @@ public class EntityCustomTagsMergerTest {
         doReturn(response).when(customTagsServiceMole).getAllTags(request);
         recorderSpy.mergeEntityCustomTags(topologyMap);
 
-        Tags finalTags = topologyMap.get(entityID).getEntityBuilder().getTags();
+        TagsView finalTags = topologyMap.get(entityID).getTopologyEntityImpl().getTags();
 
-        TagValuesDTO finalTagValues = finalTags.getTagsMap().get(discoveredKey);
+        TagValuesView finalTagValues = finalTags.getTagsMap().get(discoveredKey);
         assertThat(finalTagValues, is(notNullValue()));
 
         List<String> finalValuesList = finalTagValues.getValuesList();
@@ -183,13 +177,10 @@ public class EntityCustomTagsMergerTest {
     public void testMergeTagsRPCFail() throws OperationFailedException {
 
         final String customValueStr = "custom_value";
-        final TagValuesDTO customValue = TagValuesDTO.newBuilder().addValues(customValueStr).build();
-        EntityCustomTags customTags = EntityCustomTags.newBuilder().setTags(
-                Tags.newBuilder().putTags(
-                                discoveredKey,
-                                customValue)
-                        .build()
-        ).setEntityId(entityID).build();
+        final TagValuesImpl customValue = new TagValuesImpl().addValues(customValueStr);
+        EntityCustomTags customTags = EntityCustomTags.newBuilder()
+            .setTags(new TagsImpl().putTags(discoveredKey, customValue).toProto())
+            .setEntityId(entityID).build();
 
         List<EntityCustomTags> customTagsList = new ArrayList<>();
         customTagsList.add(customTags);
@@ -212,13 +203,10 @@ public class EntityCustomTagsMergerTest {
 
         final String customKey = "custom_key";
         final String customValueStr = "custom_value";
-        final TagValuesDTO customValue = TagValuesDTO.newBuilder().addValues(customValueStr).build();
-        EntityCustomTags customTags = EntityCustomTags.newBuilder().setTags(
-                Tags.newBuilder().putTags(
-                                customKey,
-                                customValue)
-                        .build()
-        ).setEntityId(entityID + 1).build();
+        final TagValuesImpl customValue = new TagValuesImpl().addValues(customValueStr);
+        EntityCustomTags customTags = EntityCustomTags.newBuilder()
+            .setTags(new TagsImpl().putTags(customKey, customValue).toProto())
+            .setEntityId(entityID + 1).build();
 
         List<EntityCustomTags> customTagsList = new ArrayList<>();
         customTagsList.add(customTags);
@@ -234,10 +222,9 @@ public class EntityCustomTagsMergerTest {
         assertThat(topologyMap.get(entityID + 1), is(nullValue()));
 
         // entityID tags should remain unchanged
-        Tags finalTags = topologyMap.get(entityID).getEntityBuilder().getTags();
-        Tags expectedTags = Tags.newBuilder()
-                .putTags(discoveredKey, discoveredValue)
-                .build();
+        TagsView finalTags = topologyMap.get(entityID).getTopologyEntityImpl().getTags();
+        TagsImpl expectedTags = new TagsImpl()
+                .putTags(discoveredKey, discoveredValue);
         assertThat(finalTags, is(expectedTags));
     }
 }

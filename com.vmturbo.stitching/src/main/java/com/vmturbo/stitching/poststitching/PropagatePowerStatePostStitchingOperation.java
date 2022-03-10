@@ -88,7 +88,7 @@ public class PropagatePowerStatePostStitchingOperation implements PostStitchingO
                 logger.debug("Changing state of entity {} from {} to UNKNOWN since state of its " +
                     "provider {} is {}", consumer.getOid(), consumer.getEntityState(),
                     topologyEntity, topologyEntity.getEntityState());
-                consumer.getTopologyEntityDtoBuilder().setEntityState(EntityState.UNKNOWN);
+                consumer.getTopologyEntityImpl().setEntityState(EntityState.UNKNOWN);
                 propagate(consumer);
             });
     }

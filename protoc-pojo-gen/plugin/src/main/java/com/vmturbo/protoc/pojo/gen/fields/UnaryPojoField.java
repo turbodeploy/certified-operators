@@ -34,7 +34,10 @@ import com.vmturbo.protoc.pojo.gen.TypeNameUtilities.ParameterizedTypeName;
  */
 public abstract class UnaryPojoField implements IPojoField {
 
-    private static final String DEFAULT_VALUE_STRING = "_DEFAULT_VALUE";
+    /**
+     * Default value for a field.
+     */
+    public static final String DEFAULT_VALUE_STRING = "_DEFAULT_VALUE";
 
     /**
      * The {@link TypeName} for the {@link String} class.
@@ -108,8 +111,22 @@ public abstract class UnaryPojoField implements IPojoField {
         return parameterizedTypeName.getTypeName();
     }
 
+    /**
+     * Get generic type parameters.
+     *
+     * @return generic type parameters.
+     */
     public List<ParameterizedTypeName> getGenericTypeParameters() {
         return parameterizedTypeName.getTypeParameters();
+    }
+
+    /**
+     * Get generic type strings.
+     *
+     * @return generic type strings.
+     */
+    public List<String> getGenericTypeStrings() {
+        return parameterizedTypeName.getTypeStrings();
     }
 
     /**

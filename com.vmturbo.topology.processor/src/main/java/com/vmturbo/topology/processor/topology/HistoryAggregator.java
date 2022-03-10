@@ -27,11 +27,11 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.utils.ThrowingConsumer;
 import com.vmturbo.components.common.utils.TriFunction;
@@ -312,10 +312,10 @@ public class HistoryAggregator {
             graph.entities()
                 .filter(editor::isEntityApplicable)
                 .forEach(entity -> {
-                    TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
+                    TopologyEntityImpl entityImpl = entity.getTopologyEntityImpl();
                     // gather sold
-                    for (CommoditySoldDTO.Builder commSold : entityBuilder
-                                    .getCommoditySoldListBuilderList()) {
+                    for (CommoditySoldImpl commSold : entityImpl
+                                    .getCommoditySoldListImplList()) {
                         if (editor.isCommodityApplicable(entity, commSold, topoInfo)) {
                             editorComms.add(new EntityCommodityReference(entity.getOid(),
                                                                          commSold.getCommodityType(),
@@ -323,10 +323,10 @@ public class HistoryAggregator {
                         }
                     }
                     // gather bought
-                    for (CommoditiesBoughtFromProvider.Builder commBoughtFromProvider : entityBuilder
-                                    .getCommoditiesBoughtFromProvidersBuilderList()) {
-                        for (CommodityBoughtDTO.Builder commBought : commBoughtFromProvider
-                                        .getCommodityBoughtBuilderList()) {
+                    for (CommoditiesBoughtFromProviderImpl commBoughtFromProvider : entityImpl
+                                    .getCommoditiesBoughtFromProvidersImplList()) {
+                        for (CommodityBoughtImpl commBought : commBoughtFromProvider
+                                        .getCommodityBoughtImplList()) {
                             if (editor.isCommodityApplicable(entity, commBought,
                                     commBoughtFromProvider.getProviderEntityType())) {
                                 editorComms.add(new EntityCommodityReference(entity.getOid(),

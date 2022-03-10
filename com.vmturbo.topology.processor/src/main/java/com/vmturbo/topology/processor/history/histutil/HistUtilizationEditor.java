@@ -9,8 +9,9 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.history.AbstractCachingHistoricalEditor;
@@ -47,7 +48,7 @@ public class HistUtilizationEditor extends
 
     @Override
     public boolean isCommodityApplicable(TopologyEntity entity,
-                                         TopologyDTO.CommoditySoldDTO.Builder commSold,
+                                         CommoditySoldImpl commSold,
                                          TopologyInfo topoInfo) {
         // TODO dmitry filter access
         return true;
@@ -55,7 +56,7 @@ public class HistUtilizationEditor extends
 
     @Override
     public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-            @Nonnull TopologyDTO.CommodityBoughtDTO.Builder commBought, int providerType) {
+            @Nonnull CommodityBoughtImpl commBought, int providerType) {
         // TODO dmitry filter access
         return true;
     }

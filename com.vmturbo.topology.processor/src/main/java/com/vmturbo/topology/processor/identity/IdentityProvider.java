@@ -11,7 +11,7 @@ import javax.annotation.Nonnull;
 
 import it.unimi.dsi.fastutil.longs.LongSet;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
@@ -97,7 +97,7 @@ public interface IdentityProvider extends DiagsRestorable<Void>, RequiresDataIni
      * @param inputEntity The entity to clone.
      * @return The OID to use to identify the clone.
      */
-    long getCloneId(@Nonnull TopologyEntityDTOOrBuilder inputEntity);
+    long getCloneId(@Nonnull TopologyEntityView inputEntity);
 
     /**
      * Generate an ID for a new operation.

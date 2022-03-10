@@ -26,9 +26,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl.ThresholdsImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.HistoricalValuesImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
@@ -48,11 +48,11 @@ public class MovingStatisticsCommodityDataTest extends MovingStatisticsBaseTest 
     private final MovingStatisticsCommodityData data = new MovingStatisticsCommodityData();
 
     private final EntityCommodityFieldReference memRef = new EntityCommodityFieldReference(
-        1L, CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE).build(),
+        1L, new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VMEM_VALUE),
         CommodityField.USED);
 
     private final EntityCommodityFieldReference cpuRef = new EntityCommodityFieldReference(
-        2L, CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE).build(),
+        2L, new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_VALUE),
         CommodityField.USED);
 
     private final Clock clock = Mockito.mock(Clock.class);
@@ -184,9 +184,9 @@ public class MovingStatisticsCommodityDataTest extends MovingStatisticsBaseTest 
             any(), anyString());
         verify(fieldAccessor, never()).updateThresholds(any(EntityCommodityFieldReference.class), any(), anyString());
 
-        final HistoricalValues.Builder histValuesBuilder = HistoricalValues.newBuilder();
-        histValuesCaptor.getValue().accept(histValuesBuilder);
-        assertEquals(2.0, histValuesBuilder.getMovingMeanPlusStandardDeviations(), 0);
+        final HistoricalValuesImpl histValuesImpl = new HistoricalValuesImpl();
+        histValuesCaptor.getValue().accept(histValuesImpl);
+        assertEquals(2.0, histValuesImpl.getMovingMeanPlusStandardDeviations(), 0);
     }
 
     /**
@@ -215,10 +215,10 @@ public class MovingStatisticsCommodityDataTest extends MovingStatisticsBaseTest 
         verify(fieldAccessor).updateThresholds(argThat(refMatching(CommodityDTO.CommodityType.BALLOONING_VALUE)),
             any(), anyString());
 
-        final Thresholds.Builder thresholdsBuilder = Thresholds.newBuilder();
-        thresholdsCaptor.getValue().accept(thresholdsBuilder);
-        assertEquals(3.0, thresholdsBuilder.getMin(), 0);
-        assertFalse(thresholdsBuilder.hasMax());
+        final ThresholdsImpl thresholdsImpl = new ThresholdsImpl();
+        thresholdsCaptor.getValue().accept(thresholdsImpl);
+        assertEquals(3.0, thresholdsImpl.getMin(), 0);
+        assertFalse(thresholdsImpl.hasMax());
     }
 
     /**

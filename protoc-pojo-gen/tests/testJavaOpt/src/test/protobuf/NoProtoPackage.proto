@@ -1,0 +1,16 @@
+syntax = "proto2";
+
+option java_package = "com.vmturbo.protoc.pojo.gen.nopackage";
+option java_outer_classname = "NoProtoPackage";
+
+// A random message
+message ASDF {
+  // Some field
+  required string field = 1;
+}
+
+// A parent message
+message JKL {
+  // The source.
+  optional ASDF source = 5;
+}

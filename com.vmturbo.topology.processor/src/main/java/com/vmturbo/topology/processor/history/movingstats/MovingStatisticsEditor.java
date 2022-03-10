@@ -26,10 +26,10 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.utils.ThrowingFunction;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -122,14 +122,14 @@ public class MovingStatisticsEditor extends BlobPersistingCachingHistoricalEdito
 
     @Override
     public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                                         @Nonnull CommoditySoldDTO.Builder commSold,
+                                         @Nonnull CommoditySoldImpl commSold,
                                          @Nullable TopologyInfo topoInfo) {
         return getConfig().getSamplingConfigurations(commSold.getCommodityType().getType()) != null;
     }
 
     @Override
     public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                                         @Nonnull CommodityBoughtDTO.Builder commBought,
+                                         @Nonnull CommodityBoughtImpl commBought,
                                          int providerType) {
         // Do not apply to any bought commodities.
         return false;

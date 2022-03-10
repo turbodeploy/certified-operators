@@ -15,8 +15,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
@@ -35,12 +35,12 @@ public class EntitySettingsCollectionTest {
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
         .build();
 
-    private static final TopologyEntityDTO.Builder PARENT_ENTITY_DTO_BUILDER =
-        TopologyEntityDTO.newBuilder().setOid(ENTITY_OID).setEntityType(100001);
+    private static final TopologyEntityImpl PARENT_ENTITY_DTO_BUILDER =
+        new TopologyEntityImpl().setOid(ENTITY_OID).setEntityType(100001);
 
     private static final TopologyEntity PARENT_ENTITY =
         TopologyEntity.newBuilder(PARENT_ENTITY_DTO_BUILDER.setOrigin(
-            Origin.newBuilder().setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(1234L).lastUpdatedAt(5678L)))
+            new OriginImpl().setDiscoveryOrigin(DiscoveryOriginImplBuilder.discoveredBy(1234L).lastUpdatedAt(5678L)))
         ).build();
 
     final Map<Long, SettingPolicy> defaultSettingPolicies = Collections.singletonMap(

@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.historical;
 
 import java.util.ArrayList;
 import java.util.List;
-import com.google.common.collect.Lists;
 
 /**
  * This class keeps information for the historical used and peak values of all the commodities

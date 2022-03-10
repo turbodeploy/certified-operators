@@ -30,9 +30,9 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.PlanScenarioOriginImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -92,7 +92,7 @@ public class TemplateConverterFactory {
      * @return set of {@link TopologyEntityDTO}.
      */
     @Nonnull
-    public Stream<TopologyEntityDTO.Builder> generateTopologyEntityFromTemplates(
+    public Stream<TopologyEntityImpl> generateTopologyEntityFromTemplates(
             @Nonnull final Map<Long, Long> templateAdditions,
             @Nonnull Multimap<Long, Long> templateToReplacedEntity,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology, long topologyId) {
@@ -107,19 +107,19 @@ public class TemplateConverterFactory {
             return Stream.empty();
         }
 
-        List<TopologyEntityDTO.Builder> result = new ArrayList<>();
+        List<TopologyEntityImpl> result = new ArrayList<>();
         Stopwatch stopwatch = Stopwatch.createStarted();
 
         for (Template template : templates) {
             try {
                 long additionCount = templateAdditions.getOrDefault(template.getId(), 0L);
-                Collection<TopologyEntityDTO.Builder> additionTemplates = generateEntityByTemplateAddition(
+                Collection<TopologyEntityImpl> additionTemplates = generateEntityByTemplateAddition(
                         template, topology, additionCount, topologyId);
                 result.addAll(additionTemplates);
 
                 Collection<Long> replacedEntityOids = templateToReplacedEntity
                         .get(template.getId());
-                Collection<TopologyEntityDTO.Builder> replacedTemplates = generateEntityByTemplateReplaced(
+                Collection<TopologyEntityImpl> replacedTemplates = generateEntityByTemplateReplaced(
                         template, topology, replacedEntityOids, topologyId);
                 result.addAll(replacedTemplates);
             } catch (TopologyEntityConstructorException e) {
@@ -165,10 +165,10 @@ public class TemplateConverterFactory {
     }
 
     @Nonnull
-    private Collection<TopologyEntityDTO.Builder> generateEntityByTemplateAddition(
+    private Collection<TopologyEntityImpl> generateEntityByTemplateAddition(
             @Nonnull final Template template,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology, final long additionCount, long topologyId) throws TopologyEntityConstructorException {
-        List<TopologyEntityDTO.Builder> result = new ArrayList<>();
+        List<TopologyEntityImpl> result = new ArrayList<>();
 
         for (int i = 0; i < additionCount; i++) {
             result.add(generateTopologyEntityByType(template, topology, null,
@@ -179,7 +179,7 @@ public class TemplateConverterFactory {
     }
 
     @Nonnull
-    private Collection<TopologyEntityDTO.Builder> generateEntityByTemplateReplaced(
+    private Collection<TopologyEntityImpl> generateEntityByTemplateReplaced(
             @Nonnull final Template template,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             @Nonnull Collection<Long> replacedEntityOids, long topologyId)
@@ -193,11 +193,11 @@ public class TemplateConverterFactory {
             return new HCIPhysicalMachineEntityConstructor(template, topology, identityProvider,
                     settingPolicyService).replaceEntitiesFromTemplate(entitiesToReplace);
         } else {
-            List<TopologyEntityDTO.Builder> result = new ArrayList<>();
+            List<TopologyEntityImpl> result = new ArrayList<>();
 
             for (TopologyEntity.Builder entity : entitiesToReplace) {
                 result.add(generateTopologyEntityByType(template, topology,
-                        entity.getEntityBuilder(), TemplateActionType.REPLACE, null, topologyId));
+                        entity.getTopologyEntityImpl(), TemplateActionType.REPLACE, null, topologyId));
             }
 
             return result;
@@ -218,7 +218,7 @@ public class TemplateConverterFactory {
                     continue;
                 }
 
-                consumer.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
+                consumer.getTopologyEntityImpl().getOrCreateAnalysisSettings()
                         .setShopTogether(true);
             }
         }
@@ -245,9 +245,9 @@ public class TemplateConverterFactory {
     }
 
     @Nonnull
-    private TopologyEntityDTO.Builder generateTopologyEntityByType(@Nonnull Template template,
+    private TopologyEntityImpl generateTopologyEntityByType(@Nonnull Template template,
             @Nonnull Map<Long, TopologyEntity.Builder> topology,
-            @Nullable TopologyEntityDTO.Builder originalTopologyEntity,
+            @Nullable TopologyEntityImpl originalTopologyEntity,
             @Nonnull TemplateActionType actionType, @Nullable String nameSuffix, long topologyId)
             throws TopologyEntityConstructorException {
         final int templateEntityType = template.getTemplateInfo().getEntityType();
@@ -258,18 +258,18 @@ public class TemplateConverterFactory {
                     "Template type " + templateEntityType + "  is not supported.");
         }
 
-        final Builder entityFromTemplate = converterMap.get(templateEntityType)
+        final TopologyEntityImpl entityFromTemplate = converterMap.get(templateEntityType)
                 .createTopologyEntityFromTemplate(template, topology, originalTopologyEntity,
                         actionType, identityProvider, nameSuffix);
 
         // entity added in plan are marked with a plan origin
-        final PlanScenarioOrigin.Builder planOriginBuilder =
-                PlanScenarioOrigin.newBuilder().setPlanId(topologyId);
+        final PlanScenarioOriginImpl planOrigin =
+                new PlanScenarioOriginImpl().setPlanId(topologyId);
         if (originalTopologyEntity != null) {
-            planOriginBuilder.setOriginalEntityId(originalTopologyEntity.getOid());
+            planOrigin.setOriginalEntityId(originalTopologyEntity.getOid());
         }
         entityFromTemplate.setOrigin(
-                Origin.newBuilder().setPlanScenarioOrigin(planOriginBuilder.build()));
+                new OriginImpl().setPlanScenarioOrigin(planOrigin));
         return entityFromTemplate;
     }
 }

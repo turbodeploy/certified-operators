@@ -18,7 +18,6 @@ import com.vmturbo.components.common.setting.PercentileSettingSpecs.EntityTypePe
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.history.AbstractBlobsHistoricalEditorConfig;
-import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 
 /**

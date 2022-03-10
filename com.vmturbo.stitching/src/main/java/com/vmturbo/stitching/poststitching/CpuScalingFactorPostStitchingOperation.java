@@ -28,10 +28,11 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoView;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -216,7 +217,7 @@ public abstract class CpuScalingFactorPostStitchingOperation implements PostStit
      */
     private double getMillicoreScalingFactor(@Nonnull final TopologyEntity entity, final double scalingFactor) {
         if (isContainerVM(entity)) {
-            return TopologyDTOUtil.getCPUCoreMhz(entity.getTopologyEntityDtoBuilder())
+            return TopologyDTOUtil.getCPUCoreMhz(entity.getTopologyEntityImpl())
                 .map(cpuCoreMhz -> scalingFactor * cpuCoreMhz / 1000)
                 .orElseGet(() -> {
                     //Only Print the log if the vm state is not unknown to avoid log pollution
@@ -234,7 +235,8 @@ public abstract class CpuScalingFactorPostStitchingOperation implements PostStit
      * Update the 'scalingFactor' for any commoditiesSold of this entity that should be
      * scaled (see COMMODITIES_TO_SCALE).
      *
-     * @param entityToUpdate         A TopologyEntity for which we should check for commodities to scale.
+     * @param entityToUpdate         A TopologyEntity for which we should check for commodities to
+     * scale.
      * @param rawMHzScalingFactor    Raw MHz scaling factor to apply to any commodities that should scale.
      *                               It'll be used to convert commodity values from raw MHz to normalized MHz
      * @param millicoreScalingFactor Millicore scaling factor to apply to any commodities that should scale.
@@ -245,8 +247,8 @@ public abstract class CpuScalingFactorPostStitchingOperation implements PostStit
                                                        final double rawMHzScalingFactor,
                                                        final double millicoreScalingFactor) {
         return Objects.requireNonNull(entityToUpdate)
-            .getTopologyEntityDtoBuilder()
-            .getCommoditySoldListBuilderList().stream()
+            .getTopologyEntityImpl()
+            .getCommoditySoldListImplList().stream()
             .filter(commoditySold -> commodityTypeShouldScale(commoditySold.getCommodityType()))
             .peek(commSold -> {
                 final double scalingFactor =
@@ -307,10 +309,10 @@ public abstract class CpuScalingFactorPostStitchingOperation implements PostStit
     private long updateScalingFactorForBoughtCommodities(@Nonnull final TopologyEntity entityToUpdate,
                                                        final double scalingFactor) {
         return Objects.requireNonNull(entityToUpdate)
-            .getTopologyEntityDtoBuilder()
-            .getCommoditiesBoughtFromProvidersBuilderList().stream()
+            .getTopologyEntityImpl()
+            .getCommoditiesBoughtFromProvidersImplList().stream()
             .flatMap(commoditiesBoughtFromProvider ->
-                commoditiesBoughtFromProvider.getCommodityBoughtBuilderList().stream())
+                commoditiesBoughtFromProvider.getCommodityBoughtImplList().stream())
             .filter(commodityBoughtFromProvider ->
                 commodityTypeShouldScale(commodityBoughtFromProvider.getCommodityType()))
             .peek(commBought -> updateCommBoughtScalingFactor(entityToUpdate, commBought, scalingFactor))
@@ -325,7 +327,7 @@ public abstract class CpuScalingFactorPostStitchingOperation implements PostStit
      * @param scalingFactor The scaling factor to set.
      */
     private void updateCommSoldScalingFactor(@Nonnull final TopologyEntity entityToUpdate,
-                                             @Nonnull final CommoditySoldDTO.Builder commSold,
+                                             @Nonnull final CommoditySoldImpl commSold,
                                              final double scalingFactor) {
         // If the commSold already has a scalingFactor and requires a maximum of the scalingFactors
         // from all related hosts, pick the larger between the new and existing scaling factors.
@@ -348,7 +350,7 @@ public abstract class CpuScalingFactorPostStitchingOperation implements PostStit
      * @param scalingFactor The scaling factor to set.
      */
     private void updateCommBoughtScalingFactor(@Nonnull final TopologyEntity entityToUpdate,
-                                               @Nonnull final CommodityBoughtDTO.Builder commBought,
+                                               @Nonnull final CommodityBoughtImpl commBought,
                                                final double scalingFactor) {
         // If the commBought already has a scalingFactor and requires a maximum of the scalingFactors
         // from all related hosts, pick the larger between the new and existing scaling factors.
@@ -369,7 +371,7 @@ public abstract class CpuScalingFactorPostStitchingOperation implements PostStit
      * @param commodityType the commodityType to test
      * @return true iff this commodity should have a 'scaleFactor' applied, if one is found
      */
-    private boolean commodityTypeShouldScale(@Nonnull TopologyDTO.CommodityType commodityType) {
+    private boolean commodityTypeShouldScale(@Nonnull CommodityTypeView commodityType) {
         if (enableConsistentScalingOnHeterogeneousProviders) {
             return COMMODITY_TYPES_TO_SCALE_CONSISTENT_SCALING_FACTOR.contains(commodityType.getType());
         } else {
@@ -448,8 +450,8 @@ public abstract class CpuScalingFactorPostStitchingOperation implements PostStit
          * the PM doesn't have a 'cpuModel' field set.
          */
         private Optional<String> getCpuModelOpt(@Nonnull final TopologyEntity entityToFetchFrom) {
-            final TypeSpecificInfo typeSpecificInfo = Objects.requireNonNull(entityToFetchFrom)
-                .getTopologyEntityDtoBuilder().getTypeSpecificInfo();
+            final TypeSpecificInfoView typeSpecificInfo = Objects.requireNonNull(entityToFetchFrom)
+                .getTopologyEntityImpl().getTypeSpecificInfo();
             return typeSpecificInfo.hasPhysicalMachine() &&
                 typeSpecificInfo.getPhysicalMachine().hasCpuModel()
                 ? Optional.of(typeSpecificInfo.getPhysicalMachine().getCpuModel())

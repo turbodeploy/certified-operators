@@ -4,8 +4,9 @@ import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.HistoricalValuesImpl;
 
 /**
  * Define the target field of commodity DTO to be filled by historical aggregation.
@@ -16,20 +17,20 @@ public enum CommodityField {
      */
     USED((sold) -> sold.hasUsed() ? sold.getUsed() : null,
          (bought) -> bought.hasUsed() ? bought.getUsed() : null,
-         TopologyDTO.CommoditySoldDTO.Builder::getHistoricalUsedBuilder,
-         TopologyDTO.CommodityBoughtDTO.Builder::getHistoricalUsedBuilder),
+         CommoditySoldImpl::getOrCreateHistoricalUsed,
+         CommodityBoughtImpl::getOrCreateHistoricalUsed),
     /**
      * A "peak" field description for identity purposes.
      */
-    PEAK(TopologyDTO.CommoditySoldDTO.Builder::getPeak,
-         TopologyDTO.CommodityBoughtDTO.Builder::getPeak,
-         TopologyDTO.CommoditySoldDTO.Builder::getHistoricalPeakBuilder,
-         TopologyDTO.CommodityBoughtDTO.Builder::getHistoricalPeakBuilder);
+    PEAK(CommoditySoldImpl::getPeak,
+         CommodityBoughtImpl::getPeak,
+         CommoditySoldImpl::getOrCreateHistoricalPeak,
+         CommodityBoughtImpl::getOrCreateHistoricalPeak);
 
-    private final Function<TopologyDTO.CommoditySoldDTO.Builder, Double> soldValue;
-    private final Function<TopologyDTO.CommodityBoughtDTO.Builder, Double> boughtValue;
-    private final Function<TopologyDTO.CommoditySoldDTO.Builder, HistoricalValues.Builder> soldBuilder;
-    private final Function<TopologyDTO.CommodityBoughtDTO.Builder, HistoricalValues.Builder> boughtBuilder;
+    private final Function<CommoditySoldImpl, Double> soldValue;
+    private final Function<CommodityBoughtImpl, Double> boughtValue;
+    private final Function<CommoditySoldImpl, HistoricalValuesImpl> soldBuilder;
+    private final Function<CommodityBoughtImpl, HistoricalValuesImpl> boughtBuilder;
 
     /**
      * Construct the field reference.
@@ -40,29 +41,29 @@ public enum CommodityField {
      * @param boughtBuilder how to get the field dto builder from a bought commodity dto
      */
     private CommodityField(
-                    @Nonnull Function<TopologyDTO.CommoditySoldDTO.Builder, Double> soldValue,
-                    @Nonnull Function<TopologyDTO.CommodityBoughtDTO.Builder, Double> boughtValue,
-                    @Nonnull Function<TopologyDTO.CommoditySoldDTO.Builder, HistoricalValues.Builder> soldBuilder,
-                    @Nonnull Function<TopologyDTO.CommodityBoughtDTO.Builder, HistoricalValues.Builder> boughtBuilder) {
+                    @Nonnull Function<CommoditySoldImpl, Double> soldValue,
+                    @Nonnull Function<CommodityBoughtImpl, Double> boughtValue,
+                    @Nonnull Function<CommoditySoldImpl, HistoricalValuesImpl> soldBuilder,
+                    @Nonnull Function<CommodityBoughtImpl, HistoricalValuesImpl> boughtBuilder) {
         this.soldValue = soldValue;
         this.boughtValue = boughtValue;
         this.soldBuilder = soldBuilder;
         this.boughtBuilder = boughtBuilder;
     }
 
-    public Function<TopologyDTO.CommoditySoldDTO.Builder, HistoricalValues.Builder> getSoldBuilder() {
+    public Function<CommoditySoldImpl, HistoricalValuesImpl> getSoldBuilder() {
         return soldBuilder;
     }
 
-    public Function<TopologyDTO.CommodityBoughtDTO.Builder, HistoricalValues.Builder> getBoughtBuilder() {
+    public Function<CommodityBoughtImpl, HistoricalValuesImpl> getBoughtBuilder() {
         return boughtBuilder;
     }
 
-    public Function<TopologyDTO.CommoditySoldDTO.Builder, Double> getSoldValue() {
+    public Function<CommoditySoldImpl, Double> getSoldValue() {
         return soldValue;
     }
 
-    public Function<TopologyDTO.CommodityBoughtDTO.Builder, Double> getBoughtValue() {
+    public Function<CommodityBoughtImpl, Double> getBoughtValue() {
         return boughtValue;
     }
 

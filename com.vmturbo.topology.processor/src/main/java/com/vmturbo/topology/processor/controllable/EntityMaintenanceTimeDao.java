@@ -19,9 +19,10 @@ import org.jooq.InsertOnDuplicateSetMoreStep;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
@@ -81,9 +82,11 @@ public class EntityMaintenanceTimeDao implements EntitiesWithNewStateListener {
     public void onEntities(TopologyGraph<TopologyEntity> graph) {
         // gather hosts' data only once for two types of processing
         processHostInfos(graph.entitiesOfType(EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE)
-                        .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                        .map(TopologyEntity::getTopologyEntityImpl)
                         .map(HostMaintenanceInfo::new)
                         .collect(Collectors.toList()));
+
+
     }
 
     private void processHostInfos(List<HostMaintenanceInfo> hostInfos) {
@@ -223,7 +226,22 @@ public class EntityMaintenanceTimeDao implements EntitiesWithNewStateListener {
          *
          * @param dto dto or builder
          */
-        HostMaintenanceInfo(TopologyEntityDTOOrBuilder dto) {
+        HostMaintenanceInfo(TopologyDTO.TopologyEntityDTOOrBuilder dto) {
+            this.oid = dto.getOid();
+            this.state = dto.getEntityState();
+            if (dto.hasTypeSpecificInfo() && dto.getTypeSpecificInfo().hasPhysicalMachine()) {
+                this.level = dto.getTypeSpecificInfo().getPhysicalMachine().getAutomationLevel();
+            } else {
+                this.level = AutomationLevel.NOT_AUTOMATED;
+            }
+        }
+
+        /**
+         * Extract the relevant fields from a topo dto.
+         *
+         * @param dto dto or builder
+         */
+        HostMaintenanceInfo(TopologyEntityImpl dto) {
             this.oid = dto.getOid();
             this.state = dto.getEntityState();
             if (dto.hasTypeSpecificInfo() && dto.getTypeSpecificInfo().hasPhysicalMachine()) {

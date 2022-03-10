@@ -46,9 +46,12 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.PerTargetEntityInformationImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -161,9 +164,8 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
         when(identityProvider.getCurrentOidsInIdentityCache()).thenReturn(oidsInCache);
         commodityReferences = VM_OID_TO_MAP.keySet().stream()
             .map(oid -> new EntityCommodityReference(oid,
-                TopologyDTO.CommodityType.newBuilder()
-                    .setType(CommodityType.VCPU_VALUE)
-                    .build(), null))
+                new CommodityTypeImpl()
+                    .setType(CommodityType.VCPU_VALUE), null))
             .collect(Collectors.toList());
 
         stopwatch = Stopwatch.createStarted();
@@ -341,7 +343,7 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
     }
 
     private GraphWithSettings createGraphWithSettings(Map<Long, Float> vmCapacities,
-                    Map<Long, String> vmOidToNames, int lookbackPeriod) {
+                                                      Map<Long, String> vmOidToNames, int lookbackPeriod) {
         final Map<Long, EntitySettings> entitySettings = new HashMap<>();
         Map<Long, TopologyEntity.Builder> topologyBuilderMap = new HashMap<>();
         createTopology(topologyBuilderMap, entitySettings, vmCapacities, vmOidToNames, lookbackPeriod);
@@ -370,29 +372,24 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
     private void createEntities(Map<Long, TopologyEntity.Builder> topologyBuilderMap, Map<Long, Float> vmCapacities, Map<Long, String> vmOidToNames) {
         for (Map.Entry<Long, String> entry : vmOidToNames.entrySet()) {
             TopologyEntity.Builder builder = TopologyEntity.newBuilder(
-                TopologyDTO.TopologyEntityDTO.newBuilder()
+                new TopologyEntityImpl()
                     .setOid(entry.getKey())
                     .setDisplayName(entry.getValue())
                         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                        .setOrigin(new OriginImpl()
+                                .setDiscoveryOrigin(new DiscoveryOriginImpl()
                                         .putDiscoveredTargetData(1L,
-                                                PerTargetEntityInformation.newBuilder()
-                                                        .setOrigin(EntityOrigin.DISCOVERED)
-                                                        .build())
-                                        .build())
-                                .build()));
+                                                new PerTargetEntityInformationImpl()
+                                                        .setOrigin(EntityOrigin.DISCOVERED)))));
 
             float capacity = vmCapacities.get(entry.getKey());
             float usage = nextUtilizationSupplier.get(entry.getKey()).get() * capacity;
 
-            builder.getEntityBuilder().addCommoditySoldList(TopologyDTO.CommoditySoldDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                    .setType(CommodityType.VCPU_VALUE)
-                    .build())
+            builder.getTopologyEntityImpl().addCommoditySoldList(new CommoditySoldImpl()
+                .setCommodityType(new CommodityTypeImpl()
+                    .setType(CommodityType.VCPU_VALUE))
                 .setUsed(usage)
-                .setCapacity(capacity)
-                .build());
+                .setCapacity(capacity));
 
             topologyBuilderMap.put(entry.getKey(), builder);
         }
@@ -459,15 +456,15 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
                 return Collections.emptyMap();
             }
             for (PercentileRecord record : counts.getPercentileRecordsList()) {
-                final TopologyDTO.CommodityType.Builder commTypeBuilder =
-                    TopologyDTO.CommodityType.newBuilder().setType(record.getCommodityType());
+                final CommodityTypeImpl commType =
+                    new CommodityTypeImpl().setType(record.getCommodityType());
                 if (record.hasKey()) {
-                    commTypeBuilder.setKey(record.getKey());
+                    commType.setKey(record.getKey());
                 }
                 final Long provider = record.hasProviderOid() ? record.getProviderOid() : null;
                 final EntityCommodityFieldReference fieldRef =
                     new EntityCommodityFieldReference(record.getEntityOid(),
-                        commTypeBuilder.build(), provider, CommodityField.USED);
+                        commType, provider, CommodityField.USED);
                 result.put(fieldRef, record);
             }
             return result;

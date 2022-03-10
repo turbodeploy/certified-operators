@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.StringJoiner;
@@ -20,14 +21,14 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.AbstractMessage;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
-
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -48,6 +49,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.common.protobuf.topology.ncm.MatrixDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.InvertedIndex;
@@ -68,9 +72,8 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.api.RepositoryClient;
-import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
@@ -680,12 +683,19 @@ public class Stages {
 
         @Nonnull
         @Override
-        public StageResult<Map<Long, Builder>> executeStage(
+        public StageResult<Map<Long, TopologyEntity.Builder>> executeStage(
                 @Nonnull Map<Long, TopologyEntityDTO.Builder> input) {
             Map<Long, TopologyEntity.Builder> output = new HashMap<>(input.size());
-            input.forEach((id, dtoBldr) -> {
-                output.put(id, TopologyEntity.newBuilder(dtoBldr));
-            });
+            // Iterate the input map and add to the output map one at a time. Remove each
+            // entry in the input map as we iterate in order to avoid having an extra
+            // copy of the topology in memory at the same time.
+            for (Iterator<Entry<Long, TopologyEntityDTO.Builder>> it = input.entrySet().iterator(); it.hasNext();) {
+                final Entry<Long, TopologyEntityDTO.Builder> entry = it.next();
+                output.put(entry.getKey(),
+                    TopologyEntity.newBuilder(TopologyEntityImpl.fromProto(entry.getValue())));
+                it.remove();
+            }
+
             return StageResult.withResult(output).andStatus(Status.success());
         }
     }
@@ -719,7 +729,7 @@ public class Stages {
                     .map(TopologyEntityDTO::toBuilder)
                     .collect(Collectors.toMap(TopologyEntityDTOOrBuilder::getOid,
                         // TODO: Persist and pass through discovery information for this entity.
-                        TopologyEntity::newBuilder));
+                        topologyEntityDTO -> TopologyEntity.newBuilder(TopologyEntityImpl.fromProto(topologyEntityDTO))));
             return StageResult.withResult(topology)
                 .andStatus(Status.success("Retrieved topology of size " + topology.size()));
         }
@@ -932,7 +942,7 @@ public class Stages {
     }
 
     /**
-     * This stage creates a {@link TopologyGraph<TopologyEntity>} out of the topology entities.
+     * This stage creates a {@link TopologyGraph< TopologyEntity >} out of the topology entities.
      */
     public static class GraphCreationStage extends Stage<Map<Long, TopologyEntity.Builder>, TopologyGraph<TopologyEntity>> {
 
@@ -960,7 +970,7 @@ public class Stages {
     }
 
     /**
-     * This stage apply the user scope to {@link TopologyGraph<TopologyEntity>}.
+     * This stage apply the user scope to {@link TopologyGraph< TopologyEntity >}.
      */
     public static class UserScopingStage extends Stage<TopologyGraph<TopologyEntity>, TopologyGraph<TopologyEntity>> {
 
@@ -984,8 +994,8 @@ public class Stages {
                     .filter(e -> !userScopeEntityTypes.containsKey(e.getEntityType())
                                     || userScopeEntityTypes.get(e.getEntityType())
                             .getEntityOidsList().contains(e.getOid()))
-                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                    .collect(Collectors.toMap(TopologyEntityDTO.Builder::getOid, TopologyEntity::newBuilder)));
+                    .map(TopologyEntity::getTopologyEntityImpl)
+                    .collect(Collectors.toMap(TopologyEntityImpl::getOid, TopologyEntity::newBuilder)));
 
             if (logger.isDebugEnabled()) {
                 List<Long> differences = input.entities().map(TopologyEntity::getOid).collect(
@@ -1084,7 +1094,7 @@ public class Stages {
      * policy/setting application in case we we have environment-type-specific
      * groups/policies/settings policies.
      *
-     * This stage modifies the entities in the input {@link TopologyGraph<TopologyEntity>}.
+     * This stage modifies the entities in the input {@link TopologyGraph< TopologyEntity >}.
      */
     public static class EnvironmentTypeStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
 
@@ -1130,8 +1140,8 @@ public class Stages {
     }
 
     /**
-     * This stage applies policies to a {@link TopologyGraph<TopologyEntity>}. This makes changes
-     * to the commodities of entities in the {@link TopologyGraph<TopologyEntity>} to reflect the
+     * This stage applies policies to a {@link TopologyGraph< TopologyEntity >}. This makes changes
+     * to the commodities of entities in the {@link TopologyGraph< TopologyEntity >} to reflect the
      * applied policies.
      */
     public static class PolicyStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
@@ -1217,7 +1227,7 @@ public class Stages {
     }
 
     /**
-     * This stages resolves per-entity settings in the {@link TopologyGraph<TopologyEntity>}.
+     * This stages resolves per-entity settings in the {@link TopologyGraph< TopologyEntity >}.
      * It's responsible for determining which settings apply to which entities, performing
      * conflict resolution (when multiple setting policies apply to a single entity), and
      * applying setting overrides from plan scenarios.
@@ -1475,7 +1485,7 @@ public class Stages {
         private final boolean isPlan;
 
         /**
-         * Construct the validatio stage.
+         * Construct the validation stage.
          *
          * @param entityValidator validator instance
          * @param isPlan whether the pipeline is working on a plan or live broadcast
@@ -1555,7 +1565,7 @@ public class Stages {
     }
 
     /**
-     * Placeholder stage to extract the {@link TopologyGraph<TopologyEntity>} for the {@link BroadcastStage}
+     * Placeholder stage to extract the {@link TopologyGraph< TopologyEntity >} for the {@link BroadcastStage}
      * in the live and plan (but not plan-over-plan) topology.
      * <p>
      * Also records {@link TopologyInfo} to the {@link StitchingJournal}.
@@ -1634,11 +1644,10 @@ public class Stages {
             // The number of entities that have errors.
             // Note that this will only be "valid" after the iterator is consumed.
             final MutableInt numEntitiesWithErrors = new MutableInt(0);
-            final Iterator<TopologyEntityDTO> entities = input
-                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                    .map(TopologyEntityDTO.Builder::build)
+            final Iterator<TopologyEntityView> entities = input
+                    .map(p -> (TopologyEntityView)p.getTopologyEntityImpl())
                     .peek(entity ->  {
-                        if (!StitchingErrors.fromProtobuf(entity).isNone()) {
+                        if (!StitchingErrors.fromTopologyEntityView(entity).isNone()) {
                             // Incrementing the error count as a side-effect of the map is not ideal,
                             // but we don't want to take another pass through entities just to count
                             // the ones with errors.
@@ -1700,17 +1709,18 @@ public class Stages {
 
         private TopologyBroadcastInfo broadcastTopology(
             @Nonnull List<Function<TopologyInfo, TopologyBroadcast>> broadcastFunctions,
-            final Iterator<TopologyEntityDTO> topology)
+            final Iterator<TopologyEntityView> topology)
             throws InterruptedException, CommunicationException {
             final TopologyInfo topologyInfo = getContext().getTopologyInfo();
             final List<TopologyBroadcast> broadcasts = broadcastFunctions.stream()
                 .map(function -> function.apply(topologyInfo))
                 .collect(Collectors.toList());
-            for (Iterator<TopologyEntityDTO> it = topology; it.hasNext(); ) {
-                final TopologyEntityDTO entity = it.next();
+            for (Iterator<TopologyEntityView> it = topology; it.hasNext(); ) {
+                final TopologyEntityView entity = it.next();
+                final TopologyEntityDTO proto = entity.toProto();
                 for (TopologyBroadcast broadcast : broadcasts) {
                     try {
-                        broadcast.append(entity);
+                        broadcast.append(proto);
                     } catch (OversizedElementException e) {
                         logger.error("Entity {} (name: {}, type: {}) failed to be" +
                             " broadcast because it's too large: {}", entity.getOid(),
@@ -1722,7 +1732,7 @@ public class Stages {
                     }
                 }
                 counts.computeIfAbsent(ApiEntityType.fromType(entity.getEntityType()),
-                    k -> new EntityCounter()).count(entity);
+                    k -> new EntityCounter()).count(proto);
             }
             // Export Matrix.
             matrix.exportMatrix(new MatrixExporter(broadcasts));
@@ -1838,7 +1848,7 @@ public class Stages {
                     logger.info("Indexing on-prem entities for scoping .....");
                 }
                 // populate InvertedIndex
-                InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+                InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
                         index = planTopologyScopeEditor.createInvertedIndex();
                 graph.entities().forEach(entity -> index.add(entity));
                 PlanProjectType planProjectType = topologyInfo.getPlanInfo().getPlanProjectType();
@@ -1905,7 +1915,7 @@ public class Stages {
         @NotNull
         @Override
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
-            historicalEditor.applyCommodityEdits(graph, changes, getContext().getTopologyInfo());
+            historicalEditor.applyCommodityEdits(graph, changes,getContext().getTopologyInfo());
             return Status.success();
         }
     }

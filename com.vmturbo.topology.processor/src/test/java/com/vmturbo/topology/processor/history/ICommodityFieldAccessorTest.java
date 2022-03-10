@@ -12,10 +12,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.UtilizationDataImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.UtilizationDataView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntityCommodityReference;
@@ -31,9 +33,9 @@ public class ICommodityFieldAccessorTest extends BaseGraphRelatedTest {
     private static final long OID2 = 2;
     private static final long OID3 = 3;
     private static final long OID4 = 4;
-    private static final CommodityType CT1 = CommodityType.newBuilder().setType(1).build();
-    private static final CommodityType CT2 = CommodityType.newBuilder().setType(2).build();
-    private static final CommodityType CT3 = CommodityType.newBuilder().setType(3).setKey("qqq").build();
+    private static final CommodityTypeImpl CT1 = new CommodityTypeImpl().setType(1);
+    private static final CommodityTypeImpl CT2 = new CommodityTypeImpl().setType(2);
+    private static final CommodityTypeImpl CT3 = new CommodityTypeImpl().setType(3).setKey("qqq");
     private static final double CAPACITY1 = 12d;
     private static final double CAPACITY2 = 11231d;
     private static final double CAPACITY3 = 43543d;
@@ -55,8 +57,8 @@ public class ICommodityFieldAccessorTest extends BaseGraphRelatedTest {
         entity1 = mockEntity(ENTITY_TYPE, OID1, CT1, CAPACITY1, USED1, null, null, null, null, true);
         entity2 = mockEntity(ENTITY_TYPE, OID2, CT2, CAPACITY2, USED2, OID1, CT1, USED1, null, true);
         entity3 = mockEntity(ENTITY_TYPE, OID3, CT3, CAPACITY3, USED3, OID2, CT2, USED2,
-                             UtilizationData.newBuilder().setLastPointTimestampMs(0)
-                                             .setIntervalMs(1).addPoint(USED3).build(), true);
+                             new UtilizationDataImpl().setLastPointTimestampMs(0)
+                                             .setIntervalMs(1).addPoint(USED3), true);
         final TopologyEntity entity4 = mockEntity(ENTITY_TYPE, OID4, CT1, CAPACITY1, null, null,
             null, null, null, true);
         graph = mockGraph(ImmutableSet.of(entity1, entity2, entity3, entity4));
@@ -120,7 +122,7 @@ public class ICommodityFieldAccessorTest extends BaseGraphRelatedTest {
     @Test
     public void testGetUtilizationData() {
         ICommodityFieldAccessor accessor = new CommodityFieldAccessor(graph);
-        UtilizationData data = accessor.getUtilizationData(new EntityCommodityReference(OID1, CT1, null));
+        UtilizationDataView data = accessor.getUtilizationData(new EntityCommodityReference(OID1, CT1, null));
         Assert.assertNull(data);
         data = accessor.getUtilizationData(new EntityCommodityReference(OID3, CT3, null));
         Assert.assertNotNull(data);
@@ -134,7 +136,7 @@ public class ICommodityFieldAccessorTest extends BaseGraphRelatedTest {
     @Test
     public void testUpdateHistoryValue() {
         ICommodityFieldAccessor accessor = new CommodityFieldAccessor(graph);
-        CommoditySoldDTO.Builder sold = entity1.getTopologyEntityDtoBuilder().getCommoditySoldListBuilder(0);
+        CommoditySoldView sold = entity1.getTopologyEntityImpl().getCommoditySoldList(0);
         Assert.assertFalse(sold.hasHistoricalUsed());
         Double percentile = 0.5d;
         accessor.updateHistoryValue(new EntityCommodityFieldReference(OID1, CT1,
@@ -151,30 +153,30 @@ public class ICommodityFieldAccessorTest extends BaseGraphRelatedTest {
     @Test
     public void testApplyInsufficientHistoricalDataPolicy() {
         final long vmOid = 1234567L;
-        TopologyEntityDTO.Builder vmBuilder = TopologyEntityDTO.newBuilder().setOid(vmOid)
+        TopologyEntityImpl vmEntity = new TopologyEntityImpl().setOid(vmOid)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setEnvironmentType(EnvironmentType.CLOUD)
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
-                        CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE)).setIsResizeable(true))
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
-                        CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE)).setIsResizeable(true));
-        EntityCommodityFieldReference vmemRef = new EntityCommodityFieldReference(vmOid, CommodityType.newBuilder()
-                .setType(CommodityDTO.CommodityType.VMEM_VALUE).build(),
+                .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(
+                        new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_VALUE)).setIsResizeable(true))
+                .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(
+                        new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VMEM_VALUE)).setIsResizeable(true));
+        EntityCommodityFieldReference vmemRef = new EntityCommodityFieldReference(vmOid, new CommodityTypeImpl()
+                .setType(CommodityDTO.CommodityType.VMEM_VALUE),
                 CommodityField.USED);
         ICommodityFieldAccessor accessor = new CommodityFieldAccessor(graph);
-        when(graph.getEntity(eq(vmOid))).thenReturn(Optional.of(TopologyEntity.newBuilder(vmBuilder).build()));
+        when(graph.getEntity(eq(vmOid))).thenReturn(Optional.of(TopologyEntity.newBuilder(vmEntity).build()));
         // Only perform applyInsufficientHistoricalDataPolicy on VMEM, vm's getCommoditiesBoughtFromProviders
         // are still scalable.
         accessor.applyInsufficientHistoricalDataPolicy(vmemRef);
-        Assert.assertTrue(vmBuilder.getCommoditiesBoughtFromProvidersBuilderList().stream().allMatch(commBoughtGrp
+        Assert.assertTrue(vmEntity.getCommoditiesBoughtFromProvidersList().stream().allMatch(commBoughtGrp
                 -> commBoughtGrp.getScalable() == true));
         // Now both VMEM and VCPU have performed applyInsufficientHistoricalDataPolicy, vm's
         // getCommoditiesBoughtFromProviders are no longer scalable.
-        EntityCommodityFieldReference vcpuRef = new EntityCommodityFieldReference(vmOid, CommodityType.newBuilder()
-                .setType(CommodityDTO.CommodityType.VCPU_VALUE).build(),
+        EntityCommodityFieldReference vcpuRef = new EntityCommodityFieldReference(vmOid, new CommodityTypeImpl()
+                .setType(CommodityDTO.CommodityType.VCPU_VALUE),
                 CommodityField.USED);
         accessor.applyInsufficientHistoricalDataPolicy(vcpuRef);
-        Assert.assertTrue(vmBuilder.getCommoditiesBoughtFromProvidersBuilderList().stream().noneMatch(commBoughtGrp
+        Assert.assertTrue(vmEntity.getCommoditiesBoughtFromProvidersList().stream().noneMatch(commBoughtGrp
                 -> commBoughtGrp.getScalable() == true));
 
     }

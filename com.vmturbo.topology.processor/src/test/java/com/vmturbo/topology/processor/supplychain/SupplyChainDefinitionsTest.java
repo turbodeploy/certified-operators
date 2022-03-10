@@ -9,10 +9,10 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.PerTargetEntityInformationView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.TemplateType;
@@ -36,24 +36,26 @@ public class SupplyChainDefinitionsTest extends AbstractSupplyChainTest {
      */
     @Test
     public void testRetrieveSupplyChainTemplates() throws Exception {
-        final DiscoveryOrigin.Builder originWithOneTarget = DiscoveryOrigin.newBuilder()
-                .putDiscoveredTargetData(HYPERVISOR_TARGET_ID, PerTargetEntityInformation.getDefaultInstance());
-        final DiscoveryOrigin.Builder originWithTwoTargets = DiscoveryOrigin.newBuilder()
-                .putDiscoveredTargetData(HYPERVISOR_TARGET_ID, PerTargetEntityInformation.getDefaultInstance())
-                .putDiscoveredTargetData(STORAGE_TARGET_ID, PerTargetEntityInformation.getDefaultInstance());
+        final DiscoveryOriginImpl originWithOneTarget = new DiscoveryOriginImpl()
+                .putDiscoveredTargetData(HYPERVISOR_TARGET_ID, PerTargetEntityInformationView.getDefaultInstance());
+        final DiscoveryOriginImpl originWithTwoTargets = new DiscoveryOriginImpl()
+                .putDiscoveredTargetData(HYPERVISOR_TARGET_ID, PerTargetEntityInformationView.getDefaultInstance())
+                .putDiscoveredTargetData(STORAGE_TARGET_ID, PerTargetEntityInformationView.getDefaultInstance());
 
         // create VM entity with only 1 discovering target with base template
-        final TopologyEntityDTO.Builder entityWithOneTargetBuilder = TopologyEntityDTO.newBuilder().setOid(1L)
+        final TopologyEntityImpl entityWithOneTargetBuilder = new TopologyEntityImpl().setOid(1L)
                 .setDisplayName("VM entity with 1 target discovered").setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(originWithOneTarget));
-        final TopologyEntity entityWithOneTarget = TopologyEntity.newBuilder(entityWithOneTargetBuilder).build();
+                .setOrigin(new OriginImpl().setDiscoveryOrigin(originWithOneTarget));
+        final TopologyEntity
+                entityWithOneTarget = TopologyEntity.newBuilder(entityWithOneTargetBuilder).build();
 
         // create Storage entity with 2 discovering targets, both with base templates
         // note that the storage template has priority
-        final TopologyEntityDTO.Builder entityWithTwoTargetsBuilder = TopologyEntityDTO.newBuilder().setOid(2L)
+        final TopologyEntityImpl entityWithTwoTargetsBuilder = new TopologyEntityImpl().setOid(2L)
                 .setDisplayName("Storage entity with 2 targets discovered").setEntityType(EntityType.STORAGE_VALUE)
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(originWithTwoTargets));
-        final TopologyEntity entityWithTwoTargets = TopologyEntity.newBuilder(entityWithTwoTargetsBuilder).build();
+                .setOrigin(new OriginImpl().setDiscoveryOrigin(originWithTwoTargets));
+        final TopologyEntity
+                entityWithTwoTargets = TopologyEntity.newBuilder(entityWithTwoTargetsBuilder).build();
 
         // Retrieve related supply chain for the entities
         final Collection<TemplateDTO> templates1 =
@@ -168,14 +170,14 @@ public class SupplyChainDefinitionsTest extends AbstractSupplyChainTest {
 
     @Nonnull
     private TopologyEntity makeTopologyEntity(@Nonnull EntityType entityType, @Nonnull Long ... targetIds) {
-        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        DiscoveryOriginImpl origin = new DiscoveryOriginImpl();
         Arrays.stream(targetIds).forEach(id -> origin
                         .putDiscoveredTargetData(id,
-                                                 PerTargetEntityInformation.getDefaultInstance()));
+                                                 PerTargetEntityInformationView.getDefaultInstance()));
         return
-            TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder().setOid(1L).setDisplayName("name").
-                setEntityType(entityType.ordinal()).setOrigin(Origin.newBuilder().setDiscoveryOrigin(origin)))
+                TopologyEntity.newBuilder(
+                new TopologyEntityImpl().setOid(1L).setDisplayName("name").
+                setEntityType(entityType.ordinal()).setOrigin(new OriginImpl().setDiscoveryOrigin(origin)))
             .build();
     }
 }

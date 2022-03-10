@@ -16,9 +16,9 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl.ThresholdsImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -90,11 +90,11 @@ public class RequestAndLimitCommodityThresholdsInjector {
     private void injectThresholds(@Nonnull final TopologyEntity entity,
                                   @Nonnull final InjectionStats stats) {
         final int initialCommoditiesModified = stats.getRequestCommoditiesModified();
-        final List<CommoditySoldDTO.Builder> requests = new ArrayList<>(REQUEST_COMMODITY_TYPES.size());
-        final List<CommoditySoldDTO.Builder> limits = new ArrayList<>(LIMIT_COMMODITY_TYPES.size());
+        final List<CommoditySoldImpl> requests = new ArrayList<>(REQUEST_COMMODITY_TYPES.size());
+        final List<CommoditySoldImpl> limits = new ArrayList<>(LIMIT_COMMODITY_TYPES.size());
 
         // Find the request and limit commodities to be modified
-        for (CommoditySoldDTO.Builder comm : entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()) {
+        for (CommoditySoldImpl comm : entity.getTopologyEntityImpl().getCommoditySoldListImplList()) {
             if (REQUEST_COMMODITY_TYPES.contains(comm.getCommodityType().getType())) {
                 requests.add(comm);
             } else if (LIMIT_COMMODITY_TYPES.contains(comm.getCommodityType().getType())
@@ -106,20 +106,20 @@ public class RequestAndLimitCommodityThresholdsInjector {
         }
 
         // Update request and limit commodities
-        for (CommoditySoldDTO.Builder requestComm : requests) {
+        for (CommoditySoldImpl requestComm : requests) {
             // Set max threshold to capacity. In the market this is translated to a capacityUpperBound
             // equal to the capacity which prevents resize up actions.
             // If there's an existing threshold, update max threshold as the min of existing max threshold
             // and request capacity.
             if (requestComm.hasThresholds()) {
-                Thresholds.Builder requestCommThresholdsBuilder = requestComm.getThresholdsBuilder();
+                ThresholdsImpl requestCommThresholdsImpl = requestComm.getOrCreateThresholds();
                 double newMaxThreshold = requestComm.getCapacity();
-                if (requestCommThresholdsBuilder.hasMax()) {
-                    newMaxThreshold = Math.min(newMaxThreshold, requestCommThresholdsBuilder.getMax());
+                if (requestCommThresholdsImpl.hasMax()) {
+                    newMaxThreshold = Math.min(newMaxThreshold, requestCommThresholdsImpl.getMax());
                 }
-                requestCommThresholdsBuilder.setMax(newMaxThreshold);
+                requestCommThresholdsImpl.setMax(newMaxThreshold);
             } else {
-                requestComm.setThresholds(Thresholds.newBuilder().setMax(requestComm.getCapacity()));
+                requestComm.setThresholds(new ThresholdsImpl().setMax(requestComm.getCapacity()));
             }
             stats.incrementRequestCommoditiesModified();
 
@@ -129,14 +129,14 @@ public class RequestAndLimitCommodityThresholdsInjector {
                 // If there's an existing threshold, update min threshold as the max of existing min
                 // threshold and request capacity.
                 if (limitComm.hasThresholds()) {
-                    Thresholds.Builder limitCommThresholdsBuilder = limitComm.getThresholdsBuilder();
+                    ThresholdsImpl limitCommThresholdsImpl = limitComm.getOrCreateThresholds();
                     double newMinThreshold = requestComm.getCapacity();
-                    if (limitCommThresholdsBuilder.hasMin()) {
-                        newMinThreshold = Math.max(newMinThreshold, limitCommThresholdsBuilder.getMin());
+                    if (limitCommThresholdsImpl.hasMin()) {
+                        newMinThreshold = Math.max(newMinThreshold, limitCommThresholdsImpl.getMin());
                     }
-                    limitCommThresholdsBuilder.setMin(newMinThreshold);
+                    limitCommThresholdsImpl.setMin(newMinThreshold);
                 } else {
-                    limitComm.setThresholds(Thresholds.newBuilder().setMin(requestComm.getCapacity()));
+                    limitComm.setThresholds(new ThresholdsImpl().setMin(requestComm.getCapacity()));
                 }
                 stats.incrementLimitCommoditiesModified();
             });
@@ -147,8 +147,8 @@ public class RequestAndLimitCommodityThresholdsInjector {
         }
     }
 
-    private Optional<CommoditySoldDTO.Builder> matchingLimit(final int requestCommodityType,
-                                                             @Nonnull final List<CommoditySoldDTO.Builder> limits) {
+    private Optional<CommoditySoldImpl> matchingLimit(final int requestCommodityType,
+                                                             @Nonnull final List<CommoditySoldImpl> limits) {
         final int limitCommodityType = REQUEST_TO_LIMIT_MAP.getOrDefault(requestCommodityType, -1);
         if (limitCommodityType >= 0) {
             return limits.stream()
@@ -201,7 +201,7 @@ public class RequestAndLimitCommodityThresholdsInjector {
 
         // MovingStatisticsEditor may have already set lower bounds on ContainerSpec commodities that should
         // also be copied over to their associated Container entities.
-        final Map<Integer, Double> parentSpecMinThresholdMap = entity.getTopologyEntityDtoBuilder()
+        final Map<Integer, Double> parentSpecMinThresholdMap = entity.getTopologyEntityImpl()
             .getCommoditySoldListList()
             .stream()
             .filter(comm -> LIMIT_COMMODITY_TYPES.contains(comm.getCommodityType().getType()))
@@ -209,7 +209,7 @@ public class RequestAndLimitCommodityThresholdsInjector {
             .collect(Collectors.toMap(comm -> comm.getCommodityType().getType(), comm -> comm.getThresholds().getMin()));
 
         entity.getAggregatedAndControlledEntities().forEach(container ->
-            container.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+            container.getTopologyEntityImpl().getCommoditySoldListList().stream()
                 // Update min thresholds only for limit and request commodities.
                 .filter(comm -> LIMIT_COMMODITY_TYPES.contains(comm.getCommodityType().getType())
                     || REQUEST_COMMODITY_TYPES.contains(comm.getCommodityType().getType()))
@@ -219,7 +219,7 @@ public class RequestAndLimitCommodityThresholdsInjector {
                         : Math.max(v, comm.getUsed()));
             }));
         entity.getAggregatedAndControlledEntities().forEach(container -> {
-            container.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+            container.getTopologyEntityImpl().getCommoditySoldListImplList().stream()
                 .filter(comm -> LIMIT_COMMODITY_TYPES.contains(comm.getCommodityType().getType())
                     || REQUEST_COMMODITY_TYPES.contains(comm.getCommodityType().getType()))
                 .forEach(comm -> {
@@ -243,9 +243,9 @@ public class RequestAndLimitCommodityThresholdsInjector {
                         if (comm.getThresholds().hasMax()) {
                             newMinThresholds = Math.min(newMinThresholds, comm.getThresholds().getMax());
                         }
-                        comm.getThresholdsBuilder().setMin(newMinThresholds);
+                        comm.getOrCreateThresholds().setMin(newMinThresholds);
                     } else {
-                        comm.setThresholds(Thresholds.newBuilder().setMin(newMinThresholds));
+                        comm.setThresholds(new ThresholdsImpl().setMin(newMinThresholds));
                     }
                     stats.incrementCommoditiesModified();
                 });
@@ -284,32 +284,32 @@ public class RequestAndLimitCommodityThresholdsInjector {
     private void injectMinThresholdsFromReservation(@Nonnull final TopologyEntity entity,
                                                     @Nonnull final InjectionStats stats) {
         // Extract reserved CPU capacity from commodity bought.
-        final Optional<Double> reservedCapacityOptional = entity.getTopologyEntityDtoBuilder()
-            .getCommoditiesBoughtFromProvidersBuilderList().stream()
+        final Optional<Double> reservedCapacityOptional = entity.getTopologyEntityImpl()
+            .getCommoditiesBoughtFromProvidersList().stream()
             .filter(commBoughtGrouping -> commBoughtGrouping.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
-            .flatMap(commBoughtGrouping -> commBoughtGrouping.getCommodityBoughtBuilderList().stream())
+            .flatMap(commBoughtGrouping -> commBoughtGrouping.getCommodityBoughtList().stream())
             .filter(commBought -> commBought.getCommodityType().getType() == CommodityType.CPU_VALUE)
-            .filter(CommodityBoughtDTO.Builder::hasReservedCapacity)
-            .map(CommodityBoughtDTO.Builder::getReservedCapacity)
+            .filter(CommodityBoughtView::hasReservedCapacity)
+            .map(CommodityBoughtView::getReservedCapacity)
             .findFirst();
 
         if (reservedCapacityOptional.isPresent()) {
             final double reservedCapacity = reservedCapacityOptional.get();
-            entity.getTopologyEntityDtoBuilder()
-                .getCommoditySoldListBuilderList().stream()
+            entity.getTopologyEntityImpl()
+                .getCommoditySoldListImplList().stream()
                 .filter(commSold -> commSold.getCommodityType().getType() == CommodityType.VCPU_VALUE)
                 .forEach(commSold -> {
                     // If commodity has existing thresholds, update min threshold.
                     if (commSold.hasThresholds()) {
                         // Set minThreshold to Math.min(Math.max(minThreshold, reservedCapacity), maxThreshold))
-                        final Thresholds.Builder threshold = commSold.getThresholdsBuilder();
+                        final ThresholdsImpl threshold = commSold.getOrCreateThresholds();
                         double newMinThreshold = Math.max(threshold.getMin(), reservedCapacity);
                         if (threshold.hasMax()) {
                             newMinThreshold = Math.min(newMinThreshold, threshold.getMax());
                         }
                         threshold.setMin(newMinThreshold);
                     } else {
-                        commSold.setThresholds(Thresholds.newBuilder().setMin(reservedCapacity));
+                        commSold.setThresholds(new ThresholdsImpl().setMin(reservedCapacity));
                     }
                     stats.incrementCommoditiesModified();
                     stats.incrementEntitiesModified();

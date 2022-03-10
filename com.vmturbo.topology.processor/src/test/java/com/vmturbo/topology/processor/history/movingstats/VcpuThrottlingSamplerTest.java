@@ -23,11 +23,11 @@ import com.google.protobuf.TextFormat;
 
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -49,21 +49,19 @@ import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreato
 public class VcpuThrottlingSamplerTest {
     private static final long OID = 12345L;
 
-    final TopologyEntityDTO.Builder containerSpec = TopologyEntityDTO.newBuilder()
+    final TopologyEntityImpl containerSpec = new TopologyEntityImpl()
         .setOid(OID)
         .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
-        .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+        .setOrigin(new OriginImpl().setDiscoveryOrigin(new DiscoveryOriginImpl()
             .setLastUpdatedTime(System.currentTimeMillis())))
-        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE).build())
+        .addCommoditySoldList(new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_VALUE))
             .setCapacity(100.0)
-            .setUsed(50.0)
-            .build())
-        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE).build())
+            .setUsed(50.0))
+        .addCommoditySoldList(new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE))
             .setCapacity(100.0)
-            .setUsed(50.0)
-            .build());
+            .setUsed(50.0));
     final TopologyEntity.Builder topologyEntity = TopologyEntity.newBuilder(containerSpec);
     final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(
         ImmutableMap.of(OID, topologyEntity));
@@ -90,17 +88,17 @@ public class VcpuThrottlingSamplerTest {
     private final ICommodityFieldAccessor commodityFieldAccessor = new CommodityFieldAccessor(graph);
 
     private static final EntityCommodityFieldReference VCPU_FIELD =
-        new EntityCommodityFieldReference(OID, CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.VCPU_VALUE).build(), CommodityField.USED);
+        new EntityCommodityFieldReference(OID, new CommodityTypeImpl()
+            .setType(CommodityDTO.CommodityType.VCPU_VALUE), CommodityField.USED);
     private static final EntityCommodityFieldReference THROTTLING_FIELD =
-        new EntityCommodityFieldReference(OID, CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE).build(), CommodityField.USED);
+        new EntityCommodityFieldReference(OID, new CommodityTypeImpl()
+            .setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE), CommodityField.USED);
     private static final List<EntityCommodityFieldReference> PARTNER_FIELDS =
         Collections.singletonList(THROTTLING_FIELD);
 
     private static final EntityCommodityFieldReference TEST_FIELD =
-        new EntityCommodityFieldReference(74033736057638L, CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.VCPU_VALUE).build(), CommodityField.USED);
+        new EntityCommodityFieldReference(74033736057638L, new CommodityTypeImpl()
+            .setType(CommodityDTO.CommodityType.VCPU_VALUE), CommodityField.USED);
 
     private static final String PROTO_DEFINITION = ""
         + "  entity_oid: 74033736057638\n"
@@ -340,11 +338,11 @@ public class VcpuThrottlingSamplerTest {
     public void testCapacityLowerBound() {
         final VcpuThrottlingSampler sampler = new VcpuThrottlingSampler(VCPU_FIELD);
 
-        containerSpec.getCommoditySoldListBuilderList().get(VCPU_COMMODITY_INDEX)
+        containerSpec.getCommoditySoldListImplList().get(VCPU_COMMODITY_INDEX)
             .setCapacity(100.0);
         elapseHours(50.0, 100.0, FAST_HALFLIFE_HOURS, sampler);
 
-        containerSpec.getCommoditySoldListBuilderList().get(VCPU_COMMODITY_INDEX)
+        containerSpec.getCommoditySoldListImplList().get(VCPU_COMMODITY_INDEX)
             .setCapacity(500.0);
         elapseHours(0.0, 150.0, FAST_HALFLIFE_HOURS, sampler);
 
@@ -352,7 +350,7 @@ public class VcpuThrottlingSamplerTest {
         assertThat(vcpuMinThreshold, greaterThan(455.0));
 
         // We should now reuse the data from the original capacity
-        containerSpec.getCommoditySoldListBuilderList().get(VCPU_COMMODITY_INDEX)
+        containerSpec.getCommoditySoldListImplList().get(VCPU_COMMODITY_INDEX)
             .setCapacity(100.0);
         elapseHours(20.0, 100.0, FAST_HALFLIFE_HOURS, sampler);
 
@@ -490,9 +488,9 @@ public class VcpuThrottlingSamplerTest {
     private void setThrottlingAtCapacity(final double throttlingValue,
                                          final double vcpuCapacity,
                                          @Nonnull final VcpuThrottlingSampler sampler) {
-        containerSpec.getCommoditySoldListBuilderList().get(VCPU_COMMODITY_INDEX)
+        containerSpec.getCommoditySoldListImplList().get(VCPU_COMMODITY_INDEX)
             .setCapacity(vcpuCapacity);
-        containerSpec.getCommoditySoldListBuilderList().get(THROTTLING_COMMODITY_INDEX)
+        containerSpec.getCommoditySoldListImplList().get(THROTTLING_COMMODITY_INDEX)
             .setUsed(throttlingValue);
 
         updateContainerSpecTimestamp(Duration.ofMinutes(10).toMillis());
@@ -512,9 +510,9 @@ public class VcpuThrottlingSamplerTest {
                                         final long hoursToElapse,
                                         final long incrementMillis,
                                         @Nonnull final VcpuThrottlingSampler sampler) {
-        containerSpec.getCommoditySoldListBuilderList().get(VCPU_COMMODITY_INDEX)
+        containerSpec.getCommoditySoldListImplList().get(VCPU_COMMODITY_INDEX)
             .setUsed(vcpuValue);
-        containerSpec.getCommoditySoldListBuilderList().get(THROTTLING_COMMODITY_INDEX)
+        containerSpec.getCommoditySoldListImplList().get(THROTTLING_COMMODITY_INDEX)
             .setUsed(throttlingValue);
         final long numUpdatePeriods = TimeUnit.HOURS.toMillis(hoursToElapse) / incrementMillis;
 
@@ -525,14 +523,14 @@ public class VcpuThrottlingSamplerTest {
     }
 
     private void updateContainerSpecTimestamp(final long incrementMillis) {
-        final DiscoveryOrigin.Builder discoveryOrigin =
-            containerSpec.getOriginBuilder().getDiscoveryOriginBuilder();
+        final DiscoveryOriginImpl discoveryOrigin =
+            containerSpec.getOrCreateOrigin().getOrCreateDiscoveryOrigin();
         discoveryOrigin.setLastUpdatedTime(discoveryOrigin.getLastUpdatedTime() + incrementMillis);
     }
 
     private long getContainerspecTimestamp() {
-        final DiscoveryOrigin.Builder discoveryOrigin =
-            containerSpec.getOriginBuilder().getDiscoveryOriginBuilder();
+        final DiscoveryOriginImpl discoveryOrigin =
+            containerSpec.getOrCreateOrigin().getOrCreateDiscoveryOrigin();
         return discoveryOrigin.getLastUpdatedTime();
     }
 

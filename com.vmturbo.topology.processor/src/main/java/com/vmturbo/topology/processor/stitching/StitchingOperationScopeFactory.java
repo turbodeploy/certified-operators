@@ -22,7 +22,6 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;

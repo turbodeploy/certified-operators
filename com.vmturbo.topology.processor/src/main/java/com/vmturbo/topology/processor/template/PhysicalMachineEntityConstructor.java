@@ -17,13 +17,13 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.PhysicalMachineInfoImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -49,12 +49,12 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
     public static final double SWAPPING_DEFAULT_CAPACITY = 5000.0;
 
     @Override
-    public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
+    public TopologyEntityImpl createTopologyEntityFromTemplate(
             @Nonnull final Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
-            @Nullable TopologyEntityDTO.Builder originalTopologyEntity,
+            @Nullable TopologyEntityImpl originalTopologyEntity,
             @Nonnull TemplateActionType actionType, @Nonnull IdentityProvider identityProvider,
             @Nullable String nameSuffix) throws TopologyEntityConstructorException {
-        TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
+        TopologyEntityImpl topologyEntityBuilder = super.generateTopologyEntityBuilder(
                 template, originalTopologyEntity, actionType, identityProvider,
                 EntityType.PHYSICAL_MACHINE_VALUE, nameSuffix);
 
@@ -64,7 +64,7 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
 
         // shopRogether entities are not allowed to sell biclique commodities (why???), and hosts need
         // to sell biclique commodities, so set shopTogether to false.
-        topologyEntityBuilder.getAnalysisSettingsBuilder().setShopTogether(false);
+        topologyEntityBuilder.getOrCreateAnalysisSettings().setShopTogether(false);
 
         final List<TemplateResource> infraTemplateResources = getTemplateResources(template,
                 Infrastructure);
@@ -74,11 +74,11 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
         String templateName = template.hasTemplateInfo() && template.getTemplateInfo().hasName() ?
                         template.getTemplateInfo().getName() : "";
         // Set type specific info
-        PhysicalMachineInfo.Builder pmInfoBuilder = PhysicalMachineInfo.newBuilder();
+        PhysicalMachineInfoImpl pmInfo = new PhysicalMachineInfoImpl();
         int numCores = Double.valueOf(
                 computeTemplateResources.getOrDefault(TemplateProtoUtil.PM_COMPUTE_NUM_OF_CORE, ZERO)).intValue();
         if (numCores > 0) {
-            pmInfoBuilder.setNumCpus(numCores);
+            pmInfo.setNumCpus(numCores);
         } else {
            logger.error("Incorrect/empty value for number of cores {} for template {}.",
                computeTemplateResources.get(TemplateProtoUtil.PM_COMPUTE_NUM_OF_CORE),
@@ -88,7 +88,7 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
         int cpuSpeed = Double.valueOf(
                 computeTemplateResources.getOrDefault(TemplateProtoUtil.PM_COMPUTE_CPU_SPEED, ZERO)).intValue();
         if (cpuSpeed > 0) {
-            pmInfoBuilder.setCpuCoreMhz(cpuSpeed);
+            pmInfo.setCpuCoreMhz(cpuSpeed);
         } else {
            logger.error("Incorrect/empty value of cpu speed {} for template {}. ",
                computeTemplateResources.get(TemplateProtoUtil.PM_COMPUTE_CPU_SPEED),
@@ -97,10 +97,10 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
 
         // if the template has a 'cpu_model' then add it to the new TopologyEntityDTO
         if (template.hasTemplateInfo() && template.getTemplateInfo().hasCpuModel()) {
-            pmInfoBuilder.setCpuModel(template.getTemplateInfo().getCpuModel());
+            pmInfo.setCpuModel(template.getTemplateInfo().getCpuModel());
         }
-        topologyEntityBuilder.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-            .setPhysicalMachine(pmInfoBuilder));
+        topologyEntityBuilder.setTypeSpecificInfo(new TypeSpecificInfoImpl()
+            .setPhysicalMachine(pmInfo));
 
         return topologyEntityBuilder;
     }
@@ -115,12 +115,12 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
      * @throws TopologyEntityConstructorException error setting access
      *             commodities
      */
-    public static void setAccessCommodities(@Nonnull TopologyEntityDTO.Builder newHost,
-            @Nullable TopologyEntityDTO.Builder originalHost,
+    public static void setAccessCommodities(@Nonnull TopologyEntityImpl newHost,
+            @Nullable TopologyEntityImpl originalHost,
             @Nonnull Map<Long, TopologyEntity.Builder> topology)
             throws TopologyEntityConstructorException {
-        Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(originalHost);
-        List<CommoditiesBoughtFromProvider> commodityBoughtConstraints = getActiveCommoditiesWithKeysGroups(
+        Set<CommoditySoldView> commoditySoldConstraints = getCommoditySoldConstraint(originalHost);
+        List<CommoditiesBoughtFromProviderView> commodityBoughtConstraints = getActiveCommoditiesWithKeysGroups(
                 originalHost);
 
         addCommodityConstraints(newHost, commoditySoldConstraints, commodityBoughtConstraints);
@@ -136,7 +136,7 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
      * @param topologyEntityBuilder builder of TopologyEntityDTO.
      * @param computeTemplateResources a map (name -> value) of compute template resources.
      */
-    private static void addComputeCommodities(@Nonnull TopologyEntityDTO.Builder topologyEntityBuilder,
+    private static void addComputeCommodities(@Nonnull TopologyEntityImpl topologyEntityBuilder,
                                               @Nonnull Map<String, String> computeTemplateResources) {
         addComputeCommoditiesSold(topologyEntityBuilder, computeTemplateResources);
     }
@@ -147,7 +147,7 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
      * @param topologyEntityBuilder builder of TopologyEntityDTO.
      * @param fieldNameValueMap a Map which key is template field name and value is field value.
      */
-    private static void addComputeCommoditiesSold(@Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+    private static void addComputeCommoditiesSold(@Nonnull final TopologyEntityImpl topologyEntityBuilder,
                                                   @Nonnull Map<String, String> fieldNameValueMap) {
         addComputeCommoditiesCpuMemSold(topologyEntityBuilder, fieldNameValueMap);
         addComputeCommoditiesIONetSold(topologyEntityBuilder, fieldNameValueMap);
@@ -160,7 +160,7 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
      * @param topologyEntityBuilder builder of TopologyEntityDTO.
      * @param fieldNameValueMap a Map which key is template field name and value is field value.
      */
-    private static void addComputeCommoditiesCpuMemSold(@Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+    private static void addComputeCommoditiesCpuMemSold(@Nonnull final TopologyEntityImpl topologyEntityBuilder,
                                                         @Nonnull Map<String, String> fieldNameValueMap) {
         final double numOfCpu = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_COMPUTE_NUM_OF_CORE, ZERO));
@@ -169,9 +169,9 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
         final double memSize = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_COMPUTE_MEM_SIZE, ZERO));
 
-        final CommoditySoldDTO cpuCommodity =
+        final CommoditySoldView cpuCommodity =
             createCommoditySoldDTO(CommodityDTO.CommodityType.CPU_VALUE, numOfCpu * cpuSpeed);
-        final CommoditySoldDTO  memCommodity =
+        final CommoditySoldView  memCommodity =
             createCommoditySoldDTO(CommodityDTO.CommodityType.MEM_VALUE, memSize);
         topologyEntityBuilder
             .addCommoditySoldList(cpuCommodity)
@@ -180,28 +180,28 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
         // Because we don't have access to settings at this time, we can't calculate capacities for these
         // provisioned commodities. By leaving capacities unset, they will be set later in the topology
         // pipeline when settings are avaialble by the OverprovisionCapacityPostStitchingOperation.
-        final CommoditySoldDTO cpuProvisionedCommodity =
+        final CommoditySoldView cpuProvisionedCommodity =
             createCommoditySoldDTO(CommodityType.CPU_PROVISIONED_VALUE);
-        final CommoditySoldDTO memProvisionedCommodity =
+        final CommoditySoldView memProvisionedCommodity =
             createCommoditySoldDTO(CommodityType.MEM_PROVISIONED_VALUE);
         topologyEntityBuilder
             .addCommoditySoldList(cpuProvisionedCommodity)
             .addCommoditySoldList(memProvisionedCommodity);
 
         // QxVCPU. Note that 1,2,4,8,16,32,64 are the number of VCPUs.
-        final CommoditySoldDTO q1VcpuCommodity =
+        final CommoditySoldView q1VcpuCommodity =
             createCommoditySoldDTO(CommodityType.Q1_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 1.0);
-        final CommoditySoldDTO q2VcpuCommodity =
+        final CommoditySoldView q2VcpuCommodity =
             createCommoditySoldDTO(CommodityType.Q2_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 2.0);
-        final CommoditySoldDTO q4VcpuCommodity =
+        final CommoditySoldView q4VcpuCommodity =
             createCommoditySoldDTO(CommodityType.Q4_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 4.0);
-        final CommoditySoldDTO q8VcpuCommodity =
+        final CommoditySoldView q8VcpuCommodity =
             createCommoditySoldDTO(CommodityType.Q8_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 8.0);
-        final CommoditySoldDTO q16VcpuCommodity =
+        final CommoditySoldView q16VcpuCommodity =
             createCommoditySoldDTO(CommodityType.Q16_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 16.0);
-        final CommoditySoldDTO q32VcpuCommodity =
+        final CommoditySoldView q32VcpuCommodity =
                 createCommoditySoldDTO(CommodityType.Q32_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 32.0);
-        final CommoditySoldDTO q64VcpuCommodity =
+        final CommoditySoldView q64VcpuCommodity =
                 createCommoditySoldDTO(CommodityType.Q64_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 64.0);
         topologyEntityBuilder
             .addCommoditySoldList(q1VcpuCommodity)
@@ -219,16 +219,16 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
      * @param topologyEntityBuilder builder of TopologyEntityDTO.
      * @param fieldNameValueMap a Map which key is template field name and value is field value.
      */
-    private static void addComputeCommoditiesIONetSold(@Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+    private static void addComputeCommoditiesIONetSold(@Nonnull final TopologyEntityImpl topologyEntityBuilder,
                                                        @Nonnull Map<String, String> fieldNameValueMap) {
         final double ioThroughputSize = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_COMPUTE_IO_THROUGHPUT_SIZE, ZERO));
         final double networkThroughputSize = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_COMPUTE_NETWORK_THROUGHPUT_SIZE, ZERO));
 
-        CommoditySoldDTO ioThroughputCommodity =
+        CommoditySoldView ioThroughputCommodity =
             createCommoditySoldDTO(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, ioThroughputSize);
-        CommoditySoldDTO networkCommodity =
+        CommoditySoldView networkCommodity =
             createCommoditySoldDTO(CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, networkThroughputSize);
         topologyEntityBuilder
             .addCommoditySoldList(ioThroughputCommodity)
@@ -238,24 +238,24 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
     /**
      * Generate Extent, Ballooning, Swapping, HostLunAccess commodities sold and add to the DTO.
      *
-     * @param topologyEntityBuilder The entity to receive the commodities.
+     * @param topologyEntity The entity to receive the commodities.
      */
     private static void addMiscComputeCommodities(
-        @Nonnull final Builder topologyEntityBuilder) {
+        @Nonnull final TopologyEntityImpl topologyEntity) {
 
-        final CommoditySoldDTO extent =
+        final CommoditySoldView extent =
             createCommoditySoldDTO(CommodityType.EXTENT_VALUE, Double.valueOf(MAX_LUN_LIMIT));
-        final CommoditySoldDTO ballooning =
-            // TODO: set price weight field to -1.0 when it is introduced in CommoditySoldDTO
+        final CommoditySoldView ballooning =
+            // TODO: set price weight field to -1.0 when it is introduced in CommoditySoldView
             createCommoditySoldDTO(CommodityType.BALLOONING_VALUE, BALLOONING_DEFAULT_CAPACITY);
-        final CommoditySoldDTO swapping =
+        final CommoditySoldView swapping =
             createCommoditySoldDTO(CommodityType.SWAPPING_VALUE, SWAPPING_DEFAULT_CAPACITY);
-        final CommoditySoldDTO hostLunAccess =
+        final CommoditySoldView hostLunAccess =
             createCommoditySoldDTO(CommodityType.HOST_LUN_ACCESS_VALUE, Double.valueOf(MAX_LUN_LIMIT));
 
         // TODO: Flows?????
 
-        topologyEntityBuilder
+        topologyEntity
             .addCommoditySoldList(extent)
             .addCommoditySoldList(ballooning)
             .addCommoditySoldList(swapping)
@@ -269,7 +269,7 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
      * @param topologyEntityBuilder builder of TopologyEntityDTO.
      * @param infraTemplateResources  a list of infrastructure template resources.
      */
-    private static void addInfraCommodities(@Nonnull TopologyEntityDTO.Builder topologyEntityBuilder,
+    private static void addInfraCommodities(@Nonnull TopologyEntityImpl topologyEntityBuilder,
                                             @Nonnull List<TemplateResource> infraTemplateResources) {
         final Map<String, String> fieldNameValueMap = createFieldNameValueMap(
                 infraTemplateResources);
@@ -283,7 +283,7 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
      * @param fieldNameValueMap a Map which key is template field name and value is field value.
      */
     private static void addInfraCommoditiesBought(
-            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+            @Nonnull final TopologyEntityImpl topologyEntityBuilder,
             @Nonnull Map<String, String> fieldNameValueMap) {
         final double powerSize = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_INFRA_POWER_SIZE, ZERO));
@@ -292,21 +292,20 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
         final double coolingSize = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_INFRA_COOLING_SIZE, ZERO));
 
-        CommodityBoughtDTO powerSizeCommodity =
-            createCommodityBoughtDTO(CommodityDTO.CommodityType.POWER_VALUE, powerSize);
-        CommodityBoughtDTO spaceSizeCommodity =
-            createCommodityBoughtDTO(CommodityDTO.CommodityType.COOLING_VALUE, spaceSize);
-        CommodityBoughtDTO coolingSizeCommodity =
-            createCommodityBoughtDTO(CommodityDTO.CommodityType.SPACE_VALUE, coolingSize);
+        CommodityBoughtView powerSizeCommodity =
+            createCommodityBoughtView(CommodityDTO.CommodityType.POWER_VALUE, powerSize);
+        CommodityBoughtView spaceSizeCommodity =
+            createCommodityBoughtView(CommodityDTO.CommodityType.COOLING_VALUE, spaceSize);
+        CommodityBoughtView coolingSizeCommodity =
+            createCommodityBoughtView(CommodityDTO.CommodityType.SPACE_VALUE, coolingSize);
 
-        final CommoditiesBoughtFromProvider newCommoditiesBoughtFromProvider =
-            CommoditiesBoughtFromProvider.newBuilder()
+        final CommoditiesBoughtFromProviderView newCommoditiesBoughtFromProvider =
+            new CommoditiesBoughtFromProviderImpl()
                 .addCommodityBought(powerSizeCommodity)
                 .addCommodityBought(spaceSizeCommodity)
                 .addCommodityBought(coolingSizeCommodity)
                 .setMovable(true)
-                .setProviderEntityType(EntityType.DATACENTER_VALUE)
-                .build();
+                .setProviderEntityType(EntityType.DATACENTER_VALUE);
         topologyEntityBuilder.addCommoditiesBoughtFromProviders(newCommoditiesBoughtFromProvider);
     }
 }

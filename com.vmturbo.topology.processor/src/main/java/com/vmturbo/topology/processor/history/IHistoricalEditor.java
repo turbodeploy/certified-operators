@@ -8,10 +8,9 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
@@ -33,7 +32,7 @@ public interface IHistoricalEditor<Config extends HistoricalEditorConfig> {
      * @return true if an aggregation may be needed
      */
     boolean isApplicable(@Nullable List<ScenarioChange> changes,
-                         @Nonnull TopologyDTO.TopologyInfo topologyInfo,
+                         @Nonnull TopologyInfo topologyInfo,
                          @Nullable PlanScope scope);
 
     /**
@@ -53,7 +52,7 @@ public interface IHistoricalEditor<Config extends HistoricalEditorConfig> {
      * @return true when commodity has to be updated
      */
     boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                                  @Nonnull CommoditySoldDTO.Builder commSold,
+                                  @Nonnull CommoditySoldImpl commSold,
                                   @Nullable TopologyInfo topoInfo);
 
     /**
@@ -65,7 +64,7 @@ public interface IHistoricalEditor<Config extends HistoricalEditorConfig> {
      * @return true when commodity has to be updated
      */
     boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                                  @Nonnull CommodityBoughtDTO.Builder commBought,
+                                  @Nonnull CommodityBoughtImpl commBought,
                                   int providerType);
 
 

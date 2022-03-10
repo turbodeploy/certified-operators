@@ -171,9 +171,10 @@ public class FieldDescriptor {
      */
     @Nonnull
     public String getTypeName() {
-        return typeNameFormatter.formatTypeName(getContentMessage()
-                .map(descriptor -> descriptor.getQualifiedName(typeNameFormatter))
-                .orElseGet(() -> getBaseFieldType(fieldDescriptorProto.getType())));
+        return getContentMessage()
+                .map(descriptor -> typeNameFormatter.formatTypeName(
+                    descriptor.getQualifiedName(typeNameFormatter)))
+                .orElseGet(() -> getBaseFieldType(fieldDescriptorProto.getType()));
     }
 
 

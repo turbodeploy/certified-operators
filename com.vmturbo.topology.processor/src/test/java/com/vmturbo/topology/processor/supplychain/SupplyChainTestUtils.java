@@ -17,7 +17,6 @@ import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.CommBoughtProvide
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.CommBoughtProviderProp;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.TemplateType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
 
 /**
  * This class introduces two simplified supply chain definitions.

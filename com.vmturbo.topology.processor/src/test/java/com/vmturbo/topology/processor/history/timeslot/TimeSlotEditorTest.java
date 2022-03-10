@@ -34,12 +34,12 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.DailyObservationWindowsCount;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -48,7 +48,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
-import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.BaseGraphRelatedTest;
 import com.vmturbo.topology.processor.history.CommodityField;
@@ -67,8 +67,8 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
     private static final long OID3 = 16;
     private static final long PERIOD1 = 100;
     private static final long PERIOD2 = 200;
-    private static final CommodityType CT = CommodityType.newBuilder()
-                    .setType(CommodityDTO.CommodityType.POOL_CPU_VALUE).build();
+    private static final CommodityTypeImpl CT = new CommodityTypeImpl()
+                    .setType(CommodityDTO.CommodityType.POOL_CPU_VALUE);
     private static final double SOLD_CAPACITY = 10;
     private static final DailyObservationWindowsCount SLOTS = DailyObservationWindowsCount.FOUR;
     private static final Pair<Long, Long> DEFAULT_RANGE = Pair.create(null, null);
@@ -371,7 +371,7 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
     private static List<Double> getTimeSlots(@Nonnull EntityCommodityReference reference,
                     @Nonnull GraphWithSettings graph) {
         return graph.getTopologyGraph().getEntity(reference.getEntityOid()).get()
-                        .getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                        .getTopologyEntityImpl().getCommoditySoldListList().stream()
                         .filter(cs -> reference.getCommodityType().equals(cs.getCommodityType()))
                         .findFirst().get().getHistoricalUsed().getTimeSlotList();
     }
@@ -385,28 +385,27 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
     }
 
     private static void populateStatsToEntities(GraphWithSettings graphWithSettings,
-                    Map<EntityCommodityReference, Pair<Float, Float>> initialRefToStats) {
+                                                Map<EntityCommodityReference, Pair<Float, Float>> initialRefToStats) {
         initialRefToStats.forEach((ref, stats) -> {
-            final TopologyEntityDTO.Builder entityBuilder =
+            final TopologyEntityImpl entityPOJO =
                             graphWithSettings.getTopologyGraph().getEntity(ref.getEntityOid()).get()
-                                            .getTopologyEntityDtoBuilder();
+                                            .getTopologyEntityImpl();
             final Long providerOid = ref.getProviderOid();
             if (providerOid != null) {
-                final CommoditiesBoughtFromProvider.Builder boughtFromProviderBuilder =
-                                CommoditiesBoughtFromProvider.newBuilder()
+                final CommoditiesBoughtFromProviderImpl boughtFromProviderBuilder =
+                                new CommoditiesBoughtFromProviderImpl()
                                                 .setProviderId(providerOid).setProviderEntityType(
                                                 EntityType.DESKTOP_POOL_VALUE);
-                boughtFromProviderBuilder.addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                .setCommodityType(ref.getCommodityType()).setUsed(stats.getFirst())
-                                .build());
-                entityBuilder.getCommoditiesBoughtFromProvidersList()
-                                .add(boughtFromProviderBuilder.build());
+                boughtFromProviderBuilder.addCommodityBought(new CommodityBoughtImpl()
+                                .setCommodityType(new CommodityTypeImpl(ref.getCommodityType())).setUsed(stats.getFirst()));
+                entityPOJO.getCommoditiesBoughtFromProvidersList()
+                                .add(boughtFromProviderBuilder);
             } else {
-                entityBuilder.addAllCommoditySoldList(
-                                Collections.singleton(CommoditySoldDTO.newBuilder()
-                                                .setCommodityType(ref.getCommodityType())
+                entityPOJO.addAllCommoditySoldList(
+                                Collections.singleton(new CommoditySoldImpl()
+                                                .setCommodityType(new CommodityTypeImpl(ref.getCommodityType()))
                                                 .setUsed(stats.getFirst())
-                                                .setCapacity(stats.getSecond()).build()));
+                                                .setCapacity(stats.getSecond())));
             }
         });
     }
@@ -419,7 +418,7 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
     }
 
     private static GraphWithSettings createGraphWithSettings() {
-        final Map<Long, Builder> topologyBuilderMap = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topologyBuilderMap = new HashMap<>();
         final Map<Long, EntitySettings> entitySettings = new HashMap<>();
 
         addEntityWithSetting(OID1, EntityType.BUSINESS_USER_VALUE,

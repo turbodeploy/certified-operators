@@ -2,8 +2,8 @@ package com.vmturbo.topology.processor.supplychain.errors;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.stitching.TopologyEntity;
 
 /**
  * We cannot get a supply chain definition from an existing probe.

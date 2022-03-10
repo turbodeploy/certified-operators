@@ -36,8 +36,10 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequ
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -366,13 +368,13 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         long commoditiesCount = 0;
         long modifiedEligibilityCount = 0;
         for (TopologyEntity entity : entitySet) {
-            final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
+            final TopologyEntityImpl entityImpl = entity.getTopologyEntityImpl();
 
             final long entityOid = entity.getOid();
-            List<CommoditySoldDTO.Builder> commoditySoldBuilderList = entityBuilder.getCommoditySoldListBuilderList();
+            List<CommoditySoldImpl> commoditySoldImplList = entityImpl.getCommoditySoldListImplList();
             // For now we only set max quantity values for CommoditySoldDTO as
             // that's the behaviour in legacy.
-            for (CommoditySoldDTO.Builder commoditySoldDTO : commoditySoldBuilderList) {
+            for (CommoditySoldImpl commoditySoldDTO : commoditySoldImplList) {
                 // skip access commodities
                 if (excludedCommodities.contains(commoditySoldDTO.getCommodityType().getType())) {
                     continue;
@@ -397,7 +399,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
 
                 final double newMaxValue = newMax.getMaxValue();
                 resultBuilder.queueUpdateEntityAlone(entity, toUpdate -> commoditySoldDTO
-                                .getHistoricalUsedBuilder().setMaxQuantity(newMaxValue));
+                                .getOrCreateHistoricalUsed().setMaxQuantity(newMaxValue));
                 commoditiesCount++;
             }
             // We refer to local variable isMaxQueryComplete stored at beginning of the stage instead of the member
@@ -405,10 +407,10 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
             // in broadcast. And if that happens we can end up in a situation where some entities are eligible for resize,
             // while some are not - which can lead to incorrect resizing on-prem.
             if (!isMaxQueryComplete && broadcastCount < numBroadcastsToWaitForMaxQueryCompletion) {
-                resultBuilder.queueUpdateEntityAlone(entity, toUpdate -> entityBuilder
-                        .getAnalysisSettingsBuilder().setIsEligibleForResizeDown(false));
-                resultBuilder.queueUpdateEntityAlone(entity, toUpdate -> entityBuilder
-                        .getAnalysisSettingsBuilder().setIsEligibleForScale(false));
+                resultBuilder.queueUpdateEntityAlone(entity, toUpdate -> entityImpl
+                        .getOrCreateAnalysisSettings().setIsEligibleForResizeDown(false));
+                resultBuilder.queueUpdateEntityAlone(entity, toUpdate -> entityImpl
+                        .getOrCreateAnalysisSettings().setIsEligibleForScale(false));
                 modifiedEligibilityCount++;
             }
         }
@@ -492,8 +494,17 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
      * @param commodityType commodityType to recreate with key
      * @return CommodityType with key
      */
-    private TopologyDTO.CommodityType commodityWithKey(TopologyDTO.CommodityType commodityType) {
-        return TopologyDTO.CommodityType.newBuilder().setType(commodityType.getType()).setKey(commodityType.getKey()).build();
+    private CommodityTypeView commodityWithKey(TopologyDTO.CommodityType commodityType) {
+        return new CommodityTypeImpl().setType(commodityType.getType()).setKey(commodityType.getKey());
+    }
+
+    /**
+     * Recreates commodity type and always sets the key even if it does not have a key.
+     * @param commodityType commodityType to recreate with key
+     * @return CommodityType with key
+     */
+    private CommodityTypeView commodityWithKey(CommodityTypeView commodityType) {
+        return new CommodityTypeImpl().setType(commodityType.getType()).setKey(commodityType.getKey());
     }
 
     private float calculateMapOccupancyPercentage(long commoditiesCount) {
@@ -504,6 +515,15 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     }
 
     private EntityCommodityReference createEntityCommodityKey(long entityOid, TopologyDTO.CommodityType commodityType) {
+        // CommodityType returned from history component will always have a key - even for commodities like VCPU the key
+        // is an empty string. But the commodityType of commodities like VCPU in the broadcast will not have a key
+        // (hasKey() will evaluate to false). Because of this difference, the 2 commodityTypes are
+        // not treated equal according to the protobuf definition of equals and hence will become 2 separate entries in
+        // entityCommodityToMaxQuantitiesMap. To normalize this, we recreate the commodityType and always set the key.
+        return new EntityCommodityReference(entityOid, commodityWithKey(commodityType), null);
+    }
+
+    private EntityCommodityReference createEntityCommodityKey(long entityOid, CommodityTypeView commodityType) {
         // CommodityType returned from history component will always have a key - even for commodities like VCPU the key
         // is an empty string. But the commodityType of commodities like VCPU in the broadcast will not have a key
         // (hasKey() will evaluate to false). Because of this difference, the 2 commodityTypes are

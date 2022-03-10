@@ -95,7 +95,7 @@ public class MustRunTogetherPolicyApplication extends PlacementPolicyApplication
         providerMatchCountMap.keySet().stream()
             .max(providerCompare.thenComparing(Long::compare))
             .flatMap(topologyGraph::getEntity)
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+            .map(TopologyEntity::getTopologyEntityImpl)
             .ifPresent(provider -> addCommoditySold(Collections.singleton(provider.getOid()), commoditySold(policy)));
     }
 }

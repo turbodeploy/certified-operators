@@ -43,9 +43,8 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityAndCommodityType;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesCapacityValuesRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesCapacityValuesResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.components.api.RetriableOperation;
@@ -159,16 +158,16 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
                 } else {
                     // Checking if the capacity value should be updated from the db
                     if (shouldUpdateCapacityFromDb(entity, settingsCollection)) {
-                        queueCapacityUpdate(entity, entity.getTopologyEntityDtoBuilder()
-                             .getCommoditySoldListBuilderList().stream()
+                        queueCapacityUpdate(entity, entity.getTopologyEntityImpl()
+                             .getCommoditySoldListImplList().stream()
                              .filter(this::commodityTypeMatches)
                              .iterator(), settingsCollection, resultBuilder);
                     } else {
                         // Queueing and updating entities which we can determine their capacity value
                         // by using the SLO value from the settings as capacity.
                         resultBuilder.queueUpdateEntityAlone(entity,
-                            entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
-                                .getCommoditySoldListBuilderList().stream()
+                            entityToUpdate -> entityToUpdate.getTopologyEntityImpl()
+                                .getCommoditySoldListImplList().stream()
                                 .filter(this::commodityTypeMatches)
                                 .forEach(commSold -> commSold.setCapacity(
                                     getSLOValueFromSetting(settingsCollection, entity))));
@@ -181,7 +180,7 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
     }
 
     private void queueCapacityUpdate(TopologyEntity entity,
-            Iterator<Builder> commsSold,
+            Iterator<CommoditySoldImpl> commsSold,
             EntitySettingsCollection settingsCollection,
             EntityChangesBuilder<TopologyEntity> resultBuilder) {
         if (!commsSold.hasNext()) {
@@ -190,7 +189,7 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
 
         resultBuilder.queueUpdateEntityAlone(entity, entityToUpdate -> {
             while (commsSold.hasNext()) {
-                Builder commSold = commsSold.next();
+                CommoditySoldImpl commSold = commsSold.next();
                 // Deactivate so they will not be sent to the market
                 deactivateCommodities(entity, commSold);
                 double maxCapacity = maxCapacityCache.getMaxCapacity(entityToUpdate.getOid(), commSold.getCommodityType().getType());
@@ -217,14 +216,14 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
      */
     private void deactivateCommodities(
             @Nonnull final TopologyEntity entity,
-            @Nonnull final CommoditySoldDTO.Builder commSold) {
+            @Nonnull final CommoditySoldImpl commSold) {
         if (logger.isDebugEnabled()) {
             logger.debug("Deactivate {} for {}", commSold, entity);
         }
         // Deactivate sold commodity
         commSold.setActive(false);
         // Deactivate corresponding bought commodities from consumers
-        entity.getCommoditiesBoughtBuilderByConsumers(commodityType.getNumber())
+        entity.getCommoditiesBoughtImplByConsumers(commodityType.getNumber())
                 .forEach(commBought -> commBought.setActive(false));
     }
 
@@ -235,7 +234,7 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
      * @param capacity Capacity returned from the db.
      * @param entityToUpdate contains the current 'used' value returned from the probe
      */
-    private void setValidCapacity(final Builder commSold, final double capacity,
+    private void setValidCapacity(final CommoditySoldImpl commSold, final double capacity,
                                   final TopologyEntity entityToUpdate) {
         logger.debug("Calculating sold {} commodity capacity for {} with current used capacity: {} "
                 + "and historical capacity: {}", commodityType.name(), entityToUpdate.getDisplayName(),
@@ -294,7 +293,7 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
                 sloValueSettingName, enableSLOSettingName);
     }
 
-    private boolean commodityTypeMatches(TopologyDTO.CommoditySoldDTO.Builder commodity) {
+    private boolean commodityTypeMatches(CommoditySoldView commodity) {
         return commodity.getCommodityType().getType() == commodityType.getNumber();
     }
 

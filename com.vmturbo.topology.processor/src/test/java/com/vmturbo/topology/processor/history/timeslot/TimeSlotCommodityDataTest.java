@@ -13,8 +13,8 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.history.BaseGraphRelatedTest;
@@ -31,7 +31,7 @@ import com.vmturbo.topology.processor.history.timeslot.TimeSlotCommodityData.Slo
 public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
     private static final double DELTA = 0.001;
     private static final int SLOTS = 2;
-    private static final CommodityType COMM_TYPE = CommodityType.newBuilder().setType(1).build();
+    private static final CommodityTypeImpl COMM_TYPE = new CommodityTypeImpl().setType(1);
     private static final EntityCommodityFieldReference FIELD =
                     new EntityCommodityFieldReference(1, COMM_TYPE, CommodityField.USED);
     private TimeslotHistoricalEditorConfig config;
@@ -100,8 +100,8 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
                         mockEntity(1, 1, COMM_TYPE, cap, used1, null, null, null, null, true);
         final ICommodityFieldAccessor accessor = createAccessor(cap, entity, 1000);
         Mockito.when(context.getAccessor()).thenReturn(accessor);
-        final CommoditySoldDTO.Builder commSold =
-                        entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+        final CommoditySoldImpl commSold =
+                        entity.getTopologyEntityImpl().getCommoditySoldListImplList()
                                         .get(0);
 
         TimeSlotCommodityData tcd = new TimeSlotCommodityData();
@@ -111,7 +111,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
         Mockito.when(clock.millis()).thenReturn(1L);
         Mockito.doReturn(used1).when(accessor).getRealTimeValue(FIELD);
         tcd.aggregate(FIELD, config, context);
-        commSold.getHistoricalUsedBuilder().clear();
+        commSold.getOrCreateHistoricalUsed().clear();
         Mockito.doReturn(used2).when(accessor).getRealTimeValue(FIELD);
         tcd.aggregate(FIELD, config, context);
 
@@ -125,7 +125,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
             Assert.assertEquals(0, slot.getCount());
             Assert.assertEquals(0, slot.getTotal(), DELTA);
         }
-        commSold.getHistoricalUsedBuilder().clear();
+        commSold.getOrCreateHistoricalUsed().clear();
 
         // advance time by an hour and add a point - previous hour should be accounted for
         // the calculation of the average value takes into account the previous slot as well as the current slot
@@ -138,7 +138,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
         final SlotStatistics[] previousSlotsAfterHour = tcd.getPreviousSlots();
         Assert.assertEquals(config.getSlots(context, FIELD), previousSlotsAfterHour.length);
         checkPreviousSlots(previousSlotsAfterHour, 1, expectedFirstSlotAvg, 0, 0);
-        commSold.getHistoricalUsedBuilder().clear();
+        commSold.getOrCreateHistoricalUsed().clear();
 
         // advance time by 12 hours and add a point
         Mockito.doReturn(TimeUnit.HOURS.toMillis(12) + 1).when(clock).millis();
@@ -148,7 +148,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
         Assert.assertEquals(used4, commSold.getHistoricalUsed().getTimeSlot(1), DELTA);
 
         checkPreviousSlots(previousSlotsAfterHour, 2, expectedFirstSlotAvg + used3, 0, 0);
-        commSold.getHistoricalUsedBuilder().clear();
+        commSold.getOrCreateHistoricalUsed().clear();
 
         // and another hour and a point
         final float expectedSecondSlotAvgAfterHour = (float)((used4 + used5) / 2);

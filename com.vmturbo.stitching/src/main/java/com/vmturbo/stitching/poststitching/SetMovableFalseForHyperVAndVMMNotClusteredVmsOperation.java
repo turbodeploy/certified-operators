@@ -8,8 +8,8 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -56,11 +56,11 @@ public class SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation implements P
         // iterate over every entity
         entities.forEach(entity -> {
 
-            final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
+            final TopologyEntityImpl entityBuilder = entity.getTopologyEntityImpl();
 
             // filter commodities bought from a PM
-            final Optional<CommoditiesBoughtFromProvider.Builder> commoditiesBoughtFromProviderOptional =
-                    entityBuilder.getCommoditiesBoughtFromProvidersBuilderList().stream()
+            final Optional<CommoditiesBoughtFromProviderImpl> commoditiesBoughtFromProviderOptional =
+                    entityBuilder.getCommoditiesBoughtFromProvidersImplList().stream()
                             .filter(commBoughtFromProv -> EntityType.PHYSICAL_MACHINE_VALUE == commBoughtFromProv.getProviderEntityType())
                             .findFirst();
 

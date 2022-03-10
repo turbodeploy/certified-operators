@@ -8,10 +8,10 @@ import org.junit.Before;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Replaced;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.EditImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ReplacedImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper;
 import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
@@ -49,9 +49,9 @@ public class MergePolicyDesktopPoolTest extends MergePolicyTestBase {
                         TopologyEntityUtils.topologyEntity(5L, EntityType.BUSINESS_USER, 2),
                         TopologyEntityUtils.topologyEntity(6L, EntityType.BUSINESS_USER),
                         TopologyEntityUtils.topologyEntity(100L, EntityType.DESKTOP_POOL))
-                        .collect(Collectors.toMap(Builder::getOid, e -> e)));
-        topologyGraph.getEntity(1L).get().getTopologyEntityDtoBuilder()
-            .setEdit(Edit.newBuilder().setReplaced(Replaced.newBuilder().setPlanId(0L).setReplacementId(100L)));
+                        .collect(Collectors.toMap(TopologyEntity.Builder::getOid, e -> e)));
+        topologyGraph.getEntity(1L).get().getTopologyEntityImpl()
+            .setEdit(new EditImpl().setReplaced(new ReplacedImpl().setPlanId(0L).setReplacementId(100L)));
         policyMatcher = new PolicyMatcher(topologyGraph);
     }
 }

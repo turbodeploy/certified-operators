@@ -39,8 +39,8 @@ import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlocking
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -51,8 +51,8 @@ import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.policy.application.AtMostNBoundPolicy;
 import com.vmturbo.topology.processor.group.policy.application.AtMostNPolicy;
-import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
 import com.vmturbo.topology.processor.group.policy.application.BindToComplementaryGroupPolicy;
+import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
@@ -223,7 +223,7 @@ public class PolicyManager {
      * @param groupResolver The resolver for the groups that the policy applies to.
      * @return map from policy id to the commodityType.
      */
-    public Table<Long, Integer, TopologyDTO.CommodityType> getPlacementPolicyIdToCommodityType(
+    public Table<Long, Integer, TopologyPOJO.CommodityTypeView> getPlacementPolicyIdToCommodityType(
             @Nonnull final TopologyGraph<TopologyEntity> graph,
             @Nonnull final GroupResolver groupResolver) {
 
@@ -244,7 +244,7 @@ public class PolicyManager {
         getServerPolicies(new ArrayList<>(), livePolicies, groupsById)
                 .forEach(policiesToApply::add);
 
-        Table<Long, Integer, TopologyDTO.CommodityType> results = HashBasedTable.create();
+        Table<Long, Integer, TopologyPOJO.CommodityTypeView> results = HashBasedTable.create();
         policiesToApply.stream().filter(policy ->
                 // only update PO if the policy is enabled.
                 policy.isEnabled()

@@ -15,7 +15,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -74,7 +74,7 @@ public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyAp
         final Set<ApiEntityType> providerTypes = policies.stream()
             .flatMap(policy -> GroupProtoUtil.getEntityTypes(policy.getProviderPolicyEntities().getGroup()).stream())
             .collect(Collectors.toSet());
-        final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> invertedIndex =
+        final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView> invertedIndex =
             invertedIndexFactory.typeInvertedIndex(topologyGraph, providerTypes, invertedIndexMinimalScanThreshold);
         policies.forEach(policy -> {
             try {
@@ -102,10 +102,10 @@ public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyAp
                 // if providers have been replaced, add them to the list of providers so as to skip them
                 Set<Long> replacedProviders = new HashSet<>();
                 providers.forEach(providerId -> topologyGraph.getEntity(providerId)
-                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                    .map(TopologyEntity::getTopologyEntityImpl)
                     .ifPresent(provider -> {
                         if (provider.hasEdit() && provider.getEdit().hasReplaced()) {
-                            replacedProviders.add(provider.getEditBuilder().getReplaced().getReplacementId());
+                            replacedProviders.add(provider.getEdit().getReplaced().getReplacementId());
                         }
                     }));
 

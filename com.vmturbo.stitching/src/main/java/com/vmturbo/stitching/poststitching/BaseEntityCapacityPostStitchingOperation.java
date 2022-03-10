@@ -11,7 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -41,10 +42,10 @@ public abstract class BaseEntityCapacityPostStitchingOperation {
         return providers.stream()
             .filter(provider -> allowedProviderTypes.contains(provider.getEntityType()))
             .flatMap(provider ->
-                provider.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream())
+                provider.getTopologyEntityImpl().getCommoditySoldListList().stream())
             .filter(commodity -> commodity.getCommodityType().getType() == commodityType)
             .filter(commodity -> commodity.hasCapacity() && commodity.getCapacity() > 0)
-            .map(CommoditySoldDTO::getCapacity)
+            .map(CommoditySoldView::getCapacity)
             .findFirst();
     }
 
@@ -103,14 +104,14 @@ public abstract class BaseEntityCapacityPostStitchingOperation {
         return getApplicableCommodities(entity, commodityType.getNumber(), true)
                 .findAny()
                 .filter(comm -> comm.hasCapacity() && comm.getCapacity() != 0)
-                .map(CommoditySoldDTO.Builder::getCapacity);
+                .map(CommoditySoldView::getCapacity);
     }
 
-    private static Stream<CommoditySoldDTO.Builder> getApplicableCommodities(TopologyEntity entity,
-            int commodityType, boolean override) {
+    private static Stream<CommoditySoldImpl> getApplicableCommodities(TopologyEntity entity,
+                                                                      int commodityType, boolean override) {
         return entity
-                .getTopologyEntityDtoBuilder()
-                .getCommoditySoldListBuilderList()
+                .getTopologyEntityImpl()
+                .getCommoditySoldListImplList()
                 .stream()
                 .filter(commodity -> commodity.getCommodityType().getType() == commodityType)
                 .filter(comm -> override ? true : !comm.hasCapacity() || comm.getCapacity() == 0);

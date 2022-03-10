@@ -11,26 +11,30 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
-
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
-import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.EditImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.RemovedImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.PhysicalMachineInfoImpl;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
@@ -51,153 +55,153 @@ public class ControllableManagerTest {
 
     private ControllableManager controllableManager;
 
-    private final TopologyEntityDTO.Builder vmFooEntityBuilder = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityImpl vmFooEntityBuilder = new TopologyEntityImpl()
         .setOid(1)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true)
             .setIsEligibleForScale(true)
             .setIsEligibleForResizeDown(true))
             .addCommoditiesBoughtFromProviders(
-                TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(4));
-    private final TopologyEntityDTO.Builder vmBarEntityBuilder = TopologyEntityDTO.newBuilder()
+                new CommoditiesBoughtFromProviderImpl().setProviderId(4));
+    private final TopologyEntityImpl vmBarEntityBuilder = new TopologyEntityImpl()
         .setOid(2)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true)
             .setIsEligibleForScale(true)
             .setIsEligibleForResizeDown(true))
             .addCommoditiesBoughtFromProviders(
-                TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(4));
-    private final TopologyEntityDTO.Builder vmBazEntityBuilder = TopologyEntityDTO.newBuilder()
+                new CommoditiesBoughtFromProviderImpl().setProviderId(4));
+    private final TopologyEntityImpl vmBazEntityBuilder = new TopologyEntityImpl()
         .setOid(3)
         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true)
             .setIsEligibleForScale(true)
             .setIsEligibleForResizeDown(true))
         .addCommoditiesBoughtFromProviders(
-            TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(5))
-        .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(CommodityType.newBuilder().setType(53)));
-    private final TopologyEntityDTO.Builder pmInMaintenance = TopologyEntityDTO.newBuilder()
+            new CommoditiesBoughtFromProviderImpl().setProviderId(5))
+        .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(new CommodityTypeImpl().setType(53)));
+    private final TopologyEntityImpl pmInMaintenance = new TopologyEntityImpl()
         .setOid(4)
         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true))
         .setEntityState(EntityState.MAINTENANCE);
-    private final TopologyEntityDTO.Builder pmPoweredOn = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityImpl pmPoweredOn = new TopologyEntityImpl()
         .setOid(5)
         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true))
         .setEntityState(EntityState.POWERED_ON);
 
-    private final TopologyEntityDTO.Builder container1 = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityImpl container1 = new TopologyEntityImpl()
         .setOid(10)
         .setEntityType(EntityType.CONTAINER_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true))
         .addCommoditiesBoughtFromProviders(
-            TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(11));
-    private final TopologyEntityDTO.Builder pod1 = TopologyEntityDTO.newBuilder()
+            new CommoditiesBoughtFromProviderImpl().setProviderId(11));
+    private final TopologyEntityImpl pod1 = new TopologyEntityImpl()
         .setOid(11)
         .setEntityType(EntityType.CONTAINER_POD_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true))
         .addCommoditiesBoughtFromProviders(
-            TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(13));
-    private final TopologyEntityDTO.Builder pod2 = TopologyEntityDTO.newBuilder()
+            new CommoditiesBoughtFromProviderImpl().setProviderId(13));
+    private final TopologyEntityImpl pod2 = new TopologyEntityImpl()
         .setOid(12)
         .setEntityType(EntityType.CONTAINER_POD_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true))
         .addCommoditiesBoughtFromProviders(
-            TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(14));
+            new CommoditiesBoughtFromProviderImpl().setProviderId(14));
 
-    private final TopologyEntityDTO.Builder vm1 = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityImpl vm1 = new TopologyEntityImpl()
         .setOid(13)
         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true))
         .addCommoditiesBoughtFromProviders(
-            TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(15));
-    private final TopologyEntityDTO.Builder vm2 = TopologyEntityDTO.newBuilder()
+            new CommoditiesBoughtFromProviderImpl().setProviderId(15));
+    private final TopologyEntityImpl vm2 = new TopologyEntityImpl()
         .setOid(14)
         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true))
         .addCommoditiesBoughtFromProviders(
-            TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(15));
+            new CommoditiesBoughtFromProviderImpl().setProviderId(15));
 
-    private final TopologyEntityDTO.Builder VDC = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityImpl VDC = new TopologyEntityImpl()
         .setOid(16)
         .setEntityType(EntityType.VIRTUAL_DATACENTER_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true))
         .addCommoditiesBoughtFromProviders(
-            TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(15));
-    private final TopologyEntityDTO.Builder pmFailover = TopologyEntityDTO.newBuilder()
+            new CommoditiesBoughtFromProviderImpl().setProviderId(15));
+    private final TopologyEntityImpl pmFailover = new TopologyEntityImpl()
         .setOid(15)
         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true))
         .setEntityState(EntityState.FAILOVER);
 
-    private final TopologyEntityDTO.Builder pmInMaintenance1 = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityImpl pmInMaintenance1 = new TopologyEntityImpl()
         .setOid(21)
         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true))
         .setEntityState(EntityState.MAINTENANCE);
-    private final TopologyEntityDTO.Builder vmMaintenance1 = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityImpl vmMaintenance1 = new TopologyEntityImpl()
         .setOid(22)
         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true)
             .setIsEligibleForScale(true)
             .setIsEligibleForResizeDown(true))
         .addCommoditiesBoughtFromProviders(
-            TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(pmInMaintenance1.getOid()))
-        .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(CommodityType.newBuilder().setType(53)));
-    private final TopologyEntityDTO.Builder vmMaintenance2 = TopologyEntityDTO.newBuilder()
+            new CommoditiesBoughtFromProviderImpl().setProviderId(pmInMaintenance1.getOid()))
+        .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(new CommodityTypeImpl().setType(53)));
+    private final TopologyEntityImpl vmMaintenance2 = new TopologyEntityImpl()
         .setOid(23)
         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true)
             .setIsEligibleForScale(true)
             .setIsEligibleForResizeDown(true))
         .addCommoditiesBoughtFromProviders(
-            TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(pmInMaintenance1.getOid()))
-        .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(CommodityType.newBuilder().setType(53)));
-    private final TopologyEntityDTO.Builder dbsEntityBuilder = TopologyEntityDTO.newBuilder()
+            new CommoditiesBoughtFromProviderImpl().setProviderId(pmInMaintenance1.getOid()))
+        .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(new CommodityTypeImpl().setType(53)));
+    private final TopologyEntityImpl dbsEntityBuilder = new TopologyEntityImpl()
             .setOid(24)
             .setEntityType(EntityType.DATABASE_SERVER_VALUE)
-            .setAnalysisSettings(AnalysisSettings.newBuilder()
+            .setAnalysisSettings(new AnalysisSettingsImpl()
                     .setControllable(true)
                     .setIsEligibleForScale(true)
                     .setIsEligibleForResizeDown(true));
-    private final static TopologyEntityDTO.Builder pmInMaintenance2 = TopologyEntityDTO.newBuilder()
+    private final static TopologyEntityImpl pmInMaintenance2 = new TopologyEntityImpl()
         .setOid(100)
         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true))
         .setEntityState(EntityState.MAINTENANCE)
-        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
-            PhysicalMachineInfo.newBuilder().setAutomationLevel(AutomationLevel.FULLY_AUTOMATED)));
-    private final static TopologyEntityDTO.Builder pmInMaintenance3 = TopologyEntityDTO.newBuilder()
+        .setTypeSpecificInfo(new TypeSpecificInfoImpl().setPhysicalMachine(
+            new PhysicalMachineInfoImpl().setAutomationLevel(AutomationLevel.FULLY_AUTOMATED)));
+    private final static TopologyEntityImpl pmInMaintenance3 = new TopologyEntityImpl()
         .setOid(101)
         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true))
         .setEntityState(EntityState.MAINTENANCE)
-        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
-            PhysicalMachineInfo.newBuilder().setAutomationLevel(AutomationLevel.PARTIALLY_AUTOMATED)));
-    private final static TopologyEntityDTO.Builder pmInMaintenance4 = TopologyEntityDTO.newBuilder()
+        .setTypeSpecificInfo(new TypeSpecificInfoImpl().setPhysicalMachine(
+            new PhysicalMachineInfoImpl().setAutomationLevel(AutomationLevel.PARTIALLY_AUTOMATED)));
+    private final static TopologyEntityImpl pmInMaintenance4 = new TopologyEntityImpl()
         .setOid(102)
         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-        .setAnalysisSettings(AnalysisSettings.newBuilder()
+        .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true))
         .setEntityState(EntityState.MAINTENANCE)
-        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
-            PhysicalMachineInfo.newBuilder().setAutomationLevel(AutomationLevel.NOT_AUTOMATED)));
+        .setTypeSpecificInfo(new TypeSpecificInfoImpl().setPhysicalMachine(
+            new PhysicalMachineInfoImpl().setAutomationLevel(AutomationLevel.NOT_AUTOMATED)));
 
     private final Map<Long, Builder> topology = new HashMap<>();
     private GraphWithSettings topologyGraph;
@@ -270,47 +274,46 @@ public class ControllableManagerTest {
     @Test
     public void testSetUncontrollablePodToControllable() {
         // Pods to test unplaced uncontrollable pods logic
-        final TopologyEntityDTO.Builder pod3 = TopologyEntityDTO.newBuilder()
+        final TopologyEntityImpl pod3 = new TopologyEntityImpl()
                 .setOid(1111)
                 .setEntityType(EntityType.CONTAINER_POD_VALUE)
                 .setEntityState(EntityState.POWERED_ON)
-                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                .setAnalysisSettings(new AnalysisSettingsImpl()
                         .setControllable(false))
                 .addCommoditiesBoughtFromProviders(
                         // actual VM provider in topology
-                        TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(13));
-        final TopologyEntityDTO.Builder pod4 = TopologyEntityDTO.newBuilder()
+                        new CommoditiesBoughtFromProviderImpl().setProviderId(13));
+        final TopologyEntityImpl pod4 = new TopologyEntityImpl()
                 .setOid(1112)
                 .setEntityType(EntityType.CONTAINER_POD_VALUE)
                 .setEntityState(EntityState.POWERED_ON)
-                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                .setAnalysisSettings(new AnalysisSettingsImpl()
                         .setControllable(false))
                 .addCommoditiesBoughtFromProviders(
                         // removed VM provider in topology
-                        TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(1221)
+                        new CommoditiesBoughtFromProviderImpl().setProviderId(1221)
                                 .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
-        final TopologyEntityDTO.Builder clonePod = TopologyEntityDTO.newBuilder()
+        final TopologyEntityImpl clonePod = new TopologyEntityImpl()
                 .setOid(1113)
                 .setEntityType(EntityType.CONTAINER_POD_VALUE)
                 .setEntityState(EntityState.POWERED_ON)
-                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                .setAnalysisSettings(new AnalysisSettingsImpl()
                         .setControllable(false))
                 .addCommoditiesBoughtFromProviders(
                         // VM provider for cloned pod
-                        TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(-1)
+                        new CommoditiesBoughtFromProviderImpl().setProviderId(-1)
                                 .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
-        final TopologyEntityDTO.Builder vmToRemove = TopologyEntityDTO.newBuilder()
+        final TopologyEntityImpl vmToRemove = new TopologyEntityImpl()
                 .setOid(1221)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setEdit(TopologyEntityDTO.Edit.newBuilder()
+                .setEdit(new EditImpl()
                         // Its ok to use a random plan id, as its needed only to test an internal
                         // function, without any plan id validation.
-                        .setRemoved(TopologyEntityDTO.Removed.newBuilder().setPlanId(1551).build())
-                        .build())
-                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                        .setRemoved(new RemovedImpl().setPlanId(1551)))
+                .setAnalysisSettings(new AnalysisSettingsImpl()
                         .setControllable(true))
                 .addCommoditiesBoughtFromProviders(
-                        TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(15));
+                        new CommoditiesBoughtFromProviderImpl().setProviderId(15));
 
         topology.put(pod3.getOid(), TopologyEntity.newBuilder(pod3));
         topology.put(pod4.getOid(), TopologyEntity.newBuilder(pod4));
@@ -357,7 +360,7 @@ public class ControllableManagerTest {
      */
     @Test
     public void testApplyControllableUnknownHost() {
-        topology.get(pmFailover.getOid()).getEntityBuilder().setEntityState(EntityState.UNKNOWN);
+        topology.get(pmFailover.getOid()).getTopologyEntityImpl().setEntityState(EntityState.UNKNOWN);
         topologyGraph = createNoSettingsGraph(topology);
 
         Mockito.when(entityActionDao.getNonControllableEntityIds())
@@ -375,22 +378,22 @@ public class ControllableManagerTest {
      */
     @Test
     public void testApplyControllableSuspendedEntity() {
-        final TopologyEntityDTO.Builder suspendedVM = TopologyEntityDTO.newBuilder()
+        final TopologyEntityImpl suspendedVM = new TopologyEntityImpl()
             .setOid(201)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .setAnalysisSettings(AnalysisSettings.newBuilder()
+            .setAnalysisSettings(new AnalysisSettingsImpl()
                 .setControllable(true))
             .setEntityState(EntityState.SUSPENDED)
             .addCommoditiesBoughtFromProviders(
-                TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(pmPoweredOn.getOid()));
-        final TopologyEntityDTO.Builder suspendedContainer = TopologyEntityDTO.newBuilder()
+                new CommoditiesBoughtFromProviderImpl().setProviderId(pmPoweredOn.getOid()));
+        final TopologyEntityImpl suspendedContainer = new TopologyEntityImpl()
             .setOid(202)
             .setEntityType(EntityType.CONTAINER_VALUE)
-            .setAnalysisSettings(AnalysisSettings.newBuilder()
+            .setAnalysisSettings(new AnalysisSettingsImpl()
                 .setControllable(true))
             .setEntityState(EntityState.SUSPENDED)
             .addCommoditiesBoughtFromProviders(
-                TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(pod2.getOid()));
+                new CommoditiesBoughtFromProviderImpl().setProviderId(pod2.getOid()));
 
         topology.put(suspendedVM.getOid(), TopologyEntity.newBuilder(suspendedVM));
         topology.put(suspendedContainer.getOid(), TopologyEntity.newBuilder(suspendedContainer));
@@ -459,14 +462,14 @@ public class ControllableManagerTest {
     @Test
     public void testMarkVMsOnMaintenanceHostAsNotResizable() {
         controllableManager.applyResizable(topologyGraph.getTopologyGraph());
-        for (CommoditySoldDTO.Builder commSold : vmMaintenance1.getCommoditySoldListBuilderList()) {
+        for (CommoditySoldView commSold : vmMaintenance1.getCommoditySoldListList()) {
             assertFalse(commSold.getIsResizeable());
         }
-        for (CommoditySoldDTO.Builder commSold : vmMaintenance2.getCommoditySoldListBuilderList()) {
+        for (CommoditySoldView commSold : vmMaintenance2.getCommoditySoldListList()) {
             assertFalse(commSold.getIsResizeable());
         }
         // vmBazEntityBuilder is not on maintenance host
-        for (CommoditySoldDTO.Builder commSold : vmBazEntityBuilder.getCommoditySoldListBuilderList()) {
+        for (CommoditySoldView commSold : vmBazEntityBuilder.getCommoditySoldListList()) {
             assertTrue(commSold.getIsResizeable());
         }
     }
@@ -539,7 +542,7 @@ public class ControllableManagerTest {
             .build();
     }
 
-    private static GraphWithSettings createNoSettingsGraph(Map<Long, Builder> topology) {
+    private static GraphWithSettings createNoSettingsGraph(Map<Long, TopologyEntity.Builder> topology) {
         return new GraphWithSettings(TopologyEntityTopologyGraphCreator.newGraph(topology),
                         Collections.emptyMap(), Collections.emptyMap());
     }

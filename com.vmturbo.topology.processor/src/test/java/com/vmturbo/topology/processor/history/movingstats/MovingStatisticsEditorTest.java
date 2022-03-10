@@ -50,16 +50,15 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanCh
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.PerTargetEntityInformationImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
@@ -110,44 +109,38 @@ public class MovingStatisticsEditorTest extends MovingStatisticsBaseTest {
     private static final long OID2 = 23456L;
     private static final long OID3 = 34567L;
 
-    private static final CommodityType VCPU_COMMODITY_TYPE = CommodityType.newBuilder()
-        .setType(CommodityDTO.CommodityType.VCPU_VALUE)
-        .build();
+    private static final CommodityTypeImpl VCPU_COMMODITY_TYPE = new CommodityTypeImpl()
+        .setType(CommodityDTO.CommodityType.VCPU_VALUE);
 
-    private static final CommodityType VCPU_THROTTLING_COMMODITY_TYPE = CommodityType.newBuilder()
-        .setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE)
-        .build();
+    private static final CommodityTypeImpl VCPU_THROTTLING_COMMODITY_TYPE = new CommodityTypeImpl()
+        .setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE);
 
-    final TopologyEntityDTO.Builder containerSpec1 = TopologyEntityDTO.newBuilder()
+    final TopologyEntityImpl containerSpec1 = new TopologyEntityImpl()
         .setOid(OID1)
         .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
-        .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+        .setOrigin(new OriginImpl().setDiscoveryOrigin(new DiscoveryOriginImpl()
             .setLastUpdatedTime(System.currentTimeMillis())))
-        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+        .addCommoditySoldList(new CommoditySoldImpl()
             .setCommodityType(VCPU_COMMODITY_TYPE)
             .setCapacity(100.0)
-            .setUsed(50.0)
-            .build())
-        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setUsed(50.0))
+        .addCommoditySoldList(new CommoditySoldImpl()
             .setCommodityType(VCPU_THROTTLING_COMMODITY_TYPE)
             .setCapacity(100.0)
-            .setUsed(50.0)
-            .build());
-    final TopologyEntityDTO.Builder containerSpec2 = TopologyEntityDTO.newBuilder()
+            .setUsed(50.0));
+    final TopologyEntityImpl containerSpec2 = new TopologyEntityImpl()
         .setOid(OID2)
         .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
-        .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+        .setOrigin(new OriginImpl().setDiscoveryOrigin(new DiscoveryOriginImpl()
             .setLastUpdatedTime(System.currentTimeMillis())))
-        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+        .addCommoditySoldList(new CommoditySoldImpl()
             .setCommodityType(VCPU_COMMODITY_TYPE)
             .setCapacity(200.0)
-            .setUsed(75.0)
-            .build())
-        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setUsed(75.0))
+        .addCommoditySoldList(new CommoditySoldImpl()
             .setCommodityType(VCPU_THROTTLING_COMMODITY_TYPE)
             .setCapacity(100.0)
-            .setUsed(20.0)
-            .build());
+            .setUsed(20.0));
     final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(
         ImmutableMap.of(
             OID1, TopologyEntity.newBuilder(containerSpec1),
@@ -321,52 +314,48 @@ public class MovingStatisticsEditorTest extends MovingStatisticsBaseTest {
     public void testIsEntityApplicable() {
         // Moving statistics not applicable for container entities
         Assert.assertFalse(movingStatisticsEditor.isEntityApplicable(TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(1L)
                 .setEntityType(EntityType.CONTAINER_VALUE)).build()));
 
         // Moving statistics not applicable for container pod entities
         Assert.assertFalse(movingStatisticsEditor.isEntityApplicable(TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(2L)
                 .setEntityType(EntityType.CONTAINER_POD_VALUE)).build()));
 
         // Moving statistics not applicable for container pod entities
         Assert.assertFalse(movingStatisticsEditor.isEntityApplicable(TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(3L)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)).build()));
 
         // Moving statistics not applicable for container pod entities
         Assert.assertFalse(movingStatisticsEditor.isEntityApplicable(TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(4L)
                 .setEntityType(EntityType.BUSINESS_USER_VALUE)).build()));
 
         // Moving statistics not applicable for entity with not discovered origin from targets
         Assert.assertFalse(movingStatisticsEditor.isEntityApplicable(TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
-                .setOrigin(Origin.newBuilder()
-                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                .setOrigin(new OriginImpl()
+                    .setDiscoveryOrigin(new DiscoveryOriginImpl()
                         .putDiscoveredTargetData(1L,
-                            PerTargetEntityInformation.newBuilder()
-                                .setOrigin(EntityOrigin.PROXY)
-                                .build())
-                        .build())
-                    .build())).build()));
+                            new PerTargetEntityInformationImpl()
+                                .setOrigin(EntityOrigin.PROXY))))).build()));
 
         // moving statistics should still be set for controllable false entity if it is ContainerSpec
         Assert.assertTrue(movingStatisticsEditor.isEntityApplicable(TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
-                .setOrigin(Origin.newBuilder()
-                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                .setOrigin(new OriginImpl()
+                    .setDiscoveryOrigin((new DiscoveryOriginImpl()
                         .putDiscoveredTargetData(1L,
-                            PerTargetEntityInformation.newBuilder()
-                                .setOrigin(EntityOrigin.DISCOVERED)
-                                .build())))
-                .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(false).build()))
+                            new PerTargetEntityInformationImpl()
+                                .setOrigin(EntityOrigin.DISCOVERED)))))
+                .setAnalysisSettings(new AnalysisSettingsImpl().setControllable(false)))
             .build()));
     }
 
@@ -377,15 +366,15 @@ public class MovingStatisticsEditorTest extends MovingStatisticsBaseTest {
     public void testIsCommodityApplicable() {
         // Don't set moving statistics for commodity without sampling configuration
         Assert.assertFalse(movingStatisticsEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
-            TopologyDTO.CommoditySoldDTO.newBuilder().setCommodityType(
-                CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE).build()
+            TopologyEntity.newBuilder(new TopologyEntityImpl()).build(),
+            new CommoditySoldImpl().setCommodityType(
+                new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VMEM_VALUE)
             ), topologyInfo));
         // Set moving statistics for commodity with sampling configuration
         Assert.assertTrue(movingStatisticsEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
-            TopologyDTO.CommoditySoldDTO.newBuilder().setCommodityType(
-                CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE).build()
+            TopologyEntity.newBuilder(new TopologyEntityImpl()).build(),
+            new CommoditySoldImpl().setCommodityType(
+                new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_VALUE)
             ), topologyInfo));
     }
 

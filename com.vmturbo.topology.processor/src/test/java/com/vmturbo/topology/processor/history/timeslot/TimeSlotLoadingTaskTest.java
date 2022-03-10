@@ -23,7 +23,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -42,8 +42,8 @@ public class TimeSlotLoadingTaskTest {
                                     null);
     private static final long OID1 = 12;
     private static final long OID2 = 15;
-    private static final CommodityType CT = CommodityType.newBuilder()
-                    .setType(CommodityDTO.CommodityType.POOL_CPU_VALUE).build();
+    private static final CommodityTypeImpl CT = new CommodityTypeImpl()
+                    .setType(CommodityDTO.CommodityType.POOL_CPU_VALUE);
 
     private StatsHistoryServiceMole history;
     private GrpcTestServer grpcServer;

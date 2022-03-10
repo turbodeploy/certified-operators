@@ -19,9 +19,10 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -39,10 +40,10 @@ public class SetMovableFalseForHyperVAndVMMNotClusteredVmsOperationTest {
     private UnitTestResultBuilder resultBuilder;
 
     // pm commodities sold
-    private final CommoditySoldDTO pmCpuCommoditySold = makeCommoditySold(CommodityType.CPU);
-    private final CommoditySoldDTO pmMemCommoditySold = makeCommoditySold(CommodityType.MEM);
-    private final CommoditySoldDTO pmClusterCommoditySold = makeCommoditySold(CommodityType.CLUSTER);
-    private final List<CommoditySoldDTO> pmCommoditySoldList = ImmutableList.of(
+    private final CommoditySoldView pmCpuCommoditySold = makeCommoditySold(CommodityType.CPU);
+    private final CommoditySoldView pmMemCommoditySold = makeCommoditySold(CommodityType.MEM);
+    private final CommoditySoldView pmClusterCommoditySold = makeCommoditySold(CommodityType.CLUSTER);
+    private final List<CommoditySoldView> pmCommoditySoldList = ImmutableList.of(
             pmCpuCommoditySold,
             pmMemCommoditySold,
             pmClusterCommoditySold);
@@ -54,32 +55,30 @@ public class SetMovableFalseForHyperVAndVMMNotClusteredVmsOperationTest {
             Collections.emptyList());
 
     // vm commodities sold
-    private final CommoditySoldDTO vmVcpuCommoditySold = makeCommoditySold(CommodityType.VCPU);
-    private final List<CommoditySoldDTO> vmCommoditySoldList = ImmutableList.of(vmVcpuCommoditySold);
+    private final CommoditySoldView vmVcpuCommoditySold = makeCommoditySold(CommodityType.VCPU);
+    private final List<CommoditySoldView> vmCommoditySoldList = ImmutableList.of(vmVcpuCommoditySold);
 
     // vm commodities bought
-    private final CommodityBoughtDTO cpuCommBought = makeCommodityBought(CommodityType.CPU);
-    private final CommodityBoughtDTO memCommBought = makeCommodityBought(CommodityType.MEM);
-    private final CommodityBoughtDTO clusterCommBought = makeCommodityBought(CommodityType.CLUSTER);
+    private final CommodityBoughtView cpuCommBought = makeCommodityBought(CommodityType.CPU);
+    private final CommodityBoughtView memCommBought = makeCommodityBought(CommodityType.MEM);
+    private final CommodityBoughtView clusterCommBought = makeCommodityBought(CommodityType.CLUSTER);
 
-    private final List<CommodityBoughtDTO> vmWithClusterCommodityBoughtList = ImmutableList.of(
+    private final List<CommodityBoughtView> vmWithClusterCommodityBoughtList = ImmutableList.of(
             cpuCommBought,
             memCommBought,
             clusterCommBought);
-    private final CommoditiesBoughtFromProvider vmWithClusterCommoBoughtFromProvider =
-            CommoditiesBoughtFromProvider.newBuilder()
+    private final CommoditiesBoughtFromProviderImpl vmWithClusterCommoBoughtFromProvider =
+            new CommoditiesBoughtFromProviderImpl()
                     .addAllCommodityBought(vmWithClusterCommodityBoughtList)
-                    .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                    .build();
+                    .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
 
-    private final List<CommodityBoughtDTO> vmWithoutClusterCommodityBoughtList = ImmutableList.of(
+    private final List<CommodityBoughtView> vmWithoutClusterCommodityBoughtList = ImmutableList.of(
             cpuCommBought,
             memCommBought);
-    private final CommoditiesBoughtFromProvider vmWithoutClusterCommoBoughtFromProvider =
-            CommoditiesBoughtFromProvider.newBuilder()
+    private final CommoditiesBoughtFromProviderImpl vmWithoutClusterCommoBoughtFromProvider =
+            new CommoditiesBoughtFromProviderImpl()
                     .addAllCommodityBought(vmWithoutClusterCommodityBoughtList)
-                    .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                    .build();
+                    .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
 
     @SuppressWarnings("unchecked")
     private final IStitchingJournal<TopologyEntity> journal =
@@ -98,11 +97,11 @@ public class SetMovableFalseForHyperVAndVMMNotClusteredVmsOperationTest {
             ImmutableList.of(hostProvider));
 
     // save if the entity is movable right after creation
-    final boolean isMovableBefore = vmWithClusterComm.getTopologyEntityDtoBuilder()
+    final boolean isMovableBefore = vmWithClusterComm.getTopologyEntityImpl()
             .getCommoditiesBoughtFromProvidersList().stream()
             .filter(commBoughtFromProv -> EntityType.PHYSICAL_MACHINE_VALUE == commBoughtFromProv.getProviderEntityType())
             // there should be only 1
-            .allMatch(CommoditiesBoughtFromProvider::getMovable);
+            .allMatch(CommoditiesBoughtFromProviderView::getMovable);
 
     @Before
     public void setup() {
@@ -136,11 +135,11 @@ public class SetMovableFalseForHyperVAndVMMNotClusteredVmsOperationTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         // check that the entity without the cluster comm is not movable
-        final boolean isMovable = vmWithoutClusterComm.getTopologyEntityDtoBuilder()
+        final boolean isMovable = vmWithoutClusterComm.getTopologyEntityImpl()
                 .getCommoditiesBoughtFromProvidersList().stream()
                 .filter(commBoughtFromProv -> EntityType.PHYSICAL_MACHINE_VALUE == commBoughtFromProv.getProviderEntityType())
                 // there should be only 1
-                .allMatch(CommoditiesBoughtFromProvider::getMovable);
+                .allMatch(CommoditiesBoughtFromProviderView::getMovable);
 
         assertFalse(isMovable);
 
@@ -157,20 +156,20 @@ public class SetMovableFalseForHyperVAndVMMNotClusteredVmsOperationTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         // check that the entity without the cluster comm is not movable
-        final boolean isVmWithoutClusterCommMovable = vmWithoutClusterComm.getTopologyEntityDtoBuilder()
+        final boolean isVmWithoutClusterCommMovable = vmWithoutClusterComm.getTopologyEntityImpl()
                 .getCommoditiesBoughtFromProvidersList().stream()
                 .filter(commBoughtFromProv -> EntityType.PHYSICAL_MACHINE_VALUE == commBoughtFromProv.getProviderEntityType())
                 // there should be only 1
-                .allMatch(CommoditiesBoughtFromProvider::getMovable);
+                .allMatch(CommoditiesBoughtFromProviderView::getMovable);
 
         assertFalse(isVmWithoutClusterCommMovable);
 
         // check that the entity with cluster comm remains movable as before
-        final boolean isMovableAfter = vmWithClusterComm.getTopologyEntityDtoBuilder()
+        final boolean isMovableAfter = vmWithClusterComm.getTopologyEntityImpl()
                 .getCommoditiesBoughtFromProvidersList().stream()
                 .filter(commBoughtFromProv -> EntityType.PHYSICAL_MACHINE_VALUE == commBoughtFromProv.getProviderEntityType())
                 // there should be only 1
-                .allMatch(CommoditiesBoughtFromProvider::getMovable);
+                .allMatch(CommoditiesBoughtFromProviderView::getMovable);
 
         assertEquals(isMovableBefore, isMovableAfter);
 

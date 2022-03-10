@@ -36,9 +36,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ConnectedEntityImpl;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -282,7 +282,7 @@ public class EntitySettingsScopeEvaluatorTest {
 
     private TopologyEntity.Builder entity(final long oid, final EntityType entityType) {
         return TopologyEntityUtils.topologyEntityBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setEntityType(entityType.getNumber())
                 .setOid(oid));
     }
@@ -292,7 +292,7 @@ public class EntitySettingsScopeEvaluatorTest {
                                                      final TopologyEntity.Builder... aggregators) {
         final TopologyEntity.Builder entity = entity(oid, entityType);
         for (TopologyEntity.Builder agg : aggregators) {
-            entity.getEntityBuilder().addConnectedEntityList(ConnectedEntity.newBuilder()
+            entity.getTopologyEntityImpl().addConnectedEntityList(new ConnectedEntityImpl()
                 .setConnectedEntityId(agg.getOid())
                 .setConnectedEntityType(agg.getEntityType())
                 .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION));
@@ -306,7 +306,7 @@ public class EntitySettingsScopeEvaluatorTest {
                                                      final TopologyEntity.Builder... controllers) {
         final TopologyEntity.Builder entity = entity(oid, entityType);
         for (TopologyEntity.Builder controller : controllers) {
-            entity.getEntityBuilder().addConnectedEntityList(ConnectedEntity.newBuilder()
+            entity.getTopologyEntityImpl().addConnectedEntityList(new ConnectedEntityImpl()
                     .setConnectedEntityId(controller.getOid())
                     .setConnectedEntityType(controller.getEntityType())
                     .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION));

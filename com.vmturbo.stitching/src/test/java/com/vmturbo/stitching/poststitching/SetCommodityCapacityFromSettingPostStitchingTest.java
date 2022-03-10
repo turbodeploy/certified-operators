@@ -67,11 +67,11 @@ public class SetCommodityCapacityFromSettingPostStitchingTest {
 
         // check that COMM_TYPE commodity had it's capacity set to the value of the setting
         Assert.assertEquals(settingCapacityValue,
-                provider.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(),
+                provider.getTopologyEntityImpl().getCommoditySoldList(0).getCapacity(),
                 1e-5);
         // check that COMM_TYPE_EXCLUDED doesn't get its capacity changed
         Assert.assertEquals(initialCapacity,
-                provider.getTopologyEntityDtoBuilder().getCommoditySoldList(1).getCapacity(),
+                provider.getTopologyEntityImpl().getCommoditySoldList(1).getCapacity(),
                 1e-5);
     }
 
@@ -90,7 +90,7 @@ public class SetCommodityCapacityFromSettingPostStitchingTest {
 
         // check that COMM_TYPE commodity capacity was not changed by the poststitching operation
         Assert.assertEquals(initialCapacity,
-                provider.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(),
+                provider.getTopologyEntityImpl().getCommoditySoldList(0).getCapacity(),
                 1e-5);
     }
 
@@ -109,7 +109,7 @@ public class SetCommodityCapacityFromSettingPostStitchingTest {
                                 PostStitchingTestUtilities.makeCommoditySold(COMM_TYPE),
                                 PostStitchingTestUtilities.makeCommoditySold(COMM_TYPE_EXCLUDED)),
                         Collections.emptyList());
-        seller.getEntityBuilder().getCommoditySoldListBuilderList().forEach(builder ->
+        seller.getTopologyEntityImpl().getCommoditySoldListImplList().forEach(builder ->
                 builder.setCapacity(initialCapacity));
         return seller.build();
     }

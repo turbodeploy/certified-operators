@@ -14,10 +14,12 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -96,7 +98,7 @@ public class DiscoveredClusterConstraintCache {
                 .forEach(discoveredClusterConstraint -> {
                     final Set<Long> providerIds = discoveredClusterConstraint.getProviderIds();
                     final Set<Long> consumerIds = getIncludedConsumers(topologyGraph, discoveredClusterConstraint);
-                    final CommodityType clusterCommodity =
+                    final CommodityTypeImpl clusterCommodity =
                             generateClusterCommodity(discoveredClusterConstraint.getProviderEntityType(),
                                     discoveredClusterConstraint.getConstraintId());
                     applyClusterCommodityForProvider(topologyGraph, providerIds, clusterCommodity);
@@ -197,18 +199,18 @@ public class DiscoveredClusterConstraintCache {
      *
      * @param providerEntityType provider entity type.
      * @param constraintId id of cluster constraint.
-     * @return {@link CommodityType}.
+     * @return {@link CommodityTypeImpl}.
      */
-    private CommodityType generateClusterCommodity(final int providerEntityType,
+    private CommodityTypeImpl generateClusterCommodity(final int providerEntityType,
                                                    @Nonnull final String constraintId) {
-        final CommodityType.Builder clusterCommodityBuilder = CommodityType.newBuilder();
+        final CommodityTypeImpl clusterCommodityBuilder = new CommodityTypeImpl();
         if (providerEntityType == EntityType.STORAGE_VALUE) {
             clusterCommodityBuilder.setType(CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE);
         } else {
             clusterCommodityBuilder.setType(CommodityDTO.CommodityType.CLUSTER_VALUE);
         }
         clusterCommodityBuilder.setKey(constraintId);
-        return clusterCommodityBuilder.build();
+        return clusterCommodityBuilder;
     }
 
     /**
@@ -242,7 +244,7 @@ public class DiscoveredClusterConstraintCache {
                 .map(topologyGraph::getEntity)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .map(TopologyEntity::getTopologyEntityImpl)
                 .anyMatch(topologyEntity -> (
                     topologyEntity.getEntityType() == EntityType.STORAGE_VALUE ?
                         commoditySoldHasConstraint(topologyEntity.getCommoditySoldListList(),
@@ -252,15 +254,15 @@ public class DiscoveredClusterConstraintCache {
     }
 
     /**
-     * Check if a list of {@link CommoditySoldDTO} contains input constraint or not.
+     * Check if a list of {@link CommoditySoldImpl} contains input constraint or not.
      *
-     * @param commoditySoldDTOs a list of {@link CommoditySoldDTO}.
+     * @param commoditySoldPOJOs a list of {@link CommoditySoldImpl}.
      * @param constraint constraint type.
      * @return a boolean.
      */
-    private boolean commoditySoldHasConstraint(@Nonnull final List<CommoditySoldDTO> commoditySoldDTOs,
+    private boolean commoditySoldHasConstraint(@Nonnull final List<CommoditySoldView> commoditySoldPOJOs,
                                                final int constraint) {
-        return commoditySoldDTOs.stream()
+        return commoditySoldPOJOs.stream()
                 .anyMatch(commoditySold -> commoditySold.getCommodityType().getType() == constraint);
     }
 
@@ -281,20 +283,20 @@ public class DiscoveredClusterConstraintCache {
                 .map(topologyGraph::getEntity)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .map(TopologyEntity::getTopologyEntityImpl)
                 .anyMatch(topologyEntity -> commodityBoughtGroupHasConstraint(topologyEntity,
                         discoveredClusterConstraint));
     }
 
     /**
-     * Check if {@link TopologyEntityDTO.Builder} has already contains cluster constraints or not.
+     * Check if {@link TopologyEntityImpl} has already contains cluster constraints or not.
      *
-     * @param topologyEntity {@link TopologyEntityDTO.Builder}.
+     * @param topologyEntity {@link TopologyEntityImpl}.
      * @param discoveredClusterConstraint {@link DiscoveredClusterConstraint}.
      * @return a boolean.
      */
     private boolean commodityBoughtGroupHasConstraint(
-            @Nonnull final TopologyEntityDTO.Builder topologyEntity,
+            @Nonnull final TopologyEntityImpl topologyEntity,
             @Nonnull final DiscoveredClusterConstraint discoveredClusterConstraint) {
         final Set<Long> providerIds = discoveredClusterConstraint.getProviderIds();
         return topologyEntity.getCommoditiesBoughtFromProvidersList().stream()
@@ -308,16 +310,16 @@ public class DiscoveredClusterConstraintCache {
     }
 
     /**
-     * Check if a list of {@link CommodityBoughtDTO} contains input constraint or not.
+     * Check if a list of {@link CommodityBoughtImpl} contains input constraint or not.
      *
-     * @param commodityBoughtDTOs a list of {@link CommodityBoughtDTO}.
+     * @param commodityBoughtPOJOs a list of {@link CommodityBoughtImpl}.
      * @param constraint constraint type need to match.
      * @return a boolean.
      */
     private boolean commodityBoughtHasConstraint(
-            @Nonnull final List<CommodityBoughtDTO> commodityBoughtDTOs,
+            @Nonnull final List<CommodityBoughtView> commodityBoughtPOJOs,
             final int constraint) {
-        return commodityBoughtDTOs.stream()
+        return commodityBoughtPOJOs.stream()
                 .anyMatch(commodityBought -> commodityBought.getCommodityType().getType() == constraint);
     }
 
@@ -347,14 +349,14 @@ public class DiscoveredClusterConstraintCache {
      */
     private void applyClusterCommodityForProvider(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                                                   @Nonnull final Set<Long> providerIds,
-                                                  @Nonnull final CommodityType clusterCommodity) {
+                                                  @Nonnull final CommodityTypeImpl clusterCommodity) {
         for (Long providerId : providerIds) {
             final Optional<TopologyEntity> providerEntity = topologyGraph.getEntity(providerId);
             if (!providerEntity.isPresent()) {
                 logger.warn("Can not find oid {} in topology.", providerId);
             } else {
-                providerEntity.get().getTopologyEntityDtoBuilder()
-                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                providerEntity.get().getTopologyEntityImpl()
+                        .addCommoditySoldList(new CommoditySoldImpl()
                                 .setCommodityType(clusterCommodity)
                                 .setCapacity(SDKConstants.ACCESS_COMMODITY_CAPACITY)
                                 .setIsResizeable(false));
@@ -375,20 +377,20 @@ public class DiscoveredClusterConstraintCache {
                                                   @Nonnull final Set<Long> consumerIds,
                                                   @Nonnull final Set<Long> providerIds,
                                                   final int providerEntityType,
-                                                  @Nonnull final CommodityType clusterCommodity) {
+                                                  @Nonnull final CommodityTypeImpl clusterCommodity) {
         for (Long consumerId : consumerIds) {
             final Optional<TopologyEntity> consumerEntity = topologyGraph.getEntity(consumerId);
             if (!consumerEntity.isPresent()) {
                 logger.warn("Can not find oid {} in topology.", consumerId);
             } else {
-                consumerEntity.get().getTopologyEntityDtoBuilder()
-                        .getCommoditiesBoughtFromProvidersBuilderList().stream()
+                consumerEntity.get().getTopologyEntityImpl()
+                        .getCommoditiesBoughtFromProvidersImplList().stream()
                         .filter(commodityBoughtGroup ->
                                 commodityBoughtGroup.getProviderEntityType() == providerEntityType &&
                                 providerIds.contains(commodityBoughtGroup.getProviderId()))
                         .forEach(commodityBoughtBuilder ->
                                 commodityBoughtBuilder.addCommodityBought(
-                                        CommodityBoughtDTO.newBuilder()
+                                        new CommodityBoughtImpl()
                                                 .setCommodityType(clusterCommodity)
                                                 .setUsed(1.0d)));
             }

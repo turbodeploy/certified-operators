@@ -632,7 +632,7 @@ public class EntitySettingsResolver {
 
         // Override user settings.
         final Collection<SettingToPolicyId> overridedUsersettings = settingOverrides
-                        .overrideSettings(entity.getTopologyEntityDtoBuilder(), userSettingsMap);
+                        .overrideSettings(entity.getTopologyEntityImpl(), userSettingsMap);
 
         final EntitySettings.Builder entitySettingsBuilder =
                         EntitySettings.newBuilder().setEntityOid(entity.getOid()).addAllUserSettings(overridedUsersettings);

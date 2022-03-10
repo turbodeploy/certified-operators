@@ -21,7 +21,7 @@ import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -170,8 +170,8 @@ public class StorageEntityIopsOrLatencyCapacityPostStitchingOpTest {
     }
 
     private double getCommodityCapacity(TopologyEntity entity) {
-        List<CommoditySoldDTO> commodities = entity
-                .getTopologyEntityDtoBuilder()
+        List<CommoditySoldView> commodities = entity
+                .getTopologyEntityImpl()
                 .getCommoditySoldListList()
                 .stream()
                 .filter(c -> c.getCommodityType().getType() == commodityType.getNumber())

@@ -41,9 +41,10 @@ import com.vmturbo.common.protobuf.stats.Stats.GetTimestampsRangeRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetTimestampsRangeResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.utils.ThrowingFunction;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -209,7 +210,7 @@ public class PercentileEditor extends
 
     @Override
     public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                                         @Nonnull TopologyDTO.CommoditySoldDTO.Builder commSold,
+                                         @Nonnull CommoditySoldImpl commSold,
                                          @Nullable TopologyInfo topoInfo) {
         if (commSold.hasUtilizationData()) {
             return true;
@@ -234,7 +235,7 @@ public class PercentileEditor extends
 
     @Override
     public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-            @Nonnull TopologyDTO.CommodityBoughtDTO.Builder commBought,
+            @Nonnull CommodityBoughtImpl commBought,
             int providerType) {
         final CommodityType boughtType =
             CommodityType.forNumber(commBought.getCommodityType().getType());

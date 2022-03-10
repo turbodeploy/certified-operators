@@ -106,7 +106,7 @@ public class ChangesetMergerTest {
         changeset3.beforeChange(entity3);
         changeset3.beforeChange(entity4);
 
-        entity1.getTopologyEntityDtoBuilder().setDisplayName("changed");
+        entity1.getTopologyEntityImpl().setDisplayName("changed");
 
         // All changesets should be merged.
         final ChangesetMerger<TopologyEntity> merger = new ChangesetMerger<>();
@@ -134,9 +134,9 @@ public class ChangesetMergerTest {
         changeset2.beforeChange(entity2);
         changeset3.beforeChange(entity3);
 
-        entity1.getTopologyEntityDtoBuilder().setDisplayName("changed-1");
-        entity2.getTopologyEntityDtoBuilder().setDisplayName("changed-2");
-        entity3.getTopologyEntityDtoBuilder().setDisplayName("changed-3");
+        entity1.getTopologyEntityImpl().setDisplayName("changed-1");
+        entity2.getTopologyEntityImpl().setDisplayName("changed-2");
+        entity3.getTopologyEntityImpl().setDisplayName("changed-3");
 
         final ChangesetMerger<TopologyEntity> merger = new ChangesetMerger<>();
         merger.add(changeset1);

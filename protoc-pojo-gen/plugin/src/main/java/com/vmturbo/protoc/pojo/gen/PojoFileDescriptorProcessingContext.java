@@ -1,7 +1,6 @@
 package com.vmturbo.protoc.pojo.gen;
 
 import java.util.Objects;
-import java.util.Optional;
 
 import javax.annotation.Generated;
 import javax.annotation.Nonnull;
@@ -26,18 +25,23 @@ public class PojoFileDescriptorProcessingContext extends FileDescriptorProcessin
 
     @Nonnull final PojoCodeGenerator codeGen;
 
+    private final IntoProtoInterfaceGenerator intoProtoGenerator;
+
     /**
      * Create a {@link PojoFileDescriptorProcessingContext}.
      *
      * @param generator The generator.
      * @param registry The registry.
      * @param fileDescriptorProto The proto file descriptor.
+     * @param intoProtoGenerator Generator for the into proto interface.
      */
     public PojoFileDescriptorProcessingContext(@Nonnull PojoCodeGenerator generator,
                                                @Nonnull Registry registry,
-                                               @Nonnull FileDescriptorProto fileDescriptorProto) {
+                                               @Nonnull FileDescriptorProto fileDescriptorProto,
+                                               @Nonnull IntoProtoInterfaceGenerator intoProtoGenerator) {
         super(generator, registry, fileDescriptorProto, new PojoTypeNameFormatter());
         this.codeGen = Objects.requireNonNull(generator);
+        this.intoProtoGenerator = Objects.requireNonNull(intoProtoGenerator);
     }
 
     @Nonnull
@@ -63,8 +67,8 @@ public class PojoFileDescriptorProcessingContext extends FileDescriptorProcessin
                 typeNameFormatter.formatTypeName(proto.getName()));
             if (descriptor instanceof MessageDescriptor) {
                 final MessageDescriptor msgDescriptor = (MessageDescriptor)descriptor;
-                final Optional<TypeSpec.Builder> typeForMessage = codeGen.generateTypeForMessage(msgDescriptor);
-                typeForMessage.ifPresent(type -> outerClass.addType(type.build()));
+                codeGen.generateTypesForMessage(msgDescriptor)
+                    .forEach(type -> outerClass.addType(type.build()));
             }
         }
 

@@ -18,12 +18,13 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
@@ -36,9 +37,9 @@ import com.vmturbo.topology.processor.topology.HistoryAggregator;
  * Unit tests for HistoryAggregator.
  */
 public class HistoryAggregatorTest extends BaseGraphRelatedTest {
-    private static CommodityType CT1 = CommodityType.newBuilder().setType(1).build();
-    private static CommodityType CT2 = CommodityType.newBuilder().setType(2).build();
-    private static CommodityType CT3 = CommodityType.newBuilder().setType(3).setKey("qqq").build();
+    private static CommodityTypeImpl CT1 = new CommodityTypeImpl().setType(1);
+    private static CommodityTypeImpl CT2 = new CommodityTypeImpl().setType(2);
+    private static CommodityTypeImpl CT3 = new CommodityTypeImpl().setType(3).setKey("qqq");
     private static double DELTA = 0.00001;
 
     /**
@@ -156,19 +157,19 @@ public class HistoryAggregatorTest extends BaseGraphRelatedTest {
 
             // hist utilization should now be used / 2 for all passed commodities
 
-            TopologyEntityDTO dto1 = entity1.getTopologyEntityDtoBuilder().build();
+            TopologyEntityView dto1 = entity1.getTopologyEntityImpl();
             Assert.assertEquals(1, dto1.getCommoditySoldListCount());
             Assert.assertTrue(dto1.getCommoditySoldList(0).hasHistoricalUsed());
             Assert.assertTrue(dto1.getCommoditySoldList(0).getHistoricalUsed().hasHistUtilization());
             Assert.assertEquals(usedSold1 / 2, dto1.getCommoditySoldList(0).getHistoricalUsed().getHistUtilization(), DELTA);
 
-            TopologyEntityDTO dto2 = entity2.getTopologyEntityDtoBuilder().build();
+            TopologyEntityView dto2 = entity2.getTopologyEntityImpl();
             Assert.assertEquals(1, dto2.getCommoditySoldListCount());
             Assert.assertTrue(dto2.getCommoditySoldList(0).hasHistoricalUsed());
             Assert.assertTrue(dto2.getCommoditySoldList(0).getHistoricalUsed().hasHistUtilization());
             Assert.assertEquals(usedSold2 / 2, dto2.getCommoditySoldList(0).getHistoricalUsed().getHistUtilization(), DELTA);
             Assert.assertEquals(1, dto2.getCommoditiesBoughtFromProvidersCount());
-            List<CommodityBoughtDTO> bought = dto2.getCommoditiesBoughtFromProviders(0).getCommodityBoughtList();
+            List<CommodityBoughtView> bought = dto2.getCommoditiesBoughtFromProviders(0).getCommodityBoughtList();
             Assert.assertEquals(1, bought.size());
             Assert.assertTrue(bought.get(0).hasHistoricalUsed());
             Assert.assertTrue(bought.get(0).getHistoricalUsed().hasHistUtilization());
@@ -188,11 +189,11 @@ public class HistoryAggregatorTest extends BaseGraphRelatedTest {
         private final TopologyGraph<TopologyEntity> graph;
         private final boolean applicable;
         private final Set<Integer> applicableEntityTypes;
-        private final Set<TopologyDTO.CommodityType> applicableCommTypes;
+        private final Set<CommodityTypeView> applicableCommTypes;
 
         TestHistoricalEditor(@Nonnull TopologyGraph<TopologyEntity> graph, boolean applicable,
                              @Nonnull Set<Integer> applicableEntityTypes,
-                             @Nonnull Set<TopologyDTO.CommodityType> applicableCommTypes) {
+                             @Nonnull Set<CommodityTypeView> applicableCommTypes) {
             this.graph = graph;
             this.applicable = applicable;
             this.applicableEntityTypes = applicableEntityTypes;
@@ -212,14 +213,14 @@ public class HistoryAggregatorTest extends BaseGraphRelatedTest {
 
         @Override
         public boolean isCommodityApplicable(TopologyEntity entity,
-                                             TopologyDTO.CommoditySoldDTO.Builder commSold,
+                                             CommoditySoldImpl commSold,
                                              TopologyInfo topoInfo) {
             return applicableCommTypes.contains(commSold.getCommodityType());
         }
 
         @Override
         public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                @Nonnull TopologyDTO.CommodityBoughtDTO.Builder commBought,
+                @Nonnull CommodityBoughtImpl commBought,
                 int providerType) {
             return applicableCommTypes.contains(commBought.getCommodityType());
         }
@@ -256,20 +257,20 @@ public class HistoryAggregatorTest extends BaseGraphRelatedTest {
                 @Override
                 public List<Void> call() throws Exception {
                     // divide running used by 2 and set into hist util
-                    commodityFieldRefs.stream().forEach(fieldRef -> {
+                    commodityFieldRefs.forEach(fieldRef -> {
                         TopologyEntity entity = graph.getEntity(fieldRef.getEntityOid()).get();
                         if (fieldRef.getProviderOid() == null) {
-                            CommoditySoldDTO.Builder commSold =
+                            CommoditySoldImpl commSold =
                                           CommodityFieldAccessor.SOLD_BUILDER_EXTRACTOR
                                                           .apply(fieldRef,
-                                                                 entity.getTopologyEntityDtoBuilder());
-                            commSold.getHistoricalUsedBuilder().setHistUtilization(commSold.getUsed() / 2);
+                                                                 entity.getTopologyEntityImpl());
+                            commSold.getOrCreateHistoricalUsed().setHistUtilization(commSold.getUsed() / 2);
                         } else {
-                            CommodityBoughtDTO.Builder commBought =
+                            CommodityBoughtImpl commBought =
                                           CommodityFieldAccessor.BOUGHT_BUILDER_EXTRACTOR
                                                           .apply(fieldRef,
-                                                                 entity.getTopologyEntityDtoBuilder());
-                            commBought.getHistoricalUsedBuilder().setHistUtilization(commBought.getUsed() / 2);
+                                                                 entity.getTopologyEntityImpl());
+                            commBought.getOrCreateHistoricalUsed().setHistUtilization(commBought.getUsed() / 2);
                         }
                     });
                     return Collections.emptyList();

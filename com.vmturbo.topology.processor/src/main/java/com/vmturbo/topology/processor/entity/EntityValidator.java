@@ -16,9 +16,11 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.logging.log4j.Level;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.commons.utils.DuplicateSuppressingLogger;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -56,7 +58,7 @@ public class EntityValidator {
 
     private void logCommoditySoldInvalid(final long entityId, @Nonnull final String entityName,
                                      final int entityType,
-                                     @Nonnull final CommoditySoldDTO.Builder original,
+                                     @Nonnull final CommoditySoldImpl original,
                                      @Nonnull final String property,
                                      final double illegalAmount) {
         // This has to be at warning level so that the root causes of missing capacities can be
@@ -73,7 +75,7 @@ public class EntityValidator {
 
     private void logCommodityBoughtReplacement(final long entityId, @Nonnull final String entityName,
                                                final int entityType,
-                                               @Nonnull final CommodityBoughtDTO.Builder original,
+                                               @Nonnull final CommodityBoughtImpl original,
                                                @Nonnull final String property,
                                                final double illegalAmount, final long providerId,
                                                final int providerType) {
@@ -104,15 +106,15 @@ public class EntityValidator {
      * @param entityGraph entity graph
      */
     @VisibleForTesting
-    void processIllegalCommodityValues(@Nonnull final TopologyEntityDTO.Builder entity,
-                                       @Nonnull final Optional<TopologyEntityDTO.Builder> clonedFrom,
+    void processIllegalCommodityValues(@Nonnull final TopologyEntityImpl entity,
+                                       @Nonnull final Optional<TopologyEntityImpl> clonedFrom,
                                        @Nonnull final TopologyGraph<TopologyEntity> entityGraph) {
         final long id = entity.getOid();
         final String name = entity.getDisplayName();
         final int type = entity.getEntityType();
-        entity.getCommoditiesBoughtFromProvidersBuilderList()
+        entity.getCommoditiesBoughtFromProvidersImplList()
             .forEach(fromProvider ->
-                fromProvider.getCommodityBoughtBuilderList()
+                fromProvider.getCommodityBoughtImplList()
                     .forEach(commodityBought -> {
                         final int providerType = fromProvider.getProviderEntityType();
                         final long providerId = fromProvider.getProviderId();
@@ -133,7 +135,7 @@ public class EntityValidator {
                     })
             );
 
-        entity.getCommoditySoldListBuilderList().forEach(commoditySold -> {
+        entity.getCommoditySoldListImplList().forEach(commoditySold -> {
             double used = commoditySold.getUsed();
             double capacity = commoditySold.getCapacity();
             // never replace to secret magic numbers, this leads to incorrect decision making
@@ -152,20 +154,20 @@ public class EntityValidator {
                 if (oldCapacity == null) {
                     logCommoditySoldInvalid(id, name, type, commoditySold, "capacity", 0);
                     commoditySold.clearCapacity();
-                    entity.getAnalysisSettingsBuilder().setControllable(false);
+                    entity.getOrCreateAnalysisSettings().setControllable(false);
                     StringBuilder controllableFalseEntities = new StringBuilder();
                     entityGraph.getConsumers(entity.getOid()).forEach(consumer -> {
                         boolean shouldMarkConsumerControllableFalse  =
-                            consumer.getTopologyEntityDtoBuilder()
+                            consumer.getTopologyEntityImpl()
                                 .getCommoditiesBoughtFromProvidersList()
                                 .stream()
                                 .filter(grouping -> grouping.getProviderId() == entity.getOid())
                                 .anyMatch(grouping -> grouping.getCommodityBoughtList().stream()
-                                    .map(CommodityBoughtDTO::getCommodityType)
+                                    .map(CommodityBoughtView::getCommodityType)
                                     .anyMatch(boughtCommType -> boughtCommType.equals(commoditySold.getCommodityType()))
                                 );
                         if (shouldMarkConsumerControllableFalse) {
-                            consumer.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
+                            consumer.getTopologyEntityImpl().getOrCreateAnalysisSettings().setControllable(false);
                             if (logger.isTraceEnabled()) {
                                 controllableFalseEntities.append(consumer.toString()).append(", ");
                             }
@@ -217,7 +219,7 @@ public class EntityValidator {
      */
     @VisibleForTesting
     Optional<EntityValidationFailure> validateSingleEntity(
-                                                @Nonnull final TopologyEntityDTO.Builder entity,
+                                                @Nonnull final TopologyEntityImpl entity,
                                                 boolean validateCapacity) {
         final List<String> validationErrors =
             entity.getCommoditiesBoughtFromProvidersList().stream()
@@ -261,7 +263,7 @@ public class EntityValidator {
     }
 
     @Nonnull
-    private List<String> validateCommoditySold(@Nonnull final CommoditySoldDTO commoditySold,
+    private List<String> validateCommoditySold(@Nonnull final CommoditySoldView commoditySold,
                     boolean validateCapacity) {
         final List<String> errors = new ArrayList<>();
 
@@ -290,7 +292,7 @@ public class EntityValidator {
     }
 
     @Nonnull
-    private List<String> validateCommodityBought(@Nonnull final CommodityBoughtDTO commodityBought) {
+    private List<String> validateCommodityBought(@Nonnull final CommodityBoughtView commodityBought) {
         final List<String> errors = new ArrayList<>();
 
         if (commodityBought.hasUsed()) {
@@ -351,13 +353,13 @@ public class EntityValidator {
         Map<SoldCommodityReference, Double> newCapacities = isPlan || !oldValuesCacheEnabled ? null : new HashMap<>();
         entityGraph.entities().forEach(entity -> {
             final Optional<EntityValidationFailure> error =
-                validateSingleEntity(entity.getTopologyEntityDtoBuilder(), true);
+                validateSingleEntity(entity.getTopologyEntityImpl(), true);
             if (error.isPresent()) {
-                processIllegalCommodityValues(entity.getTopologyEntityDtoBuilder(),
+                processIllegalCommodityValues(entity.getTopologyEntityImpl(),
                     entity.getClonedFromEntity(), entityGraph);
 
                 final Optional<EntityValidationFailure> errorAfterReplacement =
-                    validateSingleEntity(entity.getTopologyEntityDtoBuilder(), false);
+                    validateSingleEntity(entity.getTopologyEntityImpl(), false);
                 if (errorAfterReplacement.isPresent()) {
                     logger.error("Errors validating entity {}:\n{}.", entity.getOid(),
                         error.get().errorMessage);
@@ -368,12 +370,12 @@ public class EntityValidator {
             if (newCapacities != null) {
                 // after the validation which can change things
                 // remember all valid capacities of non-access commodities
-                entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().forEach(commoditySold -> {
+                entity.getTopologyEntityImpl().getCommoditySoldListImplList().forEach(commoditySold -> {
                     double capacity = commoditySold.getCapacity();
                     if (commoditySold.hasCapacity() && !Double.isNaN(capacity) && capacity > 0
                                     && Math.abs(capacity - SDKConstants.ACCESS_COMMODITY_CAPACITY) > 0.0001) {
                         newCapacities.put(new SoldCommodityReference(
-                                        entity.getTopologyEntityDtoBuilder(),
+                                        entity.getTopologyEntityImpl(),
                                         commoditySold), capacity);
                     }
                 });
@@ -409,7 +411,7 @@ public class EntityValidator {
          * @param entity topology entity builder
          * @param commSold sold commodity builder
          */
-        SoldCommodityReference(TopologyEntityDTO.Builder entity, CommoditySoldDTO.Builder commSold) {
+        SoldCommodityReference(TopologyEntityImpl entity, CommoditySoldImpl commSold) {
             this.oid = entity.getOid();
             this.type = commSold.getCommodityType().getType();
         }

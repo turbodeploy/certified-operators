@@ -27,7 +27,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -37,6 +36,7 @@ import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
@@ -53,16 +53,16 @@ import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.Matching
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StringsToStringsDataDrivenStitchingOperation;
 import com.vmturbo.stitching.StringsToStringsStitchingMatchingMetaData;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
-import com.vmturbo.stitching.utilities.CommoditiesBought;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingIntegrationTest;
@@ -317,7 +317,8 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
                             CoreMatchers.is(EntityType.DATACENTER_VALUE));
         });
         stitchingManager.postStitch(new GraphWithSettings(TopologyEntityTopologyGraphCreator.newGraph(topology.values().stream()
-                   .collect(Collectors.toMap(TopologyEntityDTO.Builder::getOid, TopologyEntity::newBuilder))),
+                   .collect(Collectors.toMap(TopologyEntityDTO.Builder::getOid,
+                       e -> TopologyEntity.newBuilder(TopologyEntityImpl.fromProto(e))))),
                 Collections.emptyMap(), Collections.emptyMap()), postStitchingJournal,
                 Collections.emptySet());
     }

@@ -9,18 +9,17 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginView;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 /**
@@ -46,9 +45,9 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
     }
 
     @Override
-    public TopologyEntity.Builder clone(@Nonnull final TopologyEntityDTO.Builder podDTO,
+    public TopologyEntity.Builder clone(@Nonnull final TopologyEntityImpl podDTO,
                                         final long cloneCounter,
-                                        @Nonnull final Map<Long, Builder> topology) {
+                                        @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
         final TopologyEntity.Builder clonedPod = super.clone(podDTO, cloneCounter, topology);
         cloneContainers(clonedPod, topology, podDTO.getOid(), cloneCounter);
         return clonedPod;
@@ -75,18 +74,18 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
                          final long cloneCounter) {
         final Map<Long, Long> origToClonedPodIdMap = new HashMap<>();
         origToClonedPodIdMap.put(origPodId, clonedPod.getOid());
-        final Origin entityOrigin = clonedPod.getEntityBuilder().getOrigin();
+        final OriginView entityOrigin = clonedPod.getTopologyEntityImpl().getOrigin();
         // Clone corresponding consumers of the given added entity
         for (TopologyEntity container : topology.get(origPodId).getConsumers()) {
-            TopologyEntityDTO.Builder containerDTO = container.getTopologyEntityDtoBuilder();
-            TopologyEntityDTO.Builder clonedContainerDTO =
+            TopologyEntityImpl containerDTO = container.getTopologyEntityImpl();
+            TopologyEntityImpl clonedContainerDTO =
                     internalClone(containerDTO, cloneCounter,
                                   new HashMap<>(), origToClonedPodIdMap)
                             .setOrigin(entityOrigin);
             // Set controllable and suspendable to false to avoid generating actions on cloned consumers.
             // Consider this as allocation model, where we clone a provider along with corresponding
             // consumer resources but we won't run further analysis on the cloned consumers.
-            clonedContainerDTO.getAnalysisSettingsBuilder()
+            clonedContainerDTO.getOrCreateAnalysisSettings()
                     .setControllable(false)
                     .setSuspendable(false);
             // Set providerId to the cloned consumers to make sure cloned provider won't be suspended.
@@ -101,7 +100,7 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
 
     @Override
     protected boolean shouldSkipProvider(
-            @Nonnull CommoditiesBoughtFromProvider boughtFromProvider) {
+            @Nonnull CommoditiesBoughtFromProviderView boughtFromProvider) {
         // As we aren't copying the related workload controller nor the volume into the plan, we
         // will skip those providers.
         return Objects.requireNonNull(boughtFromProvider).hasProviderEntityType()
@@ -110,7 +109,7 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
     }
 
     @Override
-    protected boolean shouldCopyBoughtCommodity(@Nonnull CommodityBoughtDTO commodityBought) {
+    protected boolean shouldCopyBoughtCommodity(@Nonnull CommodityBoughtView commodityBought) {
         // The override behavior is enforced only when the feature flag is enabled and this is the
         // container cluster plan.  In that case, we will copy except for the cluster commodity.
         // That is because there is no need for such a restriction for pods in the plan where
@@ -122,7 +121,7 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
     }
 
     @Override
-    protected boolean shouldReplaceBoughtKey(@Nonnull final TopologyDTO.CommodityType commodityType,
+    protected boolean shouldReplaceBoughtKey(@Nonnull final CommodityTypeView commodityType,
             final int providerEntityType) {
         return Objects.requireNonNull(commodityType).hasKey()
                 && CommodityType.VMPM_ACCESS_VALUE == commodityType.getType()
@@ -130,7 +129,7 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
     }
 
     @Override
-    protected boolean shouldReplaceSoldKey(@Nonnull final TopologyDTO.CommodityType commodityType) {
+    protected boolean shouldReplaceSoldKey(@Nonnull final CommodityTypeView commodityType) {
         return Objects.requireNonNull(commodityType).hasKey()
                 && CommodityType.VMPM_ACCESS_VALUE == commodityType.getType();
     }

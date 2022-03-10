@@ -12,11 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -51,14 +51,14 @@ public class SetCommBoughtUsedFromCommSoldMaxPostStitchingOperation implements P
         Iterable<TopologyEntity> entitiesIterable = entities::iterator;
         long count = 0;
         for (TopologyEntity entity : entitiesIterable) {
-            TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
-            for (CommoditySoldDTO.Builder commSold : entityBuilder.getCommoditySoldListBuilderList()) {
+            TopologyEntityImpl entityBuilder = entity.getTopologyEntityImpl();
+            for (CommoditySoldImpl commSold : entityBuilder.getCommoditySoldListImplList()) {
                 if (!COMMODITY_TYPES_OF_INTEREST.contains(commSold.getCommodityType().getType())
                         || !commSold.getHistoricalUsed().hasMaxQuantity()
                         || !commSold.hasCapacity()) {
                     continue;
                 }
-                Optional<CommodityBoughtDTO.Builder> commBoughtToUpdate = findCommodityBoughtToUpdate(entityBuilder, commSold.getCommodityType());
+                Optional<CommodityBoughtImpl> commBoughtToUpdate = findCommodityBoughtToUpdate(entityBuilder, commSold.getCommodityType());
                 if (commBoughtToUpdate.isPresent()) {
                     // We don't want the bought used to be greater than the current capacity. If that happens,
                     // AWS RDS entities will scale up (out of the current tier because the current tier cannot support
@@ -76,10 +76,10 @@ public class SetCommBoughtUsedFromCommSoldMaxPostStitchingOperation implements P
         return resultBuilder.build();
     }
 
-    private Optional<CommodityBoughtDTO.Builder> findCommodityBoughtToUpdate(TopologyEntityDTO.Builder entityBuilder,
-                                                                             CommodityType commodityTypeToFind) {
-        for (CommoditiesBoughtFromProvider.Builder commoditiesBoughtFromProvider : entityBuilder.getCommoditiesBoughtFromProvidersBuilderList()) {
-            for (CommodityBoughtDTO.Builder commBought : commoditiesBoughtFromProvider.getCommodityBoughtBuilderList()) {
+    private Optional<CommodityBoughtImpl> findCommodityBoughtToUpdate(TopologyEntityImpl entityBuilder,
+                                                                      CommodityTypeView commodityTypeToFind) {
+        for (CommoditiesBoughtFromProviderImpl commoditiesBoughtFromProvider : entityBuilder.getCommoditiesBoughtFromProvidersImplList()) {
+            for (CommodityBoughtImpl commBought : commoditiesBoughtFromProvider.getCommodityBoughtImplList()) {
                 if (commodityTypeToFind.equals(commBought.getCommodityType())) {
                     return Optional.of(commBought);
                 }

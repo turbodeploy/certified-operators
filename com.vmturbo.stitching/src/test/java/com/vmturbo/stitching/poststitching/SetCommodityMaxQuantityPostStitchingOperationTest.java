@@ -40,8 +40,11 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequ
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsMoles;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -61,8 +64,8 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
  */
 public class SetCommodityMaxQuantityPostStitchingOperationTest {
 
-    private static final TopologyDTO.CommodityType VCPU_NO_KEY = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE).build();
-    private static final TopologyDTO.CommodityType VCPU_EMPTY_KEY = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE).setKey("").build();
+    private static final CommodityTypeView VCPU_NO_KEY = new CommodityTypeImpl().setType(CommodityType.VCPU_VALUE);
+    private static final CommodityTypeView VCPU_EMPTY_KEY = new CommodityTypeImpl().setType(CommodityType.VCPU_VALUE).setKey("");
     private static final long maxValuesBackgroundLoadFreqMins = 1;
     private static final double DELTA = 1e-5;
 
@@ -126,24 +129,24 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
         TopologyEntity cont1 = topologyEntity(EntityType.CONTAINER_VALUE, 101L, ImmutableList.of(commoditySoldDTO(VCPU_NO_KEY, 300)));
         List<TopologyEntity> entities = ImmutableList.of(vm1, cont1);
         broadcast(entities);
-        assertEquals(100, vm1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
-        assertEquals(300, cont1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
+        assertEquals(100, vm1.getTopologyEntityImpl().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
+        assertEquals(300, cont1.getTopologyEntityImpl().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
 
         //broadcast 2
-        vm1.getTopologyEntityDtoBuilder().getCommoditySoldListBuilder(0).setUsed(99);
-        cont1.getTopologyEntityDtoBuilder().getCommoditySoldListBuilder(0).setUsed(299);
+        vm1.getTopologyEntityImpl().getCommoditySoldListImpl(0).setUsed(99);
+        cont1.getTopologyEntityImpl().getCommoditySoldListImpl(0).setUsed(299);
         broadcast(entities);
         // remains unchanged because the new used of 99 and 299 are less than current max
-        assertEquals(100, vm1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
-        assertEquals(300, cont1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
+        assertEquals(100, vm1.getTopologyEntityImpl().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
+        assertEquals(300, cont1.getTopologyEntityImpl().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
 
         //broadcast 3
-        vm1.getTopologyEntityDtoBuilder().getCommoditySoldListBuilder(0).setUsed(101);
-        cont1.getTopologyEntityDtoBuilder().getCommoditySoldListBuilder(0).setUsed(301);
+        vm1.getTopologyEntityImpl().getCommoditySoldListImpl(0).setUsed(101);
+        cont1.getTopologyEntityImpl().getCommoditySoldListImpl(0).setUsed(301);
         broadcast(entities);
         // changes because the new used of 101 and 301 are greater than current max
-        assertEquals(101, vm1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
-        assertEquals(301, cont1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
+        assertEquals(101, vm1.getTopologyEntityImpl().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
+        assertEquals(301, cont1.getTopologyEntityImpl().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
     }
 
     /**
@@ -162,20 +165,20 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
         List<TopologyEntity> entities = ImmutableList.of(vm1, vm2, cont1);
         setAnalysisFlags(entities);
         broadcast(entities);
-        assertEquals(100, vm1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
-        assertEquals(100, vm2.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
-        assertEquals(300, cont1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
-        assertEquals(false, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
-                || vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale()
-                || vm2.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
-                || vm2.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale()
-                || cont1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
-                || cont1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+        assertEquals(100, vm1.getTopologyEntityImpl().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
+        assertEquals(100, vm2.getTopologyEntityImpl().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
+        assertEquals(300, cont1.getTopologyEntityImpl().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
+        assertEquals(false, vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForScale()
+                || vm2.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm2.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForScale()
+                || cont1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForResizeDown()
+                || cont1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForScale());
 
         // Setup the response from GRPC call
         List<EntityCommoditiesMaxValues> response = ImmutableList.of(
-                entityCommoditiesMaxValues(1L, commodityMaxValue(VCPU_EMPTY_KEY, 101)),
-                entityCommoditiesMaxValues(2L, commodityMaxValue(VCPU_EMPTY_KEY, 102)));
+                entityCommoditiesMaxValues(1L, commodityMaxValue(VCPU_EMPTY_KEY.toProto(), 101)),
+                entityCommoditiesMaxValues(2L, commodityMaxValue(VCPU_EMPTY_KEY.toProto(), 102)));
         when(statsHistoryServiceMole.getEntityCommoditiesMaxValues(any())).thenReturn(response);
 
         // Run the background task. This will fetch new higher max values for VMs.
@@ -197,15 +200,15 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
         // Start with analysis flags as true
         setAnalysisFlags(entities);
         broadcast(entities);
-        assertEquals(101, vm1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
-        assertEquals(102, vm2.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
-        assertEquals(300, cont1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
-        assertEquals(true, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
-                && vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale()
-                && vm2.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
-                && vm2.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale()
-                && cont1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
-                && cont1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+        assertEquals(101, vm1.getTopologyEntityImpl().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
+        assertEquals(102, vm2.getTopologyEntityImpl().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
+        assertEquals(300, cont1.getTopologyEntityImpl().getCommoditySoldList(0).getHistoricalUsed().getMaxQuantity(), DELTA);
+        assertEquals(true, vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForResizeDown()
+                && vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForScale()
+                && vm2.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForResizeDown()
+                && vm2.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForScale()
+                && cont1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForResizeDown()
+                && cont1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForScale());
     }
 
     /**
@@ -220,26 +223,26 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
         List<TopologyEntity> entities = ImmutableList.of(vm1);
         setAnalysisFlags(entities);
         broadcast(entities);
-        assertEquals(false, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
-                || vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+        assertEquals(false, vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForScale());
 
         // Do second broadcast. Start with analysis flags as true
         setAnalysisFlags(entities);
         broadcast(entities);
-        assertEquals(false, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
-                || vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+        assertEquals(false, vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForScale());
 
         // Do third broadcast. Start with analysis flags as true
         setAnalysisFlags(entities);
         broadcast(entities);
-        assertEquals(false, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
-                || vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+        assertEquals(false, vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForScale());
 
         // Do fourth broadcast. Start with analysis flags as true. This time, the analysis flags will remain true.
         setAnalysisFlags(entities);
         broadcast(entities);
-        assertEquals(true, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
-                && vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+        assertEquals(true, vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForResizeDown()
+                && vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForScale());
     }
 
     /**
@@ -260,26 +263,26 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
         List<TopologyEntity> entities = ImmutableList.of(vm1);
         setAnalysisFlags(entities);
         broadcast(entities);
-        assertEquals(false, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
-                || vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+        assertEquals(false, vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForScale());
 
         // Do second broadcast. Start with analysis flags as true
         setAnalysisFlags(entities);
         broadcast(entities);
-        assertEquals(false, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
-                || vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+        assertEquals(false, vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForScale());
 
         // Do third broadcast. Start with analysis flags as true
         setAnalysisFlags(entities);
         broadcast(entities);
-        assertEquals(false, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
-                || vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+        assertEquals(false, vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForResizeDown()
+                || vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForScale());
 
         // Do fourth broadcast. Start with analysis flags as true. This time, the analysis flags will remain true.
         setAnalysisFlags(entities);
         broadcast(entities);
-        assertEquals(true, vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForResizeDown()
-                && vm1.getTopologyEntityDtoBuilder().getAnalysisSettings().getIsEligibleForScale());
+        assertEquals(true, vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForResizeDown()
+                && vm1.getTopologyEntityImpl().getAnalysisSettings().getIsEligibleForScale());
 
         assertFalse(setMaxOperation.getInitialMaxQueryCompleted());
         assertFalse(setMaxOperation.getMaxValuesBackgroundTaskScheduled());
@@ -315,8 +318,8 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
 
     private void setAnalysisFlags(List<TopologyEntity> entities) {
         for (TopologyEntity entity : entities) {
-            entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setIsEligibleForResizeDown(true);
-            entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setIsEligibleForScale(true);
+            entity.getTopologyEntityImpl().getOrCreateAnalysisSettings().setIsEligibleForResizeDown(true);
+            entity.getTopologyEntityImpl().getOrCreateAnalysisSettings().setIsEligibleForScale(true);
         }
     }
 
@@ -341,15 +344,15 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
         return CommodityMaxValue.newBuilder().setCommodityType(commType).setMaxValue(max).build();
     }
 
-    private TopologyEntity topologyEntity(int entityType, long oid, List<CommoditySoldDTO> commsSold) {
-        return TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+    private TopologyEntity topologyEntity(int entityType, long oid, List<CommoditySoldView> commsSold) {
+        return TopologyEntity.newBuilder(new TopologyEntityImpl()
                 .setOid(oid)
                 .setEntityType(entityType)
                 .addAllCommoditySoldList(commsSold))
                 .build();
     }
 
-    private CommoditySoldDTO commoditySoldDTO(TopologyDTO.CommodityType commodityType, double used) {
-        return CommoditySoldDTO.newBuilder().setCommodityType(commodityType).setUsed(used).build();
+    private CommoditySoldView commoditySoldDTO(CommodityTypeView commodityType, double used) {
+        return new CommoditySoldImpl().setCommodityType(commodityType).setUsed(used);
     }
 }

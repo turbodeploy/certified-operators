@@ -2,7 +2,6 @@ package com.vmturbo.stitching.poststitching;
 
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeCommoditySold;
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeNumericSetting;
-import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeTopologyEntity;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
@@ -10,7 +9,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -19,14 +18,13 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.VmmPmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
@@ -65,9 +63,9 @@ public class VmmPmMemoryAllocationPostStitchingOpTest {
     public void testAllocationCommodity() {
 
         // create the commodity and the entity
-        final CommoditySoldDTO memAllocationSold = makeCommoditySold(CommodityType.MEM_ALLOCATION, initialCapacity);
-        final List<CommoditySoldDTO> commoditiesSold = Arrays.asList(memAllocationSold);
-        final TopologyEntity testTE = makeTopologyEntity(commoditiesSold);
+        final CommoditySoldView memAllocationSold = makeCommoditySold(CommodityType.MEM_ALLOCATION, initialCapacity);
+        final List<CommoditySoldView> commoditiesSold = Collections.singletonList(memAllocationSold);
+        final TopologyEntity testTE = PostStitchingTestUtilities.makeTopologyEntity(commoditiesSold);
 
         // run operation
         final TopologicalChangelog result =
@@ -78,10 +76,10 @@ public class VmmPmMemoryAllocationPostStitchingOpTest {
 
 
         // get the modified commodity
-        final Optional<CommoditySoldDTO> modifiedCommSoldOpt = testTE.getTopologyEntityDtoBuilder()
+        final Optional<CommoditySoldView> modifiedCommSoldOpt = testTE.getTopologyEntityImpl()
                 .getCommoditySoldListList().stream().findFirst();
         assertNotNull(modifiedCommSoldOpt);
-        final CommoditySoldDTO modifiedCommSold = modifiedCommSoldOpt.get();
+        final CommoditySoldView modifiedCommSold = modifiedCommSoldOpt.get();
 
         // check that the capacity has been overwritten with the expected one
         assertEquals(CommodityType.MEM_ALLOCATION_VALUE, modifiedCommSold.getCommodityType().getType());

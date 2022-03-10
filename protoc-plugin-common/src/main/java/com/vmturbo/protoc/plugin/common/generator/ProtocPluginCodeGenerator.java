@@ -5,10 +5,14 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.api.AnnotationsProto;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
@@ -20,6 +24,7 @@ import com.google.protobuf.compiler.PluginProtos.CodeGeneratorRequest;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse.File;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -132,6 +137,18 @@ public abstract class ProtocPluginCodeGenerator {
     }
 
     /**
+     * Generate miscellaneous extra files not associated with any particular proto file.
+     * This can be used to, for example, declare an interface only one time that may be shared
+     * by multiple generated files.
+     *
+     * @return The list of miscellaneous files to be add to the list of generated files.
+     */
+    @Nonnull
+    protected List<File> generateMiscellaneousFiles() {
+        return Collections.emptyList();
+    }
+
+    /**
      * Whether or not to skip generating code for a particular file.
      * Some plugins may only want to generate code for specific files (e.g. files with services
      * defined in them). This method provides a way to do that.
@@ -195,22 +212,47 @@ public abstract class ProtocPluginCodeGenerator {
 
         final CodeGeneratorRequest req =
                 CodeGeneratorRequest.parseFrom(new BufferedInputStream(inputStreamSource()), extensionRegistry);
+        final AtomicReference<String> maximalSubpackage = new AtomicReference<>();
+        req.getProtoFileList()
+            .forEach(file -> updateMaximalSubPackage(file, maximalSubpackage));
 
         // The request presents the proto file descriptors in topological order
         // w.r.t. dependencies - i.e. the dependencies appear before the dependents.
         // This means we can process one file at a time without a separate linking step,
         // as long as we record the processed messages in the registry.
-        final CodeGeneratorResponse response = CodeGeneratorResponse.newBuilder()
+        final CodeGeneratorResponse.Builder response = CodeGeneratorResponse.newBuilder()
                 .addAllFile(req.getProtoFileList().stream()
-                        .map(this::generateFile)
+                        .map(file -> generateFile(file, maximalSubpackage.get()))
                         .filter(Optional::isPresent)
                         .map(Optional::get)
-                        .collect(Collectors.toList()))
-                .build();
+                        .collect(Collectors.toList()));
+
+        // Add all miscellaneous files as well.
+        response.addAllFile(generateMiscellaneousFiles());
 
         final BufferedOutputStream outputStream = new BufferedOutputStream(outputStreamSink());
-        response.writeTo(outputStream);
+        response.build().writeTo(outputStream);
         outputStream.flush();
+    }
+
+    private void updateMaximalSubPackage(@Nonnull final FileDescriptorProto file,
+                                         @Nonnull final AtomicReference<String> maximalSubpackage) {
+        final String curMax = maximalSubpackage.get();
+        if (file.getOptions().hasJavaPackage()) {
+            maximalSubpackage.set(computeMaximalSubpackage(curMax, file.getOptions().getJavaPackage()));
+        } else if (file.hasPackage()) {
+            maximalSubpackage.set(computeMaximalSubpackage(curMax, file.getPackage()));
+        }
+
+        if (maximalSubpackage.get() != null && maximalSubpackage.get().endsWith(".")) {
+            maximalSubpackage.set(StringUtils.removeEnd(maximalSubpackage.get(), "."));
+        }
+    }
+
+    private String computeMaximalSubpackage(@Nullable String curMax, @Nonnull final String nextPackage) {
+        return curMax == null
+            ? nextPackage
+            : StringUtils.getCommonPrefix(curMax, nextPackage);
     }
 
     /**
@@ -218,23 +260,26 @@ public abstract class ProtocPluginCodeGenerator {
      *
      * @param registry The registry to pass to the processing context.
      * @param fileDescriptorProto The proto for the file to process.
+     * @param maximalSubpackage The maximal Java subpackage shared by all files to be processed.
      * @return a {@link FileDescriptorProcessingContext} for use in processing proto files.
      */
     @Nonnull
     protected FileDescriptorProcessingContext createFileDescriptorProcessingContext(
-        @Nonnull final Registry registry, @Nonnull final FileDescriptorProto fileDescriptorProto) {
+        @Nonnull final Registry registry, @Nonnull final FileDescriptorProto fileDescriptorProto,
+        @Nullable String maximalSubpackage) {
         return new FileDescriptorProcessingContext(this, registry, fileDescriptorProto,
             new IdentityTypeNameFormatter());
     }
 
     @Nonnull
-    private Optional<File> generateFile(@Nonnull final FileDescriptorProto fileDescriptorProto) {
+    private Optional<File> generateFile(@Nonnull final FileDescriptorProto fileDescriptorProto,
+                                        @Nullable final String maximalSubpackage) {
         logger.info("Registering messages in file: {} in package: {}",
                 fileDescriptorProto.getName(),
                 fileDescriptorProto.getPackage());
 
         final FileDescriptorProcessingContext context =
-            createFileDescriptorProcessingContext(registry, fileDescriptorProto);
+            createFileDescriptorProcessingContext(registry, fileDescriptorProto, maximalSubpackage);
         context.startEnumList();
         for (int enumIdx = 0; enumIdx < fileDescriptorProto.getEnumTypeCount(); ++enumIdx) {
             context.startListElement(enumIdx);

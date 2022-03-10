@@ -32,11 +32,14 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -69,65 +72,60 @@ public class StorageEntityConstructorTest {
         .setTemplateInfo(ST_TEMPLATE_INFO)
         .build();
 
-    private static Set<CommoditySoldDTO> stCommoditySold = Sets.newHashSet(
-        CommoditySoldDTO.newBuilder()
-            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+    private static Set<CommoditySoldView> stCommoditySold = Sets.newHashSet(
+       new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl()
                 .setType(CommodityType.DSPM_ACCESS_VALUE)
                 .setKey("123-dspm"))
-            .setUsed(1)
-            .build(),
-        CommoditySoldDTO.newBuilder()
-            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            .setUsed(1),
+       new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl()
                 .setType(CommodityType.DSPM_ACCESS_VALUE)
                 .setKey("456-dspm"))
-            .setUsed(1)
-            .build(),
-        CommoditySoldDTO.newBuilder()
-            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            .setUsed(1),
+       new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl()
                 .setType(CommodityType.STORAGE_CLUSTER_VALUE)
                 .setKey("123-storage-cluster"))
             .setUsed(1)
-            .build()
     );
-    private static List<CommodityBoughtDTO> commodityBoughtFromDiskArray = Lists.newArrayList(
-        CommodityBoughtDTO.newBuilder()
-            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+    private static List<CommodityBoughtView> commodityBoughtFromDiskArray = Lists.newArrayList(
+       new CommodityBoughtImpl()
+            .setCommodityType(new CommodityTypeImpl()
                 .setType(EXTENT_VALUE)
                 .setKey("123-extent"))
             .setUsed(1)
-            .build()
     );
 
-    private static CommoditiesBoughtFromProvider commodityBoughtFromProviderDiskArray =
-        CommoditiesBoughtFromProvider.newBuilder()
+    private static CommoditiesBoughtFromProviderView commodityBoughtFromProviderDiskArray =
+        new CommoditiesBoughtFromProviderImpl()
             .addAllCommodityBought(commodityBoughtFromDiskArray)
             .setProviderId(456)
-            .setProviderEntityType(EntityType.DISK_ARRAY_VALUE)
-            .build();
+            .setProviderEntityType(EntityType.DISK_ARRAY_VALUE);
 
-    public static List<CommoditiesBoughtFromProvider> stCommodityBoughtFromProvider =
+    public static List<CommoditiesBoughtFromProviderView> stCommodityBoughtFromProvider =
         Stream.of(commodityBoughtFromProviderDiskArray).collect(Collectors.toList());
 
     private final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(
-        1L, TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        1L, TopologyEntity.newBuilder(new TopologyEntityImpl()
             .setOid(1).setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setAccesses(3)
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            .addCommoditySoldList(new CommoditySoldImpl().setAccesses(3)
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(DATASTORE_VALUE).setKey("Storage::3")))),
-        2L, TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        2L, TopologyEntity.newBuilder(new TopologyEntityImpl()
             .setOid(2).setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setAccesses(3)
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            .addCommoditySoldList(new CommoditySoldImpl().setAccesses(3)
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(DATASTORE_VALUE).setKey("Storage::3")))),
-        3L, TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        3L, TopologyEntity.newBuilder(new TopologyEntityImpl()
             .setOid(3).setEntityType(EntityType.STORAGE_VALUE)
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setAccesses(1)
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            .addCommoditySoldList(new CommoditySoldImpl().setAccesses(1)
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(DSPM_ACCESS_VALUE).setKey("PhysicalMachine::1")))
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setAccesses(2)
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            .addCommoditySoldList(new CommoditySoldImpl().setAccesses(2)
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(DSPM_ACCESS_VALUE).setKey("PhysicalMachine::2")))),
-        4L, TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        4L, TopologyEntity.newBuilder(new TopologyEntityImpl()
             .setOid(4).setEntityType(EntityType.DISK_ARRAY_VALUE))
     );
 
@@ -136,7 +134,7 @@ public class StorageEntityConstructorTest {
         IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
         Mockito.when(identityProvider.generateTopologyId()).thenReturn(10L);
 
-        final TopologyEntityDTO.Builder topologyEntityDTO = new StorageEntityConstructor()
+        final TopologyEntityImpl topologyEntityDTO = new StorageEntityConstructor()
                 .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, null, TemplateActionType.CLONE,
                         identityProvider, null);
 
@@ -155,7 +153,7 @@ public class StorageEntityConstructorTest {
             CommodityType.STORAGE_PROVISIONED_VALUE).get().hasCapacity());
 
         // Verify DSPM_ACCESS commodity sold
-        final List<CommoditySoldDTO> commSolds = topologyEntityDTO.getCommoditySoldListList().stream()
+        final List<CommoditySoldView> commSolds = topologyEntityDTO.getCommoditySoldListList().stream()
             .filter(commSold -> commSold.getCommodityType().getType() == DSPM_ACCESS_VALUE)
             .sorted((c1, c2) -> (int)(c1.getAccesses() - c2.getAccesses()))
             .collect(Collectors.toList());
@@ -167,7 +165,7 @@ public class StorageEntityConstructorTest {
         // Verify Extent commodity sold by disk array
         assertEquals(COMMODITY_KEY_PREFIX + EntityType.DISK_ARRAY.name() +
                 COMMODITY_KEY_SEPARATOR + topologyEntityDTO.getOid(),
-            getCommoditySold(topology.get(4L).getEntityBuilder().getCommoditySoldListList(),
+            getCommoditySold(topology.get(4L).getTopologyEntityImpl().getCommoditySoldListList(),
                 EXTENT_VALUE).get().getCommodityType().getKey());
 
         //Verify Extent commodity bought
@@ -186,12 +184,12 @@ public class StorageEntityConstructorTest {
         IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
         Mockito.when(identityProvider.generateTopologyId()).thenReturn(1L);
 
-        TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder().setOid(10)
+        TopologyEntityImpl builder = new TopologyEntityImpl().setOid(10)
                 .setEntityType(2)
                 .addAllCommoditySoldList(stCommoditySold)
                 .addAllCommoditiesBoughtFromProviders(stCommodityBoughtFromProvider);
 
-        final TopologyEntityDTO.Builder topologyEntityDTO = new StorageEntityConstructor()
+        final TopologyEntityImpl topologyEntityDTO = new StorageEntityConstructor()
                 .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, builder, TemplateActionType.CLONE,
                         identityProvider, null);
         // 7 commodities sold: storage latency, provisioned, amount and access

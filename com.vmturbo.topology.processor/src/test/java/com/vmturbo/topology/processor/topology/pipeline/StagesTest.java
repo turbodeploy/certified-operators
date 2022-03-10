@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityBuilder;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
@@ -61,12 +62,13 @@ import com.vmturbo.common.protobuf.topology.AnalysisDTO.EntityOids;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -82,9 +84,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricGauge.GaugeData;
 import com.vmturbo.repository.api.RepositoryClient;
-import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -153,6 +154,10 @@ import common.HealthCheck.HealthState;
 
 public class StagesTest {
 
+    final TopologyEntityImpl entityImpl = new TopologyEntityImpl()
+            .setEntityType(10)
+            .setOid(7L);
+
     final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
             .setEntityType(10)
             .setOid(7L);
@@ -163,7 +168,12 @@ public class StagesTest {
         .setTopologyType(TopologyType.REALTIME)
         .build();
 
-    final TopologyEntityDTO.Builder networkEntity = TopologyEntityDTO.newBuilder()
+    final TopologyEntityImpl networkEntity = new TopologyEntityImpl()
+            .setEntityType(10)
+            .setDisplayName("VM-Network")
+            .setOid(7L);
+
+    final TopologyEntityImpl pojoNetworkEntity = new TopologyEntityImpl()
             .setEntityType(10)
             .setDisplayName("VM-Network")
             .setOid(7L);
@@ -178,7 +188,8 @@ public class StagesTest {
 
     @Test
     public void testUploadGroupsStage() {
-        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
+        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(
+                entityImpl));
         final DiscoveredGroupUploader uploader = mock(DiscoveredGroupUploader.class);
         final UploadGroupsStage stage = new UploadGroupsStage(uploader);
         TopologyPipelineContext context = mock(TopologyPipelineContext.class);
@@ -219,7 +230,7 @@ public class StagesTest {
     @Test
     public void testEmptyPlanScopingStage() throws PipelineStageException, InterruptedException {
         final StitchingJournalContainer container = new StitchingJournalContainer();
-        final IStitchingJournal<TopologyEntity> journal = spy(new EmptyStitchingJournal<TopologyEntity>());
+        final IStitchingJournal<TopologyEntity> journal = spy(new EmptyStitchingJournal<>());
         container.setPostStitchingJournal(journal);
         final SearchResolver<TopologyEntity> searchResolver = mock(SearchResolver.class);
         final GroupServiceBlockingStub groupServiceClient = mock(GroupConfig.class).groupServiceBlockingStub();
@@ -317,7 +328,8 @@ public class StagesTest {
 
     @Test
     public void testUploadWorkflowsStage() {
-        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
+        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(
+                entityImpl));
         final DiscoveredWorkflowUploader uploader = mock(DiscoveredWorkflowUploader.class);
         final UploadWorkflowsStage stage = new UploadWorkflowsStage(uploader);
         stage.passthrough(topology);
@@ -326,7 +338,8 @@ public class StagesTest {
 
     @Test
     public void testUploadTemplatesStage() throws Exception {
-        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
+        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(
+                entityImpl));
         final DiscoveredTemplateDeploymentProfileNotifier uploader =
                 mock(DiscoveredTemplateDeploymentProfileNotifier.class);
         final UploadTemplatesStage stage = new UploadTemplatesStage(uploader);
@@ -336,7 +349,8 @@ public class StagesTest {
 
     @Test
     public void testUploadTemplatesStageException() throws Exception {
-        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
+        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(
+                entityImpl));
         final DiscoveredTemplateDeploymentProfileNotifier uploader =
                 mock(DiscoveredTemplateDeploymentProfileNotifier.class);
         doThrow(UploadException.class).when(uploader).sendTemplateDeploymentProfileData();
@@ -484,13 +498,14 @@ public class StagesTest {
 
     @Test
     public void testGraphCreationStage() throws Exception {
-        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
+        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(
+                entityImpl));
 
         final GraphCreationStage stage = new GraphCreationStage();
         final TopologyGraph<TopologyEntity> topologyGraph = stage.execute(topology).getResult();
         assertThat(topologyGraph.size(), is(1));
-        assertThat(topologyGraph.getEntity(7L).get().getTopologyEntityDtoBuilder(),
-                is(entity));
+        assertThat(topologyGraph.getEntity(7L).get().getTopologyEntityImpl(),
+                is(entityImpl));
     }
 
     @Test
@@ -667,17 +682,17 @@ public class StagesTest {
             .thenReturn(broadcast);
 
         final TopologyEntity entity1 = mock(TopologyEntity.class);
-        when(entity1.getTopologyEntityDtoBuilder()).thenReturn(
-            TopologyEntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).setOid(1L));
+        when(entity1.getTopologyEntityImpl()).thenReturn(
+            new TopologyEntityImpl().setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).setOid(1L));
         final TopologyEntity entity2 = mock(TopologyEntity.class);
-        when(entity2.getTopologyEntityDtoBuilder()).thenReturn(
-            TopologyEntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).setOid(2L));
+        when(entity2.getTopologyEntityImpl()).thenReturn(
+            new TopologyEntityImpl().setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).setOid(2L));
         final TopologyEntity entity3 = mock(TopologyEntity.class);
-        when(entity3.getTopologyEntityDtoBuilder()).thenReturn(
-            TopologyEntityDTO.newBuilder().setEntityType(EntityType.STORAGE_VALUE).setOid(3L));
+        when(entity3.getTopologyEntityImpl()).thenReturn(
+            new TopologyEntityImpl().setEntityType(EntityType.STORAGE_VALUE).setOid(3L));
         final TopologyEntity entity4 = mock(TopologyEntity.class);
-        when(entity4.getTopologyEntityDtoBuilder()).thenReturn(
-            TopologyEntityDTO.newBuilder().setEntityType(EntityType.PHYSICAL_MACHINE_VALUE).setOid(4L));
+        when(entity4.getTopologyEntityImpl()).thenReturn(
+            new TopologyEntityImpl().setEntityType(EntityType.PHYSICAL_MACHINE_VALUE).setOid(4L));
 
         final TopologyBroadcastInfo broadcastInfo =
             stage.execute(Stream.of(entity1, entity2, entity3, entity4)).getResult();
@@ -723,11 +738,11 @@ public class StagesTest {
             .thenReturn(broadcast);
 
         final TopologyEntity entity1 = mock(TopologyEntity.class);
-        when(entity1.getTopologyEntityDtoBuilder()).thenReturn(
-            TopologyEntityDTO.newBuilder().setEntityType(EntityType.NETWORK_VALUE).setOid(1L));
+        when(entity1.getTopologyEntityImpl()).thenReturn(
+            new TopologyEntityImpl().setEntityType(EntityType.NETWORK_VALUE).setOid(1L));
         final TopologyEntity entity2 = mock(TopologyEntity.class);
-        when(entity2.getTopologyEntityDtoBuilder()).thenReturn(
-            TopologyEntityDTO.newBuilder().setEntityType(EntityType.SWITCH_VALUE).setOid(2L));
+        when(entity2.getTopologyEntityImpl()).thenReturn(
+            new TopologyEntityImpl().setEntityType(EntityType.SWITCH_VALUE).setOid(2L));
 
         final TopologyBroadcastInfo broadcastInfo =
             stage.execute(Stream.of(entity1, entity2)).getResult();
@@ -782,21 +797,21 @@ public class StagesTest {
         final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
         final GenerateConstraintMapStage generateConstraintMapStage =
                 new GenerateConstraintMapStage(policyManager, groupService, reservationService);
-        final TopologyEntity entity = TopologyEntity.newBuilder(this.networkEntity).build();
+        final TopologyEntity entity = TopologyEntity.newBuilder(this.pojoNetworkEntity).build();
         when(topologyGraph.entitiesOfType(EntityType.NETWORK))
                 .thenReturn(Stream.of(entity));
         when(topologyGraph.entitiesOfType(EntityType.DATACENTER))
                 .thenReturn(Stream.empty());
-        Table<Long, Integer, CommodityType> results = HashBasedTable.create();
+        Table<Long, Integer, TopologyPOJO.CommodityTypeView> results = HashBasedTable.create();
         results.put(123L,
                 EntityType.PHYSICAL_MACHINE_VALUE,
-                CommodityType.newBuilder().setKey("ABC").setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE).build());
+                new TopologyPOJO.CommodityTypeImpl().setKey("ABC").setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE));
         results.put(789L,
                 EntityType.PHYSICAL_MACHINE_VALUE,
-                CommodityType.newBuilder().setKey("ABC").setType(CommodityDTO.CommodityType.SOFTWARE_LICENSE_COMMODITY_VALUE).build());
+                new TopologyPOJO.CommodityTypeImpl().setKey("ABC").setType(CommodityDTO.CommodityType.SOFTWARE_LICENSE_COMMODITY_VALUE));
         results.put(456L,
                 EntityType.VIRTUAL_MACHINE_VALUE,
-                CommodityType.newBuilder().setKey("ABC").setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE).build());
+                new TopologyPOJO.CommodityTypeImpl().setKey("ABC").setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE));
         when(policyManager.getPlacementPolicyIdToCommodityType(any(), any()))
                 .thenReturn(results);
         UpdateConstraintMapRequest updateConstraintMapRequest =
@@ -854,9 +869,10 @@ public class StagesTest {
      *
      * @throws IOException if there was error during test server start.
      * @throws PipelineStageException if there was error during stage execution.
+     * @throws InterruptedException on exception.
      */
     @Test
-    public void testScopeResolutionStageWithEmptyScope() throws IOException, PipelineStageException {
+    public void testScopeResolutionStageWithEmptyScope() throws IOException, PipelineStageException, InterruptedException {
         final GroupDTOMoles.GroupServiceMole groupServiceMole = spy(GroupDTOMoles.GroupServiceMole.class);
         testServer = GrpcTestServer.newServer(groupServiceMole);
         testServer.start();
@@ -874,9 +890,10 @@ public class StagesTest {
      *
      * @throws IOException if there was error during test server start.
      * @throws PipelineStageException if there was error during stage execution.
+     * @throws InterruptedException on exception.
      */
     @Test
-    public void testScopeResolutionStage() throws IOException, PipelineStageException {
+    public void testScopeResolutionStage() throws IOException, PipelineStageException, InterruptedException {
         final GroupDTOMoles.GroupServiceMole groupServiceMole = spy(GroupDTOMoles.GroupServiceMole.class);
         testServer = GrpcTestServer.newServer(groupServiceMole);
         testServer.start();
@@ -966,16 +983,16 @@ public class StagesTest {
     @Test
     public void testUserScopingStage() {
         // Build the Topology
-        final TopologyEntity.Builder vm1 = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        final TopologyEntity.Builder vm1 = TopologyEntity.newBuilder(new TopologyEntityImpl()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOid(1L));
-        final TopologyEntity.Builder vm2 = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        final TopologyEntity.Builder vm2 = TopologyEntity.newBuilder(new TopologyEntityImpl()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOid(2L));
-        final TopologyEntity.Builder rg = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        final TopologyEntity.Builder rg = TopologyEntity.newBuilder(new TopologyEntityImpl()
                 .setEntityType(EntityType.REGION_VALUE)
                 .setOid(10L));
-        final Long2ObjectMap<Builder> topology =
+        final Long2ObjectMap<TopologyEntity.Builder> topology =
                 new Long2ObjectOpenHashMap<>(Stream.of(vm1, vm2, rg)
                         .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity())));
         final TopologyGraph<TopologyEntity> topologyGraph =
@@ -1005,13 +1022,13 @@ public class StagesTest {
     @Test
     public void testUserScopingStageWithNoScope() {
         // Build the Topology
-        final TopologyEntity.Builder vm = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        final TopologyEntity.Builder vm = TopologyEntity.newBuilder(new TopologyEntityImpl()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOid(1L));
-        final TopologyEntity.Builder rg = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        final TopologyEntity.Builder rg = TopologyEntity.newBuilder(new TopologyEntityImpl()
                 .setEntityType(EntityType.REGION_VALUE)
                 .setOid(2L));
-        final Long2ObjectMap<Builder> topology =
+        final Long2ObjectMap<TopologyEntity.Builder> topology =
                 new Long2ObjectOpenHashMap<>(Stream.of(vm, rg)
                         .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity())));
         final TopologyGraph<TopologyEntity> topologyGraph =
@@ -1032,7 +1049,7 @@ public class StagesTest {
     private TopologyGraph<TopologyEntity> createTopologyGraph() {
         final TopologyGraph<TopologyEntity> graph = mock(TopologyGraph.class);
         final TopologyEntity entity = mock(TopologyEntity.class);
-        when(entity.getTopologyEntityDtoBuilder()).thenReturn(this.entity);
+        when(entity.getTopologyEntityImpl()).thenReturn(this.entityImpl);
         when(graph.entities()).thenReturn(Stream.of(entity));
         when(graph.topSort(any())).thenReturn(Stream.of(entity));
         return graph;

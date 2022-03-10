@@ -7,7 +7,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.stitching.EntityCommodityReference;
 
 /**
@@ -38,7 +38,7 @@ public class EntityCommodityFieldReference extends EntityCommodityReference impl
      * @param commodityType commodity type
      * @param field commodity's field
      */
-    public EntityCommodityFieldReference(long entityOid, @Nonnull CommodityType commodityType,
+    public EntityCommodityFieldReference(long entityOid, @Nonnull CommodityTypeView commodityType,
                     @Nonnull CommodityField field) {
         super(entityOid, commodityType, null);
         this.field = field;
@@ -52,7 +52,7 @@ public class EntityCommodityFieldReference extends EntityCommodityReference impl
      * @param providerOid commodity provider
      * @param field commodity's field
      */
-    public EntityCommodityFieldReference(long entityOid, @Nonnull CommodityType commodityType,
+    public EntityCommodityFieldReference(long entityOid, @Nonnull CommodityTypeView commodityType,
                     @Nullable Long providerOid, @Nonnull CommodityField field) {
         super(entityOid, commodityType, providerOid);
         this.field = field;

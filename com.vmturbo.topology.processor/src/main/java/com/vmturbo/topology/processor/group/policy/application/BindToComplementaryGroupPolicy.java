@@ -11,10 +11,6 @@ import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
-import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.group.GroupResolutionException;
-import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 
 /**

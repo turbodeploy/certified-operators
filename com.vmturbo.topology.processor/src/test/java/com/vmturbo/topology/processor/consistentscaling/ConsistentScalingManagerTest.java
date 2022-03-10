@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.consistentscaling;
 
-import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityWithName;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -44,18 +43,18 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver.SettingAndPolicyIdRecord;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
+import com.vmturbo.topology.processor.topology.TopologyEntityUtils;
 
 /**
  * Define five groups.  Two groups have common VMs.  Two are discovered with consistent scaling
@@ -161,21 +160,21 @@ public class ConsistentScalingManagerTest {
     @Before
     public void setUp() throws Exception {
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        Map<Long, Builder> topologyMap = new HashMap<>();
-        topologyMap.put(100L, topologyEntity(100L, EntityType.PHYSICAL_MACHINE));
+        Map<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
+        topologyMap.put(100L, TopologyEntityUtils.topologyEntity(100L, EntityType.PHYSICAL_MACHINE));
         for (long vmNum = 1; vmNum <= 22; vmNum++) {
-            TopologyEntity.Builder builder =
-                topologyEntityWithName(vmNum, EntityType.VIRTUAL_MACHINE,
+            TopologyEntity.Builder entity =
+                    topologyEntityWithName(vmNum, EntityType.VIRTUAL_MACHINE,
                     "VM-" + Long.toString(vmNum), 100L);
             // Make VMs 11 and 12 on-prem.  The rest are cloud
-            builder.getEntityBuilder().setEnvironmentType(
+            entity.getTopologyEntityImpl().setEnvironmentType(
                     // Make VMs 20 and above not controllable.
                 vmNum == 11 || vmNum == 12 ? EnvironmentType.ON_PREM : EnvironmentType.CLOUD);
             if (vmNum >= 20) {
-                builder.getEntityBuilder().setAnalysisSettings(AnalysisSettings.newBuilder()
+                entity.getTopologyEntityImpl().setAnalysisSettings(new TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl()
                     .setControllable(false));
             }
-            topologyMap.put(vmNum, builder);
+            topologyMap.put(vmNum, entity);
         }
         topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         testGroups = new HashMap<>();

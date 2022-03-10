@@ -13,17 +13,17 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.PerTargetEntityInformationImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ConnectedEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionMergeExecutionTarget;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionMergePolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionMergeTargetData;
@@ -39,7 +39,6 @@ import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository.ActionMergeSpecsBuilder;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository.ActionMergeSpecsBuilder.ActionExecutionTarget;
@@ -168,7 +167,7 @@ public class ActionMergeSpecsRepositoryTest {
      */
     private static TopologyGraph<TopologyEntity> constructKubernetesTopology(
             final ConnectionType connectionType) {
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
 
         topology.put(1L, buildTopologyEntity(1L,
                 CommodityDTO.CommodityType.VCPU.getNumber(),
@@ -212,47 +211,41 @@ public class ActionMergeSpecsRepositoryTest {
         final TopologyEntity.Builder spec1 = buildTopologyEntity(31L,
                 CommodityDTO.CommodityType.VCPU.getNumber(),
                 EntityType.CONTAINER_SPEC_VALUE, Collections.singleton(KUBERNETES_TARGET_ID));
-        container1.getEntityBuilder()
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
+        container1.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
                         .setConnectedEntityId(31L)
-                        .setConnectionType(connectionType)
-                        .build());
-        container2.getEntityBuilder()
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectionType(connectionType));
+        container2.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
                         .setConnectedEntityId(31L)
-                        .setConnectionType(connectionType)
-                        .build());
+                        .setConnectionType(connectionType));
 
 
         final TopologyEntity.Builder spec2 = buildTopologyEntity(32L,
                 CommodityDTO.CommodityType.VCPU.getNumber(),
                 EntityType.CONTAINER_SPEC_VALUE,    //66, 64 is namespace
                 Collections.singleton(KUBERNETES_TARGET_ID));
-        container3.getEntityBuilder()
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
+        container3.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
                         .setConnectedEntityId(32L)
-                        .setConnectionType(connectionType)
-                        .build());
-        container4.getEntityBuilder()
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectionType(connectionType));
+        container4.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
                         .setConnectedEntityId(32L)
-                        .setConnectionType(connectionType)
-                        .build());
+                        .setConnectionType(connectionType));
 
         final TopologyEntity.Builder controller = buildTopologyEntity(41L,
                 CommodityDTO.CommodityType.VCPU.getNumber(),
                 EntityType.WORKLOAD_CONTROLLER_VALUE,   //65 //connected to 66, provider is 64 (namespace
                 Collections.singleton(KUBERNETES_TARGET_ID));
-        spec1.getEntityBuilder()
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
+        spec1.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
                         .setConnectedEntityId(41L)
-                        .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION)
-                        .build());
-        spec2.getEntityBuilder()
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION));
+        spec2.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
                         .setConnectedEntityId(41L)
-                        .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION)
-                        .build());
+                        .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION));
 
         topology.put(31L, spec1);
         topology.put(32L, spec2);
@@ -268,7 +261,7 @@ public class ActionMergeSpecsRepositoryTest {
      * @return TopologyGraph
      */
     private static TopologyGraph<TopologyEntity> constructTerraformTopology() {
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
 
         final TopologyEntity.Builder vm1 = buildTopologyEntity(11L,
                 CommodityDTO.CommodityType.VCPU.getNumber(),
@@ -298,39 +291,34 @@ public class ActionMergeSpecsRepositoryTest {
                 CommodityDTO.CommodityType.VCPU.getNumber(),
                 EntityType.VM_SPEC_VALUE, Collections.singleton(TERRAFORM_TARGET_ID));
 
-        vm1.getEntityBuilder()
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
+        vm1.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
                         .setConnectedEntityId(31L)
-                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
-                        .build());
-        vm2.getEntityBuilder()
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION));
+        vm2.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
                         .setConnectedEntityId(31L)
-                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
-                        .build());
+                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION));
 
         final TopologyEntity.Builder controller = buildTopologyEntity(41L,
                 CommodityDTO.CommodityType.VCPU.getNumber(),
                 EntityType.WORKLOAD_CONTROLLER_VALUE,   //65 //connected to 66, provider is 64 (namespace
                 Collections.singleton(TERRAFORM_TARGET_ID));
 
-        spec1.getEntityBuilder()
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
+        spec1.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
                         .setConnectedEntityId(41L)
-                        .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION)
-                        .build());
+                        .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION));
 
-        vm3.getEntityBuilder()
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
+        vm3.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
                         .setConnectedEntityId(41L)
-                        .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION)
-                        .build());
+                        .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION));
 
-        vm4.getEntityBuilder()
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
+        vm4.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
                         .setConnectedEntityId(41L)
-                        .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION)
-                        .build());
+                        .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION));
 
         topology.put(31L, spec1);
         topology.put(41L, controller);
@@ -343,45 +331,42 @@ public class ActionMergeSpecsRepositoryTest {
     private static TopologyEntity.Builder buildTopologyEntity(long oid, int soldType, int boughtType, int entityType,
                                                        long providerId,
                                                        final Collection<Long> targetIds) {
-        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        DiscoveryOriginImpl origin = new DiscoveryOriginImpl();
         targetIds.forEach(id -> origin.putDiscoveredTargetData(id,
-                PerTargetEntityInformation.getDefaultInstance()));
+                    new PerTargetEntityInformationImpl()));
         return TopologyEntityUtils.topologyEntityBuilder(
-                TopologyEntityDTO.newBuilder()
-                        .setAnalysisSettings(AnalysisSettings.newBuilder().build())
+                new TopologyEntityImpl()
+                        .setAnalysisSettings(new AnalysisSettingsImpl())
                         .setEntityType(entityType)
-                        .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(origin)
-                                .build())
+                        .setOrigin(new OriginImpl()
+                                .setDiscoveryOrigin(origin))
                         .setOid(oid)
-                        .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
-                                CommodityType.newBuilder().setType(soldType).setKey("").build()))
-                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(
+                                new CommodityTypeImpl().setType(soldType).setKey("")))
+                        .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                                 .setProviderId(providerId)
                                 .addCommodityBought(
-                                        CommodityBoughtDTO.newBuilder()
+                                        new CommodityBoughtImpl()
                                                 .setCommodityType(
-                                                        CommodityType.newBuilder().setType(boughtType).setKey("").build()
-                                                ).setActive(true)
+                                                        new CommodityTypeImpl().setType(boughtType).setKey(""))
+                                                .setActive(true)
                                 )
                 ));
     }
 
     private static TopologyEntity.Builder buildTopologyEntity(long oid, int soldType, int entityType,
                                                               final Collection<Long> targetIds) {
-        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
-        targetIds.forEach(id -> origin.putDiscoveredTargetData(id,
-                PerTargetEntityInformation.getDefaultInstance()));
+        DiscoveryOriginImpl origin = new DiscoveryOriginImpl();
+        targetIds.forEach(id -> origin.putDiscoveredTargetData(id, new PerTargetEntityInformationImpl()));
         return TopologyEntityUtils.topologyEntityBuilder(
-                TopologyEntityDTO.newBuilder()
-                        .setAnalysisSettings(AnalysisSettings.newBuilder().build())
+                new TopologyEntityImpl()
+                        .setAnalysisSettings(new AnalysisSettingsImpl())
                         .setEntityType(entityType)
-                        .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(origin)
-                                .build())
+                        .setOrigin(new OriginImpl()
+                                .setDiscoveryOrigin(origin))
                         .setOid(oid)
-                        .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
-                                CommodityType.newBuilder().setType(soldType).setKey("").build())));
+                        .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(
+                                new CommodityTypeImpl().setType(soldType).setKey(""))));
     }
 
     /**

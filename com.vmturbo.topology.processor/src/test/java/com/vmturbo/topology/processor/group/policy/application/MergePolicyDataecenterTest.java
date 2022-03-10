@@ -1,8 +1,8 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
 import static com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper.resolvedGroup;
-import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -18,8 +18,8 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Replaced;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.EditImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ReplacedImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -58,8 +58,8 @@ public class MergePolicyDataecenterTest extends MergePolicyTestBase {
 
         final Map<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
         topologyMap.put(1L, topologyEntity(1L, EntityType.PHYSICAL_MACHINE, 7));
-        topologyMap.get(1L).getEntityBuilder()
-            .setEdit(Edit.newBuilder().setReplaced(Replaced.newBuilder().setPlanId(0L).setReplacementId(100L)));
+        topologyMap.get(1L).getTopologyEntityImpl()
+            .setEdit(new EditImpl().setReplaced(new ReplacedImpl().setPlanId(0L).setReplacementId(100L)));
         topologyMap.put(2L, topologyEntity(2L, EntityType.PHYSICAL_MACHINE, 8));
         topologyMap.put(3L, topologyEntity(3L, EntityType.STORAGE));
         topologyMap.put(4L, topologyEntity(4L, EntityType.VIRTUAL_MACHINE, 1));

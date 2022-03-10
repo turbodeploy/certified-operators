@@ -1,6 +1,6 @@
 package com.vmturbo.topology.processor.historical;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 
 /**
  * This class keeps information for the historical used and peak values of a
@@ -9,7 +9,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 public class HistoricalCommodityInfo {
 
     // The type and key of the commodity
-    private CommodityType commodityTypeAndKey;
+    private CommodityTypeView commodityTypeAndKey;
 
     // The historical used value
     private float historicalUsed;
@@ -29,7 +29,7 @@ public class HistoricalCommodityInfo {
     public HistoricalCommodityInfo() {
     }
 
-    public CommodityType getCommodityTypeAndKey() {
+    public CommodityTypeView getCommodityTypeAndKey() {
         return commodityTypeAndKey;
     }
 
@@ -53,7 +53,7 @@ public class HistoricalCommodityInfo {
         return updated;
     }
 
-    public void setCommodityTypeAndKey(CommodityType commodityTypeAndKey) {
+    public void setCommodityTypeAndKey(CommodityTypeView commodityTypeAndKey) {
         this.commodityTypeAndKey = commodityTypeAndKey;
     }
 

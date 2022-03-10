@@ -12,18 +12,18 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mockito;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.Mockito;
+
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -78,28 +78,27 @@ public class DiscoveredClusterConstraintCacheTest {
                     .addMember("PM-A"))
             .build();
 
-    private final TopologyEntity.Builder vmFirstBuilder = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+    private final TopologyEntity.Builder vmFirstBuilder = TopologyEntity.newBuilder(new TopologyEntityImpl()
                     .setOid(11L)
                     .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                             .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                             .setProviderId(22L)));
 
     private final TopologyEntity.Builder vmSecondBuilder = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                     .setOid(12L)
                     .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                             .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                             .setProviderId(22L)));
 
-    private final TopologyEntity.Builder pmWithCluster = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+    private final TopologyEntity.Builder pmWithCluster =  TopologyEntity.newBuilder(
+            new TopologyEntityImpl()
                     .setOid(22L)
                     .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                    .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                            .setCommodityType(CommodityType.newBuilder()
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                            .setCommodityType(new CommodityTypeImpl()
                                     .setType(CommodityDTO.CommodityType.CLUSTER_VALUE))));
 
     private TopologyGraph<TopologyEntity> topologyGraph;
@@ -161,14 +160,14 @@ public class DiscoveredClusterConstraintCacheTest {
     }
 
     private boolean hasProviderClusterConstraint(@Nonnull final TopologyEntity topologyEntity) {
-        return topologyEntity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+        return topologyEntity.getTopologyEntityImpl().getCommoditySoldListList().stream()
                 .anyMatch(commoditySoldDTO -> commoditySoldDTO.getCommodityType().getType() ==
                         CommonDTO.CommodityDTO.CommodityType.CLUSTER_VALUE);
     }
 
     private boolean hasConsumerClusterConstraint(@Nonnull final TopologyEntity topologyEntity,
                                                  final int providerEntityType) {
-        return topologyEntity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+        return topologyEntity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList().stream()
                 .anyMatch(commoditiesBoughtFromProvider ->
                         commoditiesBoughtFromProvider.getProviderEntityType() == providerEntityType
                         && commoditiesBoughtFromProvider.getCommodityBoughtList().stream()

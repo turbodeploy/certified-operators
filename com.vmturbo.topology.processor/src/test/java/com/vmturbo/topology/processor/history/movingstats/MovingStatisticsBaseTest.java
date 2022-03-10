@@ -12,8 +12,8 @@ import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.history.BlobPersistingCachingHistoricalEditorTest;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
@@ -85,9 +85,9 @@ public class MovingStatisticsBaseTest {
                        Function<EntityCommodityFieldReference, T> samplerSupplier,
                        MovingStatisticsSamplerDataCase dataCase) {
         final MovingStatisticsSamplingConfiguration<T> config = mock(MovingStatisticsSamplingConfiguration.class);
-        when(config.getPrincipalCommodityType()).thenReturn(CommodityType.newBuilder().setType(principalType).build());
+        when(config.getPrincipalCommodityType()).thenReturn(new CommodityTypeImpl().setType(principalType));
         when(config.getPartnerCommodityTypes()).thenReturn(Collections.singletonList(
-            CommodityType.newBuilder().setType(partnerType).build()));
+                new CommodityTypeImpl().setType(partnerType)));
         when(config.getFastHalflife()).thenReturn(Duration.ofHours(FAST_HALFLIFE_HOURS));
         when(config.getSlowHalflife()).thenReturn(Duration.ofHours(SLOW_HALFLIFE_HOURS));
         when(config.getDesiredStateTargetValue()).thenReturn(DESIRED_STATE_TARGET);

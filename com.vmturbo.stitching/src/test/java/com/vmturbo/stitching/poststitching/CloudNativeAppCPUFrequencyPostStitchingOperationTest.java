@@ -14,9 +14,9 @@ import com.google.common.collect.ImmutableList;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ContainerPodInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.ApplicationInfoImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.ContainerPodInfoImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologicalChangelog;
@@ -50,10 +50,9 @@ public class CloudNativeAppCPUFrequencyPostStitchingOperationTest {
                                                       Collections.emptyList(),
                                                       Collections.emptyList())))
                     .withTypeSpecificInfo(
-                            TypeSpecificInfo.newBuilder()
-                                    .setApplication(ApplicationInfo.newBuilder()
-                                                            .setHostingNodeCpuFrequency(2000)
-                                                            .build()))
+                            new TypeSpecificInfoImpl()
+                                    .setApplication(new ApplicationInfoImpl()
+                                                            .setHostingNodeCpuFrequency(2000)))
                     .build();
     // Application on container provider, which does not have a pod provider
     private final TopologyEntity appOnContainerWithoutProvider =
@@ -65,15 +64,14 @@ public class CloudNativeAppCPUFrequencyPostStitchingOperationTest {
                                                                           Collections.emptyList())));
     // Application on container provider, which is on pod provider
     private final TopologyEntity.Builder pod =
-            TopologyEntityBuilder
-                    .newBuilder()
-                    .withEntityType(EntityType.CONTAINER_POD_VALUE)
-                    .withTypeSpecificInfo(
-                            TypeSpecificInfo.newBuilder()
-                                    .setContainerPod(ContainerPodInfo.newBuilder()
-                                                             .setHostingNodeCpuFrequency(2000)
-                                                             .build()))
-                    .getBuilder();
+        TopologyEntityBuilder
+            .newBuilder()
+            .withEntityType(EntityType.CONTAINER_POD_VALUE)
+            .withTypeSpecificInfo(
+                new TypeSpecificInfoImpl()
+                    .setContainerPod(new ContainerPodInfoImpl()
+                        .setHostingNodeCpuFrequency(2000)))
+            .getBuilder();
     private final TopologyEntity.Builder container =
             TopologyEntityBuilder
                     .newBuilder()

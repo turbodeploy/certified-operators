@@ -13,13 +13,13 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.TemplateType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -99,12 +99,12 @@ public class SupplyChainDefinitions {
      * @return collection of templates against which the entity must be validated
      */
     public Collection<TemplateDTO> retrieveSupplyChainTemplates(@Nonnull final TopologyEntity entity) {
-        final TopologyEntityDTOOrBuilder entityDTOOrBuilder =
-            Objects.requireNonNull(entity).getTopologyEntityDtoBuilder();
+        final TopologyPOJO.TopologyEntityView entityDTO =
+            Objects.requireNonNull(entity).getTopologyEntityImpl();
         logger.trace("Retrieving supply chain templates for {}", entity::getDisplayName);
 
         final Collection<Long> discoveringTargetIds =
-            entityDTOOrBuilder.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet();
+                entityDTO.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet();
         logger.trace(
             "Entity {} has {} origins", entity::getDisplayName, discoveringTargetIds::size);
 

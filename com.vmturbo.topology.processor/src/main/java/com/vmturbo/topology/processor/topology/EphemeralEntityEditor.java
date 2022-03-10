@@ -16,9 +16,9 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -61,7 +61,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
  */
 public class EphemeralEntityEditor {
     private static final Logger logger = LogManager.getLogger();
-    private static final float DEFAULT_CONSISTENT_SCALING_FACTOR = AnalysisSettings.newBuilder()
+    private static final float DEFAULT_CONSISTENT_SCALING_FACTOR = new AnalysisSettingsImpl()
         .getConsistentScalingFactor();
 
     /**
@@ -133,8 +133,8 @@ public class EphemeralEntityEditor {
     private void applyEdits(@Nonnull final TopologyEntity persistentEntity,
                             @Nonnull final EditSummary editSummary,
                             @Nonnull final ConsistentScalingCache consistentScalingCache) {
-        final Map<Integer, List<CommoditySoldDTO>> persistentSoldCommodities =
-            persistentEntity.soldCommoditiesByType();
+        final Map<Integer, List<CommoditySoldView>> persistentSoldCommodities =
+                persistentEntity.soldCommoditiesByType();
         final Map<Integer, Double> requiredConsistentCommodityValues = new HashMap<>();
         final Set<Integer> inconsistentCommodities = new HashSet<>();
 
@@ -143,7 +143,7 @@ public class EphemeralEntityEditor {
             logger.debug("Copying commodity history from persistent entity {} to ephemeral entity {}",
                 () -> persistentEntity, () -> ephemeralEntity);
             copyCommodityHistory(persistentSoldCommodities,
-                ephemeralEntity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList(),
+                ephemeralEntity.getTopologyEntityImpl().getCommoditySoldListImplList(),
                 editSummary);
             handleHeterogeneousProviders(requiredConsistentCommodityValues,
                 inconsistentCommodities, ephemeralEntity, consistentScalingCache, editSummary);
@@ -155,7 +155,7 @@ public class EphemeralEntityEditor {
                 + "by persistent entity {}", inconsistentCommodities, persistentEntity.getDisplayName());
             editSummary.incrementInconsistentScalingGroups();
             persistentEntity.getAggregatedAndControlledEntities().forEach(ephemeralEntity ->
-                ephemeralEntity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+                ephemeralEntity.getTopologyEntityImpl().getCommoditySoldListImplList().stream()
                     .filter(builder -> inconsistentCommodities.contains(builder.getCommodityType().getType()))
                     .forEach(builder -> builder.setIsResizeable(false)));
         }
@@ -186,11 +186,11 @@ public class EphemeralEntityEditor {
                                               @Nonnull final TopologyEntity ephemeralEntity,
                                               @Nonnull final ConsistentScalingCache consistentScalingCache,
                                               @Nonnull final EditSummary editSummary) {
-        ephemeralEntity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+        ephemeralEntity.getTopologyEntityImpl().getCommoditySoldListList().stream()
             .filter(builder -> REQUIRED_CONSISTENT_COMMODITIES.contains(builder.getCommodityType().getType()))
             .forEach(builder -> {
-                final AnalysisSettings.Builder analysisSettingsBuilder =
-                    ephemeralEntity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder();
+                final AnalysisSettingsImpl analysisSettingsBuilder =
+                    ephemeralEntity.getTopologyEntityImpl().getOrCreateAnalysisSettings();
                 // Configure the ConsistentScalingFactor for the ephemeral entity.
                 if (!analysisSettingsBuilder.hasConsistentScalingFactor()) {
                     analysisSettingsBuilder.setConsistentScalingFactor(
@@ -231,11 +231,11 @@ public class EphemeralEntityEditor {
      * @param editSummary A summary to capture edits made.
      */
     private void copyCommodityHistory(
-        @Nonnull final Map<Integer, List<CommoditySoldDTO>> persistentSoldCommodities,
-        @Nonnull final List<Builder> ephemeralSoldCommodities,
+        @Nonnull final Map<Integer, List<CommoditySoldView>> persistentSoldCommodities,
+        @Nonnull final List<CommoditySoldImpl> ephemeralSoldCommodities,
         @Nonnull final EditSummary editSummary) {
-        for (CommoditySoldDTO.Builder ephemeralCommSold : ephemeralSoldCommodities) {
-            final List<CommoditySoldDTO> soldOfType =
+        for (CommoditySoldImpl ephemeralCommSold : ephemeralSoldCommodities) {
+            final List<CommoditySoldView> soldOfType =
                 persistentSoldCommodities.get(ephemeralCommSold.getCommodityType().getType());
             getMatchingPersistentCommodity(ephemeralCommSold, soldOfType).ifPresent(persistentCommSold -> {
                 boolean commoditiesAdjusted = false;
@@ -295,9 +295,9 @@ public class EphemeralEntityEditor {
      *         if no match can be found.
      */
     @Nonnull
-    private Optional<CommoditySoldDTO> getMatchingPersistentCommodity(
-        @Nonnull final CommoditySoldDTO.Builder ephemeralCommodity,
-        @Nullable final List<CommoditySoldDTO> persistentSoldCommoditiesOfType) {
+    private Optional<CommoditySoldView> getMatchingPersistentCommodity(
+        @Nonnull final CommoditySoldImpl ephemeralCommodity,
+        @Nullable final List<CommoditySoldView> persistentSoldCommoditiesOfType) {
         return Optional.ofNullable(persistentSoldCommoditiesOfType)
             .flatMap(comms -> comms.stream()
                 .filter(persistent -> Objects.equals(
@@ -354,8 +354,8 @@ public class EphemeralEntityEditor {
                 .findAny();
 
             return vmProvider.map(vm -> cache.computeIfAbsent(vm.getOid(), vmOid -> {
-                final AnalysisSettings.Builder analysisSettingsBuilder =
-                    vm.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder();
+                final AnalysisSettingsImpl analysisSettingsBuilder =
+                    vm.getTopologyEntityImpl().getOrCreateAnalysisSettings();
                 // The CSF on the VM's analysis settings should have been set in PostStitching by
                 // {@link VirtualMachineConsistentScalingFactorPostStitchingOperation}.
                 return analysisSettingsBuilder.getConsistentScalingFactor();

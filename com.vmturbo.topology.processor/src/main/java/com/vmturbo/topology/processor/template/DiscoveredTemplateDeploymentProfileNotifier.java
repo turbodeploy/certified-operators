@@ -7,7 +7,6 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.DeploymentProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;

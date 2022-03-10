@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -22,6 +23,9 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.WildcardTypeName;
 
 import com.vmturbo.protoc.plugin.common.generator.FieldDescriptor;
+import com.vmturbo.protoc.pojo.gen.PojoCodeGenerator;
+import com.vmturbo.protoc.pojo.gen.PojoViewGenerator;
+import com.vmturbo.protoc.pojo.gen.TypeNameUtilities;
 
 /**
  * A field representing a repeated (list) field on a protobuf being compiled to a POJO.
@@ -29,6 +33,7 @@ import com.vmturbo.protoc.plugin.common.generator.FieldDescriptor;
 public class RepeatedPojoField extends UnaryPojoField {
 
     private final TypeName listTypeParameter;
+    private final Optional<TypeName> interfaceListTypename;
 
     /**
      * Create a new {@link RepeatedPojoField}.
@@ -46,23 +51,35 @@ public class RepeatedPojoField extends UnaryPojoField {
             fieldDescriptor.getTypeName(),
             Integer.toString(getGenericTypeParameters().size()));
         listTypeParameter = getGenericTypeParameters().get(0).getTypeName();
+
+        if (isProtoMessage()) {
+            interfaceListTypename = PojoViewGenerator.interfaceTypeNameFor(getGenericTypeStrings().get(0))
+                .map(TypeNameUtilities.ParameterizedTypeName::getTypeName);
+        } else {
+            interfaceListTypename = Optional.empty();
+        }
     }
 
     @Nonnull
     @Override
-    public List<MethodSpec.Builder> generateGetterMethods() {
-        return Arrays.asList(generateListGetter(), generateCount(), generateGetterAtIndex());
+    public List<MethodSpec.Builder> generateGetterMethods(@Nonnull final GenerationMode mode) {
+        final List<MethodSpec.Builder> methods = new ArrayList<>(generateListGetters(mode));
+        methods.add(generateCount(mode));
+        methods.addAll(generatesGettersAtIndex(mode));
+
+        return methods;
     }
 
     @Nonnull
     @Override
     public List<MethodSpec.Builder> generateSetterMethods() {
-        return Arrays.asList(generateAdd(), generateAddAll(), generateSetterAtIndex());
+        return Arrays.asList(generateAdd(), generateAddAll(), generateSetterAtIndex(),
+            generateRemoveAtIndex());
     }
 
     @Nonnull
     @Override
-    public List<MethodSpec.Builder> generateHazzerMethods() {
+    public List<MethodSpec.Builder> generateHazzerMethods(@Nonnull final GenerationMode mode) {
         // No hazzer methods for repeated fields.
         return Collections.emptyList();
     }
@@ -129,68 +146,126 @@ public class RepeatedPojoField extends UnaryPojoField {
     @Override
     public void addCopyForField(@Nonnull CodeBlock.Builder codeBlock) {
         codeBlock.add("\n");
-        codeBlock.beginControlFlow("if (other.$L != null)", fieldDescriptor.getSuffixedName())
-            .add("this.$L = ", fieldDescriptor.getSuffixedName())
+        codeBlock.beginControlFlow("if (other.get$LCount() > 0)", capitalizedFieldName())
             .addStatement(codeBlockForCopy())
             .endControlFlow();
     }
 
-    private MethodSpec.Builder generateListGetter() {
-        final MethodSpec.Builder method = MethodSpec.methodBuilder("get" + capitalizedFieldName() + "List")
+    @Override
+    public void addClearForField(@Nonnull CodeBlock.Builder codeBlock) {
+        codeBlock.add("\n")
+            .addStatement("this.$L = null", fieldDescriptor.getSuffixedName());
+    }
+
+    private List<MethodSpec.Builder> generateListGetters(@Nonnull GenerationMode mode) {
+        final List<MethodSpec.Builder> methods = new ArrayList<>();
+
+        methods.add(generateListGetter(mode, potentialWrappingTypeName(), "List", true));
+        if (mode == GenerationMode.IMPLEMENTATION && isProtoMessage()) {
+            methods.add(generateListGetter(mode, getTypeName(), "ImplList", false));
+        }
+
+        return methods;
+    }
+
+    private MethodSpec.Builder generateListGetter(@Nonnull final GenerationMode mode,
+                                                  @Nonnull final TypeName returnType,
+                                                  @Nonnull final String methodSuffix,
+                                                  final boolean shouldOverride) {
+        final MethodSpec.Builder method = MethodSpec.methodBuilder("get" + capitalizedFieldName() + methodSuffix)
             .addModifiers(Modifier.PUBLIC)
             .addAnnotation(Nonnull.class)
-            .returns(getTypeName())
+            .returns(returnType)
             .addJavadoc("Get the $L list. The returned list cannot be modified.\n"
                 + "To modify use the appropriate add,remove, and clear methods.", getFieldName());
 
-        final CodeBlock codeBlock = CodeBlock.builder()
-            .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
-            .addStatement("return $T.emptyList()", Collections.class)
-            .endControlFlow()
-            .addStatement("return $T.unmodifiableList($L)",
-                Collections.class, fieldDescriptor.getSuffixedName())
-            .build();
-        return method.addCode(codeBlock);
+        if (mode == GenerationMode.INTERFACE) {
+            method.addModifiers(Modifier.ABSTRACT);
+        } else {
+            if (shouldOverride) {
+                method.addAnnotation(Override.class);
+            }
+            final CodeBlock codeBlock = CodeBlock.builder()
+                .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
+                .addStatement("return $T.emptyList()", Collections.class)
+                .endControlFlow()
+                .addStatement("return $T.unmodifiableList($L)",
+                    Collections.class, fieldDescriptor.getSuffixedName())
+                .build();
+            method.addCode(codeBlock);
+        }
+
+        return method;
     }
 
-    private MethodSpec.Builder generateCount() {
+    private MethodSpec.Builder generateCount(@Nonnull GenerationMode mode) {
         final MethodSpec.Builder method = MethodSpec.methodBuilder("get" + capitalizedFieldName() + "Count")
             .addModifiers(Modifier.PUBLIC)
             .returns(TypeName.INT)
             .addJavadoc("Get the count of $L.", getFieldName());
 
-        final CodeBlock codeBlock = CodeBlock.builder()
-            .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
-            .addStatement("return 0")
-            .endControlFlow()
-            .addStatement("return $L.size()", fieldDescriptor.getSuffixedName())
-            .build();
-        return method.addCode(codeBlock);
+        if (mode == GenerationMode.INTERFACE) {
+            method.addModifiers(Modifier.ABSTRACT);
+        } else {
+            method.addAnnotation(Override.class);
+            final CodeBlock codeBlock = CodeBlock.builder()
+                .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
+                .addStatement("return 0")
+                .endControlFlow()
+                .addStatement("return $L.size()", fieldDescriptor.getSuffixedName())
+                .build();
+            method.addCode(codeBlock);
+        }
+
+        return method;
     }
 
-    private MethodSpec.Builder generateGetterAtIndex() {
-        final MethodSpec.Builder method = MethodSpec.methodBuilder("get" + capitalizedFieldName())
+    private List<MethodSpec.Builder> generatesGettersAtIndex(@Nonnull GenerationMode mode) {
+        final List<MethodSpec.Builder> methods = new ArrayList<>();
+
+        methods.add(generateGetterAtIndex(mode, potentialInterfaceTypeName(), "", true));
+        if (mode == GenerationMode.IMPLEMENTATION && isProtoMessage()) {
+            methods.add(generateGetterAtIndex(mode, listTypeParameter, "Impl", false));
+        }
+
+        return methods;
+    }
+
+    private MethodSpec.Builder generateGetterAtIndex(@Nonnull final GenerationMode mode,
+                                                     @Nonnull final TypeName returnType,
+                                                     @Nonnull final String methodSuffix,
+                                                     final boolean shouldOverride) {
+        final MethodSpec.Builder method = MethodSpec.methodBuilder("get" + capitalizedFieldName() + methodSuffix)
             .addParameter(TypeName.INT, "index", Modifier.FINAL)
             .addModifiers(Modifier.PUBLIC)
             .addAnnotation(Nonnull.class)
-            .returns(listTypeParameter)
+            .returns(returnType)
             .addJavadoc("Get the $L at the given index."
                 + "\n\n@param index The index of the element to retrieve."
                 + "\n@return The element at the corresponding index.", getFieldName());
 
 
-        final CodeBlock codeBlock = CodeBlock.builder()
-            .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
-            .addStatement("throw new $T(\"Index: \" + index + \", Size: 0\")", IndexOutOfBoundsException.class)
-            .endControlFlow()
-            .addStatement("return $L.get(index)", fieldDescriptor.getSuffixedName())
-            .build();
+        if (mode == GenerationMode.INTERFACE) {
+            method.addModifiers(Modifier.ABSTRACT);
+        } else {
+            if (shouldOverride) {
+                method.addAnnotation(Override.class);
+            }
+            final CodeBlock codeBlock = CodeBlock.builder()
+                .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
+                .addStatement("throw new $T(\"Index: \" + index + \", Size: 0\")", IndexOutOfBoundsException.class)
+                .endControlFlow()
+                .addStatement("return $L.get(index)", fieldDescriptor.getSuffixedName())
+                .build();
+            method.addCode(codeBlock);
+        }
 
-        return method.addCode(codeBlock);
+        return method;
     }
 
     private MethodSpec.Builder generateAdd() {
-        final ParameterSpec.Builder param = ParameterSpec.builder(listTypeParameter, "value");
+        final ParameterSpec.Builder param = ParameterSpec.builder(
+            potentialInterfaceTypeName(), "value");
         param.addJavadoc("The $T to add.", listTypeParameter);
         if (!listTypeParameter.isPrimitive()) {
             param.addAnnotation(Nonnull.class);
@@ -209,14 +284,17 @@ public class RepeatedPojoField extends UnaryPojoField {
             .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
             .addStatement("this.$L = new $T<>()", fieldDescriptor.getSuffixedName(), ArrayList.class)
             .endControlFlow()
-            .addStatement("this.$L.add(value)", fieldDescriptor.getSuffixedName())
+            .add("this.$L.add(", fieldDescriptor.getSuffixedName())
+            .add(codeBlockForSetter())
+            .addStatement(")")
             .addStatement("return this")
             .build();
         return method.addCode(codeBlock);
     }
 
     private MethodSpec.Builder generateAddAll() {
-        final WildcardTypeName wildcardType = WildcardTypeName.subtypeOf(listTypeParameter);
+        final WildcardTypeName wildcardType = WildcardTypeName.subtypeOf(
+            potentialInterfaceTypeName());
         final ParameterizedTypeName collectionType = ParameterizedTypeName.get(ClassName.get(Collection.class),
             wildcardType);
 
@@ -248,12 +326,12 @@ public class RepeatedPojoField extends UnaryPojoField {
 
         // Then go ahead and add the collection.
         codeBlock
-            .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
-            .addStatement("this.$L = new $T<>(values)", fieldDescriptor.getSuffixedName(), ArrayList.class)
-            .nextControlFlow("else")
-            .addStatement("this.$L.addAll(values)", fieldDescriptor.getSuffixedName())
+            .beginControlFlow("if (values.size() > 0)");
+        codeBlockForAddAll(codeBlock);
+        codeBlock
             .endControlFlow()
             .addStatement("return this");
+
         return method.addCode(codeBlock.build());
     }
 
@@ -277,11 +355,82 @@ public class RepeatedPojoField extends UnaryPojoField {
             .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
             .addStatement("$L = new $T<>()", fieldDescriptor.getSuffixedName(), ArrayList.class)
             .endControlFlow()
-            .addStatement("$L.set(index, value)", fieldDescriptor.getSuffixedName())
+            .add("$L.set(index, ", fieldDescriptor.getSuffixedName())
+            .add(codeBlockForSetter())
+            .addStatement(")")
             .addStatement("return this")
             .build();
 
         return method.addCode(codeBlock);
+    }
+
+    private MethodSpec.Builder generateRemoveAtIndex() {
+        final MethodSpec.Builder method = MethodSpec.methodBuilder("remove" + capitalizedFieldName())
+            .addParameter(TypeName.INT, "index", Modifier.FINAL)
+            .addModifiers(Modifier.PUBLIC)
+            .addAnnotation(Nonnull.class)
+            .returns(getParentTypeName())
+            .addJavadoc("Remove the $T at the given index.", listTypeParameter);
+
+        final CodeBlock codeBlock = CodeBlock.builder()
+            .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
+            .addStatement("throw new $T(\"Index: \" + index + \", Size: 0\")", IndexOutOfBoundsException.class)
+            .endControlFlow()
+            .addStatement("$L.remove(index)", fieldDescriptor.getSuffixedName())
+            .add("\n")
+            .addStatement("return this")
+            .build();
+
+        return method.addCode(codeBlock);
+    }
+
+    private CodeBlock codeBlockForSetter() {
+        if (isMessageList()) {
+            return CodeBlock.builder()
+                .add("(($T)value).$L()", listTypeParameter,
+                    PojoCodeGenerator.ON_PARENT_SETTING_METHOD)
+                .build();
+        } else {
+            return CodeBlock.builder()
+                .add("value")
+                .build();
+        }
+    }
+
+    private void codeBlockForAddAll(CodeBlock.Builder codeBlock) {
+        if (isMessageList()) {
+            // We need to ensure that we call the onParent method.
+            codeBlock
+                .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
+                .addStatement("this.$L = new $T<>(values.size())", fieldDescriptor.getSuffixedName(), ArrayList.class)
+                .nextControlFlow("else")
+                .addStatement("(($T)this.$L).ensureCapacity($L.size() + values.size())",
+                    ArrayList.class,
+                    fieldDescriptor.getSuffixedName(),
+                    fieldDescriptor.getSuffixedName())
+                .endControlFlow()
+                .beginControlFlow("for ($T value : values)", potentialInterfaceTypeName())
+                .addStatement("this.$L.add((($T)value).$L())", fieldDescriptor.getSuffixedName(),
+                    listTypeParameter, PojoCodeGenerator.ON_PARENT_SETTING_METHOD)
+                .endControlFlow();
+        } else {
+            codeBlock
+                .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
+                .addStatement("this.$L = new $T<>(values)", fieldDescriptor.getSuffixedName(), ArrayList.class)
+                .nextControlFlow("else")
+                .addStatement("this.$L.addAll(values)", fieldDescriptor.getSuffixedName())
+                .endControlFlow();
+        }
+    }
+
+    private TypeName potentialInterfaceTypeName() {
+        return interfaceListTypename.orElse(listTypeParameter);
+    }
+
+    private TypeName potentialWrappingTypeName() {
+        return interfaceListTypename.map(tn -> ParameterizedTypeName.get(ClassName.get(List.class), tn))
+            .map(tn -> (TypeName)tn)
+            .orElseGet(this::getTypeName);
     }
 
     private CodeBlock codeBlockForToProto() {
@@ -304,7 +453,8 @@ public class RepeatedPojoField extends UnaryPojoField {
             // We need to convert List of POJO messages to an iterable of proto messages.
             return CodeBlock.builder()
                 .add("proto.get$L().stream()\n", listFieldName())
-                .add("$>.map($T::fromProto)\n", listTypeParameter)
+                .add("$>.map(o -> $T.fromProto(o).$L())\n", listTypeParameter,
+                    PojoCodeGenerator.ON_PARENT_SETTING_METHOD)
                 .add(".collect($T.toList())$<", Collectors.class)
                 .build();
         } else {
@@ -314,17 +464,20 @@ public class RepeatedPojoField extends UnaryPojoField {
         }
     }
 
+
     private CodeBlock codeBlockForCopy() {
         if (isMessageList()) {
-            // We need to copy the individual proto messages into a new list.
+            // We need to copy the individual pojos into a new list.
             return CodeBlock.builder()
-                .add("other.$L.stream()\n", fieldDescriptor.getSuffixedName())
-                .add("$>.map($T::copy)\n", listTypeParameter)
+                .add("$L = ", fieldDescriptor.getSuffixedName())
+                .add("other.get$LList().stream()\n", capitalizedFieldName())
+                .add("$>.map(o -> o.copy().$L())\n", PojoCodeGenerator.ON_PARENT_SETTING_METHOD)
                 .add(".collect($T.toList())$<", Collectors.class)
                 .build();
         } else {
             return CodeBlock.builder()
-                .add("new $T<>(other.$L)", ArrayList.class, fieldDescriptor.getSuffixedName())
+                .add("$L = new $T(other.get$LList())", fieldDescriptor.getSuffixedName(),
+                    ArrayList.class, capitalizedFieldName())
                 .build();
         }
     }

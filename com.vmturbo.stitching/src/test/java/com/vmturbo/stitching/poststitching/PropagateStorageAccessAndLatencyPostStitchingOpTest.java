@@ -22,13 +22,15 @@ import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
-import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 import com.vmturbo.stitching.poststitching.PropagateStorageAccessAndLatencyPostStitchingOperation.AccessAndLatencyBought;
@@ -45,15 +47,15 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
     private final PropagateStorageAccessAndLatencyPostStitchingOperation op =
         new PropagateStorageAccessAndLatencyPostStitchingOperation();
 
-    private final CommodityBoughtDTO.Builder storageAccessBought =
+    private final CommodityBoughtImpl storageAccessBought =
         makeCommodityBoughtBuilder(CommodityType.STORAGE_ACCESS);
-    private final CommodityBoughtDTO.Builder storageLatencyBought =
+    private final CommodityBoughtImpl storageLatencyBought =
         makeCommodityBoughtBuilder(CommodityType.STORAGE_LATENCY);
-    private final CommodityBoughtDTO.Builder cpuBought =
+    private final CommodityBoughtImpl cpuBought =
         makeCommodityBoughtBuilder(CommodityType.CPU);
 
-    private final CommoditySoldDTO storageAccessSold = makeCommoditySold(CommodityType.STORAGE_ACCESS);
-    private final CommoditySoldDTO storageLatencySold = makeCommoditySold(CommodityType.STORAGE_LATENCY);
+    private final CommoditySoldView storageAccessSold = makeCommoditySold(CommodityType.STORAGE_ACCESS);
+    private final CommoditySoldView storageLatencySold = makeCommoditySold(CommodityType.STORAGE_LATENCY);
 
     private TopologyEntity.Builder diskArray = makeBasicTopologyEntityBuilder(1, EntityType.DISK_ARRAY);
     private TopologyEntity.Builder logicalPool = makeBasicTopologyEntityBuilder(2, EntityType.LOGICAL_POOL);
@@ -360,9 +362,9 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
         assertEquals(12.3, getUsedBought(vmEntity, storage1.getOid(),CommodityType.STORAGE_ACCESS).get(), EPSILON);
     }
 
-    private CommoditySoldDTO.Builder getCommoditySold(@Nonnull final TopologyEntity.Builder entity,
-                                                      final CommodityType commodityType) {
-        return entity.getEntityBuilder().getCommoditySoldListBuilderList().stream()
+    private CommoditySoldImpl getCommoditySold(@Nonnull final TopologyEntity.Builder entity,
+                                               final CommodityType commodityType) {
+        return entity.getTopologyEntityImpl().getCommoditySoldListImplList().stream()
             .filter(commodity -> commodity.getCommodityType().getType() == commodityType.getNumber())
             .findFirst()
             .get();
@@ -370,11 +372,11 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
 
     private void removeCommoditiesSold(@Nonnull final TopologyEntity.Builder entity,
                                        final CommodityType... commodityTypes) {
-        final List<CommoditySoldDTO.Builder> builders = entity.getEntityBuilder().getCommoditySoldListBuilderList();
+        final List<CommoditySoldImpl> impls = entity.getTopologyEntityImpl().getCommoditySoldListImplList();
         for (CommodityType commodityType : commodityTypes) {
-            for (int i = 0; i < builders.size(); i++) {
-                if (builders.get(i).getCommodityType().getType() == commodityType.getNumber()) {
-                    entity.getEntityBuilder().removeCommoditySoldList(i);
+            for (int i = 0; i < impls.size(); i++) {
+                if (impls.get(i).getCommodityType().getType() == commodityType.getNumber()) {
+                    entity.getTopologyEntityImpl().removeCommoditySoldList(i);
                     break;
                 }
             }
@@ -384,9 +386,9 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
     private void removeCommoditiesBought(@Nonnull final TopologyEntity.Builder entity,
                                        final CommodityType... commodityTypes) {
         for (CommodityType commodityType : commodityTypes) {
-            entity.getEntityBuilder().getCommoditiesBoughtFromProvidersBuilderList().stream().forEach(list -> {
-                for (int i = 0; i < list.getCommodityBoughtBuilderList().size(); i++) {
-                    if (list.getCommodityBoughtBuilderList().get(i)
+            entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersImplList().stream().forEach(list -> {
+                for (int i = 0; i < list.getCommodityBoughtList().size(); i++) {
+                    if (list.getCommodityBoughtList().get(i)
                         .getCommodityType().getType() == commodityType.getNumber()) {
                         list.removeCommodityBought(i);
                         break;
@@ -399,21 +401,21 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
     private TopologyEntity.Builder makeBasicTopologyEntityBuilder(final long oid, @Nonnull final EntityType type) {
         return makeTopologyEntityBuilder(
             oid, type.getNumber(), Arrays.asList(storageAccessSold, storageLatencySold),
-            Arrays.asList(storageAccessBought.build(), storageLatencyBought.build())
+            Arrays.asList(storageAccessBought, storageLatencyBought)
         );
     }
 
     private void loadBuyer(@Nonnull final TopologyEntity.Builder buyer,
                            final long sellerOid, final int sellerType,
                            final double accessUsed, final double latencyUsed) {
-        buyer.getEntityBuilder().addCommoditiesBoughtFromProviders(
+        buyer.getTopologyEntityImpl().addCommoditiesBoughtFromProviders(
             makeCommoditiesBoughtFromProvider(sellerOid, sellerType,
-                Arrays.asList(storageAccessBought.setUsed(accessUsed).build(),
-                    storageLatencyBought.setUsed(latencyUsed).build())));
+                Arrays.asList(storageAccessBought.setUsed(accessUsed),
+                    storageLatencyBought.setUsed(latencyUsed))));
     }
 
     private void setupBuyerRelationship(Builder entity, Builder seller) {
-        entity.getEntityBuilder().getCommoditiesBoughtFromProvidersBuilderList()
+        entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersImplList()
             .get(0)
             .setProviderId(seller.getOid())
             .setProviderEntityType(seller.getEntityType());
@@ -421,9 +423,9 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
 
     private void setupVmPmCommodities(@Nonnull final TopologyEntity.Builder vm,
                                       @Nonnull final TopologyEntity.Builder pm, final double amountUsed) {
-        vm.getEntityBuilder().addCommoditiesBoughtFromProviders(
+        vm.getTopologyEntityImpl().addCommoditiesBoughtFromProviders(
             makeCommoditiesBoughtFromProvider(pm.getOid(), EntityType.PHYSICAL_MACHINE_VALUE,
-                Collections.singletonList(cpuBought.setUsed(amountUsed).build())));
+                Collections.singletonList(cpuBought.setUsed(amountUsed))));
     }
 
     private void setAccessRelationships() {
@@ -554,22 +556,22 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
 
     private Optional<Double> getUsedSold(@Nonnull final TopologyEntity entity,
                                          @Nonnull final CommodityType type) {
-        return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+        return entity.getTopologyEntityImpl().getCommoditySoldListList().stream()
             .filter(commodity -> commodity.getCommodityType().getType() == type.getNumber())
             .findAny()
-            .filter(CommoditySoldDTO::hasUsed)
-            .map(CommoditySoldDTO::getUsed);
+            .filter(CommoditySoldView::hasUsed)
+            .map(CommoditySoldView::getUsed);
     }
 
     private Optional<Double> getUsedBought(@Nonnull final TopologyEntity buyer,
                                  final long sellerOid,
                                  @Nonnull final CommodityType type) {
-        return buyer.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+        return buyer.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList().stream()
             .filter(commodity -> commodity.getProviderId() == sellerOid)
             .flatMap(commodity -> commodity.getCommodityBoughtList().stream())
             .filter(commodity -> commodity.getCommodityType().getType() == type.getNumber())
             .findAny()
-            .filter(CommodityBoughtDTO::hasUsed)
-            .map(CommodityBoughtDTO::getUsed);
+            .filter(CommodityBoughtView::hasUsed)
+            .map(CommodityBoughtView::getUsed);
     }
 }

@@ -15,13 +15,15 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -111,7 +113,7 @@ public class MergePolicyApplication extends PlacementPolicyApplication<MergePoli
             changeCommodityKeyForSoldCommodities(provider, commodityType, newCommodityKey);
 
             // Change sold commodity key for entity that replaces current provider
-            final TopologyEntityDTO.Builder builder = provider.getTopologyEntityDtoBuilder();
+            final TopologyEntityImpl builder = provider.getTopologyEntityImpl();
             if (builder.hasEdit() &&
                 builder.getEdit().hasReplaced() &&
                 builder.getEdit().getReplaced().hasReplacementId() &&
@@ -136,23 +138,22 @@ public class MergePolicyApplication extends PlacementPolicyApplication<MergePoli
     private void changeCommodityKeyForSoldCommodities(@Nonnull final TopologyEntity provider,
                                                       @Nonnull final CommodityType commodityType,
                                                       @Nonnull final String newCommodityKey) {
-        final Optional<Builder> commodityToModify = provider.getTopologyEntityDtoBuilder()
-            .getCommoditySoldListBuilderList()
+        final Optional<CommoditySoldImpl> commodityToModify = provider.getTopologyEntityImpl()
+            .getCommoditySoldListImplList()
             .stream()
             .filter(commodity -> isCommodityTypeEligibleForMerge(
                 commodity.getCommodityType(), commodityType))
             .findFirst();
 
         if (commodityToModify.isPresent()) {
-            commodityToModify.get().getCommodityTypeBuilder().setKey(newCommodityKey);
+            commodityToModify.get().getOrCreateCommodityType().setKey(newCommodityKey);
         } else {
-            final CommoditySoldDTO newSoldCommodity = CommoditySoldDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            final CommoditySoldView newSoldCommodity = new CommoditySoldImpl()
+                .setCommodityType(new CommodityTypeImpl()
                     .setKey(newCommodityKey)
-                    .setType(commodityType.getNumber()))
-                .build();
+                    .setType(commodityType.getNumber()));
             recordCommodityAddition(commodityType.getNumber());
-            provider.getTopologyEntityDtoBuilder().addCommoditySoldList(newSoldCommodity);
+            provider.getTopologyEntityImpl().addCommoditySoldList(newSoldCommodity);
         }
     }
 
@@ -172,8 +173,8 @@ public class MergePolicyApplication extends PlacementPolicyApplication<MergePoli
             @Nonnull final Set<TopologyEntity> providers,
             @Nonnull final CommodityType commodityType, @Nonnull final String newCommodityKey) {
         for (TopologyEntity consumer : consumers) {
-            for (CommoditiesBoughtFromProvider.Builder commoditiesBoughtFromProvider : consumer.getTopologyEntityDtoBuilder()
-                    .getCommoditiesBoughtFromProvidersBuilderList()) {
+            for (CommoditiesBoughtFromProviderImpl commoditiesBoughtFromProvider : consumer.getTopologyEntityImpl()
+                    .getCommoditiesBoughtFromProvidersImplList()) {
                 // The condition is to make sure that the provider id for that bought list
                 // is included in the original set of entities that we want to merge.
                 // For example: a vm can have multiple storages, and only one of those
@@ -181,22 +182,21 @@ public class MergePolicyApplication extends PlacementPolicyApplication<MergePoli
                 if (commoditiesBoughtFromProvider.hasProviderId() && providers.stream()
                         .anyMatch(
                                 p -> p.getOid() == commoditiesBoughtFromProvider.getProviderId())) {
-                    final Optional<CommodityBoughtDTO.Builder> commodityToModify =
-                            commoditiesBoughtFromProvider.getCommodityBoughtBuilderList()
+                    final Optional<CommodityBoughtImpl> commodityToModify =
+                            commoditiesBoughtFromProvider.getCommodityBoughtImplList()
                                     .stream()
                                     .filter(commodity -> isCommodityTypeEligibleForMerge(
                                             commodity.getCommodityType(), commodityType))
                                     .findFirst();
 
                     if (commodityToModify.isPresent()) {
-                        commodityToModify.get().getCommodityTypeBuilder().setKey(newCommodityKey);
+                        commodityToModify.get().getOrCreateCommodityType().setKey(newCommodityKey);
                     } else {
-                        final CommodityBoughtDTO newBoughtCommodity =
-                                CommodityBoughtDTO.newBuilder()
-                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                        final CommodityBoughtView newBoughtCommodity =
+                                new CommodityBoughtImpl()
+                                        .setCommodityType(new CommodityTypeImpl()
                                                 .setKey(newCommodityKey)
-                                                .setType(commodityType.getNumber()))
-                                        .build();
+                                                .setType(commodityType.getNumber()));
                         recordCommodityAddition(commodityType.getNumber());
                         commoditiesBoughtFromProvider.addCommodityBought(newBoughtCommodity);
                     }
@@ -215,7 +215,7 @@ public class MergePolicyApplication extends PlacementPolicyApplication<MergePoli
      * @return true if commodityType is eligible for merge
      */
     private static boolean isCommodityTypeEligibleForMerge(
-            @Nonnull TopologyDTO.CommodityType commodityType,
+            @Nonnull CommodityTypeView commodityType,
             @Nonnull CommodityType associatedCommodityTypeWithPolicy) {
         return commodityType.getType() == associatedCommodityTypeWithPolicy.getNumber() &&
                 (commodityType.getType() != CommodityType.STORAGE_CLUSTER_VALUE ||

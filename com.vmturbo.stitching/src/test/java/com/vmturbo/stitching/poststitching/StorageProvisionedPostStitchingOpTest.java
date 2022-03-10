@@ -31,9 +31,10 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -69,24 +70,24 @@ public class StorageProvisionedPostStitchingOpTest {
     private final OverprovisionCapacityPostStitchingOperation operation;
     private EntityChangesBuilder<TopologyEntity> resultBuilder;
 
-    private final CommoditySoldDTO irrelevantCommodity = makeCommoditySold(CommodityType.BALLOONING);
+    private final CommoditySoldView irrelevantCommodity = makeCommoditySold(CommodityType.BALLOONING);
 
     private final float overprovisionPercentage = 150;
 
 
     private final double amountCapacity = 250;
-    private final CommoditySoldDTO amountCommodity =
+    private final CommoditySoldView amountCommodity =
         makeCommoditySold(CommodityType.STORAGE_AMOUNT, amountCapacity);
 
-    private final CommoditySoldDTO emptyProvisionedCommodity =
+    private final CommoditySoldView emptyProvisionedCommodity =
             makeCommoditySold(CommodityType.STORAGE_PROVISIONED);
     private final double expectedProvisionedCapacity =
             amountCapacity * overprovisionPercentage / 100;
 
 
-    private final List<CommoditySoldDTO> requiredCommodities =
+    private final List<CommoditySoldView> requiredCommodities =
             ImmutableList.of(emptyProvisionedCommodity, amountCommodity, irrelevantCommodity);
-    private final List<CommoditySoldDTO> expectedCommodities =
+    private final List<CommoditySoldView> expectedCommodities =
         ImmutableList.of(amountCommodity, irrelevantCommodity,
             makeCommoditySold(CommodityType.STORAGE_PROVISIONED, expectedProvisionedCapacity));
 
@@ -132,7 +133,7 @@ public class StorageProvisionedPostStitchingOpTest {
     @Test
     public void testNoAmountCommodity() {
 
-        final List<CommoditySoldDTO> origCommodities =
+        final List<CommoditySoldView> origCommodities =
                 Arrays.asList(emptyProvisionedCommodity, irrelevantCommodity);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
@@ -143,7 +144,7 @@ public class StorageProvisionedPostStitchingOpTest {
     @Test
     public void testNoProvisionedCommodity() {
 
-        final List<CommoditySoldDTO> origCommodities = Arrays.asList(amountCommodity, irrelevantCommodity);
+        final List<CommoditySoldView> origCommodities = Arrays.asList(amountCommodity, irrelevantCommodity);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
         operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
@@ -154,8 +155,8 @@ public class StorageProvisionedPostStitchingOpTest {
     @Test
     public void testProvisionedCommodityWithCapacity() {
 
-        final CommoditySoldDTO preloadedProvisioned = makeCommoditySold(CommodityType.STORAGE_PROVISIONED, 99);
-        final List<CommoditySoldDTO> origCommodities =
+        final CommoditySoldView preloadedProvisioned = makeCommoditySold(CommodityType.STORAGE_PROVISIONED, 99);
+        final List<CommoditySoldView> origCommodities =
                 Arrays.asList(amountCommodity, irrelevantCommodity, preloadedProvisioned);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
@@ -170,10 +171,10 @@ public class StorageProvisionedPostStitchingOpTest {
         final String key1 = "abc";
         final String key2 = "xyz";
 
-        final CommoditySoldDTO provisionedWithKey = makeCommoditySold(CommodityType.STORAGE_PROVISIONED, key1);
-        final CommoditySoldDTO sourceWithKey = makeCommoditySold(CommodityType.STORAGE_AMOUNT, amountCapacity, key2);
+        final CommoditySoldView provisionedWithKey = makeCommoditySold(CommodityType.STORAGE_PROVISIONED, key1);
+        final CommoditySoldView sourceWithKey = makeCommoditySold(CommodityType.STORAGE_AMOUNT, amountCapacity, key2);
 
-        final List<CommoditySoldDTO> origCommodities =
+        final List<CommoditySoldView> origCommodities =
                 Arrays.asList(sourceWithKey, irrelevantCommodity, provisionedWithKey);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
@@ -187,9 +188,9 @@ public class StorageProvisionedPostStitchingOpTest {
 
         final String key = "abc";
 
-        final CommoditySoldDTO provisionedWithKey = makeCommoditySold(CommodityType.STORAGE_PROVISIONED, key);
+        final CommoditySoldView provisionedWithKey = makeCommoditySold(CommodityType.STORAGE_PROVISIONED, key);
 
-        final List<CommoditySoldDTO> origCommodities =
+        final List<CommoditySoldView> origCommodities =
                 Arrays.asList(amountCommodity, irrelevantCommodity, provisionedWithKey);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
@@ -201,8 +202,8 @@ public class StorageProvisionedPostStitchingOpTest {
     @Test
     public void testDuplicateCommodities() {
 
-        final List<CommoditySoldDTO> origCommodities = new ArrayList<>();
-        final CommoditySoldDTO duplicateCommodity = makeCommoditySold(CommodityType.STORAGE_AMOUNT, amountCapacity);
+        final List<CommoditySoldView> origCommodities = new ArrayList<>();
+        final CommoditySoldView duplicateCommodity = makeCommoditySold(CommodityType.STORAGE_AMOUNT, amountCapacity);
         origCommodities.addAll(requiredCommodities);
         origCommodities.add(duplicateCommodity);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
@@ -227,8 +228,8 @@ public class StorageProvisionedPostStitchingOpTest {
                 operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
         result.getChanges().forEach(change -> change.applyChange(journal));
 
-        final List<CommoditySoldDTO> actualCommodities =
-                testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();
+        final List<CommoditySoldView> actualCommodities =
+                testTE.getTopologyEntityImpl().getCommoditySoldListList();
 
         assertTrue(expectedCommodities.containsAll(actualCommodities));
         assertTrue(actualCommodities.containsAll(expectedCommodities));
@@ -238,10 +239,10 @@ public class StorageProvisionedPostStitchingOpTest {
     public void testHappyPathWithKeys() {
 
         final String key = "abcdefghij";
-        final CommoditySoldDTO sourceCommodityWithKey =
+        final CommoditySoldView sourceCommodityWithKey =
                 makeCommoditySold(CommodityType.STORAGE_AMOUNT, amountCapacity, key);
 
-        final List<CommoditySoldDTO> origCommodities = Arrays.asList(irrelevantCommodity,
+        final List<CommoditySoldView> origCommodities = Arrays.asList(irrelevantCommodity,
                 makeCommoditySold(CommodityType.STORAGE_PROVISIONED, key), sourceCommodityWithKey);
 
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
@@ -250,9 +251,9 @@ public class StorageProvisionedPostStitchingOpTest {
                 operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
         result.getChanges().forEach(change -> change.applyChange(journal));
 
-        final List<CommoditySoldDTO> actualCommodities =
-                testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();
-        final List<CommoditySoldDTO> expectedCommodities = Arrays.asList(irrelevantCommodity,
+        final List<CommoditySoldView> actualCommodities =
+                testTE.getTopologyEntityImpl().getCommoditySoldListList();
+        final List<CommoditySoldView> expectedCommodities = Arrays.asList(irrelevantCommodity,
                 makeCommoditySold(CommodityType.STORAGE_PROVISIONED, expectedProvisionedCapacity, key),
                 sourceCommodityWithKey);
 
@@ -266,16 +267,16 @@ public class StorageProvisionedPostStitchingOpTest {
         final TopologyEntity testTE = makeTopologyEntity(requiredCommodities);
 
         final double secondCapacity = 500;
-        final CommoditySoldDTO secondSourceCommodity = makeCommoditySold(CommodityType.STORAGE_AMOUNT, secondCapacity);
+        final CommoditySoldView secondSourceCommodity = makeCommoditySold(CommodityType.STORAGE_AMOUNT, secondCapacity);
         final TopologyEntity secondTestTE =
                 makeTopologyEntity(Arrays.asList(secondSourceCommodity, emptyProvisionedCommodity));
 
-        final List<CommoditySoldDTO> thirdCommodityList =
+        final List<CommoditySoldView> thirdCommodityList =
                 Arrays.asList(amountCommodity, irrelevantCommodity);
         final TopologyEntity thirdTestTE = makeTopologyEntity(thirdCommodityList);
 
-        final CommoditySoldDTO commodityWithCapacity = makeCommoditySold(CommodityType.STORAGE_PROVISIONED, 4);
-        final List<CommoditySoldDTO> fourthCommodityList =
+        final CommoditySoldView commodityWithCapacity = makeCommoditySold(CommodityType.STORAGE_PROVISIONED, 4);
+        final List<CommoditySoldView> fourthCommodityList =
                 Arrays.asList(amountCommodity, commodityWithCapacity, irrelevantCommodity);
         final TopologyEntity fourthTestTE = makeTopologyEntity(fourthCommodityList);
 
@@ -283,38 +284,38 @@ public class StorageProvisionedPostStitchingOpTest {
                 secondTestTE, thirdTestTE), settingsMock, resultBuilder);
         result.getChanges().forEach(change -> change.applyChange(journal));
 
-        final List<CommoditySoldDTO> firstResult =
-                testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();
+        final List<CommoditySoldView> firstResult =
+                testTE.getTopologyEntityImpl().getCommoditySoldListList();
         assertTrue(firstResult.containsAll(expectedCommodities));
         assertTrue(expectedCommodities.containsAll(firstResult));
 
-        final List<CommoditySoldDTO> secondExpectedResult = Arrays.asList(secondSourceCommodity,
+        final List<CommoditySoldView> secondExpectedResult = Arrays.asList(secondSourceCommodity,
                 makeCommoditySold(CommodityType.STORAGE_PROVISIONED, secondCapacity * overprovisionPercentage / 100));
-        assertEquals(secondTestTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
+        assertEquals(secondTestTE.getTopologyEntityImpl().getCommoditySoldListList(),
                 secondExpectedResult);
 
-        assertEquals(thirdTestTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
+        assertEquals(thirdTestTE.getTopologyEntityImpl().getCommoditySoldListList(),
                 thirdCommodityList);
-        assertEquals(fourthTestTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
+        assertEquals(fourthTestTE.getTopologyEntityImpl().getCommoditySoldListList(),
                 fourthCommodityList);
     }
 
     @Test
     public void testSetStorageProvisionedBoughtUsed() {
         // mock sold storage amount whose capacity value comes from vc
-        CommoditySoldDTO soldStorageAmount = makeCommoditySold(CommodityType.STORAGE_AMOUNT, 1200);
-        CommoditySoldDTO soldStorageLatency = makeCommoditySold(CommodityType.STORAGE_LATENCY, 5000);
-        CommoditySoldDTO soldStorageProvisioned = makeCommoditySold(CommodityType.STORAGE_PROVISIONED);
+        CommoditySoldView soldStorageAmount = makeCommoditySold(CommodityType.STORAGE_AMOUNT, 1200);
+        CommoditySoldView soldStorageLatency = makeCommoditySold(CommodityType.STORAGE_LATENCY, 5000);
+        CommoditySoldView soldStorageProvisioned = makeCommoditySold(CommodityType.STORAGE_PROVISIONED);
 
         // mock bought storage provisioned whose used value comes from storage probe
-        CommodityBoughtDTO boughtStorageProvisioned = CommodityBoughtDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                        .setType(CommodityType.STORAGE_PROVISIONED_VALUE).build())
-                .setUsed(1500).build();
-        CommodityBoughtDTO boughtStorageLatency = CommodityBoughtDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                        .setType(CommodityType.STORAGE_LATENCY_VALUE).build())
-                .setUsed(2).build();
+        CommodityBoughtView boughtStorageProvisioned = new CommodityBoughtImpl()
+                .setCommodityType(new CommodityTypeImpl()
+                        .setType(CommodityType.STORAGE_PROVISIONED_VALUE))
+                .setUsed(1500);
+        CommodityBoughtView boughtStorageLatency = new CommodityBoughtImpl()
+                .setCommodityType(new CommodityTypeImpl()
+                        .setType(CommodityType.STORAGE_LATENCY_VALUE))
+                .setUsed(2);
 
         final TopologyEntity storage = makeTopologyEntity(EntityType.STORAGE_VALUE,
                 Lists.newArrayList(soldStorageAmount, soldStorageLatency, soldStorageProvisioned),
@@ -331,11 +332,11 @@ public class StorageProvisionedPostStitchingOpTest {
             result.getChanges().forEach(change -> change.applyChange(journal));
 
             // check that StorageProvisioned bought used value is set to StorageAmount sold capacity
-            assertEquals(1200, storage.getTopologyEntityDtoBuilder()
+            assertEquals(1200, storage.getTopologyEntityImpl()
                     .getCommoditiesBoughtFromProviders(0).getCommodityBoughtList().stream()
                     .filter(commodityBoughtDTO -> commodityBoughtDTO.getCommodityType().getType() ==
                             CommodityType.STORAGE_PROVISIONED_VALUE)
-                    .map(CommodityBoughtDTO::getUsed).findAny().get(), 0);
+                    .map(CommodityBoughtView::getUsed).findAny().get(), 0);
         } else {
             // only one change for StorageProvisioned sold capacity
             assertEquals(1, result.getChanges().size());
@@ -345,9 +346,9 @@ public class StorageProvisionedPostStitchingOpTest {
     @Test
     public void testSetStorageProvisionedBoughtUsed_NoStorageProvisonedBought() {
         // mock sold storage amount whose capacity value comes from vc
-        CommoditySoldDTO soldStorageAmount = makeCommoditySold(CommodityType.STORAGE_AMOUNT, 1200);
-        CommoditySoldDTO soldStorageLatency = makeCommoditySold(CommodityType.STORAGE_LATENCY, 5000);
-        CommoditySoldDTO soldStorageProvisioned = makeCommoditySold(CommodityType.STORAGE_PROVISIONED);
+        CommoditySoldView soldStorageAmount = makeCommoditySold(CommodityType.STORAGE_AMOUNT, 1200);
+        CommoditySoldView soldStorageLatency = makeCommoditySold(CommodityType.STORAGE_LATENCY, 5000);
+        CommoditySoldView soldStorageProvisioned = makeCommoditySold(CommodityType.STORAGE_PROVISIONED);
 
         final TopologyEntity storage = makeTopologyEntity(EntityType.STORAGE_VALUE,
                 Lists.newArrayList(soldStorageAmount, soldStorageLatency, soldStorageProvisioned));
@@ -360,17 +361,17 @@ public class StorageProvisionedPostStitchingOpTest {
     @Test
     public void testSetStorageProvisionedBoughtUsed_NoStorageAmountSold() {
         // mock sold commodities
-        CommoditySoldDTO soldStorageLatency = makeCommoditySold(CommodityType.STORAGE_LATENCY, 5000);
-        CommoditySoldDTO soldStorageProvisioned = makeCommoditySold(CommodityType.STORAGE_PROVISIONED);
+        CommoditySoldView soldStorageLatency = makeCommoditySold(CommodityType.STORAGE_LATENCY, 5000);
+        CommoditySoldView soldStorageProvisioned = makeCommoditySold(CommodityType.STORAGE_PROVISIONED);
         // mock bought commodities
-        CommodityBoughtDTO boughtStorageProvisioned = CommodityBoughtDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                        .setType(CommodityType.STORAGE_PROVISIONED_VALUE).build())
-                .setUsed(1500).build();
-        CommodityBoughtDTO boughtStorageLatency = CommodityBoughtDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                        .setType(CommodityType.STORAGE_LATENCY_VALUE).build())
-                .setUsed(2).build();
+        CommodityBoughtView boughtStorageProvisioned = new CommodityBoughtImpl()
+                .setCommodityType(new CommodityTypeImpl()
+                        .setType(CommodityType.STORAGE_PROVISIONED_VALUE))
+                .setUsed(1500);
+        CommodityBoughtView boughtStorageLatency = new CommodityBoughtImpl()
+                .setCommodityType(new CommodityTypeImpl()
+                        .setType(CommodityType.STORAGE_LATENCY_VALUE))
+                .setUsed(2);
 
         final TopologyEntity storage = makeTopologyEntity(EntityType.STORAGE_VALUE,
                 Lists.newArrayList(soldStorageLatency, soldStorageProvisioned),
@@ -391,12 +392,12 @@ public class StorageProvisionedPostStitchingOpTest {
     @Test
     public void testSetVirtualVolumeStorageProvisionedBoughtUsed() {
 
-        final CommoditySoldDTO soldStorageAmount = makeCommoditySold(CommodityType.STORAGE_AMOUNT, 3000);
+        final CommoditySoldView soldStorageAmount = makeCommoditySold(CommodityType.STORAGE_AMOUNT, 3000);
 
-        final CommodityBoughtDTO boughtStorageProvisioned = CommodityBoughtDTO.newBuilder()
-            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                .setType(CommodityType.STORAGE_PROVISIONED_VALUE).build())
-            .setUsed(1500).build();
+        final CommodityBoughtView boughtStorageProvisioned = new CommodityBoughtImpl()
+            .setCommodityType(new CommodityTypeImpl()
+                .setType(CommodityType.STORAGE_PROVISIONED_VALUE))
+            .setUsed(1500);
 
         final TopologyEntity virtualVolume = makeTopologyEntity(EntityType.VIRTUAL_VOLUME_VALUE,
             Lists.newArrayList(soldStorageAmount),

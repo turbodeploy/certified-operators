@@ -13,7 +13,7 @@ import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -53,7 +53,7 @@ public class VMemUsedVMPostStitchingOperationTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         Assert.assertEquals(expectedResult,
-                provider.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getUsed(), 1e-5);
+                provider.getTopologyEntityImpl().getCommoditySoldList(0).getUsed(), 1e-5);
     }
 
     /**
@@ -71,7 +71,7 @@ public class VMemUsedVMPostStitchingOperationTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         Assert.assertEquals(expectedResult,
-                provider.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getUsed(), 1e-5);
+                provider.getTopologyEntityImpl().getCommoditySoldList(0).getUsed(), 1e-5);
     }
 
     /**
@@ -89,7 +89,7 @@ public class VMemUsedVMPostStitchingOperationTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         Assert.assertEquals(expectedResult,
-                provider.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getUsed(), 1e-5);
+                provider.getTopologyEntityImpl().getCommoditySoldList(0).getUsed(), 1e-5);
     }
 
     /**
@@ -112,11 +112,11 @@ public class VMemUsedVMPostStitchingOperationTest {
                                 COMM_KEY)),
                         Collections.emptyList());
 
-        final CommodityBoughtDTO commBoughtInclude =
+        final CommodityBoughtView commBoughtInclude =
                 PostStitchingTestUtilities.makeCommodityBought(COMM_TYPE, COMM_KEY);
-        final CommodityBoughtDTO commBoughtExcludeByKey =
+        final CommodityBoughtView commBoughtExcludeByKey =
                 PostStitchingTestUtilities.makeCommodityBought(COMM_TYPE, COMM_KEY_EX);
-        final CommodityBoughtDTO commBoughtExcludeByType =
+        final CommodityBoughtView commBoughtExcludeByType =
                 PostStitchingTestUtilities.makeCommodityBought(COMM_TYPE_EX);
 
         usedValues.forEach(usedValue -> {
@@ -129,9 +129,9 @@ public class VMemUsedVMPostStitchingOperationTest {
                             Collections.singletonList(
                                     PostStitchingTestUtilities.makeCommoditySold(COMM_TYPE)),
                             ImmutableMap.of(sellerOid, Lists.newArrayList(
-                                    commBoughtInclude.toBuilder().setUsed(usedValue).build(),
-                                    commBoughtExcludeByKey.toBuilder().setUsed(1000).build(),
-                                    commBoughtExcludeByType.toBuilder().setUsed(1000).build())));
+                                    commBoughtInclude.copy().setUsed(usedValue),
+                                    commBoughtExcludeByKey.copy().setUsed(1000),
+                                    commBoughtExcludeByType.copy().setUsed(1000))));
             seller.addConsumer(buyer);
             buyer.build();
         });

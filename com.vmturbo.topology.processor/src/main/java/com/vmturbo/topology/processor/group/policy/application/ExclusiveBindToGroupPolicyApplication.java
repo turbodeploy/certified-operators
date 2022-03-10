@@ -9,10 +9,12 @@ import java.util.stream.Collectors;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -36,7 +38,7 @@ public class ExclusiveBindToGroupPolicyApplication extends BindToGroupPolicyAppl
 
     @Override
     protected void applyExclusivePolicy(
-            InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> invertedIndex,
+            InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView> invertedIndex,
             BindToGroupPolicy policy, PolicyDetailCase policyDetailCase,
             ApiEntityType consumerEntityType, Set<Long> providers, Set<Long> consumers,
             int providerType) throws PolicyApplicationException {
@@ -44,20 +46,20 @@ public class ExclusiveBindToGroupPolicyApplication extends BindToGroupPolicyAppl
                 e -> e.getEntityType() == consumerEntityType.typeNumber()).map(
                 TopologyEntity::getOid).filter(oid -> !consumers.contains(oid)).collect(
                 Collectors.toSet());
-        final CommoditySoldDTO commoditySoldDTO = CommoditySoldDTO.newBuilder().setCommodityType(
-                CommodityType.newBuilder()
+        final CommoditySoldView commoditySoldDTO = new CommoditySoldImpl().setCommodityType(
+                new CommodityTypeImpl()
                         .setType(CommodityDTO.CommodityType.SEGMENTATION.getNumber())
                         .setKey(policy.getPolicyDefinition().getId()
-                                + NON_CONTAINING_CONSUMERS_KEY_POSTFIX)
-                        .build()).setCapacity(SDKConstants.ACCESS_COMMODITY_CAPACITY).build();
+                                + NON_CONTAINING_CONSUMERS_KEY_POSTFIX))
+                .setCapacity(SDKConstants.ACCESS_COMMODITY_CAPACITY);
         addCommoditySoldToComplementaryProviders(nonContainingConsumers, providers, providerType,
                 invertedIndex, commoditySoldDTO);
-        final CommodityBoughtDTO commodityBoughtDTO =
-                CommodityBoughtDTO.newBuilder().setCommodityType(CommodityType.newBuilder()
+        final CommodityBoughtView commodityBoughtDTO =
+                new CommodityBoughtImpl().setCommodityType(new CommodityTypeImpl()
                         .setType(CommodityDTO.CommodityType.SEGMENTATION.getNumber())
                         .setKey(policy.getPolicyDefinition().getId()
-                                + NON_CONTAINING_CONSUMERS_KEY_POSTFIX)
-                        .build()).setUsed(SEGM_BOUGHT_USED_VALUE).build();
+                                + NON_CONTAINING_CONSUMERS_KEY_POSTFIX))
+                        .setUsed(SEGM_BOUGHT_USED_VALUE);
         addCommodityBought(nonContainingConsumers, providerType, commodityBoughtDTO);
     }
 
@@ -72,7 +74,7 @@ public class ExclusiveBindToGroupPolicyApplication extends BindToGroupPolicyAppl
                 policy -> GroupProtoUtil.getEntityTypes(
                         policy.getProviderPolicyEntities().getGroup()).stream()).collect(
                 Collectors.toSet());
-        final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> invertedIndex =
+        final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView> invertedIndex =
                 invertedIndexFactory.typeInvertedIndex(topologyGraph, providerTypes,
                         TopologyInvertedIndexFactory.DEFAULT_MINIMAL_SCAN_STOP_THRESHOLD);
         final Map<PlacementPolicy, PolicyApplicationException> errors = new HashMap<>();

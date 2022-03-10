@@ -39,7 +39,6 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
@@ -64,19 +63,27 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Topolo
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ConnectedEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ConnectedEntityView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.EditView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.PlanScenarioOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -86,6 +93,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
@@ -117,199 +125,180 @@ public class TopologyEditorTest {
     private static final double VCPU_CAPACITY = 1000;
     private static final double VMEM_CAPACITY = 1000;
 
-    private static final CommodityType MEM = CommodityType.newBuilder().setType(21).build();
-    private static final CommodityType CPU = CommodityType.newBuilder().setType(40).build();
-    private static final CommodityType LATENCY = CommodityType.newBuilder().setType(3).build();
-    private static final CommodityType IOPS = CommodityType.newBuilder().setType(4).build();
-    private static final CommodityType DATASTORE = CommodityType.newBuilder()
-                    .setType(CommodityDTO.CommodityType.DATASTORE_VALUE).build();
-    private static final CommodityType DSPM = CommodityType.newBuilder()
-                    .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE).build();
-    private static final CommodityType VCPU = CommodityType.newBuilder()
-        .setType(CommodityDTO.CommodityType.VCPU_VALUE).build();
-    private static final CommodityType VMEM = CommodityType.newBuilder()
-        .setType(CommodityDTO.CommodityType.VMEM_VALUE).build();
-    private static final CommodityType VCPU_REQUEST_QUOTA = CommodityType.newBuilder()
-        .setType(CommodityDTO.CommodityType.VCPU_REQUEST_QUOTA_VALUE).build();
-    private static final CommodityType VCPU_LIMIT_QUOTA = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE).build();
-    private static final CommodityType VMEM_REQUEST_QUOTA = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.VMEM_REQUEST_QUOTA_VALUE).build();
-    private static final CommodityType VMEM_LIMIT_QUOTA = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.VMEM_LIMIT_QUOTA_VALUE).build();
-    private static final CommodityType STORAGE_AMOUNT = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build();
-    private static final CommodityType VMPM = CommodityType.newBuilder()
-        .setType(CommodityDTO.CommodityType.VMPM_ACCESS_VALUE).build();
-    private static final CommodityType VMPM_NODE_TO_POD = CommodityType.newBuilder()
+    private static final CommodityTypeView MEM = new CommodityTypeImpl().setType(21);
+    private static final CommodityTypeView CPU = new CommodityTypeImpl().setType(40);
+    private static final CommodityTypeView LATENCY = new CommodityTypeImpl().setType(3);
+    private static final CommodityTypeView IOPS = new CommodityTypeImpl().setType(4);
+    private static final CommodityTypeView DATASTORE = new CommodityTypeImpl()
+                    .setType(CommodityDTO.CommodityType.DATASTORE_VALUE);
+    private static final CommodityTypeView DSPM = new CommodityTypeImpl()
+                    .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE);
+    private static final CommodityTypeView VCPU = new CommodityTypeImpl()
+        .setType(CommodityDTO.CommodityType.VCPU_VALUE);
+    private static final CommodityTypeView VMEM = new CommodityTypeImpl()
+        .setType(CommodityDTO.CommodityType.VMEM_VALUE);
+    private static final CommodityTypeView VCPU_REQUEST_QUOTA = new CommodityTypeImpl()
+        .setType(CommodityDTO.CommodityType.VCPU_REQUEST_QUOTA_VALUE);
+    private static final CommodityTypeView VCPU_LIMIT_QUOTA = new CommodityTypeImpl()
+            .setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE);
+    private static final CommodityTypeView VMEM_REQUEST_QUOTA = new CommodityTypeImpl()
+            .setType(CommodityDTO.CommodityType.VMEM_REQUEST_QUOTA_VALUE);
+    private static final CommodityTypeView VMEM_LIMIT_QUOTA = new CommodityTypeImpl()
+            .setType(CommodityDTO.CommodityType.VMEM_LIMIT_QUOTA_VALUE);
+    private static final CommodityTypeView STORAGE_AMOUNT = new CommodityTypeImpl()
+            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE);
+    private static final CommodityTypeView VMPM = new CommodityTypeImpl()
+        .setType(CommodityDTO.CommodityType.VMPM_ACCESS_VALUE);
+    private static final CommodityTypeView VMPM_NODE_TO_POD = new CommodityTypeImpl()
             .setType(CommodityDTO.CommodityType.VMPM_ACCESS_VALUE)
-            .setKey("role=worker")
-            .build();
-    private static final CommodityType VMPM_POD_TO_CONTAINER = CommodityType.newBuilder()
+            .setKey("role=worker");
+    private static final CommodityTypeView VMPM_POD_TO_CONTAINER = new CommodityTypeImpl()
             .setType(CommodityDTO.CommodityType.VMPM_ACCESS_VALUE)
-            .setKey("MyKey")
-            .build();
-    private static final CommodityType CLUSTER_KEYED = CommodityType.newBuilder()
+            .setKey("MyKey");
+    private static final CommodityTypeView CLUSTER_KEYED = new CommodityTypeImpl()
             .setType(CommodityDTO.CommodityType.CLUSTER_VALUE)
-            .setKey("foo")
-            .build();
+            .setKey("foo");
     private TopologyPipelineContext context;
     private TopologyPipelineContext containerClusterPlanContext;
     private static final TopologyEntity.Builder vm = TopologyEntityUtils.topologyEntityBuilder(
-        TopologyEntityDTO.newBuilder()
+        new TopologyEntityImpl()
             .setOid(vmId)
             .setDisplayName("VM")
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                 .setProviderId(pmId)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(MEM)
-                    .setUsed(USED).build())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(CPU)
-                    .setUsed(USED).build())
-                .build())
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(MEM)
+                    .setUsed(USED))
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(CPU)
+                    .setUsed(USED)))
+            .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                 .setProviderId(stId)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(LATENCY)
-                    .setUsed(USED).build())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(IOPS)
-                    .setUsed(USED).build())
-                .build())
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(LATENCY).setUsed(USED))
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(IOPS)
+                    .setUsed(USED)))
+            .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(VCPU)
                 .setUsed(USED)
                 .setCapacity(VCPU_CAPACITY))
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(VMEM)
                 .setUsed(USED)
                 .setCapacity(VMEM_CAPACITY))
     );
 
     private static final TopologyEntity.Builder unplacedVm = TopologyEntityUtils.topologyEntityBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                     .setOid(vmId)
                     .setDisplayName("UNPLACED-VM")
                     .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(MEM)
-                                    .setUsed(USED).build())
-                            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(CPU)
-                                    .setUsed(USED).build())
-                            .build())
-                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
+                            .addCommodityBought(new CommodityBoughtImpl().setCommodityType(MEM)
+                                    .setUsed(USED))
+                            .addCommodityBought(new CommodityBoughtImpl().setCommodityType(CPU)
+                                    .setUsed(USED)))
+                    .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                             .setProviderId(stId)
-                            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(LATENCY)
-                                    .setUsed(USED).build())
-                            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(IOPS)
-                                    .setUsed(USED).build())
-                            .build())
+                            .addCommodityBought(new CommodityBoughtImpl().setCommodityType(LATENCY)
+                                    .setUsed(USED))
+                            .addCommodityBought(new CommodityBoughtImpl().setCommodityType(IOPS)
+                                    .setUsed(USED)))
     );
 
     private static final TopologyEntity.Builder pm = TopologyEntityUtils.topologyEntityBuilder(
-        TopologyEntityDTO.newBuilder()
+        new TopologyEntityImpl()
             .setOid(pmId)
             .setDisplayName("PM")
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(MEM).setUsed(USED)
-                    .build())
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(CPU).setUsed(USED)
-                    .build())
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(DATASTORE)
-                            .setAccesses(stId).build())
+            .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(MEM).setUsed(USED))
+            .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(CPU).setUsed(USED))
+            .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(DATASTORE)
+                            .setAccesses(stId))
     );
 
     private final TopologyEntity.Builder st = TopologyEntityUtils.topologyEntityBuilder(
-        TopologyEntityDTO.newBuilder()
+        new TopologyEntityImpl()
             .setOid(stId)
             .setDisplayName("ST")
             .setEntityType(EntityType.STORAGE_VALUE)
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(LATENCY)
-                .setAccesses(vmId).setUsed(USED).build())
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(IOPS)
-                .setAccesses(vmId).setUsed(USED).build())
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(DSPM)
-                            .setAccesses(pmId).build())
+            .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(LATENCY)
+                .setAccesses(vmId).setUsed(USED))
+            .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(IOPS)
+                .setAccesses(vmId).setUsed(USED))
+            .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(DSPM)
+                            .setAccesses(pmId))
     );
 
     private static final TopologyEntity.Builder container =
-        TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder()
+        TopologyEntityUtils.topologyEntityBuilder(new TopologyEntityImpl()
             .setOid(containerId)
             .setDisplayName("Container")
             .setEntityType(EntityType.CONTAINER_VALUE)
             .setAnalysisSettings(
-                AnalysisSettings.newBuilder()
+                new AnalysisSettingsImpl()
                     .setSuspendable(false)
                     .setControllable(false)
             )
             .addCommoditiesBoughtFromProviders(
-                CommoditiesBoughtFromProvider.newBuilder()
+                new CommoditiesBoughtFromProviderImpl()
                     .setProviderId(podId)
                     .setProviderEntityType(EntityType.CONTAINER_POD_VALUE)
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .addCommodityBought(new CommodityBoughtImpl()
                         .setCommodityType(VMEM)
-                        .setUsed(USED)
-                        .build())
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setUsed(USED))
+                    .addCommodityBought(new CommodityBoughtImpl()
                         .setCommodityType(VCPU)
-                        .setUsed(USED)
-                        .build())
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setUsed(USED))
+                    .addCommodityBought(new CommodityBoughtImpl()
                         .setCommodityType(VMPM_POD_TO_CONTAINER)
-                        .setUsed(USED)
-                        .build())
-                    .build())
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setUsed(USED)))
+            .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(VCPU)
                 .setUsed(USED)
                 .setCapacity(VCPU_CAPACITY))
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(VMEM)
                 .setUsed(USED)
                 .setCapacity(VMEM_CAPACITY))
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(VMPM)
                 .setUsed(1.0)
                 .setCapacity(1.0)));
 
     // Create a test pod that is suspendable
     private static final TopologyEntity.Builder pod = TopologyEntityUtils.topologyEntityBuilder(
-        TopologyEntityDTO.newBuilder()
+        new TopologyEntityImpl()
             .setOid(podId)
             .setDisplayName("ContainerPod")
             .setEntityType(EntityType.CONTAINER_POD_VALUE)
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                 .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setProviderId(vmId)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VMEM)
-                    .setUsed(USED).build())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VCPU)
-                    .setUsed(USED).build())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VMPM_NODE_TO_POD)
-                    .build())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(CLUSTER_KEYED)
-                    .build())
-                .build())
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(VMEM)
+                    .setUsed(USED))
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(VCPU)
+                    .setUsed(USED))
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(VMPM_NODE_TO_POD))
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(CLUSTER_KEYED)))
+            .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                 .setProviderEntityType(EntityType.WORKLOAD_CONTROLLER_VALUE)
                 .setProviderId(controllerId)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VCPU_REQUEST_QUOTA).setUsed(USED).build())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VCPU_LIMIT_QUOTA).setUsed(USED).build())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VMEM_REQUEST_QUOTA).setUsed(USED).build())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VMEM_LIMIT_QUOTA).setUsed(USED).build())
-                .build())
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(VCPU_REQUEST_QUOTA).setUsed(USED))
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(VCPU_LIMIT_QUOTA).setUsed(USED))
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(VMEM_REQUEST_QUOTA).setUsed(USED))
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(VMEM_LIMIT_QUOTA).setUsed(USED)))
+            .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                 .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                 .setProviderId(volumeId)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(STORAGE_AMOUNT).setUsed(USED).build())
-                .build())
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(STORAGE_AMOUNT).setUsed(USED)))
+            .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(VCPU)
                 .setUsed(USED)
                 .setCapacity(VCPU_CAPACITY))
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(VMEM)
                 .setUsed(USED)
                 .setCapacity(VMEM_CAPACITY))
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(VMPM_POD_TO_CONTAINER)
                 .setUsed(1.0)
                 .setCapacity(1.0))
@@ -397,7 +386,7 @@ public class TopologyEditorTest {
 
     @Before
     public void setup() {
-        when(identityProvider.getCloneId(any(TopologyEntityDTO.class)))
+        when(identityProvider.getCloneId(any(TopologyEntityView.class)))
             .thenAnswer(invocation -> cloneId++);
         context = new TopologyPipelineContext(topologyInfo);
         containerClusterPlanContext = new TopologyPipelineContext(containerClusterPlanTopologyInfo);
@@ -434,7 +423,7 @@ public class TopologyEditorTest {
         }};
         final TopologyEntity.Builder pmEntity = TopologyEntityUtils
                 .topologyEntity(pmId, 0, 0, "PM", EntityType.PHYSICAL_MACHINE);
-        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(pmEntity);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.pojoGraphOf(pmEntity);
         final Set<Long> migratingEntities = topologyEditor.expandAndFlattenReferences(
                 clusters,
                 EntityType.VIRTUAL_MACHINE_VALUE,
@@ -518,12 +507,11 @@ public class TopologyEditorTest {
         final long vmToRemoveFromTargetRegionId = 8;
         final TopologyEntity.Builder regionConnectedEntityToRemove = TopologyEntityUtils
                 .topologyEntity(vmToRemoveFromTargetRegionId, 0, 0, "regionVM", EntityType.VIRTUAL_MACHINE);
-        ConnectedEntity regionConnectedEntity = ConnectedEntity.newBuilder()
+        ConnectedEntityView regionConnectedEntity = new ConnectedEntityImpl()
                 .setConnectedEntityId(regionId)
                 .setConnectedEntityType(EntityType.REGION_VALUE)
-                .setConnectionType(ConnectedEntity.ConnectionType.AGGREGATED_BY_CONNECTION)
-                .build();
-        regionConnectedEntityToRemove.getEntityBuilder().addConnectedEntityList(regionConnectedEntity);
+                .setConnectionType(ConnectedEntity.ConnectionType.AGGREGATED_BY_CONNECTION);
+        regionConnectedEntityToRemove.getTopologyEntityImpl().addConnectedEntityList(regionConnectedEntity);
 
         final long zoneId = 9;
         final TopologyEntity.Builder zone = TopologyEntityUtils
@@ -532,23 +520,20 @@ public class TopologyEditorTest {
         final long vmToRemoveFromZoneId = 10;
         final TopologyEntity.Builder zoneConnectedEntityToRemove = TopologyEntityUtils
                 .topologyEntity(vmToRemoveFromZoneId, 0, 0, "zoneVM", EntityType.VIRTUAL_MACHINE);
-        ConnectedEntity zoneConnectedEntityAggregatedBy = ConnectedEntity.newBuilder()
+        ConnectedEntityView zoneConnectedEntityAggregatedBy = new ConnectedEntityImpl()
                 .setConnectedEntityId(zoneId)
                 .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
-                .setConnectionType(ConnectedEntity.ConnectionType.AGGREGATED_BY_CONNECTION)
-                .build();
-        zoneConnectedEntityToRemove.getEntityBuilder().addConnectedEntityList(zoneConnectedEntityAggregatedBy);
+                .setConnectionType(ConnectedEntity.ConnectionType.AGGREGATED_BY_CONNECTION);
+        zoneConnectedEntityToRemove.getTopologyEntityImpl().addConnectedEntityList(zoneConnectedEntityAggregatedBy);
 
-        ConnectedEntity zoneConnectedEntityOwns = ConnectedEntity.newBuilder()
+        ConnectedEntityView zoneConnectedEntityOwns = new ConnectedEntityImpl()
                 .setConnectedEntityId(zoneId)
                 .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
-                .setConnectionType(ConnectedEntity.ConnectionType.OWNS_CONNECTION)
-                .build();
-
+                .setConnectionType(ConnectedEntity.ConnectionType.OWNS_CONNECTION);
 
         final TopologyEntity.Builder region = TopologyEntityUtils
                 .topologyEntity(regionId, 0, 0, "region", EntityType.REGION);
-        region.getEntityBuilder().addConnectedEntityList(zoneConnectedEntityOwns);
+        region.getTopologyEntityImpl().addConnectedEntityList(zoneConnectedEntityOwns);
 
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(pmId, pmEntity);
@@ -590,10 +575,10 @@ public class TopologyEditorTest {
         assertTrue(topology.containsKey(s1CloneId));
         assertTrue(topology.containsKey(s2CloneId));
 
-        assertTrue(regionConnectedEntityToRemove.getEntityBuilder().hasEdit()
-                && regionConnectedEntityToRemove.getEntityBuilder().getEdit().hasRemoved());
-        assertTrue(zoneConnectedEntityToRemove.getEntityBuilder().hasEdit()
-                && zoneConnectedEntityToRemove.getEntityBuilder().getEdit().hasRemoved());
+        assertTrue(regionConnectedEntityToRemove.getTopologyEntityImpl().hasEdit()
+                && regionConnectedEntityToRemove.getTopologyEntityImpl().getEdit().hasRemoved());
+        assertTrue(zoneConnectedEntityToRemove.getTopologyEntityImpl().hasEdit()
+                && zoneConnectedEntityToRemove.getTopologyEntityImpl().getEdit().hasRemoved());
 
         // Verify that the cloned source VM id has been added to the addedEntityOids.
         Collection<Long> clonedSourceVms = sourceEntities;
@@ -604,7 +589,7 @@ public class TopologyEditorTest {
     /**
      * Helper class to enable matching of entity DTO builders with the associated clone ids.
      */
-    static class EntityDtoMatcher extends ArgumentMatcher<TopologyEntityDTO> {
+    static class EntityDtoMatcher extends ArgumentMatcher<TopologyEntityView> {
         /**
          * Id of the cloned entity.
          */
@@ -622,16 +607,16 @@ public class TopologyEditorTest {
         /**
          * Used to match an entity DTO builder with the cloneId for this matcher.
          *
-         * @param input TopologyEntityDTO.Builder instance.
+         * @param input TopologyEntityImpl instance.
          * @return Whether builder's id matches the clone id of this matcher, goes by the
          * assumption that entityId x multiple = cloneId.
          */
         @Override
         public boolean matches(Object input) {
-            if (!(input instanceof TopologyEntityDTO.Builder)) {
+            if (!(input instanceof TopologyEntityImpl)) {
                 return false;
             }
-            TopologyEntityDTO.Builder dtoBuilder = (TopologyEntityDTO.Builder)input;
+            TopologyEntityImpl dtoBuilder = (TopologyEntityImpl)input;
             return dtoBuilder.getOid() * CLONE_ID_MULTIPLIER == cloneId;
         }
     }
@@ -664,29 +649,29 @@ public class TopologyEditorTest {
             assertEquals(names.get(i), vm.getDisplayName() + " - Clone #" + i);
         });
 
-        TopologyEntityDTO.Builder oneClone = clones.get(0).getEntityBuilder();
+        TopologyEntityImpl oneClone = clones.get(0).getTopologyEntityImpl();
         // clones are unplaced - all provider IDs are negative
         boolean allNegative = oneClone.getCommoditiesBoughtFromProvidersList()
                 .stream()
-                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .map(CommoditiesBoughtFromProviderView::getProviderId)
                 .allMatch(key -> key < 0);
         assertTrue(allNegative);
 
         // "oldProviders" entry in EntityPropertyMap captures the right placement
         @SuppressWarnings("unchecked")
         Map<Long, Long> oldProvidersMap = TopologyDTOUtil.parseOldProvidersMap(oneClone, new Gson());
-        for (CommoditiesBoughtFromProvider cloneCommBought :
+        for (CommoditiesBoughtFromProviderView cloneCommBought :
                 oneClone.getCommoditiesBoughtFromProvidersList()) {
             long oldProvider = oldProvidersMap.get(cloneCommBought.getProviderId());
-            CommoditiesBoughtFromProvider vmCommBought =
-                    vm.getEntityBuilder().getCommoditiesBoughtFromProvidersList().stream()
+            CommoditiesBoughtFromProviderView vmCommBought =
+                    vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList().stream()
                             .filter(bought -> bought.getProviderId() == oldProvider)
                             .findAny().get();
             assertEquals(cloneCommBought.getCommodityBoughtList(),
                     vmCommBought.getCommodityBoughtList());
         }
         // Assert that the commodity sold usages are the same.
-        assertEquals(vm.getEntityBuilder().getCommoditySoldListList(), oneClone.getCommoditySoldListList());
+        assertEquals(vm.getTopologyEntityImpl().getCommoditySoldListList(), oneClone.getCommoditySoldListList());
         assertTrue(oneClone.getAnalysisSettings().getShopTogether());
     }
 
@@ -735,9 +720,9 @@ public class TopologyEditorTest {
 
         // clones are unplaced - all provider IDs are negative
         Stream.concat(pmClones.stream(), storageClones.stream()).forEach(clone -> {
-            boolean allNegative = clone.getEntityBuilder()
+            boolean allNegative = clone.getTopologyEntityImpl()
                             .getCommoditiesBoughtFromProvidersList().stream()
-                            .map(CommoditiesBoughtFromProvider::getProviderId)
+                            .map(CommoditiesBoughtFromProviderView::getProviderId)
                             .allMatch(key -> key < 0);
             assertTrue(allNegative);
         });
@@ -749,7 +734,7 @@ public class TopologyEditorTest {
         assertEquals(6, connectedStorages.size());
         pmClones.stream()
             .forEach(pmClone -> {
-               List<CommoditySoldDTO> bicliqueCommList = pmClone.getEntityBuilder().getCommoditySoldListList().stream()
+               List<CommoditySoldView> bicliqueCommList = pmClone.getTopologyEntityImpl().getCommoditySoldListList().stream()
                     .filter(commSold -> AnalysisUtil.DSPM_OR_DATASTORE.contains(commSold.getCommodityType().getType()))
                     .collect(Collectors.toList());
                Set<Long> connectedStoragesFound = new HashSet<>();
@@ -771,7 +756,7 @@ public class TopologyEditorTest {
         assertEquals(6, connectedHosts.size());
         storageClones.stream()
             .forEach(stClone -> {
-               List<CommoditySoldDTO> bicliqueCommList = stClone.getEntityBuilder().getCommoditySoldListList().stream()
+               List<CommoditySoldView> bicliqueCommList = stClone.getTopologyEntityImpl().getCommoditySoldListList().stream()
                     .filter(commSold -> AnalysisUtil.DSPM_OR_DATASTORE.contains(commSold.getCommodityType().getType()))
                     .collect(Collectors.toList());
                Set<Long> connectedHostsFound = new HashSet<>();
@@ -806,24 +791,23 @@ public class TopologyEditorTest {
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(pmId, pmEntity);
         topology.put(vmId, vmEntity);
-        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(pmEntity, vmEntity);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.pojoGraphOf(pmEntity, vmEntity);
         final List<ScenarioChange> changes = Collections.singletonList(ScenarioChange.newBuilder()
             .setTopologyAddition(TopologyAddition.newBuilder().setGroupId(groupId).setTargetEntityType(14))
             .build());
         when(groupServiceSpy.getGroups(any())).thenReturn(Collections.singletonList(group));
         when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
             .thenReturn(resolvedGroup(group, ApiEntityType.PHYSICAL_MACHINE, pmId));
-        when(identityProvider.getCloneId(any(TopologyEntityDTO.class))).thenReturn(pmCloneId);
+        when(identityProvider.getCloneId(any(TopologyEntityView.class))).thenReturn(pmCloneId);
         topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
 
         assertTrue(topology.containsKey(pmCloneId));
         final TopologyEntity.Builder cloneBuilder = topology.get(pmCloneId);
         assertThat(cloneBuilder.getDisplayName(), Matchers.containsString(pmEntity.getDisplayName()));
-        assertThat(cloneBuilder.getEntityBuilder().getOrigin().getPlanScenarioOrigin(),
-            is(PlanScenarioOrigin.newBuilder()
+        assertThat(cloneBuilder.getTopologyEntityImpl().getOrigin().getPlanScenarioOrigin(),
+            is(new PlanScenarioOriginImpl()
                 .setPlanId(topologyInfo.getTopologyContextId())
-                    .setOriginalEntityId(pmId)
-                .build()));
+                    .setOriginalEntityId(pmId)));
 
     }
 
@@ -852,7 +836,7 @@ public class TopologyEditorTest {
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(pmId, pmEntity);
         topology.put(vmId, vmEntity);
-        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(pmEntity, vmEntity);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.pojoGraphOf(pmEntity, vmEntity);
         final List<ScenarioChange> changes = Collections.singletonList(ScenarioChange.newBuilder()
             .setTopologyRemoval(TopologyRemoval.newBuilder().setGroupId(groupId).setTargetEntityType(14))
             .build());
@@ -862,8 +846,8 @@ public class TopologyEditorTest {
         topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
 
         TopologyEntity.Builder pmToRemove = topology.get(pmId);
-        assertTrue(pmToRemove.getEntityBuilder().hasEdit()
-            && pmToRemove.getEntityBuilder().getEdit().hasRemoved());
+        assertTrue(pmToRemove.getTopologyEntityImpl().hasEdit()
+            && pmToRemove.getTopologyEntityImpl().getEdit().hasRemoved());
 
     }
 
@@ -885,24 +869,23 @@ public class TopologyEditorTest {
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(stId, stEntity);
         topology.put(vmId, vmEntity);
-        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(stEntity, vmEntity);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.pojoGraphOf(stEntity, vmEntity);
         final List<ScenarioChange> changes = Collections.singletonList(ScenarioChange.newBuilder()
             .setTopologyAddition(TopologyAddition.newBuilder().setGroupId(groupId).setTargetEntityType(2))
             .build());
         when(groupServiceSpy.getGroups(any())).thenReturn(Collections.singletonList(group));
         when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
             .thenReturn(resolvedGroup(group, ApiEntityType.STORAGE, stId));
-        when(identityProvider.getCloneId(any(TopologyEntityDTO.class))).thenReturn(stCloneId);
+        when(identityProvider.getCloneId(any(TopologyEntityView.class))).thenReturn(stCloneId);
         topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
 
         assertTrue(topology.containsKey(stCloneId));
         final TopologyEntity.Builder cloneBuilder = topology.get(stCloneId);
         assertThat(cloneBuilder.getDisplayName(), Matchers.containsString(stEntity.getDisplayName()));
-        assertThat(cloneBuilder.getEntityBuilder().getOrigin().getPlanScenarioOrigin(),
-                is(PlanScenarioOrigin.newBuilder()
+        assertThat(cloneBuilder.getTopologyEntityImpl().getOrigin().getPlanScenarioOrigin(),
+                is(new PlanScenarioOriginImpl()
                         .setPlanId(topologyInfo.getTopologyContextId())
-                        .setOriginalEntityId(stId)
-                        .build()));
+                        .setOriginalEntityId(stId)));
 
     }
 
@@ -923,7 +906,7 @@ public class TopologyEditorTest {
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(stId, stEntity);
         topology.put(vmId, vmEntity);
-        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(stEntity, vmEntity);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.pojoGraphOf(stEntity, vmEntity);
         final List<ScenarioChange> changes = Collections.singletonList(ScenarioChange.newBuilder()
             .setTopologyRemoval(TopologyRemoval.newBuilder().setGroupId(groupId).setTargetEntityType(2))
             .build());
@@ -933,8 +916,8 @@ public class TopologyEditorTest {
         topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
 
         TopologyEntity.Builder stToRemove = topology.get(stId);
-        assertTrue(stToRemove.getEntityBuilder().hasEdit()
-            && stToRemove.getEntityBuilder().getEdit().hasRemoved());
+        assertTrue(stToRemove.getTopologyEntityImpl().hasEdit()
+            && stToRemove.getTopologyEntityImpl().getEdit().hasRemoved());
 
     }
 
@@ -956,7 +939,7 @@ public class TopologyEditorTest {
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(vmId, vmEntity);
         topology.put(hostId, hostEntity);
-        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(hostEntity, vmEntity);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.pojoGraphOf(hostEntity, vmEntity);
 
         final List<ScenarioChange> changes = Collections.singletonList(ScenarioChange.newBuilder()
                 .setTopologyAddition(TopologyAddition.newBuilder().setGroupId(groupId).setTargetEntityType(10))
@@ -964,18 +947,17 @@ public class TopologyEditorTest {
         when(groupServiceSpy.getGroups(any())).thenReturn(Collections.singletonList(group));
         when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
             .thenReturn(resolvedGroup(group, ApiEntityType.PHYSICAL_MACHINE, hostId));
-        when(identityProvider.getCloneId(any(TopologyEntityDTO.class))).thenReturn(vmCloneId);
+        when(identityProvider.getCloneId(any(TopologyEntityView.class))).thenReturn(vmCloneId);
 
         topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
 
         assertTrue(topology.containsKey(vmCloneId));
         final TopologyEntity.Builder cloneBuilder = topology.get(vmCloneId);
         assertThat(cloneBuilder.getDisplayName(), Matchers.containsString(vmEntity.getDisplayName()));
-        assertThat(cloneBuilder.getEntityBuilder().getOrigin().getPlanScenarioOrigin(),
-            is(PlanScenarioOrigin.newBuilder()
+        assertThat(cloneBuilder.getTopologyEntityImpl().getOrigin().getPlanScenarioOrigin(),
+            is(new PlanScenarioOriginImpl()
                 .setPlanId(topologyInfo.getTopologyContextId())
-                    .setOriginalEntityId(vmId)
-                .build()));
+                    .setOriginalEntityId(vmId)));
     }
 
     // test remove VM when user choose from a host cluster
@@ -995,7 +977,7 @@ public class TopologyEditorTest {
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(vmId, vmEntity);
         topology.put(hostId, hostEntity);
-        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(hostEntity, vmEntity);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.pojoGraphOf(hostEntity, vmEntity);
 
         final List<ScenarioChange> changes = Collections.singletonList(ScenarioChange.newBuilder()
             .setTopologyRemoval(TopologyRemoval.newBuilder().setGroupId(groupId).setTargetEntityType(10))
@@ -1006,8 +988,8 @@ public class TopologyEditorTest {
         topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
 
         TopologyEntity.Builder vmToRemove = topology.get(vmId);
-        assertTrue(vmToRemove.getEntityBuilder().hasEdit()
-            && vmToRemove.getEntityBuilder().getEdit().hasRemoved());
+        assertTrue(vmToRemove.getTopologyEntityImpl().hasEdit()
+            && vmToRemove.getTopologyEntityImpl().getEdit().hasRemoved());
     }
 
     /**
@@ -1018,96 +1000,92 @@ public class TopologyEditorTest {
     public void testDaemonPodsRemovalWhenProviderVMRemoved() throws Exception {
         // Create a test pod that is marked as daemon and is consumer of our test VM
         final TopologyEntity.Builder daemonPod = TopologyEntityUtils.topologyEntityBuilder(
-                TopologyEntityDTO.newBuilder()
+                new TopologyEntityImpl()
                         .setOid(51L)
                         .setDisplayName("DaemonPod")
                         .setEntityType(EntityType.CONTAINER_POD_VALUE)
-                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                                 .setProviderId(vmId)
-                                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VMEM)
-                                        .setUsed(USED).build())
-                                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VCPU)
-                                        .setUsed(USED).build())
-                                .build())
-                        .setAnalysisSettings(AnalysisSettings.newBuilder()
+                                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(VMEM)
+                                        .setUsed(USED))
+                                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(VCPU)
+                                        .setUsed(USED)))
+                        .setAnalysisSettings(new AnalysisSettingsImpl()
                                 .setDaemon(true)));
         final TopologyEntity.Builder daemonPodContainer =
-                TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder()
+                TopologyEntityUtils.topologyEntityBuilder(new TopologyEntityImpl()
                         .setOid(52L)
                         .setDisplayName("daemonPodContainer")
                         .setEntityType(EntityType.CONTAINER_VALUE)
                         .setAnalysisSettings(
-                                AnalysisSettings.newBuilder()
+                                new AnalysisSettingsImpl()
                                         .setSuspendable(false)
                                         .setControllable(false)
                         )
                         .addCommoditiesBoughtFromProviders(
-                                CommoditiesBoughtFromProvider.newBuilder()
+                                new CommoditiesBoughtFromProviderImpl()
                                         .setProviderId(daemonPod.getOid())
-                                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                        .addCommodityBought(new CommodityBoughtImpl()
                                                 .setCommodityType(VMEM)
-                                                .setUsed(USED)
-                                                .build())
-                                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                                .setUsed(USED))
+                                        .addCommodityBought(new CommodityBoughtImpl()
                                                 .setCommodityType(VCPU)
-                                                .setUsed(USED)
-                                                .build())
-                                        .build())
-                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                                                .setUsed(USED)))
+                        .addCommoditySoldList(new CommoditySoldImpl()
                                 .setCommodityType(VCPU)
                                 .setUsed(USED)
                                 .setCapacity(VCPU_CAPACITY))
-                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .addCommoditySoldList(new CommoditySoldImpl()
                                 .setCommodityType(VMEM)
                                 .setUsed(USED)
                                 .setCapacity(VMEM_CAPACITY)));
 
         final TopologyEntity.Builder daemonPodApp = TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder()
+                new TopologyEntityImpl()
                 .setOid(53L)
                 .setDisplayName("daemonPodApp")
                 .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
-                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                         .setProviderId(daemonPodContainer.getOid())
-                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                        .addCommodityBought(new CommodityBoughtImpl()
+                                .setCommodityType(new CommodityTypeImpl()
                                         .setType(CommodityDTO.CommodityType.VCPU_VALUE))
                                 .setUsed(50))
-                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                        .addCommodityBought(new CommodityBoughtImpl()
+                                .setCommodityType(new CommodityTypeImpl()
                                         .setType(CommodityDTO.CommodityType.VMEM_VALUE))
                                 .setUsed(50))
                 ));
         final TopologyEntity.Builder app = TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder()
+                new TopologyEntityImpl()
                         .setOid(54L)
                         .setDisplayName("app")
                         .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
-                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                                 .setProviderId(container.getOid())
-                                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                .addCommodityBought(new CommodityBoughtImpl()
+                                        .setCommodityType(new CommodityTypeImpl()
                                                 .setType(CommodityDTO.CommodityType.VCPU_VALUE))
                                         .setUsed(50))
-                                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                .addCommodityBought(new CommodityBoughtImpl()
+                                        .setCommodityType(new CommodityTypeImpl()
                                                 .setType(CommodityDTO.CommodityType.VMEM_VALUE))
                                         .setUsed(50))
                         ));
         final TopologyEntity.Builder service = TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder()
+                new TopologyEntityImpl()
                         .setOid(55L)
                         .setDisplayName("Service")
                         .setEntityType(EntityType.SERVICE_VALUE)
                         .setEntityState(TopologyDTO.EntityState.POWERED_ON)
-                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                                 .setProviderId(daemonPodApp.getOid())
-                                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                .addCommodityBought(new CommodityBoughtImpl()
+                                        .setCommodityType(new CommodityTypeImpl()
                                                 .setType(CommodityDTO.CommodityType.APPLICATION_VALUE)))
                                 .setProviderId(app.getOid())
-                                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                .addCommodityBought(new CommodityBoughtImpl()
+                                        .setCommodityType(new CommodityTypeImpl()
                                                 .setType(CommodityDTO.CommodityType.APPLICATION_VALUE)))
                         ));
 
@@ -1122,18 +1100,18 @@ public class TopologyEditorTest {
 
         topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
 
-        assertTrue(vm.getEntityBuilder().hasEdit()
-                && vm.getEntityBuilder().getEdit().hasRemoved());
-        assertTrue(daemonPod.getEntityBuilder().hasEdit()
-                && daemonPod.getEntityBuilder().getEdit().hasRemoved());
-        assertTrue(daemonPodContainer.getEntityBuilder().hasEdit()
-                && daemonPod.getEntityBuilder().getEdit().hasRemoved());
-        assertTrue(daemonPodApp.getEntityBuilder().hasEdit()
-                && daemonPod.getEntityBuilder().getEdit().hasRemoved());
-        assertFalse(pod.getEntityBuilder().hasEdit());
-        assertFalse(container.getEntityBuilder().hasEdit());
-        assertFalse(app.getEntityBuilder().hasEdit());
-        assertFalse(service.getEntityBuilder().hasEdit());
+        assertTrue(vm.getTopologyEntityImpl().hasEdit()
+                && vm.getTopologyEntityImpl().getEdit().hasRemoved());
+        assertTrue(daemonPod.getTopologyEntityImpl().hasEdit()
+                && daemonPod.getTopologyEntityImpl().getEdit().hasRemoved());
+        assertTrue(daemonPodContainer.getTopologyEntityImpl().hasEdit()
+                && daemonPod.getTopologyEntityImpl().getEdit().hasRemoved());
+        assertTrue(daemonPodApp.getTopologyEntityImpl().hasEdit()
+                && daemonPod.getTopologyEntityImpl().getEdit().hasRemoved());
+        assertFalse(pod.getTopologyEntityImpl().hasEdit());
+        assertFalse(container.getTopologyEntityImpl().hasEdit());
+        assertFalse(app.getTopologyEntityImpl().hasEdit());
+        assertFalse(service.getTopologyEntityImpl().hasEdit());
     }
 
     @Test
@@ -1146,7 +1124,7 @@ public class TopologyEditorTest {
                 .setId(groupId)
                 .build();
         final TopologyEntity.Builder vmEntity = TopologyEntityUtils.topologyEntityBuilder(
-                TopologyEntityDTO.newBuilder()
+                new TopologyEntityImpl()
                     .setOid(vmId)
                     .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                     .setDisplayName("VM"));
@@ -1161,19 +1139,18 @@ public class TopologyEditorTest {
         when(groupServiceSpy.getGroups(any())).thenReturn(Collections.singletonList(group));
         when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
             .thenReturn(resolvedGroup(group, ApiEntityType.VIRTUAL_MACHINE, vmId));
-        when(identityProvider.getCloneId(any(TopologyEntityDTO.class))).thenReturn(vmCloneId);
+        when(identityProvider.getCloneId(any(TopologyEntityView.class))).thenReturn(vmCloneId);
 
         topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
 
         assertTrue(topology.containsKey(vmCloneId));
         final TopologyEntity.Builder cloneBuilder = topology.get(vmCloneId);
         assertThat(cloneBuilder.getDisplayName(), Matchers.containsString(vmEntity.getDisplayName()));
-        assertThat(cloneBuilder.getEntityBuilder().getOrigin().getPlanScenarioOrigin(),
-                is(PlanScenarioOrigin.newBuilder()
+        assertThat(cloneBuilder.getTopologyEntityImpl().getOrigin().getPlanScenarioOrigin(),
+                is(new PlanScenarioOriginImpl()
                         .setPlanId(topologyInfo.getTopologyContextId())
-                        .setOriginalEntityId(vmId)
-                        .build()));
-        assertTrue(cloneBuilder.getEntityBuilder().getAnalysisSettings().getShopTogether());
+                        .setOriginalEntityId(vmId)));
+        assertTrue(cloneBuilder.getTopologyEntityImpl().getAnalysisSettings().getShopTogether());
     }
 
     @Test
@@ -1189,10 +1166,10 @@ public class TopologyEditorTest {
             ).build()
         ).build());
         topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
-        final List<CommodityBoughtDTO> vmCommodities = topology.get(vmId)
-            .getEntityBuilder()
+        final List<CommodityBoughtView> vmCommodities = topology.get(vmId)
+            .getTopologyEntityImpl()
             .getCommoditiesBoughtFromProvidersList().stream()
-            .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+            .map(CommoditiesBoughtFromProviderView::getCommodityBoughtList)
             .flatMap(List::stream)
             .collect(Collectors.toList());
         Assert.assertEquals(150, vmCommodities.get(0).getUsed(), 0);
@@ -1200,14 +1177,14 @@ public class TopologyEditorTest {
         Assert.assertEquals(100, vmCommodities.get(2).getUsed(), 0);
         Assert.assertEquals(100, vmCommodities.get(3).getUsed(), 0);
 
-        final List<CommoditySoldDTO> pmSoldCommodities = topology.get(pmId)
-            .getEntityBuilder()
+        final List<CommoditySoldView> pmSoldCommodities = topology.get(pmId)
+            .getTopologyEntityImpl()
             .getCommoditySoldListList();
         Assert.assertEquals(150, pmSoldCommodities.get(0).getUsed(), 0);
         Assert.assertEquals(150, pmSoldCommodities.get(1).getUsed(), 0);
 
-        final List<CommoditySoldDTO> storageSoldCommodities = topology.get(stId)
-            .getEntityBuilder()
+        final List<CommoditySoldView> storageSoldCommodities = topology.get(stId)
+            .getTopologyEntityImpl()
             .getCommoditySoldListList();
         Assert.assertEquals(100, storageSoldCommodities.get(0).getUsed(), 0);
         Assert.assertEquals(100, storageSoldCommodities.get(1).getUsed(), 0);
@@ -1226,10 +1203,10 @@ public class TopologyEditorTest {
                 ).build()
         ).build());
         topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
-        final List<CommodityBoughtDTO> vmCommodities = topology.get(vmId)
-                .getEntityBuilder()
+        final List<CommodityBoughtView> vmCommodities = topology.get(vmId)
+                .getTopologyEntityImpl()
                 .getCommoditiesBoughtFromProvidersList().stream()
-                .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+                .map(CommoditiesBoughtFromProviderView::getCommodityBoughtList)
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
         Assert.assertEquals(150, vmCommodities.get(0).getUsed(), 0);
@@ -1237,14 +1214,14 @@ public class TopologyEditorTest {
         Assert.assertEquals(USED, vmCommodities.get(2).getUsed(), 0);
         Assert.assertEquals(USED, vmCommodities.get(3).getUsed(), 0);
 
-        final List<CommoditySoldDTO> pmSoldCommodities = topology.get(pmId)
-                .getEntityBuilder()
+        final List<CommoditySoldView> pmSoldCommodities = topology.get(pmId)
+                .getTopologyEntityImpl()
                 .getCommoditySoldListList();
         Assert.assertEquals(USED, pmSoldCommodities.get(0).getUsed(), 0);
         Assert.assertEquals(USED, pmSoldCommodities.get(1).getUsed(), 0);
 
-        final List<CommoditySoldDTO> storageSoldCommodities = topology.get(stId)
-                .getEntityBuilder()
+        final List<CommoditySoldView> storageSoldCommodities = topology.get(stId)
+                .getTopologyEntityImpl()
                 .getCommoditySoldListList();
         Assert.assertEquals(USED, storageSoldCommodities.get(0).getUsed(), 0);
         Assert.assertEquals(USED, storageSoldCommodities.get(1).getUsed(), 0);
@@ -1278,8 +1255,8 @@ public class TopologyEditorTest {
         topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
 
         TopologyEntity.Builder vmToRemove = topology.get(existVmId);
-        assertTrue(vmToRemove.getEntityBuilder().hasEdit()
-                && vmToRemove.getEntityBuilder().getEdit().hasRemoved());
+        assertTrue(vmToRemove.getTopologyEntityImpl().hasEdit()
+                && vmToRemove.getTopologyEntityImpl().getEdit().hasRemoved());
         assertNull(topology.get(nonExistVmId));
     }
 
@@ -1289,26 +1266,26 @@ public class TopologyEditorTest {
                 .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
         List<ScenarioChange> changes = Lists.newArrayList(REPLACE);
         final Multimap<Long, Long> templateToReplacedEntity = ArrayListMultimap.create();
-        templateToReplacedEntity.put(TEMPLATE_ID, pm.getEntityBuilder().getOid());
+        templateToReplacedEntity.put(TEMPLATE_ID, pm.getTopologyEntityImpl().getOid());
         final Map<Long, Long> topologyAdditionEmpty = Collections.emptyMap();
         when(templateConverterFactory
                 .generateTopologyEntityFromTemplates(eq(topologyAdditionEmpty),
                         eq(templateToReplacedEntity), eq(topology), eq(context.getTopologyInfo().getTopologyId())))
-                .thenReturn(Stream.of(pm.getEntityBuilder().clone()
+                .thenReturn(Stream.of(pm.getTopologyEntityImpl().copy()
                     .setOid(1234L)
                     .setDisplayName("Test PM1")));
 
         topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
-        final List<TopologyEntityDTO> topologyEntityDTOS = topology.entrySet().stream()
+        final List<TopologyEntityView> topologyEntityDTOS = topology.entrySet().stream()
                 .map(Entry::getValue)
-                .map(entity -> entity.getEntityBuilder().build())
+                .map(Builder::getTopologyEntityImpl)
                 .collect(Collectors.toList());
         assertEquals(4, topologyEntityDTOS.size());
         // verify that one of the entities is marked for removal
         assertEquals( 1, topologyEntityDTOS.stream()
-                    .filter(TopologyEntityDTO::hasEdit)
-                    .map(TopologyEntityDTO::getEdit)
-                    .filter(Edit::hasReplaced)
+                    .filter(TopologyEntityView::hasEdit)
+                    .map(TopologyEntityView::getEdit)
+                    .filter(EditView::hasReplaced)
                     .count());
     }
 
@@ -1357,27 +1334,26 @@ public class TopologyEditorTest {
 
         // Verify that the cloned containers are not controllable and not suspendable.
         final boolean noneControllable = clonedContainers.stream()
-            .noneMatch(clone -> clone.getEntityBuilder().getAnalysisSettings().getControllable());
+            .noneMatch(clone -> clone.getTopologyEntityImpl().getAnalysisSettings().getControllable());
         final boolean noneSuspendable = clonedContainers.stream()
-            .noneMatch(clone -> clone.getEntityBuilder().getAnalysisSettings().getSuspendable());
+            .noneMatch(clone -> clone.getTopologyEntityImpl().getAnalysisSettings().getSuspendable());
         assertTrue("Cloned containers must not be controllable", noneControllable);
         assertTrue("Cloned containers must not be suspendable", noneSuspendable);
 
         // Verify that cloned containers have correct bought keyed commodities
         int cloneCounter = 0;
         for (final TopologyEntity.Builder entity : clonedContainers) {
-            for (final CommoditiesBoughtFromProvider bought : entity.getEntityBuilder().getCommoditiesBoughtFromProvidersList()) {
+            for (final CommoditiesBoughtFromProviderView bought : entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()) {
                 assertEquals("Cloned containers only buy from pods", EntityType.CONTAINER_POD_VALUE,
                         bought.getProviderEntityType());
 
-                final List<CommodityType> keyed = bought.getCommodityBoughtList().stream().map(
-                        CommodityBoughtDTO::getCommodityType).filter(CommodityType::hasKey).collect(
+                final List<CommodityTypeView> keyed = bought.getCommodityBoughtList().stream().map(
+                        CommodityBoughtView::getCommodityType).filter(CommodityTypeView::hasKey).collect(
                         Collectors.toList());
                 if (applyConstraints) {
                     // Verify that the cloned containers each buy a VMPM keyed commodity
-                    final TopologyDTO.CommodityType expected = VMPM_POD_TO_CONTAINER.toBuilder()
-                            .setKey(VMPM_POD_TO_CONTAINER.getKey() + DefaultEntityCloneEditor.cloneSuffix(cloneCounter))
-                            .build();
+                    final CommodityTypeView expected = VMPM_POD_TO_CONTAINER.copy()
+                            .setKey(VMPM_POD_TO_CONTAINER.getKey() + DefaultEntityCloneEditor.cloneSuffix(cloneCounter));
                     assertEquals("Cloned containers buy a keyed VMPM access commodity",
                             Collections.singletonList(expected), keyed);
                 } else {
@@ -1391,15 +1367,15 @@ public class TopologyEditorTest {
         // Verify that the cloned pods each only buy the VMPM keyed commodity but not the cluster one
         cloneCounter = 0;
         for (final TopologyEntity.Builder entity : clonedContainerPods) {
-            for (final CommoditiesBoughtFromProvider bought : entity.getEntityBuilder().getCommoditiesBoughtFromProvidersList()) {
+            for (final CommoditiesBoughtFromProviderView bought : entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()) {
                 assertNotEquals("Cloned pods should skip bought commodities from workload controller",
                         EntityType.WORKLOAD_CONTROLLER_VALUE, bought.getProviderEntityType());
                 assertNotEquals("Cloned pods should skip bought commodities from virtual volume",
                         EntityType.VIRTUAL_VOLUME_VALUE, bought.getProviderEntityType());
 
-                final List<CommodityType> keyed = bought.getCommodityBoughtList().stream()
-                                .map(CommodityBoughtDTO::getCommodityType)
-                                .filter(CommodityType::hasKey)
+                final List<CommodityTypeView> keyed = bought.getCommodityBoughtList().stream()
+                                .map(CommodityBoughtView::getCommodityType)
+                                .filter(CommodityTypeView::hasKey)
                                 .collect(Collectors.toList());
                 if (applyConstraints) {
                     // Verify that the cloned pods each only buy the VMPM keyed commodity but not the cluster one
@@ -1410,11 +1386,10 @@ public class TopologyEditorTest {
                     assertTrue("Cloned pods do not buy any keyed commodities", keyed.isEmpty());
                 }
             }
-            for (final CommoditySoldDTO sold : entity.getEntityBuilder().getCommoditySoldListList()) {
+            for (final CommoditySoldView sold : entity.getTopologyEntityImpl().getCommoditySoldListList()) {
                 if (sold.getCommodityType().hasKey()) {
-                    final TopologyDTO.CommodityType expected = VMPM_POD_TO_CONTAINER.toBuilder()
-                            .setKey(VMPM_POD_TO_CONTAINER.getKey() + DefaultEntityCloneEditor.cloneSuffix(cloneCounter))
-                            .build();
+                    final CommodityTypeView expected = VMPM_POD_TO_CONTAINER.copy()
+                            .setKey(VMPM_POD_TO_CONTAINER.getKey() + DefaultEntityCloneEditor.cloneSuffix(cloneCounter));
                     assertEquals("Cloned pods sell keyed commodities but with a distinct key",
                             expected, sold.getCommodityType());
                 }
@@ -1473,7 +1448,7 @@ public class TopologyEditorTest {
         when(groupResolver.resolve(any(), any()))
                 .thenReturn(resolvedGroup);
 
-        final TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityUtils.topologyGraphOf(
+        final TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityUtils.pojoGraphOf(
                 TopologyEntityUtils.topologyEntity(dcId1, 0, 0, "dc-1", EntityType.DATACENTER),
                 TopologyEntityUtils.topologyEntity(dcId2, 0, 0, "dc-2", EntityType.DATACENTER),
                 TopologyEntityUtils.topologyEntity(pmId11, 0, 0, "pm-11", EntityType.PHYSICAL_MACHINE, dcId1),

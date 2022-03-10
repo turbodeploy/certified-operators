@@ -1,8 +1,10 @@
 package com.vmturbo.protoc.pojo.gen.fields;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.lang.model.element.Modifier;
@@ -16,6 +18,9 @@ import com.squareup.javapoet.ParameterSpec;
 import com.squareup.javapoet.TypeName;
 
 import com.vmturbo.protoc.plugin.common.generator.FieldDescriptor;
+import com.vmturbo.protoc.pojo.gen.PojoCodeGenerator;
+import com.vmturbo.protoc.pojo.gen.PojoViewGenerator;
+import com.vmturbo.protoc.pojo.gen.TypeNameUtilities.ParameterizedTypeName;
 
 /**
  * A {@link UnaryPojoField} for a protobuf oneOf member. ie in the code
@@ -31,6 +36,8 @@ public class OneOfVariantPojoField extends UnaryPojoField {
 
     private final String oneOfFieldName;
 
+    private final Optional<TypeName> interfaceTypename;
+
     /**
      * Create a new {@link OneOfVariantPojoField}.
      *
@@ -41,6 +48,8 @@ public class OneOfVariantPojoField extends UnaryPojoField {
                                  @Nonnull final TypeName parentTypeName) {
         super(fieldDescriptor, parentTypeName);
         oneOfFieldName = OneOfPojoField.formatOneOfName(fieldDescriptor.getOneofName().get());
+        interfaceTypename = PojoViewGenerator.interfaceTypeNameFor(fieldDescriptor)
+            .map(ParameterizedTypeName::getTypeName);
     }
 
     /**
@@ -70,31 +79,59 @@ public class OneOfVariantPojoField extends UnaryPojoField {
 
     @Nonnull
     @Override
-    public List<Builder> generateGetterMethods() {
+    public List<Builder> generateGetterMethods(@Nonnull final GenerationMode mode) {
+        String javadoc = getGetterJavadoc();
+
         final MethodSpec.Builder getter = MethodSpec.methodBuilder("get" + capitalizedFieldName())
             .addModifiers(Modifier.PUBLIC)
-            .returns(getTypeName())
-            .addJavadoc("Get the $L. If not set, returns the default value for this field."
-                    + "\n\n@return the $L",
-                fieldDescriptor.getName(), fieldDescriptor.getName());
+            .returns(getViewOrImplTypeName())
+            .addJavadoc(javadoc, fieldDescriptor.getName(), fieldDescriptor.getName());
 
-        final CodeBlock.Builder builder = CodeBlock.builder()
-            .beginControlFlow("if ($L == $L)", getSuffixedCaseName(), getFieldNumber())
-            .addStatement("return ($T)$L", getTypeName(), getSuffixedOneOfName())
-            .nextControlFlow("else")
-            .add("return ")
-            .addStatement(SinglePojoField.getDefaultValueForSingleField(fieldDescriptor, getTypeName()))
-            .endControlFlow();
-        getter.addCode(builder.build());
+        if (mode == GenerationMode.IMPLEMENTATION) {
+            getter.addAnnotation(Override.class);
+            final CodeBlock.Builder builder = CodeBlock.builder()
+                .beginControlFlow("if ($L == $L)", getSuffixedCaseName(), getFieldNumber())
+                .addStatement("return ($T)$L", getViewOrImplTypeName(), getSuffixedOneOfName())
+                .nextControlFlow("else")
+                .add("return ")
+                .addStatement(SinglePojoField.getDefaultValueForSingleField(fieldDescriptor, getViewOrImplTypeName()))
+                .endControlFlow();
+            getter.addCode(builder.build());
+        } else {
+            getter.addModifiers(Modifier.ABSTRACT);
+        }
 
-        return Collections.singletonList(getter);
+        final List<MethodSpec.Builder> getters = new ArrayList<>(Collections.singletonList(getter));
+        if (mode == GenerationMode.IMPLEMENTATION && isProtoMessage()) {
+            javadoc = "Get the $L. If not set, creates a new {@link " + capitalizedFieldName()
+                + "} equal to the default and assigns it to this POJO,\n"
+                + "overriding any other case already set for this oneOf field.";
+
+            // Proto messages also need a getOrCreate method.
+            final MethodSpec.Builder getOrCreate = MethodSpec.methodBuilder("getOrCreate" + capitalizedFieldName())
+                .addModifiers(Modifier.PUBLIC)
+                .returns(getTypeName())
+                .addJavadoc(javadoc + "\n\n@return the $L if it has been set, or create a new one if not.",
+                    fieldDescriptor.getName(), fieldDescriptor.getName());
+
+            final CodeBlock.Builder getOrCreateBuilder = CodeBlock.builder()
+                .beginControlFlow("if ($L != $L)", getSuffixedCaseName(), getFieldNumber())
+                .addStatement("set$L(new $T())", capitalizedFieldName(), getTypeName())
+                .endControlFlow()
+                .addStatement("return ($T)$L", getTypeName(), getSuffixedOneOfName());
+            getOrCreate.addCode(getOrCreateBuilder.build());
+
+            getters.add(getOrCreate);
+        }
+
+        return getters;
     }
 
     @Nonnull
     @Override
     public List<Builder> generateSetterMethods() {
         final boolean isPrimitive = getTypeName().isPrimitive();
-        final ParameterSpec.Builder param = ParameterSpec.builder(getTypeName(), fieldDescriptor.getName())
+        final ParameterSpec.Builder param = ParameterSpec.builder(getViewOrImplTypeName(), fieldDescriptor.getName())
             .addModifiers(Modifier.FINAL);
         String paramJavadoc = String.format("The %s.", fieldDescriptor.getName());
         if (!isPrimitive) {
@@ -117,16 +154,30 @@ public class OneOfVariantPojoField extends UnaryPojoField {
 
         setter.addCode(codeBlock
             .addStatement("this.$L = $L", getSuffixedCaseName(), getFieldNumber())
-            .addStatement("this.$L = $L", getSuffixedOneOfName(), fieldDescriptor.getName())
+            .add("this.$L = ", getSuffixedOneOfName())
+            .addStatement(codeBlockForSetter())
             .addStatement("return this")
             .build());
 
         return Collections.singletonList(setter);
     }
 
+    private CodeBlock codeBlockForSetter() {
+        if (isProtoMessage()) {
+            return CodeBlock.builder()
+                .add("(($T)$L).$L()", getTypeName(), fieldDescriptor.getName(),
+                    PojoCodeGenerator.ON_PARENT_SETTING_METHOD)
+                .build();
+        } else {
+            return CodeBlock.builder()
+                .add("$L", fieldDescriptor.getName())
+                .build();
+        }
+    }
+
     @Nonnull
     @Override
-    public List<Builder> generateHazzerMethods() {
+    public List<Builder> generateHazzerMethods(@Nonnull final GenerationMode mode) {
         final MethodSpec.Builder hasMethod = MethodSpec.methodBuilder("has" + capitalizedFieldName())
             .addModifiers(Modifier.PUBLIC)
             .returns(TypeName.BOOLEAN)
@@ -134,9 +185,14 @@ public class OneOfVariantPojoField extends UnaryPojoField {
                     + "@return whether the {@code $L} field has been set.",
                 fieldDescriptor.getName(), fieldDescriptor.getName());
 
-        hasMethod.addCode(CodeBlock.builder()
-            .addStatement("return $L == $L", getSuffixedCaseName(), getFieldNumber())
-            .build());
+        if (mode == GenerationMode.INTERFACE) {
+            hasMethod.addModifiers(Modifier.ABSTRACT);
+        } else {
+            hasMethod.addAnnotation(Override.class);
+            hasMethod.addCode(CodeBlock.builder()
+                .addStatement("return $L == $L", getSuffixedCaseName(), getFieldNumber())
+                .build());
+        }
 
         return Collections.singletonList(hasMethod);
     }
@@ -160,6 +216,11 @@ public class OneOfVariantPojoField extends UnaryPojoField {
             .build());
 
         return Collections.singletonList(clearMethod);
+    }
+
+    @Override
+    public void addClearForField(@Nonnull CodeBlock.Builder codeBlock) {
+        // Nothing to do. The parent oneOf will handle this.
     }
 
     @Override
@@ -196,5 +257,24 @@ public class OneOfVariantPojoField extends UnaryPojoField {
 
     private String getSuffixedCaseName() {
         return oneOfFieldName + "Case_";
+    }
+
+    private String getGetterJavadoc() {
+        String javadoc = "Get the $L. If not set, returns the default value for this field."
+            + "\nThis method does NOT override the existing oneOf case to " + oneOfFieldName
+            + "Case if it is not already the oneOf case.";
+        if (isProtoMessage()) {
+            javadoc += "\nThis method will not create a new {@link " + capitalizedFieldName()
+                + "} if one does not exist. Returns an unmodifiable view of the backing "
+                + capitalizedFieldName() + ". To retrieve a mutable instance, call "
+                + "{@link #getOrCreate" + capitalizedFieldName() + "()}.";
+        }
+        javadoc += "\n\n@return the $L if it has been set, or a default if not.";
+
+        return javadoc;
+    }
+
+    private TypeName getViewOrImplTypeName() {
+        return interfaceTypename.orElseGet(this::getTypeName);
     }
 }

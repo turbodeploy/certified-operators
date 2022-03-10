@@ -32,13 +32,12 @@ import com.vmturbo.common.protobuf.topology.Stitching.EntityFilter;
 import com.vmturbo.common.protobuf.topology.Stitching.JournalEntry.TargetEntry;
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal.FormatRecommendation;
 import com.vmturbo.stitching.journal.IStitchingJournal.IJournalChangeset;
-import com.vmturbo.stitching.journal.IStitchingJournal.JournalChangeset;
 import com.vmturbo.stitching.journal.JournalFilter;
 import com.vmturbo.stitching.journal.JournalFilter.FilterByEntity;
 import com.vmturbo.stitching.journal.JournalFilter.IncludeAllFilter;
@@ -85,18 +84,18 @@ public class StitchingJournalTest {
 
     @Before
     public void setup() {
-        entity.getTopologyEntityDtoBuilder()
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+        entity.getTopologyEntityImpl()
+                .addCommoditySoldList(new CommoditySoldImpl()
                     .setCommodityType(commodityType(CommodityDTO.CommodityType.VSTORAGE, "storage-key"))
                     .setCapacity(1000.0)
                     .setUsed(123.4)
                     .setPeak(400.0))
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .addCommoditySoldList(new CommoditySoldImpl()
                     .setCommodityType(commodityType(CommodityDTO.CommodityType.VCPU))
                     .setCapacity(2000.0)
                     .setUsed(567.8)
                     .setPeak(900.0))
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .addCommoditySoldList(new CommoditySoldImpl()
                     .setCommodityType(commodityType(CommodityDTO.CommodityType.VMEM))
                     .setCapacity(3000.0)
                     .setUsed(999.9)
@@ -435,6 +434,6 @@ public class StitchingJournalTest {
                             @Nonnull final TopologyEntity entity,
                             @Nonnull final String newName) {
         changeset.beforeChange(entity);
-        entity.getTopologyEntityDtoBuilder().setDisplayName(newName);
+        entity.getTopologyEntityImpl().setDisplayName(newName);
     }
 }

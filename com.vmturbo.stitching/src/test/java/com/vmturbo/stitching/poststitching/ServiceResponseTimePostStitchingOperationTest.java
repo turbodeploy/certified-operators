@@ -19,9 +19,9 @@ import com.google.common.collect.ImmutableSet;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -43,28 +43,27 @@ public class ServiceResponseTimePostStitchingOperationTest {
 
     private final EntitySettingsCollection settingsMock = mock(EntitySettingsCollection.class);
 
-    private final CommoditySoldDTO transactionSold = makeCommoditySold(CommodityType.TRANSACTION);
+    private final CommoditySoldView transactionSold = makeCommoditySold(CommodityType.TRANSACTION);
     private final TopologyEntity serviceWithoutResponseTime =
-            makeTopologyEntity(ImmutableList.of(transactionSold));
+            PostStitchingTestUtilities.makeTopologyEntity(ImmutableList.of(transactionSold));
 
-    private final CommoditySoldDTO responseTimeSoldWithZeroUsed =
+    private final CommoditySoldView responseTimeSoldWithZeroUsed =
             makeCommoditySold(CommodityType.RESPONSE_TIME, "", 0);
     private final TopologyEntity serviceWithZeroResponseTime =
-            makeTopologyEntity(ImmutableList.of(responseTimeSoldWithZeroUsed));
+            PostStitchingTestUtilities.makeTopologyEntity(ImmutableList.of(responseTimeSoldWithZeroUsed));
 
-    private final CommoditySoldDTO responseTimeSold =
+    private final CommoditySoldView responseTimeSold =
             makeCommoditySold(CommodityType.RESPONSE_TIME, "", 2000);
     private final TopologyEntity serviceWithoutProviders =
-            makeTopologyEntity(ImmutableList.of(responseTimeSold));
+            PostStitchingTestUtilities.makeTopologyEntity(ImmutableList.of(responseTimeSold));
 
-    private final CommodityBoughtDTO applicationBought = makeCommodityBought(CommodityType.APPLICATION, "key");
-    private final CommoditySoldDTO applicationSold = makeCommoditySold(CommodityType.APPLICATION, "key");
-    private final List<CommodityBoughtDTO> boughtListWithoutResponseTime = ImmutableList.of(applicationBought);
-    private final CommoditiesBoughtFromProvider commBoughtFromAppWithoutResponseTime =
-            CommoditiesBoughtFromProvider.newBuilder()
+    private final CommodityBoughtView applicationBought = makeCommodityBought(CommodityType.APPLICATION, "key");
+    private final CommoditySoldView applicationSold = makeCommoditySold(CommodityType.APPLICATION, "key");
+    private final List<CommodityBoughtView> boughtListWithoutResponseTime = ImmutableList.of(applicationBought);
+    private final CommoditiesBoughtFromProviderImpl commBoughtFromAppWithoutResponseTime =
+            new CommoditiesBoughtFromProviderImpl()
                     .addAllCommodityBought(boughtListWithoutResponseTime)
-                    .setProviderEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
-                    .build();
+                    .setProviderEntityType(EntityType.APPLICATION_COMPONENT_VALUE);
     private final TopologyEntity.Builder sidecarApp =
             makeTopologyEntityBuilder(EntityType.APPLICATION_COMPONENT_VALUE,
                     ImmutableList.of(applicationSold), Collections.emptyList());
@@ -80,22 +79,20 @@ public class ServiceResponseTimePostStitchingOperationTest {
     private final TopologyEntity.Builder app2 =
             makeTopologyEntityBuilder(EntityType.APPLICATION_COMPONENT_VALUE,
                     ImmutableList.of(responseTimeSold), Collections.emptyList());
-    private final List<CommodityBoughtDTO> boughtList1 =
+    private final List<CommodityBoughtView> boughtList1 =
             ImmutableList.of(makeCommodityBought(CommodityType.RESPONSE_TIME, 500),
                     makeCommodityBought(CommodityType.APPLICATION, "key"));
-    private final List<CommodityBoughtDTO> boughtList2 =
+    private final List<CommodityBoughtView> boughtList2 =
             ImmutableList.of(makeCommodityBought(CommodityType.RESPONSE_TIME, 1500),
                     makeCommodityBought(CommodityType.APPLICATION, "key"));
-    private final CommoditiesBoughtFromProvider commBoughtFromApp1 =
-            CommoditiesBoughtFromProvider.newBuilder()
+    private final CommoditiesBoughtFromProviderImpl commBoughtFromApp1 =
+            new CommoditiesBoughtFromProviderImpl()
                     .addAllCommodityBought(boughtList1)
-                    .setProviderEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
-                    .build();
-    private final CommoditiesBoughtFromProvider commBoughtFromApp2 =
-            CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderEntityType(EntityType.APPLICATION_COMPONENT_VALUE);
+    private final CommoditiesBoughtFromProviderImpl commBoughtFromApp2 =
+            new CommoditiesBoughtFromProviderImpl()
                     .addAllCommodityBought(boughtList2)
-                    .setProviderEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
-                    .build();
+                    .setProviderEntityType(EntityType.APPLICATION_COMPONENT_VALUE);
     private final TopologyEntity serviceWithMultipleApps =
             makeTopologyEntity(EntityType.SERVICE_VALUE,
                     ImmutableList.of(responseTimeSold),
@@ -180,8 +177,8 @@ public class ServiceResponseTimePostStitchingOperationTest {
         assertEquals(1, result.getChanges().size());
         // apply the changes
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
-        final Optional<CommoditySoldDTO.Builder> commoditySoldDTO = serviceWithMultipleApps
-                .getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+        final Optional<CommoditySoldView> commoditySoldDTO = serviceWithMultipleApps
+                .getTopologyEntityImpl().getCommoditySoldListList().stream()
                 .filter(commSoldBuilder -> commSoldBuilder.getCommodityType().getType() == CommodityType.RESPONSE_TIME_VALUE)
                 .findFirst();
         // assert that the used value is not changed

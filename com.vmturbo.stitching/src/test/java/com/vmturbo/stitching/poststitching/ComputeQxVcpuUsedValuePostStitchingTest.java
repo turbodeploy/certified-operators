@@ -8,18 +8,18 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import org.junit.Assert;
+import org.junit.Test;
+
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologyEntity;
@@ -27,27 +27,25 @@ import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
 public class ComputeQxVcpuUsedValuePostStitchingTest {
-    private static String key = "123";
-    private static CommodityType q1Vcpu = TopologyDTO.CommodityType.newBuilder()
-        .setType(CommodityDTO.CommodityType.Q1_VCPU.getNumber()).setKey(key).build();
-    private static CommodityType q2Vcpu = TopologyDTO.CommodityType.newBuilder()
-        .setType(CommodityDTO.CommodityType.Q2_VCPU.getNumber()).setKey(key).build();
-    private static CommodityType q3Vcpu = TopologyDTO.CommodityType.newBuilder()
-        .setType(CommodityDTO.CommodityType.Q3_VCPU.getNumber()).setKey(key).build();
-    private static final List<CommodityType> COMM_TYPES = ImmutableList.of(q1Vcpu,
+    private static final String key = "123";
+    private static final CommodityTypeView q1Vcpu = new CommodityTypeImpl()
+        .setType(CommodityType.Q1_VCPU_VALUE).setKey(key);
+    private static final CommodityTypeView q2Vcpu = new CommodityTypeImpl()
+        .setType(CommodityType.Q2_VCPU_VALUE).setKey(key);
+    private static final CommodityTypeView q3Vcpu = new CommodityTypeImpl()
+        .setType(CommodityType.Q3_VCPU_VALUE).setKey(key);
+    private static final List<CommodityTypeView> COMM_TYPES = ImmutableList.of(q1Vcpu,
         q2Vcpu, q3Vcpu);
     private static final List<List<Double>> usedValues =
         ImmutableList.of(ImmutableList.of(1.0, 2.0, 3.0),
             ImmutableList.of(4.0, 4.0, 4.0), ImmutableList.of(5.0, 6.0, 7.0));
-    private static final CommodityDTO.CommodityType commodityTypeExclude =
-        CommodityDTO.CommodityType.CPU;
+    private static final CommodityType commodityTypeExclude = CommodityType.CPU;
     private final ComputedQxVcpuUsedValuePostStitchingOperation stitchOperation =
             new ComputedQxVcpuUsedValuePostStitchingOperation();
 
     private final IStitchingJournal journal = mock(IStitchingJournal.class);
 
     final double delta = 0.0000001;
-
 
     /***
      * Tests setting the used value for QnVcpu.
@@ -61,8 +59,8 @@ public class ComputeQxVcpuUsedValuePostStitchingTest {
                 Stream.of(provider), mock(EntitySettingsCollection.class), resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
-        final List<CommoditySoldDTO> commoditySoldDTOList =
-                provider.getTopologyEntityDtoBuilder().build().getCommoditySoldListList();
+        final List<CommoditySoldView> commoditySoldDTOList =
+                provider.getTopologyEntityImpl().getCommoditySoldListList();
         final double q1VcpuUsed = getCommodityUsedValue(commoditySoldDTOList, COMM_TYPES.get(0));
         final double q2VcpuUsed = getCommodityUsedValue(commoditySoldDTOList, COMM_TYPES.get(1));
         final double q3VcpuUsed = getCommodityUsedValue(commoditySoldDTOList, COMM_TYPES.get(2));
@@ -83,8 +81,8 @@ public class ComputeQxVcpuUsedValuePostStitchingTest {
             Stream.of(provider), mock(EntitySettingsCollection.class), resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
-        final List<CommoditySoldDTO> commoditySoldDTOList =
-            provider.getTopologyEntityDtoBuilder().build().getCommoditySoldListList();
+        final List<CommoditySoldView> commoditySoldDTOList =
+            provider.getTopologyEntityImpl().getCommoditySoldListList();
         final double q1VcpuMax = getCommodityMaxValue(commoditySoldDTOList,
             COMM_TYPES.get(0));
         final double q2VcpuMax = getCommodityMaxValue(commoditySoldDTOList,
@@ -109,8 +107,8 @@ public class ComputeQxVcpuUsedValuePostStitchingTest {
                 Stream.of(provider), mock(EntitySettingsCollection.class), resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
-        final List<CommoditySoldDTO> commoditySoldDTOList =
-                provider.getTopologyEntityDtoBuilder().build().getCommoditySoldListList();
+        final List<CommoditySoldView> commoditySoldDTOList =
+                provider.getTopologyEntityImpl().getCommoditySoldListList();
         final double q1VcpuUsed = getCommodityUsedValue(commoditySoldDTOList, COMM_TYPES.get(0));
         final double q2VcpuUsed = getCommodityUsedValue(commoditySoldDTOList, COMM_TYPES.get(1));
         final double q3VcpuUsed = getCommodityUsedValue(commoditySoldDTOList, COMM_TYPES.get(2));
@@ -132,8 +130,8 @@ public class ComputeQxVcpuUsedValuePostStitchingTest {
             Stream.of(provider), mock(EntitySettingsCollection.class), resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
-        final List<CommoditySoldDTO> commoditySoldDTOList =
-            provider.getTopologyEntityDtoBuilder().build().getCommoditySoldListList();
+        final List<CommoditySoldView> commoditySoldDTOList =
+            provider.getTopologyEntityImpl().getCommoditySoldListList();
         final double q1VcpuMax = getCommodityUsedValue(commoditySoldDTOList,
             COMM_TYPES.get(0));
         final double q2VcpuMax = getCommodityUsedValue(commoditySoldDTOList,
@@ -150,18 +148,16 @@ public class ComputeQxVcpuUsedValuePostStitchingTest {
         final TopologyEntity.Builder seller = createSellerTopologyEntity(sellerOid);
         IntStream.range(0, COMM_TYPES.size()).forEach(index -> {
             final List<Double> commodityValuesList = usedValues.get(index);
-            final CommodityType commodityType = COMM_TYPES.get(index);
+            final CommodityTypeView commodityType = COMM_TYPES.get(index);
             commodityValuesList.forEach(commodityValue -> {
-                final CommodityBoughtDTO commBoughtInclude =
-                        PostStitchingTestUtilities.makeCommodityBought(CommodityDTO.CommodityType.forNumber(commodityType.getType()), key).toBuilder()
+                final CommodityBoughtView commBoughtInclude =
+                        PostStitchingTestUtilities.makeCommodityBought(CommodityType.forNumber(commodityType.getType()), key).copy()
                                 .setUsed(commodityValue)
-                                .setPeak(commodityValue)
-                                .build();
-                final CommodityBoughtDTO commBoughtExclude =
-                        PostStitchingTestUtilities.makeCommodityBought(commodityTypeExclude, key).toBuilder()
+                                .setPeak(commodityValue);
+                final CommodityBoughtView commBoughtExclude =
+                        PostStitchingTestUtilities.makeCommodityBought(commodityTypeExclude, key).copy()
                                 .setUsed(commodityValue * 10)
-                                .setPeak(commodityValue)
-                                .build();
+                                .setPeak(commodityValue);
                 final TopologyEntity.Builder buyer =
                         PostStitchingTestUtilities.makeTopologyEntityBuilder(
                                 0,
@@ -176,8 +172,8 @@ public class ComputeQxVcpuUsedValuePostStitchingTest {
     }
 
     private TopologyEntity.Builder createSellerTopologyEntity(final long sellerOid) {
-        final List<CommoditySoldDTO> commoditySoldDTOList = COMM_TYPES.stream()
-                .map(commodityType -> PostStitchingTestUtilities.makeCommoditySold(CommodityDTO.CommodityType.forNumber(commodityType.getType()), key))
+        final List<CommoditySoldView> commoditySoldDTOList = COMM_TYPES.stream()
+                .map(commodityType -> PostStitchingTestUtilities.makeCommoditySold(CommodityType.forNumber(commodityType.getType()), key))
                 .collect(Collectors.toList());
 
         return PostStitchingTestUtilities.makeTopologyEntityBuilder(
@@ -188,19 +184,20 @@ public class ComputeQxVcpuUsedValuePostStitchingTest {
                 );
     }
 
-    private double getCommodityUsedValue(List<CommoditySoldDTO> commoditySoldDTOList, CommodityType commodityType) {
+    private double getCommodityUsedValue(List<CommoditySoldView> commoditySoldDTOList, 
+                                         CommodityTypeView commodityType) {
         return commoditySoldDTOList.stream()
                 .filter(comm -> comm.getCommodityType().equals(commodityType))
-                .map(CommoditySoldDTO::getUsed)
+                .map(CommoditySoldView::getUsed)
                 .findFirst()
                 .orElse(0.0);
     }
 
-    private double getCommodityMaxValue(List<CommoditySoldDTO> commoditySoldDTOList,
-                                      CommodityType commodityType) {
+    private double getCommodityMaxValue(List<CommoditySoldView> commoditySoldDTOList,
+                                      CommodityTypeView commodityType) {
         return commoditySoldDTOList.stream()
             .filter(comm -> comm.getCommodityType().equals(commodityType))
-            .map(CommoditySoldDTO::getPeak)
+            .map(CommoditySoldView::getPeak)
             .findFirst()
             .orElse(0.0);
     }

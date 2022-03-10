@@ -30,7 +30,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -245,7 +245,7 @@ public class SettingOverrides {
      * @return Collections of overrided {@link SettingToPolicyId}.
      */
     @Nonnull
-    public Collection<SettingToPolicyId> overrideSettings(@Nonnull final TopologyEntityDTOOrBuilder entity,
+    public Collection<SettingToPolicyId> overrideSettings(@Nonnull final TopologyEntityImpl entity,
                                  @Nonnull final Map<String, SettingToPolicyId> settings) {
         final Map<String, SettingToPolicyId> result = new HashMap<>(settings);
         // add the overridden settings, in order of priority.

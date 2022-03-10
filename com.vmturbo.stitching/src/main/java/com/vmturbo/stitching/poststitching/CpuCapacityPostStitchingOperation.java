@@ -1,15 +1,15 @@
 package com.vmturbo.stitching.poststitching;
 
-import java.util.Map;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.PhysicalMachineInfoView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -49,14 +49,14 @@ public class CpuCapacityPostStitchingOperation implements PostStitchingOperation
             @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
 
         entities.forEach(entity -> {
-            final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
-            final PhysicalMachineInfo pmInfo = entityBuilder.getTypeSpecificInfo().getPhysicalMachine();
-            final boolean needsUpdate = entityBuilder.getCommoditySoldListBuilderList().stream()
+            final TopologyEntityImpl entityImpl = entity.getTopologyEntityImpl();
+            final PhysicalMachineInfoView pmInfo = entityImpl.getTypeSpecificInfo().getPhysicalMachine();
+            final boolean needsUpdate = entityImpl.getCommoditySoldListList().stream()
                 .anyMatch(this::hasSettableCpuCapacity);
 
             if (pmInfo.hasNumCpus() && pmInfo.hasCpuCoreMhz() && needsUpdate) {
                 resultBuilder.queueUpdateEntityAlone(entity, entityForUpdate -> {
-                    entityForUpdate.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+                    entityForUpdate.getTopologyEntityImpl().getCommoditySoldListImplList().stream()
                         .filter(this::hasSettableCpuCapacity)
                         .forEach(commodity -> {
                             final double numCores = pmInfo.getNumCpus();
@@ -88,7 +88,7 @@ public class CpuCapacityPostStitchingOperation implements PostStitchingOperation
      * @param commodity the commodity to check
      * @return true if the capacity is settable, false otherwise
      */
-    private boolean hasSettableCpuCapacity(@Nonnull final Builder commodity) {
+    private boolean hasSettableCpuCapacity(@Nonnull final CommoditySoldView commodity) {
         return commodity.getCommodityType().getType() == CommodityType.CPU_VALUE &&
             (!commodity.hasCapacity() || commodity.getCapacity() == 0);
     }

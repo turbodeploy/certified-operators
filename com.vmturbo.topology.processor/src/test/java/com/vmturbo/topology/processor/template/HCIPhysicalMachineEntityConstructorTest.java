@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -85,20 +86,20 @@ public class HCIPhysicalMachineEntityConstructorTest {
         Template template = loadTemplate("HCITemplate.json");
 
         TopologyEntity.Builder host1 = TopologyEntity
-                .newBuilder(loadTopologyEntityDTO("hp-esx78.eng.vmturbo.com.json").toBuilder());
+                .newBuilder(loadTopologyEntityImpl("hp-esx78.eng.vmturbo.com.json"));
         TopologyEntity.Builder host2 = TopologyEntity
-                .newBuilder(loadTopologyEntityDTO("hp-esx79.eng.vmturbo.com.json").toBuilder());
+                .newBuilder(loadTopologyEntityImpl("hp-esx79.eng.vmturbo.com.json"));
         TopologyEntity.Builder storage = TopologyEntity
-                .newBuilder(loadTopologyEntityDTO("HCIStorage.json").toBuilder());
+                .newBuilder(loadTopologyEntityImpl("HCIStorage.json"));
         host1.addConsumer(storage);
         TopologyEntity.Builder vmVMFS = TopologyEntity
-                .newBuilder(loadTopologyEntityDTO("astra-vmfs.json").toBuilder());
+                .newBuilder(loadTopologyEntityImpl("astra-vmfs.json"));
         host1.addConsumer(vmVMFS);
         TopologyEntity.Builder vmVsan1 = TopologyEntity
-                .newBuilder(loadTopologyEntityDTO("astra-vsan-esx78.json").toBuilder());
+                .newBuilder(loadTopologyEntityImpl("astra-vsan-esx78.json"));
         host1.addConsumer(vmVsan1);
         TopologyEntity.Builder vmVsan2 = TopologyEntity
-                .newBuilder(loadTopologyEntityDTO("astra-vsan-esx79.json").toBuilder());
+                .newBuilder(loadTopologyEntityImpl("astra-vsan-esx79.json"));
         host2.addConsumer(vmVsan2);
         host2.addConsumer(storage);
 
@@ -113,25 +114,25 @@ public class HCIPhysicalMachineEntityConstructorTest {
 
         for (int i = 1; i <= 5; i++) {
             TopologyEntity.Builder hostProvider = TopologyEntity
-                    .newBuilder(loadTopologyEntityDTO("HostProvider" + i + ".json").toBuilder());
+                    .newBuilder(loadTopologyEntityImpl("HostProvider" + i + ".json"));
             topology.put(hostProvider.getOid(), hostProvider);
             hostProviderOids.add(hostProvider.getOid());
         }
 
         // Run test
-        Collection<TopologyEntityDTO.Builder> result = new HCIPhysicalMachineEntityConstructor(
+        Collection<TopologyEntityImpl> result = new HCIPhysicalMachineEntityConstructor(
                 template, topology, identityProvider, settingPolicyServiceClient)
                         .replaceEntitiesFromTemplate(Collections.singletonList(host1));
 
         Assert.assertEquals(3, result.size());
-        List<TopologyEntityDTO.Builder> newHosts = result.stream()
+        List<TopologyEntityImpl> newHosts = result.stream()
                 .filter(o -> o.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
                 .collect(Collectors.toList());
-        TopologyEntityDTO.Builder newStorage = result.stream()
+        TopologyEntityImpl newStorage = result.stream()
                 .filter(o -> o.getEntityType() == EntityType.STORAGE_VALUE).findFirst().get();
 
-        TopologyEntityDTO.Builder originalHost = host1.getEntityBuilder();
-        TopologyEntityDTO.Builder originalStorage = storage.getEntityBuilder();
+        TopologyEntityImpl originalHost = host1.getTopologyEntityImpl();
+        TopologyEntityImpl originalStorage = storage.getTopologyEntityImpl();
 
         List<Long> hostOids = newHosts.stream().map(h -> h.getOid()).collect(Collectors.toList());
 
@@ -152,7 +153,7 @@ public class HCIPhysicalMachineEntityConstructorTest {
 
                 if (provider.getEntityType() == EntityType.STORAGE_VALUE) {
                     Assert.assertEquals(newStorage.getOid(),
-                            provider.getEntityBuilder().getEdit().getReplaced().getReplacementId());
+                            provider.getTopologyEntityImpl().getEdit().getReplaced().getReplacementId());
                 }
             }
         }
@@ -165,6 +166,12 @@ public class HCIPhysicalMachineEntityConstructorTest {
         JsonFormat.parser().merge(str, builder);
 
         return builder.build();
+    }
+
+    @Nonnull
+    private TopologyEntityImpl loadTopologyEntityImpl(@Nonnull String jsonFileName)
+            throws IOException {
+        return TopologyEntityImpl.fromProto(loadTopologyEntityDTO(jsonFileName));
     }
 
     @Nonnull

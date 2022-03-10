@@ -50,17 +50,21 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ConnectedEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ConnectedEntityView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.PlanScenarioOriginImpl;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -80,170 +84,170 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
  */
 public class PlanTopologyScopeEditorTest {
 
-    private static final TopologyDTO.CommodityType CPU = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.CPU_VALUE).build();
-    private static final TopologyDTO.CommodityType DATASTORE = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.DATASTORE_VALUE).build();
-    private static final TopologyDTO.CommodityType VCPU = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.VCPU_VALUE).build();
-    private static final TopologyDTO.CommodityType POWER = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.POWER_VALUE).build();
-    private static final TopologyDTO.CommodityType EXTENT1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.EXTENT_VALUE)
-            .setKey("DA1").build();
-    private static final TopologyDTO.CommodityType CPU_ALLOC_SOLD = TopologyDTO.CommodityType.newBuilder().setType(
-            CommodityType.CPU_ALLOCATION_VALUE).setKey("VDCinDC1").build();
-    private static final TopologyDTO.CommodityType CPU_ALLOC_PM1 = TopologyDTO.CommodityType.newBuilder().setType(
-            CommodityType.CPU_ALLOCATION_VALUE).setKey("PM1").build();
-    private static final TopologyDTO.CommodityType CPU_ALLOC_PM2 = TopologyDTO.CommodityType.newBuilder().setType(
-            CommodityType.CPU_ALLOCATION_VALUE).setKey("PM2").build();
-    private static final TopologyDTO.CommodityType DC1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
-            .setKey("DC::DC1").build();
-    private static final TopologyDTO.CommodityType DC1_HOSTS = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
-        .setKey("DC1").build();
-    private static final TopologyDTO.CommodityType DC2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
-            .setKey("DC::DC2").build();
-    private static final TopologyDTO.CommodityType DC2_HOSTS = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
-        .setKey("DC2").build();
-    private static final TopologyDTO.CommodityType SC1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.CLUSTER_VALUE)
-            .setKey("SC1").build();
-    private static final TopologyDTO.CommodityType SC2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.CLUSTER_VALUE)
-            .setKey("SC2").build();
-    private static final TopologyDTO.CommodityType APP = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
-            .setKey("APP").build();
-    private static final TopologyDTO.CommodityType APP1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
-            .setKey("APP1").build();
-    private static final TopologyDTO.CommodityType APP2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
-            .setKey("APP2").build();
-    private static final TopologyDTO.CommodityType APP3 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
-            .setKey("APP3").build();
-    private static final TopologyDTO.CommodityType APP4 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
-        .setKey("APP4").build();
-    private static final TopologyDTO.CommodityType BAPP1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
-            .setKey("BAPP1").build();
-    private static final TopologyDTO.CommodityType BAPP2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
-            .setKey("BAPP2").build();
-    private static final TopologyDTO.CommodityType DSPM1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)
-            .setKey("DSPM1").build();
-    private static final TopologyDTO.CommodityType DS1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATASTORE_VALUE)
-            .setKey("DS1").build();
-    private static final TopologyDTO.CommodityType DSPM2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)
-            .setKey("DSPM2").build();
-    private static final TopologyDTO.CommodityType DS2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATASTORE_VALUE)
-            .setKey("DS2").build();
-    private static final TopologyDTO.CommodityType ST_AMT = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build();
-    private static final TopologyDTO.CommodityType VMPM_ACCESS = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.VMPM_ACCESS_VALUE).setKey("foo").build();
-    private static final TopologyDTO.CommodityType VMPM_ACCESS_KUBEPOD = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.VMPM_ACCESS_VALUE).setKey("kube-pod-aws").build();
-    private static final TopologyDTO.CommodityType CLUSTER_COMM_AWS = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CLUSTER_VALUE).setKey("kube-cluster-aws").build();
-    private static final TopologyDTO.CommodityType VCPUREQ_QUOTA = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE).build();
+    private static final CommodityTypeView CPU = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.CPU_VALUE);
+    private static final CommodityTypeView DATASTORE = new CommodityTypeImpl().setType(CommodityType.DATASTORE_VALUE);
+    private static final CommodityTypeView VCPU = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.VCPU_VALUE);
+    private static final CommodityTypeView POWER = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.POWER_VALUE);
+    private static final CommodityTypeView EXTENT1 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.EXTENT_VALUE)
+            .setKey("DA1");
+    private static final CommodityTypeView CPU_ALLOC_SOLD = new CommodityTypeImpl().setType(
+            CommodityType.CPU_ALLOCATION_VALUE).setKey("VDCinDC1");
+    private static final CommodityTypeView CPU_ALLOC_PM1 = new CommodityTypeImpl().setType(
+            CommodityType.CPU_ALLOCATION_VALUE).setKey("PM1");
+    private static final CommodityTypeView CPU_ALLOC_PM2 = new CommodityTypeImpl().setType(
+            CommodityType.CPU_ALLOCATION_VALUE).setKey("PM2");
+    private static final CommodityTypeView DC1 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
+            .setKey("DC::DC1");
+    private static final CommodityTypeView DC1_HOSTS = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
+        .setKey("DC1");
+    private static final CommodityTypeView DC2 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
+            .setKey("DC::DC2");
+    private static final CommodityTypeView DC2_HOSTS = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
+        .setKey("DC2");
+    private static final CommodityTypeView SC1 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.CLUSTER_VALUE)
+            .setKey("SC1");
+    private static final CommodityTypeView SC2 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.CLUSTER_VALUE)
+            .setKey("SC2");
+    private static final CommodityTypeView APP = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
+            .setKey("APP");
+    private static final CommodityTypeView APP1 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
+            .setKey("APP1");
+    private static final CommodityTypeView APP2 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
+            .setKey("APP2");
+    private static final CommodityTypeView APP3 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
+            .setKey("APP3");
+    private static final CommodityTypeView APP4 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
+        .setKey("APP4");
+    private static final CommodityTypeView BAPP1 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
+            .setKey("BAPP1");
+    private static final CommodityTypeView BAPP2 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
+            .setKey("BAPP2");
+    private static final CommodityTypeView DSPM1 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)
+            .setKey("DSPM1");
+    private static final CommodityTypeView DS1 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.DATASTORE_VALUE)
+            .setKey("DS1");
+    private static final CommodityTypeView DSPM2 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)
+            .setKey("DSPM2");
+    private static final CommodityTypeView DS2 = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.DATASTORE_VALUE)
+            .setKey("DS2");
+    private static final CommodityTypeView ST_AMT = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE);
+    private static final CommodityTypeView VMPM_ACCESS = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.VMPM_ACCESS_VALUE).setKey("foo");
+    private static final CommodityTypeView VMPM_ACCESS_KUBEPOD = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.VMPM_ACCESS_VALUE).setKey("kube-pod-aws");
+    private static final CommodityTypeView CLUSTER_COMM_AWS = new CommodityTypeImpl().setType(CommodityType.CLUSTER_VALUE).setKey("kube-cluster-aws");
+    private static final CommodityTypeView VCPUREQ_QUOTA = new CommodityTypeImpl().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE);
 
-    private static final TopologyDTO.CommodityType CLUSTER_COMM_AZURE = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CLUSTER_VALUE).setKey("kube-cluster-azure").build();
-    private static final TopologyDTO.CommodityType VCPUREQ_QUOTA_AZURE = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE).build();
-    private static final TopologyDTO.CommodityType VMPM_ACCESS_KUBEPOD_AZURE = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.VMPM_ACCESS_VALUE).setKey("kube-pod-azure").build();
+    private static final CommodityTypeView CLUSTER_COMM_AZURE = new CommodityTypeImpl().setType(CommodityType.CLUSTER_VALUE).setKey("kube-cluster-azure");
+    private static final CommodityTypeView VCPUREQ_QUOTA_AZURE = new CommodityTypeImpl().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE);
+    private static final CommodityTypeView VMPM_ACCESS_KUBEPOD_AZURE = new CommodityTypeImpl().setType(CommonDTO.CommodityDTO.CommodityType.VMPM_ACCESS_VALUE).setKey("kube-pod-azure");
 
-    private static final List<TopologyDTO.CommodityType> basketSoldByPMToVMinDC1 = Lists.newArrayList(DC1_HOSTS, CPU, DS1);
-    private static final List<TopologyDTO.CommodityType> basketSoldByPMToVMinDC2 = Lists.newArrayList(DC2_HOSTS, CPU, DS1, DS2);
-    private static final List<TopologyDTO.CommodityType> basketSoldByPM1inDC1 = Lists.newArrayList(DC1_HOSTS, CPU, DS1, CPU_ALLOC_PM1);
-    private static final List<TopologyDTO.CommodityType> basketSoldByPM2inDC1 = Lists.newArrayList(DC1_HOSTS, CPU, DS1, CPU_ALLOC_PM2);
-    private static final List<TopologyDTO.CommodityType> basketSoldByVDCinDC1 = Lists.newArrayList(CPU_ALLOC_SOLD);
-    private static final List<TopologyDTO.CommodityType> basketSoldByPM1toVDC = Lists.newArrayList(CPU_ALLOC_PM1);
-    private static final List<TopologyDTO.CommodityType> basketSoldByPM2toVDC = Lists.newArrayList(CPU_ALLOC_PM2);
-    private static final List<TopologyDTO.CommodityType> basketSoldByDC1 = Lists.newArrayList(DC1, POWER);
-    private static final List<TopologyDTO.CommodityType> basketSoldByDC2 = Lists.newArrayList(DC2, POWER);
-    private static final List<TopologyDTO.CommodityType> basketSoldByVM1 = Lists.newArrayList(VCPU, APP1);
-    private static final List<TopologyDTO.CommodityType> basketSoldByVM2 = Lists.newArrayList(VCPU, APP2);
-    private static final List<TopologyDTO.CommodityType> basketSoldByVM4 = Lists.newArrayList(VCPU, APP4);
-    private static final List<TopologyDTO.CommodityType> basketSoldByVM = Lists.newArrayList(VCPU, APP);
-    private static final List<TopologyDTO.CommodityType> basketSoldByVV = Lists.newArrayList(ST_AMT);
-    private static final List<TopologyDTO.CommodityType> basketSoldByDA = Lists.newArrayList(EXTENT1, ST_AMT);
-    private static final List<TopologyDTO.CommodityType> basketSoldByDS1 = Lists.newArrayList(ST_AMT, SC1, DSPM1, DSPM2);
-    private static final List<TopologyDTO.CommodityType> basketSoldByLocalDS1 = Lists.newArrayList(ST_AMT, SC1, DSPM1);
-    private static final List<TopologyDTO.CommodityType> basketSoldByDS2 = Lists.newArrayList(ST_AMT, SC2, DSPM2);
-    private static final List<TopologyDTO.CommodityType> basketSoldByLocalDS2 = Lists.newArrayList(ST_AMT, SC1, DSPM2);
-    private static final List<TopologyDTO.CommodityType> basketSoldByAS1 = Lists.newArrayList(BAPP1);
-    private static final List<TopologyDTO.CommodityType> basketSoldByAS2 = Lists.newArrayList(BAPP2);
-    private static final List<TopologyDTO.CommodityType> basketSoldByVMInUSEast = Lists.newArrayList(APP3);
-    private static final List<TopologyDTO.CommodityType> basketSoldByKubeVM1 = Lists.newArrayList(VCPU, CLUSTER_COMM_AWS);
-    private static final List<TopologyDTO.CommodityType> basketSoldByKubeVM2 = Lists.newArrayList(VCPU, CLUSTER_COMM_AWS);
-    private static final List<TopologyDTO.CommodityType> basketSoldByKubeVMinAzure = Lists.newArrayList(VCPU, CLUSTER_COMM_AZURE);
+    private static final List<CommodityTypeView> basketSoldByPMToVMinDC1 = Lists.newArrayList(DC1_HOSTS, CPU, DS1);
+    private static final List<CommodityTypeView> basketSoldByPMToVMinDC2 = Lists.newArrayList(DC2_HOSTS, CPU, DS1, DS2);
+    private static final List<CommodityTypeView> basketSoldByPM1inDC1 = Lists.newArrayList(DC1_HOSTS, CPU, DS1, CPU_ALLOC_PM1);
+    private static final List<CommodityTypeView> basketSoldByPM2inDC1 = Lists.newArrayList(DC1_HOSTS, CPU, DS1, CPU_ALLOC_PM2);
+    private static final List<CommodityTypeView> basketSoldByVDCinDC1 = Lists.newArrayList(CPU_ALLOC_SOLD);
+    private static final List<CommodityTypeView> basketSoldByPM1toVDC = Lists.newArrayList(CPU_ALLOC_PM1);
+    private static final List<CommodityTypeView> basketSoldByPM2toVDC = Lists.newArrayList(CPU_ALLOC_PM2);
+    private static final List<CommodityTypeView> basketSoldByDC1 = Lists.newArrayList(DC1, POWER);
+    private static final List<CommodityTypeView> basketSoldByDC2 = Lists.newArrayList(DC2, POWER);
+    private static final List<CommodityTypeView> basketSoldByVM1 = Lists.newArrayList(VCPU, APP1);
+    private static final List<CommodityTypeView> basketSoldByVM2 = Lists.newArrayList(VCPU, APP2);
+    private static final List<CommodityTypeView> basketSoldByVM4 = Lists.newArrayList(VCPU, APP4);
+    private static final List<CommodityTypeView> basketSoldByVM = Lists.newArrayList(VCPU, APP);
+    private static final List<CommodityTypeView> basketSoldByVV = Lists.newArrayList(ST_AMT);
+    private static final List<CommodityTypeView> basketSoldByDA = Lists.newArrayList(EXTENT1, ST_AMT);
+    private static final List<CommodityTypeView> basketSoldByDS1 = Lists.newArrayList(ST_AMT, SC1, DSPM1, DSPM2);
+    private static final List<CommodityTypeView> basketSoldByLocalDS1 = Lists.newArrayList(ST_AMT, SC1, DSPM1);
+    private static final List<CommodityTypeView> basketSoldByDS2 = Lists.newArrayList(ST_AMT, SC2, DSPM2);
+    private static final List<CommodityTypeView> basketSoldByLocalDS2 = Lists.newArrayList(ST_AMT, SC1, DSPM2);
+    private static final List<CommodityTypeView> basketSoldByAS1 = Lists.newArrayList(BAPP1);
+    private static final List<CommodityTypeView> basketSoldByAS2 = Lists.newArrayList(BAPP2);
+    private static final List<CommodityTypeView> basketSoldByVMInUSEast = Lists.newArrayList(APP3);
+    private static final List<CommodityTypeView> basketSoldByKubeVM1 = Lists.newArrayList(VCPU, CLUSTER_COMM_AWS);
+    private static final List<CommodityTypeView> basketSoldByKubeVM2 = Lists.newArrayList(VCPU, CLUSTER_COMM_AWS);
+    private static final List<CommodityTypeView> basketSoldByKubeVMinAzure = Lists.newArrayList(VCPU, CLUSTER_COMM_AZURE);
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByVMinDC1PM1DS1VDC = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByVMinDC1PM1DS1VDC = ImmutableMap.of(
         20001L, new Pair<>(EntityType.PHYSICAL_MACHINE_VALUE, basketSoldByPMToVMinDC1),
         40001L, new Pair<>(EntityType.STORAGE_VALUE, basketSoldByDS1),
         100001L, new Pair<>(EntityType.VIRTUAL_DATACENTER_VALUE, basketSoldByVDCinDC1)
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByVMinDC1PM2DS1VDC = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByVMinDC1PM2DS1VDC = ImmutableMap.of(
         20002L,new Pair<>(EntityType.PHYSICAL_MACHINE_VALUE,  basketSoldByPMToVMinDC1),
         40001L, new Pair<>(EntityType.STORAGE_VALUE, basketSoldByDS1),
         100001L, new Pair<>(EntityType.VIRTUAL_DATACENTER_VALUE, basketSoldByVDCinDC1)
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByVMinDC1PM2DS1VDCVV = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByVMinDC1PM2DS1VDCVV = ImmutableMap.of(
         20002L, new Pair<>(EntityType.PHYSICAL_MACHINE_VALUE, basketSoldByPMToVMinDC1),
         40001L, new Pair<>(EntityType.STORAGE_VALUE, basketSoldByDS1),
         100001L, new Pair<>(EntityType.VIRTUAL_DATACENTER_VALUE, basketSoldByVDCinDC1),
         2502L, new Pair<>(EntityType.VIRTUAL_VOLUME_VALUE, basketSoldByVV)
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByVVDS1 = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByVVDS1 = ImmutableMap.of(
         40001L, new Pair<>(EntityType.STORAGE_VALUE, Lists.newArrayList(ST_AMT))
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByPod = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByPod = ImmutableMap.of(
         30003L, new Pair<>(EntityType.VIRTUAL_MACHINE_VALUE, Lists.newArrayList(VCPU)),
         200004L, new Pair<>(EntityType.VIRTUAL_VOLUME_VALUE, Lists.newArrayList(ST_AMT))
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByCntFromPod = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByCntFromPod = ImmutableMap.of(
         200001L, new Pair<>(EntityType.CONTAINER_POD_VALUE, Lists.newArrayList(VCPU, VMPM_ACCESS))
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByVMinDC2PMDS2 = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByVMinDC2PMDS2 = ImmutableMap.of(
         20003L, new Pair<>(EntityType.PHYSICAL_MACHINE_VALUE, basketSoldByPMToVMinDC2),
         40002L, new Pair<>(EntityType.STORAGE_VALUE, basketSoldByDS2)
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByPMinDC1  = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByPMinDC1  = ImmutableMap.of(
         10001L, new Pair<>(EntityType.DATACENTER_VALUE, basketSoldByDC1)
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByPMinDC2  = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByPMinDC2  = ImmutableMap.of(
         10002L, new Pair<>(EntityType.DATACENTER_VALUE, basketSoldByDC2)
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByApp1Comp1 = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByApp1Comp1 = ImmutableMap.of(
         30001L, new Pair<>(EntityType.VIRTUAL_MACHINE_VALUE, basketSoldByVM1),
         30003L, new Pair<>(EntityType.VIRTUAL_MACHINE_VALUE, basketSoldByVM2)
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByVDCinDC1 = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByVDCinDC1 = ImmutableMap.of(
         20001L, new Pair<>(EntityType.PHYSICAL_MACHINE_VALUE, basketSoldByPM1toVDC),
         20002L, new Pair<>(EntityType.PHYSICAL_MACHINE_VALUE, basketSoldByPM2toVDC)
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByApp1 = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByApp1 = ImmutableMap.of(
         30001L, new Pair<>(EntityType.VIRTUAL_MACHINE_VALUE, basketSoldByVM1)
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByApp2 = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByApp2 = ImmutableMap.of(
         30003L, new Pair<>(EntityType.VIRTUAL_MACHINE_VALUE, basketSoldByVM)
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByDSinDA1 = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByDSinDA1 = ImmutableMap.of(
         50001L, new Pair<>(EntityType.DISK_ARRAY_VALUE, basketSoldByDA)
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByBA = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByBA = ImmutableMap.of(
         70001L, new Pair<>(EntityType.APPLICATION_SERVER_VALUE, basketSoldByAS1),
         70002L,  new Pair<>(EntityType.APPLICATION_SERVER_VALUE, basketSoldByAS2)
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByBT = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByBT = ImmutableMap.of(
         90002L, new Pair<>(EntityType.SERVICE_VALUE, basketSoldByVMInUSEast),
         90003L, new Pair<>(EntityType.SERVICE_VALUE, Collections.singletonList(APP1))
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByService1 = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByService1 = ImmutableMap.of(
         4007L, new Pair<>(EntityType.VIRTUAL_MACHINE_VALUE, basketSoldByVMInUSEast)
     );
 
-    private static final Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> commBoughtByService2 = ImmutableMap.of(
+    private static final Map<Long, Pair<Integer, List<CommodityTypeView>>> commBoughtByService2 = ImmutableMap.of(
         30001L, new Pair<>(EntityType.VIRTUAL_MACHINE_VALUE, Collections.singletonList(APP1))
     );
 
@@ -298,23 +302,23 @@ public class PlanTopologyScopeEditorTest {
     private static final long VIRTUAL_VOLUME_2_IN_CANADA_ID = 6008L;
     private static final long VIRTUAL_VOLUME_IN_US_EAST_ID = 6009L;
 
-    private static final TopologyDTO.CommodityType ZONE_AZ1 = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.ZONE_VALUE).setKey("AZ1 London").build();
-    private static final TopologyDTO.CommodityType ZONE_AZ2 = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.ZONE_VALUE).setKey("AZ2 London").build();
+    private static final CommodityTypeView ZONE_AZ1 = new CommodityTypeImpl().setType(CommodityType.ZONE_VALUE).setKey("AZ1 London");
+    private static final CommodityTypeView ZONE_AZ2 = new CommodityTypeImpl().setType(CommodityType.ZONE_VALUE).setKey("AZ2 London");
 
-    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByKubeVM1inAZ1
+    private static final Map<Long, List<CommodityTypeView>> commBoughtByKubeVM1inAZ1
             = ImmutableMap.of(
             1001L, Lists.newArrayList(ZONE_AZ1),
             3001L,  Lists.newArrayList(CPU),    //compute tier1
             200004L, Lists.newArrayList(ST_AMT) //VV podVV
     );
 
-    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByKubeVM2inAZ2
+    private static final Map<Long, List<CommodityTypeView>> commBoughtByKubeVM2inAZ2
             = ImmutableMap.of(
             1002L, Lists.newArrayList(ZONE_AZ2),
             3001L,Lists.newArrayList(CPU)   //compute tier1
     );
 
-    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByKubeVMinAzure
+    private static final Map<Long, List<CommodityTypeView>> commBoughtByKubeVMinAzure
             = ImmutableMap.of(
             3002L,  Lists.newArrayList(CPU),    //compute tier2
             6005L, Lists.newArrayList(ST_AMT)   //VV VIRTUAL_VOLUME_IN_CANADA
@@ -468,31 +472,31 @@ public class PlanTopologyScopeEditorTest {
                         EntityType.CLOUD_SERVICE, computeTier2);
 
     // --- Container Platform entities - Kubernetes cluster in AWS
-    private static final TopologyDTO.CommodityType VCPUREQ_QUOTA_CNTRLLER_SOLD
-            = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE).setKey("wrkContrller1").build();
-    private static final TopologyDTO.CommodityType VCPUREQ_QUOTA_CNTRLLER_BOUGHT
-            = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE).setKey("ns1").build();
-    private static final TopologyDTO.CommodityType VCPUREQ_QUOTA_NAMESPACE_SOLD
-            = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE).setKey("ns1").build();
+    private static final CommodityTypeView VCPUREQ_QUOTA_CNTRLLER_SOLD
+            = new CommodityTypeImpl().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE).setKey("wrkContrller1");
+    private static final CommodityTypeView VCPUREQ_QUOTA_CNTRLLER_BOUGHT
+            = new CommodityTypeImpl().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE).setKey("ns1");
+    private static final CommodityTypeView VCPUREQ_QUOTA_NAMESPACE_SOLD
+            = new CommodityTypeImpl().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE).setKey("ns1");
 
-    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByWorkloadController
+    private static final Map<Long, List<CommodityTypeView>> commBoughtByWorkloadController
             = ImmutableMap.of(
             22L, Lists.newArrayList(VCPUREQ_QUOTA_CNTRLLER_BOUGHT) // namespace
             );
 
-    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByNamespace
+    private static final Map<Long, List<CommodityTypeView>> commBoughtByNamespace
             = ImmutableMap.of(
             21L, Lists.newArrayList(CLUSTER_COMM_AWS) // container cluster
     );
 
-    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByKubePod
+    private static final Map<Long, List<CommodityTypeView>> commBoughtByKubePod
             = ImmutableMap.of(
             40011L, Lists.newArrayList(VCPU, CLUSTER_COMM_AWS), //VM
             23L, Lists.newArrayList(VCPUREQ_QUOTA_CNTRLLER_SOLD), // Workload controller
             27L, Lists.newArrayList(ST_AMT) //Volume
     );
 
-    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByCnt
+    private static final Map<Long, List<CommodityTypeView>> commBoughtByCnt
             = ImmutableMap.of(
             25L, Lists.newArrayList(VCPU, VCPUREQ_QUOTA, VMPM_ACCESS_KUBEPOD)   // pod
     );
@@ -533,31 +537,31 @@ public class PlanTopologyScopeEditorTest {
                                                 Collections.singletonList(ST_AMT));
 
     // --- Container Platform entities - Kubernetes cluster in Azure
-    private static final TopologyDTO.CommodityType VCPUREQ_QUOTA_CNTRLLER_SOLD_Azure
-            = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE).setKey("wrkContrller-azuure").build();
-    private static final TopologyDTO.CommodityType VCPUREQ_QUOTA_CNTRLLER_BOUGHT_Azure
-            = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE).setKey("ns-azure").build();
-    private static final TopologyDTO.CommodityType VCPUREQ_QUOTA_NAMESPACE_SOLD_Azure
-            = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE).setKey("nsa-azure").build();
+    private static final CommodityTypeView VCPUREQ_QUOTA_CNTRLLER_SOLD_Azure
+            = new CommodityTypeImpl().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE).setKey("wrkContrller-azuure");
+    private static final CommodityTypeView VCPUREQ_QUOTA_CNTRLLER_BOUGHT_Azure
+            = new CommodityTypeImpl().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE).setKey("ns-azure");
+    private static final CommodityTypeView VCPUREQ_QUOTA_NAMESPACE_SOLD_Azure
+            = new CommodityTypeImpl().setType(CommodityType.VCPU_REQUEST_QUOTA_VALUE).setKey("nsa-azure");
 
-    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByWorkloadControllerInAzure
+    private static final Map<Long, List<CommodityTypeView>> commBoughtByWorkloadControllerInAzure
             = ImmutableMap.of(
             32L, Lists.newArrayList(VCPUREQ_QUOTA_CNTRLLER_BOUGHT_Azure) // namespace
     );
 
-    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByNamespaceInAzure
+    private static final Map<Long, List<CommodityTypeView>> commBoughtByNamespaceInAzure
             = ImmutableMap.of(
             31L, Lists.newArrayList(CLUSTER_COMM_AZURE) // container cluster
     );
 
-    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByKubePodInAzure
+    private static final Map<Long, List<CommodityTypeView>> commBoughtByKubePodInAzure
             = ImmutableMap.of(
             40061L, Lists.newArrayList(VCPU, CLUSTER_COMM_AZURE), //VM - KubeVMInAzure
             33L, Lists.newArrayList(VCPUREQ_QUOTA_CNTRLLER_SOLD_Azure), // Workload controller Azure
             37L, Lists.newArrayList(ST_AMT) //Volume
     );
 
-    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByCntInAzure
+    private static final Map<Long, List<CommodityTypeView>> commBoughtByCntInAzure
             = ImmutableMap.of(
             35L, Lists.newArrayList(VCPU, VCPUREQ_QUOTA_AZURE, VMPM_ACCESS_KUBEPOD_AZURE)   // pod
     );
@@ -650,22 +654,22 @@ public class PlanTopologyScopeEditorTest {
 
      */
     private final TopologyGraph<TopologyEntity> emptyClusterGraph = TopologyEntityUtils
-        .topologyGraphOf(
-            TopologyEntity.newBuilder(copyAndAddLocalStorageAccesses(pm1InDc1, localSt1.getOid()).getEntityBuilder()),
-            TopologyEntity.newBuilder(copyAndAddLocalStorageAccesses(pm2InDc1, localSt2.getOid()).getEntityBuilder()),
-            TopologyEntity.newBuilder(pmInDc2.getEntityBuilder()),
-            TopologyEntity.newBuilder(dc1.getEntityBuilder()),
-            TopologyEntity.newBuilder(dc2.getEntityBuilder()),
-            TopologyEntity.newBuilder(st1.getEntityBuilder()),
-            TopologyEntity.newBuilder(st2.getEntityBuilder()),
-            TopologyEntity.newBuilder(da1.getEntityBuilder()),
-            TopologyEntity.newBuilder(vdcInDc1.getEntityBuilder()),
-            TopologyEntity.newBuilder(localSt1.getEntityBuilder()),
-            TopologyEntity.newBuilder(localSt2.getEntityBuilder()));
+        .pojoGraphOf(
+            TopologyEntity.newBuilder(copyAndAddLocalStorageAccesses(pm1InDc1, localSt1.getOid()).getTopologyEntityImpl()),
+            TopologyEntity.newBuilder(copyAndAddLocalStorageAccesses(pm2InDc1, localSt2.getOid()).getTopologyEntityImpl()),
+            TopologyEntity.newBuilder(pmInDc2.getTopologyEntityImpl()),
+            TopologyEntity.newBuilder(dc1.getTopologyEntityImpl()),
+            TopologyEntity.newBuilder(dc2.getTopologyEntityImpl()),
+            TopologyEntity.newBuilder(st1.getTopologyEntityImpl()),
+            TopologyEntity.newBuilder(st2.getTopologyEntityImpl()),
+            TopologyEntity.newBuilder(da1.getTopologyEntityImpl()),
+            TopologyEntity.newBuilder(vdcInDc1.getTopologyEntityImpl()),
+            TopologyEntity.newBuilder(localSt1.getTopologyEntityImpl()),
+            TopologyEntity.newBuilder(localSt2.getTopologyEntityImpl()));
 
     private TopologyEntity.Builder copyAndAddLocalStorageAccesses(TopologyEntity.Builder entity, long accesses) {
-        TopologyEntityDTO.Builder copy = entity.getEntityBuilder().build().toBuilder();
-        copy.addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(DS1).setAccesses(accesses));
+        TopologyEntityImpl copy = entity.getTopologyEntityImpl().copy();
+        copy.addCommoditySoldList(new CommoditySoldImpl().setCommodityType(DS1).setAccesses(accesses));
         return TopologyEntity.newBuilder(copy);
     }
 
@@ -792,7 +796,7 @@ public class PlanTopologyScopeEditorTest {
     @Before
     public void setup() {
         // Mark the pod as not movable on its volume provider and container not movable on its pod
-        pod1.getEntityBuilder().getCommoditiesBoughtFromProvidersBuilderList().stream()
+        pod1.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersImplList().stream()
             .filter(bought -> bought.getProviderId() == podVV.getOid())
             .findAny()
             .ifPresent(bought -> bought.setMovable(false));
@@ -800,7 +804,7 @@ public class PlanTopologyScopeEditorTest {
         planTopologyScopeEditor = new PlanTopologyScopeEditor(GroupServiceGrpc
             .newBlockingStub(grpcServer.getChannel()));
         graph = TopologyEntityUtils
-            .topologyGraphOf(bt, s1, s2, vmInUSEast, azUSEast, vvInUSEast, regionUSEast,
+            .pojoGraphOf(bt, s1, s2, vmInUSEast, azUSEast, vvInUSEast, regionUSEast,
                 bapp1, appc1, vm1InDc1, vm2InDc1, vm4InDc1, virtualVolume1, vmInDc2, virtualVolume, vdcInDc1, pm1InDc1,
                 pm2InDc1, pmInDc2, dc1, dc2, st1, st2, da1, as1,
                 as2, az1London, az2London, azOhio,
@@ -1031,7 +1035,7 @@ public class PlanTopologyScopeEditorTest {
                 .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("Cluster")
                         .setScopeObjectOid(25001L).setDisplayName("PM1 cluster/dc1").build()).build();
         // populate InvertedIndex
-        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
                 index = planTopologyScopeEditor.createInvertedIndex();
         graph.entities().forEach(entity -> index.add(entity));
         // scope using inverted index
@@ -1077,7 +1081,7 @@ public class PlanTopologyScopeEditorTest {
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("Cluster")
                                 .setScopeObjectOid(25001L).setDisplayName("PM cluster/dc1").build()).build();
         // populate InvertedIndex
-        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
                 index = planTopologyScopeEditor.createInvertedIndex();
         graph.entities().forEach(entity -> index.add(entity));
         // scope using inverted index
@@ -1112,16 +1116,16 @@ public class PlanTopologyScopeEditorTest {
         // st1 connected to PM1, PM2, and PM3. PM3 is same entity type as seed members PM1 and PM2
         // and should not be brought into scope and we should not pull in related entities of it
         // into scope.
-        pm1InDc1.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(st1.getOid());
-        pm2InDc1.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(st1.getOid());
-        pmInDc2.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(st1.getOid());
-        pmInDc2.getEntityBuilder().getCommoditySoldListBuilder(3).setAccesses(st2.getOid());
+        pm1InDc1.getTopologyEntityImpl().getCommoditySoldListImpl(2).setAccesses(st1.getOid());
+        pm2InDc1.getTopologyEntityImpl().getCommoditySoldListImpl(2).setAccesses(st1.getOid());
+        pmInDc2.getTopologyEntityImpl().getCommoditySoldListImpl(2).setAccesses(st1.getOid());
+        pmInDc2.getTopologyEntityImpl().getCommoditySoldListImpl(3).setAccesses(st2.getOid());
 
         // st2 connected only to PM3 and should not be brought into scope.
-        st1.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(pm1InDc1.getOid());
-        st1.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(pm2InDc1.getOid());
-        st1.getEntityBuilder().getCommoditySoldListBuilder(3).setAccesses(pmInDc2.getOid());
-        st2.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(pmInDc2.getOid());
+        st1.getTopologyEntityImpl().getCommoditySoldListImpl(2).setAccesses(pm1InDc1.getOid());
+        st1.getTopologyEntityImpl().getCommoditySoldListImpl(2).setAccesses(pm2InDc1.getOid());
+        st1.getTopologyEntityImpl().getCommoditySoldListImpl(3).setAccesses(pmInDc2.getOid());
+        st2.getTopologyEntityImpl().getCommoditySoldListImpl(2).setAccesses(pmInDc2.getOid());
 
         List<Grouping> groups = Arrays.asList(g);
         when(groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
@@ -1136,7 +1140,7 @@ public class PlanTopologyScopeEditorTest {
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("Cluster")
                                 .setScopeObjectOid(25001L).setDisplayName("PM cluster/dc1").build()).build();
         // populate InvertedIndex
-        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
                 index = planTopologyScopeEditor.createInvertedIndex();
         graph.entities().forEach(entity -> index.add(entity));
         // scope using inverted index
@@ -1148,15 +1152,15 @@ public class PlanTopologyScopeEditorTest {
     private static TopologyEntity.Builder createHypervisorHost(long oid,
                                                                String displayName,
                                                                EntityType entityType,
-                                                               Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> producers,
-                                                               List<TopologyDTO.CommodityType> soldComms,
+                                                               Map<Long, Pair<Integer, List<CommodityTypeView>>> producers,
+                                                               List<CommodityTypeView> soldComms,
                                                                List<Long> connectedStorages,
                                                                long... connectedEntities) {
         TopologyEntity.Builder entity = createHypervisorTopologyEntity(oid, displayName,
             entityType, producers, soldComms, connectedEntities);
-        connectedStorages.forEach(st -> entity.getEntityBuilder().addCommoditySoldList(
-            CommoditySoldDTO.newBuilder().setCommodityType(DATASTORE).setAccesses(st)));
-        entity.getEntityBuilder().setEnvironmentType(EnvironmentType.ON_PREM);
+        connectedStorages.forEach(st -> entity.getTopologyEntityImpl().addCommoditySoldList(
+            new CommoditySoldImpl().setCommodityType(DATASTORE).setAccesses(st)));
+        entity.getTopologyEntityImpl().setEnvironmentType(EnvironmentType.ON_PREM);
         return entity;
     }
 
@@ -1173,7 +1177,7 @@ public class PlanTopologyScopeEditorTest {
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("BusinessApplication")
                                 .setScopeObjectOid(80001L).setDisplayName("BusinessApplication1").build()).build();
         // populate InvertedIndex
-        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
                 index = planTopologyScopeEditor.createInvertedIndex();
         graph.entities().forEach(entity -> index.add(entity));
         // scope using inverted index
@@ -1197,7 +1201,7 @@ public class PlanTopologyScopeEditorTest {
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("Storage")
                                 .setScopeObjectOid(40002L).setDisplayName("Storage2").build()).build();
         // populate InvertedIndex
-        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
                 index = planTopologyScopeEditor.createInvertedIndex();
         graph.entities().forEach(entity -> index.add(entity));
         // scope using inverted index
@@ -1224,7 +1228,7 @@ public class PlanTopologyScopeEditorTest {
             .addScopeEntries(PlanScopeEntry.newBuilder()
                 .setScopeObjectOid(pm2InDc1.getOid())).build();
         // populate InvertedIndex
-        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
             index = planTopologyScopeEditor.createInvertedIndex();
         graph.entities().forEach(index::add);
         // scope using inverted index
@@ -1252,7 +1256,7 @@ public class PlanTopologyScopeEditorTest {
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("VirtualMachine")
                                 .setScopeObjectOid(30002L).setDisplayName("VM2").build()).build();
         // populate InvertedIndex
-        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
                 index = planTopologyScopeEditor.createInvertedIndex();
         graph.entities().forEach(entity -> index.add(entity));
         // scope using inverted index
@@ -1280,16 +1284,15 @@ public class PlanTopologyScopeEditorTest {
                 .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("VirtualMachine")
                         .setScopeObjectOid(originalVMOid).setDisplayName("VM2").build()).build();
         long cloneOid = 3456L;
-        TopologyEntity.Builder cloneOfVM1 =  TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder()
+        TopologyEntity.Builder cloneOfVM1 = TopologyEntityUtils.topologyEntityBuilder(new TopologyEntityImpl()
             .setOid(cloneOid)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .setOrigin(Origin.newBuilder()
-                    .setPlanScenarioOrigin(PlanScenarioOrigin.newBuilder().setPlanId(99))
-                .build()))
-            .setClonedFromEntity(vm2InDc1.getEntityBuilder());
-        TopologyGraph<TopologyEntity> graphWithClone = TopologyEntityUtils.topologyGraphOf(vm2InDc1, cloneOfVM1);
+            .setOrigin(new OriginImpl()
+                    .setPlanScenarioOrigin(new PlanScenarioOriginImpl().setPlanId(99))))
+            .setClonedFromEntity(vm2InDc1.getTopologyEntityImpl());
+        TopologyGraph<TopologyEntity> graphWithClone = TopologyEntityUtils.pojoGraphOf(vm2InDc1, cloneOfVM1);
         // populate InvertedIndex
-        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
                 index = planTopologyScopeEditor.createInvertedIndex();
         graphWithClone.entities().forEach(entity -> index.add(entity));
         // scope using inverted index
@@ -1318,16 +1321,15 @@ public class PlanTopologyScopeEditorTest {
                 .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("VirtualMachine")
                         .setScopeObjectOid(originalVMOid).setDisplayName("VM2").build()).build();
         long cloneOid = 3456L;
-        TopologyEntity.Builder cloneOfVM1 =  TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder()
+        TopologyEntity.Builder cloneOfVM1 =  TopologyEntityUtils.topologyEntityBuilder(new TopologyEntityImpl()
                 .setOid(cloneOid)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setOrigin(Origin.newBuilder()
-                        .setPlanScenarioOrigin(PlanScenarioOrigin.newBuilder().setPlanId(99))
-                        .build()))
-                .setClonedFromEntity(vm1InDc1.getEntityBuilder());
-        TopologyGraph<TopologyEntity> graphWithClone = TopologyEntityUtils.topologyGraphOf(vm2InDc1, cloneOfVM1, vm1InDc1);
+                .setOrigin(new OriginImpl()
+                        .setPlanScenarioOrigin(new PlanScenarioOriginImpl().setPlanId(99))))
+                .setClonedFromEntity(vm1InDc1.getTopologyEntityImpl());
+        TopologyGraph<TopologyEntity> graphWithClone = TopologyEntityUtils.pojoGraphOf(vm2InDc1, cloneOfVM1, vm1InDc1);
         // populate InvertedIndex
-        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
                 index = planTopologyScopeEditor.createInvertedIndex();
         graphWithClone.entities().forEach(entity -> index.add(entity));
         // scope using inverted index
@@ -1348,7 +1350,7 @@ public class PlanTopologyScopeEditorTest {
                 .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("ContainerPlatformCluster")
                         .setScopeObjectOid(cntCluster1.getOid()).setDisplayName("cntCluster1").build()).build();
         // populate InvertedIndex
-        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
                 index = planTopologyScopeEditor.createInvertedIndex();
         graph.entities().forEach(
                 entity -> index.add(entity)
@@ -1376,7 +1378,7 @@ public class PlanTopologyScopeEditorTest {
                 .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("ContainerPlatformCluster")
                         .setScopeObjectOid(cntClusterInAzure.getOid()).setDisplayName("cntClusterInAzure").build()).build();
         // populate InvertedIndex
-        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
                 index = planTopologyScopeEditor.createInvertedIndex();
         graph.entities().forEach(
                 entity -> index.add(entity)
@@ -1404,7 +1406,7 @@ public class PlanTopologyScopeEditorTest {
                 .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("VirtualMachine")
                         .setScopeObjectOid(kubeVm1InLondon.getOid()).setDisplayName("kubeVm1InLondon").build()).build();
         // populate InvertedIndex
-        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
                 index = planTopologyScopeEditor.createInvertedIndex();
         graph.entities().forEach(
                 entity -> index.add(entity)
@@ -1460,18 +1462,17 @@ public class PlanTopologyScopeEditorTest {
     private static TopologyEntity.Builder createHypervisorTopologyEntity(long oid,
                                                                          String displayName,
                                                                          EntityType entityType,
-                                                                         Map<Long, Pair<Integer, List<TopologyDTO.CommodityType>>> producers,
-                                                                         List<TopologyDTO.CommodityType> soldComms,
+                                                                         Map<Long, Pair<Integer, List<CommodityTypeView>>> producers,
+                                                                         List<CommodityTypeView> soldComms,
                                                                          long... connectedEntities) {
         TopologyEntity.Builder entity = TopologyEntityUtils.topologyEntity(oid, HYPERVISOR_TARGET, 0, displayName,
                 entityType, soldComms, producers);
-        entity.getEntityBuilder().setEnvironmentType(EnvironmentType.ON_PREM);
+        entity.getTopologyEntityImpl().setEnvironmentType(EnvironmentType.ON_PREM);
         Arrays.stream(connectedEntities).forEach(e ->
-            entity.getEntityBuilder()
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
+            entity.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
                         .setConnectedEntityId(e)
-                        .setConnectionType(ConnectionType.NORMAL_CONNECTION)
-                        .build()));
+                        .setConnectionType(ConnectionType.NORMAL_CONNECTION)));
         return entity;
     }
 
@@ -1484,7 +1485,7 @@ public class PlanTopologyScopeEditorTest {
         TopologyEntity.Builder builder = TopologyEntityUtils.connectedTopologyEntity(
                 oid, discoveringTargetId, lastUpdatedTime, displayName, entityType,
                 connectedToEntities);
-        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.ON_PREM);
+        builder.getTopologyEntityImpl().setEnvironmentType(EnvironmentType.ON_PREM);
         return builder;
     }
 
@@ -1521,7 +1522,7 @@ public class PlanTopologyScopeEditorTest {
             .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("Cluster")
                 .setScopeObjectOid(25001L).setDisplayName("PM cluster/dc1").build()).build();
         // populate InvertedIndex
-        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
             index = planTopologyScopeEditor.createInvertedIndex();
         emptyClusterGraph.entities().forEach(entity -> index.add(entity));
         // scope using inverted index
@@ -1537,8 +1538,8 @@ public class PlanTopologyScopeEditorTest {
             long targetId, long oid, String displayName,
             TopologyEntity.Builder... aggregatedEntities) {
         Arrays.stream(aggregatedEntities).forEach(e ->
-                e.getEntityBuilder().addConnectedEntityList(
-                        ConnectedEntity.newBuilder()
+                e.getTopologyEntityImpl().addConnectedEntityList(
+                        new ConnectedEntityImpl()
                                 .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                                 .setConnectedEntityId(oid)
                                 .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)));
@@ -1546,14 +1547,14 @@ public class PlanTopologyScopeEditorTest {
                                                            displayName, EntityType.AVAILABILITY_ZONE,
                                                            Collections.emptySet());
 
-        final ImmutableList.Builder<CommoditySoldDTO> commSoldList = ImmutableList.builder();
-        CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder().setCommodityType(
-                TopologyDTO.CommodityType.newBuilder().setType(CommodityType.ZONE_VALUE).setKey(displayName).build())
+        final ImmutableList.Builder<CommoditySoldView> commSoldList = ImmutableList.builder();
+        CommoditySoldImpl commoditySoldBuilder = new CommoditySoldImpl().setCommodityType(
+                new CommodityTypeImpl().setType(CommodityType.ZONE_VALUE).setKey(displayName))
                 .setActive(true);
-        commSoldList.add(commoditySoldBuilder.build());
-        builder.getEntityBuilder().addAllCommoditySoldList(commSoldList.build());
+        commSoldList.add(commoditySoldBuilder);
+        builder.getTopologyEntityImpl().addAllCommoditySoldList(commSoldList.build());
 
-        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        builder.getTopologyEntityImpl().setEnvironmentType(EnvironmentType.CLOUD);
         return builder;
     }
 
@@ -1561,14 +1562,14 @@ public class PlanTopologyScopeEditorTest {
                                                             long... connectedToEntities) {
         TopologyEntity.Builder builder = createCloudConnectedTopologyEntity(
                 targetId, oid, displayName, EntityType.COMPUTE_TIER);
-        final ImmutableList.Builder<CommoditySoldDTO> commSoldList = ImmutableList.builder();
-        CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder().setCommodityType(
-                TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_VALUE).setKey(displayName).build())
+        final ImmutableList.Builder<CommoditySoldView> commSoldList = ImmutableList.builder();
+        CommoditySoldImpl commoditySoldBuilder = new CommoditySoldImpl().setCommodityType(
+                new CommodityTypeImpl().setType(CommodityType.CPU_VALUE).setKey(displayName))
                 .setActive(true);
-        commSoldList.add(commoditySoldBuilder.build());
-        builder.getEntityBuilder().addAllCommoditySoldList(commSoldList.build());
+        commSoldList.add(commoditySoldBuilder);
+        builder.getTopologyEntityImpl().addAllCommoditySoldList(commSoldList.build());
 
-        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        builder.getTopologyEntityImpl().setEnvironmentType(EnvironmentType.CLOUD);
 
         return builder;
     }
@@ -1582,7 +1583,7 @@ public class PlanTopologyScopeEditorTest {
      */
     private static TopologyEntity.Builder addAggregatedByConnection(@Nonnull final TopologyEntity.Builder entity,
                                                                     final long aggregatorId) {
-        entity.getEntityBuilder().addConnectedEntityList(ConnectedEntity.newBuilder()
+        entity.getTopologyEntityImpl().addConnectedEntityList(new ConnectedEntityImpl()
             .setConnectedEntityId(aggregatorId)
             .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION));
 
@@ -1598,8 +1599,8 @@ public class PlanTopologyScopeEditorTest {
      */
     private static TopologyEntity.Builder addControlledByConnection(@Nonnull final TopologyEntity.Builder entity,
                                                                     final long controllerId) {
-        entity.getEntityBuilder().addConnectedEntityList(
-                ConnectedEntity.newBuilder()
+        entity.getTopologyEntityImpl().addConnectedEntityList(
+                new ConnectedEntityImpl()
                         .setConnectedEntityId(controllerId)
                         .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION));
         return entity;
@@ -1608,17 +1609,16 @@ public class PlanTopologyScopeEditorTest {
     private static TopologyEntity.Builder createOwner(
             long targetId, long oid, String displayName, EntityType entityType,
             TopologyEntity.Builder... ownedEntities) {
-        final Collection<ConnectedEntity> connectedEntities =
+        final Collection<ConnectedEntityView> connectedEntities =
                 Arrays.stream(ownedEntities)
-                        .map(e -> ConnectedEntity.newBuilder()
+                        .map(e -> new ConnectedEntityImpl()
                                 .setConnectedEntityId(e.getOid())
                                 .setConnectedEntityType(e.getEntityType())
-                                .setConnectionType(ConnectionType.OWNS_CONNECTION)
-                                .build())
+                                .setConnectionType(ConnectionType.OWNS_CONNECTION))
                         .collect(Collectors.toList());
         TopologyEntity.Builder builder = TopologyEntityUtils.connectedTopologyEntity(oid, targetId, 0,
                 displayName, entityType, connectedEntities);
-        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        builder.getTopologyEntityImpl().setEnvironmentType(EnvironmentType.CLOUD);
         return builder;
     }
 
@@ -1630,7 +1630,7 @@ public class PlanTopologyScopeEditorTest {
         TopologyEntity.Builder builder = TopologyEntityUtils.topologyEntity(
                 oid, discoveringTargetId, lastUpdatedTime,
                 entityType, producers);
-        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        builder.getTopologyEntityImpl().setEnvironmentType(EnvironmentType.CLOUD);
         return builder;
     }
 
@@ -1639,7 +1639,7 @@ public class PlanTopologyScopeEditorTest {
             long... connectedToEntities) {
         TopologyEntity.Builder builder = TopologyEntityUtils.connectedTopologyEntity(oid, targetId,
                 0, displayName, entityType, connectedToEntities);
-        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        builder.getTopologyEntityImpl().setEnvironmentType(EnvironmentType.CLOUD);
         return builder;
     }
 
@@ -1648,18 +1648,17 @@ public class PlanTopologyScopeEditorTest {
             Collection<TopologyEntity.Builder> availabilityZones,
             Collection<TopologyEntity.Builder> aggregatedEntities) {
 
-        final Collection<ConnectedEntity> connectedAvailabilityZones =
+        final Collection<ConnectedEntityView> connectedAvailabilityZones =
                 availabilityZones.stream()
-                    .map(e -> ConnectedEntity.newBuilder()
+                    .map(e -> new ConnectedEntityImpl()
                                     .setConnectedEntityId(e.getOid())
                                     .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
-                                    .setConnectionType(ConnectionType.OWNS_CONNECTION)
-                                    .build())
+                                    .setConnectionType(ConnectionType.OWNS_CONNECTION))
                     .collect(Collectors.toList());
 
         aggregatedEntities.forEach(e ->
-                e.getEntityBuilder().addConnectedEntityList(
-                    ConnectedEntity.newBuilder()
+                e.getTopologyEntityImpl().addConnectedEntityList(
+                    new ConnectedEntityImpl()
                         .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                         .setConnectedEntityId(oid)
                         .setConnectedEntityType(EntityType.REGION_VALUE)));
@@ -1667,7 +1666,7 @@ public class PlanTopologyScopeEditorTest {
         TopologyEntity.Builder builder = TopologyEntityUtils.connectedTopologyEntity(oid, targetId, 0,
                                                            displayName, EntityType.REGION,
                                                            connectedAvailabilityZones);
-        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        builder.getTopologyEntityImpl().setEnvironmentType(EnvironmentType.CLOUD);
         return builder;
     }
 
@@ -1682,7 +1681,7 @@ public class PlanTopologyScopeEditorTest {
     @Test
     public void testScopeCloudMigrationPlanOnPremToAwsRegion() throws Exception {
         final TopologyGraph<TopologyEntity> cloudMigrationGraph = TopologyEntityUtils
-            .topologyGraphOf(bapp1, appc1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
+            .pojoGraphOf(bapp1, appc1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
                 pm2InDc1, pmInDc2, dc1, dc2, hypervisorServer, st1, st2, da1, as1,
                 as2, az1London, az2London, azOhio,
                 az1HongKong, az2HongKong, regionLondon, regionOhio,
@@ -1739,11 +1738,11 @@ public class PlanTopologyScopeEditorTest {
             final long targetId,
             final long oid,
             final String displayName,
-            List<TopologyDTO.CommodityType> soldComms,
+            List<CommodityTypeView> soldComms,
             final long... volumeOids) {
         TopologyEntity.Builder builder = TopologyEntityUtils.topologyEntity(
                 oid, targetId, 0, displayName, EntityType.VIRTUAL_MACHINE, soldComms, volumeOids);
-        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        builder.getTopologyEntityImpl().setEnvironmentType(EnvironmentType.CLOUD);
         return builder;
     }
 
@@ -1754,45 +1753,44 @@ public class PlanTopologyScopeEditorTest {
             final long storageTierOid) {
         TopologyEntity.Builder builder = TopologyEntityUtils.topologyEntity(
                 oid, targetId, 0, displayName, EntityType.VIRTUAL_VOLUME, storageTierOid);
-        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        builder.getTopologyEntityImpl().setEnvironmentType(EnvironmentType.CLOUD);
         return builder;
     }
 
     private static TopologyEntity.Builder createKubeCloudVm (final long targetId,
                                                              final long oid, final String displayName,
-                                                            List<TopologyDTO.CommodityType> soldComms,
-                                                            Map<Long, List<TopologyDTO.CommodityType>> producers,
+                                                            List<CommodityTypeView> soldComms,
+                                                            Map<Long, List<CommodityTypeView>> producers,
                                                             final long... volumeOids) {
         TopologyEntity.Builder builder
                 = TopologyEntityUtils.topologyEntity(oid, targetId, 0, displayName,
                                                         EntityType.VIRTUAL_MACHINE, producers, soldComms);
         for (long producer : volumeOids) {
-            builder.getEntityBuilder()
-                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(producer)
-                    .build());
+            builder.getTopologyEntityImpl()
+                    .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
+                    .setProviderId(producer));
         }
-        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        builder.getTopologyEntityImpl().setEnvironmentType(EnvironmentType.CLOUD);
 
         return builder;
     }
 
     private static TopologyEntity.Builder createContainerCluster(
             long targetId, long oid, String displayName,
-            List<TopologyDTO.CommodityType> soldComms,
+            List<CommodityTypeView> soldComms,
             Collection<TopologyEntity.Builder> namespaces,
             Collection<TopologyEntity.Builder> aggregatedVms) {
 
         namespaces.forEach(e ->
-                e.getEntityBuilder().addConnectedEntityList(
-                        ConnectedEntity.newBuilder()
+                e.getTopologyEntityImpl().addConnectedEntityList(
+                        new ConnectedEntityImpl()
                                 .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                                 .setConnectedEntityId(oid)
                                 .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)));
 
         aggregatedVms.forEach(e ->
-                e.getEntityBuilder().addConnectedEntityList(
-                        ConnectedEntity.newBuilder()
+                e.getTopologyEntityImpl().addConnectedEntityList(
+                        new ConnectedEntityImpl()
                                 .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                                 .setConnectedEntityId(oid)
                                 .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)));
@@ -1804,15 +1802,15 @@ public class PlanTopologyScopeEditorTest {
 
     private static TopologyEntity.Builder createNamespace(
             long targetId, long oid, String displayName,
-            Map<Long, List<TopologyDTO.CommodityType>> commBoughtByNamespace,
-            List<TopologyDTO.CommodityType> soldComms,
+            Map<Long, List<CommodityTypeView>> commBoughtByNamespace,
+            List<CommodityTypeView> soldComms,
             Collection<TopologyEntity.Builder> aggregatedEntities) {
         TopologyEntity.Builder builder = TopologyEntityUtils.topologyEntity(oid, targetId, 0, displayName,
                 EntityType.NAMESPACE, commBoughtByNamespace, soldComms);
 
         aggregatedEntities.forEach(e ->
-                e.getEntityBuilder().addConnectedEntityList(
-                        ConnectedEntity.newBuilder()
+                e.getTopologyEntityImpl().addConnectedEntityList(
+                        new ConnectedEntityImpl()
                                 .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                                 .setConnectedEntityId(oid)
                                 .setConnectedEntityType(EntityType.NAMESPACE_VALUE)));
@@ -1821,27 +1819,25 @@ public class PlanTopologyScopeEditorTest {
 
     private static TopologyEntity.Builder createWorkloadControllers(
             long targetId, long oid, String displayName,
-            Map<Long, List<TopologyDTO.CommodityType>> commBoughtByWorkloadController,
-            List<TopologyDTO.CommodityType> soldComms,
+            Map<Long, List<CommodityTypeView>> commBoughtByWorkloadController,
+            List<CommodityTypeView> soldComms,
             Collection<TopologyEntity.Builder> ownedContainerSpecs) {
 
         TopologyEntity.Builder builder = TopologyEntityUtils.topologyEntity(oid, targetId, 0, displayName,
                 EntityType.WORKLOAD_CONTROLLER, commBoughtByWorkloadController, soldComms);
 
-        final Collection<ConnectedEntity> connectedContainerSpecs  =
+        final Collection<ConnectedEntityView> connectedContainerSpecs  =
                 ownedContainerSpecs.stream()
-                        .map(e -> ConnectedEntity.newBuilder()
+                        .map(e -> new ConnectedEntityImpl()
                                 .setConnectedEntityId(e.getOid())
                                 .setConnectedEntityType(EntityType.CONTAINER_SPEC_VALUE)
-                                .setConnectionType(ConnectionType.OWNS_CONNECTION)
-                                .build())
+                                .setConnectionType(ConnectionType.OWNS_CONNECTION))
                         .collect(Collectors.toList());
 
-        for (ConnectedEntity connectedEntity : connectedContainerSpecs) {
-            builder.getEntityBuilder().addConnectedEntityList(ConnectedEntity.newBuilder()
+        for (ConnectedEntityView connectedEntity : connectedContainerSpecs) {
+            builder.getTopologyEntityImpl().addConnectedEntityList(new ConnectedEntityImpl()
                     .setConnectedEntityId(connectedEntity.getConnectedEntityId())
-                    .setConnectionType(connectedEntity.getConnectionType())
-                    .build());
+                    .setConnectionType(connectedEntity.getConnectionType()));
         }
         return builder;
     }
@@ -1849,17 +1845,16 @@ public class PlanTopologyScopeEditorTest {
     private static TopologyEntity.Builder createCloudNativeTopologyEntity(long oid,
                                                                           String displayName,
                                                                           EntityType entityType,
-                                                                          Map<Long, List<TopologyDTO.CommodityType>> producers,
-                                                                          List<TopologyDTO.CommodityType> soldComms,
+                                                                          Map<Long, List<CommodityTypeView>> producers,
+                                                                          List<CommodityTypeView> soldComms,
                                                                           long... connectedEntities) {
         TopologyEntity.Builder entity = TopologyEntityUtils.topologyEntity(oid, CLOUD_NATIVE_TARGET, 0, displayName,
                 entityType, producers, soldComms);
         Arrays.stream(connectedEntities).forEach(e ->
-                entity.getEntityBuilder()
-                        .addConnectedEntityList(ConnectedEntity.newBuilder()
+                entity.getTopologyEntityImpl()
+                        .addConnectedEntityList(new ConnectedEntityImpl()
                                 .setConnectedEntityId(e)
-                                .setConnectionType(ConnectionType.NORMAL_CONNECTION)
-                                .build()));
+                                .setConnectionType(ConnectionType.NORMAL_CONNECTION)));
         return entity;
     }
 

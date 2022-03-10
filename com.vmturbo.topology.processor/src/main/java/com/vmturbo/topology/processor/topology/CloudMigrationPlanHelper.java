@@ -69,16 +69,18 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.HistoricalValuesImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualMachineInfoView;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
@@ -92,7 +94,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.processor.entity.EntityNotFoundException;
@@ -457,37 +458,37 @@ public class CloudMigrationPlanHelper {
                         + " for cloud migration.");
             }
             final TopologyEntity entity = optionalEntity.get();
-            final TopologyEntityDTO.Builder builder = entity.getTopologyEntityDtoBuilder();
+            final TopologyEntityImpl entityImpl = entity.getTopologyEntityImpl();
 
             // It could be overridden in settingsApplicator
-            builder.getAnalysisSettingsBuilder().setShopTogether(true);
+            entityImpl.getOrCreateAnalysisSettings().setShopTogether(true);
 
-            if (builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+            if (entityImpl.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
                 // Make sure VMs are always controllable. Some VMs are set to "not controllable"
                 // by the probe for reasons that may be applicable to real-time topology. We
                 // should still try to migrate these VMs in migration plan.
-                builder.getAnalysisSettingsBuilder().setControllable(true);
+                entityImpl.getOrCreateAnalysisSettings().setControllable(true);
 
                 // Analysis needs to treat the entity as if it's a cloud entity for purposes of
                 // applying template exclusions, obtaining pricing, etc.
-                if (builder.getEnvironmentType().equals(EnvironmentType.ON_PREM)) {
+                if (entityImpl.getEnvironmentType().equals(EnvironmentType.ON_PREM)) {
                     // Set environment type of associated virtual volumes of on-prem VMs to CLOUD.
                     // New on prem volume model is VM->VV, so VV comes as providers instead of
                     // getOutboundAssociatedEntities.
                     Stream.concat(entity.getProviders().stream(),
                             entity.getOutboundAssociatedEntities().stream())
                         .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
-                        .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                        .map(TopologyEntity::getTopologyEntityImpl)
                         .forEach(b -> b.setEnvironmentType(EnvironmentType.CLOUD));
-                    builder.setEnvironmentType(EnvironmentType.CLOUD);
-                } else if (builder.getEnvironmentType().equals(EnvironmentType.CLOUD)) {
-                    VirtualMachineInfo vmInfo = builder.getTypeSpecificInfo().getVirtualMachine();
+                    entityImpl.setEnvironmentType(EnvironmentType.CLOUD);
+                } else if (entityImpl.getEnvironmentType().equals(EnvironmentType.CLOUD)) {
+                    VirtualMachineInfoView vmInfo = entityImpl.getTypeSpecificInfo().getVirtualMachine();
 
                     // For Cloud to Cloud migrations, reset AHUB (Azure BYOL for Windows)
                     // to normal licensing so we respect the user's choice for migrating
                     // BYOL or not.
                     if (vmInfo.getLicenseModel() == LicenseModel.AHUB) {
-                        builder.getTypeSpecificInfoBuilder().getVirtualMachineBuilder()
+                        entityImpl.getOrCreateTypeSpecificInfo().getOrCreateVirtualMachine()
                             .setLicenseModel(LicenseModel.LICENSE_INCLUDED);
                     }
                 }
@@ -511,7 +512,7 @@ public class CloudMigrationPlanHelper {
          // Set state of all on-prem storage to POWERED_ON to ensure the storages traderTOs are sent
          // to the market.
          graph.entitiesOfType(STORAGE_VALUE).forEach(e ->
-                 e.getTopologyEntityDtoBuilder().setEntityState(EntityState.POWERED_ON));
+                 e.getTopologyEntityImpl().setEntityState(EntityState.POWERED_ON));
     }
 
     private void addNewBoughtCommodities(final TopologyEntity entity) {
@@ -526,19 +527,19 @@ public class CloudMigrationPlanHelper {
      * If we're processing a VM that has a diskToStorage map, it should buy the numDisk commodity
      * from it's PM provider.
      *
-     * @param vmBuilder corresponding to the entity in question
+     * @param vmEntityImpl corresponding to the entity in question
      * @param entityPropertyMap potentially containing StringConstants.NUM_VIRTUAL_DISKS
      * @return whether or not this entity should buy numDisk
      */
     public static boolean shouldBuyNumDisk(
-            @Nonnull final TopologyEntityDTO.Builder vmBuilder,
+            @Nonnull final TopologyEntityImpl vmEntityImpl,
             @Nonnull final Map<String, String> entityPropertyMap) {
-        Set<CommoditiesBoughtFromProvider> attachedVolumes = vmBuilder.getCommoditiesBoughtFromProvidersList().stream()
+        Set<CommoditiesBoughtFromProviderView> attachedVolumes = vmEntityImpl.getCommoditiesBoughtFromProvidersList().stream()
                 .filter(p -> p.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE).collect(Collectors.toSet());
         if (!entityPropertyMap.containsKey(StringConstants.NUM_VIRTUAL_DISKS) && attachedVolumes.isEmpty()) {
             return false;
         }
-        final boolean buysNumDisk = vmBuilder.getCommoditiesBoughtFromProvidersList().stream()
+        final boolean buysNumDisk = vmEntityImpl.getCommoditiesBoughtFromProvidersList().stream()
                 .flatMap(commBought -> commBought.getCommodityBoughtList().stream())
                 .anyMatch(boughtComm -> CommodityType.NUM_DISK_VALUE == boughtComm.getCommodityType().getType());
         return buysNumDisk ? false : true;
@@ -552,20 +553,20 @@ public class CloudMigrationPlanHelper {
      * @param entity the entity being migrated
      */
     private void addNumDiskCommodity(final TopologyEntity entity) {
-        final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
-        final Map<String, String> entityPropertyMap = entityBuilder.getEntityPropertyMapMap();
-        if (shouldBuyNumDisk(entityBuilder, entityPropertyMap)) {
+        final TopologyEntityImpl entityImpl = entity.getTopologyEntityImpl();
+        final Map<String, String> entityPropertyMap = entityImpl.getEntityPropertyMapMap();
+        if (shouldBuyNumDisk(entityImpl, entityPropertyMap)) {
             try {
-                Set<CommoditiesBoughtFromProvider> volumes = entityBuilder.getCommoditiesBoughtFromProvidersList()
+                Set<CommoditiesBoughtFromProviderView> volumes = entityImpl.getCommoditiesBoughtFromProvidersList()
                         .stream().filter(p -> p.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
                         .collect(Collectors.toSet());
                 double numDiskToBuy = volumes.size() > 0 ? volumes.size()
                         : Double.valueOf(entityPropertyMap.get(StringConstants.NUM_VIRTUAL_DISKS));
-                addNumDiskBoughtCommodity(entityBuilder, numDiskToBuy);
+                addNumDiskBoughtCommodity(entityImpl, numDiskToBuy);
             } catch (NumberFormatException e) {
                 logger.error("Error converting numVirtualDisks from entityPropertyMap in "
                         + "cloud migration plan. Placement of {} ({}) may be disk capacity unaware.",
-                        entityBuilder.getDisplayName(), entityBuilder.getOid());
+                        entityImpl.getDisplayName(), entityImpl.getOid());
             }
         }
     }
@@ -573,15 +574,15 @@ public class CloudMigrationPlanHelper {
     /**
      * Add a numDisk bought commodity.
      *
-     * @param vmBuilder the builder correspondint to the VM being processed
+     * @param vmEntityImpl the entity corresponding to the VM being processed
      * @param numDisksToBuy the numDisk used value
      */
     private void addNumDiskBoughtCommodity(
-            @Nonnull final TopologyEntityDTO.Builder vmBuilder,
+            @Nonnull final TopologyEntityImpl vmEntityImpl,
             final double numDisksToBuy) {
-        final List<CommoditiesBoughtFromProvider> originalCommBoughtGroupings =
-                vmBuilder.getCommoditiesBoughtFromProvidersList();
-        final List<CommoditiesBoughtFromProvider> newCommBoughtGroupings = Lists.newArrayList();
+        final List<CommoditiesBoughtFromProviderView> originalCommBoughtGroupings =
+                vmEntityImpl.getCommoditiesBoughtFromProvidersList();
+        final List<CommoditiesBoughtFromProviderView> newCommBoughtGroupings = Lists.newArrayList();
 
         final Set<Integer> computeProviders = ImmutableSet.of(
                 EntityType.PHYSICAL_MACHINE_VALUE,
@@ -589,22 +590,20 @@ public class CloudMigrationPlanHelper {
 
         originalCommBoughtGroupings.forEach(commoditiesBoughtFromProvider -> {
             if (computeProviders.contains(commoditiesBoughtFromProvider.getProviderEntityType())) {
-                CommoditiesBoughtFromProvider newCommoditiesBoughtFromProvider =
-                        CommoditiesBoughtFromProvider.newBuilder(commoditiesBoughtFromProvider)
-                                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                CommoditiesBoughtFromProviderView newCommoditiesBoughtFromProvider =
+                        new CommoditiesBoughtFromProviderImpl(commoditiesBoughtFromProvider)
+                                .addCommodityBought(new CommodityBoughtImpl()
+                                        .setCommodityType(new CommodityTypeImpl()
                                                 .setType(CommodityDTO.CommodityType.NUM_DISK_VALUE))
-                                        .setUsed(numDisksToBuy)
-                                        .build())
-                                .build();
+                                        .setUsed(numDisksToBuy));
                 newCommBoughtGroupings.add(newCommoditiesBoughtFromProvider);
             } else {
                 newCommBoughtGroupings.add(commoditiesBoughtFromProvider);
             }
         });
 
-        vmBuilder.clearCommoditiesBoughtFromProviders();
-        vmBuilder.addAllCommoditiesBoughtFromProviders(newCommBoughtGroupings);
+        vmEntityImpl.clearCommoditiesBoughtFromProviders();
+        vmEntityImpl.addAllCommoditiesBoughtFromProviders(newCommBoughtGroupings);
     }
 
     /**
@@ -697,10 +696,10 @@ public class CloudMigrationPlanHelper {
             return;
         }
 
-        final TopologyEntityDTO.Builder vmBuilder = vm.getTopologyEntityDtoBuilder();
-        final List<CommoditiesBoughtFromProvider> originalCommBoughtGroupings =
-                vmBuilder.getCommoditiesBoughtFromProvidersList();
-        final List<CommoditiesBoughtFromProvider> newCommBoughtGroupings = Lists.newArrayList();
+        final TopologyEntityImpl vmEntityImpl = vm.getTopologyEntityImpl();
+        final List<CommoditiesBoughtFromProviderView> originalCommBoughtGroupings =
+                vmEntityImpl.getCommoditiesBoughtFromProvidersList();
+        final List<CommoditiesBoughtFromProviderView> newCommBoughtGroupings = Lists.newArrayList();
 
         originalCommBoughtGroupings.forEach(commoditiesBoughtFromProvider -> {
             // first, verify that we're dealing with a compute provider, and that this VM isn't
@@ -709,23 +708,21 @@ public class CloudMigrationPlanHelper {
                 && !commoditiesBoughtFromProvider.getCommodityBoughtList().stream()
                         .anyMatch(commodityBoughtDTO -> CommodityType.COUPON_VALUE == commodityBoughtDTO.getCommodityType().getType())) {
                 //Add CouponCommodity
-                CommoditiesBoughtFromProvider newCommoditiesBoughtFromProvider =
-                        CommoditiesBoughtFromProvider.newBuilder(commoditiesBoughtFromProvider)
-                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(
-                                        CommodityType.COUPON_VALUE).build())
+                CommoditiesBoughtFromProviderView newCommoditiesBoughtFromProvider =
+                        new CommoditiesBoughtFromProviderImpl(commoditiesBoughtFromProvider)
+                        .addCommodityBought(new CommodityBoughtImpl()
+                                .setCommodityType(new CommodityTypeImpl().setType(
+                                        CommodityType.COUPON_VALUE))
                                 .setPeak(0)
-                                .setUsed(0)
-                                .build())
-                        .build();
+                                .setUsed(0));
                 newCommBoughtGroupings.add(newCommoditiesBoughtFromProvider);
             } else {
                 newCommBoughtGroupings.add(commoditiesBoughtFromProvider);
             }
         });
 
-        vmBuilder.clearCommoditiesBoughtFromProviders();
-        vmBuilder.addAllCommoditiesBoughtFromProviders(newCommBoughtGroupings);
+        vmEntityImpl.clearCommoditiesBoughtFromProviders();
+        vmEntityImpl.addAllCommoditiesBoughtFromProviders(newCommBoughtGroupings);
     }
 
     /**
@@ -767,14 +764,14 @@ public class CloudMigrationPlanHelper {
                                                         @Nonnull Set<EntityType> providerTypes,
                                                         @Nonnull CommodityType commodityType,
                                                         @Nonnull OsType osType) {
-        TopologyEntityDTO.Builder vmBuilder = vm.getTopologyEntityDtoBuilder();
+        TopologyEntityImpl vmEntityImpl = vm.getTopologyEntityImpl();
 
-        List<CommoditiesBoughtFromProvider> originalCommBoughtGroupings =
-                vmBuilder.getCommoditiesBoughtFromProvidersList();
-        List<CommoditiesBoughtFromProvider> newCommBoughtGroupings = new ArrayList<>();
+        List<CommoditiesBoughtFromProviderView> originalCommBoughtGroupings =
+                vmEntityImpl.getCommoditiesBoughtFromProvidersList();
+        List<CommoditiesBoughtFromProviderView> newCommBoughtGroupings = new ArrayList<>();
         boolean updated = false;
 
-        for (CommoditiesBoughtFromProvider commBoughtGrouping : originalCommBoughtGroupings) {
+        for (CommoditiesBoughtFromProviderView commBoughtGrouping : originalCommBoughtGroupings) {
             if (providerTypes.contains(EntityType.forNumber(
                     commBoughtGrouping.getProviderEntityType()))) {
                 // Bought commodity key will be like 'Linux' which is what compute tier sells.
@@ -790,14 +787,14 @@ public class CloudMigrationPlanHelper {
             // Do clear at the end once we know we need to do it, otherwise in some cases,
             // when scoped to DC etc., original commodity list becomes empty, it is probably
             // affected by whether build() has been called on it or not.
-            vmBuilder.clearCommoditiesBoughtFromProviders();
-            vmBuilder.addAllCommoditiesBoughtFromProviders(newCommBoughtGroupings);
+            vmEntityImpl.clearCommoditiesBoughtFromProviders();
+            vmEntityImpl.addAllCommoditiesBoughtFromProviders(newCommBoughtGroupings);
 
             // We are storing the DTO equivalent 'OSType' in the property, that is read from TC.
-            vmBuilder.putEntityPropertyMap(StringConstants.PLAN_NEW_OS_TYPE_PROPERTY,
+            vmEntityImpl.putEntityPropertyMap(StringConstants.PLAN_NEW_OS_TYPE_PROPERTY,
                     osType.getDtoOS().name());
             // Set display name for OS type for projected entities.
-            vmBuilder.putEntityPropertyMap(StringConstants.PLAN_NEW_OS_NAME_PROPERTY,
+            vmEntityImpl.putEntityPropertyMap(StringConstants.PLAN_NEW_OS_NAME_PROPERTY,
                     osType.getDisplayName());
         }
     }
@@ -810,43 +807,43 @@ public class CloudMigrationPlanHelper {
      * @param newKey Key of access commodity.
      * @return Updated commBoughtGrouping with key added.
      */
-    private CommoditiesBoughtFromProvider updateAccessCommodityKey(
-            @Nonnull CommoditiesBoughtFromProvider commoditiesBoughtFromProvider,
+    private CommoditiesBoughtFromProviderView updateAccessCommodityKey(
+            @Nonnull CommoditiesBoughtFromProviderView commoditiesBoughtFromProvider,
             @Nonnull CommodityType commodityType,
             @Nonnull String newKey) {
 
-        CommoditiesBoughtFromProvider.Builder newCommoditiesBoughtFromProviderBuilder
-                = commoditiesBoughtFromProvider.toBuilder().clearCommodityBought();
+        CommoditiesBoughtFromProviderImpl newCommoditiesBoughtFromProvider
+                = commoditiesBoughtFromProvider.copy().clearCommodityBought();
 
         boolean foundCommodity = false;
 
-        for (CommodityBoughtDTO commodityBought
+        for (CommodityBoughtView commodityBought
                 : commoditiesBoughtFromProvider.getCommodityBoughtList()) {
 
             // If this is the commodity type we're looking to change, rebuild it with the new key
             if (commodityBought.getCommodityType().getType() == commodityType.getNumber()) {
-                commodityBought = commodityBought.toBuilder().setCommodityType(
-                        commodityBought.getCommodityType().toBuilder().setKey(newKey)
-                ).build();
+                commodityBought = commodityBought.copy().setCommodityType(
+                        commodityBought.getCommodityType().copy().setKey(newKey)
+                );
 
                 foundCommodity = true;
             }
 
-            newCommoditiesBoughtFromProviderBuilder.addCommodityBought(commodityBought);
+            newCommoditiesBoughtFromProvider.addCommodityBought(commodityBought);
         }
 
         if (!foundCommodity) {
             // Add commodity since it wasn't present
-            newCommoditiesBoughtFromProviderBuilder.addCommodityBought(
-                    CommodityBoughtDTO.newBuilder().setCommodityType(
-                            TopologyDTO.CommodityType.newBuilder()
+            newCommoditiesBoughtFromProvider.addCommodityBought(
+                    new CommodityBoughtImpl().setCommodityType(
+                            new CommodityTypeImpl()
                                     .setType(commodityType.getNumber())
                                     .setKey(newKey)
                     )
             );
         }
 
-        return newCommoditiesBoughtFromProviderBuilder.build();
+        return newCommoditiesBoughtFromProvider;
     }
 
     /**
@@ -870,15 +867,15 @@ public class CloudMigrationPlanHelper {
                 .stream()
                 .flatMap(graph::entitiesOfType)
                 .forEach(entity -> {
-                    TopologyEntityDTO.Builder providerDtoBuilder = entity.getTopologyEntityDtoBuilder();
+                    TopologyEntityImpl providerEntityImpl = entity.getTopologyEntityImpl();
                     final EntityType providerType = EntityType.forNumber(
-                            providerDtoBuilder.getEntityType());
+                            providerEntityImpl.getEntityType());
 
                     // Set suspendable false, so we don't see suspend actions for these providers.
-                    providerDtoBuilder.getAnalysisSettingsBuilder().setSuspendable(false);
+                    providerEntityImpl.getOrCreateAnalysisSettings().setSuspendable(false);
                     // Regardless of real time setting, override controllable true for VV ST Tier
                     // and PM, controllable false for DC, LP and DA.
-                    providerDtoBuilder.getAnalysisSettingsBuilder()
+                    providerEntityImpl.getOrCreateAnalysisSettings()
                             .setControllable(!NON_CONTROLLABLE_PROVIDER_TYPES.contains(providerType));
 
 
@@ -886,7 +883,7 @@ public class CloudMigrationPlanHelper {
                         // Need to set movable/scalable true for provider commBought.
                         prepareBoughtCommodities(entity, topologyInfo,
                                 sourceToProducerToMaxStorageAccess, isDestinationAws, false, graph);
-                        prepareSoldCommodities(providerDtoBuilder, providerToMaxStorageAccessMap);
+                        prepareSoldCommodities(providerEntityImpl, providerToMaxStorageAccessMap);
                     }
                 });
     }
@@ -896,30 +893,30 @@ public class CloudMigrationPlanHelper {
      * that capacity is set to high value if it is found to be 0. This is needed so entity
      * validator stage later doesn't make the provider non-controllable.
      *
-     * @param dtoBuilder Provider DTO being updated.
+     * @param entityImpl Provider entity being updated.
      * @param providerToMaxStorageAccessMap A map that maps provider to historical Max IOPS
      */
-    void prepareSoldCommodities(@Nonnull final TopologyEntityDTO.Builder dtoBuilder,
+    void prepareSoldCommodities(@Nonnull final TopologyEntityImpl entityImpl,
                                 @Nonnull final Map<Long, Double> providerToMaxStorageAccessMap) {
-        if (dtoBuilder.getEntityType() == VIRTUAL_VOLUME_VALUE) {
-            dtoBuilder.getCommoditySoldListBuilderList().stream()
+        if (entityImpl.getEntityType() == VIRTUAL_VOLUME_VALUE) {
+            entityImpl.getCommoditySoldListImplList().stream()
                     .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE)
-                    .forEach(c -> updateStorageAccessSoldCommodity(c, dtoBuilder.getOid(),
+                    .forEach(c -> updateStorageAccessSoldCommodity(c, entityImpl.getOid(),
                             providerToMaxStorageAccessMap));
-            dtoBuilder.getCommoditySoldListBuilderList().stream()
+            entityImpl.getCommoditySoldListImplList().stream()
                     .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE)
                     .forEach(c -> {
                         // Set volume's storage amount used to be the adjusted value.
                         // On prem volume will have the storage provisioned used as the adjusted value.
                         // It will be visible to the user in the volume mapping widget under "current" column.
-                        Double adjustedStAmt = volumeToStorageAmountMap.get(dtoBuilder.getOid());
+                        Double adjustedStAmt = volumeToStorageAmountMap.get(entityImpl.getOid());
                         if (adjustedStAmt != null) {
                             c.setUsed(adjustedStAmt);
                             c.setPeak(adjustedStAmt);
-                            c.setHistoricalUsed(HistoricalValues.newBuilder()
-                                    .setHistUtilization(adjustedStAmt).build());
-                            c.setHistoricalPeak(HistoricalValues.newBuilder()
-                                    .setHistUtilization(adjustedStAmt).build());
+                            c.setHistoricalUsed(new HistoricalValuesImpl()
+                                    .setHistUtilization(adjustedStAmt));
+                            c.setHistoricalPeak(new HistoricalValuesImpl()
+                                    .setHistUtilization(adjustedStAmt));
                         }
                     });
         }
@@ -930,14 +927,14 @@ public class CloudMigrationPlanHelper {
      * Also make sure storage access capacity does not exceed max amount for AWS GP2 and Azure
      * Managed Premium for Lift and Shift plan.
      *
-     * @param commSoldBuilder storage access commodity sold builder
+     * @param commSoldImpl storage access commodity sold pojo
      * @param providerOid OID of the provider for the volume shopping list
      * @param providerToMaxStorageAccessMap A map that maps provider to historical Max IOPS
      */
-    private void updateStorageAccessSoldCommodity(final CommoditySoldDTO.Builder commSoldBuilder,
+    private void updateStorageAccessSoldCommodity(final CommoditySoldImpl commSoldImpl,
                                                   final long providerOid,
                                                   @Nonnull final Map<Long, Double> providerToMaxStorageAccessMap) {
-        if (commSoldBuilder.getCommodityType().getType() != CommodityType.STORAGE_ACCESS_VALUE) {
+        if (commSoldImpl.getCommodityType().getType() != CommodityType.STORAGE_ACCESS_VALUE) {
             return;
         }
         // Set historical max IOPS value in the commodity sold value.
@@ -946,12 +943,12 @@ public class CloudMigrationPlanHelper {
             // Make sure historical max value is larger than 0 because TC will use the
             // capacity instead of the used value if value is 0.
             histMaxIops = Math.max(0.1, histMaxIops);
-            commSoldBuilder.setUsed(histMaxIops);
-            commSoldBuilder.setPeak(histMaxIops);
-            commSoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
-                    .setHistUtilization(histMaxIops).build());
-            commSoldBuilder.setHistoricalPeak(HistoricalValues.newBuilder()
-                    .setHistUtilization(histMaxIops).build());
+            commSoldImpl.setUsed(histMaxIops);
+            commSoldImpl.setPeak(histMaxIops);
+            commSoldImpl.setHistoricalUsed(new HistoricalValuesImpl()
+                    .setHistUtilization(histMaxIops));
+            commSoldImpl.setHistoricalPeak(new HistoricalValuesImpl()
+                    .setHistUtilization(histMaxIops));
         }
     }
 
@@ -986,16 +983,16 @@ public class CloudMigrationPlanHelper {
                                   boolean isDestinationAws,
                                   boolean isConsumer,
                                   TopologyGraph<TopologyEntity> graph) {
-        final TopologyEntityDTO.Builder dtoBuilder = entity.getTopologyEntityDtoBuilder();
-        EntityType entityType = EntityType.forNumber(dtoBuilder.getEntityType());
-        List<CommoditiesBoughtFromProvider> newCommoditiesByProvider = new ArrayList<>();
+        final TopologyEntityImpl topologyEntityImpl = entity.getTopologyEntityImpl();
+        EntityType entityType = EntityType.forNumber(topologyEntityImpl.getEntityType());
+        List<CommoditiesBoughtFromProviderView> newCommoditiesByProvider = new ArrayList<>();
         // Go over grouping of comm bought along with their providers.
-        for (CommoditiesBoughtFromProvider commBoughtGrouping
-                : dtoBuilder.getCommoditiesBoughtFromProvidersList()) {
+        for (CommoditiesBoughtFromProviderView commBoughtGrouping
+                : topologyEntityImpl.getCommoditiesBoughtFromProvidersList()) {
 
             // We need to skip some on-prem specific commodities bought to allow cloud migration.
-            List<CommodityBoughtDTO> commoditiesToInclude = getUpdatedCommBought(
-                    commBoughtGrouping, topologyInfo, dtoBuilder, sourceToProducerToMaxStorageAccess, isDestinationAws, isConsumer);
+            List<CommodityBoughtView> commoditiesToInclude = getUpdatedCommBought(
+                    commBoughtGrouping, topologyInfo, topologyEntityImpl, sourceToProducerToMaxStorageAccess, isDestinationAws, isConsumer);
             if (commoditiesToInclude.size() == 0) {
                 // Don't keep this group if there are no valid bought commodities from it.
                 continue;
@@ -1004,8 +1001,8 @@ public class CloudMigrationPlanHelper {
                 // Under some conditions, the comm bought list needs to be skipped.
                 continue;
             }
-            CommoditiesBoughtFromProvider.Builder newCommBoughtGrouping =
-                    CommoditiesBoughtFromProvider.newBuilder(commBoughtGrouping);
+            CommoditiesBoughtFromProviderImpl newCommBoughtGrouping =
+                    new CommoditiesBoughtFromProviderImpl(commBoughtGrouping);
             newCommBoughtGrouping.clearCommodityBought();
             newCommBoughtGrouping.addAllCommodityBought(commoditiesToInclude);
 
@@ -1027,10 +1024,10 @@ public class CloudMigrationPlanHelper {
                         .setMovable(true)
                         .setScalable(true);
             }
-            newCommoditiesByProvider.add(newCommBoughtGrouping.build());
+            newCommoditiesByProvider.add(newCommBoughtGrouping);
         }
-        dtoBuilder.clearCommoditiesBoughtFromProviders();
-        dtoBuilder.addAllCommoditiesBoughtFromProviders(newCommoditiesByProvider);
+        topologyEntityImpl.clearCommoditiesBoughtFromProviders();
+        topologyEntityImpl.addAllCommoditiesBoughtFromProviders(newCommoditiesByProvider);
     }
 
     /**
@@ -1049,20 +1046,20 @@ public class CloudMigrationPlanHelper {
      */
     private static boolean shouldSkipCommboughtGrpForMigration(TopologyGraph<TopologyEntity> graph,
             TopologyEntity entity,
-            CommoditiesBoughtFromProvider commoditiesBoughtFromProvider) {
-        final TopologyEntityDTO.Builder dtoBuilder = entity.getTopologyEntityDtoBuilder();
+            CommoditiesBoughtFromProviderView commoditiesBoughtFromProvider) {
+        final TopologyEntityImpl entityImpl = entity.getTopologyEntityImpl();
         // Skip the commoditiesBoughtFromProvider if its provider is a configuration volume.
-        if (isConfigurationVolume(dtoBuilder)) {
+        if (isConfigurationVolume(entityImpl)) {
             return true;
         }
         // Skip the commoditiesBoughtFromProvider if the dto is a vm that buys from a configuration
         // volume.
-        if (dtoBuilder.getEntityType() == VIRTUAL_MACHINE_VALUE && commoditiesBoughtFromProvider
+        if (entityImpl.getEntityType() == VIRTUAL_MACHINE_VALUE && commoditiesBoughtFromProvider
                 .hasProviderId()) {
             Optional<TopologyEntity> optionalEntity = graph.getEntity(commoditiesBoughtFromProvider
                     .getProviderId());
             if (optionalEntity.isPresent() && isConfigurationVolume(optionalEntity.get()
-                    .getTopologyEntityDtoBuilder())) {
+                    .getTopologyEntityImpl())) {
                 return true;
             }
         }
@@ -1084,7 +1081,7 @@ public class CloudMigrationPlanHelper {
      * or does not connected to volumes of the VM; false otherwise.
      */
     private static boolean isCommBoughtFromStorageWithNoVolume(@Nonnull final TopologyEntity entity,
-            @Nonnull final CommoditiesBoughtFromProvider commBoughtGrouping) {
+            @Nonnull final CommoditiesBoughtFromProviderView commBoughtGrouping) {
         if (entity.getEntityType() == VIRTUAL_MACHINE_VALUE
                 && commBoughtGrouping.hasProviderEntityType()
                 && commBoughtGrouping.getProviderEntityType() == STORAGE_VALUE) {
@@ -1118,7 +1115,7 @@ public class CloudMigrationPlanHelper {
      *
      * @param commBoughtGrouping Grouping to look for commBoughtDTO in.
      * @param topologyInfo Plan topology info.
-     * @param dtoBuilder entity builder
+     * @param entity entity pojo
      * @param sourceToProducerToMaxStorageAccess a structure mapping entities to max historical
      * StorageAccess bought
      * @param isDestinationAws boolean that indicates if destination is AWS
@@ -1128,36 +1125,34 @@ public class CloudMigrationPlanHelper {
      */
     @Nonnull
     @VisibleForTesting
-    List<CommodityBoughtDTO> getUpdatedCommBought(
-            @Nonnull final CommoditiesBoughtFromProvider commBoughtGrouping,
+    List<CommodityBoughtView> getUpdatedCommBought(
+            @Nonnull final CommoditiesBoughtFromProviderView commBoughtGrouping,
             @Nonnull final TopologyInfo topologyInfo,
-            final TopologyEntityDTO.Builder dtoBuilder,
+            final TopologyEntityImpl entity,
             @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
             boolean isDestinationAws,
             boolean isConsumer) {
-        List<CommodityBoughtDTO> commoditiesToInclude = new ArrayList<>();
-        Long entityOid = dtoBuilder.getOid();
+        List<CommodityBoughtView> commoditiesToInclude = new ArrayList<>();
+        Long entityOid = entity.getOid();
         boolean isComputeTierCommList = commBoughtGrouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE;
-        for (CommodityBoughtDTO dtoBought : commBoughtGrouping.getCommodityBoughtList()) {
-            CommodityType commodityType = CommodityType.forNumber(dtoBought
+        for (CommodityBoughtView bought : commBoughtGrouping.getCommodityBoughtList()) {
+            CommodityType commodityType = CommodityType.forNumber(bought
                     .getCommodityType().getType());
             // Skip any commodities from the known set or if it is an access commodity
             // (with keys)
             if (COMMODITIES_TO_SKIP.contains(commodityType)
-                    || dtoBought.getCommodityType().hasKey()) {
+                    || bought.getCommodityType().hasKey()) {
                 continue;
             }
             if (commodityType == CommodityType.IO_THROUGHPUT
                     || commodityType == CommodityType.STORAGE_PROVISIONED) {
                 // Disable the IO_THROUGHPUT and STORAGE_PROVISIONED commodity because it is not
                 // used in migration decision.
-                CommodityBoughtDTO dtoBoughtUpdated = CommodityBoughtDTO
-                        .newBuilder(dtoBought)
-                        .setActive(false)
-                        .build();
-                commoditiesToInclude.add(dtoBoughtUpdated);
+                CommodityBoughtView commBoughtUpdated = new CommodityBoughtImpl(bought)
+                        .setActive(false);
+                commoditiesToInclude.add(commBoughtUpdated);
             } else if (commodityType == CommodityType.STORAGE_ACCESS) {
-                final CommodityBoughtDTO.Builder commodityBoughtDTO;
+                final CommodityBoughtImpl commodityBought;
                 if (isConsumer) {
                     if (isComputeTierCommList) {
                         // Azure compute tier supports Compute IOPS.
@@ -1166,11 +1161,11 @@ public class CloudMigrationPlanHelper {
                     }
                     double historicalMaxIOP = getHistoricalMaxIOPSValue(commBoughtGrouping, entityOid,
                             sourceToProducerToMaxStorageAccess);
-                    commodityBoughtDTO = getHistoricalMaxIOPS(dtoBought, historicalMaxIOP);
+                    commodityBought = getHistoricalMaxIOPS(bought, historicalMaxIOP);
                 } else {
-                    commodityBoughtDTO = dtoBought.toBuilder();
+                    commodityBought = bought.copy();
                 }
-                commoditiesToInclude.add(commodityBoughtDTO.build());
+                commoditiesToInclude.add(commodityBought);
             } else if (commodityType == CommodityType.STORAGE_AMOUNT) {
                 if (isConsumer) {
                     float storageAmountInMB;
@@ -1185,33 +1180,31 @@ public class CloudMigrationPlanHelper {
                     }
                     // Make sure storage amount is non-zero.
                     storageAmountInMB = Math.max(1, storageAmountInMB);
-                    CommodityBoughtDTO storageAmountCommodity = dtoBought.toBuilder()
+                    CommodityBoughtView storageAmountCommodity = bought.copy()
                             .setUsed(storageAmountInMB)
-                            .setPeak(storageAmountInMB)
-                            .build();
+                            .setPeak(storageAmountInMB);
                     commoditiesToInclude.add(storageAmountCommodity);
-                    volumeToStorageAmountMap.put(dtoBuilder.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE
+                    volumeToStorageAmountMap.put(entity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE
                             ? entityOid : commBoughtGrouping.getProviderId(), storageAmountCommodity.getUsed());
                 } else {
                     if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)
-                            && dtoBuilder.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+                            && entity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
                         // Provider entity of VM commodity is a volume. Set the storage amount the same
                         // value as the VM commodity bought value.
                         Double storageAmount = volumeToStorageAmountMap.get(entityOid);
                         if (storageAmount != null) {
-                            commoditiesToInclude.add(dtoBought.toBuilder()
+                            commoditiesToInclude.add(bought.copy()
                                     .setUsed(storageAmount)
-                                    .setPeak(storageAmount)
-                                    .build());
+                                    .setPeak(storageAmount));
                         } else {
-                            commoditiesToInclude.add(dtoBought);
+                            commoditiesToInclude.add(bought);
                         }
                     } else {
-                        commoditiesToInclude.add(dtoBought);
+                        commoditiesToInclude.add(bought);
                     }
                 }
             } else {
-                commoditiesToInclude.add(dtoBought);
+                commoditiesToInclude.add(bought);
             }
         }
         return commoditiesToInclude;
@@ -1224,15 +1217,15 @@ public class CloudMigrationPlanHelper {
      * @param histMaxIOPS the maximum StorageAccess bought value of the last 30 days
      * @return the updated storage access commodity DTO
      */
-    static CommodityBoughtDTO.Builder getHistoricalMaxIOPS(
-            @Nonnull CommodityBoughtDTO commodityBoughtDTO,
+    static CommodityBoughtImpl getHistoricalMaxIOPS(
+            @Nonnull CommodityBoughtView commodityBoughtDTO,
             double histMaxIOPS) {
-        CommodityBoughtDTO.Builder commodityBoughtBuilder = commodityBoughtDTO.toBuilder();
-        commodityBoughtBuilder.setUsed(histMaxIOPS);
-        commodityBoughtBuilder.setPeak(histMaxIOPS);
-        commodityBoughtBuilder.setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(histMaxIOPS).build());
-        commodityBoughtBuilder.setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(histMaxIOPS).build());
-        return commodityBoughtBuilder;
+        CommodityBoughtImpl commodityBought = commodityBoughtDTO.copy();
+        commodityBought.setUsed(histMaxIOPS);
+        commodityBought.setPeak(histMaxIOPS);
+        commodityBought.setHistoricalUsed(new HistoricalValuesImpl().setHistUtilization(histMaxIOPS));
+        commodityBought.setHistoricalPeak(new HistoricalValuesImpl().setHistUtilization(histMaxIOPS));
+        return commodityBought;
     }
 
     /**
@@ -1242,9 +1235,9 @@ public class CloudMigrationPlanHelper {
      * @return storage provisioned used in MB
      */
     private float getStorageProvisionedAmount(
-            @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL) {
-        List<CommodityBoughtDTO> commodityList = commBoughtGroupingForSL.getCommodityBoughtList();
-        Optional<CommodityBoughtDTO> storageProvisionCommodityBoughtOpt = commodityList.stream()
+            @Nonnull final CommoditiesBoughtFromProviderView commBoughtGroupingForSL) {
+        List<CommodityBoughtView> commodityList = commBoughtGroupingForSL.getCommodityBoughtList();
+        Optional<CommodityBoughtView> storageProvisionCommodityBoughtOpt = commodityList.stream()
                 .filter(s -> s.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE)
                 .findAny();
 
@@ -1261,7 +1254,7 @@ public class CloudMigrationPlanHelper {
      * @return storage amount commodity, value in MB
      */
     private float getStorageAmountForLiftAndShift(
-            @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL,
+            @Nonnull final CommoditiesBoughtFromProviderView commBoughtGroupingForSL,
             boolean isDestinationAws) {
         float diskSizeInMB = getStorageProvisionedAmount(commBoughtGroupingForSL);
 
@@ -1282,7 +1275,7 @@ public class CloudMigrationPlanHelper {
 
     @Nonnull
     private Double getHistoricalMaxIOPSValue(
-            @Nonnull final CommoditiesBoughtFromProvider commBoughtGrouping,
+            @Nonnull final CommoditiesBoughtFromProviderView commBoughtGrouping,
             final long entityOid,
             @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess) {
         // Use historical max value for storage access.
@@ -1292,8 +1285,8 @@ public class CloudMigrationPlanHelper {
             maxHistoricalIopsBoughtValue = producerToMaxHistoricalIops.get(commBoughtGrouping.getProviderId());
             if (maxHistoricalIopsBoughtValue == null) {
                 // If we don't have historical max value from database, use the peak value.
-                List<CommodityBoughtDTO> commodityList = commBoughtGrouping.getCommodityBoughtList();
-                Optional<CommodityBoughtDTO> iopsCommodityBoughtOpt = commodityList.stream()
+                List<CommodityBoughtView> commodityList = commBoughtGrouping.getCommodityBoughtList();
+                Optional<CommodityBoughtView> iopsCommodityBoughtOpt = commodityList.stream()
                         .filter(s -> s.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE)
                         .findAny();
                 if (iopsCommodityBoughtOpt.isPresent() && iopsCommodityBoughtOpt.get().hasPeak()) {
@@ -1322,7 +1315,7 @@ public class CloudMigrationPlanHelper {
     private boolean includeCloudStorageTier(@Nonnull final TopologyEntity cloudStorageTier,
                                                   @Nonnull final TopologyInfo topologyInfo) {
         // Don't see another way to get storage type, other than looking at display name.
-        String storageType = cloudStorageTier.getTopologyEntityDtoBuilder().getDisplayName();
+        String storageType = cloudStorageTier.getTopologyEntityImpl().getDisplayName();
         if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
             // Optimized plan (with resize enabled). We are skipping HDD/SSD etc, so
             // need to return false in those cases.
@@ -1389,21 +1382,21 @@ public class CloudMigrationPlanHelper {
                 .stream()
                 .map(EntityType::forNumber)
                 .collect(Collectors.toSet());
-        final Long2ObjectMap<Builder> resultEntityMap = new Long2ObjectOpenHashMap<>();
+        final Long2ObjectMap<TopologyEntity.Builder> resultEntityMap = new Long2ObjectOpenHashMap<>();
         for (EntityType type : allEntityTypes) {
             Set<TopologyEntity> filteredEntities = filteredEntityByType.get(type);
             if (filteredEntities != null) {
                 // Only pick up entities that are in source scope.
                 resultEntityMap.putAll(filteredEntities
                         .stream()
-                        .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                        .collect(Collectors.toMap(TopologyEntityDTO.Builder::getOid,
+                        .map(TopologyEntity::getTopologyEntityImpl)
+                        .collect(Collectors.toMap(TopologyEntityImpl::getOid,
                                 TopologyEntity::newBuilder)));
             } else {
                 // Pick all entities of this type as-is.
                 resultEntityMap.putAll(graph.entitiesOfType(type)
-                        .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                        .collect(Collectors.toMap(TopologyEntityDTO.Builder::getOid,
+                        .map(TopologyEntity::getTopologyEntityImpl)
+                        .collect(Collectors.toMap(TopologyEntityImpl::getOid,
                                 TopologyEntity::newBuilder)));
             }
         }
@@ -1613,8 +1606,8 @@ public class CloudMigrationPlanHelper {
                                     + " workload source entity " + workloadId));
                     // Get provider type (PM or ComputeTier) for this workload.
                     EntityType providerType = PHYSICAL_MACHINE;
-                    for (CommoditiesBoughtFromProvider commBought
-                            : workload.getTopologyEntityDtoBuilder()
+                    for (CommoditiesBoughtFromProviderView commBought
+                            : workload.getTopologyEntityImpl()
                             .getCommoditiesBoughtFromProvidersList()) {
                         EntityType eachProviderType = EntityType.forNumber(commBought
                                 .getProviderEntityType());
@@ -1657,9 +1650,9 @@ public class CloudMigrationPlanHelper {
             .filter(e -> e.getEntityType() == VIRTUAL_VOLUME_VALUE)
             .forEach(volume -> {
                 addVolumeConnections(volumesByStorageType, volume,
-                        volume.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList(),
-                        CommoditiesBoughtFromProvider::getProviderEntityType,
-                        CommoditiesBoughtFromProvider::getProviderId,
+                        volume.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList(),
+                        CommoditiesBoughtFromProviderView::getProviderEntityType,
+                        CommoditiesBoughtFromProviderView::getProviderId,
                         storageIds);
                 addVolumeConnections(volumesByStorageType, volume,
                         volume.getOutboundAssociatedEntities(),
@@ -1672,7 +1665,7 @@ public class CloudMigrationPlanHelper {
 
     private static <T> void addVolumeConnections(
                     Map<EntityType, List<MigrationReference>> volumesByStorageType,
-                    TopologyEntity volume, List<T> associatedEntities,
+            TopologyEntity volume, List<T> associatedEntities,
                     Function<T, Integer> typeExtractor,
                     Function<T, Long> oidExtractor,
                     Set<Long> storageIds) {
@@ -1884,12 +1877,12 @@ public class CloudMigrationPlanHelper {
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .filter(entity -> {
-                        if (!entity.getTopologyEntityDtoBuilder().hasTypeSpecificInfo()
-                                || !entity.getTopologyEntityDtoBuilder().getTypeSpecificInfo()
+                        if (!entity.getTopologyEntityImpl().hasTypeSpecificInfo()
+                                || !entity.getTopologyEntityImpl().getTypeSpecificInfo()
                                 .hasVirtualMachine()) {
                             return false;
                         }
-                        final VirtualMachineInfo vmInfo = entity.getTopologyEntityDtoBuilder()
+                        final VirtualMachineInfoView vmInfo = entity.getTopologyEntityImpl()
                                 .getTypeSpecificInfo().getVirtualMachine();
                         if (!vmInfo.hasGuestOsInfo()) {
                             return false;

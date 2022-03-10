@@ -10,11 +10,12 @@ import java.util.stream.Stream;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
@@ -51,105 +52,105 @@ public class GuestLoadAppPostStitchingOperationTest {
     @Before
     public void setup() {
         final TopologyEntity.Builder guestLoadApp1 = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(appOid1)
                 .setDisplayName("GuestLoad[vm1]")
                 .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .putEntityPropertyMap(
                     GuestLoadAppPostStitchingOperation.APPLICATION_TYPE_PATH,
                     SupplyChainConstants.GUEST_LOAD)
-                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                     .setProviderId(vmOid1)
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .addCommodityBought(new CommodityBoughtImpl()
+                        .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityType.VCPU_VALUE))
                         .setUsed(150))
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .addCommodityBought(new CommodityBoughtImpl()
+                        .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityType.VMEM_VALUE))
                         .setUsed(300))
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .addCommodityBought(new CommodityBoughtImpl()
+                        .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityType.VSTORAGE_VALUE)
                             .setKey("VirtualMachine::123"))
                         .setUsed(1000))
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .addCommodityBought(new CommodityBoughtImpl()
+                        .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityType.VSTORAGE_VALUE)
                             .setKey("VirtualMachine::456"))
                         .setUsed(1500))
                 ));
 
         final TopologyEntity.Builder realApp1 = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(appOid2)
                 .setDisplayName("RealApp")
                 .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
-                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                     .setProviderId(vmOid1)
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .addCommodityBought(new CommodityBoughtImpl()
+                        .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityType.VCPU_VALUE))
                         .setUsed(250))
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .addCommodityBought(new CommodityBoughtImpl()
+                        .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityType.VMEM_VALUE))
                         .setUsed(400))
                 ));
 
         final TopologyEntity.Builder vm1 = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(vmOid1)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                .addCommoditySoldList(new CommoditySoldImpl()
+                    .setCommodityType(new CommodityTypeImpl()
                         .setType(CommodityType.VCPU_VALUE))
                     .setUsed(300))
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                .addCommoditySoldList(new CommoditySoldImpl()
+                    .setCommodityType(new CommodityTypeImpl()
                         .setType(CommodityType.VMEM_VALUE))
                     .setUsed(500))
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                .addCommoditySoldList(new CommoditySoldImpl()
+                    .setCommodityType(new CommodityTypeImpl()
                         .setType(CommodityType.VSTORAGE_VALUE)
                         .setKey("VirtualMachine::123"))
                     .setUsed(1000))
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                .addCommoditySoldList(new CommoditySoldImpl()
+                    .setCommodityType(new CommodityTypeImpl()
                         .setType(CommodityType.VSTORAGE_VALUE)
                         .setKey("VirtualMachine::456"))
                     .setUsed(1500))
         );
 
         final TopologyEntity.Builder guestLoadApp2 = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(appOid3)
                 .setDisplayName("GuestLoad[vm2]")
                 .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .putEntityPropertyMap(
                     GuestLoadAppPostStitchingOperation.APPLICATION_TYPE_PATH,
                     SupplyChainConstants.GUEST_LOAD)
-                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                     .setProviderId(vmOid2)
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .addCommodityBought(new CommodityBoughtImpl()
+                        .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityType.VCPU_VALUE))
                         .setUsed(200))
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .addCommodityBought(new CommodityBoughtImpl()
+                        .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityType.VMEM_VALUE))
                         .setUsed(400))));
 
         final TopologyEntity.Builder vm2 = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(vmOid2)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                .addCommoditySoldList(new CommoditySoldImpl()
+                    .setCommodityType(new CommodityTypeImpl()
                         .setType(CommodityType.VCPU_VALUE))
                     .setUsed(200))
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                .addCommoditySoldList(new CommoditySoldImpl()
+                    .setCommodityType(new CommodityTypeImpl()
                         .setType(CommodityType.VMEM_VALUE))
                     .setUsed(400)));
 
@@ -210,10 +211,10 @@ public class GuestLoadAppPostStitchingOperationTest {
      */
     private void verifyBoughtCommodityUsed(TopologyEntity entity, long providerId,
                                            Integer commodityType, String key, Double used) {
-        List<CommodityBoughtDTO.Builder> commodity = entity.getTopologyEntityDtoBuilder()
-            .getCommoditiesBoughtFromProvidersBuilderList().stream()
+        List<CommodityBoughtView> commodity = entity.getTopologyEntityImpl()
+            .getCommoditiesBoughtFromProvidersList().stream()
             .filter(cb -> cb.getProviderId() == providerId)
-            .flatMap(cb -> cb.getCommodityBoughtBuilderList().stream())
+            .flatMap(cb -> cb.getCommodityBoughtList().stream())
             .filter(comm -> comm.getCommodityType().getType() == commodityType)
             .filter(comm -> comm.getCommodityType().getKey().equals(key))
             .collect(Collectors.toList());

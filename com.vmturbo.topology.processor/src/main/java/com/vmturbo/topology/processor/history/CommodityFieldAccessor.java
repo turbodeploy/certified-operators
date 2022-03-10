@@ -21,13 +21,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl.ThresholdsImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.HistoricalValuesImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.UtilizationDataView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntityCommodityReference;
@@ -71,8 +71,8 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
     /**
      * Get the builder for a sold commodity from entity builder by field reference.
      */
-    public static final BiFunction<EntityCommodityReference, TopologyEntityDTO.Builder, CommoditySoldDTO.Builder> SOLD_BUILDER_EXTRACTOR =
-            (f, dto) -> dto.getCommoditySoldListBuilderList().stream()
+    public static final BiFunction<EntityCommodityReference, TopologyEntityImpl, CommoditySoldImpl> SOLD_BUILDER_EXTRACTOR =
+            (f, dto) -> dto.getCommoditySoldListImplList().stream()
             .filter(commBuilder -> commBuilder.hasCommodityType() && commBuilder
                 .getCommodityType()
                 .equals(f.getCommodityType()))
@@ -80,11 +80,11 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
     /**
      * Get the builder for a bought commodity from entity builder by field reference.
      */
-    public static final BiFunction<EntityCommodityReference, TopologyEntityDTO.Builder, CommodityBoughtDTO.Builder> BOUGHT_BUILDER_EXTRACTOR =
-            (f, dto) -> dto.getCommoditiesBoughtFromProvidersBuilderList().stream()
+    public static final BiFunction<EntityCommodityReference, TopologyEntityImpl, CommodityBoughtImpl> BOUGHT_BUILDER_EXTRACTOR =
+            (f, dto) -> dto.getCommoditiesBoughtFromProvidersImplList().stream()
                 .filter(fromProvider -> Objects.equal(f.getProviderOid(), fromProvider.getProviderId()))
                 .findAny()
-                .map(fromProvider -> fromProvider.getCommodityBoughtBuilderList().stream())
+                .map(fromProvider -> fromProvider.getCommodityBoughtImplList().stream())
                 .orElseGet(Stream::empty)
                 .filter(commBuilder -> commBuilder.hasCommodityType() && commBuilder
                     .getCommodityType()
@@ -94,8 +94,8 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
     private final TopologyGraph<TopologyEntity> graph;
     // speed up the look up of entities' commodities builders in the dtos
     // queries are multi-threaded
-    private final Map<EntityCommodityReference, CommoditySoldDTO.Builder> soldBuilders = new ConcurrentHashMap<>();
-    private final Map<EntityCommodityReference, CommodityBoughtDTO.Builder> boughtBuilders = new ConcurrentHashMap<>();
+    private final Map<EntityCommodityReference, CommoditySoldImpl> soldBuilders = new ConcurrentHashMap<>();
+    private final Map<EntityCommodityReference, CommodityBoughtImpl> boughtBuilders = new ConcurrentHashMap<>();
     private final Map<String, Integer> updateStatistics = new ConcurrentHashMap<>();
 
     /**
@@ -111,15 +111,15 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
     @Nullable
     public Double getRealTimeValue(@Nonnull EntityCommodityFieldReference field) {
         if (field.getProviderOid() == null) {
-            Optional<CommoditySoldDTO.Builder> soldBuilder =
-                           getCommodityBuilder(soldBuilders, field,
+            Optional<CommoditySoldImpl> soldBuilder =
+                           getCommodityImpl(soldBuilders, field,
                                                SOLD_BUILDER_EXTRACTOR);
             return soldBuilder
                    .map(b -> field.getField().getSoldValue().apply(soldBuilder.get()))
                    .orElse(null);
         } else {
-            Optional<CommodityBoughtDTO.Builder> boughtBuilder =
-                           getCommodityBuilder(boughtBuilders, field,
+            Optional<CommodityBoughtImpl> boughtBuilder =
+                           getCommodityImpl(boughtBuilders, field,
                                                BOUGHT_BUILDER_EXTRACTOR);
             return boughtBuilder
                    .map(b -> field.getField().getBoughtValue().apply(boughtBuilder.get()))
@@ -131,28 +131,28 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
     @Nullable
     public Double getCapacity(@Nonnull EntityCommodityReference commRef) {
         if (commRef.getProviderOid() == null) {
-            return getCommodityBuilder(soldBuilders, commRef, SOLD_BUILDER_EXTRACTOR)
-                    .map(CommoditySoldDTO.Builder::getCapacity).orElse(null);
+            return getCommodityImpl(soldBuilders, commRef, SOLD_BUILDER_EXTRACTOR)
+                    .map(CommoditySoldImpl::getCapacity).orElse(null);
         } else {
             EntityCommodityReference providerRef = new EntityCommodityReference(commRef
                             .getProviderOid(), commRef.getCommodityType(), null);
-            return getCommodityBuilder(soldBuilders, providerRef, SOLD_BUILDER_EXTRACTOR)
-                    .map(CommoditySoldDTO.Builder::getCapacity).orElse(null);
+            return getCommodityImpl(soldBuilders, providerRef, SOLD_BUILDER_EXTRACTOR)
+                    .map(CommoditySoldImpl::getCapacity).orElse(null);
         }
     }
 
     @Override
-    public UtilizationData getUtilizationData(@Nonnull EntityCommodityReference commRef) {
+    public UtilizationDataView getUtilizationData(@Nonnull EntityCommodityReference commRef) {
         if (commRef.getProviderOid() == null) {
-            return getCommodityBuilder(soldBuilders, commRef, SOLD_BUILDER_EXTRACTOR)
+            return getCommodityImpl(soldBuilders, commRef, SOLD_BUILDER_EXTRACTOR)
                     .map(builder -> builder.hasUtilizationData()
-                                    ? builder.getUtilizationData()
+                                    ? builder.getOrCreateUtilizationData()
                                     : null)
                     .orElse(null);
         } else {
-            return getCommodityBuilder(boughtBuilders, commRef, BOUGHT_BUILDER_EXTRACTOR)
+            return getCommodityImpl(boughtBuilders, commRef, BOUGHT_BUILDER_EXTRACTOR)
                     .map(builder -> builder.hasUtilizationData()
-                                    ? builder.getUtilizationData()
+                                    ? builder.getOrCreateUtilizationData()
                                     : null)
                     .orElse(null);
         }
@@ -161,29 +161,29 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
     @Override
     public void clearUtilizationData(@Nonnull EntityCommodityReference commRef) {
         if (commRef.getProviderOid() == null) {
-            getCommodityBuilder(soldBuilders, commRef, SOLD_BUILDER_EXTRACTOR)
-                            .map(CommoditySoldDTO.Builder::clearUtilizationData);
+            getCommodityImpl(soldBuilders, commRef, SOLD_BUILDER_EXTRACTOR)
+                            .map(CommoditySoldImpl::clearUtilizationData);
         } else {
-            getCommodityBuilder(boughtBuilders, commRef, BOUGHT_BUILDER_EXTRACTOR)
-                            .map(CommodityBoughtDTO.Builder::clearUtilizationData);
+            getCommodityImpl(boughtBuilders, commRef, BOUGHT_BUILDER_EXTRACTOR)
+                            .map(CommodityBoughtImpl::clearUtilizationData);
         }
     }
 
     @Override
     public void updateHistoryValue(@Nonnull EntityCommodityFieldReference field,
-                                   @Nonnull Consumer<HistoricalValues.Builder> setter,
+                                   @Nonnull Consumer<HistoricalValuesImpl> setter,
                                    @Nonnull String description) {
         if (field.getProviderOid() == null) {
-            Optional<CommoditySoldDTO.Builder> soldBuilder =
-                                           getCommodityBuilder(soldBuilders, field,
+            Optional<CommoditySoldImpl> soldCommodityImpl =
+                                           getCommodityImpl(soldBuilders, field,
                                                                SOLD_BUILDER_EXTRACTOR);
-            applyIfPresent(soldBuilder
-                               .map(b -> field.getField().getSoldBuilder().apply(soldBuilder.get()))
+            applyIfPresent(soldCommodityImpl
+                               .map(b -> field.getField().getSoldBuilder().apply(soldCommodityImpl.get()))
                                .orElse(null),
                            setter);
         } else {
-            Optional<CommodityBoughtDTO.Builder> boughtBuilder =
-                                           getCommodityBuilder(boughtBuilders, field,
+            Optional<CommodityBoughtImpl> boughtBuilder =
+                                           getCommodityImpl(boughtBuilders, field,
                                                                BOUGHT_BUILDER_EXTRACTOR);
             applyIfPresent(boughtBuilder
                                .map(b -> field.getField().getBoughtBuilder().apply(boughtBuilder.get()))
@@ -195,14 +195,14 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
 
     @Override
     public void updateThresholds(@Nonnull EntityCommodityReference commRef,
-                                 @Nonnull Consumer<Thresholds.Builder> setter,
+                                 @Nonnull Consumer<ThresholdsImpl> setter,
                                  @Nonnull String description) {
         if (commRef.getProviderOid() == null) {
-            Optional<CommoditySoldDTO.Builder> soldBuilder =
-                                           getCommodityBuilder(soldBuilders, commRef,
+            Optional<CommoditySoldImpl> soldBuilder =
+                                           getCommodityImpl(soldBuilders, commRef,
                                                                SOLD_BUILDER_EXTRACTOR);
             applyIfPresent(soldBuilder
-                               .map(b -> soldBuilder.get().getThresholdsBuilder())
+                               .map(b -> soldBuilder.get().getOrCreateThresholds())
                                .orElse(null),
                            setter);
 
@@ -222,7 +222,7 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
     public Long getLastUpdatedTime(@Nonnull EntityCommodityReference commRef) {
         return graph.getEntity(commRef.getEntityOid())
             .flatMap(TopologyEntity::getDiscoveryOrigin)
-            .map(DiscoveryOrigin::getLastUpdatedTime)
+            .map(DiscoveryOriginView::getLastUpdatedTime)
             .orElse(null);
     }
 
@@ -239,9 +239,9 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
 
     @Nonnull
     private <T>
-           Optional<T> getCommodityBuilder(@Nonnull Map<EntityCommodityReference, T> buildersMap,
+           Optional<T> getCommodityImpl(@Nonnull Map<EntityCommodityReference, T> buildersMap,
                        @Nonnull EntityCommodityReference field,
-                       @Nonnull BiFunction<EntityCommodityReference, TopologyEntityDTO.Builder, T> builderGetter) {
+                       @Nonnull BiFunction<EntityCommodityReference, TopologyEntityImpl, T> builderGetter) {
         Optional<TopologyEntity> entity = graph.getEntity(field.getEntityOid());
         if (!entity.isPresent()) {
             logger.debug("Attempting to locate a missing entity: " + field);
@@ -249,7 +249,7 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
         }
         T builder = buildersMap
                         .computeIfAbsent(field, ref -> builderGetter
-                                        .apply(field, entity.get().getTopologyEntityDtoBuilder()));
+                                        .apply(field, entity.get().getTopologyEntityImpl()));
         if (builder == null) {
             logger.debug("Attempting to locate a missing commodity: " + field);
             return Optional.empty();
@@ -261,7 +261,7 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
     public void applyInsufficientHistoricalDataPolicy(@Nonnull EntityCommodityReference commRef) {
         if (commRef.getProviderOid() == null) {
             // Disable resize on comm sold (disables resize on-prem)
-            getCommodityBuilder(soldBuilders, commRef, SOLD_BUILDER_EXTRACTOR)
+            getCommodityImpl(soldBuilders, commRef, SOLD_BUILDER_EXTRACTOR)
                             .ifPresent(builder -> builder.setIsResizeable(false));
             Optional<TopologyEntity> entity = graph.getEntity(commRef.getEntityOid());
             // Disable scalable on all comm bought groupings (disables scaling actions in cloud)
@@ -270,8 +270,8 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
             // On all entities we scale today with multiple comm bought groupings, we only actually
             //  generate scale actions on one of them, so disabling scaling on all of them is fine.
             if (!checkEntityScalability(entity)) {
-                entity.ifPresent(e -> e.getTopologyEntityDtoBuilder()
-                        .getCommoditiesBoughtFromProvidersBuilderList()
+                entity.ifPresent(e -> e.getTopologyEntityImpl()
+                        .getCommoditiesBoughtFromProvidersImplList()
                         .forEach(commBoughtGroup -> commBoughtGroup.setScalable(false)));
             }
         }
@@ -293,18 +293,18 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
         if (entity.get().getEnvironmentType() != EnvironmentType.CLOUD) {
             return false;
         }
-        TopologyEntityDTO.Builder entityBuilder = entity.get().getTopologyEntityDtoBuilder();
+        TopologyEntityImpl entityImpl = entity.get().getTopologyEntityImpl();
         // The given entity's CommoditiesBoughtFromProviders should still be scalable if any one of
         // the resizable commodity sold is resizable. For example, when a cloud VM has VCPU resizable
         // but VMEM not resizable, scale actions should still be generated based on VCPU. When a cloud
         // VM has both VCPU and VMEM not resizable, the entire entity should not generate scale actions.
         Set<CommodityType> commTypes = entityTypeToPercentileCommSoldMap.get(EntityType
-                .forNumber(entityBuilder.getEntityType()));
+                .forNumber(entityImpl.getEntityType()));
         final Set<Integer> resizeCommoditySoldSet = commTypes != null ? commTypes.stream()
                 .map(ct -> ct.getNumber()).collect(Collectors.toSet()) : entityTypeToPercentileCommSoldMap
                 .getOrDefault(EntityType.UNKNOWN, Sets.newHashSet()).stream().map(ct -> ct.getNumber())
                 .collect(Collectors.toSet());
-        return entityBuilder.getCommoditySoldListBuilderList().stream().filter(cs
+        return entityImpl.getCommoditySoldListList().stream().filter(cs
                     -> resizeCommoditySoldSet.contains(cs.getCommodityType().getType()))
                     .anyMatch(cs -> cs.getIsResizeable());
     }

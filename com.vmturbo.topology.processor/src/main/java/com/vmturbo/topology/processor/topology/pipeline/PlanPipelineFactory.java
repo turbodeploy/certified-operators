@@ -10,6 +10,7 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.EntityOids;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,8 +24,6 @@ import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinitionBuilder
 import com.vmturbo.components.common.pipeline.SegmentStage.SegmentDefinition;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.repository.api.RepositoryClient;
-import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingConfig;
@@ -97,7 +96,7 @@ import common.HealthCheck.HealthState;
  *
  * <p>Users should not instantiate plan {@link TopologyPipeline}s themselves. Instead, they should
  * use the appropriately configured pipelines provided by this factory - e.g.
- * {@link PlanPipelineFactory#planOverLiveTopology(TopologyInfo, List, PlanScope, StitchingJournalFactory)}.
+ * {@link PlanPipelineFactory#planOverLiveTopology(TopologyInfo, List, PlanScope, Map, StitchingJournalFactory)}.
  */
 public class PlanPipelineFactory {
     private static final Logger logger = LogManager.getLogger();
@@ -266,11 +265,13 @@ public class PlanPipelineFactory {
         PipelineDefinitionBuilder<EntityStore, TopologyBroadcastInfo, EntityStore, TopologyPipelineContext> topoPipelineBuilder =
             PipelineDefinition.newBuilder(context);
         topoPipelineBuilder.initialContextMember(TopologyPipelineContextMembers.GROUP_RESOLVER,
-            () -> new GroupResolver(searchResolver, groupServiceClient, searchFilterResolver))
-            .initialContextMember(TopologyPipelineContextMembers.STITCHING_JOURNAL_CONTAINER,
-                StitchingJournalContainer::new);
+            () -> new GroupResolver(searchResolver, groupServiceClient, searchFilterResolver));
+        if (!constructTopologyStageCache.isEmpty()) {
+            topoPipelineBuilder.initialContextMember(TopologyPipelineContextMembers.STITCHING_JOURNAL_CONTAINER,
+                    StitchingJournalContainer::new);
+        }
 
-        PipelineDefinitionBuilder<EntityStore, TopologyBroadcastInfo, Map<Long, Builder>, TopologyPipelineContext> builderContinuation;
+        PipelineDefinitionBuilder<EntityStore, TopologyBroadcastInfo, Map<Long, TopologyEntity.Builder>, TopologyPipelineContext> builderContinuation;
         if (constructTopologyStageCache.isEmpty()) {
             builderContinuation = topoPipelineBuilder
                 .addStage(new StitchingStage(stitchingManager, journalFactory,

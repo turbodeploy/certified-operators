@@ -52,15 +52,15 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ConnectedEntityImpl;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -335,8 +335,8 @@ public class PlanTopologyScopeEditor {
                         .filter(e -> discoveredBy(e, targetIds)),
                 graph.entitiesOfType(BUSINESS_ACCOUNT_VALUE))
                 .distinct()
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder)));
+                .map(TopologyEntity::getTopologyEntityImpl)
+                .collect(Collectors.toMap(TopologyEntityImpl::getOid, TopologyEntity::newBuilder)));
     }
 
     /**
@@ -403,12 +403,11 @@ public class PlanTopologyScopeEditor {
                     .map(hypervisorServersByTargetId::get)
                     .filter(Objects::nonNull)
                     .forEach(hvs -> {
-                        vm.getTopologyEntityDtoBuilder().addConnectedEntityList(
-                            ConnectedEntity.newBuilder()
+                        vm.getTopologyEntityImpl().addConnectedEntityList(
+                            new ConnectedEntityImpl()
                                 .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                                 .setConnectedEntityId(hvs.getOid())
-                                .setConnectedEntityType(hvs.getEntityType())
-                                .build());
+                                .setConnectedEntityType(hvs.getEntityType()));
                     });
             });
 
@@ -416,8 +415,8 @@ public class PlanTopologyScopeEditor {
         resultEntityMap.putAll(allEntities
                 .stream()
                 .filter(e -> discoveredBy(e, targetIds))
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder)));
+                .map(TopologyEntity::getTopologyEntityImpl)
+                .collect(Collectors.toMap(TopologyEntityImpl::getOid, TopologyEntity::newBuilder)));
     }
 
     /**
@@ -426,7 +425,7 @@ public class PlanTopologyScopeEditor {
      * @return newly created {@link InvertedIndex}
      **/
     public InvertedIndex<TopologyEntity,
-            TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> createInvertedIndex() {
+            CommoditiesBoughtFromProviderView> createInvertedIndex() {
         // create an instance of the InvertedIndex
         return new InvertedIndex(32, new TopologyInvertedIndexTranslator());
     }
@@ -450,7 +449,7 @@ public class PlanTopologyScopeEditor {
      * @throws GroupResolutionException if the pipeline has errors.
      **/
     public TopologyGraph<TopologyEntity> indexBasedScoping(
-            @Nonnull final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> index,
+            @Nonnull final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView> index,
             @Nonnull TopologyInfo topologyInfo,
             @Nonnull final TopologyGraph<TopologyEntity> topology,
             @Nonnull final GroupResolver groupResolver,
@@ -579,7 +578,7 @@ public class PlanTopologyScopeEditor {
             // so revert back to fetching storage tiers for the VV entities too
             if (buyer.getEntityType() != VIRTUAL_VOLUME_VALUE) {
                 potentialSellers.addAll(getPotentialSellers(topology, index,
-                        buyer.getTopologyEntityDtoBuilder()
+                        buyer.getTopologyEntityImpl()
                                 .getCommoditiesBoughtFromProvidersList()
                                 .stream()));
             }
@@ -590,9 +589,9 @@ public class PlanTopologyScopeEditor {
 
             // This is needed for on-prem VV. When on-prem VV feature flag is on, all commodities that VM buys from VV are inactive.
             // So without following line, VV won't be potential seller of VM and won't be pulled into scope.
-            scopedTopologyOIDs.addAll(buyer.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+            scopedTopologyOIDs.addAll(buyer.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList().stream()
                 .filter(commBoughtGrouping -> commBoughtGrouping.getProviderEntityType() == VIRTUAL_VOLUME_VALUE)
-                .map(CommoditiesBoughtFromProvider::getProviderId).collect(Collectors.toList()));
+                .map(CommoditiesBoughtFromProviderView::getProviderId).collect(Collectors.toList()));
 
             // Pull in vVolumes using outBoundAssociatedEntities (usually for VMs) and inBoundAssociatedEntities (usually for Storage).
             addVirtualVolumeToPlanScope(buyer, scopedTopologyOIDs);
@@ -672,9 +671,9 @@ public class PlanTopologyScopeEditor {
         topology.entities().forEach(entity -> {
             // Make sure to add the plan/reservation entities, even if they're not in scope.
             final boolean planEntities =
-                entity.getTopologyEntityDtoBuilder().getOrigin().hasPlanScenarioOrigin();
+                entity.getTopologyEntityImpl().getOrigin().hasPlanScenarioOrigin();
             if (planEntities || scopedTopologyOIDs.contains(entity.getOid())) {
-                TopologyEntity.Builder eBldr = TopologyEntity.newBuilder(entity.getTopologyEntityDtoBuilder());
+                TopologyEntity.Builder eBldr = TopologyEntity.newBuilder(entity.getTopologyEntityImpl());
                 entity.getClonedFromEntity().ifPresent(eBldr::setClonedFromEntity);
                 graphCreator.addEntity(eBldr);
             }
@@ -747,10 +746,10 @@ public class PlanTopologyScopeEditor {
         // Only get the accesses if the entity is a top level buyer.
         if (topLevelBuyers.contains(entity.getOid())) {
             Set<Long> accessedEntities =
-                entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+                entity.getTopologyEntityImpl().getCommoditySoldListImplList()
                     .stream()
-                    .filter(CommoditySoldDTO.Builder::hasAccesses)
-                    .map(CommoditySoldDTO.Builder::getAccesses)
+                    .filter(CommoditySoldImpl::hasAccesses)
+                    .map(CommoditySoldImpl::getAccesses)
                     .map(topology::getEntity)
                     .filter(Optional::isPresent)
                     .map(Optional::get)
@@ -775,12 +774,12 @@ public class PlanTopologyScopeEditor {
      */
     private Set<Long> getPotentialSellers(@Nonnull final TopologyGraph<TopologyEntity> topology,
                                           @Nonnull final InvertedIndex<TopologyEntity,
-                                              TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> index,
-                                          @Nonnull final Stream<CommoditiesBoughtFromProvider> commBoughtFromProviders) {
+                                              CommoditiesBoughtFromProviderView> index,
+                                          @Nonnull final Stream<CommoditiesBoughtFromProviderView> commBoughtFromProviders) {
         // vCenter PMs buy latency and iops with active=false from underlying DSs.
         // Bring in only providers for baskets with atleast 1 active commodity
         return commBoughtFromProviders
-            .filter(cbp -> cbp.getCommodityBoughtList().stream().anyMatch(CommodityBoughtDTO::getActive))
+            .filter(cbp -> cbp.getCommodityBoughtList().stream().anyMatch(CommodityBoughtView::getActive))
             .flatMap(bought -> getSatisfyingSellers(topology, bought, index))
             .map(TopologyEntity::getOid)
             .collect(Collectors.toSet());
@@ -795,9 +794,9 @@ public class PlanTopologyScopeEditor {
      * @return list of potential sellers selling the list of commoditiesBought.
      */
     private Stream<TopologyEntity> getSatisfyingSellers(@Nonnull final TopologyGraph<TopologyEntity> topology,
-                                                        @Nonnull final CommoditiesBoughtFromProvider commoditiesBought,
+                                                        @Nonnull final CommoditiesBoughtFromProviderView commoditiesBought,
                                                         @Nonnull final InvertedIndex<TopologyEntity,
-                                                            CommoditiesBoughtFromProvider> index) {
+                                                            CommoditiesBoughtFromProviderView> index) {
         // If the commodities are immovable, the only possible provider for them is the current provider.
         if (commoditiesBought.hasMovable() && !commoditiesBought.getMovable()) {
             return topology.getEntity(commoditiesBought.getProviderId())
@@ -942,8 +941,8 @@ public class PlanTopologyScopeEditor {
 
         // Result map
         resultEntityMap.putAll(scopeEntities.stream().filter(e -> discoveredBy(e, targetIds))
-                        .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                        .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder)));
+                        .map(TopologyEntity::getTopologyEntityImpl)
+                        .collect(Collectors.toMap(TopologyEntityImpl::getOid, TopologyEntity::newBuilder)));
     }
 
     /**

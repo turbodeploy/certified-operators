@@ -10,8 +10,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -47,8 +46,8 @@ public class VMemUsedVMPostStitchingOperation implements PostStitchingOperation 
             @Nonnull EntitySettingsCollection settingsCollection,
             @Nonnull EntityChangesBuilder<TopologyEntity> resultBuilder) {
         entities.forEach(entity -> resultBuilder.queueUpdateEntityAlone(entity,
-                entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
-                        .getCommoditySoldListBuilderList()
+                entityToUpdate -> entityToUpdate.getTopologyEntityImpl()
+                        .getCommoditySoldListImplList()
                         .stream()
                         .filter(this::commodityTypeMatches)
                         .forEach(commSold -> {
@@ -58,7 +57,7 @@ public class VMemUsedVMPostStitchingOperation implements PostStitchingOperation 
         return resultBuilder.build();
     }
 
-    private boolean commodityTypeMatches(TopologyDTO.CommoditySoldDTO.Builder commodity) {
+    private boolean commodityTypeMatches(CommoditySoldView commodity) {
         return commodity.getCommodityType().getType() == CommodityType.VMEM.getNumber();
     }
 
@@ -72,7 +71,7 @@ public class VMemUsedVMPostStitchingOperation implements PostStitchingOperation 
      * @param seller an entity that sells the commodity.
      * @return the computed used value or an empty optional.
      */
-    private Optional<Double> usedValue(CommoditySoldDTO.Builder commSold, TopologyEntity seller) {
+    private Optional<Double> usedValue(CommoditySoldView commSold, TopologyEntity seller) {
         List<Double> usedCommoditiesByConsumers
                 = seller.getCommoditiesUsedByConsumers(commSold.getCommodityType())
                 .collect(Collectors.toList());

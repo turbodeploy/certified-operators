@@ -10,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -43,10 +43,10 @@ public class TopologyInvertedIndexFactory {
      * @return The {@link InvertedIndex}.
      */
     @Nonnull
-    public InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> typeInvertedIndex(
+    public InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView> typeInvertedIndex(
             TopologyGraph<TopologyEntity> topologyGraph, Set<ApiEntityType> types, int minimalScanStopThreshold) {
         Stopwatch indexCreation = Stopwatch.createStarted();
-        final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> invertedIndex =
+        final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView> invertedIndex =
                 new InvertedIndex<>(minimalScanStopThreshold, new TopologyInvertedIndexTranslator());
         types.forEach(type -> {
             topologyGraph.entitiesOfType(type.typeNumber()).forEach(invertedIndex::add);

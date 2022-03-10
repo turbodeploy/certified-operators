@@ -29,7 +29,7 @@ import org.roaringbitmap.longlong.Roaring64NavigableMap;
 import gnu.trove.set.TLongSet;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginView;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.TopologyEntity;
@@ -80,9 +80,9 @@ public class EnvironmentTypeInjector {
     }
 
     /**
-     * Set the environment type of entities in a {@link TopologyGraph<TopologyEntity>}.
+     * Set the environment type of entities in a {@link TopologyGraph< TopologyEntity >}.
      *
-     * @param topologyGraph The {@link TopologyGraph<TopologyEntity>}, after all stitching.
+     * @param topologyGraph The {@link TopologyGraph< TopologyEntity >}, after all stitching.
      * @return An {@link InjectionSummary} describing the changes made.
      */
     @Nonnull
@@ -122,9 +122,9 @@ public class EnvironmentTypeInjector {
             }
             // We shouldn't have entities with env type already set
             // unless we're in plan-over-plan.
-            if (topoEntity.getTopologyEntityDtoBuilder().hasEnvironmentType()) {
+            if (topoEntity.getTopologyEntityImpl().hasEnvironmentType()) {
                 final EnvironmentType existingType =
-                    topoEntity.getTopologyEntityDtoBuilder().getEnvironmentType();
+                    topoEntity.getTopologyEntityImpl().getEnvironmentType();
                 // If environment type is already set, it REALLY shouldn't be different from what
                 // the injector determines it should be.
                 if (existingType != envType) {
@@ -134,7 +134,7 @@ public class EnvironmentTypeInjector {
                         logger.info("Entity {} (id: {}) Overriding explicitly-set unknown " +
                                 "environment type with {}", topoEntity.getDisplayName(),
                             topoEntity.getOid(), envType);
-                        topoEntity.getTopologyEntityDtoBuilder().setEnvironmentType(envType);
+                        topoEntity.getTopologyEntityImpl().setEnvironmentType(envType);
                         envTypeCounts.compute(envType, (k, curCount) ->
                             (curCount == null ? 0 : curCount) + 1);
                     } else {
@@ -143,14 +143,14 @@ public class EnvironmentTypeInjector {
                         logger.error("Entity {} (id: {}) already has environment type set to: {}." +
                                 " Injector calculated: {}. Not overriding.",
                             topoEntity.getDisplayName(), topoEntity.getOid(),
-                            topoEntity.getTopologyEntityDtoBuilder().getEnvironmentType(), envType);
+                            topoEntity.getTopologyEntityImpl().getEnvironmentType(), envType);
                         conflictingTypeCount.incrementAndGet();
                     }
                 }
             } else {
                 logger.debug("Entity {} (id: {}) - setting environment type to {}",
                     topoEntity.getDisplayName(), topoEntity.getOid(), envType);
-                topoEntity.getTopologyEntityDtoBuilder().setEnvironmentType(envType);
+                topoEntity.getTopologyEntityImpl().setEnvironmentType(envType);
                 envTypeCounts.compute(envType, (k, curCount) ->
                     (curCount == null ? 0 : curCount) + 1);
             }
@@ -175,14 +175,14 @@ public class EnvironmentTypeInjector {
     private EnvironmentType getEnvironmentType(@Nonnull final TopologyEntity entity,
                                                @Nonnull final Set<Long> cloudTargetIds,
                                                @Nonnull final Set<Long> appContainerTargetIds) {
-        final Optional<Origin> originOpt = entity.getOrigin();
+        final Optional<OriginView> originOpt = entity.getOrigin();
         if (!originOpt.isPresent()) {
             // We expect origin to be set in the input entities by the time they make it
             // to the injector.
             return EnvironmentType.UNKNOWN_ENV;
         }
 
-        final Origin origin = originOpt.get();
+        final OriginView origin = originOpt.get();
         switch (origin.getOriginTypeCase()) {
             case DISCOVERY_ORIGIN:
                 final boolean discoveredByCloud = entity.getDiscoveringTargetIds().count() > 0

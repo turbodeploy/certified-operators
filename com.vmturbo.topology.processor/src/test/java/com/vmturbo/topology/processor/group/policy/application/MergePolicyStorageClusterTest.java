@@ -18,12 +18,15 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Replaced;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.EditImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ReplacedImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -59,8 +62,8 @@ public class MergePolicyStorageClusterTest extends MergePolicyTestBase {
                 new PolicyEntities(group1));
         final Map<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
         topologyMap.put(1L, topologyEntity(1L, EntityType.STORAGE));
-        topologyMap.get(1L).getEntityBuilder()
-            .setEdit(Edit.newBuilder().setReplaced(Replaced.newBuilder().setPlanId(0L).setReplacementId(100L)));
+        topologyMap.get(1L).getTopologyEntityImpl()
+            .setEdit(new EditImpl().setReplaced(new ReplacedImpl().setPlanId(0L).setReplacementId(100L)));
         topologyMap.put(2L, topologyEntity(2L, EntityType.STORAGE));
         topologyMap.put(3L, topologyEntity(3L, EntityType.PHYSICAL_MACHINE));
         topologyMap.put(4L, topologyEntity(4L, EntityType.VIRTUAL_MACHINE, 1));
@@ -98,9 +101,9 @@ public class MergePolicyStorageClusterTest extends MergePolicyTestBase {
         // assert that we change only the key of the real storage cluster commodity comm sold
         int mergeCommCount = 0;
         int isoCommCount = 0;
-        List<CommoditySoldDTO> commoditySoldDTOList = topologyGraph.getEntity(1L).get()
-            .getTopologyEntityDtoBuilder().getCommoditySoldListList();
-        for (CommoditySoldDTO commSold : commoditySoldDTOList) {
+        List<CommoditySoldView> commoditySoldDTOList = topologyGraph.getEntity(1L).get()
+            .getTopologyEntityImpl().getCommoditySoldListList();
+        for (CommoditySoldView commSold : commoditySoldDTOList) {
             if (commSold.getCommodityType().getKey().equals(Long.toString(mergePolicy.getPolicyDefinition().getId()))) {
                 mergeCommCount++;
             } else if (commSold.getCommodityType().getKey().equals(ISO_STORAGE_CLUSTER_KEY)) {
@@ -112,9 +115,9 @@ public class MergePolicyStorageClusterTest extends MergePolicyTestBase {
 
         // assert that we change only the key of the real storage cluster commodity comm bought
         mergeCommCount = isoCommCount = 0;
-        List<CommodityBoughtDTO> commsBought = topologyGraph.getEntity(4L).get()
-            .getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProviders(0).getCommodityBoughtList();
-        for (CommodityBoughtDTO commBought : commsBought) {
+        List<CommodityBoughtView> commsBought = topologyGraph.getEntity(4L).get()
+            .getTopologyEntityImpl().getCommoditiesBoughtFromProviders(0).getCommodityBoughtList();
+        for (CommodityBoughtView commBought : commsBought) {
             if (commBought.getCommodityType().getKey().equals(Long.toString(mergePolicy.getPolicyDefinition().getId()))) {
                 mergeCommCount++;
             } else if (commBought.getCommodityType().getKey().equals(ISO_STORAGE_CLUSTER_KEY)) {
@@ -127,29 +130,29 @@ public class MergePolicyStorageClusterTest extends MergePolicyTestBase {
 
     private void addStorageClusterCommSold(long oid) {
         TopologyEntity storage = super.topologyGraph.getEntity(oid).get();
-        CommoditySoldDTO.Builder isoStClusterSold = CommoditySoldDTO.newBuilder()
+        CommoditySoldImpl isoStClusterSold = new CommoditySoldImpl()
             .setCommodityType(storageClusterCommodityType(ISO_STORAGE_CLUSTER_KEY));
-        CommoditySoldDTO.Builder realStClusterSold = CommoditySoldDTO.newBuilder()
+        CommoditySoldImpl realStClusterSold = new CommoditySoldImpl()
             .setCommodityType(storageClusterCommodityType(REAL_STORAGE_CLUSTER_KEY));
-        storage.getTopologyEntityDtoBuilder()
+        storage.getTopologyEntityImpl()
             .addCommoditySoldList(isoStClusterSold)
             .addCommoditySoldList(realStClusterSold);
     }
 
     private void addStorageClusterCommBought(long oid) {
         TopologyEntity vm = super.topologyGraph.getEntity(oid).get();
-        CommodityBoughtDTO.Builder isoStClusterBought = CommodityBoughtDTO.newBuilder()
+        CommodityBoughtImpl isoStClusterBought = new CommodityBoughtImpl()
             .setCommodityType(storageClusterCommodityType(ISO_STORAGE_CLUSTER_KEY));
-        CommodityBoughtDTO.Builder realStClusterBought = CommodityBoughtDTO.newBuilder()
+        CommodityBoughtImpl realStClusterBought = new CommodityBoughtImpl()
             .setCommodityType(storageClusterCommodityType(REAL_STORAGE_CLUSTER_KEY));
-        CommoditiesBoughtFromProvider.Builder commBoughtFromProvider = vm.getTopologyEntityDtoBuilder()
-            .getCommoditiesBoughtFromProvidersBuilder(0);
+        CommoditiesBoughtFromProviderImpl commBoughtFromProvider = vm.getTopologyEntityImpl()
+            .getCommoditiesBoughtFromProvidersImpl(0);
         commBoughtFromProvider.addCommodityBought(isoStClusterBought);
         commBoughtFromProvider.addCommodityBought(realStClusterBought);
     }
 
-    private CommodityType.Builder storageClusterCommodityType(String key) {
-        return CommodityType.newBuilder()
+    private CommodityTypeView storageClusterCommodityType(String key) {
+        return new CommodityTypeImpl()
             .setType(CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE)
             .setKey(key);
     }

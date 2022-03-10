@@ -5,9 +5,9 @@ import java.util.function.Consumer;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl.ThresholdsImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.HistoricalValuesImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.UtilizationDataView;
 import com.vmturbo.stitching.EntityCommodityReference;
 
 /**
@@ -45,7 +45,7 @@ public interface ITopologyGraphAccessor {
      * @return utilization data, null if unset
      */
     @Nullable
-    UtilizationData getUtilizationData(@Nonnull EntityCommodityReference commRef);
+    UtilizationDataView getUtilizationData(@Nonnull EntityCommodityReference commRef);
 
     /**
      * Remove the raw utilization data for the commodity reference.
@@ -62,7 +62,7 @@ public interface ITopologyGraphAccessor {
      * @param description updating source, for gathering statistics
      */
     void updateHistoryValue(@Nonnull EntityCommodityFieldReference field,
-            @Nonnull Consumer<Builder> setter, @Nonnull String description);
+            @Nonnull Consumer<HistoricalValuesImpl> setter, @Nonnull String description);
 
     /**
      * Change the thresholds on a commodity. Can only be successfully
@@ -74,7 +74,7 @@ public interface ITopologyGraphAccessor {
      * @param description updating source, for gathering statistics
      */
     void updateThresholds(@Nonnull EntityCommodityReference commRef,
-                          @Nonnull Consumer<Thresholds.Builder> setter, @Nonnull String description);
+                          @Nonnull Consumer<ThresholdsImpl> setter, @Nonnull String description);
 
     /**
      * How many times updateHistoryValue was called so far with a given description.

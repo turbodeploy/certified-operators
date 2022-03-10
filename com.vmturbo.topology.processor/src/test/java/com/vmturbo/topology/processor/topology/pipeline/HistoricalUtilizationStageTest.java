@@ -21,16 +21,15 @@ import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.processor.historical.HistoricalCommodityInfo;
@@ -67,48 +66,43 @@ public class HistoricalUtilizationStageTest {
      */
     @Before
     public void setUp() {
-        final CommodityBoughtDTO netThroughputCommodityBoughtDTO = CommodityBoughtDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+        final CommodityBoughtImpl netThroughputCommodityBoughtDTO = new CommodityBoughtImpl()
+                .setCommodityType(new TopologyPOJO.CommodityTypeImpl()
                         .setType(CommodityType.NET_THROUGHPUT_VALUE))
                 .setUsed(NET_THROUGHPUT_USED)
-                .setPeak(NET_THROUGHPUT_PEAK)
-                .build();
-        final CommodityBoughtDTO ioThroughputCommodityBoughtDTO = CommodityBoughtDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                .setPeak(NET_THROUGHPUT_PEAK);
+        final CommodityBoughtImpl ioThroughputCommodityBoughtDTO = new CommodityBoughtImpl()
+                .setCommodityType(new TopologyPOJO.CommodityTypeImpl()
                         .setType(CommodityType.IO_THROUGHPUT_VALUE))
                 .setUsed(IO_THROUGHPUT_USED)
-                .setPeak(IO_THROUGHPUT_PEAK)
-                .build();
-        final CommodityBoughtDTO cpuCommodityBoughtDTO = CommodityBoughtDTO.newBuilder()
+                .setPeak(IO_THROUGHPUT_PEAK);
+        final CommodityBoughtImpl cpuCommodityBoughtDTO = new CommodityBoughtImpl()
                 .setCommodityType(
-                        TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_VALUE))
+                        new TopologyPOJO.CommodityTypeImpl().setType(CommodityType.CPU_VALUE))
                 .setUsed(CPU_USED)
-                .setPeak(CPU_PEAK)
-                .build();
-        final CommodityBoughtDTO clusterCommodityBoughtDTO = CommodityBoughtDTO.newBuilder()
+                .setPeak(CPU_PEAK);
+        final CommodityBoughtImpl clusterCommodityBoughtDTO = new CommodityBoughtImpl()
                 .setCommodityType(
-                        TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CLUSTER_VALUE))
-                .build();
-        final List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders =
-                Collections.singletonList(CommoditiesBoughtFromProvider.newBuilder()
+                        new TopologyPOJO.CommodityTypeImpl().setType(CommodityType.CLUSTER_VALUE));
+        final List<CommoditiesBoughtFromProviderImpl> commoditiesBoughtFromProviders =
+                Collections.singletonList(new CommoditiesBoughtFromProviderImpl()
                         .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                         .setProviderId(PHYSICAL_MACHINE_ID)
                         .addAllCommodityBought(Arrays.asList(netThroughputCommodityBoughtDTO,
                                 ioThroughputCommodityBoughtDTO, cpuCommodityBoughtDTO,
-                                clusterCommodityBoughtDTO))
-                        .build());
-        final Builder cloudVirtualMachine = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                                clusterCommodityBoughtDTO)));
+        final TopologyEntity.Builder cloudVirtualMachine = TopologyEntity.newBuilder(new TopologyEntityImpl()
                 .setOid(CLOUD_VIRTUAL_MACHINE_ID)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setEnvironmentType(EnvironmentType.CLOUD)
                 .addAllCommoditiesBoughtFromProviders(commoditiesBoughtFromProviders));
-        final Builder onPremVirtualMachine = TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder()
+        final TopologyEntity.Builder  onPremVirtualMachine = TopologyEntity.newBuilder(
+                new TopologyEntityImpl()
                         .setOid(ON_PREM_VIRTUAL_MACHINE_ID)
                         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .setEnvironmentType(EnvironmentType.ON_PREM)
                         .addAllCommoditiesBoughtFromProviders(commoditiesBoughtFromProviders));
-        topologyGraph = new TopologyGraphCreator<Builder, TopologyEntity>().addEntities(
+        topologyGraph = new TopologyGraphCreator<TopologyEntity.Builder, TopologyEntity>().addEntities(
                 Arrays.asList(onPremVirtualMachine, cloudVirtualMachine)).build();
 
         historicalUtilizationDatabase = Mockito.mock(HistoricalUtilizationDatabase.class);

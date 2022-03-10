@@ -10,7 +10,8 @@ import java.util.Optional;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 
 /**
  * Tests the {@link EntityCommodityReference} class.
@@ -20,8 +21,7 @@ public class EntityCommodityReferenceTest {
     private static final long LIVE_ENTITY_ID = 10L;
     private static final long PROVIDER_ENTITY_ID = 100L;
     private static final long LIVE_PROVIDER_ENTITY_ID = 101L;
-    private static final TopologyDTO.CommodityType COMMODITY_TYPE = TopologyDTO.CommodityType
-        .newBuilder().setType(5).build();
+    private static final CommodityTypeView COMMODITY_TYPE = new CommodityTypeImpl().setType(5);
 
     /**
      * Test the case when we try to get the commodity reference for a commodity which does not

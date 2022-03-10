@@ -19,7 +19,8 @@ import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.HistoricalInfo.HistoricalInfoDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbException;
 import com.vmturbo.sql.utils.MultiDbTestBase;
@@ -59,15 +60,13 @@ public class HistoricalUtilizationDatabaseTest extends MultiDbTestBase {
         this.dsl = super.getDslContext();
     }
 
-    private static final CommodityType SOLD_COMMODITY_TYPE = CommodityType.newBuilder()
+    private static final CommodityTypeView SOLD_COMMODITY_TYPE = new CommodityTypeImpl()
             .setType(1234)
-            .setKey("2333")
-            .build();
+            .setKey("2333");
 
-    private static final CommodityType BOUGHT_COMMODITY_TYPE = CommodityType.newBuilder()
+    private static final CommodityTypeView BOUGHT_COMMODITY_TYPE = new CommodityTypeImpl()
         .setType(5678)
-        .setKey("666")
-        .build();
+        .setKey("666");
 
     private HistoricalCommodityInfo soldCommInfo = new HistoricalCommodityInfo();
     private HistoricalCommodityInfo boughtCommInfo = new HistoricalCommodityInfo();

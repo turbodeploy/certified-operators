@@ -93,7 +93,7 @@ public class OneOfPojoField implements IPojoField {
 
     @Nonnull
     @Override
-    public List<Builder> generateGetterMethods() {
+    public List<Builder> generateGetterMethods(@Nonnull final GenerationMode mode) {
         // We have a special getter method for getting the oneof case.
         // We reuse the proto-generated cases to avoid having to redefine an identical enum
         // and then generate translation code for them.
@@ -102,9 +102,15 @@ public class OneOfPojoField implements IPojoField {
             .returns(oneOfCaseType)
             .addJavadoc("Get the oneOf case, if set. If the oneof has not been set, returns {@code $T.$L}."
                     + "\n\n@return the oneOf case.",
-                oneOfCaseType, unsetValueName)
-            .addCode(CodeBlock.builder().addStatement("return $T.forNumber($L)",
+                oneOfCaseType, unsetValueName);
+
+        if (mode == GenerationMode.INTERFACE) {
+            caseGetter.addModifiers(Modifier.ABSTRACT);
+        } else {
+            caseGetter.addAnnotation(Override.class);
+            caseGetter.addCode(CodeBlock.builder().addStatement("return $T.forNumber($L)",
                 oneOfCaseType, getSuffixedCaseName()).build());
+        }
 
         return Collections.singletonList(caseGetter);
     }
@@ -117,7 +123,7 @@ public class OneOfPojoField implements IPojoField {
 
     @Nonnull
     @Override
-    public List<Builder> generateHazzerMethods() {
+    public List<Builder> generateHazzerMethods(@Nonnull final GenerationMode mode) {
         return Collections.emptyList();
     }
 
@@ -206,10 +212,31 @@ public class OneOfPojoField implements IPojoField {
     }
 
     @Override
+    public void addClearForField(@Nonnull CodeBlock.Builder codeBlock) {
+        codeBlock.add("\n")
+            .addStatement("this.$L = 0", getSuffixedCaseName())
+            .addStatement("this.$L = null", getSuffixedName());
+    }
+
+    @Override
     public void addCopyForField(@Nonnull CodeBlock.Builder codeBlock) {
-        codeBlock.add("\n");
-        codeBlock.addStatement("this.$L = other.$L", getSuffixedCaseName(), getSuffixedCaseName());
-        codeBlock.addStatement("this.$L = other.$L", getSuffixedName(), getSuffixedName());
+        codeBlock.add("\n")
+            .beginControlFlow("switch (other.get$L().getNumber())",
+                capitalizedCaseName());
+
+        variants.forEach(variant -> {
+            final String capitalizedVariantName = StringUtils.capitalize(variant.getFieldName());
+            codeBlock.add("case $L:\n", variant.getFieldNumber());
+            codeBlock.add("$>set$L(", capitalizedVariantName)
+                .add(getVariantCopyCode(variant, capitalizedVariantName))
+                .addStatement(")");
+            codeBlock.addStatement("break$<");
+        });
+
+        codeBlock.add("default:\n");
+        codeBlock.add("$>// Nothing to do\n");
+        codeBlock.addStatement("break$<");
+        codeBlock.endControlFlow();
     }
 
     /**
@@ -257,6 +284,19 @@ public class OneOfPojoField implements IPojoField {
         } else {
             return CodeBlock.builder()
                 .add("$L.get$L()", protoFieldName, variant.capitalizedFieldName()).build();
+        }
+    }
+
+    private CodeBlock getVariantCopyCode(@Nonnull final OneOfVariantPojoField variant,
+                                         @Nonnull final String capitalizedVariantName) {
+        if (variant.isProtoMessage()) {
+            return CodeBlock.builder()
+                .add("new $T(other.get$L())", variant.getTypeName(), capitalizedVariantName)
+                .build();
+        } else {
+            return CodeBlock.builder()
+                .add("other.get$L()", variant.capitalizedFieldName())
+                .build();
         }
     }
 

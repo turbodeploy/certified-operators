@@ -2,8 +2,6 @@ package com.vmturbo.stitching.poststitching;
 
 import static org.junit.Assert.assertEquals;
 
-import java.util.HashMap;
-
 import org.junit.Test;
 import org.mockito.Mockito;
 

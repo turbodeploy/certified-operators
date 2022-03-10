@@ -21,11 +21,16 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsMoles;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.HistoricalValuesImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -42,8 +47,8 @@ import com.vmturbo.stitching.journal.IStitchingJournal;
  */
 public class SetCommBoughtUsedFromCommSoldMaxPostStitchingOperationTest {
 
-    private static final TopologyDTO.CommodityType CONNECTION = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CONNECTION_VALUE).build();
-    private static final TopologyDTO.CommodityType VCPU = TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE).build();
+    private static final CommodityTypeView CONNECTION = new CommodityTypeImpl().setType(CommodityType.CONNECTION_VALUE);
+    private static final CommodityTypeView VCPU = new CommodityTypeImpl().setType(CommodityType.VCPU_VALUE);
     private static final double DELTA = 1e-5;
     private static final double USED = 100;
     private static final double MAX = 200;
@@ -84,9 +89,9 @@ public class SetCommBoughtUsedFromCommSoldMaxPostStitchingOperationTest {
         List<TopologyEntity> entities = ImmutableList.of(dbs1);
         setCommBoughtOperation.performOperation(entities.stream(), mock(EntitySettingsCollection.class), resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
-        Map<TopologyDTO.CommodityType, CommodityBoughtDTO> commBoughtByType = dbs1.getTopologyEntityDtoBuilder()
+        Map<CommodityTypeView, CommodityBoughtView> commBoughtByType = dbs1.getTopologyEntityImpl()
                 .getCommoditiesBoughtFromProviders(0).getCommodityBoughtList()
-                .stream().collect(Collectors.toMap(CommodityBoughtDTO::getCommodityType, Function.identity()));
+                .stream().collect(Collectors.toMap(CommodityBoughtView::getCommodityType, Function.identity()));
         // Only connections commodity is changed
         assertEquals(MAX, commBoughtByType.get(CONNECTION).getUsed(), DELTA);
         assertEquals(USED, commBoughtByType.get(VCPU).getUsed(), DELTA);
@@ -104,9 +109,9 @@ public class SetCommBoughtUsedFromCommSoldMaxPostStitchingOperationTest {
         List<TopologyEntity> entities = ImmutableList.of(dbs1);
         setCommBoughtOperation.performOperation(entities.stream(), mock(EntitySettingsCollection.class), resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
-        Map<TopologyDTO.CommodityType, CommodityBoughtDTO> commBoughtByType = dbs1.getTopologyEntityDtoBuilder()
+        Map<CommodityTypeView, CommodityBoughtView> commBoughtByType = dbs1.getTopologyEntityImpl()
                 .getCommoditiesBoughtFromProviders(0).getCommodityBoughtList()
-                .stream().collect(Collectors.toMap(CommodityBoughtDTO::getCommodityType, Function.identity()));
+                .stream().collect(Collectors.toMap(CommodityBoughtView::getCommodityType, Function.identity()));
         // Only connections commodity is changed
         assertEquals(CAPACITY2, commBoughtByType.get(CONNECTION).getUsed(), DELTA);
         assertEquals(USED, commBoughtByType.get(VCPU).getUsed(), DELTA);
@@ -124,9 +129,9 @@ public class SetCommBoughtUsedFromCommSoldMaxPostStitchingOperationTest {
         List<TopologyEntity> entities = ImmutableList.of(dbs1);
         setCommBoughtOperation.performOperation(entities.stream(), mock(EntitySettingsCollection.class), resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
-        Map<TopologyDTO.CommodityType, CommodityBoughtDTO> commBoughtByType = dbs1.getTopologyEntityDtoBuilder()
+        Map<CommodityTypeView, CommodityBoughtView> commBoughtByType = dbs1.getTopologyEntityImpl()
                 .getCommoditiesBoughtFromProviders(0).getCommodityBoughtList()
-                .stream().collect(Collectors.toMap(CommodityBoughtDTO::getCommodityType, Function.identity()));
+                .stream().collect(Collectors.toMap(CommodityBoughtView::getCommodityType, Function.identity()));
         // No changes are made
         assertEquals(USED, commBoughtByType.get(CONNECTION).getUsed(), DELTA);
         assertEquals(USED, commBoughtByType.get(VCPU).getUsed(), DELTA);
@@ -155,32 +160,32 @@ public class SetCommBoughtUsedFromCommSoldMaxPostStitchingOperationTest {
     }
 
     private TopologyEntity topologyEntity(int entityType, long oid,
-                                          List<CommoditySoldDTO> commsSold,
-                                          List<CommodityBoughtDTO> commsBought) {
-        return TopologyEntity.newBuilder(TopologyDTO.TopologyEntityDTO.newBuilder()
+                                          List<CommoditySoldView> commsSold,
+                                          List<CommodityBoughtView> commsBought) {
+        return TopologyEntity.newBuilder(new TopologyEntityImpl()
                 .setOid(oid)
                 .setEntityType(entityType)
                 .addAllCommoditySoldList(commsSold)
                 .addCommoditiesBoughtFromProviders(commodityBoughtGrouping(commsBought))).build();
     }
 
-    private CommoditySoldDTO commoditySoldDTO(TopologyDTO.CommodityType commodityType,
+    private CommoditySoldView commoditySoldDTO(CommodityTypeView commodityType,
                                               double used, Optional<Double> maxUsed, double capacity) {
-        CommoditySoldDTO.Builder commSold = CommoditySoldDTO.newBuilder()
+        final CommoditySoldImpl commSold = new CommoditySoldImpl()
                 .setCommodityType(commodityType)
                 .setUsed(used)
                 .setCapacity(capacity);
         maxUsed.ifPresent(max -> {
-            commSold.setHistoricalUsed(HistoricalValues.newBuilder().setMaxQuantity(max).build());
+            commSold.setHistoricalUsed(new HistoricalValuesImpl().setMaxQuantity(max));
         });
-        return commSold.build();
+        return commSold;
     }
 
-    private CommoditiesBoughtFromProvider commodityBoughtGrouping(List<CommodityBoughtDTO> commsBought) {
-        return CommoditiesBoughtFromProvider.newBuilder().addAllCommodityBought(commsBought).build();
+    private CommoditiesBoughtFromProviderView commodityBoughtGrouping(List<CommodityBoughtView> commsBought) {
+        return new CommoditiesBoughtFromProviderImpl().addAllCommodityBought(commsBought);
     }
 
-    private CommodityBoughtDTO commodityBoughtDTO(TopologyDTO.CommodityType commodityType, double used) {
-        return CommodityBoughtDTO.newBuilder().setCommodityType(commodityType).setUsed(used).build();
+    private CommodityBoughtView commodityBoughtDTO(CommodityTypeView commodityType, double used) {
+        return new CommodityBoughtImpl().setCommodityType(commodityType).setUsed(used);
     }
 }

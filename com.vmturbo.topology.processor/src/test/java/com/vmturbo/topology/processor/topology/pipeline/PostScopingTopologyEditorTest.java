@@ -18,14 +18,18 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.EditImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.PlanScenarioOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.RemovedImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ReplacedImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.StorageInfoImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -82,7 +86,7 @@ public class PostScopingTopologyEditorTest {
         addedSharedSt = topologyEntity(5L, EntityType.STORAGE_VALUE, true, ImmutableSet.of(), Optional.empty(), false, false);
         existingSharedStRemoved = topologyEntity(6L, EntityType.STORAGE_VALUE, false, ImmutableSet.of(1L), Optional.of(false), true, false);
         existingSharedStReplaced = topologyEntity(7L, EntityType.STORAGE_VALUE, false, ImmutableSet.of(1L), Optional.of(false), false, true);
-        graph = TopologyEntityUtils.topologyGraphOf(existingPm, addedPm, existingLocalSt, existingSharedSt,
+        graph = TopologyEntityUtils.pojoGraphOf(existingPm, addedPm, existingLocalSt, existingSharedSt,
                 addedSharedSt, existingSharedStRemoved, existingSharedStReplaced);
         ScenarioChange sc1 = ScenarioChange.newBuilder().setTopologyAddition(TopologyAddition.newBuilder()
                 .setTargetEntityType(EntityType.PHYSICAL_MACHINE_VALUE).build()).build();
@@ -117,80 +121,80 @@ public class PostScopingTopologyEditorTest {
 
         // 1. Check that the existing host is connected to the newly added storage
         // Check the comm type, key and accesses.
-        assertEquals(3, existingPm.getEntityBuilder().getCommoditySoldListList().size());
-        assertTrue(existingPm.getEntityBuilder().getCommoditySoldListList().stream()
+        assertEquals(3, existingPm.getTopologyEntityImpl().getCommoditySoldListList().size());
+        assertTrue(existingPm.getTopologyEntityImpl().getCommoditySoldListList().stream()
                 .allMatch(cs -> cs.getCommodityType().getType() == CommodityType.DATASTORE_VALUE));
-        CommoditySoldDTO commSold = existingPm.getEntityBuilder().getCommoditySoldListList().stream()
+        CommoditySoldView commSold = existingPm.getTopologyEntityImpl().getCommoditySoldListList().stream()
                 .filter(cs -> cs.getAccesses() == addedSharedSt.getOid()).findFirst().get();
-        CommoditySoldDTO.Builder expectedAccessCommodity = TopologyEntityConstructor.createAccessCommodity(CommodityType.DATASTORE, addedSharedSt.getOid(), null);
+        CommoditySoldImpl expectedAccessCommodity = TopologyEntityConstructor.createAccessCommodity(CommodityType.DATASTORE, addedSharedSt.getOid(), null);
         assertEquals(expectedAccessCommodity.getCommodityType().getKey(), commSold.getCommodityType().getKey());
 
         // 2. Check that the newly added host is connected to the both the shared storages, but not the local storage
         // Check the comm type, key and accesses.
-        assertEquals(2, addedPm.getEntityBuilder().getCommoditySoldListList().size());
-        assertTrue(addedPm.getEntityBuilder().getCommoditySoldListList().stream()
+        assertEquals(2, addedPm.getTopologyEntityImpl().getCommoditySoldListList().size());
+        assertTrue(addedPm.getTopologyEntityImpl().getCommoditySoldListList().stream()
                 .allMatch(cs -> cs.getCommodityType().getType() == CommodityType.DATASTORE_VALUE));
-        commSold = addedPm.getEntityBuilder().getCommoditySoldListList().stream()
+        commSold = addedPm.getTopologyEntityImpl().getCommoditySoldListList().stream()
                 .filter(cs -> cs.getAccesses() == existingSharedSt.getOid()).findFirst().get();
         // Ensure new key is not created if there already exist DS comms pointing to this storage
         assertEquals(createKey(existingSharedSt.getOid()), commSold.getCommodityType().getKey());
-        commSold = addedPm.getEntityBuilder().getCommoditySoldListList().stream()
+        commSold = addedPm.getTopologyEntityImpl().getCommoditySoldListList().stream()
                 .filter(cs -> cs.getAccesses() == addedSharedSt.getOid()).findFirst().get();
         assertEquals(expectedAccessCommodity.getCommodityType().getKey(), commSold.getCommodityType().getKey());
 
         // 3. Nothing new should be created/modified for the local storage
-        assertEquals(1, existingLocalSt.getEntityBuilder().getCommoditySoldListList().size());
-        assertTrue(existingLocalSt.getEntityBuilder().getCommoditySoldListList().stream()
+        assertEquals(1, existingLocalSt.getTopologyEntityImpl().getCommoditySoldListList().size());
+        assertTrue(existingLocalSt.getTopologyEntityImpl().getCommoditySoldListList().stream()
                 .allMatch(cs -> cs.getCommodityType().getType() == CommodityType.DSPM_ACCESS_VALUE));
-        assertNotNull(existingLocalSt.getEntityBuilder().getCommoditySoldListList().stream()
+        assertNotNull(existingLocalSt.getTopologyEntityImpl().getCommoditySoldListList().stream()
                 .filter(cs -> cs.getAccesses() == existingPm.getOid()).findFirst().get());
 
         // 4. Check that the existing storage is now connected to the newly added host
         // Check the comm type, key and accesses.
-        assertEquals(2, existingSharedSt.getEntityBuilder().getCommoditySoldListList().size());
-        assertTrue(existingSharedSt.getEntityBuilder().getCommoditySoldListList().stream()
+        assertEquals(2, existingSharedSt.getTopologyEntityImpl().getCommoditySoldListList().size());
+        assertTrue(existingSharedSt.getTopologyEntityImpl().getCommoditySoldListList().stream()
                 .allMatch(cs -> cs.getCommodityType().getType() == CommodityType.DSPM_ACCESS_VALUE));
-        commSold = existingSharedSt.getEntityBuilder().getCommoditySoldListList().stream()
+        commSold = existingSharedSt.getTopologyEntityImpl().getCommoditySoldListList().stream()
                 .filter(cs -> cs.getAccesses() == addedPm.getOid()).findFirst().get();
         expectedAccessCommodity = TopologyEntityConstructor.createAccessCommodity(CommodityType.DSPM_ACCESS, addedPm.getOid(), null);
         assertEquals(expectedAccessCommodity.getCommodityType().getKey(), commSold.getCommodityType().getKey());
 
         // 5. Check that the newly added storage is now connected to both the hosts
         // Check the comm type, key and accesses.
-        assertEquals(2, addedSharedSt.getEntityBuilder().getCommoditySoldListList().size());
-        assertTrue(addedSharedSt.getEntityBuilder().getCommoditySoldListList().stream()
+        assertEquals(2, addedSharedSt.getTopologyEntityImpl().getCommoditySoldListList().size());
+        assertTrue(addedSharedSt.getTopologyEntityImpl().getCommoditySoldListList().stream()
                 .allMatch(cs -> cs.getCommodityType().getType() == CommodityType.DSPM_ACCESS_VALUE));
-        commSold = addedSharedSt.getEntityBuilder().getCommoditySoldListList().stream()
+        commSold = addedSharedSt.getTopologyEntityImpl().getCommoditySoldListList().stream()
                 .filter(cs -> cs.getAccesses() == addedPm.getOid()).findFirst().get();
         expectedAccessCommodity = TopologyEntityConstructor.createAccessCommodity(CommodityType.DSPM_ACCESS, addedPm.getOid(), null);
         assertEquals(expectedAccessCommodity.getCommodityType().getKey(), commSold.getCommodityType().getKey());
-        commSold = addedSharedSt.getEntityBuilder().getCommoditySoldListList().stream()
+        commSold = addedSharedSt.getTopologyEntityImpl().getCommoditySoldListList().stream()
                 .filter(cs -> cs.getAccesses() == existingPm.getOid()).findFirst().get();
         assertEquals(createKey(existingPm.getOid()), commSold.getCommodityType().getKey());
     }
 
     private TopologyEntity.Builder topologyEntity(long oid, int entityType, boolean isPlanOrigin, Set<Long> connectedTo,
                                                   Optional<Boolean> isLocal, boolean isRemoved, boolean isReplaced) {
-        TopologyEntityDTO.Builder topo = TopologyEntityDTO.newBuilder()
+        TopologyEntityImpl topo = new TopologyEntityImpl()
                 .setOid(oid)
                 .setDisplayName(EntityType.forNumber(entityType).toString() + oid)
                 .setEntityType(entityType);
         for (Long conn : connectedTo) {
-            TopologyDTO.CommodityType commType = TopologyDTO.CommodityType.newBuilder()
-                    .setType(connectedCommSoldByEntityType.get(entityType)).setKey(createKey(conn)).build();
-            topo.addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(commType).setAccesses(conn).build());
+            CommodityTypeView commType = new CommodityTypeImpl()
+                    .setType(connectedCommSoldByEntityType.get(entityType)).setKey(createKey(conn));
+            topo.addCommoditySoldList(new CommoditySoldImpl().setCommodityType(commType).setAccesses(conn));
         }
         if (isPlanOrigin) {
-            topo.setOrigin(Origin.newBuilder().setPlanScenarioOrigin(PlanScenarioOrigin.newBuilder().setPlanId(88L)));
+            topo.setOrigin(new OriginImpl().setPlanScenarioOrigin(new PlanScenarioOriginImpl().setPlanId(88L)));
         }
         if (isLocal.isPresent()) {
-            topo.setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setStorage(StorageInfo.newBuilder().setIsLocal(isLocal.get())));
+            topo.setTypeSpecificInfo(new TypeSpecificInfoImpl().setStorage(new StorageInfoImpl().setIsLocal(isLocal.get())));
         }
         if (isRemoved) {
-            topo.setEdit(Edit.newBuilder().setRemoved(TopologyEntityDTO.Removed.newBuilder().setPlanId(planId)));
+            topo.setEdit(new EditImpl().setRemoved(new RemovedImpl().setPlanId(planId)));
         }
         if (isReplaced) {
-            topo.setEdit(Edit.newBuilder().setReplaced(TopologyEntityDTO.Replaced.newBuilder().setPlanId(planId)));
+            topo.setEdit(new EditImpl().setReplaced(new ReplacedImpl().setPlanId(planId)));
         }
         return TopologyEntity.newBuilder(topo);
     }

@@ -17,10 +17,14 @@ import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustom
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.GetAllEntityCustomTagsRequest;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.GetAllEntityCustomTagsResponse;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc.EntityCustomTagsServiceBlockingStub;
+import com.vmturbo.common.protobuf.tag.Tag;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
-import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.common.protobuf.tag.TagPOJO.TagValuesImpl;
+import com.vmturbo.common.protobuf.tag.TagPOJO.TagValuesView;
+import com.vmturbo.common.protobuf.tag.TagPOJO.TagsImpl;
+import com.vmturbo.common.protobuf.tag.TagPOJO.TagsView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.stitching.TopologyEntity;
 
 /**
  * The {@link com.vmturbo.topology.processor.entity.EntityCustomTagsMerger} is used for merging the
@@ -48,7 +52,7 @@ public class EntityCustomTagsMerger {
      * @param topologyMap is the topology map builder, upon which will update the entity tags.
      * @throws OperationFailedException if RPC call fails.
      */
-    public void mergeEntityCustomTags(@Nonnull final Map<Long, Builder> topologyMap) throws
+    public void mergeEntityCustomTags(@Nonnull final Map<Long, TopologyEntity.Builder> topologyMap) throws
             OperationFailedException {
 
         GetAllEntityCustomTagsResponse response;
@@ -62,17 +66,17 @@ public class EntityCustomTagsMerger {
         }
 
         for (EntityCustomTags entry : response.getEntityCustomTagsList()) {
-            Builder entity =  topologyMap.get(entry.getEntityId());
+            TopologyEntity.Builder entity =  topologyMap.get(entry.getEntityId());
 
             if (entity == null) {
                 logger.warn("There is no entity in the topology map with oid: "
                         + entry.getEntityId());
                 continue;
             }
-            TopologyEntityDTO.Builder entityBuilder = entity.getEntityBuilder();
+            TopologyEntityImpl entityImpl = entity.getTopologyEntityImpl();
 
-            Tags tags = merge(entityBuilder.getTags(), entry.getTags());
-            entityBuilder.setTags(tags);
+            TagsImpl tags = merge(entityImpl.getTags(), entry.getTags());
+            entityImpl.setTags(tags);
         }
     }
 
@@ -85,12 +89,12 @@ public class EntityCustomTagsMerger {
      *
      * @return the merged tags
      */
-    private Tags merge(Tags t1, Tags t2) {
-        Tags.Builder result = Tags.newBuilder();
+    private TagsImpl merge(TagsView t1, Tag.Tags t2) {
+        TagsImpl result = new TagsImpl();
 
         result.putAllTags(t1.getTagsMap());
         for (Map.Entry<String, TagValuesDTO> entry : t2.getTagsMap().entrySet()) {
-            TagValuesDTO currentValues = result.getTagsMap().get(entry.getKey());
+            TagValuesView currentValues = result.getTagsMap().get(entry.getKey());
             Set<String> newValuesSet = new HashSet<>(entry.getValue().getValuesList());
 
             if (currentValues != null) {
@@ -98,10 +102,9 @@ public class EntityCustomTagsMerger {
             }
 
             result.putTags(entry.getKey(),
-                    TagValuesDTO.newBuilder().addAllValues(newValuesSet).build()
-            ).build();
+                    new TagValuesImpl().addAllValues(newValuesSet));
         }
 
-        return result.build();
+        return result;
     }
 }

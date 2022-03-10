@@ -45,7 +45,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue.PropertyValueList;
@@ -422,7 +421,7 @@ public class GroupScopeResolver {
 
     private static boolean isGuestLoad(TopologyEntity entity) {
         return SupplyChainConstants.GUEST_LOAD.equals(
-                entity.getTopologyEntityDtoBuilder().getEntityPropertyMapMap()
+                entity.getTopologyEntityImpl().getEntityPropertyMapMap()
                         .get("common_dto.EntityDTO.ApplicationData.type"));
     }
 

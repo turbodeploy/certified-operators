@@ -24,14 +24,14 @@ import org.hamcrest.TypeSafeMatcher;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.HistoricalValuesImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualMachineInfoImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -53,46 +53,41 @@ public class EphemeralEntityEditorTest {
 
     private final EphemeralEntityEditor editor = new EphemeralEntityEditor();
 
-    private final TopologyEntityDTO.Builder ephemeralBuilder = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityImpl ephemeralBuilder = new TopologyEntityImpl()
         .setEntityType(EntityType.CONTAINER.getNumber());
 
-    private final TopologyEntityDTO.Builder ephemeralBuilder2 = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityImpl ephemeralBuilder2 = new TopologyEntityImpl()
         .setEntityType(EntityType.CONTAINER.getNumber());
 
-    private final HistoricalValues peakValues = HistoricalValues.newBuilder()
+    private final HistoricalValuesImpl peakValues = new HistoricalValuesImpl()
         .setHistUtilization(1.0)
         .setMaxQuantity(2.0)
-        .setPercentile(3.0)
-        .build();
+        .setPercentile(3.0);
 
-    private final HistoricalValues usedValues = HistoricalValues.newBuilder()
+    private final HistoricalValuesImpl usedValues = new HistoricalValuesImpl()
         .setHistUtilization(1.5)
         .setMaxQuantity(2.5)
-        .setPercentile(3.5)
-        .build();
+        .setPercentile(3.5);
 
     private static final int COMM_1_TYPE = CommodityDTO.CommodityType.VCPU_VALUE;
     private static final int COMM_2_TYPE = CommodityDTO.CommodityType.VCPU_REQUEST_VALUE;
 
-    private final CommoditySoldDTO sold1 = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(COMM_1_TYPE))
+    private final CommoditySoldImpl sold1 = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(COMM_1_TYPE))
             .setIsResizeable(true)
-            .setHistoricalPeak(peakValues)
-            .build();
+            .setHistoricalPeak(peakValues);
 
-    private final CommoditySoldDTO sold2NoKey = CommoditySoldDTO.newBuilder()
-        .setCommodityType(CommodityType.newBuilder().setType(COMM_2_TYPE))
+    private final CommoditySoldImpl sold2NoKey = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(COMM_2_TYPE))
         .setHistoricalUsed(usedValues)
-        .setHistoricalPeak(peakValues)
-        .build();
+        .setHistoricalPeak(peakValues);
 
-    private final CommoditySoldDTO sold2WithKey = CommoditySoldDTO.newBuilder()
-        .setCommodityType(CommodityType.newBuilder().setType(COMM_2_TYPE).setKey("foo"))
+    private final CommoditySoldImpl sold2WithKey = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(COMM_2_TYPE).setKey("foo"))
         .setIsResizeable(false)
-        .setHistoricalUsed(usedValues)
-        .build();
+        .setHistoricalUsed(usedValues);
 
-    private final Map<Integer, List<CommoditySoldDTO>> persistentCommsSold = ImmutableMap.of(
+    private final Map<Integer, List<CommoditySoldView>> persistentCommsSold = ImmutableMap.of(
         COMM_1_TYPE, Collections.singletonList(sold1),
         COMM_2_TYPE, Arrays.asList(sold2NoKey, sold2WithKey));
 
@@ -105,10 +100,10 @@ public class EphemeralEntityEditorTest {
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         when(container.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
-        when(container.getTopologyEntityDtoBuilder()).thenReturn(ephemeralBuilder);
+        when(container.getTopologyEntityImpl()).thenReturn(ephemeralBuilder);
 
         when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
-        when(container2.getTopologyEntityDtoBuilder()).thenReturn(ephemeralBuilder2);
+        when(container2.getTopologyEntityImpl()).thenReturn(ephemeralBuilder2);
     }
 
     /**
@@ -155,9 +150,9 @@ public class EphemeralEntityEditorTest {
         when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
-        final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(3));
-        final CommoditySoldDTO beforeEdits = ephemeralCommSold.build();
+        final CommoditySoldImpl ephemeralCommSold = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(3));
+        final CommoditySoldView beforeEdits = ephemeralCommSold.copy();
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
         editor.applyEdits(graph, true);
@@ -174,8 +169,8 @@ public class EphemeralEntityEditorTest {
         when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
-        final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(COMM_1_TYPE));
+        final CommoditySoldImpl ephemeralCommSold = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(COMM_1_TYPE));
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
         editor.applyEdits(graph, true);
@@ -192,9 +187,9 @@ public class EphemeralEntityEditorTest {
         when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
-        final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(COMM_2_TYPE).setKey("bar"));
-        final CommoditySoldDTO beforeEdits = ephemeralCommSold.build();
+        final CommoditySoldImpl ephemeralCommSold = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(COMM_2_TYPE).setKey("bar"));
+        final CommoditySoldView beforeEdits = ephemeralCommSold.copy();
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
         editor.applyEdits(graph, true);
@@ -211,8 +206,8 @@ public class EphemeralEntityEditorTest {
         when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
-        final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(COMM_2_TYPE).setKey("foo"));
+        final CommoditySoldImpl ephemeralCommSold = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(COMM_2_TYPE).setKey("foo"));
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
         editor.applyEdits(graph, true);
@@ -230,8 +225,8 @@ public class EphemeralEntityEditorTest {
         when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
-        final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(COMM_1_TYPE))
+        final CommoditySoldImpl ephemeralCommSold = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(COMM_1_TYPE))
             .setIsResizeable(false);
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
@@ -249,8 +244,8 @@ public class EphemeralEntityEditorTest {
         when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
-        final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(COMM_2_TYPE).setKey("foo"))
+        final CommoditySoldImpl ephemeralCommSold = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(COMM_2_TYPE).setKey("foo"))
             .setIsResizeable(true);
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
@@ -268,10 +263,10 @@ public class EphemeralEntityEditorTest {
         when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
-        final CommoditySoldDTO.Builder first = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(COMM_1_TYPE));
-        final CommoditySoldDTO.Builder second = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(COMM_2_TYPE));
+        final CommoditySoldImpl first = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(COMM_1_TYPE));
+        final CommoditySoldImpl second = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(COMM_2_TYPE));
         ephemeralBuilder.addCommoditySoldList(first);
         ephemeralBuilder.addCommoditySoldList(second);
 
@@ -290,14 +285,14 @@ public class EphemeralEntityEditorTest {
         when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Arrays.asList(container, container2));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
-        final CommoditySoldDTO.Builder first = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(COMM_1_TYPE));
-        final CommoditySoldDTO.Builder second = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(COMM_2_TYPE));
+        final CommoditySoldImpl first = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(COMM_1_TYPE));
+        final CommoditySoldImpl second = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(COMM_2_TYPE));
         ephemeralBuilder.addCommoditySoldList(first);
         ephemeralBuilder.addCommoditySoldList(second);
-        ephemeralBuilder2.addCommoditySoldList(CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(COMM_2_TYPE).setKey("foo")));
+        ephemeralBuilder2.addCommoditySoldList(new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(COMM_2_TYPE).setKey("foo")));
 
         editor.applyEdits(graph, true);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(sold1));
@@ -315,12 +310,12 @@ public class EphemeralEntityEditorTest {
         when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Arrays.asList(container, container2));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
-        final CommoditySoldDTO.Builder vcpuSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+        final CommoditySoldImpl vcpuSold = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_VALUE))
             .setCapacity(10.0)
             .setIsResizeable(true);
-        final CommoditySoldDTO.Builder vcpuRequestSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+        final CommoditySoldImpl vcpuRequestSold = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_VALUE))
             .setCapacity(10.0)
             .setIsResizeable(true);
         ephemeralBuilder.addCommoditySoldList(vcpuSold);
@@ -361,11 +356,11 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testSetConsistentScalingFactor() {
         final TopologyEntity container2 = mock(TopologyEntity.class);
-        final TopologyEntityDTO.Builder ephemeralBuilder2 = TopologyEntityDTO.newBuilder()
+        final TopologyEntityImpl ephemeralBuilder2 = new TopologyEntityImpl()
             .setEntityType(EntityType.CONTAINER.getNumber());
 
         when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
-        when(container2.getTopologyEntityDtoBuilder()).thenReturn(ephemeralBuilder2);
+        when(container2.getTopologyEntityImpl()).thenReturn(ephemeralBuilder2);
         setupVmProvider(container, 111L, 1.0, 6, 1.0f);
         setupVmProvider(container2, 222L, 2.0, 3, 0.5f);
 
@@ -397,11 +392,11 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testSetConsistentScalingFeatureFlagDisabled() {
         final TopologyEntity container2 = mock(TopologyEntity.class);
-        final TopologyEntityDTO.Builder ephemeralBuilder2 = TopologyEntityDTO.newBuilder()
+        final TopologyEntityImpl ephemeralBuilder2 = new TopologyEntityImpl()
             .setEntityType(EntityType.CONTAINER.getNumber());
 
         when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
-        when(container2.getTopologyEntityDtoBuilder()).thenReturn(ephemeralBuilder2);
+        when(container2.getTopologyEntityImpl()).thenReturn(ephemeralBuilder2);
         setupVmProvider(container, 111L, 1.0, 6, 1.0f);
         setupVmProvider(container2, 222L, 2.0, 3, 0.5f);
 
@@ -429,11 +424,11 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testConsistentScalingFactorStillDifferent() {
         final TopologyEntity container2 = mock(TopologyEntity.class);
-        final TopologyEntityDTO.Builder ephemeralBuilder2 = TopologyEntityDTO.newBuilder()
+        final TopologyEntityImpl ephemeralBuilder2 = new TopologyEntityImpl()
             .setEntityType(EntityType.CONTAINER.getNumber());
 
         when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
-        when(container2.getTopologyEntityDtoBuilder()).thenReturn(ephemeralBuilder2);
+        when(container2.getTopologyEntityImpl()).thenReturn(ephemeralBuilder2);
         setupVmProvider(container, 111L, 1.0, 6, 1.0f);
         setupVmProvider(container2, 222L, 3.0, 3, 1.0f);
 
@@ -451,28 +446,28 @@ public class EphemeralEntityEditorTest {
         assertCommoditiesNotResizable(ephemeralBuilder2);
     }
 
-    private void assertCommoditiesNotResizable(TopologyEntityDTO.Builder ephemeralBuilder) {
+    private void assertCommoditiesNotResizable(TopologyEntityImpl ephemeralBuilder) {
         ephemeralBuilder.getCommoditySoldListList().forEach(commSold -> {
             assertFalse(commSold.getIsResizeable());
         });
     }
 
-    private void assertCommoditiesResizable(TopologyEntityDTO.Builder ephemeralBuilder) {
+    private void assertCommoditiesResizable(TopologyEntityImpl ephemeralBuilder) {
         ephemeralBuilder.getCommoditySoldListList().forEach(commSold -> {
             assertTrue(commSold.getIsResizeable());
         });
     }
 
-    private CommoditySoldDTO.Builder vcpuSold() {
-        return CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+    private CommoditySoldImpl vcpuSold() {
+        return new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_VALUE))
             .setCapacity(10.0)
             .setIsResizeable(true);
     }
 
-    private CommoditySoldDTO.Builder vcpuRequestSold() {
-        return CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+    private CommoditySoldImpl vcpuRequestSold() {
+        return new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_VALUE))
             .setCapacity(10.0)
             .setIsResizeable(true);
     }
@@ -485,13 +480,13 @@ public class EphemeralEntityEditorTest {
         final TopologyEntity pod = mock(TopologyEntity.class);
         when(pod.getEntityType()).thenReturn(EntityType.CONTAINER_POD_VALUE);
 
-        final TopologyEntityDTO.Builder vmBuilder = TopologyEntityDTO.newBuilder()
+        final TopologyEntityImpl vmBuilder = new TopologyEntityImpl()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .setAnalysisSettings(AnalysisSettings.newBuilder()
+            .setAnalysisSettings(new AnalysisSettingsImpl()
                 .setConsistentScalingFactor(consistentScalingFactor))
-            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualMachine(
-                VirtualMachineInfo.newBuilder().setNumCpus(numCpus)));
-        final Builder vcpuSold = vcpuSold();
+            .setTypeSpecificInfo(new TypeSpecificInfoImpl().setVirtualMachine(
+                new VirtualMachineInfoImpl().setNumCpus(numCpus)));
+        final CommoditySoldImpl vcpuSold = vcpuSold();
         vcpuSold.setCapacity(vcpuSold.getCapacity() * numCpus);
         vcpuSold().setScalingFactor(scalingFactor);
         vmBuilder.addCommoditySoldList(vcpuSold);
@@ -499,7 +494,7 @@ public class EphemeralEntityEditorTest {
         final TopologyEntity vm = mock(TopologyEntity.class);
         when(vm.getOid()).thenReturn(vmOid);
         when(vm.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE_VALUE);
-        when(vm.getTopologyEntityDtoBuilder()).thenReturn(vmBuilder);
+        when(vm.getTopologyEntityImpl()).thenReturn(vmBuilder);
 
         when(pod.getProviders()).thenReturn(Collections.singletonList(vm));
         when(container.getProviders()).thenReturn(Collections.singletonList(pod));
@@ -508,23 +503,23 @@ public class EphemeralEntityEditorTest {
     /**
      * Matcher that checks matching of commodity sold history with an expected value.
      */
-    public static class CommoditySoldHistoryMatcher extends TypeSafeMatcher<CommoditySoldDTO> {
+    public static class CommoditySoldHistoryMatcher extends TypeSafeMatcher<CommoditySoldView> {
 
         private String reasonMatchFails;
 
-        private final CommoditySoldDTO expectedValue;
+        private final CommoditySoldView expectedValue;
 
         /**
          * Create a new {@link CommoditySoldHistoryMatcher}.
          *
          * @param expectedValue The expected value to match.
          */
-        public CommoditySoldHistoryMatcher(@Nonnull final CommoditySoldDTO expectedValue) {
+        public CommoditySoldHistoryMatcher(@Nonnull final CommoditySoldView expectedValue) {
             this.expectedValue = Objects.requireNonNull(expectedValue);
         }
 
         @Override
-        protected boolean matchesSafely(CommoditySoldDTO commoditySoldDTO) {
+        protected boolean matchesSafely(CommoditySoldView commoditySoldDTO) {
             if (expectedValue.hasIsResizeable() != commoditySoldDTO.hasIsResizeable()) {
                 reasonMatchFails = String.format("expected hasIsResizeable=%s but was %s",
                     expectedValue.hasIsResizeable(), commoditySoldDTO.hasIsResizeable());
@@ -574,10 +569,10 @@ public class EphemeralEntityEditorTest {
     /**
      * Create a new CommoditySoldHistoryMatcher.
      *
-     * @param expected The {@link CommoditySoldDTO} expected to match.
+     * @param expected The {@link CommoditySoldView} expected to match.
      * @return A new CommoditySoldHistoryMatcher.
      */
-    public static CommoditySoldHistoryMatcher matchesHistory(@Nonnull final CommoditySoldDTO expected) {
+    public static CommoditySoldHistoryMatcher matchesHistory(@Nonnull final CommoditySoldView expected) {
         return new CommoditySoldHistoryMatcher(expected);
     }
 }

@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
-import javax.validation.constraints.AssertTrue;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.util.JsonFormat;
@@ -22,11 +21,12 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingTo
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -63,7 +63,7 @@ public class VsanStorageApplicatorTest {
         allOff.checkIOPS(HCI_HOST_CAPACITY_RESERVATION_OFF);
         allOff.checkUtilizationThreshold(100);
 
-        Assert.assertTrue(allOff.storage.getCommoditiesBoughtFromProvidersBuilderList().stream()
+        Assert.assertTrue(allOff.storage.getCommoditiesBoughtFromProvidersImplList().stream()
                 .filter(grouping -> grouping.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
                 .allMatch(grouping -> grouping.getCommodityBoughtList().stream()
                     .anyMatch(c -> c.getCommodityType().getType() == CommodityType.ACCESS_VALUE)));
@@ -98,7 +98,7 @@ public class VsanStorageApplicatorTest {
         raid1AllOff.checkUtilizationThreshold(50);
 
         // storage has valid commBoughtGrouping and hence will have new commodity added.
-        Assert.assertTrue(raid1AllOff.storage.getCommoditiesBoughtFromProvidersBuilderList().stream()
+        Assert.assertTrue(raid1AllOff.storage.getCommoditiesBoughtFromProvidersImplList().stream()
                 .filter(grouping -> grouping.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
                 .allMatch(grouping -> grouping.getCommodityBoughtList().stream()
                         .anyMatch(c -> c.getCommodityType().getType() == CommodityType.ACCESS_VALUE)));
@@ -162,8 +162,9 @@ public class VsanStorageApplicatorTest {
 
         InputStream is = VsanStorageApplicatorTest.class
                 .getResourceAsStream(fileName);
-        TopologyEntityDTO.Builder storage = TopologyEntityDTO.newBuilder();
-        JsonFormat.parser().merge(new InputStreamReader(is), storage);
+        TopologyEntityDTO.Builder storageDTO = TopologyEntityDTO.newBuilder();
+        JsonFormat.parser().merge(new InputStreamReader(is), storageDTO);
+        TopologyEntityImpl storage = TopologyEntityImpl.fromProto(storageDTO);
 
         Map<EntitySettingSpecs, Setting> settings = new HashMap<>();
         settings.put(EntitySettingSpecs.HciUseCompression,
@@ -189,8 +190,9 @@ public class VsanStorageApplicatorTest {
 
         InputStream is = VsanStorageApplicatorTest.class
                 .getResourceAsStream(fileName);
-        TopologyEntityDTO.Builder storage = TopologyEntityDTO.newBuilder();
-        JsonFormat.parser().merge(new InputStreamReader(is), storage);
+        TopologyEntityDTO.Builder storageDTO = TopologyEntityDTO.newBuilder();
+        JsonFormat.parser().merge(new InputStreamReader(is), storageDTO);
+        TopologyEntityImpl storage = TopologyEntityImpl.fromProto(storageDTO);
 
         // Having empty settings will trigger default logic
         Map<EntitySettingSpecs, Setting> settings = new HashMap<>();
@@ -213,25 +215,25 @@ public class VsanStorageApplicatorTest {
                 .build();
     }
 
-    private static Pair<GraphWithSettings, Integer> makeGraphWithSettings(TopologyEntityDTO.Builder storage,
-                    Map<EntitySettingSpecs, Setting> storageSettings)    {
+    private static Pair<GraphWithSettings, Integer> makeGraphWithSettings(TopologyEntityImpl storage,
+                                                                          Map<EntitySettingSpecs, Setting> storageSettings)    {
         int cntHosts = 0;
         Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
-        for (CommoditiesBoughtFromProvider commoditiesFromProvider :
+        for (CommoditiesBoughtFromProviderView commoditiesFromProvider :
                 storage.getCommoditiesBoughtFromProvidersList())   {
             if (commoditiesFromProvider.getProviderEntityType() !=
                             EntityType.PHYSICAL_MACHINE_VALUE)    {
                 continue;
             }
             long providerId = commoditiesFromProvider.getProviderId();
-            TopologyEntityDTO.Builder provider = TopologyEntityDTO.newBuilder()
+            TopologyEntityImpl provider = new TopologyEntityImpl()
                             .setOid(providerId)
                             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
-            for (CommodityBoughtDTO boughtCommodityDTO : commoditiesFromProvider
+            for (CommodityBoughtView boughtCommodityDTO : commoditiesFromProvider
                             .getCommodityBoughtList())  {
                 int commodityTypeInt = boughtCommodityDTO.getCommodityType().getType();
-                CommoditySoldDTO.Builder soldCommodityBuilder = CommoditySoldDTO.newBuilder()
-                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                CommoditySoldImpl soldCommodityBuilder = new CommoditySoldImpl()
+                                .setCommodityType(new CommodityTypeImpl()
                                                 .setType(commodityTypeInt));
                 if (commodityTypeInt == CommodityType.STORAGE_AMOUNT_VALUE) {
                     soldCommodityBuilder.setCapacity(boughtCommodityDTO.getUsed());
@@ -273,11 +275,11 @@ public class VsanStorageApplicatorTest {
      * and run the checking procedures.
      */
     private static class ApplicatorResult  {
-        private TopologyEntityDTO.Builder storage;
+        private TopologyEntityImpl storage;
         private GraphWithSettings graph;
         private int numberOfHosts;
 
-        ApplicatorResult(TopologyEntityDTO.Builder storage,
+        ApplicatorResult(TopologyEntityImpl storage,
                         Pair<GraphWithSettings, Integer> graphNHostsCnt)   {
             this.storage = storage;
             this.graph = graphNHostsCnt.getFirst();
@@ -285,7 +287,7 @@ public class VsanStorageApplicatorTest {
         }
 
         public void checkStorageAmount(double expectedUsed, double expectedCapacity)    {
-            CommoditySoldDTO.Builder storageAmount = BaseSettingApplicator
+            CommoditySoldImpl storageAmount = BaseSettingApplicator
                             .getCommoditySoldBuilders(storage, CommodityType.STORAGE_AMOUNT)
                             .iterator().next();
             Assert.assertEquals(expectedUsed, storageAmount.getUsed() / 1024, .01);
@@ -293,7 +295,7 @@ public class VsanStorageApplicatorTest {
         }
 
         public void checkIOPS(int hciHostCapacityReservation)   {
-            CommoditySoldDTO.Builder storageAccess = BaseSettingApplicator
+            CommoditySoldImpl storageAccess = BaseSettingApplicator
                             .getCommoditySoldBuilders(storage, CommodityType.STORAGE_ACCESS)
                             .iterator().next();
             int referenceIOPSCapacity = (numberOfHosts - hciHostCapacityReservation)
@@ -302,7 +304,7 @@ public class VsanStorageApplicatorTest {
         }
 
         public void checkUtilizationThreshold(double hciUsablePercentage)    {
-            for (CommoditiesBoughtFromProvider commoditiesFromProvider
+            for (CommoditiesBoughtFromProviderView commoditiesFromProvider
                             : storage.getCommoditiesBoughtFromProvidersList())   {
                 if (commoditiesFromProvider.getProviderEntityType()
                                 != EntityType.PHYSICAL_MACHINE_VALUE)    {
@@ -310,8 +312,8 @@ public class VsanStorageApplicatorTest {
                 }
                 long providerId = commoditiesFromProvider.getProviderId();
                 TopologyEntity provider = graph.getTopologyGraph().getEntity(providerId).get();
-                for (CommoditySoldDTO.Builder soldCommodity
-                                : provider.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()) {
+                for (CommoditySoldImpl soldCommodity
+                                : provider.getTopologyEntityImpl().getCommoditySoldListImplList()) {
                     int commodityTypeInt = soldCommodity.getCommodityType().getType();
                     if (commodityTypeInt != CommodityType.STORAGE_PROVISIONED_VALUE
                                     && commodityTypeInt != CommodityType.STORAGE_AMOUNT_VALUE)  {

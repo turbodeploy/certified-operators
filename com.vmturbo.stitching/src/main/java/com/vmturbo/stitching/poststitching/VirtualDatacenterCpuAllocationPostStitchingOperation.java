@@ -3,20 +3,17 @@ package com.vmturbo.stitching.poststitching;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.HashMultiset;
-import com.google.common.collect.Multiset;
-
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -105,9 +102,9 @@ public class VirtualDatacenterCpuAllocationPostStitchingOperation implements Pos
      * @return a list of all commodities that need updates (may be empty)
      */
     @Nonnull
-    private static Collection<CommoditySoldDTO.Builder> getCommoditiesWithoutCapacity(
+    private static Collection<CommoditySoldImpl> getCommoditiesWithoutCapacity(
                     @Nonnull final TopologyEntity entity) {
-        return entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+        return entity.getTopologyEntityImpl().getCommoditySoldListImplList().stream()
             .filter(commodity ->
                 commodity.getCommodityType().getType() == CommodityType.CPU_ALLOCATION_VALUE &&
                     (!commodity.hasCapacity() || commodity.getCapacity() <= 0))
@@ -125,7 +122,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOperation implements Pos
     private static void handleConsumerVirtualDatacenter(@Nonnull final TopologyEntity entity,
                     @Nonnull final TopologyEntity provider,
                     @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
-        final Optional<CommoditySoldDTO> providerCpuAllocCommodity = findProviderCommodity(provider);
+        final Optional<CommoditySoldView> providerCpuAllocCommodity = findProviderCommodity(provider);
 
         providerCpuAllocCommodity.ifPresent(providerCommodity -> {
             final double providerCapacity = providerCommodity.getCapacity();
@@ -148,10 +145,10 @@ public class VirtualDatacenterCpuAllocationPostStitchingOperation implements Pos
      * @return An optional of the commodity if the entity has it and empty otherwise
      */
     @Nonnull
-    private static Optional<CommoditySoldDTO> findProviderCommodity(
+    private static Optional<CommoditySoldView> findProviderCommodity(
                     @Nonnull final TopologyEntity entity) {
-        final Collection<CommoditySoldDTO> soldCommodities =
-                        entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+        final Collection<CommoditySoldView> soldCommodities =
+                        entity.getTopologyEntityImpl().getCommoditySoldListList().stream()
                                         .filter(commodity -> commodity.getCommodityType().getType()
                                                         == CommodityType.CPU_ALLOCATION_VALUE
                                                         && commodity.hasCapacity()
@@ -178,7 +175,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOperation implements Pos
                     @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder,
                     @Nonnull Collection<TopologyEntity> providers) {
         final Collection<String> relevantKeys =
-                        entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+                        entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                                         .stream()
                                         .flatMap(cbfp -> cbfp.getCommodityBoughtList().stream()
                                                         .filter(bought -> bought.getCommodityType()
@@ -227,7 +224,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOperation implements Pos
                         .flatMap(VirtualDatacenterCpuAllocationPostStitchingOperation::filterProviderCommodities)
                         .filter(commodity -> relevantKeys
                                         .contains(commodity.getCommodityType().getKey()))
-                        .map(CommoditySoldDTO::getCapacity)
+                        .map(CommoditySoldView::getCapacity)
                         .reduce((double)0, Double::sum);
     }
 
@@ -237,12 +234,13 @@ public class VirtualDatacenterCpuAllocationPostStitchingOperation implements Pos
      * @return a stream of the provider's CPU Allocation commodities with unique keys
      */
     @Nonnull
-    private static Stream<CommoditySoldDTO> filterProviderCommodities(
+    private static Stream<CommoditySoldView> filterProviderCommodities(
                     @Nonnull final TopologyEntity provider) {
         final Collection<String> uniqueKeys = new HashSet<>();
-        return provider.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+        return provider.getTopologyEntityImpl().getCommoditySoldListList().stream()
             .filter(commodity -> commodity.getCommodityType().getType() == CommodityType.CPU_ALLOCATION_VALUE)
-            .filter(commodity -> uniqueKeys.add(commodity.getCommodityType().getKey()));
+            .filter(commodity -> uniqueKeys.add(commodity.getCommodityType().getKey()))
+            .map(commSold -> commSold);
     }
 
 

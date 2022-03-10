@@ -33,6 +33,13 @@
                             <version>${project.version}</version>
                             <mainClass>com.vmturbo.protoc.grpc.moles.Main</mainClass>
                         </protocPlugin>
+                        <protocPlugin>
+                            <id>pojo-gen</id>
+                            <groupId>com.vmturbo</groupId>
+                            <artifactId>protoc-pojo-gen-plugin</artifactId>
+                            <version>${project.version}</version>
+                            <mainClass>com.vmturbo.protoc.pojo.gen.Main</mainClass>
+                        </protocPlugin>
                     </protocPlugins>
                 </configuration>
                 <dependencies>
@@ -44,6 +51,11 @@
                     <dependency>
                         <groupId>com.vmturbo</groupId>
                         <artifactId>protoc-grpc-moles-plugin</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>com.vmturbo</groupId>
+                        <artifactId>protoc-pojo-gen-plugin</artifactId>
                         <version>${project.version}</version>
                     </dependency>
                 </dependencies>

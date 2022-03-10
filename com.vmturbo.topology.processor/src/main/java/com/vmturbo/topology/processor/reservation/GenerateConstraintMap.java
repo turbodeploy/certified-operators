@@ -28,8 +28,8 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateConstraintMapRespon
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -142,7 +142,7 @@ public class GenerateConstraintMap {
                     }
                     TopologyEntity provider = providerOptional.get();
                     if (provider.getTypeSpecificInfo().hasPhysicalMachine()) {
-                        String key = provider.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                        String key = provider.getTopologyEntityImpl().getCommoditySoldListList().stream()
                                 .filter(a -> a.getCommodityType().getType()
                                         == CommodityType.CLUSTER_VALUE).findFirst().get()
                                 .getCommodityType().getKey();
@@ -158,7 +158,7 @@ public class GenerateConstraintMap {
                         // cluster commodities sold by the storage in this
                         // cluster until we get to a single entry
                         List<String> currentStorageClusterCommodities = provider
-                                .getTopologyEntityDtoBuilder()
+                                .getTopologyEntityImpl()
                                 .getCommoditySoldListList().stream()
                                 .filter(a -> a.getCommodityType().getType()
                                         == CommodityType.STORAGE_CLUSTER_VALUE)
@@ -228,8 +228,8 @@ public class GenerateConstraintMap {
         for (TopologyEntity dataCenter : allDatacenters) {
             List<TopologyEntity> hostList = dataCenter.getConsumers();
             for (TopologyEntity host : hostList) {
-                Optional<CommoditySoldDTO> dataCenterCommoditySold =
-                        host.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                Optional<CommoditySoldView> dataCenterCommoditySold =
+                        host.getTopologyEntityImpl().getCommoditySoldListList().stream()
                                 .filter(a -> a.getCommodityType().getType()
                                         == CommodityType.DATACENTER_VALUE).findFirst();
                 if (dataCenterCommoditySold.isPresent()) {
@@ -258,10 +258,10 @@ public class GenerateConstraintMap {
                                 UpdateConstraintMapRequest.Builder updateConstraintMapRequest) {
         // go over all the policies and find the key of the segmentaion commodity
         // associated with the placement policy and also the provider type of the entity.
-        Table<Long, Integer, TopologyDTO.CommodityType> placementPolicyIdToCommodityType = policyManager
+        Table<Long, Integer, TopologyPOJO.CommodityTypeView> placementPolicyIdToCommodityType = policyManager
                 .getPlacementPolicyIdToCommodityType(topologyGraph,
                         groupResolver);
-        for (Cell<Long, Integer, TopologyDTO.CommodityType> cell : placementPolicyIdToCommodityType.cellSet()) {
+        for (Cell<Long, Integer, TopologyPOJO.CommodityTypeView> cell : placementPolicyIdToCommodityType.cellSet()) {
             if ((cell.getColumnKey() == EntityType.PHYSICAL_MACHINE_VALUE
                     || cell.getColumnKey() == EntityType.STORAGE_VALUE)
                     && (cell.getValue().getType() == CommodityType.SEGMENTATION_VALUE)) {

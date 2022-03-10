@@ -13,7 +13,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologicalChangelog;
@@ -92,7 +92,7 @@ public class PmStateChangePostStitchingOperationTest {
 
     @Nonnull
     private static Builder getPmBuilder(int i, @Nonnull EntityState poweredOn) {
-        return TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        return TopologyEntity.newBuilder(new TopologyEntityImpl()
                 .setOid(i)
                 .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                 .setEntityState(poweredOn));
