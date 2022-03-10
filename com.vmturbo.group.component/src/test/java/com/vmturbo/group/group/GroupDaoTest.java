@@ -91,6 +91,7 @@ import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDB;
 import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
@@ -155,7 +156,8 @@ public class GroupDaoTest extends MultiDbTestBase {
     @Before
     public void setup() throws SQLException, UnsupportedDialectException, InterruptedException {
         this.groupGenerator = new TestGroupGenerator();
-        groupStore = new GroupDAO(dsl, new GroupPaginationParams(100, 500));
+        final SQLDialect dialect = dsl.configuration().family();
+        groupStore = new GroupDAO(dsl, new GroupPaginationParams(100, 500), MultiDB.of(dialect));
     }
 
     /**

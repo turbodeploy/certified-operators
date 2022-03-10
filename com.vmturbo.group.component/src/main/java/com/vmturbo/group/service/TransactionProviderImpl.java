@@ -32,6 +32,7 @@ import com.vmturbo.group.setting.ISettingPolicyStore;
 import com.vmturbo.group.setting.SettingPolicyFilter;
 import com.vmturbo.group.setting.SettingStore;
 import com.vmturbo.platform.sdk.common.util.Pair;
+import com.vmturbo.sql.utils.MultiDB;
 
 /**
  * Transaction provider based on Jooq connection.
@@ -43,6 +44,7 @@ public class TransactionProviderImpl implements TransactionProvider {
     private final IdentityProvider identityProvider;
     private final Set<GroupUpdateListener> groupUpdateListeners = Collections.synchronizedSet(new HashSet<>());
     private final GroupPaginationParams groupPaginationParams;
+    private final MultiDB multiDB;
 
     /**
      * Constructs transaction provider for RPC services.
@@ -52,14 +54,16 @@ public class TransactionProviderImpl implements TransactionProvider {
      * @param dslContext Jooq connection
      * @param groupPaginationParams pagination parameters for group pagination (used when creating
      *                              group stores)
+     * @param multiDB object that provides support for multiple databases
      */
-    public TransactionProviderImpl(
-            @Nonnull SettingStore settingStore, @Nonnull DSLContext dslContext, @Nonnull
-            IdentityProvider identityProvider, @Nonnull GroupPaginationParams groupPaginationParams) {
+    public TransactionProviderImpl(@Nonnull SettingStore settingStore,
+            @Nonnull DSLContext dslContext, @Nonnull IdentityProvider identityProvider,
+            @Nonnull GroupPaginationParams groupPaginationParams, @Nonnull MultiDB multiDB) {
         this.settingStore = Objects.requireNonNull(settingStore);
         this.dslContext = Objects.requireNonNull(dslContext);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.groupPaginationParams = groupPaginationParams;
+        this.multiDB = multiDB;
     }
 
     /**
@@ -78,7 +82,8 @@ public class TransactionProviderImpl implements TransactionProvider {
         try {
             return dslContext.transactionResult(config -> {
                 final DSLContext transactionContext = DSL.using(config);
-                final GroupDAO groupStore = new GroupDAO(transactionContext, groupPaginationParams);
+                final GroupDAO groupStore =
+                        new GroupDAO(transactionContext, groupPaginationParams, multiDB);
                 groupUpdateListeners.forEach(groupStore::addUpdateListener);
                 final PolicyValidator policyValidator = new PolicyValidator(groupStore);
                 final IPlacementPolicyStore placementPolicyStore = new PolicyStore(
