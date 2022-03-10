@@ -10,7 +10,7 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl.ThresholdsImpl;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
@@ -170,7 +170,7 @@ public class MovingStatisticsCommodityData implements
         }
     }
 
-    private static Consumer<Thresholds.Builder> thresholdsUpdater(final double newMinThreshold) {
+    private static Consumer<ThresholdsImpl> thresholdsUpdater(final double newMinThreshold) {
         return thresholds -> {
             double minThreshold = thresholds.hasMin()
                 ? Math.max(thresholds.getMin(), newMinThreshold)

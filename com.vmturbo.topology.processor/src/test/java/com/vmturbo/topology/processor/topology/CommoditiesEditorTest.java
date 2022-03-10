@@ -1,7 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.buildTopologyEntityWithCommSold;
-import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.createGraph;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.createTopologyGraph;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,12 +34,13 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -94,22 +95,22 @@ public class CommoditiesEditorTest {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM, 70, 80, 10, 20);
+        TopologyGraph<TopologyEntity> g = createTopologyGraph(CommodityDTO.CommodityType.MEM, 70, 80, 10, 20);
 
         TopologyEntity pm = g.getEntity(1L).get();
         TopologyEntity vm = g.getEntity(2L).get();
 
         // Check values before calling CommoditiesEditor.
         // Compare used
-        Assert.assertEquals(70, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(70, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getUsed(), DELTA);
-        Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(10, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
 
         // Compare peak
-        Assert.assertEquals(80, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(80, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getPeak(), DELTA);
-        Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(20, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
 
         // Get scenario change
@@ -132,17 +133,17 @@ public class CommoditiesEditorTest {
         // Compare used
         // Expected value used for PM : used - currUsedForVM + usedFromDB : 70 - 10 + 50
         // Expected value used for VM : as fetched from database : 50
-        Assert.assertEquals(70 - 10 + 50, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(70 - 10 + 50, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getUsed(), DELTA);
-        Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(50, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
 
         // Compare peak
         // Expected value peak for PM : peak - currPeakForVM + peakFromDB : 80 - 20 + 100
         // Expected value peak for VM : as fetched from database : 100
-        Assert.assertEquals(80 - 20 + 100, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(80 - 20 + 100, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getPeak(), DELTA);
-        Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(100, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
     }
 
@@ -151,22 +152,22 @@ public class CommoditiesEditorTest {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM, 70, 80, 10, 20);
+        TopologyGraph<TopologyEntity> g = createTopologyGraph(CommodityDTO.CommodityType.MEM, 70, 80, 10, 20);
 
         TopologyEntity pm = g.getEntity(1L).get();
         TopologyEntity vm = g.getEntity(2L).get();
 
         // Check values before calling CommoditiesEditor.
         // Compare used
-        Assert.assertEquals(70, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(70, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getUsed(), DELTA);
-        Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(10, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
 
         // Compare peak
-        Assert.assertEquals(80, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(80, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getPeak(), DELTA);
-        Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(20, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
 
         // Get scenario change
@@ -189,17 +190,17 @@ public class CommoditiesEditorTest {
         // Compare used
         // Expected value used for PM : used - currUsedForVM + usedFromDB : 70 - 10 + 50
         // Expected value used for VM : as fetched from database : 50
-        Assert.assertEquals(70 - 10 + 50, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(70 - 10 + 50, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getUsed(), DELTA);
-        Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(50, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
 
         // Compare peak
         // Expected value peak for PM : peak - currPeakForVM + peakFromDB : 80 - 20 + 100
         // Expected value peak for VM : as fetched from database : 100
-        Assert.assertEquals(80 - 20 + 100, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(80 - 20 + 100, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getPeak(), DELTA);
-        Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(100, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
     }
 
@@ -235,13 +236,13 @@ public class CommoditiesEditorTest {
         // Expected value used for Storage2 : used - currUsedForVM + usedFromDB : 70 - 10 + 30
         // Expected value used for VM form first commodity: as fetched from database : 50
         // Expected value used for VM form second commodity: as fetched from database : 30
-        Assert.assertEquals(70 - 10 + 50, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(70 - 10 + 50, st1.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getUsed(), DELTA);
-        Assert.assertEquals(70 - 10 + 30, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(70 - 10 + 30, st2.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getUsed(), DELTA);
-        Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(50, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
-        Assert.assertEquals(30, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(30, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(1).getCommodityBoughtList().get(0).getUsed(), DELTA);
 
         // Compare peak
@@ -249,13 +250,13 @@ public class CommoditiesEditorTest {
         // Expected value peak for Storage2 : used - currUsedForVM + usedFromDB : 80 - 20 + 40
         // Expected value peak for VM : as fetched from database : 100
         // Expected value peak for VM form second commodity: as fetched from database : 30
-        Assert.assertEquals(80 - 20 + 100, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(80 - 20 + 100, st1.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getPeak(), DELTA);
-        Assert.assertEquals(80 - 20 + 40, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(80 - 20 + 40, st2.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getPeak(), DELTA);
-        Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(100, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
-        Assert.assertEquals(40, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(40, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(1).getCommodityBoughtList().get(0).getPeak(), DELTA);
     }
 
@@ -269,7 +270,7 @@ public class CommoditiesEditorTest {
     private TopologyGraph<TopologyEntity> createOneVMThreeSTsGraph() {
         // Set virtual machine with commodities bought from both storages.
         TopologyEntity.Builder vmBuilder = TopologyEntityUtils.topologyEntityBuilder(
-            TopologyEntityDTO.newBuilder().setOid(3).addCommoditiesBoughtFromProviders(
+            new TopologyEntityImpl().setOid(3).addCommoditiesBoughtFromProviders(
                     createStorageAmountCommoditiesBoughtFromProvider(1L, 10, 20))
                 .addCommoditiesBoughtFromProviders(
                     createStorageAmountCommoditiesBoughtFromProvider(2L, 10, 20))
@@ -295,19 +296,19 @@ public class CommoditiesEditorTest {
 
         // Check values before calling CommoditiesEditor.
         // Compare used
-        Assert.assertEquals(70, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(70, st1.getTopologyEntityImpl().getCommoditySoldListList()
             .get(0).getUsed(), DELTA);
-        Assert.assertEquals(70, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(70, st2.getTopologyEntityImpl().getCommoditySoldListList()
             .get(0).getUsed(), DELTA);
-        Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(10, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
             .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
 
         // Compare peak
-        Assert.assertEquals(80, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(80, st1.getTopologyEntityImpl().getCommoditySoldListList()
             .get(0).getPeak(), DELTA);
-        Assert.assertEquals(80, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(80, st2.getTopologyEntityImpl().getCommoditySoldListList()
             .get(0).getPeak(), DELTA);
-        Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(20, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
             .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
 
         return g;
@@ -321,15 +322,15 @@ public class CommoditiesEditorTest {
      * @param peak peak value
      * @return CommoditiesBoughtFromProvider
      */
-    private CommoditiesBoughtFromProvider createStorageAmountCommoditiesBoughtFromProvider(
+    private CommoditiesBoughtFromProviderView createStorageAmountCommoditiesBoughtFromProvider(
             long providerOid, double used, double peak) {
-        return CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
-            CommodityBoughtDTO.newBuilder().setCommodityType(
-                CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()).setKey("").build())
+        return new CommoditiesBoughtFromProviderImpl().addCommodityBought(
+            new CommodityBoughtImpl().setCommodityType(
+                new CommodityTypeImpl().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()).setKey(""))
                 .setActive(true)
                 .setUsed(used)
                 .setPeak(peak))
-            .setProviderId(providerOid).build();
+            .setProviderId(providerOid);
     }
 
     @Test
@@ -337,22 +338,22 @@ public class CommoditiesEditorTest {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.STORAGE_ACCESS, 70, 80, 10, 20);
+        TopologyGraph<TopologyEntity> g = createTopologyGraph(CommodityDTO.CommodityType.STORAGE_ACCESS, 70, 80, 10, 20);
 
         TopologyEntity pm = g.getEntity(1L).get();
         TopologyEntity vm = g.getEntity(2L).get();
 
         // Check values before calling CommoditiesEditor.
         // Compare used
-        Assert.assertEquals(70, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(70, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getUsed(), DELTA);
-        Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(10, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
 
         // Compare peak
-        Assert.assertEquals(80, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(80, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getPeak(), DELTA);
-        Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(20, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
 
         // Get scenario change
@@ -374,15 +375,15 @@ public class CommoditiesEditorTest {
         // Check values after calling CommoditiesEditor.
         // Expected : Before and after values should be same because commodity is an access commodity.
         // Compare used
-        Assert.assertEquals(70, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(70, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getUsed(), DELTA);
-        Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(10, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
 
         // Compare peak
-        Assert.assertEquals(80, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(80, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getPeak(), DELTA);
-        Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(20, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
     }
 
@@ -391,28 +392,28 @@ public class CommoditiesEditorTest {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM, 70, 80, 10, 20);
+        TopologyGraph<TopologyEntity> g = createTopologyGraph(CommodityDTO.CommodityType.MEM, 70, 80, 10, 20);
 
         TopologyEntity pm = g.getEntity(1L).get();
         TopologyEntity vm = g.getEntity(2L).get();
 
         // For VM : Set current peak and used greater than PM(Used : 70, Peak : 80) : VM(Used : 90, Peak : 200)
-        vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList().get(0)
-                        .getCommodityBoughtBuilderList().get(0).setUsed(90);
-        vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList().get(0)
-                        .getCommodityBoughtBuilderList().get(0).setPeak(200);
+        vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersImplList().get(0)
+                        .getCommodityBoughtImplList().get(0).setUsed(90);
+        vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersImplList().get(0)
+                        .getCommodityBoughtImplList().get(0).setPeak(200);
 
         // Check values before calling CommoditiesEditor.
         // Compare used
-        Assert.assertEquals(70, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(70, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getUsed(), DELTA);
-        Assert.assertEquals(90, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(90, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
 
         // Compare peak
-        Assert.assertEquals(80, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(80, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getPeak(), DELTA);
-        Assert.assertEquals(200, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(200, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
 
         // Get scenario change
@@ -435,17 +436,17 @@ public class CommoditiesEditorTest {
         // Compare used
         // Expected value used for PM : used - currUsedForVM < 0 , hence used = 50 (asfetchedFromDb)
         // Expected value used for VM : as fetched from database : 50
-        Assert.assertEquals(50, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(50, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getUsed(), DELTA);
-        Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(50, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
 
         // Compare peak
         // Expected value peak for PM : peak - currPeakForVM < 0, hence peak = 100 (asfetchedFromDb)
         // Expected value peak for VM : as fetched from database : 100
-        Assert.assertEquals(100, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(100, pm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getPeak(), DELTA);
-        Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(100, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
     }
 
@@ -505,17 +506,17 @@ public class CommoditiesEditorTest {
         // Expected value used for ST2 : used - currUsedForVM + usedFromSystemLoad : 70 - 10 + 30
         // Expected value used for ST2 : used - currUsedForVM + usedFromSystemLoad : 700
         // Expected value used for VM : from ST1 : 50, from ST2 : 30, from ST2 : 100
-        Assert.assertEquals(70 - 10 + 50, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(70 - 10 + 50, st1.getTopologyEntityImpl().getCommoditySoldListList()
             .get(0).getUsed(), DELTA);
-        Assert.assertEquals(70 - 10 + 30, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(70 - 10 + 30, st2.getTopologyEntityImpl().getCommoditySoldListList()
             .get(0).getUsed(), DELTA);
-        Assert.assertEquals(700, st3.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(700, st3.getTopologyEntityImpl().getCommoditySoldListList()
             .get(0).getUsed(), DELTA);
-        Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(50, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
             .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
-        Assert.assertEquals(30, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(30, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
             .get(1).getCommodityBoughtList().get(0).getUsed(), DELTA);
-        Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(100, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
             .get(2).getCommodityBoughtList().get(0).getUsed(), DELTA);
 
         // Compare peak
@@ -523,17 +524,17 @@ public class CommoditiesEditorTest {
         // Expected value used for ST2 : used - currUsedForVM + usedFromSystemLoad : 80 - 20 + 40
         // Expected value used for ST2 : used - currUsedForVM + usedFromSystemLoad : 800
         // Expected value used for VM : from ST1 : 60, from ST2 : 40, from ST2 : 200
-        Assert.assertEquals(80 - 20 + 60, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(80 - 20 + 60, st1.getTopologyEntityImpl().getCommoditySoldListList()
             .get(0).getPeak(), DELTA);
-        Assert.assertEquals(80 - 20 + 40, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(80 - 20 + 40, st2.getTopologyEntityImpl().getCommoditySoldListList()
             .get(0).getPeak(), DELTA);
-        Assert.assertEquals(800, st3.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(800, st3.getTopologyEntityImpl().getCommoditySoldListList()
             .get(0).getPeak(), DELTA);
-        Assert.assertEquals(60, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(60, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
             .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
-        Assert.assertEquals(40, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(40, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
             .get(1).getCommodityBoughtList().get(0).getPeak(), DELTA);
-        Assert.assertEquals(200, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+        Assert.assertEquals(200, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
             .get(2).getCommodityBoughtList().get(0).getPeak(), DELTA);
     }
 
@@ -548,9 +549,9 @@ public class CommoditiesEditorTest {
         // Check values before calling CommoditiesEditor.
         // Compare used
         TopologyEntity vm = g.getEntity(1L).get();
-        Assert.assertEquals(70, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(70, vm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getUsed(), DELTA);
-        Assert.assertEquals(80, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(80, vm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getPeak(), DELTA);
 
         GetEntityStatsResponse response = GetEntityStatsResponse.newBuilder()
@@ -571,9 +572,9 @@ public class CommoditiesEditorTest {
         // Check values after calling CommoditiesEditor.
         // Compare used and peak
         // Expected value used for VM : as fetched from SystemLoad : 50
-        Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(50, vm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getUsed(), DELTA);
-        Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+        Assert.assertEquals(100, vm.getTopologyEntityImpl().getCommoditySoldListList()
                         .get(0).getPeak(), DELTA);
     }
 }

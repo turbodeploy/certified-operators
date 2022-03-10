@@ -14,22 +14,24 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
-import org.junit.Before;
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import org.junit.Before;
+import org.junit.Test;
+
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.PerTargetEntityInformationImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCapability;
@@ -41,7 +43,6 @@ import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -59,8 +60,8 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     /**
      * Storage Commodity Type.
      */
-    private static final CommodityType STORAGE_COMMODITY_TYPE =
-        CommodityType.newBuilder().setType(STORAGE_COMMODITY_TYPE_ID).build();
+    private static final CommodityTypeImpl STORAGE_COMMODITY_TYPE =
+        new CommodityTypeImpl().setType(STORAGE_COMMODITY_TYPE_ID);
 
     private ProbeActionCapabilitiesApplicatorEditor editor;
     private TargetStore targetStore = mock(TargetStore.class);
@@ -89,7 +90,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         when(target.getProbeInfo())
                 .thenReturn(getProbeInfo(EntityType.CONTAINER, ActionType.MOVE,
                         ActionCapability.NOT_SUPPORTED, "Kubernetes"));
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.VCPU.getNumber(),
                 EntityType.CONTAINER_VALUE, 2L));
 
@@ -122,7 +123,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
                 .thenReturn(getProbeInfo(EntityType.CONTAINER_POD, ActionType.PROVISION,
                         ActionCapability.SUPPORTED, ActionType.SUSPEND,
                         ActionCapability.SUPPORTED, "Kubernetes"));
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.VCPU_REQUEST.getNumber(),
                 EntityType.CONTAINER_POD_VALUE, 2L));
 
@@ -130,7 +131,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
 
         EditorSummary editorSummary = editor.applyPropertiesEdits(graph);
         verifyAnalysisSettingProperty(graph, EntityType.CONTAINER_POD_VALUE,
-                AnalysisSettings::getCloneable, AnalysisSettings::getSuspendable);
+                AnalysisSettingsView::getCloneable, AnalysisSettingsView::getSuspendable);
         assertEquals(1, editorSummary.getCloneableToTrueCounter());
         assertEquals(1, editorSummary.getSuspendableToTrueCounter());
     }
@@ -154,7 +155,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         when(target.getProbeInfo())
                 .thenReturn(getProbeInfo(EntityType.CONTAINER, ActionType.MOVE,
                         ActionCapability.NOT_SUPPORTED, "Kubernetes"));
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.CLUSTER.getNumber(),
                 EntityType.VIRTUAL_MACHINE_VALUE, 4L));
         topology.put(4L, buildTopologyEntity(4L, CommodityDTO.CommodityType.CLUSTER.getNumber(),
@@ -195,7 +196,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         final long stOid = 3L;
         final long vmOid = 2L;
         when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.VIRTUAL_VOLUME, ActionType.MOVE, ActionCapability.NOT_SUPPORTED, SDKProbeType.AWS.getProbeType()));
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(vmOid, buildVMTopologyEntityWithVvProvider(vmOid, vvOid));
         topology.put(vvOid, buildVVTopologyEntityWithStProvider(vvOid, stOid));
         topology.put(stOid, buildStTopologyEntity(stOid));
@@ -206,7 +207,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
 
         validateCommodityMovable(graph,
             getTopologyEntityPredicate(EntityType.STORAGE_TIER_VALUE),
-            CommoditiesBoughtFromProvider::getMovable);
+            CommoditiesBoughtFromProviderView::getMovable);
         validateSpecificCommodityMovable(graph,
             getTopologyEntityPredicate(EntityType.VIRTUAL_VOLUME_VALUE),
             EntityType.STORAGE_TIER,
@@ -233,7 +234,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         final long stOid = 3L;
         final long vmOid = 2L;
         when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.VIRTUAL_VOLUME, ActionType.MOVE, ActionCapability.SUPPORTED, SDKProbeType.AWS.getProbeType()));
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(vmOid, buildVMTopologyEntityWithVvProvider(vmOid, vvOid));
         topology.put(vvOid, buildVVTopologyEntityWithStProvider(vvOid, stOid));
         topology.put(stOid, buildStTopologyEntity(stOid));
@@ -244,11 +245,11 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
 
         validateCommodityMovable(graph,
             getTopologyEntityPredicate(EntityType.STORAGE_TIER_VALUE),
-            CommoditiesBoughtFromProvider::getMovable);
+            CommoditiesBoughtFromProviderView::getMovable);
         validateSpecificCommodityMovable(graph,
             getTopologyEntityPredicate(EntityType.VIRTUAL_VOLUME_VALUE),
             EntityType.STORAGE_TIER,
-            CommoditiesBoughtFromProvider::getMovable);
+                CommoditiesBoughtFromProviderView::getMovable);
     }
 
     /**
@@ -271,7 +272,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         final long stOid = 3L;
 
         when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.STORAGE_TIER, ActionType.MOVE, ActionCapability.NOT_SUPPORTED, SDKProbeType.AWS.getProbeType()));
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(vmOid, buildVMTopologyEntityWithVvProvider(vmOid, vvOid));
         topology.put(vvOid, buildVVTopologyEntityWithStProvider(vvOid, stOid));
         topology.put(stOid, buildStTopologyEntity(stOid));
@@ -306,7 +307,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         final long stOid = 3L;
 
         when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.STORAGE_TIER, ActionType.MOVE, ActionCapability.SUPPORTED, SDKProbeType.AWS.getProbeType()));
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(vmOid, buildVMTopologyEntityWithVvProvider(vmOid, vvOid));
         topology.put(vvOid, buildVVTopologyEntityWithStProvider(vvOid, stOid));
         topology.put(stOid, buildStTopologyEntity(stOid));
@@ -325,7 +326,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     public void testEditScalableDisabledForCloudVMs() {
         when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.VIRTUAL_MACHINE,
                     ActionType.SCALE, ActionCapability.NOT_SUPPORTED, "Kubernetes"));
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(2L, buildTopologyEntityWithCommBought(2L,  EntityType.VIRTUAL_MACHINE_VALUE,
                 CommodityDTO.CommodityType.VCPU.getNumber(), true, true,
                 Collections.singleton(DEFAULT_TARGET_ID)));
@@ -350,7 +351,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.VIRTUAL_MACHINE,
                 ActionType.RIGHT_SIZE, ActionCapability.NOT_SUPPORTED, "Kubernetes"));
         boolean defaultEntityLevelResizeable = true;
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(2L, buildTopologyEntityWithCommSold(2L,  EntityType.VIRTUAL_MACHINE_VALUE,
                 CommodityDTO.CommodityType.VCPU.getNumber(), defaultEntityLevelResizeable,
                 Collections.singleton(DEFAULT_TARGET_ID)));
@@ -386,7 +387,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
                         ActionType.PROVISION, ActionCapability.NOT_EXECUTABLE,
                         ActionType.SUSPEND, ActionCapability.NOT_EXECUTABLE,
                         "Kubernetes"));
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.RESPONSE_TIME.getNumber(),
                 EntityType.APPLICATION_COMPONENT_VALUE, 2L));
 
@@ -394,7 +395,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
 
         EditorSummary editorSummary = editor.applyPropertiesEdits(graph);
         verifyAnalysisSettingProperty(graph, EntityType.APPLICATION_COMPONENT_VALUE,
-                AnalysisSettings::getCloneable, AnalysisSettings::getSuspendable);
+                AnalysisSettingsView::getCloneable, AnalysisSettingsView::getSuspendable);
         assertEquals(1, editorSummary.getCloneableToTrueCounter());
         assertEquals(1, editorSummary.getSuspendableToTrueCounter());
     }
@@ -419,7 +420,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
                 .thenReturn(getProbeInfo(EntityType.CONTAINER, ActionType.PROVISION,
                         ActionCapability.NOT_EXECUTABLE, ActionType.SUSPEND,
                         ActionCapability.NOT_EXECUTABLE, "Kubernetes"));
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.VCPU.getNumber(),
                 EntityType.CONTAINER_VALUE, 3L));
 
@@ -427,7 +428,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
 
         EditorSummary editorSummary = editor.applyPropertiesEdits(graph);
         verifyAnalysisSettingProperty(graph, EntityType.CONTAINER_VALUE,
-                AnalysisSettings::getCloneable, AnalysisSettings::getSuspendable);
+                AnalysisSettingsView::getCloneable, AnalysisSettingsView::getSuspendable);
         assertEquals(1, editorSummary.getCloneableToTrueCounter());
         assertEquals(1, editorSummary.getSuspendableToTrueCounter());
     }
@@ -443,7 +444,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
                         ActionType.RESIZE, ActionCapability.NOT_EXECUTABLE,
                         ActionType.MOVE, ActionCapability.NOT_EXECUTABLE,
                         "Kubernetes"));
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.VCPU.getNumber(),
                 EntityType.CONTAINER_POD_VALUE, 3L));
 
@@ -478,7 +479,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
                 .thenReturn(getProbeInfo(EntityType.CONTAINER_POD, ActionType.PROVISION,
                         ActionCapability.SUPPORTED, ActionType.SUSPEND,
                         ActionCapability.SUPPORTED, "Kubernetes"));
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.VCPU_REQUEST.getNumber(),
                 EntityType.CONTAINER_POD_VALUE, false));
 
@@ -530,7 +531,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
                         ActionCapability.NOT_SUPPORTED, "VCenter"));
         when(target2.getId()).thenReturn(14L);
         when(targetStore.getAll()).thenReturn(ImmutableList.of(target1, target2));
-        final Map<Long, Builder> topology = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.VCPU.getNumber(),
                 EntityType.CONTAINER_VALUE, 2L, ImmutableSet.of(13L)));
         topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.VCPU.getNumber(),
@@ -554,11 +555,11 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     }
 
     private void verifyAnalysisSettingProperty(final TopologyGraph<TopologyEntity> graph, final int entityTypeValue,
-                                               final Predicate<AnalysisSettings> cloneablePredicate,
-                                               final Predicate<AnalysisSettings> suspendablePredicate) {
+                                               final Predicate<AnalysisSettingsView> cloneablePredicate,
+                                               final Predicate<AnalysisSettingsView> suspendablePredicate) {
         graph.entities().filter(getTopologyEntityPredicate(entityTypeValue)).forEach(entity -> {
-            final AnalysisSettings settings = entity
-                    .getTopologyEntityDtoBuilder()
+            final AnalysisSettingsView settings = entity
+                    .getTopologyEntityImpl()
                     .getAnalysisSettings();
             assertTrue(cloneablePredicate.test(settings));
             assertTrue(suspendablePredicate.test(settings));
@@ -567,11 +568,11 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
 
     private void validateCommodityMovable(final TopologyGraph<TopologyEntity> graph,
                                             final Predicate<TopologyEntity> predicate,
-                                            final Predicate<CommoditiesBoughtFromProvider> movable) {
+                                            final Predicate<CommoditiesBoughtFromProviderView> movable) {
         assertTrue(graph.entities().anyMatch(predicate));
         graph.entities().filter(predicate).forEach(entity ->
                 assertTrue(entity
-                        .getTopologyEntityDtoBuilder()
+                        .getTopologyEntityImpl()
                         .getCommoditiesBoughtFromProvidersList()
                         .stream()
                         .allMatch(movable)));
@@ -579,11 +580,11 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
 
     private void validateCommodityScalable(final TopologyGraph<TopologyEntity> graph,
                                           final Predicate<TopologyEntity> predicate,
-                                          final Predicate<CommoditiesBoughtFromProvider> scalable) {
+                                          final Predicate<CommoditiesBoughtFromProviderView> scalable) {
         assertTrue(graph.entities().anyMatch(predicate));
         graph.entities().filter(predicate).forEach(entity ->
                 assertTrue(entity
-                        .getTopologyEntityDtoBuilder()
+                        .getTopologyEntityImpl()
                         .getCommoditiesBoughtFromProvidersList()
                         .stream()
                         .allMatch(scalable)));
@@ -591,11 +592,11 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
 
     private void validateCommodityResizeable(final TopologyGraph<TopologyEntity> graph,
                                            final Predicate<TopologyEntity> predicate,
-                                           final Predicate<TopologyDTO.CommoditySoldDTO> resizeable) {
+                                           final Predicate<CommoditySoldView> resizeable) {
         assertTrue(graph.entities().anyMatch(predicate));
         graph.entities().filter(predicate).forEach(entity ->
                 assertTrue(entity
-                        .getTopologyEntityDtoBuilder()
+                        .getTopologyEntityImpl()
                         .getCommoditySoldListList()
                         .stream()
                         .allMatch(resizeable)));
@@ -604,14 +605,14 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     private void validateSpecificCommodityScalable(final TopologyGraph<TopologyEntity> graph,
                                                   final Predicate<TopologyEntity> predicate,
                                                   final EntityType providerEntityType,
-                                                  final Predicate<CommoditiesBoughtFromProvider> commoditiesScalable) {
+                                                  final Predicate<CommoditiesBoughtFromProviderView> commoditiesScalable) {
         assertTrue(graph.entities().anyMatch(predicate));
         graph.entities().filter(predicate).forEach(entity ->
                 assertTrue(entity
-                        .getTopologyEntityDtoBuilder()
+                        .getTopologyEntityImpl()
                         .getCommoditiesBoughtFromProvidersList()
                         .stream()
-                        .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+                        .filter(CommoditiesBoughtFromProviderView::hasProviderEntityType)
                         .filter(provider -> provider.getProviderEntityType() == providerEntityType.getNumber())
                         .allMatch(commoditiesScalable)
                 )
@@ -621,14 +622,14 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     private void validateSpecificCommodityMovable(final TopologyGraph<TopologyEntity> graph,
                                                   final Predicate<TopologyEntity> predicate,
                                                   final EntityType providerEntityType,
-                                                  final Predicate<CommoditiesBoughtFromProvider> commoditiesMovable) {
+                                                  final Predicate<CommoditiesBoughtFromProviderView> commoditiesMovable) {
         assertTrue(graph.entities().anyMatch(predicate));
         graph.entities().filter(predicate).forEach(entity ->
             assertTrue(entity
-                .getTopologyEntityDtoBuilder()
+                .getTopologyEntityImpl()
                 .getCommoditiesBoughtFromProvidersList()
                 .stream()
-                .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+                .filter(CommoditiesBoughtFromProviderView::hasProviderEntityType)
                 .filter(provider -> provider.getProviderEntityType() == providerEntityType.getNumber())
                 .allMatch(commoditiesMovable)
             )
@@ -642,34 +643,32 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
 
     @Nonnull
     private TopologyEntity.Builder buildVVTopologyEntityWithStProvider(long vvOid, long stOid) {
-        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        DiscoveryOriginImpl origin = new DiscoveryOriginImpl();
         Collections.singleton(DEFAULT_TARGET_ID).forEach(id -> origin.putDiscoveredTargetData(id,
-            PerTargetEntityInformation.getDefaultInstance()));
+            new PerTargetEntityInformationImpl()));
         return buildTopologyEntity(vvOid, EntityType.VIRTUAL_VOLUME_VALUE,
-            Optional.of(CommoditiesBoughtFromProvider.newBuilder()
+            Optional.of(new CommoditiesBoughtFromProviderImpl()
                 .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
                 .setProviderId(stOid)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(STORAGE_COMMODITY_TYPE).build())
-                .build()),
-            Optional.of(CommoditySoldDTO.newBuilder().setCommodityType(STORAGE_COMMODITY_TYPE).build()));
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(STORAGE_COMMODITY_TYPE))),
+            Optional.of(new CommoditySoldImpl().setCommodityType(STORAGE_COMMODITY_TYPE))
+        );
     }
 
     @Nonnull
     private TopologyEntity.Builder buildVMTopologyEntityWithVvProvider(long vmOid, long vvOid) {
         return buildTopologyEntity(vmOid, EntityType.VIRTUAL_MACHINE_VALUE,
-            Optional.of(CommoditiesBoughtFromProvider.newBuilder()
+            Optional.of(new CommoditiesBoughtFromProviderImpl()
                 .setProviderId(vvOid)
                 .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(STORAGE_COMMODITY_TYPE).build())
-                .build()),
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(STORAGE_COMMODITY_TYPE))),
             Optional.empty());
     }
 
     @Nonnull
     private TopologyEntity.Builder buildStTopologyEntity(long stOid) {
-        final CommoditySoldDTO commoditySoldDTO = CommoditySoldDTO.newBuilder()
-            .setCommodityType(STORAGE_COMMODITY_TYPE)
-            .build();
+        final CommoditySoldImpl commoditySoldDTO = new CommoditySoldImpl()
+            .setCommodityType(STORAGE_COMMODITY_TYPE);
         return buildTopologyEntity(stOid, EntityType.STORAGE_TIER_VALUE,
             Optional.empty(), Optional.of(commoditySoldDTO));
     }
@@ -679,22 +678,21 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
      *
      * @param oid oid of the entity
      * @param entityTypeValue entity type oid
-     * @param commoditiesBoughtFromProviderOpt optional, {@link CommoditiesBoughtFromProvider}
-     * @param commoditySoldOpt optional, {@link CommoditySoldDTO}
+     * @param commoditiesBoughtFromProviderOpt optional, {@link CommoditiesBoughtFromProviderImpl}
+     * @param commoditySoldOpt optional, {@link CommoditySoldImpl}
      * @return {@link TopologyEntity} created
      */
     @Nonnull
     private TopologyEntity.Builder buildTopologyEntity(long oid, int entityTypeValue,
-                                                       Optional<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviderOpt,
-                                                       Optional<CommoditySoldDTO> commoditySoldOpt) {
-        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
-        Collections.singleton(DEFAULT_TARGET_ID).forEach(id -> origin.putDiscoveredTargetData(id, PerTargetEntityInformation.getDefaultInstance()));
-        TopologyEntityDTO.Builder topologyEntityDTOBuilder = TopologyEntityDTO.newBuilder()
-            .setAnalysisSettings(AnalysisSettings.newBuilder().build())
+                                                       Optional<CommoditiesBoughtFromProviderImpl> commoditiesBoughtFromProviderOpt,
+                                                       Optional<CommoditySoldImpl> commoditySoldOpt) {
+        DiscoveryOriginImpl origin = new DiscoveryOriginImpl();
+        Collections.singleton(DEFAULT_TARGET_ID).forEach(id -> origin.putDiscoveredTargetData(id, new PerTargetEntityInformationImpl()));
+        TopologyEntityImpl topologyEntityDTOBuilder = new TopologyEntityImpl()
+            .setAnalysisSettings(new AnalysisSettingsImpl())
             .setEntityType(entityTypeValue)
-            .setOrigin(Origin.newBuilder()
-                .setDiscoveryOrigin(origin)
-                .build())
+            .setOrigin(new OriginImpl()
+                .setDiscoveryOrigin(origin))
             .setOid(oid);
 
         commoditiesBoughtFromProviderOpt.ifPresent(commoditiesBoughtFromProvider -> topologyEntityDTOBuilder.addCommoditiesBoughtFromProviders(commoditiesBoughtFromProvider));
@@ -711,24 +709,23 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     @Nonnull
     private TopologyEntity.Builder buildTopologyEntity(long oid, int type, int entityType,
                                                        long providerId, final Collection<Long> targetIds) {
-        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+       DiscoveryOriginImpl origin = new DiscoveryOriginImpl();
         targetIds.forEach(id -> origin.putDiscoveredTargetData(id,
-                          PerTargetEntityInformation.getDefaultInstance()));
+                new PerTargetEntityInformationImpl()));
         return TopologyEntityUtils.topologyEntityBuilder(
-                TopologyEntityDTO.newBuilder()
-                        .setAnalysisSettings(AnalysisSettings.newBuilder().build())
+                new TopologyEntityImpl()
+                        .setAnalysisSettings(new AnalysisSettingsImpl())
                         .setEntityType(entityType)
-                        .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(origin)
-                                .build())
+                        .setOrigin(new OriginImpl()
+                                .setDiscoveryOrigin(origin))
                         .setOid(oid).addCommoditiesBoughtFromProviders(
-                        CommoditiesBoughtFromProvider.newBuilder()
+                        new CommoditiesBoughtFromProviderImpl()
                                 .setProviderId(providerId)
                                 .addCommodityBought(
-                                        CommodityBoughtDTO.newBuilder()
+                                        new CommodityBoughtImpl()
                                                 .setCommodityType(
-                                                        CommodityType.newBuilder().setType(type).setKey("").build()
-                                                ).setActive(true)
+                                                        new CommodityTypeImpl().setType(type).setKey(""))
+                                                .setActive(true)
                                 )
                 ));
     }
@@ -736,24 +733,21 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     @Nonnull
     private TopologyEntity.Builder buildTopologyEntity(long oid, int type, int entityType, boolean isEnabled) {
         return TopologyEntityUtils.topologyEntityBuilder(
-                TopologyEntityDTO.newBuilder()
+                new TopologyEntityImpl()
                         .setEntityType(entityType)
-                        .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                        .setOrigin(new OriginImpl()
+                                .setDiscoveryOrigin(new DiscoveryOriginImpl()
                                         .putDiscoveredTargetData(DEFAULT_TARGET_ID,
-                                            PerTargetEntityInformation.getDefaultInstance())
-                                        .build())
-                                .build())
-                        .setAnalysisSettings(AnalysisSettings.newBuilder()
+                                            new PerTargetEntityInformationImpl())))
+                        .setAnalysisSettings(new AnalysisSettingsImpl()
                                 .setSuspendable(isEnabled)
-                                .setCloneable(isEnabled)
-                                .build())
+                                .setCloneable(isEnabled))
                         .setOid(oid).addCommoditiesBoughtFromProviders(
-                        CommoditiesBoughtFromProvider.newBuilder()
+                        new CommoditiesBoughtFromProviderImpl()
                                 .addCommodityBought(
-                                        CommodityBoughtDTO.newBuilder()
-                                                .setCommodityType(CommodityType.newBuilder().setType(type).setKey("").build()
-                                                ).setActive(true)
+                                        new CommodityBoughtImpl()
+                                                .setCommodityType(new CommodityTypeImpl().setType(type).setKey(""))
+                                                .setActive(true)
                                 )
                 ));
     }
@@ -762,20 +756,19 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     private TopologyEntity.Builder buildTopologyEntityWithCommSold(long oid, int entityType, int commType,
                                                                    boolean isResizeable,
                                                         final Collection<Long> targetIds) {
-        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        DiscoveryOriginImpl origin = new DiscoveryOriginImpl();
         targetIds.forEach(id -> origin.putDiscoveredTargetData(id,
-                PerTargetEntityInformation.getDefaultInstance()));
+                new PerTargetEntityInformationImpl()));
         return TopologyEntityUtils.topologyEntityBuilder(
-                TopologyEntityDTO.newBuilder()
-                        .setAnalysisSettings(AnalysisSettings.newBuilder().build())
+                    new TopologyEntityImpl()
+                        .setAnalysisSettings(new AnalysisSettingsImpl())
                         .setEntityType(entityType)
                         .setOid(oid)
-                        .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(origin)
-                                .build())
-                        .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
-                                CommodityType.newBuilder().setType(commType).setKey("").build()
-                        ).setIsResizeable(isResizeable))
+                        .setOrigin(new OriginImpl()
+                                .setDiscoveryOrigin(origin))
+                        .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(
+                                new CommodityTypeImpl().setType(commType).setKey(""))
+                                .setIsResizeable(isResizeable))
                 );
     }
 
@@ -783,22 +776,21 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     private TopologyEntity.Builder buildTopologyEntityWithCommBought(long oid, int entityType, int commType,
                                                                    boolean isMovable, boolean isScalable,
                                                                    final Collection<Long> targetIds) {
-        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        DiscoveryOriginImpl origin = new DiscoveryOriginImpl();
         targetIds.forEach(id -> origin.putDiscoveredTargetData(id,
-                PerTargetEntityInformation.getDefaultInstance()));
+                new PerTargetEntityInformationImpl()));
         return TopologyEntityUtils.topologyEntityBuilder(
-                    TopologyEntityDTO.newBuilder()
-                        .setAnalysisSettings(AnalysisSettings.newBuilder().build())
+                new TopologyEntityImpl()
+                        .setAnalysisSettings(new AnalysisSettingsImpl())
                         .setEntityType(entityType)
-                        .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(origin)
-                                .build())
+                        .setOrigin(new OriginImpl()
+                                .setDiscoveryOrigin(origin))
                         .setOid(oid)
                         .addCommoditiesBoughtFromProviders(
-                            CommoditiesBoughtFromProvider.newBuilder()
+                            new CommoditiesBoughtFromProviderImpl()
                                 .addCommodityBought(
-                                        CommodityBoughtDTO.newBuilder()
-                                                .setCommodityType(CommodityType.newBuilder().setType(commType).setKey("").build())
+                                        new CommodityBoughtImpl()
+                                                .setCommodityType(new CommodityTypeImpl().setType(commType).setKey(""))
                                 ).setMovable(isMovable).setScalable(isScalable)
                         )
             );

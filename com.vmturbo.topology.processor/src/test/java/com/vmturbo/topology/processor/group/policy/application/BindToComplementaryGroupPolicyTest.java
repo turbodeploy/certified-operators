@@ -37,13 +37,13 @@ import org.junit.rules.ExpectedException;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ReservationOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ReservationOriginImpl;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -102,17 +102,16 @@ public class BindToComplementaryGroupPolicyTest {
     final GroupResolver groupResolver = mock(GroupResolver.class);
 
     final TopologyEntity.Builder reservationVM = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                     .setOid(5L)
                     .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
                     .setDisplayName("reservationVM")
-                    .setOrigin(Origin.newBuilder().setReservationOrigin(ReservationOrigin.newBuilder()
+                    .setOrigin(new OriginImpl().setReservationOrigin(new ReservationOriginImpl()
                             .setReservationId(11111L)))
-                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                            .setProviderId(1L)
-                            .build()));
-    private static final CommodityType DATA_STORE_COMMODITY = CommodityType.newBuilder().setType(
-        CommodityDTO.CommodityType.DATASTORE_VALUE).setKey("abcd").build();
+                    .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
+                            .setProviderId(1L)));
+    private static final CommodityTypeImpl DATA_STORE_COMMODITY = new CommodityTypeImpl().setType(
+        CommodityDTO.CommodityType.DATASTORE_VALUE).setKey("abcd");
 
     @Before
     public void setup() {
@@ -142,8 +141,8 @@ public class BindToComplementaryGroupPolicyTest {
         topologyMap.put(12L, connectedTopologyEntity(12L, EntityType.VIRTUAL_MACHINE, 10L, 11L));
         // replacement from template
         topologyMap.put(13L, topologyEntity(13L, EntityType.PHYSICAL_MACHINE));
-        topologyMap.get(2L).getEntityBuilder().getEditBuilder().setReplaced(
-                TopologyDTO.TopologyEntityDTO.Replaced.newBuilder().setPlanId(7777L).setReplacementId(13L).build());
+        topologyMap.get(2L).getTopologyEntityImpl().getOrCreateEdit().setReplaced(
+                new TopologyEntityImpl.ReplacedImpl().setPlanId(7777L).setReplacementId(13L));
 
         topologyMap.put(14L, topologyEntity(14L, EntityType.VIRTUAL_MACHINE));
         topologyMap.put(15L, topologyEntity(15L, EntityType.CONTAINER_POD, 14L));
@@ -151,11 +150,11 @@ public class BindToComplementaryGroupPolicyTest {
 
         // VM12 is also buying from the StorageTiers
         topologyMap.get(12L)
-            .getEntityBuilder()
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .getTopologyEntityImpl()
+            .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                     .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
                     .setProviderId(8L))
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                     .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
                     .setProviderId(9L));
 
@@ -200,8 +199,8 @@ public class BindToComplementaryGroupPolicyTest {
         assertThat(topologyGraph.getEntity(6L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
     }
 
-    private InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> mockInvertedIndex(Set<Long> potentialProviders) {
-        final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> index = mock(InvertedIndex.class);
+    private InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView> mockInvertedIndex(Set<Long> potentialProviders) {
+        final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView> index = mock(InvertedIndex.class);
         when(index.getSatisfyingSellers(any())).thenAnswer(invocation -> potentialProviders.stream()
             .map(topologyGraph::getEntity)
             .filter(Optional::isPresent)
@@ -378,7 +377,7 @@ public class BindToComplementaryGroupPolicyTest {
 
     /**
      * Test applying pod to VM affinity policy and SegmentationCommodities deduplication when calling
-     * {@link PlacementPolicyApplication#addCommoditySoldToComplementaryProviders(Set, Set, long, InvertedIndex, CommoditySoldDTO)}.
+     * {@link PlacementPolicyApplication#addCommoditySoldToComplementaryProviders(Set, Set, long, InvertedIndex, CommoditySoldView)}.
      *
      * @throws GroupResolutionException Exception when resolving group.
      */
@@ -410,7 +409,7 @@ public class BindToComplementaryGroupPolicyTest {
         // VM will sell only one SegmentationCommodity
         TopologyEntity vm = topologyGraph.getEntity(14L).get();
         assertThat(vm, policyMatcher.hasProviderSegment(POLICY_ID));
-        Assert.assertEquals(1, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList().size());
+        Assert.assertEquals(1, vm.getTopologyEntityImpl().getCommoditySoldListList().size());
 
         // Even though 12L is part of complementary group it will not sell the commodity because
         // it is not potential provider.

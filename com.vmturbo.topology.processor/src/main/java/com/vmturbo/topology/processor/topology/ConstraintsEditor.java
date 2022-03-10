@@ -29,9 +29,11 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.ConstraintGroup;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -149,7 +151,7 @@ public class ConstraintsEditor {
                     .forEach(entity -> {
                         entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES);
                         if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                            entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
+                            entity.getTopologyEntityImpl().getOrCreateAnalysisSettings()
                                 .setShopTogether(true);
                         }
                     });
@@ -166,7 +168,7 @@ public class ConstraintsEditor {
                 .forEach(entity -> {
                     entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES);
                     if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                        entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
+                        entity.getTopologyEntityImpl().getOrCreateAnalysisSettings()
                                 .setShopTogether(true);
                     }
                 });
@@ -219,7 +221,7 @@ public class ConstraintsEditor {
                         groupMembersOids.forEach(entityId -> {
                             graph.getEntity(entityId).ifPresent(entity -> {
                                 if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                                    entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
+                                    entity.getTopologyEntityImpl().getOrCreateAnalysisSettings()
                                             .setShopTogether(true);
                                 }
                             });
@@ -258,8 +260,8 @@ public class ConstraintsEditor {
         if (entity.getEntityType() != EntityType.PHYSICAL_MACHINE_VALUE) {
             return;
         }
-        final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
-        entityBuilder.getCommoditySoldListBuilderList().stream()
+        final TopologyEntityImpl entityBuilder = entity.getTopologyEntityImpl();
+        entityBuilder.getCommoditySoldListImplList().stream()
             .filter(commSoldBldr -> IGNORED_COMMODITIES_FOR_PRESSURE_PLAN
                             .contains(commSoldBldr.getCommodityType().getType()))
             .forEach(commSoldBldr -> commSoldBldr.setActive(false));
@@ -272,53 +274,51 @@ public class ConstraintsEditor {
             if (!entity.isPresent()) {
                 continue;
             }
-            final TopologyEntityDTO.Builder entityBuilder = entity.get().getTopologyEntityDtoBuilder();
-            final List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProvider =
-                    entityBuilder.getCommoditiesBoughtFromProvidersList();
-            final List<CommoditiesBoughtFromProvider> deactivatedCommodities =
+            final TopologyEntityImpl entityImpl = entity.get().getTopologyEntityImpl();
+            final List<CommoditiesBoughtFromProviderView> commoditiesBoughtFromProvider =
+                    entityImpl.getCommoditiesBoughtFromProvidersList();
+            final List<CommoditiesBoughtFromProviderView> deactivatedCommodities =
                     getCommoditiesBoughtFromProviderDeactivated(commoditiesBoughtFromProvider,
                             entitiesToIgnoredCommodities.get(entityId));
-            entityBuilder.clearCommoditiesBoughtFromProviders()
+            entityImpl.clearCommoditiesBoughtFromProviders()
                     .addAllCommoditiesBoughtFromProviders(deactivatedCommodities);
         }
     }
 
     @Nonnull
-    private List<CommoditiesBoughtFromProvider> getCommoditiesBoughtFromProviderDeactivated(
-            @Nonnull List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProvider,
+    private List<CommoditiesBoughtFromProviderView> getCommoditiesBoughtFromProviderDeactivated(
+            @Nonnull List<CommoditiesBoughtFromProviderView> commoditiesBoughtFromProvider,
             @Nonnull Collection<String> commoditiesToDeactivate) {
-        final ImmutableList.Builder<CommoditiesBoughtFromProvider> deactivatedCommodities
+        final ImmutableList.Builder<CommoditiesBoughtFromProviderView> deactivatedCommodities
                 = ImmutableList.builder();
-        for (CommoditiesBoughtFromProvider commodities : commoditiesBoughtFromProvider) {
-            final List<CommodityBoughtDTO> deactivatedCommodityBoughtDTOS =
+        for (CommoditiesBoughtFromProviderView commodities : commoditiesBoughtFromProvider) {
+            final List<CommodityBoughtView> deactivatedCommodityBoughtDTOS =
                     deactivateIgnoredCommodities(commodities, commoditiesToDeactivate);
-            final CommoditiesBoughtFromProvider deactivatedCommoditesBoughtFromProvider =
-                    CommoditiesBoughtFromProvider
-                            .newBuilder(commodities)
+            final CommoditiesBoughtFromProviderView deactivatedCommoditesBoughtFromProvider =
+                    new CommoditiesBoughtFromProviderImpl(commodities)
                             .clearCommodityBought()
-                            .addAllCommodityBought(deactivatedCommodityBoughtDTOS)
-                            .build();
+                            .addAllCommodityBought(deactivatedCommodityBoughtDTOS);
             deactivatedCommodities.add(deactivatedCommoditesBoughtFromProvider);
         }
         return deactivatedCommodities.build();
     }
 
     @Nonnull
-    private List<CommodityBoughtDTO> deactivateIgnoredCommodities(
-            @Nonnull CommoditiesBoughtFromProvider commodities,
+    private List<CommodityBoughtView> deactivateIgnoredCommodities(
+            @Nonnull CommoditiesBoughtFromProviderView commodities,
             @Nonnull Collection<String> commoditiesToDeactivate) {
-        final ImmutableList.Builder<CommodityBoughtDTO> deactivatedCommodities = ImmutableList.builder();
+        final ImmutableList.Builder<CommodityBoughtView> deactivatedCommodities = ImmutableList.builder();
         boolean ignoreAll =
                 commoditiesToDeactivate.stream()
                         .anyMatch(commodity -> commodity.equals(ALL_COMMODITIES));
         final Set<Integer> ignoredTypes = commoditiesToDeactivate.stream()
                 .map(COMMODITY_NAME_TO_COMMODITY_TYPE::get)
                 .collect(Collectors.toSet());
-        for (CommodityBoughtDTO commodity : commodities.getCommodityBoughtList()) {
+        for (CommodityBoughtView commodity : commodities.getCommodityBoughtList()) {
             if ((ignoreAll && commodity.getCommodityType().hasKey()) ||
                     ignoredTypes.contains(commodity.getCommodityType().getType())) {
-                deactivatedCommodities.add(CommodityBoughtDTO.newBuilder(commodity)
-                        .setActive(false).build());
+                deactivatedCommodities.add(new CommodityBoughtImpl(commodity)
+                        .setActive(false));
             } else {
                 deactivatedCommodities.add(commodity);
             }

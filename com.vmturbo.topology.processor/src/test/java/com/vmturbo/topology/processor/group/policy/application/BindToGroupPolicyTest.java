@@ -28,11 +28,9 @@ import org.junit.rules.ExpectedException;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ReservationOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ReservationOriginImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -108,15 +106,14 @@ public class BindToGroupPolicyTest {
             .build();
 
     final TopologyEntity.Builder reservationVM = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                     .setOid(5L)
                     .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
                     .setDisplayName("reservationVM")
-                    .setOrigin(Origin.newBuilder().setReservationOrigin(ReservationOrigin.newBuilder()
+                    .setOrigin(new TopologyEntityImpl.OriginImpl().setReservationOrigin(new ReservationOriginImpl()
                             .setReservationId(11111L)))
-                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                            .setProviderId(2L)
-                            .build()));
+                    .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
+                            .setProviderId(2L)));
 
     private TopologyGraph<TopologyEntity> topologyGraph;
     private PolicyMatcher policyMatcher;
@@ -140,22 +137,22 @@ public class BindToGroupPolicyTest {
         topologyMap.put(13L, topologyEntity(13L, EntityType.VIRTUAL_MACHINE, 2));
         // replacement from template
         topologyMap.put(12L, topologyEntity(12L, EntityType.PHYSICAL_MACHINE));
-        topologyMap.get(2L).getEntityBuilder().getEditBuilder().setReplaced(
-                TopologyDTO.TopologyEntityDTO.Replaced.newBuilder().setPlanId(7777L).setReplacementId(12L).build());
+        topologyMap.get(2L).getTopologyEntityImpl().getOrCreateEdit().setReplaced(
+                new TopologyEntityImpl.ReplacedImpl().setPlanId(7777L).setReplacementId(12L));
 
         // VM5 is also buying from the storage.
         topologyMap.get(5L)
-            .getEntityBuilder()
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .getTopologyEntityImpl()
+            .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                 .setProviderId(3L));
 
         // VM11 is also buying from the StorageTier and ComputeTier
         topologyMap.get(11L)
-            .getEntityBuilder()
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .getTopologyEntityImpl()
+            .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                     .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
                     .setProviderId(7L))
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                     .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
                     .setProviderId(8L));
 

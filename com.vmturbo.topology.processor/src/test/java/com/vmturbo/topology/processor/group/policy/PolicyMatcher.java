@@ -12,7 +12,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -43,7 +43,7 @@ public class PolicyMatcher {
             @Override
             public boolean matches(Object o) {
                 final TopologyEntity entity = (TopologyEntity)o;
-                return entity.getTopologyEntityDtoBuilder()
+                return entity.getTopologyEntityImpl()
                         .getCommoditySoldListList()
                         .stream()
                         .anyMatch(commodity -> commodity.getCommodityType().getType()
@@ -69,7 +69,7 @@ public class PolicyMatcher {
             @Override
             public boolean matches(Object o) {
                 final TopologyEntity entity = (TopologyEntity)o;
-                return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                return entity.getTopologyEntityImpl().getCommoditySoldListList().stream()
                     .anyMatch(commodity ->
                         commodity.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE &&
                             commodity.getCommodityType().getKey().equals(Long.toString(segmentId)) &&
@@ -91,7 +91,7 @@ public class PolicyMatcher {
              * @param epsilon The epsilon factor that constitutes a match.
              * @return If the commodity capacity matches the expected capacity.
              */
-            private boolean matchesCapacity(@Nonnull final CommoditySoldDTO commodity,
+            private boolean matchesCapacity(@Nonnull final CommoditySoldView commodity,
                                             final double expectedCapacity,
                                             final double epsilon) {
 
@@ -114,7 +114,7 @@ public class PolicyMatcher {
             @Override
             public boolean matches(Object o) {
                 final TopologyEntity entity = (TopologyEntity)o;
-                return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                return entity.getTopologyEntityImpl().getCommoditySoldListList().stream()
                     .anyMatch(commodity ->
                         commodity.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE &&
                             commodity.getCommodityType().getKey().equals(Long.toString(segmentId)) &&
@@ -137,7 +137,7 @@ public class PolicyMatcher {
              * @param epsilon The epsilon factor that constitutes a match.
              * @return If the commodity capacity matches the expected capacity.
              */
-            private boolean matchesCapacity(@Nonnull final CommoditySoldDTO commodity,
+            private boolean matchesCapacity(@Nonnull final CommoditySoldView commodity,
                                             final float expectedCapacity,
                                             final float epsilon) {
 
@@ -151,7 +151,7 @@ public class PolicyMatcher {
                 }
             }
 
-            private boolean matchesUsed(@Nonnull final CommoditySoldDTO commodity,
+            private boolean matchesUsed(@Nonnull final CommoditySoldView commodity,
                                         final float expectedUsed,
                                         final float epsilon) {
                 if (!commodity.hasUsed()) {
@@ -176,7 +176,7 @@ public class PolicyMatcher {
             @Override
             public boolean matches(Object o) {
                 final TopologyEntity entity = (TopologyEntity)o;
-                return entity.getTopologyEntityDtoBuilder()
+                return entity.getTopologyEntityImpl()
                         .getCommoditiesBoughtFromProvidersList()
                         .stream()
                         .anyMatch(
@@ -217,7 +217,7 @@ public class PolicyMatcher {
             @Override
             public boolean matches(Object o) {
                 final TopologyEntity entity = (TopologyEntity)o;
-                return entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+                return entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList().stream()
                     .anyMatch(commodityBoughtGroup -> commodityBoughtGroup.getCommodityBoughtList().stream()
                         .anyMatch(commodity ->
                             commodity.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE &&
@@ -246,7 +246,7 @@ public class PolicyMatcher {
             @Override
             public boolean matches(Object o) {
                 final TopologyEntity entity = (TopologyEntity)o;
-                return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                return entity.getTopologyEntityImpl().getCommoditySoldListList().stream()
                         .anyMatch(commodity -> {
                                     boolean isTypeAndKeyRight = commodity.getCommodityType().getType() == getCommodityType(policy)
                                             && commodity.getCommodityType().getKey().equals(Long.toString(policy.getPolicyDefinition().getId()));
@@ -278,7 +278,7 @@ public class PolicyMatcher {
             @Override
             public boolean matches(Object o) {
                 final TopologyEntity entity = (TopologyEntity)o;
-                return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                return entity.getTopologyEntityImpl().getCommoditySoldListList().stream()
                         .anyMatch(commodity ->
                                     commodity.getCommodityType().getType() == type
                         );
@@ -302,7 +302,7 @@ public class PolicyMatcher {
             @Override
             public boolean matches(Object o) {
                 final TopologyEntity entity = (TopologyEntity)o;
-                return entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+                return entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList().stream()
                         .anyMatch(commodityBoughtGroup -> commodityBoughtGroup.getCommodityBoughtList().stream()
                                 .anyMatch(commodity ->
                                         commodity.getCommodityType().getType() == getCommodityType(policy) &&
@@ -334,7 +334,7 @@ public class PolicyMatcher {
             @Override
             public boolean matches(Object o) {
                 final TopologyEntity entity = (TopologyEntity)o;
-                return entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+                return entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList().stream()
                         .anyMatch(commodityBoughtGroup -> commodityBoughtGroup.getCommodityBoughtList().stream()
                                 .anyMatch(commodity ->
                                         commodity.getCommodityType().getType() == type &&

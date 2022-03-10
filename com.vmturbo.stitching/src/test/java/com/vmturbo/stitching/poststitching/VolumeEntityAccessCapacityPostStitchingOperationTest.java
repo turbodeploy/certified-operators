@@ -12,7 +12,7 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -28,14 +28,7 @@ import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestRe
  * Unit tests for VolumeEntityAccessCapacityPostStitchingOperation.
  */
 public class VolumeEntityAccessCapacityPostStitchingOperationTest {
-    private static final double CAPACITY_PROVIDER = 250D;
     private static final double CAPACITY_ENTITY = 150D;
-    private static final CommodityType COMMODITY_TYPE = CommodityType.STORAGE_ACCESS;
-    private static final TopologyEntityBuilder PROVIDER =
-                    TopologyEntityBuilder.newBuilder().withEntityType(EntityType.STORAGE_VALUE)
-                                    .withCommoditiesSold(CommoditySoldBuilder.newBuilder()
-                                                    .withType(COMMODITY_TYPE)
-                                                    .withCapacity(CAPACITY_PROVIDER));
     private static final float CAPACITY_SETTING = 157.0F;
     private static final float ON_PREM_IOPS_CAPACITY_SETTING = 200.0F;
     private static final double DELTA = 0.0001D;
@@ -51,9 +44,9 @@ public class VolumeEntityAccessCapacityPostStitchingOperationTest {
                     NumericSettingValue.newBuilder().setValue(ON_PREM_IOPS_CAPACITY_SETTING))
             .build();
 
-    private static final CommoditySoldDTO COMMODITY_NO_CAP = CommoditySoldBuilder.newBuilder()
+    private final CommoditySoldView commodityNoC = CommoditySoldBuilder.newBuilder()
                     .withType(CommodityType.STORAGE_ACCESS).build();
-    private static final CommoditySoldDTO COMMODITY_CAP = CommoditySoldBuilder.newBuilder()
+    private final CommoditySoldView commodityWithCap = CommoditySoldBuilder.newBuilder()
                     .withType(CommodityType.STORAGE_ACCESS).withCapacity(CAPACITY_ENTITY).build();
 
     private static final IStitchingJournal<TopologyEntity> stitchingJournal =
@@ -72,7 +65,7 @@ public class VolumeEntityAccessCapacityPostStitchingOperationTest {
 
         TopologyEntity volume = TopologyEntityBuilder.newBuilder()
                         .withEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                        .withCommoditiesSold(COMMODITY_NO_CAP).build();
+                        .withCommoditiesSold(commodityNoC).build();
         when(settingsMock.getEntitySetting(volume, EntitySettingSpecs.IOPSCapacity))
                         .thenReturn(Optional.of(IOPS_SETTING));
         op.performOperation(Stream.of(volume), settingsMock, resultBuilder);
@@ -81,7 +74,7 @@ public class VolumeEntityAccessCapacityPostStitchingOperationTest {
 
         assertEquals(1, resultBuilder.getChanges().size());
         assertEquals(CAPACITY_SETTING,
-                        volume.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(),
+                        volume.getTopologyEntityImpl().getCommoditySoldList(0).getCapacity(),
                         DELTA);
     }
 
@@ -96,7 +89,7 @@ public class VolumeEntityAccessCapacityPostStitchingOperationTest {
 
         TopologyEntity volume = TopologyEntityBuilder.newBuilder()
                         .withEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                        .withCommoditiesSold(COMMODITY_CAP).build();
+                        .withCommoditiesSold(commodityWithCap).build();
         when(settingsMock.getEntitySetting(volume, EntitySettingSpecs.IOPSCapacity))
                         .thenReturn(Optional.of(IOPS_SETTING));
         op.performOperation(Stream.of(volume), settingsMock, resultBuilder);
@@ -107,7 +100,7 @@ public class VolumeEntityAccessCapacityPostStitchingOperationTest {
 
     private float testIopsCapacity(EnvironmentType environmentType,
             EntitySettingSpecs entitySettingSpecs, Setting iopsSetting,
-            CommoditySoldDTO commoditySet) {
+            CommoditySoldView commoditySet) {
         VolumeEntityAccessCapacityPostStitchingOperation op =
                 new VolumeEntityAccessCapacityPostStitchingOperation();
         EntityChangesBuilder<TopologyEntity> resultBuilder = new UnitTestResultBuilder();
@@ -124,7 +117,7 @@ public class VolumeEntityAccessCapacityPostStitchingOperationTest {
 
         resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
-        return (float)volume.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity();
+        return (float)volume.getTopologyEntityImpl().getCommoditySoldList(0).getCapacity();
     }
 
     /**
@@ -134,7 +127,7 @@ public class VolumeEntityAccessCapacityPostStitchingOperationTest {
     @Test
     public void testOnPremIopsCapacityCommodityCapacitySet() {
         float capacity = testIopsCapacity(EnvironmentType.ON_PREM,
-                EntitySettingSpecs.OnPremIopsCapacity, ON_PREM_IOPS_SETTING, COMMODITY_CAP);
+                EntitySettingSpecs.OnPremIopsCapacity, ON_PREM_IOPS_SETTING, commodityWithCap);
         assertEquals(ON_PREM_IOPS_CAPACITY_SETTING, capacity, DELTA);
     }
 
@@ -145,7 +138,7 @@ public class VolumeEntityAccessCapacityPostStitchingOperationTest {
     @Test
     public void testOnPremIopsCapacityCommodityCapacityNotSet() {
         float capacity = testIopsCapacity(EnvironmentType.ON_PREM,
-                EntitySettingSpecs.OnPremIopsCapacity, ON_PREM_IOPS_SETTING, COMMODITY_NO_CAP);
+                EntitySettingSpecs.OnPremIopsCapacity, ON_PREM_IOPS_SETTING, commodityNoC);
         assertEquals(ON_PREM_IOPS_CAPACITY_SETTING, capacity, DELTA);
     }
 
@@ -156,7 +149,7 @@ public class VolumeEntityAccessCapacityPostStitchingOperationTest {
     @Test
     public void testCloudIopsCapacityCommodityCapacitySet() {
         float capacity = testIopsCapacity(EnvironmentType.CLOUD, EntitySettingSpecs.IOPSCapacity,
-                IOPS_SETTING, COMMODITY_CAP);
+                IOPS_SETTING, commodityWithCap);
         assertEquals(CAPACITY_ENTITY, capacity, DELTA);
     }
 
@@ -167,7 +160,7 @@ public class VolumeEntityAccessCapacityPostStitchingOperationTest {
     @Test
     public void testCloudIopsCapacityCommodityCapacityNotSet() {
         float capacity = testIopsCapacity(EnvironmentType.CLOUD, EntitySettingSpecs.IOPSCapacity,
-                IOPS_SETTING, COMMODITY_NO_CAP);
+                IOPS_SETTING, commodityNoC);
         assertEquals(CAPACITY_SETTING, capacity, DELTA);
     }
 }

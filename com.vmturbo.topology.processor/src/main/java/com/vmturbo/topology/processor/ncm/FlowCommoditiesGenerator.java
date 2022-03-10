@@ -18,14 +18,14 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
-import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
@@ -486,7 +486,7 @@ public class FlowCommoditiesGenerator {
         final double[] capacities = new double[FlowsCommonUtils.FLOW_KEYS.length];
         final double[] utilThresholds = new double[FlowsCommonUtils.FLOW_KEYS.length];
         // Using local variable to assist with formatting down the line.
-        for (TopologyDTO.CommoditySoldDTO comm : underlayNode.getTopologyEntityDtoBuilder()
+        for (TopologyPOJO.CommoditySoldView comm : underlayNode.getTopologyEntityImpl()
                                                              .getCommoditySoldListList()) {
             final String key = comm.getCommodityType().getKey();
             if (!key.startsWith(FlowsCommonUtils.KEY_PREFIX)) {

@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper.resolvedGroup;
 import static junit.framework.TestCase.fail;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -13,8 +14,6 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Lists;
-
 import org.apache.commons.collections4.map.HashedMap;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -24,10 +23,14 @@ import org.junit.rules.ExpectedException;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -46,7 +49,7 @@ public class MergePolicyTestBase {
     private static final long NEW_POLICY_ID = 10000L;
     protected static final long CONSUMER_ID = 1234L;
     protected static final long PROVIDER_ID = 5678L;
-    protected final List<Long> mergeGropuIds = Lists.newArrayList(CONSUMER_ID, PROVIDER_ID);
+    protected final List<Long> mergeGropuIds = newArrayList(CONSUMER_ID, PROVIDER_ID);
     protected final GroupResolver groupResolver = mock(GroupResolver.class);
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -120,7 +123,7 @@ public class MergePolicyTestBase {
         Assert.assertEquals(1, topologyGraph
                 .getEntity(4L)
                 .get()
-                .getTopologyEntityDtoBuilder()
+                .getTopologyEntityImpl()
                 .getCommoditiesBoughtFromProvidersList()
                 .size());
 
@@ -128,7 +131,7 @@ public class MergePolicyTestBase {
         Assert.assertEquals(1, topologyGraph
                 .getEntity(4L)
                 .get()
-                .getTopologyEntityDtoBuilder()
+                .getTopologyEntityImpl()
                 .getCommoditiesBoughtFromProvidersList()
                 .get(0) //we know there should have one provider
                 .getCommodityBoughtList()
@@ -146,7 +149,7 @@ public class MergePolicyTestBase {
         Assert.assertEquals(2, topologyGraph
                 .getEntity(5L)
                 .get()
-                .getTopologyEntityDtoBuilder()
+                .getTopologyEntityImpl()
                 .getCommoditiesBoughtFromProvidersList()
                 .size());
 
@@ -154,7 +157,7 @@ public class MergePolicyTestBase {
         Assert.assertEquals(2, topologyGraph
                 .getEntity(5L)
                 .get()
-                .getTopologyEntityDtoBuilder()
+                .getTopologyEntityImpl()
                 .getCommoditiesBoughtFromProvidersList()
                 .get(0) //we know there should have one provider
                 .getCommodityBoughtList()
@@ -164,7 +167,7 @@ public class MergePolicyTestBase {
         Assert.assertTrue(topologyGraph
                 .getEntity(5L)
                 .get()
-                .getTopologyEntityDtoBuilder()
+                .getTopologyEntityImpl()
                 .getCommoditiesBoughtFromProvidersList()
                 .get(1) //second one with provider NOT in the merge cluster
                 .getCommodityBoughtList()
@@ -181,15 +184,15 @@ public class MergePolicyTestBase {
     private void updatePmOrStoragePropertiesInTopologyGraph(final double value, @Nonnull final MergePolicy policy) {
         // set the property of the Cluster DTO in entity's CommoditySoldList to ensure merge policy
         // keep it (instead of creating a new one)
-        CommoditySoldDTO newCommoditySoldDTO = getCommoditySoldDTO(value, PolicyMatcher.getCommodityType(policy));
+        CommoditySoldView newCommoditySoldView = getCommoditySoldView(value, PolicyMatcher.getCommodityType(policy));
         // add DATASTORE DTO to commodity sold list
-        CommoditySoldDTO newCommoditySoldDTO1 = getCommoditySoldDTO(value, CommodityType.DATASTORE.getNumber());
+        CommoditySoldView newCommoditySoldView1 = getCommoditySoldView(value, CommodityType.DATASTORE.getNumber());
 
         topologyGraph.getEntity(1L)
                 .get()
-                .getTopologyEntityDtoBuilder()
+                .getTopologyEntityImpl()
                 .clearCommoditySoldList()
-                .addAllCommoditySoldList(Lists.newArrayList(newCommoditySoldDTO, newCommoditySoldDTO1));
+                .addAllCommoditySoldList(newArrayList(newCommoditySoldView, newCommoditySoldView1));
     }
 
     /**
@@ -198,73 +201,63 @@ public class MergePolicyTestBase {
      * second provide, which is NOT in the merge host list, has boughtList with two DTO (cluster and datastore).
      */
     private void updateVMPropertiesInTopologyGraph(@Nonnull final MergePolicy policy) {
-        List<CommoditiesBoughtFromProvider> newCommodityBoughtFromProviderList = com.google.common.collect.Lists.newArrayList();
-        List<CommoditiesBoughtFromProvider> newCommodityBoughtFromProviderList1 = com.google.common.collect.Lists.newArrayList();
+        List<CommoditiesBoughtFromProviderView> newCommodityBoughtFromProviderList = newArrayList();
+        List<CommoditiesBoughtFromProviderView> newCommodityBoughtFromProviderList1 = newArrayList();
 
-        CommodityBoughtDTO newClusterDTO = getCommodityBoughtDTO(PolicyMatcher.getCommodityType(policy));
-        CommodityBoughtDTO newClusterDTO1 = getCommodityBoughtDTO(CommodityType.DATASTORE.getNumber());
+        CommodityBoughtView newClusterDTO = getCommodityBoughtDTO(PolicyMatcher.getCommodityType(policy));
+        CommodityBoughtView newClusterDTO1 = getCommodityBoughtDTO(CommodityType.DATASTORE.getNumber());
 
-        List<CommodityBoughtDTO> newCommodityBoughtList = Lists.newArrayList();
-        List<CommodityBoughtDTO> newCommodityBoughtList1 = Lists.newArrayList();
+        List<CommodityBoughtView> newCommodityBoughtList = newArrayList();
+        List<CommodityBoughtView> newCommodityBoughtList1 = newArrayList();
         newCommodityBoughtList.add(newClusterDTO);
         newCommodityBoughtList1.add(newClusterDTO);
         newCommodityBoughtList1.add(newClusterDTO1);
 
-        CommoditiesBoughtFromProvider newCommodityBoughtFromProvider = CommoditiesBoughtFromProvider
-                .newBuilder()
+        CommoditiesBoughtFromProviderView newCommodityBoughtFromProvider = new CommoditiesBoughtFromProviderImpl()
                 .setProviderId(1L)
-                .addAllCommodityBought(newCommodityBoughtList)
-                .build();
+                .addAllCommodityBought(newCommodityBoughtList);
         newCommodityBoughtFromProviderList.add(newCommodityBoughtFromProvider);
-        CommoditiesBoughtFromProvider newCommodityBoughtFromProvider1 = CommoditiesBoughtFromProvider
-                .newBuilder()
+        CommoditiesBoughtFromProviderView newCommodityBoughtFromProvider1 = new CommoditiesBoughtFromProviderImpl()
                 .setProviderId(2L)
-                .addAllCommodityBought(newCommodityBoughtList1)
-                .build();
+                .addAllCommodityBought(newCommodityBoughtList1);
         // adding a provider which is not in the merge host list
-        CommoditiesBoughtFromProvider newCommodityBoughtFromProvider2 = CommoditiesBoughtFromProvider
-                .newBuilder()
+        CommoditiesBoughtFromProviderView newCommodityBoughtFromProvider2 = new CommoditiesBoughtFromProviderImpl()
                 .setProviderId(10L)
-                .addAllCommodityBought(newCommodityBoughtList1)
-                .build();
+                .addAllCommodityBought(newCommodityBoughtList1);
         newCommodityBoughtFromProviderList1.add(newCommodityBoughtFromProvider1);
         newCommodityBoughtFromProviderList1.add(newCommodityBoughtFromProvider2);
 
         topologyGraph.getEntity(4L)
                 .get()
-                .getTopologyEntityDtoBuilder()
+                .getTopologyEntityImpl()
                 .clearCommoditiesBoughtFromProviders()
                 .addAllCommoditiesBoughtFromProviders(newCommodityBoughtFromProviderList);
 
         topologyGraph.getEntity(5L)
                 .get()
-                .getTopologyEntityDtoBuilder()
+                .getTopologyEntityImpl()
                 .clearCommoditiesBoughtFromProviders()
                 .addAllCommoditiesBoughtFromProviders(newCommodityBoughtFromProviderList1);
     }
 
-    private CommodityBoughtDTO getCommodityBoughtDTO(final int type) {
-        TopologyDTO.CommodityType newClusterType = TopologyDTO.CommodityType.newBuilder()
+    private CommodityBoughtView getCommodityBoughtDTO(final int type) {
+        CommodityTypeView newClusterType = new CommodityTypeImpl()
                 .setKey(Long.toString(NEW_POLICY_ID)) // use new Policy ID
-                .setType(type)
-                .build();
+                .setType(type);
 
         // create cluster commodity.
-        return CommodityBoughtDTO.newBuilder()
-                .setCommodityType(newClusterType)
-                .build();
+        return new CommodityBoughtImpl()
+                .setCommodityType(newClusterType);
     }
 
-    private CommoditySoldDTO getCommoditySoldDTO(final double value, final int type) {
-        TopologyDTO.CommodityType soldCommodity = TopologyDTO.CommodityType.newBuilder()
+    private CommoditySoldView getCommoditySoldView(final double value, final int type) {
+        CommodityTypeView soldCommodity = new CommodityTypeImpl()
                 .setKey(Long.toString(NEW_POLICY_ID))
-                .setType(type)
-                .build();
+                .setType(type);
 
-        return CommoditySoldDTO.newBuilder()
+        return new CommoditySoldImpl()
                 .setCommodityType(soldCommodity)
-                .setCapacity(value) // add extra property
-                .build();
+                .setCapacity(value); // add extra property
     }
 
     @Test

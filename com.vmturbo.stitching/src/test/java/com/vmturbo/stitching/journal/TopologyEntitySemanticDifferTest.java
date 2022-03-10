@@ -8,12 +8,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.PerTargetEntityInformationView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -41,9 +41,9 @@ public class TopologyEntitySemanticDifferTest {
 
         a.addConsumer(b);
 
-        a.getEntityBuilder()
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                .setCommodityType(CommodityType.newBuilder()
+        a.getTopologyEntityImpl()
+            .addCommoditySoldList(new CommoditySoldImpl()
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(CommodityDTO.CommodityType.VSTORAGE_VALUE)
                     .setKey("storage-key"))
                 .setCapacity(1000.0)
@@ -62,16 +62,16 @@ public class TopologyEntitySemanticDifferTest {
     private static TopologyEntity.Builder entity(@Nonnull final String name,
                                                  final long oid,
                                                  final long targetId) {
-        final TopologyEntityDTO.Builder entityBuilder = TopologyEntityDTO.newBuilder()
+        final TopologyEntityImpl entityImpl = new TopologyEntityImpl()
             .setOid(oid)
             .setDisplayName(name)
             .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
-            .setOrigin(Origin.newBuilder()
-                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+            .setOrigin(new OriginImpl()
+                    .setDiscoveryOrigin(new DiscoveryOriginImpl()
                         .setLastUpdatedTime(123456789L)
-                        .putDiscoveredTargetData(targetId, PerTargetEntityInformation.getDefaultInstance()))
+                        .putDiscoveredTargetData(targetId, PerTargetEntityInformationView.getDefaultInstance()))
             );
 
-        return TopologyEntity.newBuilder(entityBuilder);
+        return TopologyEntity.newBuilder(entityImpl);
     }
 }

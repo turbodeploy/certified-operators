@@ -52,15 +52,18 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.PerTargetEntityInformationImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.UtilizationDataImpl;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.utils.ThrowingFunction;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -75,7 +78,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.AbstractCachingHistoricalEditor.CacheBackup;
@@ -141,18 +143,17 @@ public class PercentileEditorTest extends PercentileBaseTest {
     private static final String DESKTOP_POOL_COMMODITY_KEY = "DesktopPool::key";
     private static final EntityCommodityFieldReference VCPU_COMMODITY_REFERENCE =
             new EntityCommodityFieldReference(VIRTUAL_MACHINE_OID,
-                    TopologyDTO.CommodityType.newBuilder()
-                            .setType(CommodityType.VCPU_VALUE)
-                            .build(), CommodityField.USED);
+                    new CommodityTypeImpl()
+                            .setType(CommodityType.VCPU_VALUE), CommodityField.USED);
     private static final EntityCommodityFieldReference IMAGE_CPU_COMMODITY_REFERENCE =
             new EntityCommodityFieldReference(BUSINESS_USER_OID,
-                    TopologyDTO.CommodityType.newBuilder()
+                    new CommodityTypeImpl()
                             .setType(CommodityType.VCPU_VALUE)
-                            .setKey(DESKTOP_POOL_COMMODITY_KEY)
-                            .build(), DESKTOP_POOL_PROVIDER_OID, CommodityField.USED);
+                            .setKey(DESKTOP_POOL_COMMODITY_KEY),
+                    DESKTOP_POOL_PROVIDER_OID, CommodityField.USED);
 
     private final Clock clock = Mockito.mock(Clock.class);
-    private Map<Long, Builder> topologyBuilderMap;
+    private Map<Long, TopologyEntity.Builder> topologyBuilderMap;
     private Map<Long, EntitySettings> entitySettings;
     private GraphWithSettings graphWithSettings;
     private PercentileEditorCacheAccess percentileEditor;
@@ -260,13 +261,13 @@ public class PercentileEditorTest extends PercentileBaseTest {
     public void testIsEntityApplicable() {
         // Percentile should not be set for container entities
         Assert.assertFalse(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(CONTAINER_OID)
                 .setEntityType(EntityType.CONTAINER_VALUE)).build()));
 
         // Percentile should not be set for container pod entities
         Assert.assertFalse(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(CONTAINER_POD_OID)
                 .setEntityType(EntityType.CONTAINER_POD_VALUE)).build()));
 
@@ -280,53 +281,48 @@ public class PercentileEditorTest extends PercentileBaseTest {
 
         // Percentile should not be set for entity with not discovered origin from targets
         Assert.assertFalse(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder()
-                        .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                new TopologyEntityImpl()
+                        .setOrigin(new OriginImpl()
+                                .setDiscoveryOrigin(new DiscoveryOriginImpl()
                                         .putDiscoveredTargetData(1L,
-                                                PerTargetEntityInformation.newBuilder()
-                                                        .setOrigin(EntityOrigin.PROXY)
-                                                        .build())
-                                        .build())
-                                .build())).build()));
+                                                new PerTargetEntityInformationImpl()
+                                                        .setOrigin(EntityOrigin.PROXY)))
+                                )).build()));
 
         // Percentile should not be set for entity with controllable false
         Assert.assertFalse(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder()
-                    .setOrigin(Origin.newBuilder()
-                        .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                new TopologyEntityImpl()
+                    .setOrigin(new OriginImpl()
+                        .setDiscoveryOrigin(new DiscoveryOriginImpl()
                             .putDiscoveredTargetData(1L,
-                                PerTargetEntityInformation.newBuilder()
-                                    .setOrigin(EntityOrigin.DISCOVERED)
-                                    .build())))
-                    .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(false).build()))
+                                new PerTargetEntityInformationImpl()
+                                    .setOrigin(EntityOrigin.DISCOVERED))))
+                    .setAnalysisSettings(new AnalysisSettingsImpl().setControllable(false)))
                 .build()));
 
         // Percentile should still be set for controllable false entity if it is ContainerSpec
         Assert.assertTrue(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
-                .setOrigin(Origin.newBuilder()
-                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                .setOrigin(new OriginImpl()
+                    .setDiscoveryOrigin(new DiscoveryOriginImpl()
                         .putDiscoveredTargetData(1L,
-                            PerTargetEntityInformation.newBuilder()
-                                .setOrigin(EntityOrigin.DISCOVERED)
-                                .build())))
-                .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(false).build()))
+                            new PerTargetEntityInformationImpl()
+                                .setOrigin(EntityOrigin.DISCOVERED))))
+                .setAnalysisSettings(new AnalysisSettingsImpl().setControllable(false)))
             .build()));
 
         // Percentile should be be set for database server entities.
         Assert.assertTrue(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder()
+                new TopologyEntityImpl()
                         .setOid(DATABASE_SERVER_OID)
                         .setAnalysisSettings(
-                                AnalysisSettings.newBuilder().setControllable(true))
-                        .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                new AnalysisSettingsImpl().setControllable(true))
+                        .setOrigin(new OriginImpl()
+                                .setDiscoveryOrigin(new DiscoveryOriginImpl()
                                         .putDiscoveredTargetData(1L,
-                                                PerTargetEntityInformation.newBuilder()
-                                                        .setOrigin(EntityOrigin.DISCOVERED)
-                                                        .build())))
+                                                new PerTargetEntityInformationImpl()
+                                                        .setOrigin(EntityOrigin.DISCOVERED))))
                         .setEntityType(EntityType.DATABASE_SERVER_VALUE)).build()));
     }
 
@@ -337,78 +333,78 @@ public class PercentileEditorTest extends PercentileBaseTest {
     public void testIsCommodityApplicable() {
         // Don't set percentile for commodity sold without utilization data or required type
         Assert.assertFalse(percentileEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
-            TopologyDTO.CommoditySoldDTO.newBuilder(), topologyInfo));
+            TopologyEntity.newBuilder(new TopologyEntityImpl()).build(),
+            new CommoditySoldImpl(), topologyInfo));
         // Set percentile for commodity sold with utilization data and without required type
         Assert.assertTrue(percentileEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
-            TopologyDTO.CommoditySoldDTO.newBuilder()
-                .setUtilizationData(UtilizationData.getDefaultInstance()), topologyInfo));
+            TopologyEntity.newBuilder(new TopologyEntityImpl()).build(),
+            new CommoditySoldImpl()
+                .setUtilizationData(new UtilizationDataImpl()), topologyInfo));
         // Set percentile for commodity sold without utilization data and with required type
         Assert.assertTrue(percentileEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
-            TopologyDTO.CommoditySoldDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            TopologyEntity.newBuilder(new TopologyEntityImpl()).build(),
+            new CommoditySoldImpl()
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(CommodityType.VCPU_VALUE)), topologyInfo));
         // Set percentile for commodity sold with utilization data and required type
         Assert.assertTrue(percentileEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
-            TopologyDTO.CommoditySoldDTO.newBuilder()
-                .setUtilizationData(UtilizationData.getDefaultInstance())
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            TopologyEntity.newBuilder(new TopologyEntityImpl()).build(),
+            new CommoditySoldImpl()
+                .setUtilizationData(new UtilizationDataImpl())
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(CommodityType.VCPU_VALUE)), topologyInfo));
         // Set percentile for Storage Access commodity sold in MCP.
         Assert.assertTrue(percentileEditor.isCommodityApplicable(TopologyEntity
-                .newBuilder(TopologyEntityDTO.newBuilder()
+                .newBuilder(new TopologyEntityImpl()
                         .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)).build(),
-                TopologyDTO.CommoditySoldDTO.newBuilder()
-                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                new CommoditySoldImpl()
+                        .setCommodityType(new CommodityTypeImpl()
                                 .setType(CommodityType.STORAGE_ACCESS_VALUE)),
                 TopologyInfo.newBuilder().setPlanInfo(PlanTopologyInfo.newBuilder()
                         .setPlanType(PlanProjectType.CLOUD_MIGRATION.name())).build()));
 
         // Don't set percentile for commodity bought without utilization data
         Assert.assertFalse(percentileEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
-            TopologyDTO.CommodityBoughtDTO.newBuilder(),
+            TopologyEntity.newBuilder(new TopologyEntityImpl()).build(),
+            new CommodityBoughtImpl(),
             0));
         // Don't set percentile for commodity bought without enabled type of commodity or provider
         Assert.assertFalse(percentileEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
-            TopologyDTO.CommodityBoughtDTO.newBuilder()
-                .setUtilizationData(UtilizationData.getDefaultInstance()),
+            TopologyEntity.newBuilder(new TopologyEntityImpl()).build(),
+            new CommodityBoughtImpl()
+                .setUtilizationData(new UtilizationDataImpl()),
             0));
         // Set percentile for commodity bought with enabled type
         Assert.assertTrue(percentileEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
-            TopologyDTO.CommodityBoughtDTO.newBuilder()
-                .setUtilizationData(UtilizationData.getDefaultInstance())
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            TopologyEntity.newBuilder(new TopologyEntityImpl()).build(),
+            new CommodityBoughtImpl()
+                .setUtilizationData(new UtilizationDataImpl())
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(CommodityType.IMAGE_CPU_VALUE)),
             0));
         // Don't set percentile for commodity bought from enabled provider type without associated commodity type
         Assert.assertFalse(percentileEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
-            TopologyDTO.CommodityBoughtDTO.newBuilder()
-                .setUtilizationData(UtilizationData.getDefaultInstance())
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            TopologyEntity.newBuilder(new TopologyEntityImpl()).build(),
+            new CommodityBoughtImpl()
+                .setUtilizationData(new UtilizationDataImpl())
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(CommodityType.BALLOONING_VALUE)),
             EntityType.COMPUTE_TIER_VALUE));
         // Set percentile for commodity bought from enabled provider type with enabled commodity type
         Assert.assertTrue(percentileEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
-            TopologyDTO.CommodityBoughtDTO.newBuilder()
-                .setUtilizationData(UtilizationData.getDefaultInstance())
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            TopologyEntity.newBuilder(new TopologyEntityImpl()).build(),
+            new CommodityBoughtImpl()
+                .setUtilizationData(new UtilizationDataImpl())
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(CommodityType.STORAGE_ACCESS_VALUE)),
             EntityType.COMPUTE_TIER_VALUE));
         // Set percentile for IO Throughput commodity bought from Compute Tier, if
         // utilizationData is present
         Assert.assertTrue(percentileEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
-            TopologyDTO.CommodityBoughtDTO.newBuilder()
-                .setUtilizationData(UtilizationData.getDefaultInstance())
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            TopologyEntity.newBuilder(new TopologyEntityImpl()).build(),
+            new CommodityBoughtImpl()
+                .setUtilizationData(new UtilizationDataImpl())
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(CommodityType.IO_THROUGHPUT_VALUE)),
             EntityType.COMPUTE_TIER_VALUE));
     }
@@ -420,11 +416,11 @@ public class PercentileEditorTest extends PercentileBaseTest {
     @Test
     public void testIsSoldCloudVMemCommodityApplicableNoUtilizationData() {
         Assert.assertFalse(percentileEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+            TopologyEntity.newBuilder(new TopologyEntityImpl()
                 .setEnvironmentType(EnvironmentType.CLOUD))
                 .build(),
-            TopologyDTO.CommoditySoldDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            new CommoditySoldImpl()
+                .setCommodityType(new CommodityTypeImpl()
                 .setType(CommodityType.VMEM_VALUE)), topologyInfo));
     }
 
@@ -435,13 +431,13 @@ public class PercentileEditorTest extends PercentileBaseTest {
     @Test
     public void testIsSoldCloudVMemCommodityApplicableWithUtilizationData() {
         Assert.assertTrue(percentileEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+            TopologyEntity.newBuilder(new TopologyEntityImpl()
                 .setEnvironmentType(EnvironmentType.CLOUD))
                 .build(),
-            TopologyDTO.CommoditySoldDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            new CommoditySoldImpl()
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(CommodityType.VMEM_VALUE))
-                .setUtilizationData(UtilizationData.getDefaultInstance()), topologyInfo));
+                .setUtilizationData(new UtilizationDataImpl()), topologyInfo));
     }
 
     /**
@@ -451,10 +447,10 @@ public class PercentileEditorTest extends PercentileBaseTest {
     @Test
     public void testIsSoldNonCloudVMemCommodityApplicableNoUtilizationData() {
         Assert.assertTrue(percentileEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder())
+            TopologyEntity.newBuilder(new TopologyEntityImpl())
                 .build(),
-            TopologyDTO.CommoditySoldDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            new CommoditySoldImpl()
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(CommodityType.VMEM_VALUE)), topologyInfo));
     }
 
@@ -465,12 +461,12 @@ public class PercentileEditorTest extends PercentileBaseTest {
     @Test
     public void testIsSoldNonCloudVMemCommodityApplicableWithUtilizationData() {
         Assert.assertTrue(percentileEditor.isCommodityApplicable(
-            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder())
+            TopologyEntity.newBuilder(new TopologyEntityImpl())
                 .build(),
-            TopologyDTO.CommoditySoldDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+            new CommoditySoldImpl()
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(CommodityType.VMEM_VALUE))
-                .setUtilizationData(UtilizationData.getDefaultInstance()), topologyInfo));
+                .setUtilizationData(new UtilizationDataImpl()), topologyInfo));
     }
 
     /**
@@ -1264,13 +1260,13 @@ public class PercentileEditorTest extends PercentileBaseTest {
 
             List<EntityCommodityReference> commodities = Arrays.asList(
                 new EntityCommodityReference(VIRTUAL_MACHINE_OID_2,
-                    TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE).build(),
+                    new CommodityTypeImpl().setType(CommodityType.VCPU_VALUE),
                     null),
                 new EntityCommodityFieldReference(BUSINESS_USER_OID_2,
-                    TopologyDTO.CommodityType.newBuilder()
+                    new CommodityTypeImpl()
                         .setType(CommodityType.VCPU_VALUE)
-                        .setKey(DESKTOP_POOL_COMMODITY_KEY)
-                        .build(), DESKTOP_POOL_PROVIDER_OID, CommodityField.USED)
+                        .setKey(DESKTOP_POOL_COMMODITY_KEY),
+                        DESKTOP_POOL_PROVIDER_OID, CommodityField.USED)
             );
 
             // ACT
@@ -1286,17 +1282,17 @@ public class PercentileEditorTest extends PercentileBaseTest {
 
             // ASSERT
             Assert.assertTrue(topologyMap.get(VIRTUAL_MACHINE_OID_2)
-                .getEntityBuilder().getCommoditySoldList(0).getHistoricalUsed().hasPercentile());
+                .getTopologyEntityImpl().getCommoditySoldList(0).getHistoricalUsed().hasPercentile());
             Assert.assertThat(topologyMap.get(VIRTUAL_MACHINE_OID_2)
-                .getEntityBuilder().getCommoditySoldList(0).getHistoricalUsed().getPercentile(),
+                .getTopologyEntityImpl().getCommoditySoldList(0).getHistoricalUsed().getPercentile(),
                 Matchers.closeTo(1.0, 0.001));
-            Assert.assertTrue(topologyMap.get(BUSINESS_USER_OID_2).getEntityBuilder()
-                .getCommoditiesBoughtFromProvidersBuilder(0)
+            Assert.assertTrue(topologyMap.get(BUSINESS_USER_OID_2).getTopologyEntityImpl()
+                .getCommoditiesBoughtFromProviders(0)
                 .getCommodityBought(0)
                 .getHistoricalUsed()
                 .hasPercentile());
-            Assert.assertThat(topologyMap.get(BUSINESS_USER_OID_2).getEntityBuilder()
-                    .getCommoditiesBoughtFromProvidersBuilder(0)
+            Assert.assertThat(topologyMap.get(BUSINESS_USER_OID_2).getTopologyEntityImpl()
+                    .getCommoditiesBoughtFromProviders(0)
                     .getCommodityBought(0)
                     .getHistoricalUsed()
                     .getPercentile(),
@@ -1333,53 +1329,53 @@ public class PercentileEditorTest extends PercentileBaseTest {
         failingLoadPercentileEditor.initContext(context,
                         Collections.singletonList(new EntityCommodityReference(
                                         VIRTUAL_MACHINE_OID_2,
-                                        TopologyDTO.CommodityType.newBuilder()
-                                                        .setType(CommodityType.VCPU_VALUE).build(),
+                                        new CommodityTypeImpl()
+                                                        .setType(CommodityType.VCPU_VALUE),
                                         null)));
         failingLoadPercentileEditor.completeBroadcast(context);
         // sold VCPU (present as set up above) should be not resizable now
-        TopologyEntityDTO.Builder builder = graph.getTopologyGraph()
-                        .getEntity(VIRTUAL_MACHINE_OID_2).get().getTopologyEntityDtoBuilder();
-        Assert.assertFalse(builder.build().getCommoditySoldListList().stream()
+        TopologyEntityImpl entityPOJO = graph.getTopologyGraph()
+                        .getEntity(VIRTUAL_MACHINE_OID_2).get().getTopologyEntityImpl();
+        Assert.assertFalse(entityPOJO.getCommoditySoldListList().stream()
                         .filter(commSold -> commSold.getCommodityType()
                                         .getType() == CommodityType.VCPU_VALUE)
                         .findAny().get().getIsResizeable());
     }
 
-    private HashMap<Long, Builder> createTopologyMap() {
+    private HashMap<Long, TopologyEntity.Builder> createTopologyMap() {
         HashMap<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
         topologyMap.put(VIRTUAL_MACHINE_OID_2, TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(VIRTUAL_MACHINE_OID_2)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .addCommoditySoldList(
-                    TopologyDTO.CommoditySoldDTO.newBuilder().setCommodityType(TopologyDTO
-                        .CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE))
+                    new CommoditySoldImpl().setCommodityType(new CommodityTypeImpl()
+                        .setType(CommodityType.VCPU_VALUE))
                         .setCapacity(CAPACITY))
             )
-                .setClonedFromEntity(TopologyEntityDTO.newBuilder().setOid(VIRTUAL_MACHINE_OID))
+                .setClonedFromEntity(new TopologyEntityImpl().setOid(VIRTUAL_MACHINE_OID))
         );
 
         topologyMap.put(BUSINESS_USER_OID_2, TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(BUSINESS_USER_OID_2)
                 .setEntityType(EntityType.BUSINESS_USER_VALUE)
-                .addCommoditiesBoughtFromProviders(TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder()
+                .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                     .setProviderId(DESKTOP_POOL_PROVIDER_OID)
-                    .addCommodityBought(TopologyDTO.CommodityBoughtDTO.newBuilder().setCommodityType(TopologyDTO
-                        .CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE)
+                    .addCommodityBought(new CommodityBoughtImpl().setCommodityType(new CommodityTypeImpl()
+                        .setType(CommodityType.VCPU_VALUE)
                         .setKey(DESKTOP_POOL_COMMODITY_KEY))))
             )
-                .setClonedFromEntity(TopologyEntityDTO.newBuilder().setOid(BUSINESS_USER_OID))
+                .setClonedFromEntity(new TopologyEntityImpl().setOid(BUSINESS_USER_OID))
         );
 
         topologyMap.put(DESKTOP_POOL_PROVIDER_OID, TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(DESKTOP_POOL_PROVIDER_OID)
                 .setEntityType(EntityType.DESKTOP_POOL_VALUE)
                 .addCommoditySoldList(
-                    TopologyDTO.CommoditySoldDTO.newBuilder().setCommodityType(TopologyDTO
-                        .CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE)
+                    new CommoditySoldImpl().setCommodityType(new CommodityTypeImpl()
+                        .setType(CommodityType.VCPU_VALUE)
                         .setKey(DESKTOP_POOL_COMMODITY_KEY))
                         .setCapacity(CAPACITY))
             )

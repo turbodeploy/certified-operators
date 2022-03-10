@@ -16,8 +16,8 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -32,11 +32,11 @@ import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestRe
 public class PropagatedUpUsedPostStitchingOperationTest {
     private static final double EPSILON = 1e-6;
 
-    private final CommodityBoughtDTO.Builder storageAccessBought = makeCommodityBoughtBuilder(STORAGE_ACCESS);
-    private final CommodityBoughtDTO.Builder storageLatencyBought = makeCommodityBoughtBuilder(CommodityType.STORAGE_LATENCY);
+    private final CommodityBoughtImpl storageAccessBought = makeCommodityBoughtBuilder(STORAGE_ACCESS);
+    private final CommodityBoughtImpl storageLatencyBought = makeCommodityBoughtBuilder(CommodityType.STORAGE_LATENCY);
 
-    private final CommoditySoldDTO storageAccessSold = makeCommoditySold(STORAGE_ACCESS);
-    private final CommoditySoldDTO storageLatencySold = makeCommoditySold(CommodityType.STORAGE_LATENCY);
+    private final CommoditySoldView storageAccessSold = makeCommoditySold(STORAGE_ACCESS);
+    private final CommoditySoldView storageLatencySold = makeCommoditySold(CommodityType.STORAGE_LATENCY);
 
     private TopologyEntity.Builder diskArray = makeBasicTopologyEntityBuilder(1, EntityType.DISK_ARRAY);
 
@@ -59,7 +59,7 @@ public class PropagatedUpUsedPostStitchingOperationTest {
 
     private void setCommoditySoldUsed(@Nonnull final TopologyEntity.Builder entity,
                                                       final CommodityType commodityType, double used) {
-        entity.getEntityBuilder().getCommoditySoldListBuilderList().stream()
+        entity.getTopologyEntityImpl().getCommoditySoldListImplList().stream()
                 .filter(commodity -> commodity.getCommodityType().getType() == commodityType.getNumber())
                 .findFirst()
                 .get().setUsed(used);
@@ -68,7 +68,7 @@ public class PropagatedUpUsedPostStitchingOperationTest {
     private TopologyEntity.Builder makeBasicTopologyEntityBuilder(final long oid, @Nonnull final EntityType type) {
         return makeTopologyEntityBuilder(
                 oid, type.getNumber(), Arrays.asList(storageAccessSold, storageLatencySold),
-                Arrays.asList(storageAccessBought.build(), storageLatencyBought.build())
+                Arrays.asList(storageAccessBought, storageLatencyBought)
         );
     }
 
@@ -87,8 +87,8 @@ public class PropagatedUpUsedPostStitchingOperationTest {
                     final TopologyEntity ent = entity.build();
                     op.performOperation(Stream.of(ent), settingsMock, resultBuilder);
                     resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
-                    final CommoditySoldDTO.Builder comm = ent.getTopologyEntityDtoBuilder()
-                            .getCommoditySoldListBuilderList().stream()
+                    final CommoditySoldView comm = ent.getTopologyEntityImpl()
+                            .getCommoditySoldListList().stream()
                             .filter(c -> STORAGE_ACCESS.getNumber() == c.getCommodityType().getType())
                             .findFirst().orElse(null);
                     Assert.assertEquals(ACCESS_SOLD_USED, comm.getUsed(), EPSILON);

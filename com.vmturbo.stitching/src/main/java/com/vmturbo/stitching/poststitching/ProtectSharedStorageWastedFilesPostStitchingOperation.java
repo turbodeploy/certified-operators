@@ -62,9 +62,9 @@ public class ProtectSharedStorageWastedFilesPostStitchingOperation
                 // removing wasted files from their wasted files volumes
                 storagesBrowsingDisabled.add(storage);
                 resultBuilder.queueUpdateEntityAlone(wastedFilesVolume, toUpdate ->
-                        toUpdate.getTopologyEntityDtoBuilder()
-                                .getTypeSpecificInfoBuilder()
-                                .getVirtualVolumeBuilder()
+                        toUpdate.getTopologyEntityImpl()
+                                .getOrCreateTypeSpecificInfo()
+                                .getOrCreateVirtualVolume()
                                 .clearFiles());
             });
         });

@@ -3,9 +3,16 @@ package com.vmturbo.protoc.pojo.gen.testjavaopt2;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -17,10 +24,14 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import com.vmturbo.protoc.pojo.gen.testjavaopt2.BarClassDTO.Bar.MyOneOfCase;
+import com.vmturbo.protoc.pojo.gen.testjavaopt2.BarClassDTO.Bar.OtherMessage;
 import com.vmturbo.protoc.pojo.gen.testjavaopt2.BarClassDTO.Bar.Plant;
-import com.vmturbo.protoc.pojo.gen.testjavaopt2.BarClassPOJOPkg.Bar;
-import com.vmturbo.protoc.pojo.gen.testjavaopt2.BarClassPOJOPkg.Bar.BlahPOJO;
-import com.vmturbo.protoc.pojo.gen.testjavaopt2.BarClassPOJOPkg.Bar.OtherMessage;
+import com.vmturbo.protoc.pojo.gen.testjavaopt2.BarClassPOJO.BarImpl;
+import com.vmturbo.protoc.pojo.gen.testjavaopt2.BarClassPOJO.BarImpl.BlahImpl;
+import com.vmturbo.protoc.pojo.gen.testjavaopt2.BarClassPOJO.BarImpl.BlahView;
+import com.vmturbo.protoc.pojo.gen.testjavaopt2.BarClassPOJO.BarImpl.OtherMessageImpl;
+import com.vmturbo.protoc.pojo.gen.testjavaopt2.BarClassPOJO.BarImpl.OtherMessageView;
+import com.vmturbo.protoc.pojo.gen.testjavaopt2.BarClassPOJO.BarView;
 
 /**
  * BarClassPOJOTest.
@@ -33,7 +44,7 @@ public class BarClassPOJOTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    private final Bar bar = new Bar();
+    private final BarImpl bar = new BarImpl();
     private final BarClassDTO.Bar defaultProto = BarClassDTO.Bar.getDefaultInstance();
 
     private final ByteString fooBytes = ByteString.copyFromUtf8("foo");
@@ -89,7 +100,7 @@ public class BarClassPOJOTest {
     @Test
     public void testHasSubMessage() {
         assertFalse(bar.hasMyOtherMessage());
-        bar.setMyOtherMessage(new OtherMessage());
+        bar.setMyOtherMessage(new OtherMessageImpl());
         assertTrue(bar.hasMyOtherMessage());
     }
 
@@ -102,6 +113,60 @@ public class BarClassPOJOTest {
         assertTrue(bar.hasBar());
         bar.clearBar();
         assertFalse(bar.hasBar());
+    }
+
+    /**
+     * testGetVsGetOrCreate on a single (non-repeated, non-oneOf) field.
+     */
+    @Test
+    public void testGetVsGetOrCreateSingleField() {
+        final BarClassDTO.Bar.Builder builder = BarClassDTO.Bar.newBuilder();
+        assertFalse(builder.hasMyOtherMessage());
+        assertFalse(builder.getMyOtherMessage().hasMyInt());
+        assertFalse(builder.hasMyOtherMessage());
+
+        builder.getMyOtherMessageBuilder().setMyInt(1);
+        assertEquals(1, builder.getMyOtherMessage().getMyInt());
+        assertTrue(builder.hasMyOtherMessage());
+
+        assertFalse(bar.hasOtherMessage());
+        bar.getOtherMessage();
+        assertFalse(bar.hasOtherMessage());
+
+        bar.getOrCreateMyOtherMessage().setMyInt(1);
+        assertEquals(1, bar.getMyOtherMessage().getMyInt());
+        assertTrue(bar.hasMyOtherMessage());
+    }
+
+    /**
+     * Test getOrCreate on a oneOf field.
+     */
+    @Test
+    public void testGetVsGetOrCreateOneOfField() {
+        final BarClassDTO.Bar.Builder builder = BarClassDTO.Bar.newBuilder();
+        builder.setIntVariant(2);
+        assertFalse(builder.hasOtherMessage());
+        assertFalse(builder.getOtherMessage().hasMyInt());
+        assertFalse(builder.hasOtherMessage());
+        assertEquals(MyOneOfCase.INT_VARIANT, builder.getMyOneOfCase());
+
+        builder.getOtherMessageBuilder().setMyInt(1);
+        assertEquals(1, builder.getOtherMessage().getMyInt());
+        assertTrue(builder.hasOtherMessage());
+        assertEquals(MyOneOfCase.OTHER_MESSAGE, builder.getMyOneOfCase());
+        assertFalse(builder.hasIntVariant());
+
+        bar.setIntVariant(2);
+        assertFalse(bar.hasOtherMessage());
+        bar.getOtherMessage();
+        assertFalse(bar.hasOtherMessage());
+        assertEquals(MyOneOfCase.INT_VARIANT, bar.getMyOneOfCase());
+
+        bar.getOrCreateOtherMessage().setMyInt(1);
+        assertEquals(1, bar.getOtherMessage().getMyInt());
+        assertTrue(bar.hasOtherMessage());
+        assertEquals(MyOneOfCase.OTHER_MESSAGE, bar.getMyOneOfCase());
+        assertFalse(bar.hasIntVariant());
     }
 
     /**
@@ -142,7 +207,7 @@ public class BarClassPOJOTest {
      */
     @Test
     public void testClearSubMessage() {
-        bar.setMyOtherMessage(new OtherMessage());
+        bar.setMyOtherMessage(new OtherMessageImpl());
         assertTrue(bar.hasMyOtherMessage());
         bar.clearMyOtherMessage();
         assertFalse(bar.hasMyOtherMessage());
@@ -206,11 +271,11 @@ public class BarClassPOJOTest {
         bar.clearBoolVariant();
         assertEquals(MyOneOfCase.MYONEOF_NOT_SET, bar.getMyOneOfCase());
 
-        bar.setOtherMessage(new OtherMessage().setMyInt(1));
+        bar.setOtherMessage(new OtherMessageImpl().setMyInt(1));
         assertEquals(1, bar.getOtherMessage().getMyInt());
         assertEquals(MyOneOfCase.OTHER_MESSAGE, bar.getMyOneOfCase());
 
-        bar.setBlah(new BlahPOJO().setStr("blah"));
+        bar.setBlah(new BlahImpl().setStr("blah"));
         assertEquals("blah", bar.getBlah().getStr());
         assertEquals(MyOneOfCase.BLAH, bar.getMyOneOfCase());
 
@@ -392,12 +457,12 @@ public class BarClassPOJOTest {
     @Test
     public void testRepeatedMessage() {
         assertEquals(0, bar.getRepeatedBlahList().size());
-        assertEquals(new BlahPOJO().setStr("foo"),
-            bar.addRepeatedBlah(new BlahPOJO().setStr("foo")).getRepeatedBlah(0));
-        assertEquals(new BlahPOJO().setStr("foo"), bar.getRepeatedBlahList().get(0));
+        assertEquals(new BlahImpl().setStr("foo"),
+            bar.addRepeatedBlah(new BlahImpl().setStr("foo")).getRepeatedBlah(0));
+        assertEquals(new BlahImpl().setStr("foo"), bar.getRepeatedBlahList().get(0));
         assertEquals(1, bar.getRepeatedBlahCount());
-        assertEquals(new BlahPOJO().setStr("bar"),
-            bar.setRepeatedBlah(0, new BlahPOJO().setStr("bar")).getRepeatedBlah(0));
+        assertEquals(new BlahImpl().setStr("bar"),
+            bar.setRepeatedBlah(0, new BlahImpl().setStr("bar")).getRepeatedBlah(0));
         assertEquals(0, bar.clearRepeatedBlah().getRepeatedBlahCount());
     }
 
@@ -406,7 +471,7 @@ public class BarClassPOJOTest {
      */
     @Test
     public void testIntEquals() {
-        final Bar other = new Bar();
+        final BarImpl other = new BarImpl();
 
         bar.setBar(1234L);
         bar.setIntVariant(3);
@@ -422,7 +487,7 @@ public class BarClassPOJOTest {
      */
     @Test
     public void testBooleanEquals() {
-        final Bar other = new Bar();
+        final BarImpl other = new BarImpl();
 
         bar.setMyBoolean(true);
         bar.setBoolVariant(false);
@@ -438,7 +503,7 @@ public class BarClassPOJOTest {
      */
     @Test
     public void testStringEquals() {
-        final Bar other = new Bar();
+        final BarImpl other = new BarImpl();
 
         bar.setSomeString("foo");
         bar.setStringVariant("bar");
@@ -454,7 +519,7 @@ public class BarClassPOJOTest {
      */
     @Test
     public void testByteStringEquals() {
-        final Bar other = new Bar();
+        final BarImpl other = new BarImpl();
 
         bar.setMyBytes(fooBytes);
         bar.setBytesWithDefault(barBytes);
@@ -470,7 +535,7 @@ public class BarClassPOJOTest {
      */
     @Test
     public void testEnumEquals() {
-        final Bar other = new Bar();
+        final BarImpl other = new BarImpl();
 
         bar.setGardenPlant(Plant.POTATO);
         bar.setYourPlant(Plant.BUSH);
@@ -486,14 +551,14 @@ public class BarClassPOJOTest {
      */
     @Test
     public void testMessageEquals() {
-        final Bar other = new Bar();
+        final BarImpl other = new BarImpl();
 
-        bar.setMyOtherMessage(new OtherMessage().setMyInt(2));
-        bar.setBlah(new BlahPOJO().setStr("foo"));
+        bar.setMyOtherMessage(new OtherMessageImpl().setMyInt(2));
+        bar.setBlah(new BlahImpl().setStr("foo"));
         assertNotEquals(other, bar);
 
-        other.setMyOtherMessage(new OtherMessage().setMyInt(2));
-        other.setBlah(new BlahPOJO().setStr("foo"));
+        other.setMyOtherMessage(new OtherMessageImpl().setMyInt(2));
+        other.setBlah(new BlahImpl().setStr("foo"));
         assertEquals(other, bar);
     }
 
@@ -520,7 +585,7 @@ public class BarClassPOJOTest {
     @Test
     public void testContains() {
         assertFalse(bar.containsMyMap("foo"));
-        bar.putMyMap("foo", new OtherMessage());
+        bar.putMyMap("foo", new OtherMessageImpl());
         assertTrue(bar.containsMyMap("foo"));
     }
 
@@ -531,7 +596,7 @@ public class BarClassPOJOTest {
     public void testPutNullKey() {
         expectedException.expect(NullPointerException.class);
         expectedException.expectMessage("Key cannot be null");
-        bar.putMyMap(null, new OtherMessage());
+        bar.putMyMap(null, new OtherMessageImpl());
     }
 
     /**
@@ -559,7 +624,7 @@ public class BarClassPOJOTest {
     @Test
     public void testPutAllWithNullValue() {
         expectedException.expect(NullPointerException.class);
-        final Map<String, OtherMessage> map = new HashMap<>();
+        final Map<String, OtherMessageImpl> map = new HashMap<>();
         map.put("foo", null);
 
         bar.putAllMyMap(map);
@@ -571,8 +636,8 @@ public class BarClassPOJOTest {
     @Test
     public void testPutAllWithNullKey() {
         expectedException.expect(NullPointerException.class);
-        final Map<String, OtherMessage> map = new HashMap<>();
-        map.put(null, new OtherMessage().setMyInt(1));
+        final Map<String, OtherMessageImpl> map = new HashMap<>();
+        map.put(null, new OtherMessageImpl().setMyInt(1));
 
         bar.putAllMyMap(map);
     }
@@ -583,9 +648,9 @@ public class BarClassPOJOTest {
     @Test
     public void testPutAll() {
         assertEquals(0, bar.getMyMapCount());
-        final Map<String, OtherMessage> map1 = ImmutableMap.of(
-            "foo", new OtherMessage().setMyInt(1),
-            "bar", new OtherMessage().setMyInt(2)
+        final Map<String, OtherMessageImpl> map1 = ImmutableMap.of(
+            "foo", new OtherMessageImpl().setMyInt(1),
+            "bar", new OtherMessageImpl().setMyInt(2)
         );
 
         bar.putAllMyMap(map1);
@@ -593,10 +658,10 @@ public class BarClassPOJOTest {
         assertTrue(bar.containsMyMap("bar"));
         assertEquals(2, bar.getMyMapCount());
 
-        final Map<String, OtherMessage> map2 = ImmutableMap.of(
-            "foo", new OtherMessage().setMyInt(3),
-            "baz", new OtherMessage().setMyInt(4),
-            "quux", new OtherMessage().setMyInt(5)
+        final Map<String, OtherMessageImpl> map2 = ImmutableMap.of(
+            "foo", new OtherMessageImpl().setMyInt(3),
+            "baz", new OtherMessageImpl().setMyInt(4),
+            "quux", new OtherMessageImpl().setMyInt(5)
         );
 
         bar.putAllMyMap(map2);
@@ -604,8 +669,46 @@ public class BarClassPOJOTest {
         assertTrue(bar.containsMyMap("bar"));
         assertTrue(bar.containsMyMap("baz"));
         assertTrue(bar.containsMyMap("quux"));
-        assertEquals(new OtherMessage().setMyInt(3), bar.getMyMapOrThrow("foo"));
+        assertEquals(new OtherMessageImpl().setMyInt(3), bar.getMyMapOrThrow("foo"));
         assertEquals(4, bar.getMyMapCount());
+    }
+
+    /**
+     * testSettingWithDefault. We should not allow modification of the default when
+     * we set a field to a default.
+     */
+    @Test
+    public void testSettingWithDefault() {
+        bar.setOtherMessage(OtherMessageView.getDefaultInstance());
+        bar.getOrCreateMyOtherMessage().setMyInt(1234);
+        assertEquals(1234, bar.getMyOtherMessage().getMyInt());
+        assertEquals(defaultProto.getMyOtherMessage().getMyInt(),
+            OtherMessageView.getDefaultInstance().getMyInt());
+        assertNotSame(OtherMessageView.getDefaultInstance(), bar.getOtherMessage());
+    }
+
+    /**
+     * Test getOrThrow.
+     */
+    @Test
+    public void testGetOrThrow() {
+        bar.putMyMap("foo", new OtherMessageImpl().setMyInt(2));
+        assertEquals(new OtherMessageImpl().setMyInt(2), bar.getMyMapOrThrow("foo"));
+
+        expectedException.expect(IllegalArgumentException.class);
+        bar.getMyMapOrThrow("bar");
+    }
+
+    /**
+     * testGetOrDefault.
+     */
+    @Test
+    public void testGetOrDefault() {
+        bar.putMyMap("foo", new OtherMessageImpl().setMyInt(2));
+        assertEquals(new OtherMessageImpl().setMyInt(2), bar.getMyMapOrDefault("foo", null));
+
+        assertEquals(new OtherMessageImpl().setMyInt(5),
+            bar.getMyMapOrDefault("bar", new OtherMessageImpl().setMyInt(5)));
     }
 
     /**
@@ -625,12 +728,54 @@ public class BarClassPOJOTest {
     }
 
     /**
+     * Test removing from a map.
+     */
+    @Test
+    public void testRemoveMap() {
+        bar.removeMyMap("foo"); // Nothing happens when you remove a key that is not present.
+        bar.putMyMap("bar", new OtherMessageImpl().setMyInt(1));
+
+        assertEquals(1, bar.getMyMapCount());
+        bar.removeMyMap("bar");
+        assertEquals(0, bar.getMyMapCount());
+    }
+
+    /**
+     * Test removing from a repeated field.
+     */
+    @Test
+    public void testRemoveRepeated() {
+        bar.addRepeatedInt(1);
+        bar.addRepeatedInt(2);
+        bar.addRepeatedInt(3);
+
+        assertEquals(3, bar.getRepeatedIntCount());
+        bar.removeRepeatedInt(0);
+        assertEquals(2, bar.getRepeatedIntCount());
+
+        assertEquals(2, (int)bar.getRepeatedInt(0));
+        assertEquals(3, (int)bar.getRepeatedInt(1));
+
+        bar.removeRepeatedInt(1);
+        assertEquals(1, bar.getRepeatedIntCount());
+        assertEquals(2, (int)bar.getRepeatedInt(0));
+    }
+
+    /**
+     * Test removing at invalid index.
+     */
+    @Test public void testRemoveRepeatedInvalid() {
+        expectedException.expect(IndexOutOfBoundsException.class);
+        bar.removeRepeatedInt(0);
+    }
+
+    /**
      * testCannotModifyEmptyMapDirectly.
      */
     @Test
     public void testCannotModifyEmptyMapDirectly() {
         expectedException.expect(UnsupportedOperationException.class);
-        bar.getMyMapMap().put("foo", new OtherMessage().setMyInt(1));
+        bar.getMyMapMap().put("foo", new OtherMessageImpl().setMyInt(1));
     }
 
     /**
@@ -638,7 +783,7 @@ public class BarClassPOJOTest {
      */
     @Test
     public void testCannotModifyNonEmptyMapDirectly() {
-        bar.putMyMap("foo", new OtherMessage().setMyInt(1));
+        bar.putMyMap("foo", new OtherMessageImpl().setMyInt(1));
 
         expectedException.expect(UnsupportedOperationException.class);
         bar.getMyMapMap().clear();
@@ -649,13 +794,13 @@ public class BarClassPOJOTest {
      */
     @Test
     public void testMapEquals() {
-        final Bar other = new Bar();
+        final BarImpl other = new BarImpl();
         assertEquals(bar, other);
 
-        bar.putMyMap("foo", new OtherMessage().setMyInt(1));
+        bar.putMyMap("foo", new OtherMessageImpl().setMyInt(1));
         assertNotEquals(bar, other);
 
-        other.putMyMap("foo", new OtherMessage().setMyInt(1));
+        other.putMyMap("foo", new OtherMessageImpl().setMyInt(1));
         assertEquals(bar, other);
 
         bar.putPrimitivesMap(1, false);
@@ -672,16 +817,16 @@ public class BarClassPOJOTest {
      */
     @Test
     public void testRepeatedEquals() {
-        final Bar other = new Bar();
+        final BarImpl other = new BarImpl();
 
         bar.addAllRepeatedInt(Arrays.asList(1, 2, 3, 4));
         assertNotEquals(bar, other);
         other.addAllRepeatedInt(Arrays.asList(1, 2, 3, 4));
         assertEquals(bar, other);
 
-        bar.addRepeatedBlah(new BlahPOJO().setStr("foo"));
+        bar.addRepeatedBlah(new BlahImpl().setStr("foo"));
         assertNotEquals(bar, other);
-        other.addRepeatedBlah(new BlahPOJO().setStr("foo"));
+        other.addRepeatedBlah(new BlahImpl().setStr("foo"));
         assertEquals(bar, other);
 
         bar.addAllRepeatedBool(Arrays.asList(true, false, true));
@@ -696,12 +841,12 @@ public class BarClassPOJOTest {
     }
 
     /**
-     * testIntDefault.
+     * testDefaultInstance.
      */
     @Test
-    public void testIntDefault() {
-        Bar.getDefaultInstance().setBar(1234L);
-        assertNotEquals(1234L, Bar.getDefaultInstance().getBar());
+    public void testDefaultInstance() {
+        assertEquals(BarView.getDefaultInstance(), BarView.getDefaultInstance());
+        assertSame(BarView.getDefaultInstance(), BarView.getDefaultInstance());
     }
 
     /**
@@ -715,19 +860,19 @@ public class BarClassPOJOTest {
             .addRepeatedBlah(BarClassDTO.Bar.BlahDTO.newBuilder().setStr("foo").build())
             .addAllRepeatedBool(Arrays.asList(true, false, true))
             .addAllRepeatedString(Arrays.asList("foo", "bar", "baz"))
-            .putMyMap("foo", new OtherMessage().setMyInt(1).toProto())
-            .putMyMap("bar", new OtherMessage().setMyInt(2).toProto())
+            .putMyMap("foo", new OtherMessageImpl().setMyInt(1).toProto())
+            .putMyMap("bar", new OtherMessageImpl().setMyInt(2).toProto())
             .putPrimitivesMap(3, false)
             .putPrimitivesMap(4, true)
             .build();
 
-        final Bar bar = Bar.fromProto(proto);
+        final BarImpl bar = BarImpl.fromProto(proto);
         assertEquals(Arrays.asList(1, 2, 3, 4), bar.getRepeatedIntList());
-        assertEquals(new BlahPOJO().setStr("foo"), bar.getRepeatedBlah(0));
+        assertEquals(new BlahImpl().setStr("foo"), bar.getRepeatedBlah(0));
         assertEquals(Arrays.asList(true, false, true), bar.getRepeatedBoolList());
         assertEquals(Arrays.asList("foo", "bar", "baz"), bar.getRepeatedStringList());
-        assertEquals(ImmutableMap.of("foo", new OtherMessage().setMyInt(1),
-            "bar", new OtherMessage().setMyInt(2)), bar.getMyMapMap());
+        assertEquals(ImmutableMap.of("foo", new OtherMessageImpl().setMyInt(1),
+            "bar", new OtherMessageImpl().setMyInt(2)), bar.getMyMapMap());
         assertEquals(ImmutableMap.of(3, false, 4, true), bar.getPrimitivesMapMap());
         assertEquals(proto, bar.toProto());
     }
@@ -746,10 +891,10 @@ public class BarClassPOJOTest {
             .addAllRepeatedBytes(Arrays.asList(fooBytes, barBytes))
             .build();
 
-        final Bar bar = new Bar()
+        final BarImpl bar = new BarImpl()
             .setRequiredFloat(1.23f)
             .addAllRepeatedInt(Arrays.asList(1, 2, 3, 4))
-            .addRepeatedBlah(new BlahPOJO().setStr("foo"))
+            .addRepeatedBlah(new BlahImpl().setStr("foo"))
             .addAllRepeatedBool(Arrays.asList(true, false, true))
             .addAllRepeatedString(Arrays.asList("foo", "bar", "baz"))
             .addAllRepeatedBytes(Arrays.asList(fooBytes, barBytes));
@@ -767,22 +912,22 @@ public class BarClassPOJOTest {
      */
     @Test
     public void testHashing() {
-        final Bar bar = new Bar()
+        final BarImpl bar = new BarImpl()
             .setRequiredFloat(1.23f)
             .addAllRepeatedInt(Arrays.asList(1, 2, 3, 4))
-            .addRepeatedBlah(new BlahPOJO().setStr("foo"))
+            .addRepeatedBlah(new BlahImpl().setStr("foo"))
             .addAllRepeatedBool(Arrays.asList(true, false, true))
             .addAllRepeatedString(Arrays.asList("foo", "bar", "baz"))
             .setDoubleVariant(3.0)
-            .putMyMap("foo", new OtherMessage().setMyInt(2))
-            .putMyMap("bar", new OtherMessage().setMyInt(3))
+            .putMyMap("foo", new OtherMessageImpl().setMyInt(2))
+            .putMyMap("bar", new OtherMessageImpl().setMyInt(3))
             .addAllRepeatedBytes(Arrays.asList(fooBytes, barBytes))
             .putPrimitivesMap(1, false);
-        Bar barCopy = bar.copy();
+        BarImpl barCopy = bar.copy();
         assertEquals(bar, barCopy);
         assertEquals(bar.hashCode(), barCopy.hashCode());
 
-        final Map<Bar, Integer> barMap = new HashMap<>();
+        final Map<BarImpl, Integer> barMap = new HashMap<>();
         barMap.put(bar, 3);
         assertEquals(1, barMap.size());
         assertTrue(barMap.containsKey(barCopy));
@@ -793,7 +938,7 @@ public class BarClassPOJOTest {
         assertNotEquals(barCopy.hashCode(), bar.hashCode());
         barCopy = bar.copy();
 
-        bar.setBlah(new BlahPOJO().setStr("foo"));
+        bar.setBlah(new BlahImpl().setStr("foo"));
         assertNotEquals(barCopy.hashCode(), bar.hashCode());
         barCopy = bar.copy();
 
@@ -838,18 +983,18 @@ public class BarClassPOJOTest {
      */
     @Test
     public void testEquals() {
-        final Bar bar = new Bar()
+        final BarImpl bar = new BarImpl()
             .setRequiredFloat(1.23f)
             .addAllRepeatedInt(Arrays.asList(1, 2, 3, 4))
-            .addRepeatedBlah(new BlahPOJO().setStr("foo"))
+            .addRepeatedBlah(new BlahImpl().setStr("foo"))
             .addAllRepeatedBool(Arrays.asList(true, false, true))
             .addAllRepeatedString(Arrays.asList("foo", "bar", "baz"))
             .setDoubleVariant(3.0)
             .addAllRepeatedBytes(Arrays.asList(fooBytes, barBytes))
-            .putMyMap("foo", new OtherMessage().setMyInt(2))
-            .putMyMap("bar", new OtherMessage().setMyInt(3))
+            .putMyMap("foo", new OtherMessageImpl().setMyInt(2))
+            .putMyMap("bar", new OtherMessageImpl().setMyInt(3))
             .putPrimitivesMap(1, false);
-        Bar barCopy = bar.copy();
+        BarImpl barCopy = bar.copy();
         assertEquals(bar, barCopy);
 
         bar.setIntVariant(1);
@@ -857,7 +1002,7 @@ public class BarClassPOJOTest {
         barCopy = bar.copy();
         assertEquals(bar, barCopy);
 
-        bar.setBlah(new BlahPOJO().setStr("foo"));
+        bar.setBlah(new BlahImpl().setStr("foo"));
         assertNotEquals(barCopy, bar);
         barCopy = bar.copy();
         assertEquals(bar, barCopy);
@@ -909,19 +1054,40 @@ public class BarClassPOJOTest {
     }
 
     /**
+     * testClear.
+     */
+    @Test
+    public void testClear() {
+        final BarImpl bar = new BarImpl()
+            .setRequiredFloat(1.23f)
+            .addAllRepeatedInt(Arrays.asList(1, 2, 3, 4))
+            .addRepeatedBlah(new BlahImpl().setStr("foo"))
+            .addAllRepeatedBool(Arrays.asList(true, false, true))
+            .addAllRepeatedString(Arrays.asList("foo", "bar", "baz"))
+            .setDoubleVariant(3.0)
+            .setGardenPlant(Plant.MAPLE)
+            .addAllRepeatedBytes(Arrays.asList(fooBytes, barBytes))
+            .putMyMap("foo", new OtherMessageImpl().setMyInt(2))
+            .putMyMap("bar", new OtherMessageImpl().setMyInt(3))
+            .putPrimitivesMap(1, false);
+        bar.clear();
+        assertEquals(new BarImpl(), bar);
+    }
+
+    /**
      * testCopy.
      */
     @Test
     public void testCopy() {
-        final Bar bar = new Bar()
+        final BarImpl bar = new BarImpl()
             .setRequiredFloat(1.23f)
             .addAllRepeatedInt(Arrays.asList(1, 2, 3, 4))
-            .addRepeatedBlah(new BlahPOJO().setStr("foo"))
+            .addRepeatedBlah(new BlahImpl().setStr("foo"))
             .addAllRepeatedBool(Arrays.asList(true, false, true))
             .addAllRepeatedString(Arrays.asList("foo", "bar", "baz"))
             .addAllRepeatedBytes(Arrays.asList(fooBytes, barBytes))
-            .putMyMap("foo", new OtherMessage().setMyInt(2))
-            .putMyMap("bar", new OtherMessage().setMyInt(3))
+            .putMyMap("foo", new OtherMessageImpl().setMyInt(2))
+            .putMyMap("bar", new OtherMessageImpl().setMyInt(3))
             .addAllRepeatedBytes(Arrays.asList(fooBytes, barBytes))
             .putPrimitivesMap(1, false);
 
@@ -939,7 +1105,7 @@ public class BarClassPOJOTest {
         bar.clearMyBoolean();
         assertEquals(bar, bar.copy());
 
-        bar.setBlah(new BlahPOJO().setStr("blah"));
+        bar.setBlah(new BlahImpl().setStr("blah"));
         assertEquals(bar, bar.copy());
 
         bar.clearBlah();
@@ -951,7 +1117,238 @@ public class BarClassPOJOTest {
         bar.clearRepeatedBytes();
         assertEquals(bar, bar.copy());
 
-        final Bar empty = new Bar();
+        final BarImpl empty = new BarImpl();
         assertEquals(empty, empty.copy());
+    }
+
+    /**
+     * Since parent sets a bit field, we want to ensure that we get equality whether we have a parent or not.
+     */
+    @Test
+    public void testEqualityParentNoParent() {
+        final OtherMessageImpl a = new OtherMessageImpl().setMyInt(34934);
+        final OtherMessageImpl b = a.copy();
+
+        bar.setMyOtherMessage(a);
+        assertEquals(a, b); // a and b should still be equal even though a has a parent and b does not.
+    }
+
+    /**
+     * Parent setting should always be unset after a copy even if we are copying
+     * from something without a parent.
+     */
+    @Test
+    public void testParentValueNotCopied() {
+        final OtherMessageImpl a = new OtherMessageImpl().setMyInt(34934);
+        bar.setMyOtherMessage(a);
+
+        assertTrue(a.hasParent());
+        assertFalse(a.copy().hasParent());
+        assertNotSame(a, a.copy());
+    }
+
+    /**
+     * When copying a POJO with a child, parent should be set on the child on
+     * both the original child and the copied child. The copied child should
+     * not be reference-equal to the original.
+     */
+    @Test
+    public void testCopiedChildrenHaveParentSet() {
+        bar.setMyOtherMessage(new OtherMessageImpl().setMyInt(34934));
+        bar.setOtherMessage(new OtherMessageImpl().setMyInt(1234));
+        bar.addRepeatedBlah(new BlahImpl().setStr("foo"));
+        bar.putMyMap("foo", new OtherMessageImpl().setMyInt(9999));
+
+        final BarImpl copy = bar.copy();
+
+        assertTrue(bar.getOrCreateMyOtherMessage().hasParent());
+        assertTrue(copy.getOrCreateMyOtherMessage().hasParent());
+        assertNotSame(bar.getMyOtherMessage(), copy.getMyOtherMessage());
+
+        assertTrue(bar.getOrCreateOtherMessage().hasParent());
+        assertTrue(copy.getOrCreateOtherMessage().hasParent());
+        assertNotSame(bar.getOtherMessage(), copy.getOtherMessage());
+
+        assertTrue(bar.getRepeatedBlahImpl(0).hasParent());
+        assertTrue(copy.getRepeatedBlahImpl(0).hasParent());
+        assertNotSame(bar.getRepeatedBlah(0), copy.getRepeatedBlah(0));
+
+        assertTrue(bar.getMyMapImplOrThrow("foo").hasParent());
+        assertTrue(copy.getMyMapImplOrThrow("foo").hasParent());
+        assertNotSame(bar.getMyMapOrThrow("foo"), copy.getMyMapOrThrow("foo"));
+    }
+
+    /**
+     * When converting a proto with a child, the parent should be set on the
+     * converted pojo child.
+     */
+    @Test
+    public void testFromProtoChildrenHaveParentSet() {
+        final BarClassDTO.Bar.Builder proto = defaultProto.toBuilder();
+        proto.setMyOtherMessage(OtherMessage.newBuilder().setMyInt(34934));
+        proto.setOtherMessage(OtherMessage.newBuilder().setMyInt(1234));
+        proto.addRepeatedOtherMessage(OtherMessage.newBuilder().setMyInt(5678));
+        proto.putMyMap("foo", OtherMessage.newBuilder().setMyInt(9999).build());
+        final BarImpl copy = BarImpl.fromProto(proto);
+
+        assertTrue(copy.getOrCreateMyOtherMessage().hasParent());
+        assertTrue(copy.getOrCreateOtherMessage().hasParent());
+        assertTrue(copy.getRepeatedOtherMessageImpl(0).hasParent());
+        assertTrue(copy.getMyMapImplOrThrow("foo").hasParent());
+    }
+
+    /**
+     * testParentForSingleField.
+     */
+    @Test
+    public void testParentForSingleField() {
+        assertTrue(bar.getOrCreateMyOtherMessage().hasParent());
+        final BarImpl bar2 = new BarImpl();
+
+        final OtherMessageImpl other = new OtherMessageImpl().setMyInt(1234);
+        assertFalse(other.hasParent());
+        bar.setMyOtherMessage(other);
+        bar2.setMyOtherMessage(other);
+        assertTrue(other.hasParent());
+
+        assertEquals(1234, bar.getMyOtherMessage().getMyInt());
+        assertEquals(1234, bar2.getMyOtherMessage().getMyInt());
+
+        // Changing the original should change the original parent, but not the second one.
+        other.setMyInt(2345);
+        assertEquals(2345, bar.getMyOtherMessage().getMyInt());
+        assertEquals(1234, bar2.getMyOtherMessage().getMyInt());
+        assertNotSame(bar.getMyOtherMessage(), bar2.getMyOtherMessage());
+    }
+
+    /**
+     * testParentForOneOfVariant.
+     */
+    @Test
+    public void testParentForOneOfVariant() {
+        assertTrue(bar.getOrCreateOtherMessage().hasParent());
+        final BarImpl bar2 = new BarImpl();
+
+        final OtherMessageImpl other = new OtherMessageImpl().setMyInt(1234);
+        assertFalse(other.hasParent());
+        bar.setOtherMessage(other);
+        bar2.setOtherMessage(other);
+        assertTrue(other.hasParent());
+
+        assertEquals(1234, bar.getOtherMessage().getMyInt());
+        assertEquals(1234, bar2.getOtherMessage().getMyInt());
+
+        // Changing the original should change the original parent, but not the second one.
+        other.setMyInt(2345);
+        assertEquals(2345, bar.getOtherMessage().getMyInt());
+        assertEquals(1234, bar2.getOtherMessage().getMyInt());
+        assertNotSame(bar.getOtherMessage(), bar2.getOtherMessage());
+    }
+
+    /**
+     * testParentForRepeatedField.
+     */
+    @Test
+    public void testParentForRepeatedField() {
+        bar.addRepeatedOtherMessage(new OtherMessageImpl().setMyInt(1234));
+        final BarImpl bar2 = new BarImpl();
+
+        bar2.addRepeatedOtherMessage(bar.getRepeatedOtherMessage(0));
+
+        assertEquals(bar.getRepeatedOtherMessage(0), bar2.getRepeatedOtherMessage(0));
+        assertNotSame(bar.getRepeatedOtherMessage(0), bar2.getRepeatedOtherMessage(0));
+        assertTrue(bar.getRepeatedOtherMessageImpl(0).hasParent());
+        assertTrue(bar2.getRepeatedOtherMessageImpl(0).hasParent());
+
+        bar.getRepeatedOtherMessageImpl(0).setMyInt(5678);
+        assertEquals(5678, bar.getRepeatedOtherMessage(0).getMyInt());
+        assertEquals(1234, bar2.getRepeatedOtherMessage(0).getMyInt());
+    }
+
+    /**
+     * testParentForMapField.
+     */
+    @Test
+    public void testParentForMapField() {
+        bar.putMyMap("foo", new OtherMessageImpl().setMyInt(1234));
+
+        final BarImpl bar2 = new BarImpl();
+        bar2.putAllMyMap(bar.getMyMapMap());
+
+        assertEquals(bar.getMyMapOrThrow("foo"), bar2.getMyMapOrThrow("foo"));
+        assertNotSame(bar.getMyMapOrThrow("foo"), bar2.getMyMapOrThrow("foo"));
+        assertTrue(bar.getMyMapImplOrThrow("foo").hasParent());
+        assertTrue(bar2.getMyMapImplOrThrow("foo").hasParent());
+
+        bar.getMyMapImplOrThrow("foo").setMyInt(2345);
+        assertEquals(2345, bar.getMyMapOrThrow("foo").getMyInt());
+        assertEquals(1234, bar2.getMyMapOrThrow("foo").getMyInt());
+    }
+
+    /**
+     * testSetRepeatedFieldViaView.
+     */
+    @Test
+    public void testSetRepeatedFieldViaView() {
+        final BlahImpl blah = new BlahImpl().setStr("foo");
+        final BlahView blahView = blah;
+        bar.addRepeatedBlah(blahView);
+        bar.addAllRepeatedBlah(Arrays.asList(blahView, blahView, blahView, blahView));
+
+        assertEquals(5, bar.getRepeatedBlahCount());
+        assertEquals("foo", bar.getRepeatedBlah(0).getStr());
+        assertEquals("foo", bar.getRepeatedBlah(1).getStr());
+
+        blah.setStr("bar");
+        assertEquals("bar", bar.getRepeatedBlah(0).getStr());
+        assertEquals("foo", bar.getRepeatedBlah(1).getStr());
+    }
+
+    /**
+     * testClearDoesNotClearParent.
+     */
+    @Test
+    public void testClearDoesNotClearParent() {
+        final OtherMessageImpl o = bar.getOrCreateOtherMessage();
+        assertTrue(o.hasParent());
+
+        o.clear();
+        assertTrue(o.hasParent());
+    }
+
+    /**
+     * Test serialization and deserialization.
+     *
+     * @throws Exception If an exception occurs.
+     */
+    @Test
+    public void testSerializeDeserialize() throws Exception {
+        final BarImpl bar = new BarImpl()
+            .setRequiredFloat(1.23f)
+            .addAllRepeatedInt(Arrays.asList(1, 2, 3, 4))
+            .addRepeatedBlah(new BlahImpl().setStr("foo"))
+            .addAllRepeatedBool(Arrays.asList(true, false, true))
+            .addAllRepeatedString(Arrays.asList("foo", "bar", "baz"))
+            .addAllRepeatedBytes(Arrays.asList(fooBytes, barBytes))
+            .putMyMap("foo", new OtherMessageImpl().setMyInt(2))
+            .putMyMap("bar", new OtherMessageImpl().setMyInt(3))
+            .addAllRepeatedBytes(Arrays.asList(fooBytes, barBytes))
+            .putPrimitivesMap(1, false);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ObjectOutputStream oos = new ObjectOutputStream(baos);
+        oos.writeObject(bar);
+        oos.close();
+
+        final String serializedBar = Base64.getEncoder().encodeToString(baos.toByteArray());
+
+        byte[] data = Base64.getDecoder().decode(serializedBar);
+        ObjectInputStream ois = new ObjectInputStream(
+            new ByteArrayInputStream(data));
+        Object o = ois.readObject();
+        ois.close();
+
+        // The deserialized object should be equal to the original
+        assertEquals(bar, o);
     }
 }

@@ -22,7 +22,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
@@ -81,25 +82,25 @@ public class ControllableManager {
      * for example if the VM which they are currently on gets suspended, or such pods are added
      * as cloned pods in the plan.
      *
-     * @param graph a topology graph.
+     * @param topology a topology graph.
      * @return Number of modified entities.
      */
     public int setUncontrollablePodsToControllableInPlan(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         return topology.entitiesOfType(EntityDTO.EntityType.CONTAINER_POD)
-                .filter(entity -> entity.getTopologyEntityDtoBuilder().getEntityState() == EntityState.POWERED_ON
-                        && entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().getControllable() == false)
+                .filter(entity -> entity.getTopologyEntityImpl().getEntityState() == EntityState.POWERED_ON
+                        && entity.getTopologyEntityImpl().getOrCreateAnalysisSettings().getControllable() == false)
                 .filter(entity -> {
-                    Set<Long> providerOids = entity.getTopologyEntityDtoBuilder()
+                    Set<Long> providerOids = entity.getTopologyEntityImpl()
                             .getCommoditiesBoughtFromProvidersList().stream()
                             .filter(comms -> comms.getProviderEntityType() == EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE
                                     && comms.hasProviderId())
-                            .map(TopologyEntityDTO.CommoditiesBoughtFromProvider::getProviderId)
+                            .map(CommoditiesBoughtFromProviderView::getProviderId)
                             .collect(Collectors.toSet());
                     for (Long providerOid : providerOids) {
                         // We would ideally have only one VM provider for each pod
                         if (providerOid < 0 || (topology.getEntity(providerOid).isPresent()
-                        && topology.getEntity(providerOid).get().getTopologyEntityDtoBuilder()
-                                .getEditBuilder().hasRemoved())) {
+                        && topology.getEntity(providerOid).get().getTopologyEntityImpl()
+                                .getOrCreateEdit().hasRemoved())) {
                             // filter cloned pods or those pods for which the VM has been removed
                             return true;
                         }
@@ -107,7 +108,7 @@ public class ControllableManager {
                     return false;
                 })
                 .map(entity -> {
-                    entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(true);
+                    entity.getTopologyEntityImpl().getOrCreateAnalysisSettings().setControllable(true);
                     logger.trace("Mark Pod {} as controllable in plan", entity);
                     return entity.getOid();
                 })
@@ -128,7 +129,7 @@ public class ControllableManager {
         for (long entityOid : entityActionDao.getNonControllableEntityIds()) {
             Optional<TopologyEntity> entityOptional = topology.getEntity(entityOid);
             if (entityOptional.isPresent()) {
-                TopologyEntityDTO.Builder entityBuilder = entityOptional.get().getTopologyEntityDtoBuilder();
+                TopologyEntityImpl entityBuilder = entityOptional.get().getTopologyEntityImpl();
 
                 if (entityBuilder.getEntityState() == EntityState.MAINTENANCE) {
                     // Clear action information regarding this entity from ENTITY_ACTION table so
@@ -144,11 +145,11 @@ public class ControllableManager {
                     .map(shoppinglist -> topology.getEntity(shoppinglist.getProviderId()))
                     .filter(Optional::isPresent)
                     .anyMatch(supplier ->
-                        supplier.get().getTopologyEntityDtoBuilder().getEntityState() == EntityState.MAINTENANCE)) {
+                        supplier.get().getTopologyEntityImpl().getEntityState() == EntityState.MAINTENANCE)) {
                     continue;
                 }
 
-                entityBuilder.getAnalysisSettingsBuilder().setControllable(false);
+                entityBuilder.getOrCreateAnalysisSettings().setControllable(false);
                 oidModified.add(entityOid);
                 logger.trace("Applying controllable false for entity {}.",
                     entityBuilder.getDisplayName());
@@ -168,12 +169,12 @@ public class ControllableManager {
      */
     private Set<Long> markVMsOnFailoverOrUnknownHostAsNotControllable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         return topology.entitiesOfType(EntityDTO.EntityType.PHYSICAL_MACHINE)
-            .filter(entity -> entity.getTopologyEntityDtoBuilder().getEntityState() == EntityState.FAILOVER
-                || entity.getTopologyEntityDtoBuilder().getEntityState() == EntityState.UNKNOWN)
+            .filter(entity -> entity.getTopologyEntityImpl().getEntityState() == EntityState.FAILOVER
+                || entity.getTopologyEntityImpl().getEntityState() == EntityState.UNKNOWN)
             .flatMap(entity -> entity.getConsumers().stream())
             .filter(entity -> entity.getEntityType() == EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
             .map(entity -> {
-                entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
+                entity.getTopologyEntityImpl().getOrCreateAnalysisSettings().setControllable(false);
                 logger.trace("Mark VM {} as not controllable", entity);
                 return entity.getOid();
             })
@@ -188,9 +189,9 @@ public class ControllableManager {
      */
     private Set<Long> markSuspendedEntitiesAsNotControllable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         return topology.entities()
-            .filter(entity -> entity.getTopologyEntityDtoBuilder().getEntityState() == EntityState.SUSPENDED)
+            .filter(entity -> entity.getTopologyEntityImpl().getEntityState() == EntityState.SUSPENDED)
             .map(entity -> {
-                entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
+                entity.getTopologyEntityImpl().getOrCreateAnalysisSettings().setControllable(false);
                 logger.trace("Mark suspended entity {}({}) as not controllable", entity.getDisplayName(), entity.getOid());
                 return entity.getOid();
             })
@@ -205,13 +206,13 @@ public class ControllableManager {
      */
     private Set<Long> applyControllableAutomationLevel(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         return topology.entitiesOfType(EntityDTO.EntityType.PHYSICAL_MACHINE)
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+            .map(TopologyEntity::getTopologyEntityImpl)
             .filter(entity -> entity.getEntityState() == EntityState.MAINTENANCE)
-            .filter(entity -> entity.getTypeSpecificInfoOrBuilder().hasPhysicalMachine())
-            .filter(entity -> entity.getTypeSpecificInfoOrBuilder().getPhysicalMachineOrBuilder().hasAutomationLevel())
-            .filter(entity -> entity.getTypeSpecificInfoOrBuilder().getPhysicalMachineOrBuilder().getAutomationLevel() == AutomationLevel.FULLY_AUTOMATED)
+            .filter(entity -> entity.getOrCreateTypeSpecificInfo().hasPhysicalMachine())
+            .filter(entity -> entity.getOrCreateTypeSpecificInfo().getOrCreatePhysicalMachine().hasAutomationLevel())
+            .filter(entity -> entity.getOrCreateTypeSpecificInfo().getOrCreatePhysicalMachine().getAutomationLevel() == AutomationLevel.FULLY_AUTOMATED)
             .map(entity -> {
-                entity.getAnalysisSettingsBuilder().setControllable(false);
+                entity.getOrCreateAnalysisSettings().setControllable(false);
                 logger.trace("Mark entity in maintenance {}({}) as not controllable",
                                 entity.getDisplayName(), entity.getOid());
                 return entity.getOid();
@@ -247,7 +248,7 @@ public class ControllableManager {
             if (delay > 0 && Instant.ofEpochMilli(now).minus(delay, ChronoUnit.MINUTES).compareTo(
                             Instant.ofEpochSecond(oid2exitMaintenance.getValue())) < 0) {
                 logger.trace("Keeping controllable false for host that left maintenance {}", host.get());
-                host.get().getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
+                host.get().getTopologyEntityImpl().getOrCreateAnalysisSettings().setControllable(false);
                 oidsToKeep.add(oid);
             }
         }
@@ -278,14 +279,14 @@ public class ControllableManager {
             .map(oid -> topology.getEntity(oid))
             .filter(Optional::isPresent)
             .map(Optional::get)
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+            .map(TopologyEntity::getTopologyEntityImpl)
             .forEach(entityBuilder -> {
-                if (entityBuilder.getAnalysisSettingsBuilder().getSuspendable()) {
+                if (entityBuilder.getOrCreateAnalysisSettings().getSuspendable()) {
                     // It's currently suspendable, and about to be marked
                     // non-suspendable.
                     numModified.incrementAndGet();
                 }
-                entityBuilder.getAnalysisSettingsBuilder().setSuspendable(false);
+                entityBuilder.getOrCreateAnalysisSettings().setSuspendable(false);
                 logger.trace("Applying suspendable false for entity {}.",
                         entityBuilder.getDisplayName());
             });
@@ -305,7 +306,7 @@ public class ControllableManager {
                 .map(oid -> topology.getEntity(oid))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .map(TopologyEntity::getTopologyEntityImpl)
                 // Set flag only for VMs and DBSs
                 .filter(entityBuilder -> {
                     int entityType = entityBuilder.getEntityType();
@@ -313,12 +314,12 @@ public class ControllableManager {
                             || EntityType.DATABASE_SERVER.getValue() == entityType;
                 })
                 .forEach(entityBuilder -> {
-                    if (entityBuilder.getAnalysisSettingsBuilder().getIsEligibleForScale()) {
+                    if (entityBuilder.getOrCreateAnalysisSettings().getIsEligibleForScale()) {
                         // It's currently eligible for scale, and about to be marked
                         // ineligible.
                         numModified.incrementAndGet();
                     }
-                    entityBuilder.getAnalysisSettingsBuilder().setIsEligibleForScale(false);
+                    entityBuilder.getOrCreateAnalysisSettings().setIsEligibleForScale(false);
                     logger.trace("Applying is eligible for scale false for entity {}.",
                             entityBuilder.getDisplayName());
                 });
@@ -350,11 +351,11 @@ public class ControllableManager {
                 .map(oid -> topology.getEntity(oid))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .map(TopologyEntity::getTopologyEntityImpl)
                 // Set flag only for VMs
                 .filter(entityBuilder -> entityBuilder.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue())
                 .map(entityBuilder -> {
-                    entityBuilder.getAnalysisSettingsBuilder().setIsEligibleForResizeDown(false);
+                    entityBuilder.getOrCreateAnalysisSettings().setIsEligibleForResizeDown(false);
                     logger.trace("Applying IsEligibleForResizeDown false for entity {}.",
                             entityBuilder.getDisplayName());
                     return entityBuilder.getOid();
@@ -369,11 +370,11 @@ public class ControllableManager {
      */
     private Set<Long> markVMsOnMaintenanceHostAsNotResizable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         return topology.entitiesOfType(EntityDTO.EntityType.PHYSICAL_MACHINE)
-            .filter(entity -> entity.getTopologyEntityDtoBuilder().getEntityState() == EntityState.MAINTENANCE)
+            .filter(entity -> entity.getTopologyEntityImpl().getEntityState() == EntityState.MAINTENANCE)
             .flatMap(entity -> entity.getConsumers().stream())
             .filter(entity -> entity.getEntityType() == EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
             .map(entity -> {
-                entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+                entity.getTopologyEntityImpl().getCommoditySoldListImplList()
                     .forEach(commSold -> commSold.setIsResizeable(false));
                 logger.trace("Mark VM {} as not resizable", entity);
                 return entity.getOid();

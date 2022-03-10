@@ -23,7 +23,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetMovingStatisticsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.MovingStatisticsChunk;
 import com.vmturbo.common.protobuf.stats.Stats.SetMovingStatisticsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.utils.ThrowingFunction;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -154,7 +154,7 @@ public class MovingStatisticsPersistenceTask extends AbstractBlobsPersistenceTas
             }
 
             return new EntityCommodityFieldReference(record.getEntityOid(),
-                CommodityType.newBuilder().setType(commType).build(), null, CommodityField.USED);
+                new CommodityTypeImpl().setType(commType), null, CommodityField.USED);
         };
 
         return parseDbRecords(0, source, statsToRecords, oidsToUse,

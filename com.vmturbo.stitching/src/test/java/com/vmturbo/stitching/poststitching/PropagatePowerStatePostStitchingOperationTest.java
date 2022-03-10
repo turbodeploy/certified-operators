@@ -9,7 +9,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -46,14 +46,14 @@ public class PropagatePowerStatePostStitchingOperationTest {
     @Before
     public void setup() {
         final TopologyEntity.Builder app1 = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(appOid1)
                 .setDisplayName("RealApp")
                 .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .setEntityState(EntityState.POWERED_ON));
 
         final TopologyEntity.Builder app2 = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(appOid2)
                 .setDisplayName("GuestLoad[vm1]")
                 .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
@@ -63,7 +63,7 @@ public class PropagatePowerStatePostStitchingOperationTest {
                     SupplyChainConstants.GUEST_LOAD));
 
         final TopologyEntity.Builder app3 = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(appOid3)
                 .setDisplayName("GuestLoad[vm2]")
                 .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
@@ -73,20 +73,20 @@ public class PropagatePowerStatePostStitchingOperationTest {
                     SupplyChainConstants.GUEST_LOAD));
 
         final TopologyEntity.Builder svc = TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder()
+                new TopologyEntityImpl()
                         .setOid(svcOid)
                         .setDisplayName("Service[vm1]")
                         .setEntityType(EntityType.SERVICE_VALUE)
                         .setEntityState(EntityState.POWERED_ON));
 
         final TopologyEntity.Builder vm1 = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(vmOid1)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setEntityState(EntityState.POWERED_OFF));
 
         final TopologyEntity.Builder vm2 = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(vmOid2)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setEntityState(EntityState.POWERED_ON));
@@ -144,7 +144,7 @@ public class PropagatePowerStatePostStitchingOperationTest {
         // apply operation
         UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
         // if vm state is maintenance, it should not propagate
-        vmEntity1.getTopologyEntityDtoBuilder().setEntityState(EntityState.MAINTENANCE);
+        vmEntity1.getTopologyEntityImpl().setEntityState(EntityState.MAINTENANCE);
         propagatePowerStateOp.performOperation(Stream.of(vmEntity1), settingsCollection, resultBuilder);
         // check that no changes applied
         assertEquals(0, resultBuilder.getChanges().size());
@@ -163,7 +163,7 @@ public class PropagatePowerStatePostStitchingOperationTest {
         // apply operation
         final UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
         // if vm state is unknown, it should propagate
-        vmEntity1.getTopologyEntityDtoBuilder().setEntityState(EntityState.UNKNOWN);
+        vmEntity1.getTopologyEntityImpl().setEntityState(EntityState.UNKNOWN);
         propagatePowerStateOp.performOperation(Stream.of(vmEntity1), settingsCollection, resultBuilder);
         // check that no changes applied
         assertEquals(1, resultBuilder.getChanges().size());
@@ -184,35 +184,35 @@ public class PropagatePowerStatePostStitchingOperationTest {
         final UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
 
         final TopologyEntity.Builder serviceBuilder = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(1000L)
                 .setDisplayName("Service")
                 .setEntityType(EntityType.SERVICE_VALUE)
                 .setEntityState(EntityState.POWERED_ON));
 
         final TopologyEntity.Builder appBuilder = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(1001L)
                 .setDisplayName("RealApp")
                 .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .setEntityState(EntityState.POWERED_ON));
 
         final TopologyEntity.Builder containerBuilder = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(1002L)
                 .setDisplayName("Container")
                 .setEntityType(EntityType.CONTAINER_VALUE)
                 .setEntityState(EntityState.POWERED_ON));
 
         final TopologyEntity.Builder containerPodBuilder = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(1003L)
                 .setDisplayName("ContainerPod")
                 .setEntityType(EntityType.CONTAINER_POD_VALUE)
                 .setEntityState(EntityState.POWERED_ON));
 
         final TopologyEntity.Builder vmBuilder = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(1004L)
                 .setDisplayName("VirtualMachine")
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)

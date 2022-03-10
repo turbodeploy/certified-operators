@@ -34,8 +34,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -68,20 +68,16 @@ public class SettingOverridesTest {
         .setDefinition(GroupDTO.GroupDefinition.newBuilder().setDisplayName("Container Spec Group"))
         .build();
 
-    private static final TopologyEntityDTO.Builder entity1 = TopologyEntityDTO
-            .newBuilder()
+    private static final TopologyEntityImpl entity1 = new TopologyEntityImpl()
             .setOid(111L)
             .setEntityType(EntityType.PHYSICAL_MACHINE.getValue());
-    private static final TopologyEntityDTO.Builder entity2 = TopologyEntityDTO
-            .newBuilder()
+    private static final TopologyEntityImpl entity2 = new TopologyEntityImpl()
             .setOid(222L)
             .setEntityType(EntityType.PHYSICAL_MACHINE.getValue());
-    private static final TopologyEntityDTO.Builder entity3 = TopologyEntityDTO
-            .newBuilder()
+    private static final TopologyEntityImpl entity3 = new TopologyEntityImpl()
             .setOid(888L)
             .setEntityType(EntityType.STORAGE.getValue());
-    private static final TopologyEntityDTO.Builder entity4 = TopologyEntityDTO
-            .newBuilder()
+    private static final TopologyEntityImpl entity4 = new TopologyEntityImpl()
             .setOid(999L)
             .setEntityType(EntityType.STORAGE.getValue());
 
@@ -263,7 +259,7 @@ public class SettingOverridesTest {
         TopologyEntityUtils.addConnectedEntity(container2, containerSpec.getOid(), ConnectionType.AGGREGATED_BY_CONNECTION);
 
         final TopologyGraph<TopologyEntity> topologyGraph =
-            TopologyEntityUtils.topologyGraphOf(container1, container2, containerSpec);
+            TopologyEntityUtils.pojoGraphOf(container1, container2, containerSpec);
         scopeEvaluator = new EntitySettingsScopeEvaluator(topologyGraph);
 
         Map<Long, ResolvedGroup> groups = ImmutableMap.of(

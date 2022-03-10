@@ -222,6 +222,18 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
     }
 
     /**
+     * Get the number of {@link TopologyGraphEntity}s in the graph of a given type specified by
+     * the type number.
+     *
+     * @param entityTypeNumber The number of the {@link EntityType} of entities to be retrieved.
+     * @return the number of {@link TopologyGraphEntity}s in the graph of the given type.
+     */
+    public int entitiesOfTypeCount(@Nonnull final Integer entityTypeNumber) {
+        final Collection<E> entitiesOfType = entityTypeIndex.get(entityTypeNumber);
+        return entitiesOfType == null ? 0 : entitiesOfType.size();
+    }
+
+    /**
      * Retrieve all consumers for a given entity in the graph.
      *
      * <p>If no {@link TopologyGraphEntity} with the given OID exists, returns empty.</p>

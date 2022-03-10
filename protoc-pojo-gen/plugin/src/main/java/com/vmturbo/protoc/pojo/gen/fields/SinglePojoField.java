@@ -1,5 +1,6 @@
 package com.vmturbo.protoc.pojo.gen.fields;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -8,6 +9,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.lang.model.element.Modifier;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
@@ -17,12 +19,12 @@ import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.MethodSpec.Builder;
 import com.squareup.javapoet.ParameterSpec;
 import com.squareup.javapoet.TypeName;
 
 import com.vmturbo.protoc.plugin.common.generator.FieldDescriptor;
 import com.vmturbo.protoc.pojo.gen.PojoCodeGenerator;
+import com.vmturbo.protoc.pojo.gen.PojoViewGenerator;
 import com.vmturbo.protoc.pojo.gen.PrimitiveFieldBits;
 import com.vmturbo.protoc.pojo.gen.TypeNameUtilities;
 import com.vmturbo.protoc.pojo.gen.TypeNameUtilities.ParameterizedTypeName;
@@ -59,37 +61,61 @@ public abstract class SinglePojoField extends UnaryPojoField {
     public static SinglePojoField create(@Nonnull FieldDescriptor fieldDescriptor,
                                          @Nonnull final PrimitiveFieldBits primitiveFieldBits,
                                          @Nonnull final TypeName parentTypeName) {
-        final ParameterizedTypeName typeName = TypeNameUtilities.generateParameterizedTypeName(fieldDescriptor);
-        if (typeName.getTypeName().isPrimitive()) {
-            return new PrimitiveSinglePojoField(fieldDescriptor, typeName, primitiveFieldBits, parentTypeName);
+        final ParameterizedTypeName implementationTypeName =
+            TypeNameUtilities.generateParameterizedTypeName(fieldDescriptor);
+        if (implementationTypeName.getTypeName().isPrimitive()) {
+            return new PrimitiveSinglePojoField(fieldDescriptor,
+                implementationTypeName, primitiveFieldBits, parentTypeName);
         } else {
-            return new ObjectSinglePojoField(fieldDescriptor, typeName, parentTypeName);
+            return new ObjectSinglePojoField(fieldDescriptor, implementationTypeName, parentTypeName);
         }
     }
 
     @Nonnull
     @Override
-    public List<Builder> generateGetterMethods() {
-        String javadoc = "Get the $L. If not set, returns the default value for this field.";
-        if (fieldDescriptor.isRequired()) {
-            javadoc += "\nNote that this field is required by its protobuf equivalent.";
-        }
+    public List<MethodSpec.Builder> generateGetterMethods(@Nonnull final GenerationMode mode) {
+        String javadoc = getGetterJavadoc();
 
         final MethodSpec.Builder getter = MethodSpec.methodBuilder("get" + capitalizedFieldName())
             .addModifiers(Modifier.PUBLIC)
-            .returns(getTypeName())
-            .addJavadoc(javadoc + "\n\n@return the $L",
-                fieldDescriptor.getName(), fieldDescriptor.getName())
-            .addCode(getGetterCodeBlock());
+            .returns(getViewOrImplTypeName())
+            .addJavadoc(javadoc + "\n\n@return the $L if it has been set, or a default if not.",
+                fieldDescriptor.getName(), fieldDescriptor.getName());
 
-        return Collections.singletonList(getter);
+        if (mode == GenerationMode.IMPLEMENTATION) {
+            getter.addAnnotation(Override.class);
+            getter.addCode(getGetterCodeBlock());
+        } else {
+            getter.addModifiers(Modifier.ABSTRACT);
+        }
+
+        final List<MethodSpec.Builder> getters = new ArrayList<>(Collections.singletonList(getter));
+        if (mode == GenerationMode.IMPLEMENTATION && isProtoMessage()) {
+            javadoc = "Get the $L. If not set, creates a new " + capitalizedFieldName()
+                + " equal to the default and assigns it to this POJO.";
+            if (fieldDescriptor.isRequired()) {
+                javadoc += "\nNote that this field is required by its protobuf equivalent.";
+            }
+
+            // Proto messages also need a getOrCreate method.
+            final MethodSpec.Builder getOrCreate = MethodSpec.methodBuilder("getOrCreate" + capitalizedFieldName())
+                .addModifiers(Modifier.PUBLIC)
+                .returns(getTypeName())
+                .addJavadoc(javadoc + "\n\n@return the $L if it has been set, or create a new one if not.",
+                    fieldDescriptor.getName(), fieldDescriptor.getName())
+                .addCode(getGetOrCreateCodeBlock());
+
+            getters.add(getOrCreate);
+        }
+
+        return getters;
     }
 
     @Nonnull
     @Override
     public List<MethodSpec.Builder> generateSetterMethods() {
         final String parameterName = fieldDescriptor.getName() + "Value";
-        final ParameterSpec.Builder param = ParameterSpec.builder(getTypeName(), parameterName)
+        final ParameterSpec.Builder param = ParameterSpec.builder(getViewOrImplTypeName(), parameterName)
             .addModifiers(Modifier.FINAL);
         String paramJavadoc = String.format("The %s.", fieldDescriptor.getName());
         if (isObject()) {
@@ -118,7 +144,7 @@ public abstract class SinglePojoField extends UnaryPojoField {
         }
 
         setter.addCode(codeBlock
-            .addStatement("this.$L = $L", fieldDescriptor.getSuffixedName(), parameterName)
+            .add(setterCodeBlock(parameterName))
             .addStatement("return this")
             .build());
 
@@ -127,7 +153,7 @@ public abstract class SinglePojoField extends UnaryPojoField {
 
     @Nonnull
     @Override
-    public List<MethodSpec.Builder> generateHazzerMethods() {
+    public List<MethodSpec.Builder> generateHazzerMethods(@Nonnull final GenerationMode mode) {
         final MethodSpec.Builder hasMethod = MethodSpec.methodBuilder("has" + capitalizedFieldName())
             .addModifiers(Modifier.PUBLIC)
             .returns(TypeName.BOOLEAN)
@@ -135,7 +161,12 @@ public abstract class SinglePojoField extends UnaryPojoField {
                 + "@return whether the {@code $L} field has been set.",
                 fieldDescriptor.getName(), fieldDescriptor.getName());
 
-        hasMethod.addCode(getHazzerCodeBlock());
+        if (mode == GenerationMode.INTERFACE) {
+            hasMethod.addModifiers(Modifier.ABSTRACT);
+        } else {
+            hasMethod.addAnnotation(Override.class);
+            hasMethod.addCode(getHazzerCodeBlock());
+        }
 
         return Collections.singletonList(hasMethod);
     }
@@ -162,8 +193,14 @@ public abstract class SinglePojoField extends UnaryPojoField {
     @Override
     public void addCopyForField(@Nonnull CodeBlock.Builder codeBlock) {
         codeBlock.add("\n");
-        codeBlock.addStatement("this.$L = other.$L",
-            fieldDescriptor.getSuffixedName(), fieldDescriptor.getSuffixedName());
+        codeBlock.beginControlFlow("if (other.has$L())", capitalizedFieldName());
+        if (isProtoMessage()) {
+            codeBlock.addStatement("set$L(new $T(other.get$L()))", capitalizedFieldName(),
+                getTypeName(), capitalizedFieldName());
+        } else {
+            codeBlock.addStatement("set$L(other.get$L())", capitalizedFieldName(), capitalizedFieldName());
+        }
+        codeBlock.endControlFlow();
     }
 
     @Override
@@ -175,6 +212,13 @@ public abstract class SinglePojoField extends UnaryPojoField {
         codeBlock.addStatement(getHashCodeCodeBlockForType(
             fieldDescriptor.getProto().getType(), fieldDescriptor.getSuffixedName()).build());
         codeBlock.endControlFlow();
+    }
+
+    @Override
+    public void addClearForField(@Nonnull CodeBlock.Builder codeBlock) {
+        // Clearing the associated bit-field is done elsewhere.
+        codeBlock.add("\n")
+            .addStatement("this.$L = $L", fieldDescriptor.getSuffixedName(), initialValueString());
     }
 
     /**
@@ -225,6 +269,40 @@ public abstract class SinglePojoField extends UnaryPojoField {
 
     protected CodeBlock getGetterCodeBlock() {
         return CodeBlock.builder().addStatement("return $L", fieldDescriptor.getSuffixedName()).build();
+    }
+
+    protected CodeBlock getGetOrCreateCodeBlock() {
+        Preconditions.checkState(isProtoMessage(), "Should only call this method for proto message fields.");
+        final CodeBlock.Builder codeBlock = CodeBlock.builder();
+        codeBlock.beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
+            .addStatement("set$L(new $T())", capitalizedFieldName(), getTypeName())
+            .endControlFlow()
+            .addStatement("return $L", fieldDescriptor.getSuffixedName());
+
+        return codeBlock.build();
+    }
+
+    protected CodeBlock setterCodeBlock(@Nonnull final String parameterName) {
+        return CodeBlock.builder()
+            .addStatement("this.$L = $L", fieldDescriptor.getSuffixedName(), parameterName)
+            .build();
+    }
+
+    protected String getGetterJavadoc() {
+        String javadoc = "Get the $L. If not set, returns the default value for this field.";
+        if (fieldDescriptor.isRequired()) {
+            javadoc += "\nNote that this field is required by its protobuf equivalent.";
+            if (isProtoMessage()) {
+                javadoc += "\nThis method will not create a new {@link " + capitalizedFieldName()
+                    + "} if one does not exist.";
+            }
+        }
+
+        return javadoc;
+    }
+
+    protected TypeName getViewOrImplTypeName() {
+        return getTypeName();
     }
 
     protected abstract boolean isObject();
@@ -399,6 +477,9 @@ public abstract class SinglePojoField extends UnaryPojoField {
      * Represents an optional or required field that is not a primitive.
      */
     public static class ObjectSinglePojoField extends SinglePojoField {
+
+        private final Optional<TypeName> interfaceTypename;
+
         /**
          * Create a new {@link SinglePojoField}.
          *
@@ -410,6 +491,8 @@ public abstract class SinglePojoField extends UnaryPojoField {
                                      @Nonnull final ParameterizedTypeName parameterizedTypeName,
                                      @Nonnull final TypeName parentTypeName) {
             super(fieldDescriptor, parameterizedTypeName, parentTypeName);
+            interfaceTypename = PojoViewGenerator.interfaceTypeNameFor(fieldDescriptor)
+                .map(ParameterizedTypeName::getTypeName);
         }
 
         @Override
@@ -475,7 +558,7 @@ public abstract class SinglePojoField extends UnaryPojoField {
         protected CodeBlock getGetterCodeBlock() {
             final CodeBlock.Builder codeBlock = CodeBlock.builder();
             codeBlock.beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
-                .addStatement("return $L", getDefaultValueForSingleField(fieldDescriptor, getTypeName()))
+                .addStatement("return $L", getDefaultValueForSingleField(fieldDescriptor, getViewOrImplTypeName()))
                 .nextControlFlow("else")
                 .addStatement("return $L", fieldDescriptor.getSuffixedName())
                 .endControlFlow();
@@ -488,6 +571,47 @@ public abstract class SinglePojoField extends UnaryPojoField {
             return CodeBlock.builder()
                 .addStatement("return this.$L != null", fieldDescriptor.getSuffixedName())
                 .build();
+        }
+
+        @Override
+        protected CodeBlock setterCodeBlock(@Nonnull final String parameterName) {
+            if (isProtoMessage()) {
+                return CodeBlock.builder()
+                    .addStatement("this.$L = (($T)$L).$L()", fieldDescriptor.getSuffixedName(),
+                        getTypeName(),
+                        parameterName,
+                        PojoCodeGenerator.ON_PARENT_SETTING_METHOD)
+                    .build();
+            } else {
+                return super.setterCodeBlock(parameterName);
+            }
+        }
+
+        private boolean requiresInterface() {
+            return interfaceTypename.isPresent();
+        }
+
+        @Override
+        protected String getGetterJavadoc() {
+            if (requiresInterface()) {
+                String javadoc = "Get the $L. If not set, returns the default value for this field.";
+                if (fieldDescriptor.isRequired()) {
+                    javadoc += "\nNote that this field is required by its protobuf equivalent.";
+                    if (isProtoMessage()) {
+                        javadoc += "\nThis method will not create a new {@link " + capitalizedFieldName()
+                            + "} if one does not exist. Returns an unmodifiable view of the backing "
+                            + capitalizedFieldName() + ". To retrieve a mutable instance, call "
+                            + "{@link #getOrCreate" + capitalizedFieldName() + "()}.";
+                    }
+                }
+                return javadoc;
+            } else {
+                return super.getGetterJavadoc();
+            }
+        }
+
+        protected TypeName getViewOrImplTypeName() {
+            return interfaceTypename.orElseGet(this::getTypeName);
         }
     }
 }

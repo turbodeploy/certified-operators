@@ -22,7 +22,8 @@ import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityMoles.CpuCapacityServi
 import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc;
 import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc.CpuCapacityServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -86,36 +87,36 @@ public class VirtualMachineEntityConstructorTest {
         IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
         Mockito.when(identityProvider.generateTopologyId()).thenReturn(1L);
 
-        final TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor(
+        final TopologyEntityView topologyEntityView = new VirtualMachineEntityConstructor(
             cpuCapacityService)
                 .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, null, TemplateActionType.CLONE,
                         identityProvider, null);
 
-        assertEquals(3, topologyEntityDTO.getCommoditySoldListCount());
-        assertEquals(2, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
-        assertEquals(400.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
+        assertEquals(3, topologyEntityView.getCommoditySoldListCount());
+        assertEquals(2, topologyEntityView.getCommoditiesBoughtFromProvidersCount());
+        assertEquals(400.0, getCommoditySoldValue(topologyEntityView.getCommoditySoldListList(),
             CommodityType.VCPU_VALUE), EPSILON);
-        assertEquals(100.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
+        assertEquals(100.0, getCommoditySoldValue(topologyEntityView.getCommoditySoldListList(),
             CommodityType.VMEM_VALUE), EPSILON);
-        assertEquals(300.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
+        assertEquals(300.0, getCommoditySoldValue(topologyEntityView.getCommoditySoldListList(),
             CommodityType.VSTORAGE_VALUE), EPSILON);
-        assertEquals(10.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
+        assertEquals(10.0, getCommodityBoughtValue(topologyEntityView.getCommoditiesBoughtFromProvidersList(),
             CommodityType.MEM_VALUE), EPSILON);
-        assertEquals(100.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
+        assertEquals(100.0, getCommodityBoughtValue(topologyEntityView.getCommoditiesBoughtFromProvidersList(),
             CommodityType.MEM_PROVISIONED_VALUE), EPSILON);
-        assertEquals(300.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
+        assertEquals(300.0, getCommodityBoughtValue(topologyEntityView.getCommoditiesBoughtFromProvidersList(),
             CommodityType.STORAGE_ACCESS_VALUE), EPSILON);
-        assertEquals(30.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
+        assertEquals(30.0, getCommodityBoughtValue(topologyEntityView.getCommoditiesBoughtFromProvidersList(),
             CommodityType.STORAGE_AMOUNT_VALUE), EPSILON);
-        assertEquals(300.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
+        assertEquals(300.0, getCommodityBoughtValue(topologyEntityView.getCommoditiesBoughtFromProvidersList(),
                 CommodityType.STORAGE_PROVISIONED_VALUE), EPSILON);
-        assertEquals(300.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
+        assertEquals(300.0, getCommodityBoughtValue(topologyEntityView.getCommoditiesBoughtFromProvidersList(),
             CommodityType.IO_THROUGHPUT_VALUE), EPSILON);
-        assertEquals(400.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
+        assertEquals(400.0, getCommodityBoughtValue(topologyEntityView.getCommoditiesBoughtFromProvidersList(),
             CommodityType.NET_THROUGHPUT_VALUE), EPSILON);
-        assertEquals(40.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
+        assertEquals(40.0, getCommodityBoughtValue(topologyEntityView.getCommoditiesBoughtFromProvidersList(),
             CommodityType.CPU_VALUE), EPSILON);
-        assertEquals(400.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
+        assertEquals(400.0, getCommodityBoughtValue(topologyEntityView.getCommoditiesBoughtFromProvidersList(),
                 CommodityType.CPU_PROVISIONED_VALUE), EPSILON);
     }
 
@@ -133,7 +134,7 @@ public class VirtualMachineEntityConstructorTest {
                 .putScaleFactorByCpuModel(CPU_MODEL, CPU_MODEL_SCALING)
                 .build());
 
-        final TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor(
+        final TopologyEntityImpl topologyEntityDTO = new VirtualMachineEntityConstructor(
             cpuCapacityService)
             .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, null, TemplateActionType.CLONE,
                 identityProvider, null);
@@ -158,7 +159,7 @@ public class VirtualMachineEntityConstructorTest {
         when(cpuCapacityServiceMole.getCpuScaleFactors(any())).thenReturn(
             CpuModelScaleFactorResponse.newBuilder().build());
 
-        final TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor(
+        final TopologyEntityImpl topologyEntityDTO = new VirtualMachineEntityConstructor(
             cpuCapacityService)
             .createTopologyEntityFromTemplate(VM_CPU_MODEL_TEMPLATE, topology, null, TemplateActionType.CLONE,
                 identityProvider, null);
@@ -186,7 +187,7 @@ public class VirtualMachineEntityConstructorTest {
                 .putScaleFactorByCpuModel(CPU_MODEL, CPU_MODEL_SCALING)
                 .build());
 
-        final TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor(
+        final TopologyEntityImpl topologyEntityDTO = new VirtualMachineEntityConstructor(
             cpuCapacityService)
             .createTopologyEntityFromTemplate(VM_CPU_MODEL_TEMPLATE, topology, null, TemplateActionType.CLONE,
                 identityProvider, null);
@@ -209,13 +210,13 @@ public class VirtualMachineEntityConstructorTest {
         IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
         Mockito.when(identityProvider.generateTopologyId()).thenReturn(1L);
 
-        TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder().setOid(1)
+        TopologyEntityImpl builder = new TopologyEntityImpl().setOid(1)
                 .setEntityType(10)
                 .addAllCommoditySoldList(TemplateConverterTestUtil.VM_COMMODITY_SOLD)
                 .addAllCommoditiesBoughtFromProviders(
                         TemplateConverterTestUtil.VM_COMMODITY_BOUGHT_FROM_PROVIDER);
 
-        final TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor(
+        final TopologyEntityImpl topologyEntityDTO = new VirtualMachineEntityConstructor(
             cpuCapacityService)
                 .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, builder, TemplateActionType.CLONE,
                         identityProvider, null);

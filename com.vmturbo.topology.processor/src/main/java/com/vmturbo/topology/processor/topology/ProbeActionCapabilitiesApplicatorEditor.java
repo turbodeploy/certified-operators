@@ -20,8 +20,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCapability;
@@ -179,8 +178,8 @@ public class ProbeActionCapabilitiesApplicatorEditor {
     private void editCloneable(@Nonnull final TopologyEntity entity,
                                Map<ActionType, List<ProbeAction>> actionElementsMap,
                                @Nonnull final Context context, List<String> discoveringProbes) {
-        final AnalysisSettings.Builder builder =
-                entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder();
+        final AnalysisSettingsImpl builder =
+                entity.getTopologyEntityImpl().getOrCreateAnalysisSettings();
 
         // If the action is disabled at the entity level, do not override with probe's action policy
         if (builder.hasCloneable() && !builder.getCloneable()) {
@@ -208,8 +207,8 @@ public class ProbeActionCapabilitiesApplicatorEditor {
     private void editSuspendable(@Nonnull final TopologyEntity entity,
                                  Map<ActionType, List<ProbeAction>> actionElementsMap,
                                  @Nonnull final Context context, List<String> discoveringProbes) {
-        final AnalysisSettings.Builder builder =
-                entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder();
+        final AnalysisSettingsImpl builder =
+                entity.getTopologyEntityImpl().getOrCreateAnalysisSettings();
 
         // If the action is disabled at the entity level, do not override with probe's action policy
         if (builder.hasSuspendable() && !builder.getSuspendable()) {
@@ -238,28 +237,28 @@ public class ProbeActionCapabilitiesApplicatorEditor {
     private void editMovable(@Nonnull final TopologyEntity entity,
                              Map<ActionType, List<ProbeAction>> actionElementsMap,
                              @Nonnull final Context context, List<String> discoveringProbes) {
-        entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList()
-                .forEach(builder ->
+        entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersImplList()
+                .forEach(impl ->
                         updateProperty(ActionType.MOVE, actionElementsMap,
                                 (isMovable) -> {
                                     // If the action is disabled at the entity level,
                                     // do not override with probe's action policy
-                                    if (builder.hasMovable() && !builder.getMovable()) {
+                                    if (impl.hasMovable() && !impl.getMovable()) {
                                         return;
                                     }
                                     if (isMovable) {
                                         // all probes with action policies say it is movable,
-                                        if (!builder.hasMovable()) {
-                                            builder.setMovable(true);
+                                        if (!impl.hasMovable()) {
+                                            impl.setMovable(true);
                                             context.editorSummary.increaseMovableToTrueCount();
                                         }
                                     } else { // at least one of probes says "No" to "movable", so set it to "false"
-                                        builder.setMovable(false);
+                                        impl.setMovable(false);
                                         context.editorSummary.increaseMovableToFalseCount();
                                         logger.trace("[{}] probes disabled movable for {}::{} on provider {}",
                                                     discoveringProbes,
                                                     entity.getEntityType(), entity.getDisplayName(),
-                                                    builder.getProviderEntityType());
+                                                    impl.getProviderEntityType());
                                     }
                                 }
                         ));
@@ -269,26 +268,26 @@ public class ProbeActionCapabilitiesApplicatorEditor {
     private void editResizeable(@Nonnull final TopologyEntity entity,
                              Map<ActionType, List<ProbeAction>> actionElementsMap,
                              @Nonnull final Context context, List<String> discoveringProbes) {
-        entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
-                .forEach(builder ->
+        entity.getTopologyEntityImpl().getCommoditySoldListImplList()
+                .forEach(commSold ->
                     updateProperty(ActionType.RIGHT_SIZE, actionElementsMap,
                             (isResizeable) -> {
-                                if (builder.hasIsResizeable() && !builder.getIsResizeable()) {
+                                if (commSold.hasIsResizeable() && !commSold.getIsResizeable()) {
                                     return;
                                 }
                                 if (isResizeable) {
                                     // all probes with action policies say it is resizeable,
-                                    if (!builder.hasIsResizeable()) {
-                                        builder.setIsResizeable(true);
+                                    if (!commSold.hasIsResizeable()) {
+                                        commSold.setIsResizeable(true);
                                         context.editorSummary.increaseResizeableToTrueCount();
                                     }
                                 } else { // at least one of probes says "No" to "resizeable", so set it to "false"
-                                    builder.setIsResizeable(false);
+                                    commSold.setIsResizeable(false);
                                     context.editorSummary.increaseResizeableToFalseCount();
                                     logger.trace("[{}] probes disabled resizeable for {}::{} on commodity {}",
                                             discoveringProbes,
                                             entity.getEntityType(), entity.getDisplayName(),
-                                            builder.getCommodityType());
+                                            commSold.getCommodityType());
                                 }
                             }
                             ));
@@ -299,28 +298,28 @@ public class ProbeActionCapabilitiesApplicatorEditor {
     private void editScalable(@Nonnull final TopologyEntity entity,
                                 Map<ActionType, List<ProbeAction>> actionElementsMap,
                                 @Nonnull final Context context, List<String> discoveringProbes) {
-        entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList()
-                .forEach(builder ->
+        entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersImplList()
+                .forEach(boughtFromProvider ->
                         updateProperty(ActionType.SCALE, actionElementsMap,
                                 (isScalable) -> {
                                     // If the action is disabled at the entity level,
                                     // do not override with probe's action policy
-                                    if (builder.hasScalable() && !builder.getScalable()) {
+                                    if (boughtFromProvider.hasScalable() && !boughtFromProvider.getScalable()) {
                                         return;
                                     }
                                     if (isScalable) {
                                         // all probes with action policies say it is scalable,
-                                        if (!builder.hasScalable()) {
-                                            builder.setScalable(true);
+                                        if (!boughtFromProvider.hasScalable()) {
+                                            boughtFromProvider.setScalable(true);
                                             context.editorSummary.increaseScalableToTrueCount();
                                         }
                                     } else { // at least one of probes says "No" to "scalable", so set it to "false"
-                                        builder.setScalable(false);
+                                        boughtFromProvider.setScalable(false);
                                         context.editorSummary.increaseScalableToFalseCount();
                                         logger.trace("[{}] probes disabled scalable for {}::{} on provider {}",
                                                 discoveringProbes,
                                                 entity.getEntityType(), entity.getDisplayName(),
-                                                builder.getProviderEntityType());
+                                                boughtFromProvider.getProviderEntityType());
                                     }
                                 }
                         ));

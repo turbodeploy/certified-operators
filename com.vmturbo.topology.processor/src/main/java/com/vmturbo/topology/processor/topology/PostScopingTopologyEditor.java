@@ -12,8 +12,9 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -47,8 +48,8 @@ public class PostScopingTopologyEditor {
     private final Predicate<TopologyEntity> isNonLocalStorage = t -> t.getTypeSpecificInfo().hasStorage()
             && t.getTypeSpecificInfo().getStorage().hasIsLocal()
             && !t.getTypeSpecificInfo().getStorage().getIsLocal();
-    private final Predicate<TopologyEntity> isRemovedOrRepaced = t -> t.getTopologyEntityDtoBuilder().hasEdit()
-            && (t.getTopologyEntityDtoBuilder().getEdit().hasRemoved() || t.getTopologyEntityDtoBuilder().getEdit().hasReplaced());
+    private final Predicate<TopologyEntity> isRemovedOrRepaced = t -> t.getTopologyEntityImpl().hasEdit()
+            && (t.getTopologyEntityImpl().getEdit().hasRemoved() || t.getTopologyEntityImpl().getEdit().hasReplaced());
     private final List<PostScopingTopologyEdit> topologyEdits;
 
     /**
@@ -98,10 +99,10 @@ public class PostScopingTopologyEditor {
                     // If not, create it.
                     if (!areEntitiesConnected(addedEntity, connectedEntity)) {
                         String key = findConnectingCommodityKey(connectedEntity, topology).orElse(null);
-                        CommoditySoldDTO.Builder commSoldForAddedEntity =
+                        CommoditySoldImpl commSoldForAddedEntity =
                                 TopologyEntityConstructor.createAccessCommodity(edit.commTypeForAddedEntityType,
                                         connectedEntity.getOid(), key);
-                        addedEntity.getTopologyEntityDtoBuilder().addCommoditySoldList(commSoldForAddedEntity);
+                        addedEntity.getTopologyEntityImpl().addCommoditySoldList(commSoldForAddedEntity);
                         numCommoditiesCreated++;
                     }
                     // 2. Check if connectedEntity has access commodity with accesses pointing to addedEntity.
@@ -109,10 +110,10 @@ public class PostScopingTopologyEditor {
                     if (!areEntitiesConnected(connectedEntity, addedEntity)) {
                         // Its fine to pass in key as null because there will be no existing connections to a newly
                         // added entity
-                        CommoditySoldDTO.Builder commSoldForConnectedEntity =
+                        CommoditySoldImpl commSoldForConnectedEntity =
                                 TopologyEntityConstructor.createAccessCommodity(edit.commTypeForConnectedEntityType,
                                         addedEntity.getOid(), null);
-                        connectedEntity.getTopologyEntityDtoBuilder().addCommoditySoldList(commSoldForConnectedEntity);
+                        connectedEntity.getTopologyEntityImpl().addCommoditySoldList(commSoldForConnectedEntity);
                         numCommoditiesCreated++;
                     }
                 }
@@ -130,7 +131,7 @@ public class PostScopingTopologyEditor {
      * @return true if there is a commodity sold by entity1 which accesses entity2. False otherwise.
      */
     private boolean areEntitiesConnected(TopologyEntity entity1, TopologyEntity entity2) {
-        return entity1.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream().anyMatch(
+        return entity1.getTopologyEntityImpl().getCommoditySoldListList().stream().anyMatch(
                 cs -> cs.hasAccesses() && entity2.getOid() == cs.getAccesses());
     }
 
@@ -146,15 +147,15 @@ public class PostScopingTopologyEditor {
      */
     private Optional<String> findConnectingCommodityKey(TopologyEntity entity,
                                                         TopologyGraph<TopologyEntity> topology) {
-        Set<Long> connectingEntities = entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
-                .filter(CommoditySoldDTO::hasAccesses).map(CommoditySoldDTO::getAccesses).collect(Collectors.toSet());
+        Set<Long> connectingEntities = entity.getTopologyEntityImpl().getCommoditySoldListList().stream()
+                .filter(CommoditySoldView::hasAccesses).map(CommoditySoldView::getAccesses).collect(Collectors.toSet());
         for (Long connectingEntity : connectingEntities) {
             Optional<TopologyEntity> entityOpt = topology.getEntity(connectingEntity);
             if (entityOpt.isPresent()) {
-                Optional<String> key = entityOpt.get().getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                Optional<String> key = entityOpt.get().getTopologyEntityImpl().getCommoditySoldListList().stream()
                         .filter(c -> c.getAccesses() == entity.getOid())
-                        .map(CommoditySoldDTO::getCommodityType)
-                        .map(TopologyDTO.CommodityType::getKey)
+                        .map(CommoditySoldView::getCommodityType)
+                        .map(CommodityTypeView::getKey)
                         .findFirst();
                 if (key.isPresent()) {
                     return key;

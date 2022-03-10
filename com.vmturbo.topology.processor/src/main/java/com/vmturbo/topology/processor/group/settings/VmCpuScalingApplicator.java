@@ -15,12 +15,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.PhysicalMachineInfoView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualMachineInfoImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualMachineInfoView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoView;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.VCPUScalingUnitsEnum;
@@ -60,7 +61,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
  * All those settings affecting on the target capacity increment value, that will be used by
  * market to generate correct recommendations.
  * Additionally, for correct action description and action execution the applicator
- * sets {@link VirtualMachineInfo.CpuScalingPolicy} instance.
+ * sets {@link VirtualMachineInfoImpl.CpuScalingPolicyView} instance.
  */
 @ThreadSafe
 class VmCpuScalingApplicator extends BaseSettingApplicator {
@@ -80,14 +81,14 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
     }
 
     @Override
-    public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+    public void apply(@Nonnull TopologyEntityImpl entity,
                     @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
                     @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
         if (entity.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
             return;
         }
-        final Optional<CommoditySoldDTO.Builder> vcpuCommodityBuilderOptional =
-                        entity.getCommoditySoldListBuilderList().stream().filter(commodity ->
+        final Optional<CommoditySoldImpl> vcpuCommodityBuilderOptional =
+                        entity.getCommoditySoldListImplList().stream().filter(commodity ->
                                         commodity.getCommodityType().getType()
                                                         == CommodityType.VCPU_VALUE).findFirst();
         vcpuCommodityBuilderOptional.ifPresent(vcpuCommodityBuilder -> {
@@ -107,22 +108,22 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
         });
     }
 
-    private static String asString(@Nonnull TopologyEntityDTO.Builder entity) {
+    private static String asString(@Nonnull TopologyEntityImpl entity) {
         return String.format("%s[%s]", entity.getDisplayName(), entity.getOid());
     }
 
     @Nullable
-    private static Integer getVmInfoParameter(@Nonnull TopologyEntityDTO.Builder entity,
-                    @Nonnull Predicate<VirtualMachineInfo> valueChecker,
-                    @Nonnull Function<VirtualMachineInfo, Integer> valueGetter) {
+    private static Integer getVmInfoParameter(@Nonnull TopologyEntityImpl entity,
+                    @Nonnull Predicate<VirtualMachineInfoView> valueChecker,
+                    @Nonnull Function<VirtualMachineInfoView, Integer> valueGetter) {
         if (!entity.hasTypeSpecificInfo()) {
             return null;
         }
-        final TopologyDTO.TypeSpecificInfo typeSpecificInfo = entity.getTypeSpecificInfo();
+        final TypeSpecificInfoView typeSpecificInfo = entity.getTypeSpecificInfo();
         if (!typeSpecificInfo.hasVirtualMachine()) {
             return null;
         }
-        final VirtualMachineInfo vmInfo = typeSpecificInfo.getVirtualMachine();
+        final VirtualMachineInfoView vmInfo = typeSpecificInfo.getVirtualMachine();
         if (valueChecker.test(vmInfo)) {
             return valueGetter.apply(vmInfo);
         }
@@ -134,10 +135,10 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
      * increments.
      */
     private interface VCPUScalingModeHandler {
-        float getVcpuIncrement(@Nonnull TopologyEntityDTO.Builder entity,
+        float getVcpuIncrement(@Nonnull TopologyEntityImpl entity,
                         @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                         @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
-                        @Nonnull CommoditySoldDTO.Builder vcpuCommodityBuilder);
+                        @Nonnull CommoditySoldImpl vcpuCommodityBuilder);
     }
 
 
@@ -147,10 +148,10 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
      */
     private static class MhzHandler implements VCPUScalingModeHandler {
         @Override
-        public float getVcpuIncrement(@Nonnull TopologyEntityDTO.Builder entity,
+        public float getVcpuIncrement(@Nonnull TopologyEntityImpl entity,
                         @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                         @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
-                        @Nonnull CommoditySoldDTO.Builder vcpuCommodityBuilder) {
+                        @Nonnull CommoditySoldImpl vcpuCommodityBuilder) {
             return (int)getNumericSetting(entitySettings, EntitySettingSpecs.VmVcpuIncrement,
                             LOGGER);
         }
@@ -176,15 +177,15 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
                                                         LOGGER));
 
         @Override
-        public float getVcpuIncrement(@Nonnull TopologyEntityDTO.Builder entity,
+        public float getVcpuIncrement(@Nonnull TopologyEntityImpl entity,
                         @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                         @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
-                        @Nonnull CommoditySoldDTO.Builder vcpuCommodityBuilder) {
-            final Integer numCpus = getVmInfoParameter(entity, VirtualMachineInfo::hasNumCpus,
-                            VirtualMachineInfo::getNumCpus);
+                        @Nonnull CommoditySoldImpl vcpuCommodity) {
+            final Integer numCpus = getVmInfoParameter(entity, VirtualMachineInfoView::hasNumCpus,
+                            VirtualMachineInfoView::getNumCpus);
             final Integer cpsr =
-                            getVmInfoParameter(entity, VirtualMachineInfo::hasCoresPerSocketRatio,
-                                            VirtualMachineInfo::getCoresPerSocketRatio);
+                            getVmInfoParameter(entity, VirtualMachineInfoView::hasCoresPerSocketRatio,
+                                            VirtualMachineInfoView::getCoresPerSocketRatio);
 
             final VcpuScalingCoresPerSocketSocketModeEnum coresPerSocketModeType =
                             getSettingValue(entitySettings,
@@ -198,14 +199,14 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
             } else {
                 sockets = modeHandler.getIncrementSockets(entity, topologyGraph, entitySettings,
                                 numCpus, cpsr);
-                entity.getTypeSpecificInfoBuilder().getVirtualMachineBuilder()
-                                .getCpuScalingPolicyBuilder().setSockets(sockets);
+                entity.getOrCreateTypeSpecificInfo().getOrCreateVirtualMachine()
+                                .getOrCreateCpuScalingPolicy().setSockets(sockets);
             }
             if (numCpus != null && numCpus > 0) {
-                return Math.round(vcpuCommodityBuilder.getCapacity() / numCpus) * sockets;
+                return Math.round(vcpuCommodity.getCapacity() / numCpus) * sockets;
             } else {
                 return super.getVcpuIncrement(entity, topologyGraph, entitySettings,
-                                vcpuCommodityBuilder);
+                                vcpuCommodity);
             }
         }
 
@@ -219,18 +220,18 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
      */
     private static class VcpusHandler extends MhzHandler {
         @Override
-        public float getVcpuIncrement(@Nonnull TopologyEntityDTO.Builder entity,
+        public float getVcpuIncrement(@Nonnull TopologyEntityImpl entity,
                 @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                 @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
-                @Nonnull CommoditySoldDTO.Builder vcpuCommodityBuilder) {
-            final Integer numCpus = getVmInfoParameter(entity, VirtualMachineInfo::hasNumCpus,
-                    VirtualMachineInfo::getNumCpus);
+                @Nonnull CommoditySoldImpl vcpuCommodityBuilder) {
+            final Integer numCpus = getVmInfoParameter(entity, VirtualMachineInfoView::hasNumCpus,
+                    VirtualMachineInfoView::getNumCpus);
 
             final int vcpuIncrementSize = (int)getNumericSetting(entitySettings,
                     EntitySettingSpecs.VcpuScaling_Vcpus_VcpusIncrementValue, LOGGER);
 
-            entity.getTypeSpecificInfoBuilder().getVirtualMachineBuilder()
-                    .getCpuScalingPolicyBuilder().setCoresPerSocket(1);
+            entity.getOrCreateTypeSpecificInfo().getOrCreateVirtualMachine()
+                    .getOrCreateCpuScalingPolicy().setCoresPerSocket(1);
 
             if (numCpus != null && numCpus > 0) {
                 return Math.round(vcpuCommodityBuilder.getCapacity() / numCpus) * vcpuIncrementSize;
@@ -248,7 +249,7 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
      */
     @FunctionalInterface
     private interface CoresModeHandler {
-        int getIncrementSockets(@Nonnull TopologyEntityDTO.Builder entity,
+        int getIncrementSockets(@Nonnull TopologyEntityImpl entity,
                         @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                         @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
                         @Nullable Integer numCpus, @Nullable Integer cpsr);
@@ -261,7 +262,7 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
      */
     private static class HandlePreserve implements CoresModeHandler {
         @Override
-        public int getIncrementSockets(@Nonnull TopologyEntityDTO.Builder entity,
+        public int getIncrementSockets(@Nonnull TopologyEntityImpl entity,
                         @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                         @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
                         @Nullable Integer numCpus, @Nullable Integer cpsr) {
@@ -282,11 +283,11 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
      */
     private static class HandleMatchHost implements CoresModeHandler {
         @Override
-        public int getIncrementSockets(@Nonnull TopologyEntityDTO.Builder entity,
+        public int getIncrementSockets(@Nonnull TopologyEntityImpl entity,
                         @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                         @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
                         @Nullable Integer numCpus, @Nullable Integer cpsr) {
-            final CommoditiesBoughtFromProvider commdityBoughtFromPM =
+            final CommoditiesBoughtFromProviderView commdityBoughtFromPM =
                             entity.getCommoditiesBoughtFromProvidersList().stream()
                                             .filter(e -> e.getProviderEntityType()
                                                             == EntityType.PHYSICAL_MACHINE_VALUE)
@@ -303,19 +304,19 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
                                 commdityBoughtFromPM.getProviderId());
                 return 1;
             }
-            final TopologyEntityDTO.Builder pmEntity = pm.getTopologyEntityDtoBuilder();
+            final TopologyEntityImpl pmEntity = pm.getTopologyEntityImpl();
             if (!pmEntity.hasTypeSpecificInfo()) {
                 LOGGER.warn("There is no TypeSpecificInfo for the given for PM {}",
                                 pm.getDisplayName());
                 return 1;
             }
-            final TopologyDTO.TypeSpecificInfo typeSpecificInfo = pmEntity.getTypeSpecificInfo();
+            final TypeSpecificInfoView typeSpecificInfo = pmEntity.getTypeSpecificInfo();
             if (!typeSpecificInfo.hasPhysicalMachine()) {
                 LOGGER.warn("There is no PhysicalMachineInfo for the given for PM {}",
                                 pm.getDisplayName());
                 return 1;
             }
-            final PhysicalMachineInfo pmInfo = typeSpecificInfo.getPhysicalMachine();
+            final PhysicalMachineInfoView pmInfo = typeSpecificInfo.getPhysicalMachine();
             if (pmInfo.hasNumCpuSockets()) {
                 return pmInfo.getNumCpuSockets();
             }
@@ -335,20 +336,20 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
      * </ul>
      * Calculates total VCPU increment that will be used by the market to generate the actions.
      * Total VCPU increment calculated as coreSpeed * cores per socket * sockets increment.
-     * Additionally, populates {@link VirtualMachineInfo.CpuScalingPolicy} in case cores per socket
+     * Additionally, populates {@link VirtualMachineInfoImpl.CpuScalingPolicyView} in case cores per socket
      * value has to be changed or sockets value has to be changed.
      */
     private static class SocketsHandler extends MhzHandler {
         @Override
-        public float getVcpuIncrement(@Nonnull TopologyEntityDTO.Builder entity,
+        public float getVcpuIncrement(@Nonnull TopologyEntityImpl entity,
                         @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                         @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
-                        @Nonnull CommoditySoldDTO.Builder vcpuCommodityBuilder) {
+                        @Nonnull CommoditySoldImpl vcpuCommodityBuilder) {
             final Integer coresPerSocket = getCoresPerSocket(entity, entitySettings);
             final float socketsIncrement = getSettingValue(entitySettings,
                             EntitySettingSpecs.VcpuScaling_Sockets_SocketIncrementValue, 1F);
-            final Integer numCpus = getVmInfoParameter(entity, VirtualMachineInfo::hasNumCpus,
-                            VirtualMachineInfo::getNumCpus);
+            final Integer numCpus = getVmInfoParameter(entity, VirtualMachineInfoView::hasNumCpus,
+                            VirtualMachineInfoView::getNumCpus);
             if (coresPerSocket != null && numCpus != null && numCpus > 0) {
                 final long coreSpeed = Math.round(vcpuCommodityBuilder.getCapacity() / numCpus);
                 return coreSpeed * coresPerSocket * socketsIncrement;
@@ -365,7 +366,7 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
         }
 
         @Nullable
-        private Integer getCoresPerSocket(TopologyEntityDTO.Builder entity,
+        private Integer getCoresPerSocket(TopologyEntityImpl entity,
                         Map<EntitySettingSpecs, Setting> entitySettings) {
             final VcpuScalingSocketsCoresPerSocketModeEnum mode = getSettingValue(entitySettings,
                             EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketMode,
@@ -373,12 +374,12 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
             if (mode == VcpuScalingSocketsCoresPerSocketModeEnum.USER_SPECIFIED) {
                 final int result = (int)getNumericSetting(entitySettings,
                                 EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketValue, LOGGER);
-                entity.getTypeSpecificInfoBuilder().getVirtualMachineBuilder()
-                                .getCpuScalingPolicyBuilder().setCoresPerSocket(result);
+                entity.getOrCreateTypeSpecificInfo().getOrCreateVirtualMachine()
+                                .getOrCreateCpuScalingPolicy().setCoresPerSocket(result);
                 return result;
             }
-            return getVmInfoParameter(entity, VirtualMachineInfo::hasCoresPerSocketRatio,
-                            VirtualMachineInfo::getCoresPerSocketRatio);
+            return getVmInfoParameter(entity, VirtualMachineInfoView::hasCoresPerSocketRatio,
+                            VirtualMachineInfoView::getCoresPerSocketRatio);
         }
 
     }

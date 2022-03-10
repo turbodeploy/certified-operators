@@ -40,10 +40,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
-import com.vmturbo.common.protobuf.topology.DiscoveredGroup;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -625,7 +623,7 @@ public class DiscoveredGroupUploader {
 
         final String datacenterName = getDatacenterName(host, topologyMap);
         if (datacenterName == null) {
-            final Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> chassisCommodity =
+            final Optional<CommoditiesBoughtFromProviderView> chassisCommodity =
                 getChassisCommodityOfHost(host);
             if (!chassisCommodity.isPresent()) {
                 logger.error("Host (oid:{},displayName:{}) has no commodities bought from " +
@@ -648,17 +646,17 @@ public class DiscoveredGroupUploader {
         cluster.setDisplayName(datacenterName + "/" + cluster.getDisplayName());
     }
 
-    private Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> getDatacenterCommodityOfHost(
+    private Optional<CommoditiesBoughtFromProviderView> getDatacenterCommodityOfHost(
             @Nonnull TopologyEntity.Builder host) {
-        return host.getEntityBuilder().getCommoditiesBoughtFromProvidersList()
+        return host.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
                 .stream()
                 .filter(commodityBundle -> commodityBundle.getProviderEntityType() == EntityType.DATACENTER_VALUE)
                 .findFirst();
     }
 
-    private Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> getChassisCommodityOfHost(
+    private Optional<CommoditiesBoughtFromProviderView> getChassisCommodityOfHost(
         @Nonnull TopologyEntity.Builder host) {
-        return host.getEntityBuilder().getCommoditiesBoughtFromProvidersList()
+        return host.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
             .stream()
             .filter(commodityBundle -> commodityBundle.getProviderEntityType() == EntityType.CHASSIS_VALUE)
             .findFirst();
@@ -673,7 +671,7 @@ public class DiscoveredGroupUploader {
      */
     @Nullable
     private String getDatacenterName(TopologyEntity.Builder host, Map<Long, TopologyEntity.Builder> topologyMap) {
-        final Optional<CommoditiesBoughtFromProvider> datacenterCommodities =
+        final Optional<CommoditiesBoughtFromProviderView> datacenterCommodities =
                         getDatacenterCommodityOfHost(host);
         if (datacenterCommodities.isPresent())  {
             Object datacenterOid = datacenterCommodities.get().getProviderId();

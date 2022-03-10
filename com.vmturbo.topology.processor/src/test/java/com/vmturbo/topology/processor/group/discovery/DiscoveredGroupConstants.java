@@ -19,10 +19,10 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -34,7 +34,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersList;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.ExpressionType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpecList;
-import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.util.GroupTestUtils;
 
 /**
@@ -158,28 +158,26 @@ class DiscoveredGroupConstants {
 
     // create a DATACENTER to test the cluster name prefix addition
     static final String DC_NAME = "DC1";
-    static final TopologyEntityDTO.Builder DATACENTER = TopologyEntityDTO.newBuilder()
+    static final TopologyEntityImpl DATACENTER = new TopologyEntityImpl()
             .setEntityType(EntityType.DATACENTER_VALUE)
             .setDisplayName(DC_NAME)
             .setOid(100L);
 
     // create an host inside that DATACENTER
-    static final CommoditiesBoughtFromProvider COMM_BOUGHT_BY_PM_FROM_DC =
-            CommoditiesBoughtFromProvider.newBuilder()
+    static final CommoditiesBoughtFromProviderImpl COMM_BOUGHT_BY_PM_FROM_DC =
+            new CommoditiesBoughtFromProviderImpl()
                     .setProviderId(DATACENTER.getOid())
                     .setProviderEntityType(DATACENTER.getEntityType())
                     .addCommodityBought(
-                            CommodityBoughtDTO.newBuilder()
+                            new CommodityBoughtImpl()
                                     .setCommodityType(
-                                            CommodityType.newBuilder()
+                                            new CommodityTypeImpl()
                                                     .setType(CommodityDTO.CommodityType.SPACE_VALUE)
-                                                    .build()
                                     )
-                    )
-                    .build();
+                    );
 
     static final String PM_NAME = "PM1";
-    static final TopologyEntityDTO.Builder HOST_IN_DATACENTER = TopologyEntityDTO.newBuilder()
+    static final TopologyEntityImpl HOST_IN_DATACENTER = new TopologyEntityImpl()
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
             .setDisplayName(PM_NAME)
             .setOid(101L)
@@ -187,13 +185,13 @@ class DiscoveredGroupConstants {
 
     // create a storage
     static final String ST_NAME = "ST1";
-    static final TopologyEntityDTO.Builder storage = TopologyEntityDTO.newBuilder()
+    static final TopologyEntityImpl storage = new TopologyEntityImpl()
             .setEntityType(EntityType.STORAGE_VALUE)
             .setDisplayName(ST_NAME)
             .setOid(102L);
 
     // create a topology for those entities
-    static final Map<Long, Builder> TOPOLOGY = ImmutableMap.of(
+    static final Map<Long,  TopologyEntity.Builder> TOPOLOGY = ImmutableMap.of(
             DATACENTER.getOid(), topologyEntityBuilder(DATACENTER),
             HOST_IN_DATACENTER.getOid(), topologyEntityBuilder(HOST_IN_DATACENTER),
             storage.getOid(), topologyEntityBuilder(storage)

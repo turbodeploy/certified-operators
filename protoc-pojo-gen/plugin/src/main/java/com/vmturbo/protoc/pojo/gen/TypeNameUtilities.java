@@ -1,6 +1,9 @@
 package com.vmturbo.protoc.pojo.gen;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -119,7 +122,7 @@ public class TypeNameUtilities {
 
         return new ParameterizedTypeName(
             com.squareup.javapoet.ParameterizedTypeName.get(ClassName.get(klass), generics),
-            genericTypes);
+            genericTypes, Arrays.asList(genericParams));
     }
 
     @Nonnull
@@ -136,6 +139,14 @@ public class TypeNameUtilities {
                     nameForType, PojoCodeGenerator.GOOGLE_PROTOBUF_PACKAGE);
                 return ClassName.get(PojoCodeGenerator.GOOGLE_PROTOBUF_PACKAGE, nameForType);
             } else {
+                if (nameForType.endsWith("View")) {
+                    logger.info("No qualifying package in type {}. Using package {}.",
+                        nameForType, PojoCodeGenerator.JAVA_LANG_PACKAGE);
+                    StringWriter sw = new StringWriter();
+                    PrintWriter pw = new PrintWriter(sw);
+                    new Exception().printStackTrace(pw);
+                    logger.info("Stack trace: {}", sw.toString());
+                }
                 logger.trace("No qualifying package in type {}. Using package {}.",
                     nameForType, PojoCodeGenerator.JAVA_LANG_PACKAGE);
                 return ClassName.get(PojoCodeGenerator.JAVA_LANG_PACKAGE, nameForType);
@@ -177,15 +188,18 @@ public class TypeNameUtilities {
     public static class ParameterizedTypeName {
         private final TypeName typeName;
         private final List<ParameterizedTypeName> typeParameters = new ArrayList<>();
+        private final List<String> typeStrings = new ArrayList<>();
 
         private ParameterizedTypeName(@Nonnull final TypeName typeName) {
             this.typeName = Objects.requireNonNull(typeName);
         }
 
         private ParameterizedTypeName(@Nonnull final TypeName typeName,
-                                     @Nonnull final List<ParameterizedTypeName> typeParameters) {
+                                      @Nonnull final List<ParameterizedTypeName> typeParameters,
+                                      @Nonnull final List<String> typeStrings) {
             this.typeName = Objects.requireNonNull(typeName);
             this.typeParameters.addAll(typeParameters);
+            this.typeStrings.addAll(typeStrings);
         }
 
         /**
@@ -206,6 +220,15 @@ public class TypeNameUtilities {
          */
         public List<ParameterizedTypeName> getTypeParameters() {
             return typeParameters;
+        }
+
+        /**
+         * Return string representation of the type parameters.
+         *
+         * @return string representation of the type parameters.
+         */
+        public List<String> getTypeStrings() {
+            return typeStrings;
         }
     }
 }

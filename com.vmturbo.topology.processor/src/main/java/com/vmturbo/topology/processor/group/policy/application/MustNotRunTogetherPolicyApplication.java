@@ -20,8 +20,8 @@ import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -147,7 +147,7 @@ public class MustNotRunTogetherPolicyApplication extends PlacementPolicyApplicat
                 // If we aren't looking for a cluster commodity, pretent clusterFound is true.
                 boolean clusterFound = !optClusterComm.isPresent();
                 boolean dcFound = false;
-                for (CommoditySoldDTO commSold : provider.getTopologyEntityDtoBuilder().getCommoditySoldListList()) {
+                for (CommoditySoldView commSold : provider.getTopologyEntityImpl().getCommoditySoldListList()) {
                     final int commType = commSold.getCommodityType().getType();
                     if (!clusterFound) {
                         if (optClusterComm.get().getNumber() == commType) {
@@ -266,10 +266,10 @@ public class MustNotRunTogetherPolicyApplication extends PlacementPolicyApplicat
     private Optional<String> getCommodityBoughtKey(@Nonnull final CommodityType commType,
                                                    final int providerType,
                                                    @Nonnull final TopologyEntity entity) {
-        return entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+        return entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList().stream()
             .filter(commBought -> commBought.getProviderEntityType() == providerType)
             .map(commBoughtFromProvider -> {
-                for (CommodityBoughtDTO commBought : commBoughtFromProvider.getCommodityBoughtList()) {
+                for (CommodityBoughtView commBought : commBoughtFromProvider.getCommodityBoughtList()) {
                     if (commBought.getCommodityType().getType() == commType.getNumber()) {
                         return commBought.getCommodityType().getKey();
                     }
@@ -306,9 +306,9 @@ public class MustNotRunTogetherPolicyApplication extends PlacementPolicyApplicat
             return;
         }
 
-        providers.map(TopologyEntity::getTopologyEntityDtoBuilder)
+        providers.map(TopologyEntity::getTopologyEntityImpl)
             .forEach(provider -> {
-                final CommoditySoldDTO segmentationCommodity = commoditySold(SEGM_CAPACITY_VALUE_SINGLE_CONSUMER,
+                final CommoditySoldView segmentationCommodity = commoditySold(SEGM_CAPACITY_VALUE_SINGLE_CONSUMER,
                     provider.getOid(), consumers, policy);
                 addCommoditySold(Collections.singleton(provider.getOid()), segmentationCommodity);
             });

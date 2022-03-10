@@ -19,10 +19,10 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -148,12 +148,12 @@ public class SetTransactionsCapacityPostStitchingTest {
         // Expecting the used value as capacity
         TopologyEntity provider = sellerWithBuyer(2L, 1L, initialCapacity);
         testSetCapacityValue(provider, false, initialCapacity, 0d);
-        List<CommoditySoldDTO> commoditySoldDTOS = provider.getTopologyEntityDtoBuilder().getCommoditySoldListList();
-        List<CommodityBoughtDTO> commodityBoughtDTOS = provider.getConsumers().stream()
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                .map(TopologyEntityDTO.Builder::getCommoditiesBoughtFromProvidersList)
+        List<CommoditySoldView> commoditySoldDTOS = provider.getTopologyEntityImpl().getCommoditySoldListList();
+        List<CommodityBoughtView> commodityBoughtDTOS = provider.getConsumers().stream()
+                .map(TopologyEntity::getTopologyEntityImpl)
+                .map(TopologyEntityImpl::getCommoditiesBoughtFromProvidersList)
                 .flatMap(List::stream)
-                .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+                .map(CommoditiesBoughtFromProviderView::getCommodityBoughtList)
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
         // Verify sold commodities
@@ -193,11 +193,11 @@ public class SetTransactionsCapacityPostStitchingTest {
 
         // check that transaction commodity had it's capacity set to the value of the setting
         Assert.assertEquals(sloEnabledFlag ? settingCapacityValue : maxValue,
-                provider.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(),
+                provider.getTopologyEntityImpl().getCommoditySoldList(0).getCapacity(),
                 1e-5);
         // check that response time commodity doesn't get its capacity changed
         Assert.assertEquals(startingCapacity,
-                provider.getTopologyEntityDtoBuilder().getCommoditySoldList(1).getCapacity(),
+                provider.getTopologyEntityImpl().getCommoditySoldList(1).getCapacity(),
                 1e-5);
     }
 
@@ -234,7 +234,7 @@ public class SetTransactionsCapacityPostStitchingTest {
                 EntitySettingSpecs.TransactionSLO
                         .getDataStructure().getDefault(EntityType.DATABASE_SERVER));
         Assert.assertEquals(defaultSLO,
-                provider.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(),
+                provider.getTopologyEntityImpl().getCommoditySoldList(0).getCapacity(),
                 1e-5);
     }
 
@@ -255,7 +255,7 @@ public class SetTransactionsCapacityPostStitchingTest {
 
         // check that transaction commodity capacity was not changed by the poststitching operation
         Assert.assertEquals(initialCapacity,
-                provider.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(),
+                provider.getTopologyEntityImpl().getCommoditySoldList(0).getCapacity(),
                 1e-5);
     }
 
@@ -282,7 +282,7 @@ public class SetTransactionsCapacityPostStitchingTest {
                                 PostStitchingTestUtilities
                                         .makeCommoditySold(CommodityType.RESPONSE_TIME)),
                         Collections.emptyList());
-        seller.getEntityBuilder().getCommoditySoldListBuilderList().forEach(builder -> {
+        seller.getTopologyEntityImpl().getCommoditySoldListImplList().forEach(builder -> {
             usedValue.ifPresent(used -> builder.setUsed(used));
             capacityValue.ifPresent(capacity -> builder.setCapacity(capacity));
 
@@ -301,7 +301,7 @@ public class SetTransactionsCapacityPostStitchingTest {
      */
     private TopologyEntity sellerWithBuyer(long buyerOid, long sellerOid, double usedValue) {
         final TopologyEntity.Builder buyer =  TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder()
+                new TopologyEntityImpl()
                         .setOid(buyerOid)
                         .setEntityType(BUYER_TYPE.getNumber())
                         .addCommoditiesBoughtFromProviders(
@@ -324,7 +324,7 @@ public class SetTransactionsCapacityPostStitchingTest {
                                 PostStitchingTestUtilities
                                         .makeCommoditySold(CommodityType.RESPONSE_TIME)),
                         Collections.emptyList());
-        seller.getEntityBuilder().getCommoditySoldListBuilderList()
+        seller.getTopologyEntityImpl().getCommoditySoldListImplList()
                 .forEach(builder -> builder.setUsed(usedValue));
         return seller.addConsumer(buyer).build();
     }

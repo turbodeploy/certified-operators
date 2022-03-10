@@ -36,7 +36,7 @@ public class UseHypervisorVmemForResizingPostStitchingOperation implements PostS
         entities.filter(vm -> !isHypervisorOnlyVMemResizableAllowed(vm, settingsCollection))
                 .forEach(vm ->
                     resultBuilder.queueUpdateEntityAlone(vm,
-                            entity -> entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+                            entity -> entity.getTopologyEntityImpl().getCommoditySoldListImplList()
                                     .stream().filter(commodity -> CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE == commodity.getCommodityType().getType())
                                     .forEach(vmem -> vmem.setIsResizeable(false)))
 

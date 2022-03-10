@@ -28,7 +28,7 @@ import com.google.gson.reflect.TypeToken;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -361,7 +361,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     }
 
     @Override
-    public long getCloneId(@Nonnull final TopologyEntityDTOOrBuilder inputEntity) {
+    public long getCloneId(@Nonnull final TopologyEntityView inputEntity) {
         return IdentityGenerator.next();
     }
 

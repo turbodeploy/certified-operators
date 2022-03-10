@@ -12,9 +12,8 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -64,8 +63,8 @@ public class ComputedQxVcpuUsedValuePostStitchingOperation implements PostStitch
 
         entities.forEach(entity -> {
             resultBuilder.queueUpdateEntityAlone(entity,
-                    entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
-                            .getCommoditySoldListBuilderList().stream()
+                    entityToUpdate -> entityToUpdate.getTopologyEntityImpl()
+                            .getCommoditySoldListImplList().stream()
                                     .filter(this::isQxVcpuCommodity)
                                     .forEach(commSold -> {
                                             OptionalDouble usedValue = avgUsedValue(commSold,
@@ -97,7 +96,7 @@ public class ComputedQxVcpuUsedValuePostStitchingOperation implements PostStitch
         return resultBuilder.build();
     }
 
-    private boolean isQxVcpuCommodity(@Nonnull final TopologyDTO.CommoditySoldDTO.Builder commodity) {
+    private boolean isQxVcpuCommodity(@Nonnull final CommoditySoldImpl commodity) {
         return commodityQxVcpuSet.contains(commodity.getCommodityType().getType());
 
     }
@@ -109,17 +108,17 @@ public class ComputedQxVcpuUsedValuePostStitchingOperation implements PostStitch
      * @param seller an entity that sells the commodity.
      * @return the computed average used value.
      */
-    private OptionalDouble avgUsedValue(@Nonnull final CommoditySoldDTO.Builder commSold,
+    private OptionalDouble avgUsedValue(@Nonnull final CommoditySoldImpl commSold,
                                 @Nonnull final TopologyEntity seller) {
         return seller.getCommoditiesUsedByConsumers(commSold.getCommodityType())
                 .mapToDouble(Double::doubleValue)
                 .average();
     }
 
-    private Optional<Double> peakValue(@Nonnull final CommoditySoldDTO.Builder commSold,
+    private Optional<Double> peakValue(@Nonnull final CommoditySoldImpl commSold,
                                 @Nonnull final TopologyEntity seller) {
         final Optional<Double> commodityBoughtQxVcpuMaxValue = seller.getConsumers().stream()
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+            .map(TopologyEntity::getTopologyEntityImpl)
             .flatMap(entityDtoBuilder ->
                 entityDtoBuilder.getCommoditiesBoughtFromProvidersList().stream())
             .filter(commodityBoughtFromProvider ->
@@ -128,7 +127,7 @@ public class ComputedQxVcpuUsedValuePostStitchingOperation implements PostStitch
                 commodityBoughtFromProvider.getCommodityBoughtList().stream())
             .filter(commodityBought ->
                 commSold.getCommodityType().equals(commodityBought.getCommodityType()))
-            .map(CommodityBoughtDTO::getPeak)
+            .map(CommodityBoughtView::getPeak)
             .max(Double::compareTo);
         return commodityBoughtQxVcpuMaxValue;
     }

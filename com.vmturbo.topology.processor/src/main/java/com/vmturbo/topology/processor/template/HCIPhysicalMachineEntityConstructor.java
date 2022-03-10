@@ -21,20 +21,22 @@ import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesReque
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.StorageInfoImpl;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageData.StoragePolicy;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageRedundancyMethod;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
+import com.vmturbo.platform.common.dto.CommonPOJO.EntityImpl.StorageDataImpl.StoragePolicyImpl;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TopologyEntityConstructor.TemplateActionType;
@@ -73,10 +75,10 @@ public class HCIPhysicalMachineEntityConstructor {
      * @throws TopologyEntityConstructorException error creating entities
      */
     @Nonnull
-    public Collection<TopologyEntityDTO.Builder> replaceEntitiesFromTemplate(
+    public Collection<TopologyEntityImpl> replaceEntitiesFromTemplate(
             @Nonnull Collection<TopologyEntity.Builder> hostsToReplace)
             throws TopologyEntityConstructorException {
-        List<TopologyEntityDTO.Builder> result = new ArrayList<>();
+        List<TopologyEntityImpl> result = new ArrayList<>();
 
         if (hostsToReplace.isEmpty()) {
             throw new TopologyEntityConstructorException(
@@ -85,19 +87,18 @@ public class HCIPhysicalMachineEntityConstructor {
         }
 
         // Get plan ID from any plan entity
-        TopologyEntityDTO.Builder anyPlanEntity = hostsToReplace.iterator().next()
-                .getEntityBuilder();
+        TopologyEntityImpl anyPlanEntity = hostsToReplace.iterator().next().getTopologyEntityImpl();
         long planId = anyPlanEntity.getEdit().getReplaced().getPlanId();
 
         // Create new storage
-        TopologyEntityDTO.Builder newStorage = new StorageEntityConstructor()
+        TopologyEntityImpl newStorage = new StorageEntityConstructor()
                 .createTopologyEntityFromTemplate(template, topology, null,
                         TemplateActionType.REPLACE, identityProvider, null);
 
         logger.info("Creating HCI storage '{}'", newStorage.getDisplayName());
 
         // Create Storage Cluster commodity for the new storage
-        CommoditySoldDTO.Builder storageClusterComm = TopologyEntityConstructor
+        CommoditySoldImpl storageClusterComm = TopologyEntityConstructor
                 .createAccessCommodity(CommodityDTO.CommodityType.STORAGE_CLUSTER,
                         newStorage.getOid(), null);
         newStorage.addCommoditySoldList(storageClusterComm);
@@ -115,7 +116,7 @@ public class HCIPhysicalMachineEntityConstructor {
             String nameSuffix = count == 0 ? null : "(Reserved " + count + ")";
 
             // Create new host
-            TopologyEntityDTO.Builder newHost = new PhysicalMachineEntityConstructor()
+            TopologyEntityImpl newHost = new PhysicalMachineEntityConstructor()
                     .createTopologyEntityFromTemplate(template, topology, null,
                             TemplateActionType.REPLACE, identityProvider, nameSuffix);
             result.add(newHost);
@@ -125,16 +126,16 @@ public class HCIPhysicalMachineEntityConstructor {
                 logger.info("Replacing host '{}' with '{}'", hostToReplace.getDisplayName(),
                         newHost.getDisplayName());
 
-                TopologyEntityDTO.Builder oldHost = hostToReplace.getEntityBuilder();
+                TopologyEntityImpl oldHost = hostToReplace.getTopologyEntityImpl();
                 setConstraints(oldHost, newHost);
                 TopologyEntityConstructor.addAccess(oldHost, newHost, newStorage);
                 setReplacementId(oldHost, newHost.getOid(), planId);
 
-                List<TopologyEntityDTO.Builder> replaceStorages = getProvidingStorages(
+                List<TopologyEntityImpl> replaceStorages = getProvidingStorages(
                         hostToReplace);
-                TopologyEntityDTO.Builder hciStorage = getHCIStorage(hostToReplace);
+                TopologyEntityImpl hciStorage = getHCIStorage(hostToReplace);
                 replaceStorages.add(hciStorage);
-                for (TopologyEntityDTO.Builder storage : replaceStorages) {
+                for (TopologyEntityImpl storage : replaceStorages) {
                     setReplacementId(storage, newStorage.getOid(), planId);
                 }
             }
@@ -150,19 +151,19 @@ public class HCIPhysicalMachineEntityConstructor {
         return result;
     }
 
-    private static void setReplacementId(@Nullable TopologyEntityDTO.Builder entity, long id,
+    private static void setReplacementId(@Nullable TopologyEntityImpl entity, long id,
             long planId) {
         if (entity == null) {
             return;
         }
 
-        entity.getEditBuilder().getReplacedBuilder().setReplacementId(id).setPlanId(planId);
+        entity.getOrCreateEdit().getOrCreateReplaced().setReplacementId(id).setPlanId(planId);
     }
 
-    private static void setResizable(@Nonnull TopologyEntityDTO.Builder newStorage,
+    private static void setResizable(@Nonnull TopologyEntityImpl newStorage,
             @Nonnull CommodityDTO.CommodityType commType)
             throws TopologyEntityConstructorException {
-        CommoditySoldDTO.Builder comm = getSoldCommodityUnique(newStorage, commType);
+        CommoditySoldImpl comm = getSoldCommodityUnique(newStorage, commType);
         comm.setIsResizeable(true);
     }
 
@@ -175,12 +176,12 @@ public class HCIPhysicalMachineEntityConstructor {
      * @throws TopologyEntityConstructorException error setting access
      *             commodities
      */
-    private void setConstraints(@Nonnull TopologyEntityDTO.Builder oldHost,
-            @Nonnull TopologyEntityDTO.Builder newHost) throws TopologyEntityConstructorException {
-        Set<CommoditySoldDTO> oldHostConstraints = TopologyEntityConstructor
+    private void setConstraints(@Nonnull TopologyEntityImpl oldHost,
+            @Nonnull TopologyEntityImpl newHost) throws TopologyEntityConstructorException {
+        Set<CommoditySoldView> oldHostConstraints = TopologyEntityConstructor
                 .getCommoditySoldConstraint(oldHost);
 
-        for (CommoditySoldDTO oldHostComm : oldHostConstraints) {
+        for (CommoditySoldView oldHostComm : oldHostConstraints) {
             // Do not add the same commodity more then once
             if (TopologyEntityConstructor.hasCommodity(newHost, oldHostComm)) {
                 continue;
@@ -199,12 +200,12 @@ public class HCIPhysicalMachineEntityConstructor {
      * @param newStorage vSAN storage
      * @throws TopologyEntityConstructorException error in HCI processing
      */
-    private void setStoragePolicy(@Nonnull TopologyEntityDTO.Builder newStorage)
+    private void setStoragePolicy(@Nonnull TopologyEntityImpl newStorage)
             throws TopologyEntityConstructorException {
-        StorageInfo.Builder storage = newStorage.getTypeSpecificInfoBuilder().getStorageBuilder();
+        StorageInfoImpl storage = newStorage.getOrCreateTypeSpecificInfo().getOrCreateStorage();
         storage.setStorageType(StorageType.VSAN);
         storage.setIsLocal(false);
-        StoragePolicy.Builder policy = storage.getPolicyBuilder();
+        StoragePolicyImpl policy = storage.getOrCreatePolicy();
 
         int failuresToTolerate = TopologyEntityConstructor
                 .getTemplateValue(templateValues, "failuresToTolerate").intValue();
@@ -232,11 +233,11 @@ public class HCIPhysicalMachineEntityConstructor {
      * @return storages providers for the host
      */
     @Nonnull
-    private List<TopologyEntityDTO.Builder> getProvidingStorages(
+    private List<TopologyEntityImpl> getProvidingStorages(
             @Nonnull TopologyEntity.Builder host) {
         return host.getProviderIds().stream().map(topology::get)
                 .filter(p -> p.getEntityType() == EntityType.STORAGE_VALUE)
-                .map(TopologyEntity.Builder::getEntityBuilder).collect(Collectors.toList());
+                .map(TopologyEntity.Builder::getTopologyEntityImpl).collect(Collectors.toList());
     }
 
     /**
@@ -249,11 +250,11 @@ public class HCIPhysicalMachineEntityConstructor {
      */
     private void setStorageClusterCommodities(
             @Nonnull Collection<TopologyEntity.Builder> hostsToReplace,
-            @Nonnull CommoditySoldDTO.Builder storageClusterComm)
+            @Nonnull CommoditySoldImpl storageClusterComm)
             throws TopologyEntityConstructorException {
         for (TopologyEntity.Builder host : hostsToReplace) {
             for (TopologyEntity consumer : host.getConsumers()) {
-                setStorageClusterCommForVm(consumer.getTopologyEntityDtoBuilder(),
+                setStorageClusterCommForVm(consumer.getTopologyEntityImpl(),
                         storageClusterComm.getCommodityType());
             }
 
@@ -263,7 +264,7 @@ public class HCIPhysicalMachineEntityConstructor {
         }
     }
 
-    private void addClusterCommodityToHciStorage(CommoditySoldDTO.Builder clusterSoldComm,
+    private void addClusterCommodityToHciStorage(CommoditySoldImpl clusterSoldComm,
             Long storageId)
             throws TopologyEntityConstructorException {
         TopologyEntity.Builder storage = topology.get(storageId);
@@ -273,22 +274,21 @@ public class HCIPhysicalMachineEntityConstructor {
         }
 
         if (storage.getEntityType() != EntityType.STORAGE_VALUE
-                || TopologyEntityConstructor.hasCommodity(storage.getEntityBuilder(),
-                        clusterSoldComm.build())) {
+                || TopologyEntityConstructor.hasCommodity(storage.getTopologyEntityImpl(), clusterSoldComm)) {
             return;
         }
 
-        storage.getEntityBuilder().addCommoditySoldList(clusterSoldComm);
+        storage.getTopologyEntityImpl().addCommoditySoldList(clusterSoldComm);
     }
 
-    private void setStorageClusterCommForVm(@Nonnull TopologyEntityDTO.Builder vm,
-            @Nonnull TopologyDTO.CommodityType clusterTypeWithKey) {
+    private void setStorageClusterCommForVm(@Nonnull TopologyEntityImpl vm,
+            @Nonnull CommodityTypeView clusterTypeWithKey) {
         if (vm.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
             return;
         }
 
-        List<CommoditiesBoughtFromProvider.Builder> storageBoughtGroups = vm
-                .getCommoditiesBoughtFromProvidersBuilderList().stream()
+        List<CommoditiesBoughtFromProviderImpl> storageBoughtGroups = vm
+                .getCommoditiesBoughtFromProvidersImplList().stream()
                 .filter(comm -> comm.getProviderEntityType() == EntityType.STORAGE_VALUE)
                 .collect(Collectors.toList());
 
@@ -297,15 +297,15 @@ public class HCIPhysicalMachineEntityConstructor {
             return;
         }
 
-        for (CommoditiesBoughtFromProvider.Builder boughtGroup : storageBoughtGroups) {
-            List<CommodityBoughtDTO.Builder> existingComm = boughtGroup
-                    .getCommodityBoughtBuilderList().stream()
+        for (CommoditiesBoughtFromProviderImpl boughtGroup : storageBoughtGroups) {
+            List<CommodityBoughtImpl> existingComm = boughtGroup
+                    .getCommodityBoughtImplList().stream()
                     .filter(c -> c.getCommodityType()
                             .getType() == CommodityType.STORAGE_CLUSTER_VALUE)
                     .collect(Collectors.toList());
 
             if (existingComm.isEmpty()) {
-                CommodityBoughtDTO comm = TopologyEntityConstructor.createCommodityBoughtDTO(
+                CommodityBoughtView comm = TopologyEntityConstructor.createCommodityBoughtView(
                         CommodityType.STORAGE_CLUSTER_VALUE, clusterTypeWithKey.getKey(),
                         SDKConstants.ACCESS_COMMODITY_USED);
                 boughtGroup.addCommodityBought(comm);
@@ -321,19 +321,19 @@ public class HCIPhysicalMachineEntityConstructor {
     }
 
     @Nonnull
-    private static List<CommoditySoldDTO.Builder> getSoldCommodities(
-            @Nonnull TopologyEntityDTO.Builder entity,
+    private static List<CommoditySoldImpl> getSoldCommodities(
+            @Nonnull TopologyEntityImpl entity,
             @Nonnull CommodityDTO.CommodityType commType) {
-        return entity.getCommoditySoldListBuilderList().stream()
+        return entity.getCommoditySoldListImplList().stream()
                 .filter(comm -> comm.getCommodityType().getType() == commType.getNumber())
                 .collect(Collectors.toList());
     }
 
     @Nonnull
-    private static CommoditySoldDTO.Builder getSoldCommodityUnique(
-            @Nonnull TopologyEntityDTO.Builder entity, @Nonnull CommodityDTO.CommodityType commType)
+    private static CommoditySoldImpl getSoldCommodityUnique(
+            @Nonnull TopologyEntityImpl entity, @Nonnull CommodityDTO.CommodityType commType)
             throws TopologyEntityConstructorException {
-        List<CommoditySoldDTO.Builder> clusterComms = getSoldCommodities(entity, commType);
+        List<CommoditySoldImpl> clusterComms = getSoldCommodities(entity, commType);
 
         if (clusterComms.size() != 1) {
             throw new TopologyEntityConstructorException(
@@ -345,14 +345,14 @@ public class HCIPhysicalMachineEntityConstructor {
     }
 
     @Nonnull
-    private static String commodityToString(@Nonnull CommoditySoldDTO.Builder comm) {
+    private static String commodityToString(@Nonnull CommoditySoldImpl comm) {
         return "[" + comm.getCommodityType().getType() + "-"
                 + TopologyEntityConstructor.convertCommodityType(comm.getCommodityType())
                 + ", key: '" + comm.getCommodityType().getKey() + "']";
     }
 
     @Nullable
-    private TopologyEntityDTO.Builder getHCIStorage(@Nonnull TopologyEntity.Builder hciHost)
+    private TopologyEntityImpl getHCIStorage(@Nonnull TopologyEntity.Builder hciHost)
             throws TopologyEntityConstructorException {
         List<TopologyEntity> storages = hciHost.getConsumers().stream()
                 .filter(consumer -> consumer.getEntityType() == EntityType.STORAGE_VALUE)
@@ -368,7 +368,7 @@ public class HCIPhysicalMachineEntityConstructor {
         }
 
         long storageOid = storages.get(0).getOid();
-        return topology.get(storageOid).getEntityBuilder();
+        return topology.get(storageOid).getTopologyEntityImpl();
     }
 
     private float getStorageSettingValue(@Nonnull EntitySettingSpecs settingSpec)

@@ -83,6 +83,9 @@ message Bar {
     repeated bytes repeated_bytes = 23;
     map<int32, bytes> byte_map = 24;
 
+    // Repeated message!
+    repeated OtherMessage repeated_other_message = 25;
+
     // Some oneof comments
     oneof my_one_of {
         // The other message variant

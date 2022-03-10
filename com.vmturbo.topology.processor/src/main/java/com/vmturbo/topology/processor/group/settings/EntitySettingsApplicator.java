@@ -34,19 +34,18 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl.ThresholdsImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -59,7 +58,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 
 /**
  * The {@link EntitySettingsApplicator} is responsible for applying resolved settings
- * to a {@link TopologyGraph<TopologyEntity>}.
+ * to a {@link TopologyGraph< TopologyEntity >}.
  *
  * It's separated from {@link EntitySettingsResolver} (which resolves settings) for clarity, and ease
  * of tracking, debugging, and measuring. It's separated from {@link GraphWithSettings} (even
@@ -103,7 +102,7 @@ public class EntitySettingsApplicator {
      * contained in it.
      *
      * @param topologyInfo the {@link TopologyInfo}
-     * @param graphWithSettings A {@link TopologyGraph<TopologyEntity>} and the settings that apply to it.
+     * @param graphWithSettings A {@link TopologyGraph< TopologyEntity >} and the settings that apply to it.
      */
     public void applySettings(@Nonnull final TopologyInfo topologyInfo,
                               @Nonnull final GraphWithSettings graphWithSettings) {
@@ -111,7 +110,7 @@ public class EntitySettingsApplicator {
             buildApplicators(topologyInfo, graphWithSettings,
                     considerUtilizationConstraintInClusterHeadroomPlan, addAccessCommoditiesForVsan);
         graphWithSettings.getTopologyGraph().entities()
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+            .map(TopologyEntity::getTopologyEntityImpl)
             .forEach(entity -> {
                 final Map<EntitySettingSpecs, Setting> settingsForEntity =
                         new EnumMap<>(EntitySettingSpecs.class);
@@ -343,7 +342,7 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * The applicator of a single {@link Setting} to a single {@link TopologyEntityDTO.Builder}.
+     * The applicator of a single {@link Setting} to a single {@link TopologyEntityImpl}.
      */
     public abstract static class ActionModeSettingApplicator extends BaseSettingApplicator {
 
@@ -353,11 +352,11 @@ public class EntitySettingsApplicator {
             this.setting = Objects.requireNonNull(setting);
         }
 
-        protected abstract void apply(@Nonnull TopologyEntityDTO.Builder entity,
+        protected abstract void apply(@Nonnull TopologyEntityImpl entity,
                                       @Nonnull ActionMode actionMode);
 
         @Override
-        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+        public void apply(@Nonnull TopologyEntityImpl entity,
                           @Nonnull Map<EntitySettingSpecs, Setting> settings,
                           @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
             final Setting settingObject = actionModeSettings.get(setting);
@@ -369,7 +368,7 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * The applicator of a single {@link EntitySettingSpecs} to a single {@link TopologyEntityDTO.Builder}.
+     * The applicator of a single {@link EntitySettingSpecs} to a single {@link TopologyEntityImpl}.
      */
     public abstract static class SingleSettingApplicator extends BaseSettingApplicator {
 
@@ -383,11 +382,11 @@ public class EntitySettingsApplicator {
             return setting;
         }
 
-        protected abstract void apply(@Nonnull TopologyEntityDTO.Builder entity,
+        protected abstract void apply(@Nonnull TopologyEntityImpl entity,
                 @Nonnull Setting setting);
 
         @Override
-        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+        public void apply(@Nonnull TopologyEntityImpl entity,
                           @Nonnull Map<EntitySettingSpecs, Setting> settings,
                           @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
             final Setting settingObject = settings.get(setting);
@@ -398,7 +397,7 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * The applicator of multiple {@link Setting}s to a single {@link TopologyEntityDTO.Builder}.
+     * The applicator of multiple {@link Setting}s to a single {@link TopologyEntityImpl}.
      */
     private abstract static class MultipleSettingsApplicator extends BaseSettingApplicator {
 
@@ -424,11 +423,11 @@ public class EntitySettingsApplicator {
             return actionModeSettings;
         }
 
-        protected abstract void apply(@Nonnull TopologyEntityDTO.Builder entity,
+        protected abstract void apply(@Nonnull TopologyEntityImpl entity,
                                       @Nonnull Collection<Setting> settings);
 
         @Override
-        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+        public void apply(@Nonnull TopologyEntityImpl entity,
                           @Nonnull Map<EntitySettingSpecs, Setting> settings,
                           @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
             List<Setting> settingObjects = new ArrayList();
@@ -455,9 +454,9 @@ public class EntitySettingsApplicator {
             apply(entity, settingObjects);
         }
 
-        protected void updateCommodities(TopologyEntityDTO.Builder entity,
+        protected void updateCommodities(TopologyEntityImpl entity,
                                          CommodityType commodityType) {
-            entity.getCommoditySoldListBuilderList()
+            entity.getCommoditySoldListImplList()
                 .forEach(commSoldBuilder -> {
                     if (commSoldBuilder.getCommodityType().getType() == commodityType.getNumber() &&
                         commSoldBuilder.getIsResizeable()) {
@@ -468,7 +467,7 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * Abstract applicator for {@link CommoditiesBoughtFromProvider#hasMovable()}.
+     * Abstract applicator for {@link TopologyEntityImpl.CommoditiesBoughtFromProviderView#hasMovable()}.
      */
     private abstract static class AbstractMoveApplicator extends ActionModeSettingApplicator {
 
@@ -477,7 +476,7 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull ActionMode actionMode) {
+        protected void apply(@Nonnull TopologyEntityImpl entity, @Nonnull ActionMode actionMode) {
             final boolean isMoveEnabled = actionMode != ActionMode.DISABLED;
             apply(entity, isMoveEnabled);
         }
@@ -485,17 +484,17 @@ public class EntitySettingsApplicator {
         /**
          * Applies setting to the specified entity.
          *
-         * @param entity the {@link TopologyEntityDTO.Builder}
+         * @param entity the {@link TopologyEntityImpl}
          * @param isMoveEnabled {@code true} if the {@link ActionMode} setting
          * is not {@link ActionMode#DISABLED}, otherwise {@code false}
          */
-        protected abstract void apply(@Nonnull TopologyEntityDTO.Builder entity,
+        protected abstract void apply(@Nonnull TopologyEntityImpl entity,
                 boolean isMoveEnabled);
     }
 
     /**
-     * Applicator for {@link CommoditiesBoughtFromProvider#hasMovable()}
-     * for {@link CommoditiesBoughtFromProvider#getProviderEntityType()}
+     * Applicator for {@link CommoditiesBoughtFromProviderView#hasMovable()}
+     * for {@link CommoditiesBoughtFromProviderView#getProviderEntityType()}
      * with a specific {@link EntityType}.
      */
     private static class MoveCommoditiesFromProviderTypesApplicator extends AbstractMoveApplicator {
@@ -509,21 +508,21 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@Nonnull TopologyEntityDTO.Builder entity, boolean isMoveEnabled) {
+        protected void apply(@Nonnull TopologyEntityImpl entity, boolean isMoveEnabled) {
             applyMovableToCommodities(entity, isMoveEnabled,
                     c -> providerTypes.contains(EntityType.forNumber(c.getProviderEntityType())));
         }
     }
 
     /**
-     * Applies the "move" setting to a {@link TopologyEntityDTO.Builder}. In particular, if it is
+     * Applies the "move" setting to a {@link TopologyEntityImpl}. In particular, if it is
      * virtual machine and the "move" is disabled, set the commodities purchased from a host to
      * non-movable. If it is storage and the "move" is disabled, set the all commodities bought to
      * non-movable.
      */
     private static class MoveApplicator extends AbstractMoveApplicator {
 
-        private final Map<EntityType, BiConsumer<TopologyEntityDTO.Builder, Boolean>> specialCases;
+        private final Map<EntityType, BiConsumer<TopologyEntityImpl, Boolean>> specialCases;
 
         private MoveApplicator() {
             super(ConfigurableActionSettings.Move);
@@ -539,7 +538,7 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@Nonnull TopologyEntityDTO.Builder entity, boolean isMoveEnabled) {
+        protected void apply(@Nonnull TopologyEntityImpl entity, boolean isMoveEnabled) {
             this.specialCases.getOrDefault(EntityType.forNumber(entity.getEntityType()),
                     (e, s) -> applyMovableToCommodities(e, s, c -> true))
                     .accept(entity, isMoveEnabled);
@@ -547,7 +546,7 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * Set shop together on a virtual machine{@link TopologyEntityDTO.Builder} based on the "move"
+     * Set shop together on a virtual machine{@link TopologyEntityImpl} based on the "move"
      * and "storage move" settings. In particular, if the "move" and "storage move"
      * action settings are both in Manual, or both in Automatic state, shop together can be enabled.
      * Otherwise, set the shop together to false because user has to explicitly change the settings
@@ -563,7 +562,7 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+        public void apply(@Nonnull TopologyEntityImpl entity,
                 @Nonnull Map<EntitySettingSpecs, Setting> settings,
                 @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
             if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
@@ -578,7 +577,7 @@ public class EntitySettingsApplicator {
                 // move sets to Manual or Automatic, dont enable shop together.
                 // If the entity is a reserved VM then it should always shop together.
                 if (entity.getOrigin().hasReservationOrigin()) {
-                    entity.getAnalysisSettingsBuilder().setShopTogether(true);
+                    entity.getOrCreateAnalysisSettings().setShopTogether(true);
                 // Apply shop together to false only if shopTogether setting is disabled by user
                 // and topology is realtime. We don't want to do it for plans because other stages
                 // like "IgnoreConstraints" set shop together to 'true' and we don't want to override it here.
@@ -596,20 +595,20 @@ public class EntitySettingsApplicator {
                     // no real advantage in the cloud.
                     // NOTE: For migration plans from on prem to cloud or from cloud to cloud,
                     // we should shop together.
-                    entity.getAnalysisSettingsBuilder().setShopTogether(false);
+                    entity.getOrCreateAnalysisSettings().setShopTogether(false);
                     logger.debug("Shop together is disabled for {}.",
                             entity.getDisplayName());
                 }
             } else if (entity.getEntityType() == EntityType.DATABASE_SERVER_VALUE ||
                     entity.getEntityType() == EntityType.DATABASE_VALUE) {
                 // database entities should not perform shop-together
-                entity.getAnalysisSettingsBuilder().setShopTogether(false);
+                entity.getOrCreateAnalysisSettings().setShopTogether(false);
             }
         }
     }
 
     /**
-     * Applies the "suspend" setting to a {@link TopologyEntityDTO.Builder}.
+     * Applies the "suspend" setting to a {@link TopologyEntityImpl}.
      */
     private static class SuspendApplicator extends ActionModeSettingApplicator {
 
@@ -618,13 +617,13 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+        protected void apply(@Nonnull final TopologyEntityImpl entity,
                           @Nonnull final ActionMode actionMode) {
             // when setting value is DISABLED, set suspendable to false,
             // otherwise keep the original value which could have been set
             // when converting from SDK entityDTO.
             if (ActionMode.DISABLED == actionMode) {
-                entity.getAnalysisSettingsBuilder().setSuspendable(false);
+                entity.getOrCreateAnalysisSettings().setSuspendable(false);
                 logger.trace("Disabled suspendable for {}::{}",
                                 entity::getEntityType, entity::getDisplayName);
             }
@@ -632,7 +631,7 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * Applies the "delete" setting to a {@link TopologyEntityDTO.Builder}.
+     * Applies the "delete" setting to a {@link TopologyEntityImpl}.
      */
     private static class DeleteApplicator extends ActionModeSettingApplicator {
         private DeleteApplicator() {
@@ -640,16 +639,16 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+        protected void apply(@Nonnull final TopologyEntityImpl entity,
                 @Nonnull final ActionMode actionMode) {
             if (ActionMode.DISABLED == actionMode) {
-                entity.getAnalysisSettingsBuilder().setDeletable(false);
+                entity.getOrCreateAnalysisSettings().setDeletable(false);
             }
         }
     }
 
     /**
-     * Applies the "provision" setting to a {@link TopologyEntityDTO.Builder}.
+     * Applies the "provision" setting to a {@link TopologyEntityImpl}.
      */
     private static class ProvisionApplicator extends ActionModeSettingApplicator {
 
@@ -658,13 +657,13 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+        public void apply(@Nonnull final TopologyEntityImpl entity,
                           @Nonnull final ActionMode actionMode) {
             // when setting value is DISABLED, set cloneable to false,
             // otherwise keep the original value which could have been set
             // when converting from SDK entityDTO.
             if (ActionMode.DISABLED == actionMode) {
-                entity.getAnalysisSettingsBuilder().setCloneable(false);
+                entity.getOrCreateAnalysisSettings().setCloneable(false);
                 logger.trace("Disabled provision for {}::{}",
                             entity::getEntityType, entity::getDisplayName);
             }
@@ -672,7 +671,7 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * Applies the "reconfigurable" setting to a {@link TopologyEntityDTO.Builder}.
+     * Applies the "reconfigurable" setting to a {@link TopologyEntityImpl}.
      */
     private static class ReconfigureApplicator extends ActionModeSettingApplicator {
 
@@ -681,22 +680,22 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+        public void apply(@Nonnull final TopologyEntityImpl entity,
                           @Nonnull final ActionMode actionMode) {
             // when setting value is DISABLED, set reconfigurable to false.
             // otherwise make sure reconfigurable is set on analysis settings.
             if (ActionMode.DISABLED == actionMode) {
-                entity.getAnalysisSettingsBuilder().setReconfigurable(false);
+                entity.getOrCreateAnalysisSettings().setReconfigurable(false);
                 logger.trace("Disabled reconfigure for {}::{}",
                             entity::getEntityType, entity::getDisplayName);
-            } else if (!entity.getAnalysisSettingsBuilder().hasReconfigurable()) {
-                entity.getAnalysisSettingsBuilder().setReconfigurable(true);
+            } else if (!entity.getOrCreateAnalysisSettings().hasReconfigurable()) {
+                entity.getOrCreateAnalysisSettings().setReconfigurable(true);
             }
         }
     }
 
     /**
-     * Adds the "scaling" setting to a {@link TopologyEntityDTO.Builder}.
+     * Adds the "scaling" setting to a {@link TopologyEntityImpl}.
      */
     private static class ScalingApplicator extends ActionModeSettingApplicator {
 
@@ -704,13 +703,13 @@ public class EntitySettingsApplicator {
             super(setting);
         }
         @Override
-        protected void apply(@Nonnull final Builder entity, @Nonnull final ActionMode actionMode) {
-            List<CommoditiesBoughtFromProvider.Builder> commBoughtGroupingList = entity
-                    .getCommoditiesBoughtFromProvidersBuilderList().stream()
+        protected void apply(@Nonnull final TopologyEntityImpl entity, @Nonnull final ActionMode actionMode) {
+            List<CommoditiesBoughtFromProviderImpl> commBoughtGroupingList = entity
+                    .getCommoditiesBoughtFromProvidersImplList().stream()
                     .filter(s -> s.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE ||
                             s.getProviderEntityType() == EntityType.DATABASE_SERVER_TIER_VALUE
                     || s.getProviderEntityType() == EntityType.DATABASE_TIER_VALUE).collect(Collectors.toList());
-            for (CommoditiesBoughtFromProvider.Builder commBought : commBoughtGroupingList) {
+            for (CommoditiesBoughtFromProviderImpl commBought : commBoughtGroupingList) {
                 if (ActionMode.DISABLED == actionMode) {
                     commBought.setScalable(false);
                 }
@@ -719,7 +718,7 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * Applies the "resize" setting to a {@link TopologyEntityDTO.Builder}.
+     * Applies the "resize" setting to a {@link TopologyEntityImpl}.
      */
     private static class ResizeApplicator extends ActionModeSettingApplicator {
 
@@ -728,10 +727,10 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+        public void apply(@Nonnull final TopologyEntityImpl entity,
                           @Nonnull final ActionMode actionMode) {
             final boolean resizeable = ActionMode.DISABLED != actionMode;
-            entity.getCommoditySoldListBuilderList()
+            entity.getCommoditySoldListImplList()
                     .forEach(commSoldBuilder -> {
                         /* We shouldn't change isResizable if it comes as false from a probe side.
                            For example static memory VMs comes from Hyper-V targets with resizeable=false
@@ -757,7 +756,7 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * Applies the "rateOfResize" setting to a {@link TopologyEntityDTO.Builder}.
+     * Applies the "rateOfResize" setting to a {@link TopologyEntityImpl}.
      */
     private static class RateOfResizeApplicator extends SingleSettingApplicator {
 
@@ -766,13 +765,13 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@Nonnull final Builder entity, @Nonnull final Setting setting) {
-            entity.getAnalysisSettingsBuilder().setRateOfResize(setting.getNumericSettingValue().getValue());
+        protected void apply(@Nonnull final TopologyEntityImpl entity, @Nonnull final Setting setting) {
+            entity.getOrCreateAnalysisSettings().setRateOfResize(setting.getNumericSettingValue().getValue());
         }
     }
 
     /**
-     * Applies the "ResizeVStorage" setting to {@link TopologyEntityDTO.Builder} which is an on-prem VM.
+     * Applies the "ResizeVStorage" setting to {@link TopologyEntityImpl} which is an on-prem VM.
      */
     private static class ResizeVStorageApplicator extends SingleSettingApplicator {
 
@@ -781,12 +780,12 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+        public void apply(@Nonnull final TopologyEntityImpl entity,
                           @Nonnull final Setting setting) {
             if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE &&
                 entity.getEnvironmentType() == EnvironmentType.ON_PREM) {
                 final boolean resizeable = setting.hasBooleanSettingValue() && setting.getBooleanSettingValue().getValue();
-                entity.getCommoditySoldListBuilderList().stream()
+                entity.getCommoditySoldListImplList().stream()
                     .filter(c -> c.getCommodityType().getType() == CommodityType.VSTORAGE_VALUE)
                     .forEach(commSoldBuilder -> {
                         commSoldBuilder.setIsResizeable(resizeable);
@@ -804,7 +803,7 @@ public class EntitySettingsApplicator {
     private static class MinMaxReplicasApplicator extends BaseSettingApplicator {
 
         @Override
-        public void apply(@Nonnull TopologyEntityDTO.Builder application,
+        public void apply(@Nonnull TopologyEntityImpl application,
                           @Nonnull Map<EntitySettingSpecs, Setting> settings,
                           @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
             if (application.getEntityType() != EntityType.APPLICATION_COMPONENT_VALUE) {
@@ -840,7 +839,7 @@ public class EntitySettingsApplicator {
                 minReplicas = minReplicasDefault;
                 maxReplicas = maxReplicasDefault;
             }
-            application.getAnalysisSettingsBuilder()
+            application.getOrCreateAnalysisSettings()
                     .setMinReplicas((int)minReplicas)
                     .setMaxReplicas((int)maxReplicas);
         }
@@ -848,7 +847,7 @@ public class EntitySettingsApplicator {
 
     /**
      * Applies a Vcpu resize to the virtual machine represented in
-     * {@link TopologyEntityDTO.Builder}.
+     * {@link TopologyEntityImpl}.
      */
     private static class VirtualMachineResizeVcpuApplicator extends MultipleSettingsApplicator {
 
@@ -861,7 +860,7 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+        protected void apply(@Nonnull final TopologyEntityImpl entity,
                              @Nonnull final Collection<Setting> settings) {
             boolean allSettingsDisabled = settings.stream()
                     .filter(setting -> setting.getEnumSettingValue().getValue().equals(ActionMode.DISABLED.name()))
@@ -874,7 +873,7 @@ public class EntitySettingsApplicator {
 
     /**
      * Applies a Vmem resize to the virtual machine represented in
-     * {@link TopologyEntityDTO.Builder}.
+     * {@link TopologyEntityImpl}.
      */
     private static class VirtualMachineResizeVmemApplicator extends MultipleSettingsApplicator {
 
@@ -887,7 +886,7 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+        protected void apply(@Nonnull final TopologyEntityImpl entity,
                              @Nonnull final Collection<Setting> settings) {
             boolean allSettingsDisabled = settings.stream()
                     .filter(setting -> setting.getEnumSettingValue().getValue()
@@ -916,9 +915,9 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
+        public void apply(@Nonnull TopologyEntityImpl entity, @Nonnull Setting setting) {
             final float settingValue = setting.getNumericSettingValue().getValue();
-            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity,
+            for (CommoditySoldImpl commodity : getCommoditySoldBuilders(entity,
                     commodityType)) {
                 commodity.setEffectiveCapacityPercentage(settingValue);
             }
@@ -945,9 +944,9 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@NotNull Builder entity, @NotNull Setting setting) {
+        protected void apply(@NotNull TopologyEntityImpl entity, @NotNull Setting setting) {
             final float settingValue = setting.getNumericSettingValue().getValue();
-            entity.getCommoditySoldListBuilderList().stream()
+            entity.getCommoditySoldListImplList().stream()
                     .filter(commodity -> allQueueCommodities.contains(commodity.getCommodityType().getType()))
                     .forEach(commodity -> commodity.setEffectiveCapacityPercentage(settingValue));
         }
@@ -971,7 +970,7 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+        public void apply(@Nonnull final TopologyEntityImpl entity,
                 @Nonnull final Map<EntitySettingSpecs, Setting> settings,
                 @Nonnull final Map<ConfigurableActionSettings, Setting> actionModeSettings) {
             if (topologyInfo.getPlanInfo().getPlanProjectType() != PlanProjectType.CLUSTER_HEADROOM
@@ -1001,13 +1000,13 @@ public class EntitySettingsApplicator {
             }
         }
 
-        private void applyMaxUtilizationToCapacity(@Nonnull final TopologyEntityDTO.Builder entity,
+        private void applyMaxUtilizationToCapacity(@Nonnull final TopologyEntityImpl entity,
                                                    @Nonnull final CommodityType commodityType,
                                                    final float maxDesiredUtilization) {
             // We only want to do this for cluster headroom calculations.
             Preconditions.checkArgument(topologyInfo.getPlanInfo().getPlanProjectType() ==
                     PlanProjectType.CLUSTER_HEADROOM);
-            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity,
+            for (CommoditySoldImpl commodity : getCommoditySoldBuilders(entity,
                     commodityType)) {
                 // We want to factor the max desired utilization into the effective capacity
                 // of the sold commodity. For cluster headroom calculations, the desired state has
@@ -1026,10 +1025,10 @@ public class EntitySettingsApplicator {
             }
         }
 
-        private void applyUtilizationChanges(@Nonnull TopologyEntityDTO.Builder entity,
+        private void applyUtilizationChanges(@Nonnull TopologyEntityImpl entity,
                                              @Nonnull CommodityType commodityType,
                                              @Nullable Setting setting) {
-            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity,
+            for (CommoditySoldImpl commodity : getCommoditySoldBuilders(entity,
                     commodityType)) {
                 if (setting != null) {
                     commodity.setEffectiveCapacityPercentage(
@@ -1049,11 +1048,11 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+        public void apply(@Nonnull final TopologyEntityImpl entity,
                           @Nonnull final Setting setting) {
 
             if (entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
-                entity.getAnalysisSettingsBuilder()
+                entity.getOrCreateAnalysisSettings()
                     .setDesiredUtilizationTarget(setting.getNumericSettingValue().getValue());
             }
         }
@@ -1069,18 +1068,18 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+        public void apply(@Nonnull final TopologyEntityImpl entity,
                           @Nonnull final Setting setting) {
 
             if (entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
-                entity.getAnalysisSettingsBuilder()
+                entity.getOrCreateAnalysisSettings()
                     .setDesiredUtilizationRange(setting.getNumericSettingValue().getValue());
             }
         }
     }
 
     /**
-     * Applies min/Max to the entity represented in {@link TopologyEntityDTO.Builder}, like VM or
+     * Applies min/Max to the entity represented in {@link TopologyEntityImpl}, like VM or
      * container.
      */
     private static class EntityThresholdApplicator extends MultipleSettingsApplicator {
@@ -1111,11 +1110,11 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+        protected void apply(@Nonnull final TopologyEntityImpl entity,
                              @Nonnull final Collection<Setting> settings) {
             if (EntityType.VIRTUAL_MACHINE_VALUE == entity.getEntityType() &&
                     EnvironmentType.ON_PREM == entity.getEnvironmentType()) {
-                entity.getCommoditySoldListBuilderList().stream()
+                entity.getCommoditySoldListImplList().stream()
                     .filter(commodity -> entitySettingMapping.get(commodity.getCommodityType().getType()) != null)
                     .forEach(commodityBuilder -> {
                         Set<EntitySettingSpecs> validSpecs = entitySettingMapping.get(commodityBuilder
@@ -1148,9 +1147,9 @@ public class EntitySettingsApplicator {
             }
         }
 
-        private void setThresholdsForContainer(@Nonnull final TopologyEntityDTO.Builder entity,
+        private void setThresholdsForContainer(@Nonnull final TopologyEntityImpl entity,
                                                @Nonnull final Collection<Setting> settings) {
-            entity.getCommoditySoldListBuilderList().stream()
+            entity.getCommoditySoldListImplList().stream()
                 .filter(commodity -> entitySettingMapping.get(commodity.getCommodityType().getType()) != null)
                 .forEach(commodity -> {
                     Set<EntitySettingSpecs> validSpecs = entitySettingMapping.get(commodity.getCommodityType().getType());
@@ -1178,13 +1177,13 @@ public class EntitySettingsApplicator {
          * @param commodityBuilder is the commodity being processed.
          * @param multiplier multiplicand used along with the thresholds.
          */
-        protected void setThresholds(@Nonnull final TopologyEntityDTO.Builder entity,
+        protected void setThresholds(@Nonnull final TopologyEntityImpl entity,
                                      Set<EntitySettingSpecs> validSpecs,
                                      Set<ConfigurableActionSettings> validActionModeSettings,
                                      Collection<Setting> settings,
-                                     CommoditySoldDTO.Builder commodityBuilder,
+                                     CommoditySoldImpl commodityBuilder,
                                      double multiplier) {
-            final Thresholds.Builder thresholdsBuilder = Thresholds.newBuilder();
+            final ThresholdsImpl thresholdsBuilder = new ThresholdsImpl();
             double minThreshold = 0;
             double maxThreshold = Double.MAX_VALUE;
             ActionMode modeForMin = null;
@@ -1286,7 +1285,7 @@ public class EntitySettingsApplicator {
 
     /**
      * Applicator for capacity resize increment settings.
-     * This sets the capacity_increment in the {@link CommoditySoldDTO}
+     * This sets the capacity_increment in the {@link CommoditySoldView}
      * for Virtual Machine entities.
      *
      */
@@ -1328,10 +1327,10 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
+        public void apply(@Nonnull TopologyEntityImpl entity, @Nonnull Setting setting) {
             if (applicableEntityTypes.contains(entity.getEntityType())) {
                 final float settingValue = setting.getNumericSettingValue().getValue();
-                entity.getCommoditySoldListBuilderList().stream()
+                entity.getCommoditySoldListImplList().stream()
                     .filter(commodity -> commodity.getCommodityType().getType() ==
                             commodityType.getNumber())
                     .forEach(commodityBuilder -> {
@@ -1393,7 +1392,7 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
+        public void apply(@Nonnull TopologyEntityImpl entity, @Nonnull Setting setting) {
             final EntityType entityType = EntityType.forNumber(entity.getEntityType());
             if (entityType != null &&
                     getEntitySettingSpecs().getEntityTypeScope().contains(entityType)) {
@@ -1403,7 +1402,7 @@ public class EntitySettingsApplicator {
             }
         }
 
-        protected abstract void apply(@Nonnull TopologyEntityDTO.Builder entity,
+        protected abstract void apply(@Nonnull TopologyEntityImpl entity,
                 double resizeTargetUtilization);
 
         @Nonnull
@@ -1414,7 +1413,7 @@ public class EntitySettingsApplicator {
 
     /**
      * Applicator for the resize target utilization settings.
-     * This sets the resize_target_utilization in the {@link CommoditySoldDTO}.
+     * This sets the resize_target_utilization in the {@link CommoditySoldView}.
      */
     @ThreadSafe
     private static class ResizeTargetUtilizationCommoditySoldApplicator extends
@@ -1426,9 +1425,9 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@Nonnull TopologyEntityDTO.Builder entity,
+        protected void apply(@Nonnull TopologyEntityImpl entity,
                 double resizeTargetUtilization) {
-            entity.getCommoditySoldListBuilderList()
+            entity.getCommoditySoldListImplList()
                     .stream()
                     .filter(commodity -> commodity.getCommodityType().getType() ==
                             getCommodityType().getNumber())
@@ -1443,7 +1442,7 @@ public class EntitySettingsApplicator {
 
     /**
      * Applicator for the resize target utilization settings.
-     * This sets the resize_target_utilization in the {@link CommodityBoughtDTO}.
+     * This sets the resize_target_utilization in the {@link CommodityBoughtView}.
      */
     @ThreadSafe
     private static class ResizeTargetUtilizationCommodityBoughtApplicator extends
@@ -1485,11 +1484,11 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@Nonnull TopologyEntityDTO.Builder entity,
+        protected void apply(@Nonnull TopologyEntityImpl entity,
                 double resizeTargetUtilization) {
-            entity.getCommoditiesBoughtFromProvidersBuilderList()
+            entity.getCommoditiesBoughtFromProvidersImplList()
                     .stream()
-                    .map(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList)
+                    .map(CommoditiesBoughtFromProviderImpl::getCommodityBoughtImplList)
                     .flatMap(Collection::stream)
                     .filter(commodity -> convertRelevantResizableCommodityBought(commodity.getCommodityType().getType())
                             == getCommodityType().getNumber())
@@ -1504,7 +1503,7 @@ public class EntitySettingsApplicator {
 
     /**
      * Base Applicator for the capacity setting.
-     * Sets capacity for {@link CommoditySoldDTO}.
+     * Sets capacity for {@link CommoditySoldView}.
      */
     private abstract static class BaseOverrideCapacityApplicator extends SingleSettingApplicator {
 
@@ -1517,24 +1516,24 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
+        public void apply(@Nonnull TopologyEntityImpl entity, @Nonnull Setting setting) {
             final Optional<Float> settingValueOpt = getSettingValue(entity, setting);
             if (!settingValueOpt.isPresent()) {
                 return;
             }
             float settingValue = settingValueOpt.get().floatValue();
-            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity,
+            for (CommoditySoldImpl commodity : getCommoditySoldBuilders(entity,
                     commodityType)) {
                 commodity.setCapacity(settingValue);
             }
         }
 
-        protected abstract Optional<Float> getSettingValue(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting);
+        protected abstract Optional<Float> getSettingValue(@Nonnull TopologyEntityImpl entity, @Nonnull Setting setting);
     }
 
     /**
      * Applicator for the capacity setting.
-     * Sets capacity for {@link CommoditySoldDTO}.
+     * Sets capacity for {@link CommoditySoldView}.
      */
     @ThreadSafe
     private static class OverrideCapacityApplicator extends BaseOverrideCapacityApplicator {
@@ -1545,14 +1544,14 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected Optional<Float> getSettingValue(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
+        protected Optional<Float> getSettingValue(@Nonnull TopologyEntityImpl entity, @Nonnull Setting setting) {
             return Optional.ofNullable(getEntitySettingSpecs().getValue(setting, Float.class));
         }
     }
 
     /**
      * Applicator for the user capacity setting.
-     * Sets capacity for {@link CommoditySoldDTO} if there is user setting with new value.
+     * Sets capacity for {@link CommoditySoldView} if there is user setting with new value.
      */
     @ThreadSafe
     private static class OverrideCapacityByUserApplicator extends BaseOverrideCapacityApplicator {
@@ -1567,7 +1566,7 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected Optional<Float> getSettingValue(@Nonnull TopologyEntityDTO.Builder entity,
+        protected Optional<Float> getSettingValue(@Nonnull TopologyEntityImpl entity,
                                                  @Nonnull Setting setting) {
             final EntitySettings settingsForEntity = settingsByEntity.get(entity.getOid());
             if (settingsForEntity == null) {
@@ -1595,7 +1594,7 @@ public class EntitySettingsApplicator {
     private static class HorizontalScalePolicyApplicator extends BaseSettingApplicator {
 
         @Override
-        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+        public void apply(@Nonnull TopologyEntityImpl entity,
                           @Nullable final Map<EntitySettingSpecs, Setting> entitySettings,
                           @Nullable final Map<ConfigurableActionSettings, Setting> actionModeSettings) {
             if (entity.getEntityType() != EntityType.APPLICATION_COMPONENT_VALUE) {
@@ -1609,14 +1608,14 @@ public class EntitySettingsApplicator {
             // the policy setting. Otherwise, don't update the cloneable or suspendable setting,
             // and leave the way they are set by the probe
             if (!cloneable) {
-                entity.getAnalysisSettingsBuilder().setCloneable(false);
+                entity.getOrCreateAnalysisSettings().setCloneable(false);
             }
             if (!suspendable) {
-                entity.getAnalysisSettingsBuilder().setSuspendable(false);
+                entity.getOrCreateAnalysisSettings().setSuspendable(false);
             }
             // Disable resize explicitly when horizontal scale is enabled
             if (cloneable || suspendable) {
-                entity.getCommoditySoldListBuilderList()
+                entity.getCommoditySoldListImplList()
                         .forEach(c -> c.setIsResizeable(false));
             }
         }
@@ -1646,7 +1645,7 @@ public class EntitySettingsApplicator {
         private static final EntitySettingSpecs settingSpec = EntitySettingSpecs.EnableScaleActions;
 
         @Override
-        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+        public void apply(@Nonnull TopologyEntityImpl entity,
                           @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
                           @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
             final Setting setting = entitySettings.get(settingSpec);
@@ -1668,7 +1667,7 @@ public class EntitySettingsApplicator {
         private static final EntitySettingSpecs settingSpec = EntitySettingSpecs.EnableDeleteActions;
 
         @Override
-        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+        public void apply(@Nonnull TopologyEntityImpl entity,
                           @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
                           @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
             final Setting setting = entitySettings.get(settingSpec);
@@ -1677,7 +1676,7 @@ public class EntitySettingsApplicator {
                 if (settingSpec.getEntityTypeScope().contains(entityType)) {
                     final boolean isDeleteEnabled = setting.getBooleanSettingValue().getValue();
                     if (!isDeleteEnabled) {
-                        entity.getAnalysisSettingsBuilder().setDeletable(false);
+                        entity.getOrCreateAnalysisSettings().setDeletable(false);
                     }
                 }
             }

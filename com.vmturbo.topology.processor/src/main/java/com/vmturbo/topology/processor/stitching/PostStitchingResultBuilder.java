@@ -4,9 +4,9 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.UpdateEntityAloneChange;
 
 /**
@@ -31,7 +31,7 @@ public class PostStitchingResultBuilder extends EntityChangesBuilder<TopologyEnt
 
     @Override
     public EntityChangesBuilder<TopologyEntity> queueUpdateEntityAlone(@Nonnull TopologyEntity entityToUpdate,
-                                                                       @Nonnull Consumer<TopologyEntity> updateMethod) {
+                                                                   @Nonnull Consumer<TopologyEntity> updateMethod) {
         changes.add(new UpdateEntityAloneChange<>(entityToUpdate, updateMethod));
 
         return this;

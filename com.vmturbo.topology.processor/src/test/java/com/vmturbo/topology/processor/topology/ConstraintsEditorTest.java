@@ -46,12 +46,14 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanCh
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreEntityTypes;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -100,12 +102,12 @@ public class ConstraintsEditorTest {
     @Nonnull
     private TopologyEntity.Builder buildTopologyEntity(long oid, int type) {
         return TopologyEntityUtils.topologyEntityBuilder(
-                TopologyEntityDTO.newBuilder().setOid(oid)
+                new TopologyEntityImpl().setOid(oid)
                         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .addCommoditiesBoughtFromProviders(
-                                CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
-                                        CommodityBoughtDTO.newBuilder().setCommodityType(
-                                                CommodityType.newBuilder().setType(type).setKey("").build()
+                                new CommoditiesBoughtFromProviderImpl().addCommodityBought(
+                                        new CommodityBoughtImpl().setCommodityType(
+                                                new CommodityTypeImpl().setType(type).setKey("")
                                         ).setActive(true)
                                 )
                         ));
@@ -113,23 +115,18 @@ public class ConstraintsEditorTest {
 
     @Nonnull
     private TopologyEntity.Builder buildTopologyEntity(long oid, EntityType entityType, int commodityType, String commodityKey) {
-        CommodityType.Builder commodityTypeBuilder =
-                CommodityType.newBuilder()
-                        .setType(commodityType);
+        CommodityTypeImpl commodityTypeImpl = new CommodityTypeImpl().setType(commodityType);
         if (commodityKey != null) {
-            commodityTypeBuilder.setKey(commodityKey);
+            commodityTypeImpl.setKey(commodityKey);
         }
         return TopologyEntityUtils.topologyEntityBuilder(
-                TopologyEntityDTO.newBuilder()
+                new TopologyEntityImpl()
                         .setOid(oid)
                         .setEntityType(entityType.getNumber())
                         .addCommoditiesBoughtFromProviders(
-                                CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
-                                        CommodityBoughtDTO.newBuilder().setCommodityType(
-                                        commodityTypeBuilder.build())
-                                                .setActive(true)
-                                ).build()
-                ));
+                                new CommoditiesBoughtFromProviderImpl().addCommodityBought(
+                                        new CommodityBoughtImpl().setCommodityType(commodityTypeImpl)
+                                                .setActive(true))));
     }
 
     @Test
@@ -159,13 +156,13 @@ public class ConstraintsEditorTest {
         Assert.assertEquals(1, getActiveCommodities(graph).count());
         // Ignoring any constraint for a VM sets shop together to true.
         Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE)
-                .map(vm -> vm.getTopologyEntityDtoBuilder())
+                .map(TopologyEntity::getTopologyEntityImpl)
                 .filter(vm -> groupMembers.contains(vm.getOid()))
-                .allMatch(vm -> vm.getAnalysisSettingsBuilder().getShopTogether()));
+                .allMatch(vm -> vm.getOrCreateAnalysisSettings().getShopTogether()));
         Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE)
-                .map(vm -> vm.getTopologyEntityDtoBuilder())
+                .map(TopologyEntity::getTopologyEntityImpl)
                 .filter(vm -> !groupMembers.contains(vm.getOid()))
-                .noneMatch(vm -> vm.getAnalysisSettingsBuilder().getShopTogether()));
+                .noneMatch(vm -> vm.getOrCreateAnalysisSettings().getShopTogether()));
     }
 
     @Test
@@ -193,7 +190,7 @@ public class ConstraintsEditorTest {
         Assert.assertEquals(0, getActiveCommodities(graph).count());
         // Ignoring any constraints for a VM will set ShopTogether to true.
         Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE).allMatch(
-                vm -> vm.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().getShopTogether()));
+                vm -> vm.getTopologyEntityImpl().getOrCreateAnalysisSettings().getShopTogether()));
     }
 
     @Test
@@ -225,7 +222,7 @@ public class ConstraintsEditorTest {
         Assert.assertEquals(1, getActiveCommodities(graph).count());
         // Ignoring any constraints for a VM will set ShopTogether to true.
         Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE).allMatch(
-                vm -> vm.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().getShopTogether()));
+                vm -> vm.getTopologyEntityImpl().getOrCreateAnalysisSettings().getShopTogether()));
     }
 
     @Test
@@ -263,7 +260,7 @@ public class ConstraintsEditorTest {
         Assert.assertEquals(3, getActiveCommodities(graph).count());
         // Ignoring any constraint for a VM sets shop together to true.
         Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE).allMatch(
-                vm -> vm.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().getShopTogether()));
+                vm -> vm.getTopologyEntityImpl().getOrCreateAnalysisSettings().getShopTogether()));
     }
 
     @Test
@@ -332,22 +329,22 @@ public class ConstraintsEditorTest {
                 .build();
     }
 
-    private Stream<CommodityBoughtDTO> getActiveCommodities(TopologyGraph<TopologyEntity> editedGraph) {
+    private Stream<CommodityBoughtView> getActiveCommodities(TopologyGraph<TopologyEntity> editedGraph) {
         return editedGraph.entities()
-                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                    .map(Builder::getCommoditiesBoughtFromProvidersList)
+                    .map(TopologyEntity::getTopologyEntityImpl)
+                    .map(TopologyEntityView::getCommoditiesBoughtFromProvidersList)
                     .flatMap(List::stream)
-                    .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+                    .map(CommoditiesBoughtFromProviderView::getCommodityBoughtList)
                     .flatMap(List::stream)
-                    .filter(CommodityBoughtDTO::getActive);
+                    .filter(CommodityBoughtView::getActive);
     }
 
-    private Stream<CommoditySoldDTO> getActiveCommoditiesSold(TopologyGraph<TopologyEntity> editedGraph) {
+    private Stream<CommoditySoldView> getActiveCommoditiesSold(TopologyGraph<TopologyEntity> editedGraph) {
         return editedGraph.entities()
-                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                    .map(Builder::getCommoditySoldListList)
+                    .map(TopologyEntity::getTopologyEntityImpl)
+                    .map(TopologyEntityView::getCommoditySoldListList)
                     .flatMap(List::stream)
-                    .filter(CommoditySoldDTO::getActive);
+                    .filter(CommoditySoldView::getActive);
     }
 
     /**

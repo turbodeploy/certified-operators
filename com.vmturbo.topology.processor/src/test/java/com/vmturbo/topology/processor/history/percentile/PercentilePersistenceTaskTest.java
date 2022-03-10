@@ -41,7 +41,8 @@ import com.vmturbo.common.protobuf.stats.Stats.SetPercentileCountsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -147,9 +148,9 @@ public class PercentilePersistenceTaskTest {
         Map<EntityCommodityFieldReference, PercentileRecord> comms = task
                         .load(Collections.emptyList(), config, oidsToUse);
         Assert.assertNotNull(comms);
-        final CommodityType commType1 = CommodityType.newBuilder().setType(ct1).build();
-        final CommodityType commType2 = CommodityType.newBuilder().setType(ct2).build();
-        final CommodityType commType3 = CommodityType.newBuilder().setType(ct2).setKey(key).build();
+        final CommodityTypeView commType1 = new CommodityTypeImpl().setType(ct1);
+        final CommodityTypeView commType2 = new CommodityTypeImpl().setType(ct2);
+        final CommodityTypeView commType3 = new CommodityTypeImpl().setType(ct2).setKey(key);
         Assert.assertTrue(comms
                         .containsKey(new EntityCommodityFieldReference(oid1, commType1,
                                                                        CommodityField.USED)));
@@ -206,9 +207,9 @@ public class PercentilePersistenceTaskTest {
         Map<EntityCommodityFieldReference, PercentileRecord> comms = task
             .load(Collections.emptyList(), config, oidsToUse);
         Assert.assertNotNull(comms);
-        final CommodityType commType1 = CommodityType.newBuilder().setType(ct1).build();
-        final CommodityType commType2 = CommodityType.newBuilder().setType(ct2).build();
-        final CommodityType commType3 = CommodityType.newBuilder().setType(ct2).setKey(key).build();
+        final CommodityTypeView commType1 = new CommodityTypeImpl().setType(ct1);
+        final CommodityTypeView commType2 = new CommodityTypeImpl().setType(ct2);
+        final CommodityTypeView commType3 = new CommodityTypeImpl().setType(ct2).setKey(key);
         Assert.assertTrue(comms
             .containsKey(new EntityCommodityFieldReference(oid1, commType1,
                 CommodityField.USED)));

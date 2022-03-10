@@ -13,8 +13,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -65,14 +66,14 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
                      @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
 
        entities.forEach(entity -> {
-           final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
+           final TopologyEntityImpl entityImpl = entity.getTopologyEntityImpl();
 
            final long entityOid = entity.getOid();
-           final Map<CommoditySoldDTO.Builder, Double> overprovisionedToSourceCapacity =
-               getEligibleCommodities(entityBuilder.getCommoditySoldListBuilderList())
+           final Map<CommoditySoldImpl, Double> overprovisionedToSourceCapacity =
+               getEligibleCommodities(entityImpl.getCommoditySoldListImplList())
                    .map(overprovisionedCommodity -> new CommodityPair(overprovisionedCommodity,
                        findMatchingSource(overprovisionedCommodity.getCommodityType().getKey(),
-                           entityOid, entityBuilder.getCommoditySoldListList())))
+                           entityOid, entityImpl.getCommoditySoldListList())))
                    .filter(commodityPair -> commodityPair.source.isPresent())
                    .collect(Collectors.toMap(commodityPair -> commodityPair.overprovisioned,
                        commodityPair -> commodityPair.source.get().getCapacity()));
@@ -122,7 +123,7 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
      * @param commodity The commodity builder to check
      * @return true if the commodity builder should set a new capacity, and false otherwise
      */
-    private boolean canUpdateCapacity(@Nonnull final CommoditySoldDTO.Builder commodity) {
+    private boolean canUpdateCapacity(@Nonnull final CommoditySoldView commodity) {
         return !commodity.hasCapacity() || commodity.getCapacity() <= 0 || shouldOverwriteCapacity();
     }
 
@@ -132,7 +133,7 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
      * @return true if it is the overprovisioned commodity type, false otherwise
      */
     private boolean commodityIsOverprovisionedType(
-        @Nonnull final CommoditySoldDTO.Builder commodity) {
+        @Nonnull final CommoditySoldView commodity) {
         return commodity.getCommodityType().getType() == overprovCommodityType.getNumber();
     }
 
@@ -146,7 +147,7 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
      *         source type.
      *
      */
-    private boolean isMatchingSourceCommodity(@Nonnull final CommoditySoldDTO commodity,
+    private boolean isMatchingSourceCommodity(@Nonnull final CommoditySoldView commodity,
                                               @Nonnull final String key) {
         return (commodity.getCommodityType().getType() == sourceCommodityType.getNumber()) &&
             // If we're not matching commodity key, ignore the keys completely.
@@ -165,9 +166,9 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
      * @return an empty optional if there is no matching source commodity, or an optional of the
      * matching source commodity.
      */
-    private Optional<CommoditySoldDTO> findMatchingSource(@Nonnull final String key, final long oid,
-                                             @Nonnull final List<CommoditySoldDTO> allCommodities) {
-        Optional<CommoditySoldDTO> found = allCommodities.stream()
+    private Optional<CommoditySoldView> findMatchingSource(@Nonnull final String key, final long oid,
+                                             @Nonnull final List<CommoditySoldView> allCommodities) {
+        Optional<CommoditySoldView> found = allCommodities.stream()
             .filter(commodity -> isMatchingSourceCommodity(commodity, key))
             /* the IllegalStateException is thrown if there are multiple commodities with the same
             type and key, which should not happen. */
@@ -207,8 +208,8 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
      * @return list of all the commodities from the original list that are of the overprovisioned
      *         type and are eligible for capacity updates
      */
-    private Stream<CommoditySoldDTO.Builder> getEligibleCommodities(
-                            @Nonnull final List<CommoditySoldDTO.Builder> commodityBuilders) {
+    private Stream<CommoditySoldImpl> getEligibleCommodities(
+                            @Nonnull final List<CommoditySoldImpl> commodityBuilders) {
         return commodityBuilders.stream().filter(commodity ->
             commodityIsOverprovisionedType(commodity) && canUpdateCapacity(commodity));
     }
@@ -232,11 +233,11 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
      *
      */
     private static class CommodityPair {
-        public final CommoditySoldDTO.Builder overprovisioned;
-        public final Optional<CommoditySoldDTO> source;
+        public final CommoditySoldImpl overprovisioned;
+        public final Optional<CommoditySoldView> source;
 
-        public CommodityPair(@Nonnull final CommoditySoldDTO.Builder overprovisioned,
-                             @Nonnull final Optional<CommoditySoldDTO> source) {
+        public CommodityPair(@Nonnull final CommoditySoldImpl overprovisioned,
+                             @Nonnull final Optional<CommoditySoldView> source) {
             this.overprovisioned = Objects.requireNonNull(overprovisioned);
             this.source = Objects.requireNonNull(source);
         }

@@ -30,10 +30,10 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import io.grpc.stub.StreamObserver;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.EntityProfileToDeploymentProfile;
@@ -41,7 +41,7 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTem
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse.TargetProfileIdentities;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateTargetDiscoveredTemplateDeploymentProfileRequest;
 import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServiceGrpc.DiscoveredTemplateDeploymentProfileServiceStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.ProfileDTO.DeploymentProfileDTO;
@@ -441,14 +441,14 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
         for (TopologyEntity.Builder entity : topology.values()) {
             // only one case of patching for now - no generalization
             if (entity.getEntityType() == EntityType.DESKTOP_POOL_VALUE) {
-                TopologyEntityDTO.Builder builder = entity.getEntityBuilder();
+                TopologyEntityImpl builder = entity.getTopologyEntityImpl();
                 String masterImageVendorId = builder
                     .getEntityPropertyMapOrDefault(DesktopPoolInfoMapper.DESKTOP_POOL_TEMPLATE_REFERENCE,
                                                    null);
                 if (masterImageVendorId != null) {
                     Set<Long> targets = Sets
                             .union(target2profileId2oid.keySet(),
-                                   entity.getEntityBuilder().getOrigin()
+                                   entity.getTopologyEntityImpl().getOrigin()
                                                    .getDiscoveryOrigin()
                                                    .getDiscoveredTargetDataMap().keySet());
                     Long templateOid = null;
@@ -459,8 +459,8 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
                                 logger.trace("Patched template reference '{}' for desktop pool {} into {}",
                                              masterImageVendorId, entity.getOid(), templateOid);
                             }
-                            builder.getTypeSpecificInfoBuilder()
-                                            .getDesktopPoolBuilder()
+                            builder.getOrCreateTypeSpecificInfo()
+                                            .getOrCreateDesktopPool()
                                             .setTemplateReferenceId(templateOid);
                             break;
                         }

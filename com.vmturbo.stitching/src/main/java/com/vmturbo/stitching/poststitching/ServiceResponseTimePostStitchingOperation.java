@@ -8,7 +8,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -71,8 +71,8 @@ public class ServiceResponseTimePostStitchingOperation implements PostStitchingO
     }
 
     private void updateServiceResponseTime(@Nonnull final TopologyEntity service) {
-        final TopologyEntityDTO.Builder serviceBuilder = service.getTopologyEntityDtoBuilder();
-        final long replicas = serviceBuilder.getCommoditiesBoughtFromProvidersBuilderList().stream()
+        final TopologyEntityImpl serviceBuilder = service.getTopologyEntityImpl();
+        final long replicas = serviceBuilder.getCommoditiesBoughtFromProvidersList().stream()
                 .filter(commsBought -> commsBought.getProviderEntityType() == EntityType.APPLICATION_COMPONENT_VALUE)
                 .filter(commsBought -> commsBought.getCommodityBoughtList().stream()
                         .anyMatch(boughtComm -> boughtComm.getCommodityType().getType() == CommodityType.RESPONSE_TIME_VALUE
@@ -83,7 +83,7 @@ public class ServiceResponseTimePostStitchingOperation implements PostStitchingO
                     + "from any of its providers.", service.getOid());
             return;
         }
-        serviceBuilder.getCommoditySoldListBuilderList().stream()
+        serviceBuilder.getCommoditySoldListImplList().stream()
                 .filter(soldComm -> soldComm.getCommodityType().getType() == CommodityType.RESPONSE_TIME_VALUE)
                 .forEach(responseTimeComm -> {
                     logger.debug("Setting ResponseTime used for service {} by averaging total value {} "

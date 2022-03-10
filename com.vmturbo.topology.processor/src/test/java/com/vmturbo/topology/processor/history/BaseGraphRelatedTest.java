@@ -13,17 +13,18 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.PerTargetEntityInformationImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.UtilizationDataImpl;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
@@ -67,21 +68,21 @@ public abstract class BaseGraphRelatedTest {
      * @return mocked entity
      */
     @Nonnull
-    protected static TopologyEntity mockEntity(int type, long oid, @Nonnull CommodityType ctSold,
+    protected static TopologyEntity mockEntity(int type, long oid, @Nonnull CommodityTypeImpl ctSold,
                     double capacitySold, @Nullable Double usedSold, @Nullable Long provider,
-                                               @Nullable CommodityType ctBought,
-                    @Nullable Double usedBought, @Nullable UtilizationData utilizationData,
+                                               @Nullable CommodityTypeImpl ctBought,
+                    @Nullable Double usedBought, @Nullable UtilizationDataImpl utilizationData,
                     boolean resizable) {
         TopologyEntity e = Mockito.mock(TopologyEntity.class);
         Mockito.when(e.getEntityType()).thenReturn(type);
         Mockito.when(e.getOid()).thenReturn(oid);
         Mockito.when(e.getClonedFromEntity()).thenReturn(Optional.empty());
-        TopologyEntityDTO.Builder entityBuilder = TopologyEntityDTO.newBuilder();
-        entityBuilder.setOid(oid).setEntityType(type);
-        final CommoditySoldDTO.Builder commSold =
-                        entityBuilder.addCommoditySoldListBuilder().setCommodityType(ctSold)
-                                        .setCapacity(capacitySold)
-                                        .setIsResizeable(resizable);
+        TopologyEntityImpl entityImpl = new TopologyEntityImpl();
+        entityImpl.setOid(oid).setEntityType(type);
+        final CommoditySoldImpl commSold = new CommoditySoldImpl().setCommodityType(ctSold)
+                .setCapacity(capacitySold)
+                .setIsResizeable(resizable);
+        entityImpl.addCommoditySoldList(commSold);
         if (usedSold != null) {
             commSold.setUsed(usedSold);
         }
@@ -89,11 +90,14 @@ public abstract class BaseGraphRelatedTest {
             commSold.setUtilizationData(utilizationData);
         }
         if (provider != null) {
-            entityBuilder.addCommoditiesBoughtFromProvidersBuilder().setProviderId(provider)
-                            .addCommodityBoughtBuilder().setCommodityType(ctBought)
-                            .setUsed(usedBought);
+            entityImpl.addCommoditiesBoughtFromProviders(
+                    new CommoditiesBoughtFromProviderImpl()
+                            .setProviderId(provider)
+                            .addCommodityBought(new CommodityBoughtImpl()
+                                            .setCommodityType(ctBought)
+                                            .setUsed(usedBought)));
         }
-        Mockito.when(e.getTopologyEntityDtoBuilder()).thenReturn(entityBuilder);
+        Mockito.when(e.getTopologyEntityImpl()).thenReturn(entityImpl);
         return e;
     }
 
@@ -139,19 +143,16 @@ public abstract class BaseGraphRelatedTest {
     protected static void addEntityWithSetting(long entityOid, int entityType,
                                                @Nonnull EntitySettingSpecs entitySettingSpecs,
                                                long value,
-                                               @Nonnull Map<Long, Builder> topologyBuilderMap,
+                                               @Nonnull Map<Long, TopologyEntity.Builder> topologyBuilderMap,
                                                @Nonnull Map<Long, EntitySettings> entitySettings) {
-        topologyBuilderMap.put(entityOid, TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        topologyBuilderMap.put(entityOid, TopologyEntity.newBuilder(new TopologyEntityImpl()
                 .setOid(entityOid)
                 .setEntityType(entityType)
-                .setOrigin(Origin.newBuilder()
-                        .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                .setOrigin(new OriginImpl()
+                        .setDiscoveryOrigin(new DiscoveryOriginImpl()
                                 .putDiscoveredTargetData(TARGET_ID,
-                                        PerTargetEntityInformation.newBuilder()
-                                                .setOrigin(EntityOrigin.DISCOVERED)
-                                                .build())
-                                .build())
-                        .build())));
+                                        new PerTargetEntityInformationImpl()
+                                                .setOrigin(EntityOrigin.DISCOVERED))))));
         entitySettings.put(entityOid,
                            createEntitySetting(entityOid, value, entitySettingSpecs));
     }

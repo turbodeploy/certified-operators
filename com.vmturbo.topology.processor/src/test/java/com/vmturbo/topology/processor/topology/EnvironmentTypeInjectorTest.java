@@ -24,18 +24,19 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ReservationOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.PerTargetEntityInformationImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.PlanScenarioOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ReservationOriginImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -81,10 +82,9 @@ public class EnvironmentTypeInjectorTest {
 
     @Test
     public void testDiscoveredCloudEntity() {
-        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
-            .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                .putDiscoveredTargetData(AWS_TARGET_ID,
-                    PerTargetEntityInformation.getDefaultInstance()))));
+        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(new OriginImpl()
+            .setDiscoveryOrigin(new DiscoveryOriginImpl()
+                .putDiscoveredTargetData(AWS_TARGET_ID,new PerTargetEntityInformationImpl()))));
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
@@ -99,9 +99,9 @@ public class EnvironmentTypeInjectorTest {
 
     @Test
     public void testDiscoveredOnPremEntity() {
-        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
-            .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                .putDiscoveredTargetData(VC_TARGET_ID, PerTargetEntityInformation.getDefaultInstance()))));
+        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(new OriginImpl()
+            .setDiscoveryOrigin(new DiscoveryOriginImpl()
+                .putDiscoveredTargetData(VC_TARGET_ID, new TopologyPOJO.PerTargetEntityInformationImpl()))));
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
@@ -115,14 +115,12 @@ public class EnvironmentTypeInjectorTest {
 
     @Test
     public void testDiscoveredStitchToCloudEntity() {
-        Map<Long, Builder> topologyEntitiesMap = new HashMap<>();
-        TopologyEntity.Builder vm1 = TopologyEntity
-            .newBuilder(TopologyEntityDTO.newBuilder()
+        Map<Long, TopologyEntity.Builder> topologyEntitiesMap = new HashMap<>();
+        TopologyEntity.Builder vm1 = TopologyEntity.newBuilder(new TopologyEntityImpl()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOid(VM_OID)
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
-                    .newBuilder().putDiscoveredTargetData(AWS_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance()))));
+                .setOrigin(new OriginImpl().setDiscoveryOrigin(new DiscoveryOriginImpl()
+                        .putDiscoveredTargetData(AWS_TARGET_ID, new PerTargetEntityInformationImpl()))));
         TopologyEntity.Builder container1 = TopologyEntity.newBuilder(
                 newEntityBuilder(K8S_TARGET_ID, vm1.getOid())
                         .setEntityType(EntityType.CONTAINER_VALUE)
@@ -147,12 +145,12 @@ public class EnvironmentTypeInjectorTest {
     public void testDiscoveredStitchToOnPremEntity() {
         Map<Long, TopologyEntity.Builder> topologyEntitiesMap = new HashMap<>();
         TopologyEntity.Builder vm1 = TopologyEntity
-            .newBuilder(TopologyEntityDTO.newBuilder()
+            .newBuilder(new TopologyEntityImpl()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOid(VM_OID)
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
-                    .newBuilder().putDiscoveredTargetData(VC_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance()))));
+                .setOrigin(new OriginImpl().setDiscoveryOrigin(new DiscoveryOriginImpl()
+                    .putDiscoveredTargetData(VC_TARGET_ID,
+                            new PerTargetEntityInformationImpl()))));
         TopologyEntity.Builder container1 = TopologyEntity.newBuilder(
                 newEntityBuilder(K8S_TARGET_ID, vm1.getOid())
                         .setEntityType(EntityType.CONTAINER_VALUE)
@@ -183,12 +181,12 @@ public class EnvironmentTypeInjectorTest {
     public void testWorkloadControllerTraversal() {
         Map<Long, TopologyEntity.Builder> topologyEntitiesMap = new HashMap<>();
         TopologyEntity.Builder vm1 = TopologyEntity
-            .newBuilder(TopologyEntityDTO.newBuilder()
+            .newBuilder(new TopologyEntityImpl()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOid(VM_OID)
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
-                    .newBuilder().putDiscoveredTargetData(AWS_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance()))));
+                .setOrigin(new OriginImpl().setDiscoveryOrigin(new DiscoveryOriginImpl()
+                        .putDiscoveredTargetData(AWS_TARGET_ID,
+                                new PerTargetEntityInformationImpl()))));
         TopologyEntity.Builder workloadController = TopologyEntity.newBuilder(
                 newEntityBuilder(K8S_TARGET_ID)
                         .setEntityType(EntityType.WORKLOAD_CONTROLLER_VALUE)
@@ -228,14 +226,14 @@ public class EnvironmentTypeInjectorTest {
     public void testContainerSpecTraversal() {
         Map<Long, TopologyEntity.Builder> topologyEntitiesMap = new HashMap<>();
         TopologyEntity.Builder vm1 = TopologyEntity
-            .newBuilder(TopologyEntityDTO.newBuilder()
+            .newBuilder(new TopologyEntityImpl()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOid(VM_OID)
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                .setOrigin(new OriginImpl().setDiscoveryOrigin(new DiscoveryOriginImpl()
                         .putDiscoveredTargetData(AWS_TARGET_ID,
-                                PerTargetEntityInformation.getDefaultInstance())
+                                new PerTargetEntityInformationImpl())
                         .putDiscoveredTargetData(K8S_TARGET_ID,
-                                PerTargetEntityInformation.getDefaultInstance()))));
+                                new PerTargetEntityInformationImpl()))));
         TopologyEntity.Builder containerSpec = TopologyEntity.newBuilder(newEntityBuilder(K8S_TARGET_ID)
             .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
             .setOid(CONTAINER_SPEC_OID));
@@ -247,7 +245,7 @@ public class EnvironmentTypeInjectorTest {
                 newEntityBuilder(K8S_TARGET_ID, pod.getOid())
                         .setEntityType(EntityType.CONTAINER_VALUE)
                         .setOid(CONTAINER_OID)
-                        .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
+                        .addConnectedEntityList(new TopologyEntityImpl.ConnectedEntityImpl()
                                 .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION)
                                 .setConnectedEntityId(containerSpec.getOid())
                                 .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)));
@@ -284,14 +282,14 @@ public class EnvironmentTypeInjectorTest {
     public void testVirtualVolumeTraversal() {
         Map<Long, TopologyEntity.Builder> topologyEntitiesMap = new HashMap<>();
         TopologyEntity.Builder vm1 = TopologyEntity
-                .newBuilder(TopologyEntityDTO.newBuilder()
+                .newBuilder(new TopologyEntityImpl()
                         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .setOid(VM_OID)
-                        .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                        .setOrigin(new OriginImpl().setDiscoveryOrigin(new DiscoveryOriginImpl()
                                 .putDiscoveredTargetData(AWS_TARGET_ID,
-                                        PerTargetEntityInformation.getDefaultInstance())
+                                        new PerTargetEntityInformationImpl())
                                 .putDiscoveredTargetData(K8S_TARGET_ID,
-                                        PerTargetEntityInformation.getDefaultInstance()))));
+                                        new PerTargetEntityInformationImpl()))));
         TopologyEntity.Builder vv = TopologyEntity.newBuilder(newEntityBuilder(K8S_TARGET_ID)
                 .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                 .setOid(VV_OID));
@@ -334,23 +332,23 @@ public class EnvironmentTypeInjectorTest {
                 .setEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
                 .setOid(CONTAINER_PLATFORM_CLUSTER_OID));
         TopologyEntity.Builder vm = TopologyEntity
-            .newBuilder(TopologyEntityDTO.newBuilder()
+            .newBuilder(new TopologyEntityImpl()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOid(VM_OID)
-                .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
+                .addConnectedEntityList(new TopologyEntityImpl.ConnectedEntityImpl()
                     .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                     .setConnectedEntityId(CONTAINER_PLATFORM_CLUSTER_OID)
                     .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE))
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                .setOrigin(new OriginImpl().setDiscoveryOrigin(new DiscoveryOriginImpl()
                     .putDiscoveredTargetData(VC_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance())
+                            new PerTargetEntityInformationImpl())
                     .putDiscoveredTargetData(K8S_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance()))));
+                            new PerTargetEntityInformationImpl()))));
         TopologyEntity.Builder namespace = TopologyEntity
             .newBuilder(newEntityBuilder(K8S_TARGET_ID)
                 .setEntityType(EntityType.NAMESPACE_VALUE)
                 .setOid(NAMESPACE_OID)
-                .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
+                .addConnectedEntityList(new TopologyEntityImpl.ConnectedEntityImpl()
                     .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                     .setConnectedEntityId(CONTAINER_PLATFORM_CLUSTER_OID)
                     .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)));
@@ -391,36 +389,36 @@ public class EnvironmentTypeInjectorTest {
                 .setEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
                 .setOid(CONTAINER_PLATFORM_CLUSTER_OID));
         TopologyEntity.Builder vm1 = TopologyEntity
-            .newBuilder(TopologyEntityDTO.newBuilder()
+            .newBuilder(new TopologyEntityImpl()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOid(VM_OID)
-                .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
+                .addConnectedEntityList(new TopologyEntityImpl.ConnectedEntityImpl()
                     .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                     .setConnectedEntityId(CONTAINER_PLATFORM_CLUSTER_OID)
                     .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE))
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                .setOrigin(new OriginImpl().setDiscoveryOrigin(new DiscoveryOriginImpl()
                     .putDiscoveredTargetData(VC_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance())
+                            new PerTargetEntityInformationImpl())
                     .putDiscoveredTargetData(K8S_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance()))));
+                            new PerTargetEntityInformationImpl()))));
         TopologyEntity.Builder vm2 = TopologyEntity
-            .newBuilder(TopologyEntityDTO.newBuilder()
+            .newBuilder(new TopologyEntityImpl()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOid(VM2_OID)
-                .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
+                .addConnectedEntityList(new TopologyEntityImpl.ConnectedEntityImpl()
                     .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                     .setConnectedEntityId(CONTAINER_PLATFORM_CLUSTER_OID)
                     .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE))
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                .setOrigin(new OriginImpl().setDiscoveryOrigin(new DiscoveryOriginImpl()
                     .putDiscoveredTargetData(AWS_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance())
+                            new PerTargetEntityInformationImpl())
                     .putDiscoveredTargetData(K8S_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance()))));
+                            new PerTargetEntityInformationImpl()))));
         TopologyEntity.Builder namespace = TopologyEntity
             .newBuilder(newEntityBuilder(K8S_TARGET_ID)
                 .setEntityType(EntityType.NAMESPACE_VALUE)
                 .setOid(NAMESPACE_OID)
-                .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
+                .addConnectedEntityList(new TopologyEntityImpl.ConnectedEntityImpl()
                     .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                     .setConnectedEntityId(CONTAINER_PLATFORM_CLUSTER_OID)
                     .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)));
@@ -455,12 +453,12 @@ public class EnvironmentTypeInjectorTest {
     public void testAPMStitched() {
         Map<Long, TopologyEntity.Builder> topologyEntitiesMap = new HashMap<>();
         TopologyEntity.Builder vm = TopologyEntity
-                .newBuilder(TopologyEntityDTO.newBuilder()
+                .newBuilder(new TopologyEntityImpl()
                         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .setOid(VM_OID)
-                        .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                        .setOrigin(new OriginImpl().setDiscoveryOrigin(new DiscoveryOriginImpl()
                                 .putDiscoveredTargetData(AWS_TARGET_ID,
-                                        PerTargetEntityInformation.getDefaultInstance()))));
+                                        new PerTargetEntityInformationImpl()))));
         TopologyEntity.Builder appComponent = TopologyEntity.newBuilder(
                 newEntityBuilder(APPDYNAMICS_TARGET_ID, vm.getOid())
                         .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
@@ -549,8 +547,8 @@ public class EnvironmentTypeInjectorTest {
 
     @Test
     public void testPlanEntity() {
-        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
-            .setPlanScenarioOrigin(PlanScenarioOrigin.newBuilder()
+        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(new OriginImpl()
+            .setPlanScenarioOrigin(new PlanScenarioOriginImpl()
                 .setPlanId(1111))));
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
@@ -565,8 +563,8 @@ public class EnvironmentTypeInjectorTest {
 
     @Test
     public void testReservationEntity() {
-        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
-            .setReservationOrigin(ReservationOrigin.newBuilder()
+        final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(new OriginImpl()
+            .setReservationOrigin(new ReservationOriginImpl()
                 .setReservationId(112))));
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
@@ -598,10 +596,10 @@ public class EnvironmentTypeInjectorTest {
     public void testOverrideSetUnknownEnvType() {
         final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> {
             builder.setEnvironmentType(EnvironmentType.UNKNOWN_ENV);
-            builder.setOrigin(Origin.newBuilder()
-                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+            builder.setOrigin(new OriginImpl()
+                .setDiscoveryOrigin(new DiscoveryOriginImpl()
                     .putDiscoveredTargetData(AWS_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance())));
+                            new PerTargetEntityInformationImpl())));
         });
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
@@ -620,10 +618,10 @@ public class EnvironmentTypeInjectorTest {
         final long targetId = 1;
         final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> {
             builder.setEnvironmentType(EnvironmentType.ON_PREM);
-            builder.setOrigin(Origin.newBuilder()
-                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+            builder.setOrigin(new OriginImpl()
+                .setDiscoveryOrigin(new DiscoveryOriginImpl()
                     .putDiscoveredTargetData(targetId,
-                        PerTargetEntityInformation.getDefaultInstance())));
+                            new PerTargetEntityInformationImpl())));
         });
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
@@ -639,20 +637,20 @@ public class EnvironmentTypeInjectorTest {
     }
 
     @Nonnull
-    private static TopologyEntityDTO.Builder newEntityBuilder(long targetId, long... providerIds) {
-        return TopologyEntityDTO.newBuilder()
+    private static TopologyEntityImpl newEntityBuilder(long targetId, long... providerIds) {
+        return new TopologyEntityImpl()
             .addAllCommoditiesBoughtFromProviders(Arrays.stream(providerIds)
-                    .mapToObj(id -> TopologyEntityDTO.CommoditiesBoughtFromProvider
-                        .newBuilder().setProviderId(id).build())
+                    .mapToObj(id -> new CommoditiesBoughtFromProviderImpl()
+                        .setProviderId(id))
                     .collect(Collectors.toList()))
-            .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
-                .newBuilder().putDiscoveredTargetData(targetId,
-                    PerTargetEntityInformation.getDefaultInstance())));
+            .setOrigin(new OriginImpl().setDiscoveryOrigin(new DiscoveryOriginImpl()
+                .putDiscoveredTargetData(targetId,
+                        new PerTargetEntityInformationImpl())));
     }
 
     @Nonnull
-    private TopologyGraph<TopologyEntity> oneEntityGraph(final Consumer<TopologyEntityDTO.Builder> entityCustomizer) {
-        final TopologyEntityDTO.Builder entityBuilder = TopologyEntityDTO.newBuilder()
+    private TopologyGraph<TopologyEntity> oneEntityGraph(final Consumer<TopologyEntityImpl> entityCustomizer) {
+        final TopologyEntityImpl entityBuilder = new TopologyEntityImpl()
             .setOid(VM_OID)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
         entityCustomizer.accept(entityBuilder);

@@ -5,9 +5,9 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ContainerPodInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.ContainerPodInfoView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoView;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -54,7 +54,7 @@ public class CloudNativeAppCPUFrequencyPostStitchingOperation implements PostSti
 
     private boolean hasNoNodeCpuFrequency(@Nonnull final TopologyEntity application) {
         return !application
-                .getTopologyEntityDtoBuilder()
+                .getTopologyEntityImpl()
                 .getTypeSpecificInfo()
                 .getApplication()
                 .hasHostingNodeCpuFrequency();
@@ -66,16 +66,16 @@ public class CloudNativeAppCPUFrequencyPostStitchingOperation implements PostSti
                 .map(TopologyEntity::getProviders)
                 .flatMap(List::stream)
                 .filter(provider -> provider.getEntityType() == EntityType.CONTAINER_POD_VALUE)
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                .map(TopologyEntityDTO.Builder::getTypeSpecificInfo)
-                .map(TypeSpecificInfo::getContainerPod)
-                .filter(ContainerPodInfo::hasHostingNodeCpuFrequency)
-                .map(ContainerPodInfo::getHostingNodeCpuFrequency)
+                .map(TopologyEntity::getTopologyEntityImpl)
+                .map(TopologyEntityImpl::getTypeSpecificInfo)
+                .map(TypeSpecificInfoView::getContainerPod)
+                .filter(ContainerPodInfoView::hasHostingNodeCpuFrequency)
+                .map(ContainerPodInfoView::getHostingNodeCpuFrequency)
                 .findFirst()
                 .ifPresent(nodeCpuFreq -> application
-                        .getTopologyEntityDtoBuilder()
-                        .getTypeSpecificInfoBuilder()
-                        .getApplicationBuilder()
+                        .getTopologyEntityImpl()
+                        .getOrCreateTypeSpecificInfo()
+                        .getOrCreateApplication()
                         .setHostingNodeCpuFrequency(nodeCpuFreq));
     }
 }

@@ -13,8 +13,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
@@ -44,7 +44,7 @@ public class UtilizationCountStoreTest {
     public void setUp() throws HistoryCalculationException {
         ref =
             new EntityCommodityFieldReference(134L,
-                                              CommodityType.newBuilder().setKey("efds").setType(12).build(),
+                                              new CommodityTypeImpl().setKey("efds").setType(12),
                                               4857L, CommodityField.USED);
         clock = Mockito.mock(Clock.class);
         Mockito.when(clock.millis()).thenReturn(Instant.now().toEpochMilli());

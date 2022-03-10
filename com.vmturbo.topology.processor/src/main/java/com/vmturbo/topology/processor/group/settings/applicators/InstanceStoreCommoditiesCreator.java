@@ -22,8 +22,9 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.StringUtils;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.ComputeTierInfoView;
 import com.vmturbo.mediation.util.units.MemoryUnit;
 import com.vmturbo.mediation.util.units.ValueWithUnitFactory;
 import com.vmturbo.platform.common.builders.SDKConstants;
@@ -44,28 +45,28 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
  */
 public abstract class InstanceStoreCommoditiesCreator<B> {
     /**
-     * Checks whether {@link ComputeTierInfo} instance has information about instance disk type.
+     * Checks whether {@link ComputeTierInfoView} instance has information about instance disk type.
      */
-    protected static final Predicate<ComputeTierInfo> INSTANCE_DISK_TYPE_PREDICATE =
+    protected static final Predicate<ComputeTierInfoView> INSTANCE_DISK_TYPE_PREDICATE =
                     (cti) -> cti.hasInstanceDiskType()
                                     && cti.getInstanceDiskType() != InstanceDiskType.NONE;
     /**
-     * Checks whether {@link ComputeTierInfo} instance has information about number of instance
+     * Checks whether {@link ComputeTierInfoView} instance has information about number of instance
      * disks.
      */
-    protected static final Predicate<ComputeTierInfo> INSTANCE_DISK_COUNTS_PREDICATE =
+    protected static final Predicate<ComputeTierInfoView> INSTANCE_DISK_COUNTS_PREDICATE =
                     (cti) -> cti.getInstanceDiskCountsCount() > 0;
     /**
-     * Checks whether {@link ComputeTierInfo} instance has information about instance disk size.
+     * Checks whether {@link ComputeTierInfoView} instance has information about instance disk size.
      */
-    protected static final Predicate<ComputeTierInfo> INSTANCE_DISK_SIZE_PREDICATE =
+    protected static final Predicate<ComputeTierInfoView> INSTANCE_DISK_SIZE_PREDICATE =
                     (cti) -> cti.hasInstanceDiskSizeGb() && cti.getInstanceDiskSizeGb() > 0;
     private static final Collection<Integer> INSTANCE_COMMODITY_TYPES =
                     ImmutableSet.of(CommodityDTO.CommodityType.INSTANCE_DISK_SIZE_VALUE,
                                     CommodityDTO.CommodityType.INSTANCE_DISK_TYPE_VALUE);
 
     private final Supplier<B> builderCreator;
-    private final BiConsumer<B, CommodityType> commodityTypeSetter;
+    private final BiConsumer<B, CommodityTypeView> commodityTypeSetter;
     private final BiConsumer<B, Number> valueSetter;
     private final Function<B, B> builderTransformer;
     private final Function<B, Integer> commodityTypeGetter;
@@ -83,7 +84,7 @@ public abstract class InstanceStoreCommoditiesCreator<B> {
      * @param commodityTypeGetter extracts information about commodity type.
      */
     protected InstanceStoreCommoditiesCreator(@Nonnull Supplier<B> builderCreator,
-                    @Nonnull BiConsumer<B, CommodityType> commodityTypeSetter,
+                    @Nonnull BiConsumer<B, CommodityTypeView> commodityTypeSetter,
                     @Nonnull BiConsumer<B, Number> valueSetter,
                     @Nonnull Function<B, B> builderTransformer,
                     @Nonnull Function<B, Integer> commodityTypeGetter) {
@@ -112,7 +113,7 @@ public abstract class InstanceStoreCommoditiesCreator<B> {
      */
     @Nonnull
     protected <E> Collection<B> create(@Nonnull Function<E, Collection<B>> commoditiesExtractor,
-                    @Nonnull E entityToUpdate, @Nonnull ComputeTierInfo computeTierInfo,
+                    @Nonnull E entityToUpdate, @Nonnull ComputeTierInfoView computeTierInfo,
             @Nullable final Integer usedEphemeralDisks) {
         final Collection<B> commodities = commoditiesExtractor.apply(entityToUpdate);
         if (commodities.stream().anyMatch(c -> INSTANCE_COMMODITY_TYPES
@@ -142,21 +143,21 @@ public abstract class InstanceStoreCommoditiesCreator<B> {
     }
 
     /**
-     * Returns size of the disk, extracted from {@link ComputeTierInfo} instance.
+     * Returns size of the disk, extracted from {@link ComputeTierInfoView} instance.
      *
      * @param computeTierInfo which reflects template information.
      * @return size of the disk.
      */
     private static Optional<? extends Number> getInstanceStoreDiskSize(
-                    @Nonnull ComputeTierInfo computeTierInfo) {
+                    @Nonnull ComputeTierInfoView computeTierInfo) {
         return Optional.of(computeTierInfo).filter(INSTANCE_DISK_SIZE_PREDICATE)
-                        .map(ComputeTierInfo::getInstanceDiskSizeGb)
+                        .map(ComputeTierInfoView::getInstanceDiskSizeGb)
                         .map(sizeGb -> ValueWithUnitFactory.gigaBytes(sizeGb)
                                         .convertTo(MemoryUnit.MegaByte));
     }
 
     /**
-     * Returns number of the disks, available for the {@link ComputeTierInfo} instance.
+     * Returns number of the disks, available for the {@link ComputeTierInfoView} instance.
      * Normally 1 disk count is returned (e.g for AWS instance store), but could be multiple counts
      * as well as in case of GCP.
      *
@@ -165,23 +166,23 @@ public abstract class InstanceStoreCommoditiesCreator<B> {
      */
     @Nonnull
     private static List<Integer> getInstanceDiskCounts(
-                    @Nonnull ComputeTierInfo computeTierInfo) {
+                    @Nonnull ComputeTierInfoView computeTierInfo) {
         return Optional.of(computeTierInfo).filter(INSTANCE_DISK_COUNTS_PREDICATE)
-                        .map(ComputeTierInfo::getInstanceDiskCountsList)
+                        .map(ComputeTierInfoView::getInstanceDiskCountsList)
                 .orElse(Collections.emptyList());
     }
 
     /**
-     * Returns disk type, available for the {@link ComputeTierInfo} instance.
+     * Returns disk type, available for the {@link ComputeTierInfoView} instance.
      *
      * @param computeTierInfo which reflects template information.
      * @return disk type, available for template.
      */
     @Nonnull
     private static Optional<String> getInstanceStoreDiskType(
-                    @Nonnull ComputeTierInfo computeTierInfo) {
+                    @Nonnull ComputeTierInfoView computeTierInfo) {
         return Optional.of(computeTierInfo).filter(INSTANCE_DISK_TYPE_PREDICATE)
-                        .map(ComputeTierInfo::getInstanceDiskType).map(Enum::name);
+                        .map(ComputeTierInfoView::getInstanceDiskType).map(Enum::name);
     }
 
     /**
@@ -205,14 +206,14 @@ public abstract class InstanceStoreCommoditiesCreator<B> {
     }
 
     @Nonnull
-    private static CommodityType createCommodityType(
+    private static CommodityTypeView createCommodityType(
                     @Nonnull CommodityDTO.CommodityType commodityType, @Nullable String key) {
-        final CommodityType.Builder builder =
-                        CommodityType.newBuilder().setType(commodityType.getNumber());
+        final CommodityTypeImpl pojo =
+                        new CommodityTypeImpl().setType(commodityType.getNumber());
         if (StringUtils.isNotBlank(key)) {
-            builder.setKey(key);
+            pojo.setKey(key);
         }
-        return builder.build();
+        return pojo;
     }
 
 }

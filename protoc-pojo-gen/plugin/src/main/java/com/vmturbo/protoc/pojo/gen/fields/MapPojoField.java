@@ -1,24 +1,32 @@
 package com.vmturbo.protoc.pojo.gen.fields;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.lang.model.element.Modifier;
 
 import com.google.common.base.Preconditions;
+import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.MethodSpec.Builder;
 import com.squareup.javapoet.ParameterSpec;
 import com.squareup.javapoet.TypeName;
+import com.squareup.javapoet.WildcardTypeName;
 
 import com.vmturbo.protoc.plugin.common.generator.FieldDescriptor;
 import com.vmturbo.protoc.plugin.common.generator.MessageDescriptor;
+import com.vmturbo.protoc.pojo.gen.PojoCodeGenerator;
+import com.vmturbo.protoc.pojo.gen.PojoViewGenerator;
+import com.vmturbo.protoc.pojo.gen.TypeNameUtilities.ParameterizedTypeName;
 
 /**
  * A field representing a map field on a protobuf being compiled to a POJO.
@@ -35,6 +43,9 @@ public class MapPojoField extends UnaryPojoField {
     private final FieldDescriptor mapValueFieldDescriptor;
 
     private static final Class<?> MAP_CLASS = LinkedHashMap.class;
+
+    private final Optional<TypeName> interfaceKeyTypename;
+    private final Optional<TypeName> interfaceValueTypename;
 
     /**
      * Create a new {@link UnaryPojoField}.
@@ -63,12 +74,22 @@ public class MapPojoField extends UnaryPojoField {
         }
         mapKeyFieldDescriptor = msgDescriptor.getMapKey();
         mapValueFieldDescriptor = msgDescriptor.getMapValue();
+
+        interfaceKeyTypename = PojoViewGenerator.interfaceTypeNameFor(mapKeyFieldDescriptor)
+            .map(ParameterizedTypeName::getTypeName);
+        interfaceValueTypename = PojoViewGenerator.interfaceTypeNameFor(mapValueFieldDescriptor)
+            .map(ParameterizedTypeName::getTypeName);
     }
 
     @Nonnull
     @Override
-    public List<Builder> generateGetterMethods() {
-        return Arrays.asList(generateMapGetter(), generateGetOrDefault(), generateGetOrThrow(), generateCount());
+    public List<Builder> generateGetterMethods(@Nonnull final GenerationMode mode) {
+        final List<MethodSpec.Builder> methods = new ArrayList<>(generateMapGetters(mode));
+        methods.add(generateCount(mode));
+        methods.addAll(generateGetOrThrows(mode));
+        methods.addAll(generateGetOrDefaults(mode));
+
+        return methods;
     }
 
     @Nonnull
@@ -79,7 +100,7 @@ public class MapPojoField extends UnaryPojoField {
 
     @Nonnull
     @Override
-    public List<MethodSpec.Builder> generateHazzerMethods() {
+    public List<MethodSpec.Builder> generateHazzerMethods(@Nonnull final GenerationMode mode) {
         final ParameterSpec.Builder param = ParameterSpec.builder(keyTypeParameter, "key", Modifier.FINAL);
         param.addJavadoc("The key to check for membership in the map.");
         if (!keyTypeParameter.isPrimitive()) {
@@ -94,17 +115,23 @@ public class MapPojoField extends UnaryPojoField {
             .returns(TypeName.BOOLEAN)
             .addJavadoc("Check whether the key is in the map.");
 
-        final CodeBlock codeBlock = CodeBlock.builder()
-            .beginControlFlow("if (key == null)")
-            .addStatement("throw new $T()", NullPointerException.class)
-            .endControlFlow()
-            .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
-            .addStatement("return false")
-            .endControlFlow()
-            .addStatement("return $L.containsKey(key)", fieldDescriptor.getSuffixedName())
-            .build();
+        if (mode == GenerationMode.INTERFACE) {
+            method.addModifiers(Modifier.ABSTRACT);
+        } else {
+            method.addAnnotation(Override.class);
+            final CodeBlock codeBlock = CodeBlock.builder()
+                .beginControlFlow("if (key == null)")
+                .addStatement("throw new $T()", NullPointerException.class)
+                .endControlFlow()
+                .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
+                .addStatement("return false")
+                .endControlFlow()
+                .addStatement("return $L.containsKey(key)", fieldDescriptor.getSuffixedName())
+                .build();
+            method.addCode(codeBlock);
+        }
 
-        return Collections.singletonList(method.addCode(codeBlock));
+        return Collections.singletonList(method);
     }
 
     @Nonnull
@@ -164,28 +191,72 @@ public class MapPojoField extends UnaryPojoField {
     @Override
     public void addCopyForField(@Nonnull CodeBlock.Builder codeBlock) {
         codeBlock.add("\n");
-        codeBlock.beginControlFlow("if (other.$L != null)", fieldDescriptor.getSuffixedName())
+        codeBlock.beginControlFlow("if (other.get$LCount() > 0)", capitalizedFieldName())
             .add(codeBlockForCopy())
             .endControlFlow();
     }
 
-    private MethodSpec.Builder generateMapGetter() {
-        final MethodSpec.Builder method = MethodSpec.methodBuilder("get" + mapFieldName())
-            .addModifiers(Modifier.PUBLIC)
-            .addAnnotation(Nonnull.class)
-            .returns(getTypeName())
-            .addJavadoc("Get the $L. The returned map cannot be modified.\n", mapFieldName());
-
-        final CodeBlock codeBlock = CodeBlock.builder()
-            .addStatement("return ($L == null) ? $T.emptyMap() : $T.unmodifiableMap($L)",
-                fieldDescriptor.getSuffixedName(), Collections.class,
-                Collections.class, fieldDescriptor.getSuffixedName())
-            .build();
-
-        return method.addCode(codeBlock);
+    @Override
+    public void addClearForField(@Nonnull CodeBlock.Builder codeBlock) {
+        codeBlock.add("\n");
+        codeBlock
+            .addStatement("this.$L = null", fieldDescriptor.getSuffixedName());
     }
 
-    private MethodSpec.Builder generateGetOrDefault() {
+    private List<MethodSpec.Builder> generateMapGetters(@Nonnull GenerationMode mode) {
+        final List<MethodSpec.Builder> methods = new ArrayList<>();
+
+        methods.add(generateMapGetter(mode, potentialWrappingTypeName(false),
+            "Map", true));
+        if (mode == GenerationMode.IMPLEMENTATION && isProtoMessage()) {
+            methods.add(generateMapGetter(mode, getTypeName(), "ImplMap", false));
+        }
+
+        return methods;
+    }
+
+    private MethodSpec.Builder generateMapGetter(@Nonnull final GenerationMode mode,
+                                                 @Nonnull final TypeName returnType,
+                                                 @Nonnull final String methodSuffix,
+                                                 final boolean shouldOverride) {
+        final MethodSpec.Builder method = MethodSpec.methodBuilder("get" + capitalizedFieldName() + methodSuffix)
+            .addModifiers(Modifier.PUBLIC)
+            .addAnnotation(Nonnull.class)
+            .returns(returnType)
+            .addJavadoc("Get the $L. The returned map cannot be modified.\n", mapFieldName());
+
+        if (mode == GenerationMode.INTERFACE) {
+            method.addModifiers(Modifier.ABSTRACT);
+        } else {
+            if (shouldOverride) {
+                method.addAnnotation(Override.class);
+            }
+            final CodeBlock codeBlock = CodeBlock.builder()
+                .addStatement("return ($L == null) ? $T.emptyMap() : $T.unmodifiableMap($L)",
+                    fieldDescriptor.getSuffixedName(), Collections.class,
+                    Collections.class, fieldDescriptor.getSuffixedName())
+                .build();
+            method.addCode(codeBlock);
+        }
+
+        return method;
+    }
+
+    private List<MethodSpec.Builder> generateGetOrDefaults(@Nonnull GenerationMode mode) {
+        final List<MethodSpec.Builder> methods = new ArrayList<>();
+
+        methods.add(generateGetOrDefault(mode, valueInterfaceOrImpl(), "", true));
+        if (mode == GenerationMode.IMPLEMENTATION && isProtoMessage()) {
+            methods.add(generateGetOrDefault(mode, valueTypeParameter, "Impl", false));
+        }
+
+        return methods;
+    }
+
+    private MethodSpec.Builder generateGetOrDefault(@Nonnull GenerationMode mode,
+                                                    @Nonnull final TypeName returnType,
+                                                    @Nonnull final String methodSuffix,
+                                                    final boolean shouldOverride) {
         final ParameterSpec.Builder keyParam = ParameterSpec.builder(keyTypeParameter, "key", Modifier.FINAL);
         keyParam.addJavadoc("The key for the entry to get.");
         if (!keyTypeParameter.isPrimitive()) {
@@ -196,25 +267,48 @@ public class MapPojoField extends UnaryPojoField {
         final ParameterSpec.Builder defaultParam = ParameterSpec.builder(valueTypeParameter, "defaultValue", Modifier.FINAL);
         defaultParam.addJavadoc("The default value to return if the key is not contained.");
 
-        final MethodSpec.Builder method = MethodSpec.methodBuilder("get" + capitalizedFieldName() + "OrDefault")
+        final MethodSpec.Builder method = MethodSpec.methodBuilder("get" + capitalizedFieldName()
+                + methodSuffix + "OrDefault")
             .addModifiers(Modifier.PUBLIC)
             .addParameter(keyParam.build())
             .addParameter(defaultParam.build())
-            .returns(valueTypeParameter)
+            .returns(returnType)
             .addJavadoc("Get the $L entry corresponding to the key or a default value if not contained.\n", mapFieldName());
 
-        final CodeBlock codeBlock = CodeBlock.builder()
-            .addStatement("$T.requireNonNull(key)", Objects.class)
-            .beginControlFlow("if ($L != null)", fieldDescriptor.getSuffixedName())
-            .addStatement("this.$L.getOrDefault(key, defaultValue)", fieldDescriptor.getSuffixedName())
-            .endControlFlow()
-            .addStatement("return defaultValue")
-            .build();
+        if (mode == GenerationMode.INTERFACE) {
+            method.addModifiers(Modifier.ABSTRACT);
+        } else {
+            if (shouldOverride) {
+                method.addAnnotation(Override.class);
+            }
+            final CodeBlock codeBlock = CodeBlock.builder()
+                .addStatement("$T.requireNonNull(key)", Objects.class)
+                .beginControlFlow("if ($L != null)", fieldDescriptor.getSuffixedName())
+                .addStatement("return this.$L.getOrDefault(key, defaultValue)", fieldDescriptor.getSuffixedName())
+                .endControlFlow()
+                .addStatement("return defaultValue")
+                .build();
+            method.addCode(codeBlock);
+        }
 
-        return method.addCode(codeBlock);
+        return method;
     }
 
-    private MethodSpec.Builder generateGetOrThrow() {
+    private List<MethodSpec.Builder> generateGetOrThrows(@Nonnull GenerationMode mode) {
+        final List<MethodSpec.Builder> methods = new ArrayList<>();
+
+        methods.add(generateGetOrThrow(mode, valueInterfaceOrImpl(), "", true));
+        if (mode == GenerationMode.IMPLEMENTATION && isProtoMessage()) {
+            methods.add(generateGetOrThrow(mode, valueTypeParameter, "Impl", false));
+        }
+
+        return methods;
+    }
+
+    private MethodSpec.Builder generateGetOrThrow(@Nonnull final GenerationMode mode,
+                                                  @Nonnull final TypeName returnType,
+                                                  @Nonnull final String methodSuffix,
+                                                  final boolean shouldOverride) {
         final ParameterSpec.Builder keyParam = ParameterSpec.builder(keyTypeParameter, "key", Modifier.FINAL);
         keyParam.addJavadoc("The key for the entry to get.");
         if (!keyTypeParameter.isPrimitive()) {
@@ -222,52 +316,67 @@ public class MapPojoField extends UnaryPojoField {
             keyParam.addJavadoc(" Cannot be null.");
         }
 
-        final MethodSpec.Builder method = MethodSpec.methodBuilder("get" + capitalizedFieldName() + "OrThrow")
+        final MethodSpec.Builder method = MethodSpec.methodBuilder("get" + capitalizedFieldName()
+                + methodSuffix + "OrThrow")
             .addModifiers(Modifier.PUBLIC)
             .addParameter(keyParam.build())
-            .returns(valueTypeParameter)
+            .returns(returnType)
             .addJavadoc("Get the $L entry corresponding to the key or throw an $T if not contained.\n",
                 mapFieldName(), IllegalArgumentException.class);
 
-        final CodeBlock codeBlock = CodeBlock.builder()
-            .addStatement("$T.requireNonNull(key)", Objects.class)
-            .beginControlFlow("if ($L != null)", fieldDescriptor.getSuffixedName())
-            .add("// This is safe because we do not allow null values in the map.\n")
-            .addStatement("final $T value = $L.get(key)", valueTypeParameter, fieldDescriptor.getSuffixedName())
-            .beginControlFlow("if (value != null)")
-            .addStatement("return value")
-            .endControlFlow()
-            .endControlFlow()
-            .addStatement("throw new $T()", IllegalArgumentException.class)
-            .build();
+        if (mode == GenerationMode.INTERFACE) {
+            method.addModifiers(Modifier.ABSTRACT);
+        } else {
+            if (shouldOverride) {
+                method.addAnnotation(Override.class);
+            }
+            final CodeBlock codeBlock = CodeBlock.builder()
+                .addStatement("$T.requireNonNull(key)", Objects.class)
+                .beginControlFlow("if ($L != null)", fieldDescriptor.getSuffixedName())
+                .add("// This is safe because we do not allow null values in the map.\n")
+                .addStatement("final $T value = $L.get(key)", valueTypeParameter, fieldDescriptor.getSuffixedName())
+                .beginControlFlow("if (value != null)")
+                .addStatement("return value")
+                .endControlFlow()
+                .endControlFlow()
+                .addStatement("throw new $T()", IllegalArgumentException.class)
+                .build();
+            method.addCode(codeBlock);
+        }
 
-        return method.addCode(codeBlock);
+        return method;
     }
 
-    private MethodSpec.Builder generateCount() {
+    private MethodSpec.Builder generateCount(@Nonnull GenerationMode mode) {
         final MethodSpec.Builder method = MethodSpec.methodBuilder("get" + capitalizedFieldName() + "Count")
             .addModifiers(Modifier.PUBLIC)
             .returns(TypeName.INT)
             .addJavadoc("Get the number of entries in the $L.", mapFieldName());
 
-        final CodeBlock codeBlock = CodeBlock.builder()
-            .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
-            .addStatement("return 0")
-            .endControlFlow()
-            .addStatement("return $L.size()", fieldDescriptor.getSuffixedName())
-            .build();
-        return method.addCode(codeBlock);
+        if (mode == GenerationMode.INTERFACE) {
+            method.addModifiers(Modifier.ABSTRACT);
+        } else {
+            method.addAnnotation(Override.class);
+            final CodeBlock codeBlock = CodeBlock.builder()
+                .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
+                .addStatement("return 0")
+                .endControlFlow()
+                .addStatement("return $L.size()", fieldDescriptor.getSuffixedName())
+                .build();
+            method.addCode(codeBlock);
+        }
+        return method;
     }
 
     private MethodSpec.Builder generatePut() {
-        final ParameterSpec.Builder keyParam = ParameterSpec.builder(keyTypeParameter, "key", Modifier.FINAL);
+        final ParameterSpec.Builder keyParam = ParameterSpec.builder(keyInterfaceOrImpl(), "key", Modifier.FINAL);
         keyParam.addJavadoc("The key for the entry to add.");
         if (!keyTypeParameter.isPrimitive()) {
             keyParam.addAnnotation(Nonnull.class);
             keyParam.addJavadoc(" Cannot be null.");
         }
 
-        final ParameterSpec.Builder valueParam = ParameterSpec.builder(valueTypeParameter, "value", Modifier.FINAL);
+        final ParameterSpec.Builder valueParam = ParameterSpec.builder(valueInterfaceOrImpl(), "value", Modifier.FINAL);
         valueParam.addJavadoc("The value to add for the given key.");
         if (!valueTypeParameter.isPrimitive()) {
             valueParam.addAnnotation(Nonnull.class);
@@ -292,14 +401,17 @@ public class MapPojoField extends UnaryPojoField {
             .beginControlFlow("\nif ($L == null)", fieldDescriptor.getSuffixedName())
             .addStatement("this.$L = new $T<>()", fieldDescriptor.getSuffixedName(), MAP_CLASS)
             .endControlFlow()
-            .addStatement("this.$L.put(key, value)", fieldDescriptor.getSuffixedName())
+            .add("this.$L.put(", fieldDescriptor.getSuffixedName())
+            .add(codeBlockForPut("key", "value"))
+            .addStatement(")")
             .addStatement("return this")
             .build();
         return method.addCode(codeBlock);
     }
 
     private MethodSpec.Builder generatePutAll() {
-        final ParameterSpec.Builder param = ParameterSpec.builder(getTypeName(), "map", Modifier.FINAL);
+        final ParameterSpec.Builder param = ParameterSpec.builder(potentialWrappingTypeName(true),
+            "map", Modifier.FINAL);
         param.addJavadoc("The map whose entries should be added.");
         param.addAnnotation(Nonnull.class);
         param.addJavadoc(" Cannot be null. Cannot have any null keys or values.");
@@ -311,24 +423,23 @@ public class MapPojoField extends UnaryPojoField {
             .returns(getParentTypeName())
             .addJavadoc("Add all the entries of the map to the $L.\n", mapFieldName());
 
-        final CodeBlock codeBlock = CodeBlock.builder()
+        final CodeBlock.Builder codeBlock = CodeBlock.builder()
             .addStatement("$T.requireNonNull(map)", Objects.class)
             .add("// Ensure that all keys and values are non-null. This is required to ensure proto compatibility.\n")
             .beginControlFlow("for ($T<$T, $T> entry : map.entrySet())",
-                Entry.class, keyTypeParameter, valueTypeParameter)
+                Entry.class, keyWildcardType(), valueWildcardType())
             .beginControlFlow("if (entry.getKey() == null || entry.getValue() == null)")
             .addStatement("throw new $T()", NullPointerException.class)
             .endControlFlow()
             .endControlFlow()
-            .beginControlFlow("\nif ($L == null)", fieldDescriptor.getSuffixedName())
-            .addStatement("this.$L = new $T<>(map)", fieldDescriptor.getSuffixedName(), MAP_CLASS)
-            .nextControlFlow("else")
-            .addStatement("this.$L.putAll(map)", fieldDescriptor.getSuffixedName())
+            .beginControlFlow("\nif (map.size() > 0)");
+        codeBlockForPutAll(codeBlock);
+        codeBlock
             .endControlFlow()
             .addStatement("return this")
             .build();
 
-        return method.addCode(codeBlock);
+        return method.addCode(codeBlock.build());
     }
 
     private MethodSpec.Builder generateRemove() {
@@ -401,14 +512,16 @@ public class MapPojoField extends UnaryPojoField {
                 .add("$L.get$L().entrySet().forEach(entry ->\n$>pojo.$L.put(",
                     protoFieldName, mapFieldName(), fieldDescriptor.getSuffixedName());
             if (hasMessageKey) {
-                codeBlock.add("$T.fromProto(entry.getKey())", keyTypeParameter);
+                codeBlock.add("$T.fromProto(entry.getKey()).$L()",
+                    keyTypeParameter, PojoCodeGenerator.ON_PARENT_SETTING_METHOD);
             } else {
                 codeBlock.add("entry.getKey()");
             }
 
             codeBlock.add(", ");
             if (hasMessageValue) {
-                codeBlock.add("$T.fromProto(entry.getValue())", valueTypeParameter);
+                codeBlock.add("$T.fromProto(entry.getValue()).$L()",
+                    valueTypeParameter, PojoCodeGenerator.ON_PARENT_SETTING_METHOD);
             } else {
                 codeBlock.add("entry.getValue()");
             }
@@ -429,18 +542,75 @@ public class MapPojoField extends UnaryPojoField {
         if (hasMessageKey || hasMessageValue) {
             // We need to copy the individual proto messages into a new map.
             final CodeBlock.Builder codeBlock = CodeBlock.builder()
-                .addStatement("this.$L = new $T<>(other.$L.size())", fieldDescriptor.getSuffixedName(),
-                    MAP_CLASS, fieldDescriptor.getSuffixedName())
-                .beginControlFlow("for ($T<$T, $T> entry : other.$L.entrySet())",
-                    Entry.class, keyTypeParameter, valueTypeParameter, fieldDescriptor.getSuffixedName())
-                .addStatement("this.$L.put(entry.getKey(), entry.getValue())", fieldDescriptor.getSuffixedName())
+                .addStatement("this.$L = new $T<>(other.get$LCount())", fieldDescriptor.getSuffixedName(),
+                    MAP_CLASS, capitalizedFieldName())
+                .beginControlFlow("for ($T<$T, $T> entry : other.get$L().entrySet())",
+                    Entry.class, keyInterfaceOrImpl(), valueInterfaceOrImpl(), mapFieldName())
+                .add("this.$L.put(", fieldDescriptor.getSuffixedName());
+            if (hasMessageKey) {
+                codeBlock.add("entry.getKey().copy().$L()", PojoCodeGenerator.ON_PARENT_SETTING_METHOD);
+            } else {
+                codeBlock.add("entry.getKey()");
+            }
+
+            codeBlock.add(", ");
+            if (hasMessageValue) {
+                codeBlock.add("entry.getValue().copy().$L()", PojoCodeGenerator.ON_PARENT_SETTING_METHOD);
+            } else {
+                codeBlock.add("entry.getValue()");
+            }
+            codeBlock.addStatement(")")
                 .endControlFlow();
             return codeBlock.build();
         } else {
             return CodeBlock.builder()
-                .addStatement("this.$L = new $T<>(other.$L)", fieldDescriptor.getSuffixedName(),
-                    MAP_CLASS, fieldDescriptor.getSuffixedName())
+                .addStatement("this.$L = new $T<>(other.get$L())", fieldDescriptor.getSuffixedName(),
+                    MAP_CLASS, mapFieldName())
                 .build();
+        }
+    }
+
+    private CodeBlock codeBlockForPut(@Nonnull final String keyName, @Nonnull final String valueName) {
+        final CodeBlock.Builder codeBlock = CodeBlock.builder();
+        if (hasMessageKey()) {
+            codeBlock.add("(($T)$L).$L()", keyTypeParameter, keyName,
+                PojoCodeGenerator.ON_PARENT_SETTING_METHOD);
+        } else {
+            codeBlock.add("$L", keyName);
+        }
+
+        codeBlock.add(", ");
+
+        if (hasMessageValue()) {
+            codeBlock.add("(($T)$L).$L()", valueTypeParameter,
+                valueName, PojoCodeGenerator.ON_PARENT_SETTING_METHOD);
+        } else {
+            codeBlock.add("$L", valueName);
+        }
+
+        return codeBlock.build();
+    }
+
+    private void codeBlockForPutAll(CodeBlock.Builder codeBlock) {
+        if (hasMessageKey() || hasMessageValue()) {
+            // We need to ensure that we call the onParent method.
+            codeBlock
+                .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
+                .addStatement("this.$L = new $T<>(map.size())", fieldDescriptor.getSuffixedName(), MAP_CLASS)
+                .endControlFlow()
+                .beginControlFlow("for ($T<$T, $T> entry : map.entrySet())",
+                    Entry.class, keyWildcardType(), valueWildcardType())
+                .add("this.$L.put(", fieldDescriptor.getSuffixedName())
+                .add(codeBlockForPut("entry.getKey()", "entry.getValue()"))
+                .addStatement(")")
+                .endControlFlow();
+        } else {
+            codeBlock
+                .beginControlFlow("if ($L == null)", fieldDescriptor.getSuffixedName())
+                .addStatement("this.$L = new $T<>(map)", fieldDescriptor.getSuffixedName(), MAP_CLASS)
+                .nextControlFlow("else")
+                .addStatement("this.$L.putAll(map)", fieldDescriptor.getSuffixedName())
+                .endControlFlow();
         }
     }
 
@@ -464,5 +634,35 @@ public class MapPojoField extends UnaryPojoField {
 
     private String mapFieldName() {
         return capitalizedFieldName() + "Map";
+    }
+
+    private TypeName keyInterfaceOrImpl() {
+        return interfaceKeyTypename.orElse(keyTypeParameter);
+    }
+
+    private TypeName valueInterfaceOrImpl() {
+        return interfaceValueTypename.orElse(valueTypeParameter);
+    }
+
+    private TypeName keyWildcardType() {
+        return interfaceKeyTypename
+            .map(k -> (TypeName)WildcardTypeName.subtypeOf(k))
+            .orElse(keyTypeParameter);
+    }
+
+    private TypeName valueWildcardType() {
+        return interfaceValueTypename
+            .map(v -> (TypeName)WildcardTypeName.subtypeOf(v))
+            .orElse(valueTypeParameter);
+    }
+
+    private TypeName potentialWrappingTypeName(final boolean wildcard) {
+        if (interfaceKeyTypename.isPresent() || interfaceValueTypename.isPresent()) {
+            final TypeName key = wildcard ? keyWildcardType() : keyInterfaceOrImpl();
+            final TypeName value = wildcard ? valueWildcardType() : valueInterfaceOrImpl();
+            return com.squareup.javapoet.ParameterizedTypeName.get(ClassName.get(Map.class), key, value);
+        } else {
+            return getTypeName();
+        }
     }
 }

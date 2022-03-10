@@ -34,12 +34,12 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -228,32 +228,32 @@ public class AbstractCachingHistoricalEditorTest {
             Assert.assertEquals(1, calcTasks.size());
             executor.invokeAll(calcTasks);
 
-            Assert.assertEquals(DB_VALUE, getSoldBuilder(cref1).getHistoricalUsed().getMaxQuantity(), DELTA);
-            Assert.assertEquals(DB_VALUE, getSoldBuilder(cref2).getHistoricalUsed().getMaxQuantity(), DELTA);
-            Assert.assertEquals(DB_VALUE, getSoldBuilder(cref3).getHistoricalUsed().getMaxQuantity(), DELTA);
-            Assert.assertEquals(ABOVE_DB_VALUE, getSoldBuilder(cref4).getHistoricalUsed().getMaxQuantity(), DELTA);
-            Assert.assertEquals(DB_VALUE, getSoldBuilder(cref5).getHistoricalUsed().getMaxQuantity(), DELTA);
+            Assert.assertEquals(DB_VALUE, getCommoditySoldImpl(cref1).getHistoricalUsed().getMaxQuantity(), DELTA);
+            Assert.assertEquals(DB_VALUE, getCommoditySoldImpl(cref2).getHistoricalUsed().getMaxQuantity(), DELTA);
+            Assert.assertEquals(DB_VALUE, getCommoditySoldImpl(cref3).getHistoricalUsed().getMaxQuantity(), DELTA);
+            Assert.assertEquals(ABOVE_DB_VALUE, getCommoditySoldImpl(cref4).getHistoricalUsed().getMaxQuantity(), DELTA);
+            Assert.assertEquals(DB_VALUE, getCommoditySoldImpl(cref5).getHistoricalUsed().getMaxQuantity(), DELTA);
         } finally {
             executor.shutdownNow();
         }
     }
 
-    private CommoditySoldDTO.Builder getSoldBuilder(EntityCommodityReference cref) {
+    private CommoditySoldImpl getCommoditySoldImpl(EntityCommodityReference cref) {
         return Optional.ofNullable(entity2commref.get(cref))
-                        .map(e -> e.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+                        .map(e -> e.getTopologyEntityImpl().getCommoditySoldListImplList()
                                         .get(0))
                         .orElseThrow(() -> new IllegalStateException("Unexpected test setup"));
     }
 
     private EntityCommodityFieldReference createCommRef(long oid, double used, int entityType) {
-        CommodityType ct = CommodityType.newBuilder().setType(1).build();
+        final CommodityTypeView ct = new CommodityTypeImpl().setType(1);
         TopologyEntity entity = Mockito.mock(TopologyEntity.class);
         Mockito.when(entity.getOid()).thenReturn(oid);
         Mockito.when(entity.getEntityType()).thenReturn(entityType);
-        TopologyEntityDTO.Builder entityBuilder = TopologyEntityDTO.newBuilder();
-        entityBuilder.setOid(oid).setEntityType(entityType);
-        entityBuilder.addCommoditySoldListBuilder().setUsed(used);
-        Mockito.when(entity.getTopologyEntityDtoBuilder()).thenReturn(entityBuilder);
+        TopologyEntityImpl entityImpl = new TopologyEntityImpl();
+        entityImpl.setOid(oid).setEntityType(entityType);
+        entityImpl.addCommoditySoldList(new CommoditySoldImpl().setUsed(used));
+        Mockito.when(entity.getTopologyEntityImpl()).thenReturn(entityImpl);
         EntityCommodityFieldReference commref = new EntityCommodityFieldReference(entity.getOid(),
                 ct, null, CommodityField.USED);
         entity2commref.put(commref, entity);
@@ -291,13 +291,13 @@ public class AbstractCachingHistoricalEditorTest {
 
         @Override
         public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                @Nonnull Builder commSold, @Nullable TopologyInfo topoInfo) {
+                @Nonnull CommoditySoldImpl commSold, @Nullable TopologyInfo topoInfo) {
             return true;
         }
 
         @Override
         public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                @Nonnull CommodityBoughtDTO.Builder commBought, int providerType) {
+                @Nonnull CommodityBoughtImpl commBought, int providerType) {
             return true;
         }
 
@@ -329,9 +329,9 @@ public class AbstractCachingHistoricalEditorTest {
                               @Nonnull CachingHistoricalEditorConfig config,
                               @Nonnull HistoryAggregationContext context) {
             seenCommRefs.add(field);
-            CommoditySoldDTO.Builder builder = getSoldBuilder(field);
-            double current = builder.getUsed();
-            builder.getHistoricalUsedBuilder()
+            CommoditySoldImpl commoditySoldImpl = getCommoditySoldImpl(field);
+            double current = commoditySoldImpl.getUsed();
+            commoditySoldImpl.getOrCreateHistoricalUsed()
                             .setMaxQuantity(value == null ? current : Math.max(current, value));
         }
 

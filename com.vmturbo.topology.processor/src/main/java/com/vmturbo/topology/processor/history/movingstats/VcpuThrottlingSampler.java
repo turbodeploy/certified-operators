@@ -15,7 +15,8 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
@@ -46,8 +47,8 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
      * Partner commodity types for this {@link MovingStatisticsSampler}. In this case,
      * the partner commodity types is {@code CommodityType.VCPU_THROTTLING}.
      */
-    public static final Collection<CommodityType> PARTNER_COMMODITY_TYPES = Collections.singletonList(
-        CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE).build());
+    public static final Collection<CommodityTypeView> PARTNER_COMMODITY_TYPES = Collections.singletonList(
+        new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE));
 
     private final EntityCommodityFieldReference fieldReference;
     private CapacityMovingStatistics active;
@@ -199,8 +200,8 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
      *
      * @return the principal commodity type for this {@link MovingStatisticsSampler}.
      */
-    public static CommodityType getPrincipalCommodityType() {
-        return CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE).build();
+    public static CommodityTypeView getPrincipalCommodityType() {
+        return new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_VALUE);
     }
 
     /**

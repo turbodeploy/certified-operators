@@ -18,6 +18,22 @@ import com.squareup.javapoet.TypeName;
 public interface IPojoField {
 
     /**
+     * Whether we are generating the interface definition or the implementation of that interface.
+     */
+    enum GenerationMode {
+        /**
+         * Generate the interface for a series of related methods.
+         */
+        INTERFACE,
+
+        /**
+         * Generate the implementation for a series of related methods.
+         * Implementation generation should override interface definitions where appropriate.
+         */
+        IMPLEMENTATION
+    }
+
+    /**
      * Generate the {@link FieldSpec} for adding a field to the overall message
      * {@link com.squareup.javapoet.TypeSpec}.
      *
@@ -31,10 +47,11 @@ public interface IPojoField {
      * Generate getter methods for the field. Repeated and map fields
      * may have multiple getter methods.
      *
+     * @param mode Whether to generate the interface or implementation of the methods.
      * @return The list of getter methods for the field.
      */
     @Nonnull
-    List<MethodSpec.Builder> generateGetterMethods();
+    List<MethodSpec.Builder> generateGetterMethods(@Nonnull GenerationMode mode);
 
     /**
      * Generate setter methods for the field. Repeated and map fields
@@ -50,10 +67,11 @@ public interface IPojoField {
      * the field has been set. Also generate contains methods
      * for map fields.
      *
+     * @param mode Whether to generate the interface or implementation of the methods.
      * @return Generate "has" methods for the fields.
      */
     @Nonnull
-    List<MethodSpec.Builder> generateHazzerMethods();
+    List<MethodSpec.Builder> generateHazzerMethods(@Nonnull GenerationMode mode);
 
     /**
      * Generate methods for clearing the field. This also includes
@@ -107,6 +125,14 @@ public interface IPojoField {
      * @param codeBlock The codeBlock the field should add its copy constructor information to.
      */
     void addCopyForField(@Nonnull CodeBlock.Builder codeBlock);
+
+    /**
+     * Add code for the clearing the field on a message. This is different from code that
+     * clears a single field.
+     *
+     * @param codeBlock The codeBlock the field should add its copy constructor information to.
+     */
+    void addClearForField(@Nonnull CodeBlock.Builder codeBlock);
 
     /**
      * Get the capitalized name for the field. Transforms a name from lowerCamel to upperUnderscore.

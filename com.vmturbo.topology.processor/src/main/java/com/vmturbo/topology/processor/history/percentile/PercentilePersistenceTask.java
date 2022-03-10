@@ -22,7 +22,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
 import com.vmturbo.common.protobuf.stats.Stats.SetPercentileCountsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.utils.ThrowingFunction;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -136,14 +136,14 @@ public class PercentilePersistenceTask extends AbstractBlobsPersistenceTask<Perc
             return counts.getPercentileRecordsList();
         };
         final Function<PercentileRecord, EntityCommodityFieldReference> recordToRef = record -> {
-            final CommodityType.Builder commTypeBuilder =
-                CommodityType.newBuilder().setType(record.getCommodityType());
+            final CommodityTypeImpl commType =
+                new CommodityTypeImpl().setType(record.getCommodityType());
             if (record.hasKey()) {
-                commTypeBuilder.setKey(record.getKey());
+                commType.setKey(record.getKey());
             }
             final Long provider = record.hasProviderOid() ? record.getProviderOid() : null;
             return new EntityCommodityFieldReference(record.getEntityOid(),
-                commTypeBuilder.build(), provider, CommodityField.USED);
+                commType, provider, CommodityField.USED);
         };
         return parseDbRecords(startTimestamp, source, countsToRecords, oidsToUse,
             PercentileRecord::getEntityOid, recordToRef, enableExpiredOidFiltering);

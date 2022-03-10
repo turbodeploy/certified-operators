@@ -16,11 +16,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.platform.common.dto.SupplyChain.Provider;
 import com.vmturbo.platform.common.dto.SupplyChain.Provider.ProviderType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateCommodity;
@@ -55,7 +55,7 @@ public class SupplyChainEntityValidator {
      * The key to the map is the provider id.  The map is used to facilitate access to the commodities
      * bought by the entities, which must be fetched by various different methods.
      */
-    private final Map<Long, Collection<CommodityBoughtDTO>> commoditiesBoughtPerProvider = new HashMap<>();
+    private final Map<Long, Collection<CommodityBoughtView>> commoditiesBoughtPerProvider = new HashMap<>();
 
     /**
      * Create a validator for a specific entity.
@@ -71,10 +71,10 @@ public class SupplyChainEntityValidator {
 
         // populate the map of entities bought
         // first get all commodities bought by the entity under check and group them by provider
-        final Map<Long, Set<CommoditiesBoughtFromProvider>> listsOfCommoditiesBoughtPerProvider =
-            entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream().
-                filter(CommoditiesBoughtFromProvider::hasProviderId).
-                collect(Collectors.groupingBy(CommoditiesBoughtFromProvider::getProviderId, Collectors.toSet()));
+        final Map<Long, Set<CommoditiesBoughtFromProviderView>> listsOfCommoditiesBoughtPerProvider =
+            entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList().stream().
+                filter(CommoditiesBoughtFromProviderView::hasProviderId).
+                collect(Collectors.groupingBy(CommoditiesBoughtFromProviderView::getProviderId, Collectors.toSet()));
 
         // every CommoditiesBoughtFromProvider object contains itself a list of commodities:
         // flatten the lists
@@ -84,7 +84,7 @@ public class SupplyChainEntityValidator {
                 providerId,
                 listOfCommoditiesBought.
                     stream().
-                    map(CommoditiesBoughtFromProvider::getCommodityBoughtList).
+                    map(CommoditiesBoughtFromProviderView::getCommodityBoughtList).
                     flatMap(List::stream).
                     collect(Collectors.toList())));
     }
@@ -134,11 +134,11 @@ public class SupplyChainEntityValidator {
 
         final List<SupplyChainValidationFailure> validationFailures = new ArrayList<>();
 
-        final TopologyEntityDTO.Builder entity = this.entity.getTopologyEntityDtoBuilder();
+        final TopologyPOJO.TopologyEntityImpl entity = this.entity.getTopologyEntityImpl();
 
         // Create commodity type to commodity sold DTO map for better handling template match
-        final Map<Integer, CommoditySoldDTO> commodityType2DTO = new HashMap<>();
-        for (final CommoditySoldDTO commoditySold: entity.getCommoditySoldListList()) {
+        final Map<Integer, CommoditySoldView> commodityType2DTO = new HashMap<>();
+        for (final CommoditySoldView commoditySold: entity.getCommoditySoldListList()) {
             commodityType2DTO.putIfAbsent(commoditySold.getCommodityType().getType(), commoditySold);
         }
 
@@ -155,7 +155,7 @@ public class SupplyChainEntityValidator {
             logger.trace(
                 "Entity {} must sell a commodity of type {}",
                 entity::getDisplayName, () -> commodityTypeNumber);
-            final CommoditySoldDTO commoditySoldDTO = commodityType2DTO.get(commodityTypeNumber);
+            final CommoditySoldView commoditySoldDTO = commodityType2DTO.get(commodityTypeNumber);
             if (commoditySoldDTO == null) {
                 validationFailures.add(
                     new MandatoryCommodityNotFoundFailure(this.entity, templateCommodity, false));
@@ -165,7 +165,7 @@ public class SupplyChainEntityValidator {
             logger.trace(
                 "Checking keys for entity {} and commodity {}",
                 entity::getDisplayName, () -> commodityTypeNumber);
-            final CommodityType commodityType = commoditySoldDTO.getCommodityType();
+            final CommodityTypeView commodityType = commoditySoldDTO.getCommodityType();
             final boolean commodityShouldHaveKey =
                 templateCommodity.hasKey() && !Strings.isEmpty(templateCommodity.getKey());
             final boolean commodityHasKey =
@@ -265,9 +265,9 @@ public class SupplyChainEntityValidator {
      * @return true iff match is successful
      */
     private boolean commodityMatch(
-            @Nonnull CommodityBoughtDTO boughtCommodity,
+            @Nonnull CommodityBoughtView boughtCommodity,
             @Nonnull TemplateCommodity templateCommodity) {
-        final CommodityType boughtCommodityType = Objects.requireNonNull(boughtCommodity).getCommodityType();
+        final CommodityTypeView boughtCommodityType = Objects.requireNonNull(boughtCommodity).getCommodityType();
 
         // first check the commodity types
         if (boughtCommodityType.getType() != templateCommodity.getCommodityType().ordinal()) {
@@ -294,7 +294,7 @@ public class SupplyChainEntityValidator {
      * @return a list of errors found during validation.
      */
     private List<SupplyChainValidationFailure> checkBoughtCommoditiesAgainstSpecification(
-            @Nonnull Collection<CommodityBoughtDTO> commodityBoughtDTOs,
+            @Nonnull Collection<CommodityBoughtView> commodityBoughtDTOs,
             @Nonnull CommBoughtProviderProp providerSpecification,
             @Nonnull TopologyEntity matchingProvider) {
         Objects.requireNonNull(commodityBoughtDTOs);
@@ -342,7 +342,7 @@ public class SupplyChainEntityValidator {
 
         // for each matching provider, check the bought commodities against the specification
         matchingProviders.forEach(matchingProvider -> {
-            final Collection<CommodityBoughtDTO> commoditiesBag =
+            final Collection<CommodityBoughtView> commoditiesBag =
                 commoditiesBoughtPerProvider.get(matchingProvider.getOid());
             if (commoditiesBag == null) {
                 // let E be the entity under validation.

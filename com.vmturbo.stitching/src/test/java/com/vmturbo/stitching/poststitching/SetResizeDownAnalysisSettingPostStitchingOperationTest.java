@@ -51,7 +51,7 @@ public class SetResizeDownAnalysisSettingPostStitchingOperationTest {
         resizeDownOperation.performOperation(Stream.of(vmEntity), settingsCollection, resultBuilder);
         assertEquals(1, resultBuilder.getChanges().size());
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
-        assertTrue(vmEntity.getTopologyEntityDtoBuilder()
+        assertTrue(vmEntity.getTopologyEntityImpl()
                 .getAnalysisSettings()
                 .getIsEligibleForResizeDown());
     }
@@ -65,7 +65,7 @@ public class SetResizeDownAnalysisSettingPostStitchingOperationTest {
         resizeDownOperation.performOperation(Stream.of(vmEntity), settingsCollection, resultBuilder);
         assertEquals(0, resultBuilder.getChanges().size());
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
-        assertFalse(vmEntity.getTopologyEntityDtoBuilder()
+        assertFalse(vmEntity.getTopologyEntityImpl()
                 .getAnalysisSettings()
                 .getIsEligibleForResizeDown());
     }

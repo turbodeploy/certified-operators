@@ -99,7 +99,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -280,13 +280,13 @@ public class EntitySettingsResolverTest {
     private static final SettingSpec EXECUTION_SCHEDULE_SETTING_SPEC =
             createSettingSpec(SPEC_VCPU_UP_EXEC_SCHEDULE, SettingTiebreaker.UNION);
 
-    private static final TopologyEntityDTO.Builder entity1 =
-        TopologyEntityDTO.newBuilder()
+    private static final TopologyEntityImpl entity1 =
+       new TopologyEntityImpl()
             .setOid(entityOid1)
             .setEntityType(TEST_ENTITY_TYPE.typeNumber());
 
-    private static final TopologyEntityDTO.Builder entity2 =
-        TopologyEntityDTO.newBuilder()
+    private static final TopologyEntityImpl entity2 =
+        new TopologyEntityImpl()
             .setOid(entityOid2)
             .setEntityType(TEST_ENTITY_TYPE.typeNumber());
 
@@ -1158,7 +1158,7 @@ public class EntitySettingsResolverTest {
         final TopologyEntity.Builder service = TopologyEntityUtils
                 .topologyEntity(3, 0, 0, "Service", EntityType.SERVICE, 1, 2);
         final TopologyGraph<TopologyEntity> topologyGraph =
-                TopologyEntityUtils.topologyGraphOf(app1, app2, service);
+                TopologyEntityUtils.pojoGraphOf(app1, app2, service);
         // Define the Service group
         final long serviceGroupID = 6001L;
         final Grouping serviceGroup = Grouping.newBuilder()
@@ -1237,7 +1237,7 @@ public class EntitySettingsResolverTest {
         final TopologyEntity.Builder service = TopologyEntityUtils
                 .topologyEntity(3, 0, 0, "Service", EntityType.SERVICE, 1, 2);
         final TopologyGraph<TopologyEntity> topologyGraph =
-                TopologyEntityUtils.topologyGraphOf(app1, app2, service);
+                TopologyEntityUtils.pojoGraphOf(app1, app2, service);
         // Define Service group
         final long serviceGroupID = 6001L;
         final Grouping serviceGroup = Grouping.newBuilder()
@@ -1310,7 +1310,7 @@ public class EntitySettingsResolverTest {
         final TopologyEntity.Builder service = TopologyEntityUtils
                 .topologyEntity(3, 0, 0, "Service", EntityType.SERVICE, 1, 2);
         final TopologyGraph<TopologyEntity> topologyGraph =
-                TopologyEntityUtils.topologyGraphOf(app1, app2, service);
+                TopologyEntityUtils.pojoGraphOf(app1, app2, service);
         // Define Service group
         final long serviceGroupID = 6001L;
         final Grouping serviceGroup = Grouping.newBuilder()
@@ -1392,7 +1392,7 @@ public class EntitySettingsResolverTest {
         final TopologyEntity.Builder service = TopologyEntityUtils
                 .topologyEntity(6, 0, 0, "Service", EntityType.SERVICE, 4, 5);
         final TopologyGraph<TopologyEntity> topologyGraph =
-                TopologyEntityUtils.topologyGraphOf(pod1, pod2, container1, container2, app1, app2, service);
+                TopologyEntityUtils.pojoGraphOf(pod1, pod2, container1, container2, app1, app2, service);
         scopeEvaluator = new EntitySettingsScopeEvaluator(topologyGraph);
         final Setting horizontalScaleUpSetting = createEnumSetting(SPEC_HORIZONTAL_SCALE_UP, ActionMode.RECOMMEND.name());
         final SettingPolicy serviceSettingPolicy =
@@ -1443,7 +1443,7 @@ public class EntitySettingsResolverTest {
         final TopologyEntity.Builder service = TopologyEntityUtils
                 .topologyEntity(4, 0, 0, "Service", EntityType.SERVICE, 2, 3);
         final TopologyGraph<TopologyEntity> topologyGraph =
-                TopologyEntityUtils.topologyGraphOf(vm1, vm2, app1, app2, service);
+                TopologyEntityUtils.pojoGraphOf(vm1, vm2, app1, app2, service);
         scopeEvaluator = new EntitySettingsScopeEvaluator(topologyGraph);
         final Setting horizontalScaleUpSetting = createEnumSetting(SPEC_HORIZONTAL_SCALE_UP, ActionMode.RECOMMEND.name());
         final SettingPolicy serviceSettingPolicy =
@@ -1494,7 +1494,7 @@ public class EntitySettingsResolverTest {
         TopologyEntityUtils.addConnectedEntity(container2, containerSpec.getOid(), ConnectionType.AGGREGATED_BY_CONNECTION);
 
         final TopologyGraph<TopologyEntity> topologyGraph =
-            TopologyEntityUtils.topologyGraphOf(container1, container2, containerSpec);
+            TopologyEntityUtils.pojoGraphOf(container1, container2, containerSpec);
         scopeEvaluator = new EntitySettingsScopeEvaluator(topologyGraph);
 
         final Setting setting = createEnumSetting(SPEC_RESIZE, ActionMode.RECOMMEND.name());

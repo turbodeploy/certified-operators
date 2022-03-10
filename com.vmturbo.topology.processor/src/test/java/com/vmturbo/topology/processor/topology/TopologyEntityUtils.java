@@ -19,20 +19,25 @@ import com.google.common.collect.ImmutableList;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.util.JsonFormat;
 
-import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
-import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.HistoricalValuesImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.HistoricalValuesView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ConnectedEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ConnectedEntityView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -40,10 +45,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.sdk.common.util.Pair;
-import com.vmturbo.stitching.DiscoveryOriginBuilder;
+import com.vmturbo.stitching.DiscoveryOriginImplBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.cost.RIDataUploaderTest;
 
 /**
  * Utilities for generating {@link TopologyEntity} objects for tests.
@@ -53,20 +57,30 @@ public class TopologyEntityUtils {
     /**
      * Create a {@link TopologyEntity.Builder}.
      *
-     * @param entityBuilder The entity builder the {@link TopologyEntity} should wrap.
+     * @param topologyEntityImpl The entity builder the {@link TopologyEntityImpl} should wrap.
      * @return A builder for a {@link TopologyEntity}.
      */
-    public static TopologyEntity.Builder topologyEntityBuilder(@Nonnull final TopologyEntityDTO.Builder entityBuilder) {
-        return TopologyEntity.newBuilder(entityBuilder);
+    public static TopologyEntity.Builder topologyEntityBuilder(@Nonnull final TopologyEntityImpl topologyEntityImpl) {
+        return TopologyEntity.newBuilder(topologyEntityImpl);
     }
 
     /**
      * Create a {@link TopologyEntity.Builder}.
      *
      * @param entityBuilder The entity builder the {@link TopologyEntity} should wrap.
+     * @return A builder for a {@link TopologyEntity}.
+     */
+    public static TopologyEntity.Builder topologyEntityBuilder(@Nonnull final TopologyEntityDTO.Builder entityBuilder) {
+        return TopologyEntity.newBuilder(TopologyEntityImpl.fromProto(entityBuilder));
+    }
+
+    /**
+     * Create a {@link TopologyEntity}.
+     *
+     * @param entityBuilder The entity builder the {@link TopologyEntity} should wrap.
      * @return A {@link TopologyEntity} wrapping the input DTO builder.
      */
-    public static TopologyEntity topologyEntity(@Nonnull final TopologyEntityDTO.Builder entityBuilder) {
+    public static TopologyEntity topologyEntity(@Nonnull final TopologyEntityImpl entityBuilder) {
         return topologyEntityBuilder(entityBuilder).build();
     }
 
@@ -84,9 +98,9 @@ public class TopologyEntityUtils {
      */
     @Nonnull
     public static TopologyEntity.Builder topologyEntityBuilder(final long oid,
-                                                               final EntityType entityType,
-                                                               @Nonnull final List<Long> providerIds) {
-        return topologyEntityBuilder(oid, entityType, DiscoveryOrigin.getDefaultInstance(), providerIds);
+                                                           final EntityType entityType,
+                                                           @Nonnull final List<Long> providerIds) {
+        return topologyEntityBuilder(oid, entityType, DiscoveryOriginView.getDefaultInstance(), providerIds);
     }
 
     /**
@@ -104,37 +118,43 @@ public class TopologyEntityUtils {
      */
     @Nonnull
     public static TopologyEntity.Builder topologyEntityBuilder(final long oid,
-                                                               final EntityType entityType,
-                                                               @Nonnull final DiscoveryOrigin discoveryOrigin,
-                                                               @Nonnull final List<Long> providerIds) {
-        return topologyEntityBuilder(TopologyEntityDTO.newBuilder()
-                .setOid(oid)
-                .setEntityType(entityType.getNumber())
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(discoveryOrigin))
-                .addAllCommoditiesBoughtFromProviders(
-                    providerIds.stream()
-                        .map(providerId ->
-                                CommoditiesBoughtFromProvider.newBuilder()
-                                    .setProviderId(providerId)
-                                    .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                                    .addCommodityBought(
-                                        CommodityBoughtDTO.newBuilder()
-                                            .setCommodityType(
-                                                CommodityType.newBuilder()
-                                                    .setType(CommodityDTO.CommodityType.CPU_VALUE)
-                                                    .build()
-                                            )
-                                    ).build()
-                        ).collect(Collectors.toList())
-                )
+                                                           final EntityType entityType,
+                                                           @Nonnull final DiscoveryOriginView discoveryOrigin,
+                                                           @Nonnull final List<Long> providerIds) {
+        return topologyEntityBuilder(new TopologyEntityImpl()
+            .setOid(oid)
+            .setEntityType(entityType.getNumber())
+            .setOrigin(new OriginImpl().setDiscoveryOrigin(discoveryOrigin))
+            .addAllCommoditiesBoughtFromProviders(
+                providerIds.stream()
+                    .map(providerId ->
+                        new CommoditiesBoughtFromProviderImpl()
+                            .setProviderId(providerId)
+                            .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                            .addCommodityBought(
+                                new CommodityBoughtImpl()
+                                    .setCommodityType(
+                                        new CommodityTypeImpl()
+                                            .setType(CommodityDTO.CommodityType.CPU_VALUE)
+                                    )
+                            )
+                    ).collect(Collectors.toList())
+            )
         );
     }
 
+    /**
+     * Create TopologyGraph of {@link TopologyEntity}'s.
+     *
+     * @param entityBuilders entity builders
+     * @return graph.
+     */
     @Nonnull
-    public static TopologyGraph<TopologyEntity> topologyGraphOf(@Nonnull final TopologyEntity.Builder... entityBuilders) {
+    public static TopologyGraph<TopologyEntity> pojoGraphOf(@Nonnull final TopologyEntity.Builder... entityBuilders) {
         return TopologyEntityTopologyGraphCreator.newGraph(Stream.of(entityBuilders)
             .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity())));
     }
+
 
     /**
      * Create a minimal topology entity builder.
@@ -143,7 +163,7 @@ public class TopologyEntityUtils {
      * @param entityType The entity type for the entity.
      * @param producers The OIDs of the producers that the created entity should be consuming from.
      *                  Does not actually associate any commodities with the producers.
-     * @return A {@link TopologyEntityDTO} with the given properties.
+     * @return A {@link TopologyEntity.Builder} with the given properties.
      */
     public static TopologyEntity.Builder topologyEntity(long oid, EntityType entityType, long... producers) {
         return topologyEntity(oid, 0, 0, entityType, producers);
@@ -162,13 +182,13 @@ public class TopologyEntityUtils {
      * @param entityType The entity type for the entity.
      * @param producers The OIDs of the producers that the created entity should be consuming from.
      *                  Does not actually associate any commodities with the producers.
-     * @return A {@link TopologyEntityDTO} with the given properties.
+     * @return A {@link TopologyEntity.Builder} with the given properties.
      */
     public static TopologyEntity.Builder topologyEntity(long oid,
-                                                        long discoveringTargetId,
-                                                        long lastUpdatedTime,
-                                                        EntityType entityType,
-                                                        long... producers) {
+                                                    long discoveringTargetId,
+                                                    long lastUpdatedTime,
+                                                    EntityType entityType,
+                                                    long... producers) {
         return topologyEntity(oid, discoveringTargetId, lastUpdatedTime, "", entityType, producers);
     }
 
@@ -182,16 +202,16 @@ public class TopologyEntityUtils {
      * @param entityType The entity type for the entity.
      * @param producers The OIDs of the producers that the created entity should be consuming from.
      *                  Does not actually associate any commodities with the producers.
-     * @return A {@link TopologyEntityDTO} with the given properties.
+     * @return A {@link TopologyEntity.Builder} with the given properties.
      */
     public static TopologyEntity.Builder topologyEntity(long oid,
-                                                        long discoveringTargetId,
-                                                        long lastUpdatedTime,
-                                                        String displayName,
-                                                        EntityType entityType,
-                                                        long... producers) {
+                                                    long discoveringTargetId,
+                                                    long lastUpdatedTime,
+                                                    String displayName,
+                                                    EntityType entityType,
+                                                    long... producers) {
         return topologyEntity(oid, discoveringTargetId, lastUpdatedTime,
-            displayName, entityType, Collections.emptyList(), producers);
+                displayName, entityType, Collections.emptyList(), producers);
     }
 
     /**
@@ -205,68 +225,68 @@ public class TopologyEntityUtils {
      * @param soldComms is the list of {@link CommodityType} sold.
      * @param producers The OIDs of the producers that the created entity should be consuming from.
      *                  Does not actually associate any commodities with the producers.
-     * @return A {@link TopologyEntityDTO} with the given properties.
+     * @return A {@link TopologyEntityImpl} with the given properties.
      */
     public static TopologyEntity.Builder topologyEntity(long oid,
-                                                        long discoveringTargetId,
-                                                        long lastUpdatedTime,
-                                                        String displayName,
-                                                        EntityType entityType,
-                                                        List<CommodityType> soldComms,
-                                                        long... producers) {
+                                                    long discoveringTargetId,
+                                                    long lastUpdatedTime,
+                                                    String displayName,
+                                                    EntityType entityType,
+                                                    List<CommodityTypeView> soldComms,
+                                                    long... producers) {
         final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
-                .setOid(oid)
-                .setEntityType(entityType.getNumber())
-                .setDisplayName(displayName)
-                .setOrigin(Origin.newBuilder()
-                        .setDiscoveryOrigin(
-                                DiscoveryOriginBuilder.discoveredBy(discoveringTargetId, null,
-                                        EntityOrigin.DISCOVERED)
-                        .lastUpdatedAt(lastUpdatedTime))));
-        for (CommodityType ct : soldComms) {
-            builder.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(ct).build());
-        }
-
-        addCommodityBoughtMap(builder.getEntityBuilder(), producers);
-        return builder;
-    }
-
-    /**
-     * Create a minimal topology entity builder.
-     *
-     * @param oid The OID of the topology entity.
-     * @param discoveringTargetId The ID of the target that discovered the entity.
-     * @param lastUpdatedTime last updated time of the topology entity.
-     * @param displayName topology entity display name.
-     * @param entityType The entity type for the entity.
-     * @param producers The is mapping of OIDs of the producers that the created entity should be consuming from.
-     *                  associated with commodities bought from the provider.
-     * @param soldComms is the list of {@link CommodityType} sold.
-     * @return A {@link TopologyEntityDTO} with the given properties.
-     */
-    public static TopologyEntity.Builder topologyEntity(long oid,
-                                                        long discoveringTargetId,
-                                                        long lastUpdatedTime,
-                                                        String displayName,
-                                                        EntityType entityType,
-                                                        Map<Long, List<CommodityType>> producers,
-                                                        List<CommodityType> soldComms) {
-        final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder()
+                new TopologyEntityImpl()
                         .setOid(oid)
                         .setEntityType(entityType.getNumber())
                         .setDisplayName(displayName)
-                        .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(
-                                        DiscoveryOriginBuilder.discoveredBy(discoveringTargetId,
-                                                null, EntityOrigin.DISCOVERED)
-                                        .lastUpdatedAt(lastUpdatedTime))));
-        for (CommodityType ct : soldComms) {
-            builder.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(ct).build());
+                        .setOrigin(new TopologyEntityImpl.OriginImpl()
+                                    .setDiscoveryOrigin(
+                                            DiscoveryOriginImplBuilder.discoveredBy(discoveringTargetId,
+                                                                            null, EntityOrigin.DISCOVERED)
+                                                    .lastUpdatedAt(lastUpdatedTime))));
+        for (CommodityTypeView ct : soldComms) {
+            builder.getTopologyEntityImpl().addCommoditySoldList(new CommoditySoldImpl().setCommodityType(ct));
         }
 
-        addCommodityBoughtFromProviderMap(builder.getEntityBuilder(), producers);
+        addCommodityBoughtMap(builder.getTopologyEntityImpl(), producers);
+        return builder;
+    }
+
+    /**
+     * Create a minimal topology entity builder.
+     *
+     * @param oid The OID of the topology entity.
+     * @param discoveringTargetId The ID of the target that discovered the entity.
+     * @param lastUpdatedTime last updated time of the topology entity.
+     * @param displayName topology entity display name.
+     * @param entityType The entity type for the entity.
+     * @param producers The is mapping of OIDs of the producers that the created entity should be consuming from.
+     *                  associated with commodities bought from the provider.
+     * @param soldComms is the list of {@link CommodityType} sold.
+     * @return A {@link TopologyEntityDTO} with the given properties.
+     */
+    public static TopologyEntity.Builder topologyEntity(long oid,
+                                                    long discoveringTargetId,
+                                                    long lastUpdatedTime,
+                                                    String displayName,
+                                                    EntityType entityType,
+                                                    Map<Long, List<TopologyPOJO.CommodityTypeView>> producers,
+                                                    List<CommodityTypeView> soldComms) {
+        final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
+                new TopologyEntityImpl()
+                        .setOid(oid)
+                        .setEntityType(entityType.getNumber())
+                        .setDisplayName(displayName)
+                        .setOrigin(new TopologyEntityImpl.OriginImpl()
+                                .setDiscoveryOrigin(
+                                        DiscoveryOriginImplBuilder.discoveredBy(discoveringTargetId,
+                                                        null, EntityOrigin.DISCOVERED)
+                                                .lastUpdatedAt(lastUpdatedTime))));
+        for (CommodityTypeView ct : soldComms) {
+            builder.getTopologyEntityImpl().addCommoditySoldList(new CommoditySoldImpl().setCommodityType(ct));
+        }
+
+        addCommodityBoughtFromProviderMap(builder.getTopologyEntityImpl(), producers);
         return builder;
     }
 
@@ -288,23 +308,23 @@ public class TopologyEntityUtils {
                                                         long lastUpdatedTime,
                                                         String displayName,
                                                         EntityType entityType,
-                                                        List<CommodityType> soldComms,
-                                                        Map<Long, Pair<Integer, List<CommodityType>>> producers) {
+                                                        List<CommodityTypeView> soldComms,
+                                                        Map<Long, Pair<Integer, List<CommodityTypeView>>> producers) {
         final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(oid)
                 .setEntityType(entityType.getNumber())
                 .setDisplayName(displayName)
-                .setOrigin(Origin.newBuilder()
+                .setOrigin(new OriginImpl()
                     .setDiscoveryOrigin(
-                        DiscoveryOriginBuilder.discoveredBy(discoveringTargetId,
+                        DiscoveryOriginImplBuilder.discoveredBy(discoveringTargetId,
                             null, EntityOrigin.DISCOVERED)
                             .lastUpdatedAt(lastUpdatedTime))));
-        for (CommodityType ct : soldComms) {
-            builder.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(ct).build());
+        for (CommodityTypeView ct : soldComms) {
+            builder.getTopologyEntityImpl().addCommoditySoldList(new CommoditySoldImpl().setCommodityType(ct));
         }
 
-        addCommodityBoughtFromProviderMap(producers, builder.getEntityBuilder());
+        addCommodityBoughtFromProviderMap(producers, builder.getTopologyEntityImpl());
         return builder;
     }
 
@@ -317,13 +337,13 @@ public class TopologyEntityUtils {
      * @param entityType The entity type for the entity.
      * @param connectedToEntities The OIDs of the entities that the created entity should be
      *                            connected to in the topology
-     * @return A {@link TopologyEntityDTO} with the given properties.
+     * @return A {@link TopologyEntityImpl} with the given properties.
      */
     public static TopologyEntity.Builder connectedTopologyEntity(long oid,
-                                                                 long discoveringTargetId,
-                                                                 long lastUpdatedTime,
-                                                                 EntityType entityType,
-                                                                 long... connectedToEntities) {
+                                                             long discoveringTargetId,
+                                                             long lastUpdatedTime,
+                                                             EntityType entityType,
+                                                             long... connectedToEntities) {
         return connectedTopologyEntity(oid, discoveringTargetId, lastUpdatedTime, "", entityType, connectedToEntities);
     }
 
@@ -346,28 +366,27 @@ public class TopologyEntityUtils {
                                                                  EntityType entityType,
                                                                  long... connectedToEntities) {
         final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(oid)
                 .setEntityType(entityType.getNumber())
                 .setDisplayName(displayName)
-                .setOrigin(Origin.newBuilder()
+                .setOrigin(new OriginImpl()
                         .setDiscoveryOrigin(
-                                DiscoveryOriginBuilder.discoveredBy(discoveringTargetId, null,
+                                DiscoveryOriginImplBuilder.discoveredBy(discoveringTargetId, null,
                                         EntityOrigin.DISCOVERED)
                         .lastUpdatedAt(lastUpdatedTime))));
 
         for (long connectedTo : connectedToEntities) {
-            builder.getEntityBuilder()
-                    .addConnectedEntityList(ConnectedEntity.newBuilder()
+            builder.getTopologyEntityImpl()
+                    .addConnectedEntityList(new ConnectedEntityImpl()
                 .setConnectedEntityId(connectedTo)
-                .setConnectionType(ConnectionType.NORMAL_CONNECTION)
-                .build());
+                .setConnectionType(ConnectionType.NORMAL_CONNECTION));
         }
         return builder;
     }
 
     /**
-     * Create a minimal topology entity builder.
+     * Create a minimal topology entity.
      *
      * @param oid The OID of the topology entity.
      * @param discoveringTargetId The ID of the target that discovered the entity.
@@ -377,47 +396,25 @@ public class TopologyEntityUtils {
      * @param connectedToEntities The OIDs of the entities that the created entity should be
      *                            connected to in the topology together with the respective
      *                            connection types
-     * @return A {@link TopologyEntityDTO} with the given properties.
+     * @return A {@link TopologyEntityImpl} with the given properties.
      */
     public static TopologyEntity.Builder connectedTopologyEntity(
              long oid, long discoveringTargetId, long lastUpdatedTime, String displayName,
-             EntityType entityType, Collection<ConnectedEntity> connectedToEntities) {
+             EntityType entityType, Collection<ConnectedEntityView> connectedToEntities) {
         final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder()
+                new TopologyEntityImpl()
                         .setOid(oid)
                         .setEntityType(entityType.getNumber())
                         .setDisplayName(displayName)
-                        .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId)
+                        .setOrigin(new OriginImpl()
+                                .setDiscoveryOrigin(DiscoveryOriginImplBuilder.discoveredBy(discoveringTargetId)
                                         .lastUpdatedAt(lastUpdatedTime))));
 
-        for (ConnectedEntity connectedEntity : connectedToEntities) {
-            builder.getEntityBuilder().addConnectedEntityList(ConnectedEntity.newBuilder()
+        for (ConnectedEntityView connectedEntity : connectedToEntities) {
+            builder.getTopologyEntityImpl().addConnectedEntityList(new ConnectedEntityImpl()
                     .setConnectedEntityId(connectedEntity.getConnectedEntityId())
-                    .setConnectionType(connectedEntity.getConnectionType())
-                    .build());
+                    .setConnectionType(connectedEntity.getConnectionType()));
         }
-        return builder;
-    }
-
-    /**
-     * Create a minimal topology entity builder that was never discovered.
-     *
-     * @param oid The OID of the topology entity.
-     * @param entityType The entity type for the entity.
-     * @param producers The OIDs of the producers that the created entity should be consuming from.
-     *                  Does not actually associate any commodities with the producers.
-     * @return A {@link TopologyEntityDTO} with the given properties.
-     */
-    public static TopologyEntity.Builder neverDiscoveredTopologyEntity(long oid,
-                                                                       EntityType entityType,
-                                                                       long... producers) {
-        final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
-                .setOid(oid)
-                .setEntityType(entityType.getNumber()));
-
-        addCommodityBoughtMap(builder.getEntityBuilder(), producers);
         return builder;
     }
 
@@ -432,33 +429,16 @@ public class TopologyEntityUtils {
      * @return A {@link TopologyEntityDTO} with the given properties.
      */
     public static TopologyEntity.Builder topologyEntityWithName(long oid,
-                                                                EntityType entityType,
-                                                                String name,
-                                                                long... producers) {
-        final TopologyEntity.Builder builder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
-            .setOid(oid)
-            .setDisplayName(name)
-            .setEntityType(entityType.getNumber()));
-
-        addCommodityBoughtMap(builder.getEntityBuilder(), producers);
-        return builder;
-    }
-
-    /**
-     * Create a minimal topology entity with entity tags.
-     *
-     * @param oid The OID of the topology entity.
-     * @param entityType The entity type for the entity.
-     * @param tags The tags.
-     * @return A {@link TopologyEntityDTO} with the given properties.
-     */
-    public static TopologyEntity.Builder topologyEntityWithTags(
-        long oid, @Nonnull EntityType entityType, @Nonnull Map<String, TagValuesDTO> tags) {
-        return TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+                                                            EntityType entityType,
+                                                            String name,
+                                                            long... producers) {
+        final TopologyEntity.Builder builder = TopologyEntity.newBuilder(new TopologyEntityImpl()
                 .setOid(oid)
-                .setEntityType(entityType.getNumber())
-                .setTags(Tags.newBuilder().putAllTags(tags).build()));
+                .setDisplayName(name)
+                .setEntityType(entityType.getNumber()));
+
+        addCommodityBoughtMap(builder.getTopologyEntityImpl(), producers);
+        return builder;
     }
 
     /**
@@ -469,27 +449,25 @@ public class TopologyEntityUtils {
      * @param connectionType    Connection type.
      */
     public static void addConnectedEntity(@Nonnull final TopologyEntity.Builder entity, long connectedEntityId, ConnectionType connectionType) {
-        entity.getEntityBuilder()
-            .addConnectedEntityList(ConnectedEntity.newBuilder()
-                .setConnectedEntityId(connectedEntityId)
-                .setConnectionType(connectionType)
-                .build());
+        entity.getTopologyEntityImpl()
+                .addConnectedEntityList(new TopologyEntityImpl.ConnectedEntityImpl()
+                        .setConnectedEntityId(connectedEntityId)
+                        .setConnectionType(connectionType));
     }
 
     /**
      * Add each producer to builder commodity bought map.
-     * @param builder The builder of the topology entity
+     * @param entityImpl The builder of the topology entity
      * @param producers The is mapping of OIDs of the producers that the created entity should be consuming from.
      *                  associated with commodities bought from the provider.
      */
-    private static void addCommodityBoughtFromProviderMap(TopologyEntityDTO.Builder builder,
-                                                          Map<Long, List<CommodityType>> producers) {
-        for (Map.Entry<Long, List<CommodityType>> producer : producers.entrySet()) {
-            builder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+    private static void addCommodityBoughtFromProviderMap(TopologyEntityImpl entityImpl,
+                                                          Map<Long, List<CommodityTypeView>> producers) {
+        for (Map.Entry<Long, List<CommodityTypeView>> producer : producers.entrySet()) {
+            entityImpl.addCommoditiesBoughtFromProviders(new TopologyEntityImpl.CommoditiesBoughtFromProviderImpl()
                     .addAllCommodityBought(producer.getValue().stream().map(c ->
-                            CommodityBoughtDTO.newBuilder().setCommodityType(c).build()).collect(Collectors.toList()))
-                .setProviderId(producer.getKey())
-                .build());
+                           new CommodityBoughtImpl().setCommodityType(c)).collect(Collectors.toList()))
+                    .setProviderId(producer.getKey()));
         }
     }
 
@@ -497,17 +475,16 @@ public class TopologyEntityUtils {
      * Add each producer to builder commodity bought map.
      * @param producers The is mapping of OIDs of the producers that the created entity should be consuming from.
      *                  associated with commodities bought from the provider.
-     * @param builder The builder of the topology entity
+     * @param entity The topology entity
      */
-    private static void addCommodityBoughtFromProviderMap(Map<Long, Pair<Integer, List<CommodityType>>> producers,
-                                                          TopologyEntityDTO.Builder builder) {
-        for (Map.Entry<Long, Pair<Integer, List<CommodityType>>> producer : producers.entrySet()) {
-            builder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+    private static void addCommodityBoughtFromProviderMap(Map<Long, Pair<Integer, List<CommodityTypeView>>> producers,
+                                                          TopologyEntityImpl entity) {
+        for (Map.Entry<Long, Pair<Integer, List<CommodityTypeView>>> producer : producers.entrySet()) {
+            entity.addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                 .addAllCommodityBought(producer.getValue().getSecond().stream().map(c ->
-                    CommodityBoughtDTO.newBuilder().setCommodityType(c).build()).collect(Collectors.toList()))
+                    new CommodityBoughtImpl().setCommodityType(c)).collect(Collectors.toList()))
                 .setProviderId(producer.getKey())
-                .setProviderEntityType(producer.getValue().getFirst())
-                .build());
+                .setProviderEntityType(producer.getValue().getFirst()));
         }
     }
 
@@ -525,6 +502,19 @@ public class TopologyEntityUtils {
         }
     }
 
+    /**
+     * Add each producer to builder commodity bought map.
+     * @param builder The builder of the topology entity
+     * @param producers The OIDs of the producers that the created entity should be consuming from.
+     *                  Does not actually associate any commodities with the producers.
+     */
+    private static void addCommodityBoughtMap(TopologyEntityImpl builder, long... producers) {
+        for (long producer : producers) {
+            builder.addCommoditiesBoughtFromProviders(new TopologyEntityImpl.CommoditiesBoughtFromProviderImpl()
+                    .setProviderId(producer));
+        }
+    }
+
     static TopologyEntity.Builder buildTopologyEntityWithCommBought(
             long oid, int commType, int entityType, long provider) {
         return buildTopologyEntityWithCommBought(oid, commType, entityType, provider, 0, 0, null, null);
@@ -538,22 +528,22 @@ public class TopologyEntityUtils {
     static TopologyEntity.Builder buildTopologyEntityWithCommBought(
             long oid, int commType, int entityType, long provider,
             double used, double peak, @Nullable Double historicalUsed, @Nullable Double historicalPeak) {
-        CommodityBoughtDTO.Builder commodityBoughtDTO = CommodityBoughtDTO.newBuilder().setCommodityType(
-                CommodityType.newBuilder().setType(commType).setKey("").build())
+        CommodityBoughtImpl commodityBought = new CommodityBoughtImpl().setCommodityType(
+                new CommodityTypeImpl().setType(commType).setKey(""))
                 .setActive(true)
                 .setUsed(used)
                 .setPeak(peak);
         if (historicalUsed != null) {
-            commodityBoughtDTO.setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(historicalUsed));
+            commodityBought.setHistoricalUsed(new HistoricalValuesImpl().setHistUtilization(historicalUsed));
         }
         if (historicalPeak != null) {
-            commodityBoughtDTO.setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(historicalPeak));
+            commodityBought.setHistoricalPeak(new HistoricalValuesImpl().setHistUtilization(historicalPeak));
         }
-        CommoditiesBoughtFromProvider.Builder commFromProvider =
-            CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(commodityBoughtDTO)
+        CommoditiesBoughtFromProviderImpl commFromProvider =
+            new CommoditiesBoughtFromProviderImpl().addCommodityBought(commodityBought)
                 .setProviderId(provider);
 
-        return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)
+        return TopologyEntityUtils.topologyEntityBuilder(new TopologyEntityImpl().setOid(oid)
             .addCommoditiesBoughtFromProviders(commFromProvider)
             .setEntityType(entityType));
     }
@@ -571,73 +561,71 @@ public class TopologyEntityUtils {
     static TopologyEntity.Builder buildTopologyEntityWithCommSold(
             long oid, int commType, int entityType,
             double used, double peak, @Nullable Double historicalUsed, @Nullable Double historicalPeak) {
-        final ImmutableList.Builder<CommoditySoldDTO> commSoldList = ImmutableList.builder();
-        CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder().setCommodityType(
-                CommodityType.newBuilder().setType(commType).setKey("").build())
+        final ImmutableList.Builder<CommoditySoldView> commSoldList = ImmutableList.builder();
+        CommoditySoldImpl commoditySoldBuilder = new CommoditySoldImpl().setCommodityType(
+                new CommodityTypeImpl().setType(commType).setKey(""))
                 .setActive(true)
                 .setUsed(used)
                 .setPeak(peak);
         if (historicalUsed != null) {
-            commoditySoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
+            commoditySoldBuilder.setHistoricalUsed(new HistoricalValuesImpl()
                     .setHistUtilization(historicalUsed));
         }
         if (historicalPeak != null) {
-            commoditySoldBuilder.setHistoricalPeak(HistoricalValues.newBuilder()
+            commoditySoldBuilder.setHistoricalPeak(new HistoricalValuesImpl()
                     .setHistUtilization(historicalPeak));
         }
-        commSoldList.add(commoditySoldBuilder.build());
+        commSoldList.add(commoditySoldBuilder);
 
-        return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)
+        return TopologyEntityUtils.topologyEntityBuilder(new TopologyEntityImpl().setOid(oid)
             .addAllCommoditySoldList(commSoldList.build())
             .setEntityType(entityType));
     }
 
     static TopologyEntity.Builder buildTopologyEntityWithCommSoldCommBoughtWithHistoricalValues(
-            long oid, HistoricalValues historicalUsedSold1, HistoricalValues historicalPeakSold1,
-            HistoricalValues historicalUsedSold2, HistoricalValues historicalPeakSold2,
-            long providerOid1, HistoricalValues historicalUsedBought1, HistoricalValues historicalPeakBought1,
-            long providerOid2, HistoricalValues historicalUsedBought2, HistoricalValues historicalPeakBought2) {
-        final ImmutableList.Builder<CommoditySoldDTO> commSoldList = ImmutableList.builder();
-        commSoldList.add(CommoditySoldDTO.newBuilder().setCommodityType(
-            TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM.getNumber()).setKey("").build())
+            long oid, HistoricalValuesView historicalUsedSold1, HistoricalValuesView historicalPeakSold1,
+            HistoricalValuesView historicalUsedSold2, HistoricalValuesView historicalPeakSold2,
+            long providerOid1, HistoricalValuesView historicalUsedBought1, HistoricalValuesView historicalPeakBought1,
+            long providerOid2, HistoricalValuesView historicalUsedBought2, HistoricalValuesView historicalPeakBought2) {
+        final ImmutableList.Builder<CommoditySoldImpl> commSoldList = ImmutableList.builder();
+        commSoldList.add(new CommoditySoldImpl().setCommodityType(
+            new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VMEM.getNumber()).setKey(""))
             .setHistoricalUsed(historicalUsedSold1)
-            .setHistoricalPeak(historicalPeakSold1)
-            .build());
-        commSoldList.add(CommoditySoldDTO.newBuilder().setCommodityType(
-            TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU.getNumber()).setKey("").build())
+            .setHistoricalPeak(historicalPeakSold1));
+        commSoldList.add(new CommoditySoldImpl().setCommodityType(
+                        new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU.getNumber()).setKey(""))
             .setHistoricalUsed(historicalUsedSold2)
-            .setHistoricalPeak(historicalPeakSold2)
-            .build());
+            .setHistoricalPeak(historicalPeakSold2));
 
-        final ImmutableList.Builder<CommoditiesBoughtFromProvider> commBoughtList = ImmutableList.builder();
-        commBoughtList.add(CommoditiesBoughtFromProvider.newBuilder().setProviderId(providerOid1)
-            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
-                TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.MEM.getNumber()).setKey("").build())
+        final ImmutableList.Builder<CommoditiesBoughtFromProviderImpl> commBoughtList = ImmutableList.builder();
+        commBoughtList.add(new CommoditiesBoughtFromProviderImpl().setProviderId(providerOid1)
+            .addCommodityBought(new CommodityBoughtImpl().setCommodityType(
+                new CommodityTypeImpl().setType(CommodityDTO.CommodityType.MEM.getNumber()).setKey(""))
                 .setHistoricalUsed(historicalUsedBought1)
-                .setHistoricalPeak(historicalPeakBought1)).build());
-        commBoughtList.add(CommoditiesBoughtFromProvider.newBuilder().setProviderId(providerOid2)
-            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
-                TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()).setKey("").build())
+                .setHistoricalPeak(historicalPeakBought1)));
+        commBoughtList.add(new CommoditiesBoughtFromProviderImpl().setProviderId(providerOid2)
+            .addCommodityBought(new CommodityBoughtImpl().setCommodityType(
+                new CommodityTypeImpl().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()).setKey(""))
                 .setHistoricalUsed(historicalUsedBought2)
-                .setHistoricalPeak(historicalPeakBought2)).build());
+                .setHistoricalPeak(historicalPeakBought2)));
 
-        return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)
+        return TopologyEntityUtils.topologyEntityBuilder(new TopologyEntityImpl().setOid(oid)
             .addAllCommoditySoldList(commSoldList.build())
             .addAllCommoditiesBoughtFromProviders(commBoughtList.build())
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
     }
 
-    static TopologyGraph<TopologyEntity> createGraph(CommodityDTO.CommodityType commType,
-             double pmUsed, double pmPeak, double vmUsed, double vmPeak) {
+    static TopologyGraph<TopologyEntity> createTopologyGraph(CommodityDTO.CommodityType commType,
+                                                         double pmUsed, double pmPeak, double vmUsed, double vmPeak) {
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
 
         // Set physical machine with commodities sold.
         topology.put(1L, buildTopologyEntityWithCommSold(1L, commType.getNumber(),
-            EntityType.PHYSICAL_MACHINE_VALUE, pmUsed, pmPeak));
+                EntityType.PHYSICAL_MACHINE_VALUE, pmUsed, pmPeak));
 
         // Set virtual machine with commodities bought.
         topology.put(2L, buildTopologyEntityWithCommBought(2L, commType.getNumber(),
-            EntityType.VIRTUAL_MACHINE_VALUE, 1L, vmUsed, vmPeak));
+                EntityType.VIRTUAL_MACHINE_VALUE, 1L, vmUsed, vmPeak));
 
         return TopologyEntityTopologyGraphCreator.newGraph(topology);
     }

@@ -35,6 +35,7 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicySca
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
@@ -389,7 +390,7 @@ public class LivePipelineFactory {
      * Create a pipeline that constructs and broadcasts the minimum live topology used
      * in the developer freemium edition. A {@link DummySettingsResolutionStage} is inserted
      * to the pipeline stages which takes the {@link com.vmturbo.topology.graph.TopologyGraph}
-     * as input and produce {@link com.vmturbo.topology.processor.group.settings.GraphWithSettings}
+     * as input and produce {@link GraphWithSettings}
      * with empty settings as output.
      *
      * @param context A context object shared by all stages in the pipeline.

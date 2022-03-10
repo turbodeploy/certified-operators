@@ -18,6 +18,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -49,6 +50,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -537,6 +541,92 @@ public final class TopologyDTOUtil {
      */
     public static Map<Long, Long> parseOldProvidersMap(@Nonnull final TopologyEntityDTOOrBuilder entity,
                                                        @Nonnull final Gson gson) {
+        return parseOldProvidersMap(entity.getEntityPropertyMapMap().get(OLD_PROVIDERS), gson);
+    }
+
+    /**
+     * Parse the unstructured JSON for the old providers map out of the entity properties map
+     * on the TopologyEntityDTO.
+     * <p/>
+     * Extract the old providers mapping. When creating a copy of an entity in
+     * a plan, we "un-place" the entity by changing the provider oids in the
+     * cloned shopping lists to oids that do not exist in the topology. But we
+     * still need to know who were the original providers (for the purpose of
+     * creating bicliques). This map provides the mapping between the provider
+     * oids in the cloned object and the provider oids in the source object.
+     * TODO: OM-26631 - get rid of unstructured data and Gson
+     *
+     * @param entity The TopologyEntityDTO containing the entity properties map.
+     * @param gson The GSON object to use for parsing.
+     *             Performance Note: Do NOT create a new GSON object each time you call
+     *             this method in a loop. Cache the GSON because creating a new one is expensive.
+     * @return map from provider oids in the cloned shopping list and
+     * the source shopping lists. If the entity is not a clone in a plan
+     * then the map is empty.
+     * @throws NumberFormatException If number parsing fails.
+     */
+    public static Map<Long, Long> parseOldProvidersMap(@Nonnull final TopologyEntityView entity,
+                                                       @Nonnull final Gson gson) {
+        return parseOldProvidersMap(entity.getEntityPropertyMapMap().get(OLD_PROVIDERS), gson);
+    }
+
+    /**
+     * Parse the unstructured JSON for the old providers map out of the entity properties map
+     * on the TopologyEntityDTO.
+     * <p/>
+     * Extract the old providers mapping. When creating a copy of an entity in
+     * a plan, we "un-place" the entity by changing the provider oids in the
+     * cloned shopping lists to oids that do not exist in the topology. But we
+     * still need to know who were the original providers (for the purpose of
+     * creating bicliques). This map provides the mapping between the provider
+     * oids in the cloned object and the provider oids in the source object.
+     * TODO: OM-26631 - get rid of unstructured data and Gson
+     *
+     * @param oldProvidersString The unstructured old providers string.
+     * @param gson The GSON object to use for parsing.
+     *             Performance Note: Do NOT create a new GSON object each time you call
+     *             this method in a loop. Cache the GSON because creating a new one is expensive.
+     * @return map from provider oids in the cloned shopping list and
+     * the source shopping lists. If the entity is not a clone in a plan
+     * then the map is empty.
+     * @throws NumberFormatException If number parsing fails.
+     */
+    private static Map<Long, Long> parseOldProvidersMap(@Nullable final String oldProvidersString,
+                                                        @Nonnull final Gson gson) {
+        if (oldProvidersString == null) {
+            return Collections.emptyMap();
+        } else {
+            @SuppressWarnings("unchecked")
+            final Map<String, Double> oldProviders = gson.fromJson(oldProvidersString, Map.class);
+            return oldProviders.entrySet().stream()
+                .collect(Collectors.toMap(e -> Long.decode(e.getKey()),
+                    e -> e.getValue().longValue()));
+        }
+    }
+
+    /**
+     * Parse the unstructured JSON for the old providers map out of the entity properties map
+     * on the TopologyEntityDTO.
+     * <p/>
+     * Extract the old providers mapping. When creating a copy of an entity in
+     * a plan, we "un-place" the entity by changing the provider oids in the
+     * cloned shopping lists to oids that do not exist in the topology. But we
+     * still need to know who were the original providers (for the purpose of
+     * creating bicliques). This map provides the mapping between the provider
+     * oids in the cloned object and the provider oids in the source object.
+     * TODO: OM-26631 - get rid of unstructured data and Gson
+     *
+     * @param entity The TopologyEntityImpl containing the entity properties map.
+     * @param gson The GSON object to use for parsing.
+     *             Performance Note: Do NOT create a new GSON object each time you call
+     *             this method in a loop. Cache the GSON because creating a new one is expensive.
+     * @return map from provider oids in the cloned shopping list and
+     * the source shopping lists. If the entity is not a clone in a plan
+     * then the map is empty.
+     * @throws NumberFormatException If number parsing fails.
+     */
+    public static Map<Long, Long> parseOldProvidersMap(@Nonnull final TopologyPOJO.TopologyEntityImpl entity,
+                                                       @Nonnull final Gson gson) {
         final String oldProvidersString = entity.getEntityPropertyMapMap().get(OLD_PROVIDERS);
         if (oldProvidersString == null) {
             return Collections.emptyMap();
@@ -673,6 +763,30 @@ public final class TopologyDTOUtil {
     }
 
     /**
+     * Get CPU speed in MHz/core for given VM if entity state is not unknown.
+     *
+     * @param topologyEntity Given topology entity DTO or builder of VM.
+     * @return CPU speed in MHz/core for given VM.
+     */
+    public static Optional<Double> getCPUCoreMhz(@Nonnull final TopologyEntityView topologyEntity) {
+        if (topologyEntity.getEntityState() != EntityState.UNKNOWN
+            && topologyEntity.hasTypeSpecificInfo()
+            && topologyEntity.getTypeSpecificInfo().hasVirtualMachine()
+            && topologyEntity.getTypeSpecificInfo().getVirtualMachine().hasNumCpus()) {
+            int numCPUCores = topologyEntity.getTypeSpecificInfo().getVirtualMachine().getNumCpus();
+            Optional<CommoditySoldView> cpuComm = topologyEntity.getCommoditySoldListList().stream()
+                .filter(comm -> comm.getCommodityType().getType() == CommodityType.VCPU_VALUE)
+                .findFirst();
+            if (!cpuComm.isPresent()) {
+                logger.error("Fail to calculate CPU speed for VM {} because VM has no VCPU commodity sold.", topologyEntity.getOid());
+                return Optional.empty();
+            }
+            return Optional.of(cpuComm.get().getCapacity() / numCPUCores);
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Get volume provider. For on prem case, the result contains storage connected to the
      * volume. For cloud case, the result contains storage tier selling commodities to
      * the volume.
@@ -691,6 +805,39 @@ public final class TopologyDTOUtil {
                         // Get storage connected to the volume
                         .orElse(TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
                                         EntityType.STORAGE.getNumber()).findFirst().orElse(null)));
+    }
+
+    /**
+     * Check the given entity to see whether it is a configuration volume. Disk volume populates storage amount
+     * and storage provisioned commodities but not storage access nor storage latency.
+     * TODO: Currently we rely on commodity types to determine a configuration volume.
+     * When the onPremAnalysisVolume flag is removed, the configuration volume will
+     * differ from others by having controllable flag set to false. We should change
+     * this method to rely on the controllable flag in future.
+     *
+     * @param entity a given topology entity pojo.
+     * @return true if the volume is a configuration volume.
+     */
+    public static boolean isConfigurationVolume(TopologyEntityImpl entity) {
+        if (entity.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE) {
+            return false;
+        }
+        boolean hasStAmt = false;
+        boolean hasStProv = false;
+        boolean hasStAcc = false;
+        boolean hasStLat = false;
+        for (CommoditySoldView commSold : entity.getCommoditySoldListList()) {
+            if (commSold.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE) {
+                hasStAmt = true;
+            } else if (commSold.getCommodityType().getType() == CommodityType.STORAGE_PROVISIONED_VALUE) {
+                hasStProv = true;
+            } else if (commSold.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE) {
+                hasStAcc = true;
+            } else if (commSold.getCommodityType().getType() == CommodityType.STORAGE_LATENCY_VALUE) {
+                hasStLat = true;
+            }
+        }
+        return hasStAmt && hasStProv && !hasStAcc && !hasStLat;
     }
 
     /**

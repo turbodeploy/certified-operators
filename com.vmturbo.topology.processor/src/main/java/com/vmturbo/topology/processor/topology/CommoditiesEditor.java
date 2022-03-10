@@ -36,10 +36,11 @@ import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -164,10 +165,10 @@ public class CommoditiesEditor {
      */
     private Map<Integer, Queue<Long>> getProviderIdsByCommodityType(TopologyEntity vm) {
         final Map<Integer, Queue<Long>> providerIdsByCommodityType = new HashMap<>();
-        for (TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider.Builder commBoughtFromProvider :
-            vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList()) {
-            for (TopologyDTO.CommodityBoughtDTO.Builder comm
-                            : commBoughtFromProvider.getCommodityBoughtBuilderList()) {
+        for (CommoditiesBoughtFromProviderImpl commBoughtFromProvider :
+            vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersImplList()) {
+            for (CommodityBoughtImpl comm
+                            : commBoughtFromProvider.getCommodityBoughtImplList()) {
                 long providerOid = commBoughtFromProvider.getProviderId();
                 providerIdsByCommodityType
                     .computeIfAbsent(comm.getCommodityType().getType(), k -> new LinkedList<>())
@@ -201,12 +202,12 @@ public class CommoditiesEditor {
         // W.r.t legacy for baseline and headroom we want to update VMs, Hosts and Storages.
         // May be we might need to update VM's consumers (containers) in future but that will be an improvement.
         // handle commodity sold by VM
-        Optional<CommoditySoldDTO.Builder> commoditySold = vm.getTopologyEntityDtoBuilder()
-                .getCommoditySoldListBuilderList().stream()
+        Optional<CommoditySoldImpl> commoditySold = vm.getTopologyEntityImpl()
+                .getCommoditySoldListImplList().stream()
                 .filter(comm -> comm.getCommodityType().getType() == commType.getNumber())
                 .findFirst();
         if (commoditySold.isPresent()) {
-            CommoditySoldDTO.Builder commBuilder = commoditySold.get();
+            CommoditySoldImpl commBuilder = commoditySold.get();
             if (peak < 0) {
                 logger.error("Peak quantity = {} for commodity type {} of topology entity {}",
                         peak, commoditySold.get().getCommodityType(), vm.getDisplayName());
@@ -256,18 +257,18 @@ public class CommoditiesEditor {
 
         graph.getEntity(providerOid).ifPresent(provider -> {
             // Find commodity bought relevant to current provider.
-            Optional<CommodityBoughtDTO.Builder> commBought = vm.getTopologyEntityDtoBuilder()
-                .getCommoditiesBoughtFromProvidersBuilderList().stream()
+            Optional<CommodityBoughtImpl> commBought = vm.getTopologyEntityImpl()
+                .getCommoditiesBoughtFromProvidersImplList().stream()
                 .filter(commsFromProvider -> commsFromProvider.getProviderId() == providerOid)
-                .flatMap(c -> c.getCommodityBoughtBuilderList().stream())
+                .flatMap(c -> c.getCommodityBoughtImplList().stream())
                 .filter(g -> g.getCommodityType().getType() == commType.getNumber())
                 .findFirst();
 
             commBought.ifPresent(commodityBought -> {
                 // Set values of provider
-                Optional<CommoditySoldDTO.Builder> commSoldByProvider =
-                    provider.getTopologyEntityDtoBuilder()
-                        .getCommoditySoldListBuilderList()
+                Optional<CommoditySoldImpl> commSoldByProvider =
+                    provider.getTopologyEntityImpl()
+                        .getCommoditySoldListImplList()
                         .stream()
                         .filter(c -> c.getCommodityType().getType() == commType.getNumber() )
                         .findFirst();

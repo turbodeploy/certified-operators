@@ -8,9 +8,9 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -57,8 +57,8 @@ public class PropagatedUpUsedPostStitchingOperation implements PostStitchingOper
                                                                  @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
         entities.forEach(entity -> {
             resultBuilder.queueUpdateEntityAlone(entity,
-                    entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
-                            .getCommoditySoldListBuilderList().stream()
+                    entityToUpdate -> entityToUpdate.getTopologyEntityImpl()
+                            .getCommoditySoldListImplList().stream()
                             .filter(this::commodityTypeMatches).findFirst() // assume only one sold
                             .ifPresent(commSold -> {
                                 double used = usedValue(commSold, entityToUpdate);
@@ -76,7 +76,7 @@ public class PropagatedUpUsedPostStitchingOperation implements PostStitchingOper
         return getClass().getSimpleName() + "_" + sellerType + "_" + commodityType;
     }
 
-    private boolean commodityTypeMatches(TopologyDTO.CommoditySoldDTO.Builder commodity) {
+    private boolean commodityTypeMatches(CommoditySoldView commodity) {
         return commodity.getCommodityType().getType() == commodityType.getNumber();
     }
 
@@ -88,13 +88,13 @@ public class PropagatedUpUsedPostStitchingOperation implements PostStitchingOper
      * @param seller   an entity that sells the commodity
      * @return the computed used value
      */
-    private double usedValue(CommoditySoldDTO.Builder commSold, TopologyEntity seller) {
-        double used = seller.getProviders().stream().map(TopologyEntity::getTopologyEntityDtoBuilder)
-                .map(Builder::getCommoditySoldListList).flatMap(List::stream) // All the commodities sold
+    private double usedValue(CommoditySoldImpl commSold, TopologyEntity seller) {
+        double used = seller.getProviders().stream().map(TopologyEntity::getTopologyEntityImpl)
+                .map(TopologyEntityImpl::getCommoditySoldListList).flatMap(List::stream) // All the commodities sold
                 .filter(commodity -> commSold.getCommodityType().equals(commodity.getCommodityType()))
                 .findAny()
-                .filter(CommoditySoldDTO::hasUsed)
-                .map(CommoditySoldDTO::getUsed).orElse(0.0);
+                .filter(CommoditySoldView::hasUsed)
+                .map(CommoditySoldView::getUsed).orElse(0.0);
 
         logger.debug("Used value of commodity sold {} of {} to {}",
                 commodityType, seller.getDisplayName(), used);

@@ -14,8 +14,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -47,7 +47,7 @@ public class HistoryAggregationContext {
      * @param isPlan whether the pipeline is for plan
      */
     public HistoryAggregationContext(@Nonnull TopologyInfo topologyInfo,
-                    @Nonnull GraphWithSettings graphWithSettings, boolean isPlan) {
+                                     @Nonnull GraphWithSettings graphWithSettings, boolean isPlan) {
         this.topologyInfo = topologyInfo;
         this.graph = graphWithSettings.getTopologyGraph();
         this.accessor = new CommodityFieldAccessor(graph);
@@ -155,6 +155,6 @@ public class HistoryAggregationContext {
         return Optional.ofNullable(entityOid)
                 .flatMap(graph::getEntity)
                 .flatMap(TopologyEntity::getClonedFromEntity)
-                .map(TopologyEntityDTO.Builder::getOid);
+                .map(TopologyEntityImpl::getOid);
     }
 }

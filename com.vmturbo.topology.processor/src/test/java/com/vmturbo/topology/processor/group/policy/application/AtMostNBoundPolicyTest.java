@@ -27,7 +27,7 @@ import org.junit.rules.ExpectedException;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ReplacedImpl;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -96,8 +96,8 @@ public class AtMostNBoundPolicyTest {
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 1));
         // replacement from template
         topologyMap.put(9L, topologyEntity(9L, EntityType.PHYSICAL_MACHINE));
-        topologyMap.get(2L).getEntityBuilder().getEditBuilder().setReplaced(
-                TopologyDTO.TopologyEntityDTO.Replaced.newBuilder().setPlanId(7777L).setReplacementId(9L).build());
+        topologyMap.get(2L).getTopologyEntityImpl().getOrCreateEdit().setReplaced(
+                new ReplacedImpl().setPlanId(7777L).setReplacementId(9L));
 
         topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         policyMatcher = new PolicyMatcher(topologyGraph);

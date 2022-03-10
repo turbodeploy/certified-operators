@@ -36,11 +36,12 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.ZipStreamBuilder;
 import com.vmturbo.components.common.utils.ThrowingFunction;
@@ -81,9 +82,8 @@ public class BlobPersistingCachingHistoricalEditorTest {
     private static final long OID1 = 12345L;
     private static final long OID2 = 23456L;
 
-    private static final CommodityType VCPU_COMMODITY_TYPE = CommodityType.newBuilder()
-        .setType(CommodityDTO.CommodityType.VCPU_VALUE)
-        .build();
+    private static final CommodityTypeView VCPU_COMMODITY_TYPE = new CommodityTypeImpl()
+        .setType(CommodityDTO.CommodityType.VCPU_VALUE);
 
     private static final EntityCommodityFieldReference VCPU_REF1 =
         new EntityCommodityFieldReference(OID1, VCPU_COMMODITY_TYPE, null, CommodityField.USED);
@@ -219,14 +219,14 @@ public class BlobPersistingCachingHistoricalEditorTest {
 
         @Override
         public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                                             @Nonnull CommoditySoldDTO.Builder commSold,
+                                             @Nonnull CommoditySoldImpl commSold,
                                              @Nullable TopologyInfo topoInfo) {
             return false;
         }
 
         @Override
         public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                                             @Nonnull CommodityBoughtDTO.Builder commBought,
+                                             @Nonnull CommodityBoughtImpl commBought,
                                              int providerType) {
             return false;
         }

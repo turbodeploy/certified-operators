@@ -23,7 +23,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
@@ -89,12 +89,12 @@ public class TimeSlotLoadingTask extends
                             logger.warn("Received unknown statistic for entity {}: {}", stats.getOid(), record);
                             continue;
                         }
-                        CommodityType.Builder ct = CommodityType.newBuilder().setType(uiCommType.typeNumber());
+                        CommodityTypeImpl ct = new CommodityTypeImpl().setType(uiCommType.typeNumber());
                         if (record.hasStatKey()) {
                             ct.setKey(record.getStatKey());
                         }
                         EntityCommodityFieldReference field =
-                                        new EntityCommodityFieldReference(stats.getOid(), ct.build(),
+                                        new EntityCommodityFieldReference(stats.getOid(), ct,
                                                         provider, CommodityField.USED);
                         ++records;
                         fields2records.computeIfAbsent(field, f -> new LinkedList<>())

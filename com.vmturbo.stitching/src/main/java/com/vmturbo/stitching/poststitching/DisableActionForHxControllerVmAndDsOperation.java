@@ -114,7 +114,7 @@ public class DisableActionForHxControllerVmAndDsOperation implements PostStitchi
     private static void setControllableFalse(TopologyEntity entity) {
         logger.debug("Set Controllable flag to be false for entity {} of type {}",
                 entity.getDisplayName(), entity.getJournalableEntityType().name());
-        entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
+        entity.getTopologyEntityImpl().getOrCreateAnalysisSettings()
                 .setControllable(false);
     }
 }

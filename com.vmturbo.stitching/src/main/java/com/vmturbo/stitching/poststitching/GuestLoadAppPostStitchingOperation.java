@@ -4,16 +4,15 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
@@ -82,9 +81,9 @@ public class GuestLoadAppPostStitchingOperation implements PostStitchingOperatio
             getVMConsumersTotalUsedExcludingGuestLoad(vm, guestLoad.getOid());
 
         // go through each of the bought commodities on GuestLoad and adjust used
-        guestLoad.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList().stream()
+        guestLoad.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersImplList().stream()
             .filter(commodityBought -> commodityBought.getProviderId() == vm.getOid())
-            .flatMap(commodityBought -> commodityBought.getCommodityBoughtBuilderList().stream())
+            .flatMap(commodityBought -> commodityBought.getCommodityBoughtImplList().stream())
             .filter(commodityBoughtDTO -> shouldAdjustUsedForCommodity(
                 commodityBoughtDTO.getCommodityType().getType()))
             .forEach(commodityBoughtDTO -> {
@@ -141,14 +140,14 @@ public class GuestLoadAppPostStitchingOperation implements PostStitchingOperatio
      */
     private static Table<Integer, String, Double> getVMSoldUsedByCommodityTypeAndKey(
             @Nonnull final TopologyEntity vm) {
-        return vm.getTopologyEntityDtoBuilder()
+        return vm.getTopologyEntityImpl()
             .getCommoditySoldListList().stream()
             .filter(commoditySoldDTO -> shouldAdjustUsedForCommodity(
                     commoditySoldDTO.getCommodityType().getType()))
             .collect(ImmutableTable.toImmutableTable(
-                    commoditySoldDTO -> commoditySoldDTO.getCommodityType().getType(),
-                    commoditySoldDTO -> commoditySoldDTO.getCommodityType().getKey(),
-                    CommoditySoldDTO::getUsed,
+                    commoditySold -> commoditySold.getCommodityType().getType(),
+                    commoditySold -> commoditySold.getCommodityType().getKey(),
+                    CommoditySoldView::getUsed,
                     (used1, used2) -> used1 + used2
             ));
     }
@@ -166,16 +165,16 @@ public class GuestLoadAppPostStitchingOperation implements PostStitchingOperatio
         return vm.getConsumers().stream()
             // excluding the original used by the GuestLoad
             .filter(consumer -> consumer.getOid() != guestLoadOid)
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+            .map(TopologyEntity::getTopologyEntityImpl)
             .flatMap(app -> app.getCommoditiesBoughtFromProvidersList().stream())
             .filter(commoditiesBought -> commoditiesBought.getProviderId() == vm.getOid())
             .flatMap(commoditiesBought -> commoditiesBought.getCommodityBoughtList().stream())
             .filter(commodityBoughtDTO -> shouldAdjustUsedForCommodity(
                 commodityBoughtDTO.getCommodityType().getType()))
             .collect(ImmutableTable.toImmutableTable(
-                commodityBoughtDTO -> commodityBoughtDTO.getCommodityType().getType(),
-                commodityBoughtDTO -> commodityBoughtDTO.getCommodityType().getKey(),
-                CommodityBoughtDTO::getUsed,
+                commodityBought -> commodityBought.getCommodityType().getType(),
+                commodityBought -> commodityBought.getCommodityType().getKey(),
+                CommodityBoughtView::getUsed,
                 // sum all used
                 (used1, used2) -> used1 + used2
             ));
@@ -199,10 +198,10 @@ public class GuestLoadAppPostStitchingOperation implements PostStitchingOperatio
      * @return true if the entity is a GuestLoad application, otherwise false
      */
     static boolean isGuestLoadApplication(@Nonnull TopologyEntity entity) {
-        TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
-        return (EntityType.APPLICATION_VALUE == entityBuilder.getEntityType()
-                || EntityType.APPLICATION_COMPONENT_VALUE == entityBuilder.getEntityType())
+        TopologyEntityImpl entityImpl = entity.getTopologyEntityImpl();
+        return (EntityType.APPLICATION_VALUE == entityImpl.getEntityType()
+                || EntityType.APPLICATION_COMPONENT_VALUE == entityImpl.getEntityType())
                 && SupplyChainConstants.GUEST_LOAD.equals(
-                entityBuilder.getEntityPropertyMapMap().get(APPLICATION_TYPE_PATH));
+                    entityImpl.getEntityPropertyMapMap().get(APPLICATION_TYPE_PATH));
     }
 }

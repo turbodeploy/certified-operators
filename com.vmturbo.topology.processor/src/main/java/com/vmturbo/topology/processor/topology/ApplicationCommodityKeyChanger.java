@@ -13,9 +13,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -90,7 +90,7 @@ public class ApplicationCommodityKeyChanger {
         KeyChangeOutcome outcome = KeyChangeOutcome.UNCHANGED;
 
         // get the list of ApplicationCommodity sold
-        List<Builder> appCommoditySoldList = vm.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+        List<CommoditySoldImpl> appCommoditySoldList = vm.getTopologyEntityImpl().getCommoditySoldListImplList().stream()
             .filter(commodity -> commodity.getCommodityType().getType() == CommodityType.APPLICATION_VALUE)
             .collect(Collectors.toList());
 
@@ -98,7 +98,7 @@ public class ApplicationCommodityKeyChanger {
         // a single ApplicationCommodity
         if (appCommoditySoldList.size() == 1) {
 
-            TopologyDTO.CommodityType.Builder appComm = appCommoditySoldList.get(0).getCommodityTypeBuilder();
+            CommodityTypeImpl appComm = appCommoditySoldList.get(0).getOrCreateCommodityType();
             // remember the old key for later, when we need to scan the apps
             String oldAppCommKey = appComm.getKey();
 
@@ -116,16 +116,16 @@ public class ApplicationCommodityKeyChanger {
                 // change app key on apps that are consuming from the vm
                 topologyGraph.getConsumers(vm)
                     .forEach(consumer -> {
-                        consumer.getTopologyEntityDtoBuilder()
-                            .getCommoditiesBoughtFromProvidersBuilderList().stream()
+                        consumer.getTopologyEntityImpl()
+                            .getCommoditiesBoughtFromProvidersImplList().stream()
                                 .filter(commFromProvider -> commFromProvider.getProviderId() == vm.getOid())
-                                .map(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList)
+                                .map(CommoditiesBoughtFromProviderImpl::getCommodityBoughtImplList)
                                 .flatMap(List::stream)
                                 .filter(commodity -> commodity.getCommodityType().getType() ==
                                             CommodityType.APPLICATION_VALUE)
                                 .filter(appCommodity ->
                                             oldAppCommKey.equals(appCommodity.getCommodityType().getKey()))
-                                .forEach(appCommodity -> appCommodity.getCommodityTypeBuilder().setKey(newCommKey));
+                                .forEach(appCommodity -> appCommodity.getOrCreateCommodityType().setKey(newCommKey));
                     });
             }
 

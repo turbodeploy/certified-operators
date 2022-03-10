@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 
 /**
  * An entity in a {@link TopologyGraph}. This interface is meant to expose all properties
@@ -397,6 +398,20 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
         }
 
         /**
+         * Return the provider ids for a specific entity.
+         *
+         * @param entity entity whose provider ids are returned
+         * @return provider ids
+         */
+        @Nonnull
+        static Set<Long> extractProviderIds(@Nonnull final TopologyEntityImpl entity) {
+            return entity.getCommoditiesBoughtFromProvidersList().stream()
+                .filter(TopologyEntityImpl.CommoditiesBoughtFromProviderView::hasProviderId)
+                .map(TopologyEntityImpl.CommoditiesBoughtFromProviderView::getProviderId)
+                .collect(Collectors.toSet());
+        }
+
+        /**
          * Get the IDs of connected to entities (derived from
          * {@link TopologyEntityDTO#getConnectedEntityListList()}) and their connection types.
          * <p>
@@ -417,6 +432,20 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
         @Nonnull
         static Set<ConnectedEntity> extractConnectionIds(@Nonnull final TopologyEntityDTOOrBuilder entity) {
             return entity.getConnectedEntityListList().stream()
+                .collect(Collectors.toSet());
+        }
+
+
+        /**
+         * Return the outbound connected entity ids for a specific entity.
+         *
+         * @param entity entity whose outbound connected entity ids are returned
+         * @return entity ids of all outbound connected entities
+         */
+        @Nonnull
+        static Set<ConnectedEntity> extractConnectionIds(@Nonnull final TopologyEntityImpl entity) {
+            return entity.getConnectedEntityListList().stream()
+                .map(TopologyEntityImpl.ConnectedEntityView::toProto)
                 .collect(Collectors.toSet());
         }
 

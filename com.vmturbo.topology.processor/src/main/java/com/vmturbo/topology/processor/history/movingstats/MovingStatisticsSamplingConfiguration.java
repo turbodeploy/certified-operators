@@ -9,7 +9,7 @@ import javax.annotation.concurrent.Immutable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.MovingStatisticsSamplerDataCase;
 
@@ -98,7 +98,7 @@ public abstract class MovingStatisticsSamplingConfiguration<T extends MovingStat
      * @return the principal commodity type for the associated {@link MovingStatisticsSampler}.
      */
     @Nonnull
-    public abstract CommodityType getPrincipalCommodityType();
+    public abstract CommodityTypeView getPrincipalCommodityType();
 
     /**
      * Get the partner commodity types for the associated {@link MovingStatisticsSampler}.
@@ -109,7 +109,7 @@ public abstract class MovingStatisticsSamplingConfiguration<T extends MovingStat
      *         It is fine for this collection to be empty.
      */
     @Nonnull
-    public abstract Collection<CommodityType> getPartnerCommodityTypes();
+    public abstract Collection<CommodityTypeView> getPartnerCommodityTypes();
 
     /**
      * Get the protobuf sampler data case associated with this sampler type.
@@ -207,13 +207,13 @@ public abstract class MovingStatisticsSamplingConfiguration<T extends MovingStat
 
         @Override
         @Nonnull
-        public CommodityType getPrincipalCommodityType() {
+        public CommodityTypeView getPrincipalCommodityType() {
             return VcpuThrottlingSampler.getPrincipalCommodityType();
         }
 
         @Override
         @Nonnull
-        public Collection<CommodityType> getPartnerCommodityTypes() {
+        public Collection<CommodityTypeView> getPartnerCommodityTypes() {
             return VcpuThrottlingSampler.PARTNER_COMMODITY_TYPES;
         }
 

@@ -6,7 +6,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TopologyEntityConstructor.TemplateActionType;
@@ -30,9 +30,9 @@ public interface ITopologyEntityConstructor {
      *             entities
      */
     @Nonnull
-    TopologyEntityDTO.Builder createTopologyEntityFromTemplate(@Nonnull Template template,
+    TopologyEntityImpl createTopologyEntityFromTemplate(@Nonnull Template template,
             @Nonnull Map<Long, TopologyEntity.Builder> topology,
-            @Nullable TopologyEntityDTO.Builder originalTopologyEntity,
+            @Nullable TopologyEntityImpl originalTopologyEntity,
             @Nonnull TemplateActionType actionType, @Nonnull IdentityProvider identityProvider,
             @Nullable String nameSuffix) throws TopologyEntityConstructorException;
 }

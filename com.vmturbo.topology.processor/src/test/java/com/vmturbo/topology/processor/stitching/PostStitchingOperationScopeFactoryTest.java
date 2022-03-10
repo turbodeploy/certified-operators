@@ -1,8 +1,8 @@
 package com.vmturbo.topology.processor.stitching;
 
-import static com.vmturbo.stitching.DiscoveryOriginBuilder.discoveredBy;
+import static com.vmturbo.stitching.DiscoveryOriginImplBuilder.discoveredBy;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityBuilder;
-import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyGraphOf;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.pojoGraphOf;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -37,8 +37,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -71,7 +71,7 @@ public class PostStitchingOperationScopeFactoryTest {
     private final Target target4 = mock(Target.class);
     private final Target target5 = mock(Target.class);
 
-    private TopologyGraph<TopologyEntity> topologyGraph = topologyGraphOf(vm1, vm2, vm3, vm4, pm);
+    private TopologyGraph<TopologyEntity> topologyGraph = pojoGraphOf(vm1, vm2, vm3, vm4, pm);
 
     @BeforeClass
     public static void initIdentityGenerator() {
@@ -208,7 +208,7 @@ public class PostStitchingOperationScopeFactoryTest {
                 discoveredBy(5L).lastUpdatedAt(66L),
                 Collections.emptyList());
         final TopologyGraph<TopologyEntity> topologyGraph =
-                topologyGraphOf(vm1, vm2, vm3, vm5, vm6, vm4);
+                pojoGraphOf(vm1, vm2, vm3, vm5, vm6, vm4);
         scopeFactory = new PostStitchingOperationScopeFactory(topologyGraph,
                 probeStore, targetStore, cpuCapacityStore);
         Set<Long> vmsHaveHyperviosrMissGuestOs = scopeFactory.hasAndLacksProbeCategoryEntityTypeStitchingScope(
@@ -354,7 +354,7 @@ public class PostStitchingOperationScopeFactoryTest {
             .thenReturn(Optional.of(SDKProbeType.VC_STORAGE_BROWSE));
         when(targetStore.getTarget(3L)).thenReturn(Optional.of(target3));
         final TopologyGraph<TopologyEntity> topologyGraph =
-            topologyGraphOf(stor1, stor2, stor3, vm1);
+            pojoGraphOf(stor1, stor2, stor3, vm1);
         scopeFactory = new PostStitchingOperationScopeFactory(topologyGraph,
             probeStore, targetStore, cpuCapacityStore);
         List<Long> entitiesInScope = scopeFactory

@@ -2,7 +2,6 @@ package com.vmturbo.stitching;
 
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeCommodityBoughtBuilder;
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeCommoditySold;
-import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeTopologyEntityBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -20,12 +19,12 @@ import javax.annotation.Nonnull;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -34,8 +33,8 @@ public class TopologyEntityTest {
     private static final long ENTITY_OID = 23345;
     private static final int ENTITY_TYPE = EntityType.VIRTUAL_MACHINE_VALUE;
 
-    private final TopologyEntityDTO.Builder dtoBuilder =
-        TopologyEntityDTO.newBuilder().setOid(ENTITY_OID).setEntityType(ENTITY_TYPE);
+    private final TopologyEntityImpl dtoBuilder =
+        new TopologyEntityImpl().setOid(ENTITY_OID).setEntityType(ENTITY_TYPE);
 
     /**
      * Builders for a simple cloud topology: region owns zone aggregates VM connects to Volume.
@@ -51,18 +50,18 @@ public class TopologyEntityTest {
 
         assertEquals(ENTITY_OID, entity.getOid());
         assertEquals(ENTITY_TYPE, entity.getEntityType());
-        assertEquals(dtoBuilder, entity.getTopologyEntityDtoBuilder());
+        assertEquals(dtoBuilder, entity.getTopologyEntityImpl());
         assertFalse(entity.hasDiscoveryOrigin());
     }
 
     @Test
     public void testBuildDiscoveryInformation() {
         final TopologyEntity entity = TopologyEntity.newBuilder(dtoBuilder.setOrigin(
-                Origin.newBuilder().setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(111L).lastUpdatedAt(222L)))
+                new OriginImpl().setDiscoveryOrigin(DiscoveryOriginImplBuilder.discoveredBy(111L).lastUpdatedAt(222L)))
         ).build();
 
         assertTrue(entity.hasDiscoveryOrigin());
-        DiscoveryOrigin origin = entity.getDiscoveryOrigin().get();
+        DiscoveryOriginView origin = entity.getDiscoveryOrigin().get();
         assertEquals(111L, origin.getDiscoveredTargetDataMap().entrySet().iterator().next().getKey().longValue());
         assertEquals(222L, origin.getLastUpdatedTime());
     }
@@ -76,7 +75,7 @@ public class TopologyEntityTest {
                     new StitchingMergeInformation(1L, 444L,
                                                   StitchingErrors.none());
         final TopologyEntity entity = TopologyEntity.newBuilder(dtoBuilder.setOrigin(
-            Origin.newBuilder().setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(111L)
+            new OriginImpl().setDiscoveryOrigin(DiscoveryOriginImplBuilder.discoveredBy(111L)
                 .withMerge(mergedTarget1, mergedTarget2)
                 .lastUpdatedAt(222L))))
             .build();
@@ -100,9 +99,9 @@ public class TopologyEntityTest {
         final StitchingMergeInformation mergedTarget2 =
                     new StitchingMergeInformation(logicalPool.getOid(), 444L,
                                                   StitchingErrors.none());
-        logicalPool.getEntityBuilder()
-            .getOriginBuilder()
-            .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(111L)
+        logicalPool.getTopologyEntityImpl()
+            .getOrCreateOrigin()
+            .setDiscoveryOrigin(DiscoveryOriginImplBuilder.discoveredBy(111L)
                 .withMerge(mergedTarget1, mergedTarget2)
                 .lastUpdatedAt(222L));
 
@@ -125,8 +124,8 @@ public class TopologyEntityTest {
         assertEquals(lp.getOrigin().get(), snapshotCopy.getOrigin().get());
 
         // Built versions should be comparison equal but builders should not be reference equal
-        assertEquals(lp.getTopologyEntityDtoBuilder().build(), snapshotCopy.getTopologyEntityDtoBuilder().build());
-        assertFalse(lp.getTopologyEntityDtoBuilder() == snapshotCopy.getTopologyEntityDtoBuilder());
+        assertEquals(lp.getTopologyEntityImpl(), snapshotCopy.getTopologyEntityImpl());
+        assertFalse(lp.getTopologyEntityImpl() == snapshotCopy.getTopologyEntityImpl());
     }
 
     @Test
@@ -139,35 +138,39 @@ public class TopologyEntityTest {
         final TopologyEntity snapShotBuilt = snapShot.build();
         assertEquals(logicalPoolBuilt.getProviders(), snapShotBuilt.getProviders());
         assertEquals(logicalPoolBuilt.getOid(), snapShotBuilt.getOid());
-        assertFalse(logicalPoolBuilt.getTopologyEntityDtoBuilder() ==
-            snapShotBuilt.getTopologyEntityDtoBuilder());
+        assertFalse(logicalPoolBuilt.getTopologyEntityImpl() ==
+            snapShotBuilt.getTopologyEntityImpl());
     }
 
     private TopologyEntity.Builder makeStorageEntity(final long oid, @Nonnull final EntityType type,
                                                      @Nonnull final Optional<TopologyEntity.Builder> provider) {
-        final CommoditySoldDTO storageAccessSold = makeCommoditySold(CommodityType.STORAGE_ACCESS);
-        final CommoditySoldDTO storageLatencySold = makeCommoditySold(CommodityType.STORAGE_LATENCY);
+        final CommoditySoldView storageAccessSold = makeCommoditySold(CommodityType.STORAGE_ACCESS);
+        final CommoditySoldView storageLatencySold = makeCommoditySold(CommodityType.STORAGE_LATENCY);
 
-        final CommodityBoughtDTO.Builder storageAccessBought =
+        final CommodityBoughtImpl storageAccessBought =
             makeCommodityBoughtBuilder(CommodityType.STORAGE_ACCESS);
-        final CommodityBoughtDTO.Builder storageLatencyBought =
+        final CommodityBoughtImpl storageLatencyBought =
             makeCommodityBoughtBuilder(CommodityType.STORAGE_LATENCY);
 
-        final TopologyEntity.Builder entity = makeTopologyEntityBuilder(
-            oid, type.getNumber(), Arrays.asList(storageAccessSold, storageLatencySold),
-            Collections.emptyList());
+        final TopologyEntity.Builder entity = TopologyEntity.newBuilder(
+            new TopologyEntityImpl()
+                .setOid(oid)
+                .setEntityType(type.getNumber())
+                .addAllCommoditySoldList(Arrays.asList(storageAccessSold, storageLatencySold))
+                .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
+                    .addAllCommodityBought(Collections.emptyList())
+                ));
 
         provider.ifPresent(p -> {
             entity.addProvider(p);
             p.addConsumer(entity);
 
-            entity.getEntityBuilder()
-                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            entity.getTopologyEntityImpl()
+                .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                     .setProviderId(p.getOid())
                     .setProviderEntityType(p.getEntityType())
                     .addCommodityBought(storageAccessBought)
-                    .addCommodityBought(storageLatencyBought)
-                    .build());
+                    .addCommodityBought(storageLatencyBought));
         });
 
         return entity;
@@ -182,11 +185,11 @@ public class TopologyEntityTest {
                         new StitchingMergeInformation(1L, 444L,
                                                       StitchingErrors.none());
         final TopologyEntity.Builder consumer = TopologyEntity.newBuilder(dtoBuilder.setOrigin(
-            Origin.newBuilder().setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(111L)
+            new OriginImpl().setDiscoveryOrigin(DiscoveryOriginImplBuilder.discoveredBy(111L)
                 .withMerge(mergedTarget1, mergedTarget2)
                 .lastUpdatedAt(222L))));
         final TopologyEntity.Builder provider = TopologyEntity.newBuilder(dtoBuilder.setOrigin(
-            Origin.newBuilder().setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(222L)
+            new OriginImpl().setDiscoveryOrigin(DiscoveryOriginImplBuilder.discoveredBy(222L)
                 .lastUpdatedAt(456))));
 
         consumer.addProvider(provider);
@@ -300,21 +303,21 @@ public class TopologyEntityTest {
         final long rgId = 3L;
         final long volId = 4L;
 
-        vmBuilder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        vmBuilder = TopologyEntity.newBuilder(new TopologyEntityImpl()
                                                 .setOid(vmId)
                                                 .setDisplayName("foo")
                                                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
 
-        azBuilder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        azBuilder = TopologyEntity.newBuilder(new TopologyEntityImpl()
                                                 .setOid(azId)
                                                 .setDisplayName("foo")
                                                 .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE));
 
-        rgBuilder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        rgBuilder = TopologyEntity.newBuilder(new TopologyEntityImpl()
                                                 .setOid(rgId)
                                                 .setDisplayName("foo")
                                                 .setEntityType(EntityType.REGION_VALUE));
-        volBuilder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        volBuilder = TopologyEntity.newBuilder(new TopologyEntityImpl()
                                                 .setOid(volId)
                                                 .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE));
 

@@ -5,7 +5,7 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
@@ -22,7 +22,7 @@ interface SettingApplicator {
      * @param entitySettings the entity related settings to apply
      * @param actionModeSettings related the entity related settings to apply
      */
-    void apply(@Nonnull TopologyEntityDTO.Builder entity,
+    void apply(@Nonnull TopologyEntityImpl entity,
                @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
                @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings);
 }

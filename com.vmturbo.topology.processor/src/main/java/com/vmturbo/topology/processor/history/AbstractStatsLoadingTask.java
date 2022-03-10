@@ -12,9 +12,8 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.commons.Units;
 import com.vmturbo.stitching.EntityCommodityReference;
 
 /**
@@ -45,7 +44,7 @@ public abstract class AbstractStatsLoadingTask<Config, T> implements IHistoryLoa
         // scope of entities
         EntityStatsScope.Builder scope = EntityStatsScope.newBuilder();
         Set<Long> entities = new HashSet<>();
-        Set<TopologyDTO.CommodityType> commTypes = new HashSet<>();
+        Set<CommodityTypeView> commTypes = new HashSet<>();
         // partition by entity
         for (EntityCommodityReference commRef : commodities) {
             entities.add(commRef.getEntityOid());
@@ -56,7 +55,7 @@ public abstract class AbstractStatsLoadingTask<Config, T> implements IHistoryLoa
         // filter by commodity types
         StatsFilter.Builder statsFilter = StatsFilter.newBuilder();
         commTypes.forEach(commType -> statsFilter.addCommodityRequests(CommodityRequest.newBuilder()
-                        .setCommodityName(UICommodityType.fromType(commType).apiStr())));
+                        .setCommodityName(UICommodityType.fromType(commType.getType()).apiStr())));
 
         statsFilter.setStartDate(startMs);
         statsFilter.setEndDate(endMs);

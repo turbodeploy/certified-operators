@@ -1,8 +1,8 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
 import static com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper.resolvedGroup;
-import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.eq;
@@ -15,21 +15,21 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.google.common.base.Preconditions;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
-
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ReplacedImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -101,8 +101,8 @@ public class MustNotRunTogetherPolicyTest {
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 2));
         // replacement from template
         topologyMap.put(9L, topologyEntity(9L, EntityType.PHYSICAL_MACHINE));
-        topologyMap.get(2L).getEntityBuilder().getEditBuilder().setReplaced(
-                TopologyDTO.TopologyEntityDTO.Replaced.newBuilder().setPlanId(7777L).setReplacementId(9L).build());
+        topologyMap.get(2L).getTopologyEntityImpl().getOrCreateEdit().setReplaced(
+                new ReplacedImpl().setPlanId(7777L).setReplacementId(9L));
 
         TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
@@ -147,8 +147,8 @@ public class MustNotRunTogetherPolicyTest {
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 2));
         // replacement from template
         topologyMap.put(9L, topologyEntity(9L, EntityType.PHYSICAL_MACHINE));
-        topologyMap.get(2L).getEntityBuilder().getEditBuilder().setReplaced(
-                TopologyDTO.TopologyEntityDTO.Replaced.newBuilder().setPlanId(7777L).setReplacementId(9L).build());
+        topologyMap.get(2L).getTopologyEntityImpl().getOrCreateEdit().setReplaced(
+                new ReplacedImpl().setPlanId(7777L).setReplacementId(9L));
 
         TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
@@ -198,8 +198,8 @@ public class MustNotRunTogetherPolicyTest {
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 2));
         // replacement from template
         topologyMap.put(9L, topologyEntity(9L, EntityType.PHYSICAL_MACHINE));
-        topologyMap.get(2L).getEntityBuilder().getEditBuilder().setReplaced(
-                TopologyDTO.TopologyEntityDTO.Replaced.newBuilder().setPlanId(7777L).setReplacementId(9L).build());
+        topologyMap.get(2L).getTopologyEntityImpl().getOrCreateEdit().setReplaced(
+                new ReplacedImpl().setPlanId(7777L).setReplacementId(9L));
 
         TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
@@ -297,30 +297,28 @@ public class MustNotRunTogetherPolicyTest {
     private void testProviderUseDCKeyIfNoClusterKey(@Nonnull final EntityType providerType) throws GroupResolutionException {
         Preconditions.checkArgument(providerType == EntityType.PHYSICAL_MACHINE ||
             providerType == EntityType.STORAGE);
-        final CommodityType dcComm = CommodityType.newBuilder()
+        final CommodityTypeView dcComm = new CommodityTypeImpl()
             .setType(CommodityDTO.CommodityType.DATACENTER_VALUE)
-            .setKey("dc")
-            .build();
+            .setKey("dc");
 
         final TopologyEntity.Builder dcProvider1 = topologyEntity(1L, providerType);
-        dcProvider1.getEntityBuilder()
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+        dcProvider1.getTopologyEntityImpl()
+            .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(dcComm));
         final TopologyEntity.Builder dcProvider2 = topologyEntity(3L, providerType);
-        dcProvider2.getEntityBuilder()
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+        dcProvider2.getTopologyEntityImpl()
+            .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(dcComm));
 
         final TopologyEntity.Builder outofDCHost = topologyEntity(2L, providerType);
 
         final TopologyEntity.Builder vm = topologyEntity(5L, EntityType.VIRTUAL_MACHINE);
-        vm.getEntityBuilder()
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+        vm.getTopologyEntityImpl()
+            .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                 .setProviderId(dcProvider1.getOid())
                 .setProviderEntityType(providerType.getNumber())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(dcComm)))
-            .build();
+                .addCommodityBought(new CommodityBoughtImpl()
+                    .setCommodityType(dcComm)));
 
         final Map<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
         topologyMap.put(dcProvider1.getOid(), dcProvider1);
@@ -360,32 +358,30 @@ public class MustNotRunTogetherPolicyTest {
         Preconditions.checkArgument(providerType == EntityType.PHYSICAL_MACHINE ||
             providerType == EntityType.STORAGE);
         final boolean pmProvider = providerType == EntityType.PHYSICAL_MACHINE;
-        final CommodityType clusterComm = CommodityType.newBuilder()
+        final CommodityTypeView clusterComm = new CommodityTypeImpl()
             .setType(pmProvider ?
                 CommodityDTO.CommodityType.CLUSTER_VALUE :
                 CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE)
-            .setKey("cluster")
-            .build();
+            .setKey("cluster");
 
         final TopologyEntity.Builder clusterProvider1 = topologyEntity(1L, providerType);
-        clusterProvider1.getEntityBuilder()
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+        clusterProvider1.getTopologyEntityImpl()
+            .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(clusterComm));
         final TopologyEntity.Builder clusterProvider2 = topologyEntity(3L, providerType);
-        clusterProvider2.getEntityBuilder()
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+        clusterProvider2.getTopologyEntityImpl()
+            .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(clusterComm));
 
         final TopologyEntity.Builder outOfClusterProvider = topologyEntity(2L, providerType);
 
         final TopologyEntity.Builder vm = topologyEntity(5L, EntityType.VIRTUAL_MACHINE);
-        vm.getEntityBuilder()
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+        vm.getTopologyEntityImpl()
+            .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                 .setProviderId(clusterProvider1.getOid())
                 .setProviderEntityType(providerType.getNumber())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(clusterComm)))
-            .build();
+                .addCommodityBought(new CommodityBoughtImpl()
+                    .setCommodityType(clusterComm)));
 
         final Map<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
         topologyMap.put(clusterProvider1.getOid(), clusterProvider1);

@@ -5,18 +5,18 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
-import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.TextFormat.ParseException;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTOOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeIopsData;
@@ -90,7 +90,7 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
             EntityType.LOGICAL_POOL_VALUE, LOGICAL_POOL_PROP,
             EntityType.STORAGE_CONTROLLER_VALUE, STORAGE_CONTROLLER_PROP);
 
-    private Predicate<CommoditySoldDTOOrBuilder> IS_STORAGE_ACCESS = commodity ->
+    private final Predicate<CommoditySoldView> IS_STORAGE_ACCESS = commodity ->
         commodity.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE;
 
     private final EntityType scopeType;
@@ -165,7 +165,7 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
             return false;
         }
 
-        String diskCountProperty = entity.getTopologyEntityDtoBuilder()
+        String diskCountProperty = entity.getTopologyEntityImpl()
                 .getEntityPropertyMapMap().get(diskCountsKey);
         if (diskCountProperty == null) {
             return false;
@@ -192,11 +192,11 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
      */
     private double calculateCapacityFromHostedEntities(@Nonnull final TopologyEntity entity) {
         return entity.getConsumers().stream()
-                .mapToDouble(consumer -> consumer.getTopologyEntityDtoBuilder()
+                .mapToDouble(consumer -> consumer.getTopologyEntityImpl()
                         .getCommoditySoldListList().stream()
                         .filter(IS_STORAGE_ACCESS)
                         .filter(comm -> comm.hasCapacity() && comm.getCapacity() > 0)
-                        .map(CommoditySoldDTO::getCapacity)
+                        .map(CommoditySoldView::getCapacity)
                         .findAny().orElse(0d))
                 .sum();
     }
@@ -217,7 +217,7 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
             return 0;
         }
 
-        String diskProperty = entity.getTopologyEntityDtoBuilder()
+        String diskProperty = entity.getTopologyEntityImpl()
                 .getEntityPropertyMapMap().get(disksKey);
         if (diskProperty == null) {
             return 0;
@@ -234,7 +234,7 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
      * @return true if the entity has any Storage Access commodities without capacity set.
      */
     private boolean hasCommoditiesUnset(@Nonnull final TopologyEntity entity) {
-        return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+        return entity.getTopologyEntityImpl().getCommoditySoldListList().stream()
             .filter(IS_STORAGE_ACCESS)
             .anyMatch(commodity -> !commodity.hasCapacity() || commodity.getCapacity() == 0);
     }
@@ -251,7 +251,7 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
         resultBuilder.queueUpdateEntityAlone(entity, entityForUpdate -> {
             logger.debug("Setting Storage Access capacity to {} on entity {}", capacity,
                 entityForUpdate.getOid());
-            entityForUpdate.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+            entityForUpdate.getTopologyEntityImpl().getCommoditySoldListImplList().stream()
                 .filter(IS_STORAGE_ACCESS)
                 .forEach(commodity -> commodity.setCapacity(capacity)
             );

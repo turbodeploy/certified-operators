@@ -9,14 +9,15 @@ import static org.mockito.Mockito.mock;
 import java.util.Collections;
 import java.util.stream.Stream;
 
-import org.junit.Assert;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualMachineInfoImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualMachineInfoView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -71,7 +72,7 @@ public class CpuConsistentScalingFactorPostStitchingOperationTest {
     public void testMissingVmInfo() {
         vmOperation.performOperation(Stream.of(vm.build()), settingsMock, resultBuilder)
             .getChanges().forEach(change -> change.applyChange(journal));
-        assertFalse(vm.getEntityBuilder().getAnalysisSettings().hasConsistentScalingFactor());
+        assertFalse(vm.getTopologyEntityImpl().getAnalysisSettings().hasConsistentScalingFactor());
     }
 
     /**
@@ -79,12 +80,12 @@ public class CpuConsistentScalingFactorPostStitchingOperationTest {
      */
     @Test
     public void testVmMissingNumCpus() {
-        vm.getEntityBuilder()
-            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                .setVirtualMachine(VirtualMachineInfo.newBuilder().build()));
+        vm.getTopologyEntityImpl()
+            .setTypeSpecificInfo(new TypeSpecificInfoImpl()
+                .setVirtualMachine(new VirtualMachineInfoImpl()));
         vmOperation.performOperation(Stream.of(vm.build()), settingsMock, resultBuilder)
             .getChanges().forEach(change -> change.applyChange(journal));
-        assertFalse(vm.getEntityBuilder().getAnalysisSettings().hasConsistentScalingFactor());
+        assertFalse(vm.getTopologyEntityImpl().getAnalysisSettings().hasConsistentScalingFactor());
     }
 
     /**
@@ -92,12 +93,12 @@ public class CpuConsistentScalingFactorPostStitchingOperationTest {
      */
     @Test
     public void testVmMissingVcpuCommodity() {
-        vm.getEntityBuilder()
-            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                .setVirtualMachine(VirtualMachineInfo.newBuilder().setNumCpus(2).build()));
+        vm.getTopologyEntityImpl()
+            .setTypeSpecificInfo(new TypeSpecificInfoImpl()
+                .setVirtualMachine(new VirtualMachineInfoImpl().setNumCpus(2)));
         vmOperation.performOperation(Stream.of(vm.build()), settingsMock, resultBuilder)
             .getChanges().forEach(change -> change.applyChange(journal));
-        assertFalse(vm.getEntityBuilder().getAnalysisSettings().hasConsistentScalingFactor());
+        assertFalse(vm.getTopologyEntityImpl().getAnalysisSettings().hasConsistentScalingFactor());
     }
 
     /**
@@ -105,19 +106,18 @@ public class CpuConsistentScalingFactorPostStitchingOperationTest {
      */
     @Test
     public void testVmConsistentScalingFactorSet() {
-        vm.getEntityBuilder()
-            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                .setVirtualMachine(VirtualMachineInfo.newBuilder().setNumCpus(4).build()));
-        vm.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+        vm.getTopologyEntityImpl()
+            .setTypeSpecificInfo(new TypeSpecificInfoImpl()
+                .setVirtualMachine(new VirtualMachineInfoImpl().setNumCpus(4)));
+        vm.getTopologyEntityImpl().addCommoditySoldList(new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_VALUE))
             .setCapacity(1000.0)
-            .setScalingFactor(2.0f)
-            .build());
+            .setScalingFactor(2.0f));
 
         vmOperation.performOperation(Stream.of(vm.build()), settingsMock, resultBuilder)
             .getChanges().forEach(change -> change.applyChange(journal));
-        assertTrue(vm.getEntityBuilder().getAnalysisSettings().hasConsistentScalingFactor());
-        assertEquals(2.0f, vm.getEntityBuilder().getAnalysisSettings().getConsistentScalingFactor(), 0);
+        assertTrue(vm.getTopologyEntityImpl().getAnalysisSettings().hasConsistentScalingFactor());
+        assertEquals(2.0f, vm.getTopologyEntityImpl().getAnalysisSettings().getConsistentScalingFactor(), 0);
     }
 
     /**
@@ -127,7 +127,7 @@ public class CpuConsistentScalingFactorPostStitchingOperationTest {
     public void testNsMissingNamespaceInfo() {
         cnEntityOperation.performOperation(Stream.of(ns.build()), settingsMock, resultBuilder)
             .getChanges().forEach(change -> change.applyChange(journal));
-        assertFalse(ns.getEntityBuilder().getAnalysisSettings().hasConsistentScalingFactor());
+        assertFalse(ns.getTopologyEntityImpl().getAnalysisSettings().hasConsistentScalingFactor());
     }
 
     /**
@@ -135,29 +135,26 @@ public class CpuConsistentScalingFactorPostStitchingOperationTest {
      */
     @Test
     public void testCloudNativeEntityConsistentScalingFactorSet() {
-        ns.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE))
+        ns.getTopologyEntityImpl().addCommoditySoldList(new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE))
             .setCapacity(2000.0)
-            .setScalingFactor(2.0f)
-            .build());
-        wc.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE))
+            .setScalingFactor(2.0f));
+        wc.getTopologyEntityImpl().addCommoditySoldList(new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE))
             .setCapacity(2000.0)
-            .setScalingFactor(2.0f)
-            .build());
-        pod.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE))
+            .setScalingFactor(2.0f));
+        pod.getTopologyEntityImpl().addCommoditySoldList(new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE))
             .setCapacity(2000.0)
-            .setScalingFactor(2.0f)
-            .build());
+            .setScalingFactor(2.0f));
 
         cnEntityOperation.performOperation(Stream.of(ns.build(), wc.build(), pod.build()), settingsMock, resultBuilder)
             .getChanges().forEach(change -> change.applyChange(journal));
-        assertTrue(ns.getEntityBuilder().getAnalysisSettings().hasConsistentScalingFactor());
+        assertTrue(ns.getTopologyEntityImpl().getAnalysisSettings().hasConsistentScalingFactor());
         // 1 / scalingFactor = 1 / 2 = 0.5
-        assertEquals(0.5f, ns.getEntityBuilder().getAnalysisSettings().getConsistentScalingFactor(), 0);
-        assertEquals(0.5f, wc.getEntityBuilder().getAnalysisSettings().getConsistentScalingFactor(), 0);
-        assertEquals(0.5f, pod.getEntityBuilder().getAnalysisSettings().getConsistentScalingFactor(), 0);
+        assertEquals(0.5f, ns.getTopologyEntityImpl().getAnalysisSettings().getConsistentScalingFactor(), 0);
+        assertEquals(0.5f, wc.getTopologyEntityImpl().getAnalysisSettings().getConsistentScalingFactor(), 0);
+        assertEquals(0.5f, pod.getTopologyEntityImpl().getAnalysisSettings().getConsistentScalingFactor(), 0);
     }
 
     /**
@@ -165,17 +162,16 @@ public class CpuConsistentScalingFactorPostStitchingOperationTest {
      */
     @Test
     public void testNsConsistentScalingFactorNotSet() {
-        ns.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE))
+        ns.getTopologyEntityImpl().addCommoditySoldList(new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE))
             .setCapacity(2000.0)
-            .setScalingFactor(0)
-            .build());
+            .setScalingFactor(0));
 
         cnEntityOperation.performOperation(Stream.of(ns.build()), settingsMock, resultBuilder)
             .getChanges().forEach(change -> change.applyChange(journal));
-        assertFalse(ns.getEntityBuilder().getAnalysisSettings().hasConsistentScalingFactor());
+        assertFalse(ns.getTopologyEntityImpl().getAnalysisSettings().hasConsistentScalingFactor());
         // Default consistentScalingFactor is 1 if not set.
-        assertEquals(1, ns.getEntityBuilder().getAnalysisSettings().getConsistentScalingFactor(), 0);
+        assertEquals(1, ns.getTopologyEntityImpl().getAnalysisSettings().getConsistentScalingFactor(), 0);
     }
 
     /**
@@ -183,17 +179,15 @@ public class CpuConsistentScalingFactorPostStitchingOperationTest {
      */
     @Test
     public void testComputeMillicoreCSF() {
-        final VirtualMachineInfo vmInfo = VirtualMachineInfo.newBuilder()
-            .setNumCpus(4)
-            .build();
-        final CommoditySoldDTO vcpu = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+        final VirtualMachineInfoView vmInfo = new VirtualMachineInfoImpl()
+            .setNumCpus(4);
+        final CommoditySoldView vcpu = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_VALUE))
             .setCapacity(8000.0)
-            .setScalingFactor(1.5)
-            .build();
+            .setScalingFactor(1.5);
 
         final double millicoresPerMHz = 4000.0 / (vcpu.getCapacity() * vcpu.getScalingFactor());
-        Assert.assertEquals(millicoresPerMHz,
+        assertEquals(millicoresPerMHz,
             CpuConsistentScalingFactorPostStitchingOperation.computeMillicoreConsistentScalingFactor(vmInfo, vcpu), 0);
     }
 
@@ -202,16 +196,14 @@ public class CpuConsistentScalingFactorPostStitchingOperationTest {
      */
     @Test
     public void testUnableToComputeMillicoreCSF() {
-        final VirtualMachineInfo vmInfo = VirtualMachineInfo.newBuilder()
-            .setNumCpus(4)
-            .build();
-        final CommoditySoldDTO vcpu = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+        final VirtualMachineInfoView vmInfo = new VirtualMachineInfoImpl()
+            .setNumCpus(4);
+        final CommoditySoldView vcpu = new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl().setType(CommodityDTO.CommodityType.VCPU_VALUE))
             .setCapacity(0)
-            .setScalingFactor(1.5)
-            .build();
+            .setScalingFactor(1.5);
 
-        Assert.assertEquals(AnalysisSettings.newBuilder().getConsistentScalingFactor(),
+        assertEquals(AnalysisSettings.newBuilder().getConsistentScalingFactor(),
             CpuConsistentScalingFactorPostStitchingOperation.computeMillicoreConsistentScalingFactor(vmInfo, vcpu), 0);
     }
 }

@@ -17,11 +17,11 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.EntitySettingsCollection;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -32,7 +32,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * A Factory for constructing concrete {@link StitchingScope}s for use in
  * {@link PostStitchingOperation}s.
  *
- * These scopes determine which entities in the {@link TopologyGraph<TopologyEntity>}
+ * These scopes determine which entities in the {@link TopologyGraph< TopologyEntity >}
  * are fed to the {@link PostStitchingOperation#performOperation(Stream, EntitySettingsCollection, EntityChangesBuilder)}
  * method.
  */

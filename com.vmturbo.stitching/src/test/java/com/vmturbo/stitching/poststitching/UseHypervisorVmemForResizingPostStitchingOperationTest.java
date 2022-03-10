@@ -20,7 +20,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -35,8 +35,8 @@ public class UseHypervisorVmemForResizingPostStitchingOperationTest {
     private final IStitchingJournal<TopologyEntity> journal =
             (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
 
-    private final CommoditySoldDTO vmem = makeCommoditySold(CommodityType.VMEM);
-    private final List<CommoditySoldDTO> vmCommoditySoldList = ImmutableList.of(vmem);
+    private final CommoditySoldView vmem = makeCommoditySold(CommodityType.VMEM);
+    private final List<CommoditySoldView> vmCommoditySoldList = ImmutableList.of(vmem);
 
     private final EntitySettingsCollection settingsCollection = mock(EntitySettingsCollection.class);
 
@@ -65,8 +65,8 @@ public class UseHypervisorVmemForResizingPostStitchingOperationTest {
 
         // apply the changes
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
-        assertFalse(vmEntity.getTopologyEntityDtoBuilder()
-                .getCommoditySoldListBuilderList()
+        assertFalse(vmEntity.getTopologyEntityImpl()
+                .getCommoditySoldListList()
                 .stream().filter(commodity -> CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE == commodity.getCommodityType().getType())
                 .findFirst().get().getIsResizeable());
     }

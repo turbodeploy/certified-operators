@@ -5,10 +5,9 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 /**
@@ -23,14 +22,14 @@ public class VirtualMachineCloneEditor extends DefaultEntityCloneEditor {
     }
 
     @Override
-    public TopologyEntity.Builder clone(@Nonnull final TopologyEntityDTO.Builder vmDTOBuilder,
+    public TopologyEntity.Builder clone(@Nonnull final TopologyEntityImpl vmImpl,
                                         final long cloneCounter,
-                                        @Nonnull final Map<Long, Builder> topology) {
-        final TopologyEntity.Builder clonedVM = super.clone(vmDTOBuilder, cloneCounter, topology);
+                                        @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+        final TopologyEntity.Builder clonedVM = super.clone(vmImpl, cloneCounter, topology);
         // a temporary fix for MPC to work.
         final boolean isCloudMigrationPlan = topologyInfo.hasPlanInfo()
                 && PlanProjectType.CLOUD_MIGRATION.name().equals(topologyInfo.getPlanInfo().getPlanType());
-        clonedVM.getEntityBuilder().getAnalysisSettingsBuilder().setShopTogether(!isCloudMigrationPlan);
+        clonedVM.getTopologyEntityImpl().getOrCreateAnalysisSettings().setShopTogether(!isCloudMigrationPlan);
         return clonedVM;
     }
 }

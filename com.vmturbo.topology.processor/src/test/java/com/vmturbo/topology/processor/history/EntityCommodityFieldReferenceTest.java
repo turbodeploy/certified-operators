@@ -12,7 +12,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
 
 /**
  * Tests the {@link EntityCommodityFieldReference}.
@@ -22,8 +22,7 @@ public class EntityCommodityFieldReferenceTest {
     private static final long LIVE_ENTITY_ID = 10L;
     private static final long PROVIDER_ENTITY_ID = 100L;
     private static final long LIVE_PROVIDER_ENTITY_ID = 101L;
-    private static final TopologyDTO.CommodityType COMMODITY_TYPE = TopologyDTO.CommodityType
-        .newBuilder().setType(5).build();
+    private static final CommodityTypeImpl COMMODITY_TYPE = new CommodityTypeImpl().setType(5);
     private static final CommodityField COMMODITY_FIELD = CommodityField.USED;
     private HistoryAggregationContext context;
 

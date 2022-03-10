@@ -36,9 +36,9 @@ import org.junit.rules.ExpectedException;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.builders.SDKConstants;
@@ -76,8 +76,8 @@ public class AtMostNPolicyTest {
     private final long consumerID = 1234L;
     private final long providerID = 5678L;
 
-    private static final CommodityType DATA_STORE_COMMODITY = CommodityType.newBuilder().setType(
-        CommodityDTO.CommodityType.DATASTORE_VALUE).setKey("abcd").build();
+    private static final CommodityTypeImpl DATA_STORE_COMMODITY = new CommodityTypeImpl().setType(
+        CommodityDTO.CommodityType.DATASTORE_VALUE).setKey("abcd");
 
     private final PolicyDTO.PolicyInfo.AtMostNPolicy atMostN = PolicyDTO.PolicyInfo.AtMostNPolicy.newBuilder()
         .setConsumerGroupId(consumerID)
@@ -117,16 +117,16 @@ public class AtMostNPolicyTest {
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 1));
         // replacement from template
         topologyMap.put(9L, topologyEntity(9L, EntityType.PHYSICAL_MACHINE));
-        topologyMap.get(2L).getEntityBuilder().getEditBuilder().setReplaced(
-                TopologyDTO.TopologyEntityDTO.Replaced.newBuilder().setPlanId(7777L).setReplacementId(9L).build());
+        topologyMap.get(2L).getTopologyEntityImpl().getOrCreateEdit().setReplaced(
+                new TopologyPOJO.TopologyEntityImpl.ReplacedImpl().setPlanId(7777L).setReplacementId(9L));
 
         topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         policyMatcher = new PolicyMatcher(topologyGraph);
     }
 
-    private InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> mockInvertedIndex(
+    private InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView> mockInvertedIndex(
             Set<Long> potentialProviders) {
-        final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> index = mock(InvertedIndex.class);
+        final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView> index = mock(InvertedIndex.class);
         when(index.getSatisfyingSellers(any())).thenAnswer(invocation -> potentialProviders.stream()
                 .map(topologyGraph::getEntity)
                 .filter(Optional::isPresent)

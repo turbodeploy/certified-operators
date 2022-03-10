@@ -36,8 +36,8 @@ import org.mockito.stubbing.Answer;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastRequest;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinition;
@@ -199,7 +199,7 @@ public class TopologyRpcServiceTest {
     public void testBroadcastAndReturnTopology() throws Exception {
         final GroupResolver groupResolver = mock(GroupResolver.class);
         // We will send this DTO in the broadcast.
-        final TopologyEntityDTO.Builder entityDto = TopologyEntityDTO.newBuilder()
+        final TopologyEntityImpl entityDto = new TopologyEntityImpl()
             .setOid(12345L)
             .setDisplayName("foo")
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
@@ -260,7 +260,7 @@ public class TopologyRpcServiceTest {
             assertTrue(topologyList.get(i).hasData());
         }
         assertTrue(topologyList.get(last).hasEnd());
-        assertEquals(entityDto.build(), topologyList.get(1).getData().getEntities(0).getEntity());
+        assertEquals(entityDto.toProto(), topologyList.get(1).getData().getEntities(0).getEntity());
         // Test the matrix transfer.
         final MatrixInterface matrixRestored = TheMatrix.newInstance();
         final MatrixInterface.Codec importer = matrixRestored.getMatrixImporter();
@@ -345,9 +345,9 @@ public class TopologyRpcServiceTest {
      */
     private static class MockGraphStage extends Stage<EntityStore, TopologyGraph<TopologyEntity>> {
 
-        private final TopologyEntityDTO.Builder entityDTO;
+        private final TopologyEntityImpl entityDTO;
 
-        public MockGraphStage(@Nonnull final TopologyEntityDTO.Builder entityDTO) {
+        public MockGraphStage(@Nonnull final TopologyEntityImpl entityDTO) {
             this.entityDTO = Objects.requireNonNull(entityDTO);
         }
 
@@ -357,7 +357,8 @@ public class TopologyRpcServiceTest {
         public StageResult<TopologyGraph<TopologyEntity>> executeStage(@NotNull @Nonnull EntityStore entityStore)
             throws PipelineStageException, InterruptedException {
             final TopologyGraph<TopologyEntity> mockGraph = mock(TopologyGraph.class);
-            final Stream<TopologyEntity> entityStream = Stream.of(TopologyEntity.newBuilder(entityDTO).build());
+            final Stream<TopologyEntity> entityStream = Stream.of(
+                    TopologyEntity.newBuilder(entityDTO).build());
             when(mockGraph.entities()).thenReturn(entityStream);
             when(mockGraph.topSort()).thenReturn(entityStream);
             when(mockGraph.topSort(any())).thenReturn(entityStream);

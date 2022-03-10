@@ -15,10 +15,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -84,16 +85,16 @@ public abstract class StorageProvisionedPostStitchingOperation extends Overprovi
             super.performOperation(list.stream(), settingsCollection, resultBuilder);
             // set bought StorageProvisioned used value to be the same of its sold StorageAmount capacity
             list.forEach(entity -> {
-                final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
-                if (EXCLUDED_FROM_BOUGHT_USED_UPDATE.contains(entityBuilder.getEntityType())) {
+                final TopologyEntityImpl entityImpl = entity.getTopologyEntityImpl();
+                if (EXCLUDED_FROM_BOUGHT_USED_UPDATE.contains(entityImpl.getEntityType())) {
                     return;
                 }
-                if (HCIUtils.isVSAN(entityBuilder)) {
+                if (HCIUtils.isVSAN(entityImpl)) {
                     //For now we consider here only vSAN, but this may be a scheme correct for all HCI.
-                    setUsedBasedOnBoughtAmount(entityBuilder, entity,
+                    setUsedBasedOnBoughtAmount(entityImpl, entity,
                                     settingsCollection, resultBuilder);
                 } else {
-                    setUsedBasedOnSoldAmount(entityBuilder, entity, resultBuilder);
+                    setUsedBasedOnSoldAmount(entityImpl, entity, resultBuilder);
                 }
             });
             return resultBuilder.build();
@@ -101,12 +102,12 @@ public abstract class StorageProvisionedPostStitchingOperation extends Overprovi
 
         /**
          * Sets used value based on bought Storage Amount.
-         * @param entityBuilder builder of the entity
+         * @param entityImpl builder of the entity
          * @param entity        entity
          * @param settingsCollection    collection of settings for the entity
          * @param resultBuilder a builder for the result
          */
-        private void setUsedBasedOnBoughtAmount(@Nonnull TopologyEntityDTO.Builder entityBuilder,
+        private void setUsedBasedOnBoughtAmount(@Nonnull TopologyEntityImpl entityImpl,
                         @Nonnull TopologyEntity entity,
                         @Nonnull EntitySettingsCollection settingsCollection,
                         @Nonnull EntityChangesBuilder<TopologyEntity> resultBuilder) {
@@ -122,8 +123,8 @@ public abstract class StorageProvisionedPostStitchingOperation extends Overprovi
             float overprovisionCoefficient = overprovisionPercentage.get()
                             .getNumericSettingValue().getValue() / 100;
 
-            for (CommoditiesBoughtFromProvider.Builder commoditiesBoughtFromProvider :
-                    entityBuilder.getCommoditiesBoughtFromProvidersBuilderList())   {
+            for (CommoditiesBoughtFromProviderImpl commoditiesBoughtFromProvider :
+                    entityImpl.getCommoditiesBoughtFromProvidersImplList())   {
                 if (commoditiesBoughtFromProvider.getProviderEntityType()
                                 == EntityType.PHYSICAL_MACHINE_VALUE)  {
                     setUsedBasedOnAmountFromHost(commoditiesBoughtFromProvider, entity,
@@ -139,13 +140,13 @@ public abstract class StorageProvisionedPostStitchingOperation extends Overprovi
          * @param resultBuilder a builder for the result
          * @param overprovisionCoefficient the coefficient to apply to storage amount.
          */
-        private void setUsedBasedOnAmountFromHost(CommoditiesBoughtFromProvider.Builder commoditiesFromHost,
+        private void setUsedBasedOnAmountFromHost(CommoditiesBoughtFromProviderImpl commoditiesFromHost,
                         TopologyEntity entity, EntityChangesBuilder<TopologyEntity> resultBuilder,
                         float overprovisionCoefficient) {
-            List<Double> usedStorageAmounts = commoditiesFromHost.getCommodityBoughtBuilderList().stream()
+            List<Double> usedStorageAmounts = commoditiesFromHost.getCommodityBoughtList().stream()
                             .filter(commodityBoughtDTO -> commodityBoughtDTO.getCommodityType().getType()
                                     == CommodityType.STORAGE_AMOUNT_VALUE && commodityBoughtDTO.hasUsed())
-                            .map(CommodityBoughtDTO.Builder::getUsed).collect(Collectors.toList());
+                            .map(CommodityBoughtView::getUsed).collect(Collectors.toList());
             if (usedStorageAmounts.size() != 1)  {
                 logger.error("Wrong number of StorageAmount commodities bought "
                                 + "from provider with ID={}: {} commodities",
@@ -155,8 +156,8 @@ public abstract class StorageProvisionedPostStitchingOperation extends Overprovi
             }
             Double amountBoughtUsed = usedStorageAmounts.iterator().next();
 
-            for (CommodityBoughtDTO.Builder boughtBuilder : commoditiesFromHost
-                            .getCommodityBoughtBuilderList())  {
+            for (CommodityBoughtImpl boughtBuilder : commoditiesFromHost
+                            .getCommodityBoughtImplList())  {
                 if (boughtBuilder.getCommodityType().getType() == CommodityType.STORAGE_PROVISIONED_VALUE)  {
                     resultBuilder.queueUpdateEntityAlone(entity, entityForUpdate -> {
                         boughtBuilder.setUsed(amountBoughtUsed * overprovisionCoefficient);
@@ -172,22 +173,22 @@ public abstract class StorageProvisionedPostStitchingOperation extends Overprovi
 
         /**
          * Sets used value for bought Storage Provisioned based on sold Storage Amount.
-         * @param entityBuilder builder of the entity
+         * @param entityImpl impl of the entity
          * @param entity        entity
          * @param resultBuilder the name speaks for itself
          */
-        private void setUsedBasedOnSoldAmount(@Nonnull TopologyEntityDTO.Builder entityBuilder,
+        private void setUsedBasedOnSoldAmount(@Nonnull TopologyEntityImpl entityImpl,
                         @Nonnull TopologyEntity entity,
                         @Nonnull EntityChangesBuilder<TopologyEntity> resultBuilder) {
-            entityBuilder.getCommoditySoldListBuilderList().stream()
+            entityImpl.getCommoditySoldListList().stream()
             .filter(commoditySoldDTO -> commoditySoldDTO.getCommodityType().getType() ==
                     CommodityType.STORAGE_AMOUNT_VALUE && commoditySoldDTO.hasCapacity())
-            .map(CommoditySoldDTO.Builder::getCapacity)
+            .map(CommoditySoldView::getCapacity)
             .findAny()
             .ifPresent(storageAmountCapacity ->
-                    entityBuilder.getCommoditiesBoughtFromProvidersBuilderList().stream()
+                    entityImpl.getCommoditiesBoughtFromProvidersImplList().stream()
                         .flatMap(commoditiesBoughtFromProvider ->
-                                commoditiesBoughtFromProvider.getCommodityBoughtBuilderList().stream())
+                                commoditiesBoughtFromProvider.getCommodityBoughtImplList().stream())
                         .filter(commodityBoughtDTO -> commodityBoughtDTO.getCommodityType().getType() ==
                                 CommodityType.STORAGE_PROVISIONED_VALUE)
                         .forEach(commodityBoughtDTO -> resultBuilder.queueUpdateEntityAlone(entity,

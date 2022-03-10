@@ -28,8 +28,8 @@ import org.mockito.MockitoAnnotations;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateTargetDiscoveredTemplateDeploymentProfileRequest;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTOMoles.DiscoveredTemplateDeploymentProfileServiceMole;
 import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServiceGrpc;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.PerTargetEntityInformationImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -78,25 +78,24 @@ public class DiscoveredTemplateDeploymentProfileUploaderTest {
      */
     @Test
     public void testPatchTopology() {
-        final TopologyEntityDTO.Builder pool = TopologyEntityDTO.newBuilder()
+        final TopologyEntityImpl pool = new TopologyEntityImpl()
                         .setEntityType(EntityType.DESKTOP_POOL_VALUE)
                         .setOid(7L);
         String vendorId = "qqq";
         long id = 2131L;
         long target = 58674L;
         TopologyEntity.Builder builder = topologyEntityBuilder(pool);
-        builder.getEntityBuilder()
+        builder.getTopologyEntityImpl()
                         .putEntityPropertyMap(DesktopPoolInfoMapper.DESKTOP_POOL_TEMPLATE_REFERENCE,
                                               vendorId);
-        builder.getEntityBuilder().getOriginBuilder().getDiscoveryOriginBuilder()
-                        .putDiscoveredTargetData(target,
-                                                 PerTargetEntityInformation.getDefaultInstance());
+        builder.getTopologyEntityImpl().getOrCreateOrigin().getOrCreateDiscoveryOrigin()
+            .putDiscoveredTargetData(target, new PerTargetEntityInformationImpl());
         final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, builder);
 
         when(uploader.getProfileId(target, vendorId)).thenReturn(id);
         Mockito.doCallRealMethod().when(uploader).patchTopology(Mockito.any());
         uploader.patchTopology(topology);
-        Assert.assertEquals(id, pool.getTypeSpecificInfoBuilder().getDesktopPoolBuilder()
+        Assert.assertEquals(id, pool.getOrCreateTypeSpecificInfo().getOrCreateDesktopPool()
                         .getTemplateReferenceId());
     }
 

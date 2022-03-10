@@ -15,14 +15,12 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -31,6 +29,8 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginView;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -176,12 +176,12 @@ public class StitchingContextTest {
     public void testConstructTopology() {
         Map<Long, TopologyEntityDTO.Builder> topoMap = stitchingContext.constructTopology();
         final TopologyGraph<TopologyEntity> topology = TopologyEntityTopologyGraphCreator.newGraph(topoMap.values().stream()
-                .map(TopologyEntity::newBuilder)
+                .map(entity -> TopologyEntity.newBuilder(TopologyEntityImpl.fromProto(entity)))
                 .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity())));
         assertEquals(4, topology.size());
 
         assertEquals(e1_1.getOid(), topology.getEntity(e1_1.getOid()).get().getOid());
-        DiscoveryOrigin origin = topology.getEntity(e1_1.getOid()).get().getDiscoveryOrigin().get();
+        DiscoveryOriginView origin = topology.getEntity(e1_1.getOid()).get().getDiscoveryOrigin().get();
         assertEquals(e1_1.getLastUpdatedTime(), origin.getLastUpdatedTime());
         assertEquals(1, origin.getDiscoveredTargetDataMap().size());
         assertEquals(e1_1.getTargetId(),

@@ -29,6 +29,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -171,18 +174,16 @@ public class StitchingTestUtils {
         return new CommodityBoughtOutline(providerId, commodityType);
     }
 
-    public static TopologyDTO.CommodityType commodityType(@Nonnull final CommodityDTO.CommodityType commodityType) {
-        return TopologyDTO.CommodityType.newBuilder()
-            .setType(commodityType.getNumber())
-            .build();
+    public static CommodityTypeView commodityType(@Nonnull final CommodityDTO.CommodityType commodityType) {
+        return new CommodityTypeImpl()
+            .setType(commodityType.getNumber());
     }
 
-    public static TopologyDTO.CommodityType commodityType(@Nonnull final CommodityDTO.CommodityType commodityType,
-                                                    @Nonnull final String key) {
-        return TopologyDTO.CommodityType.newBuilder()
+    public static CommodityTypeView commodityType(@Nonnull final CommodityDTO.CommodityType commodityType,
+                                                  @Nonnull final String key) {
+        return new CommodityTypeImpl()
             .setKey(key)
-            .setType(commodityType.getNumber())
-            .build();
+            .setType(commodityType.getNumber());
     }
 
     /**

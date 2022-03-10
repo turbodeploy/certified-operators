@@ -15,23 +15,24 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.StorageInfoView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoView;
 import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageData.StoragePolicy;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageRedundancyMethod;
+import com.vmturbo.platform.common.dto.CommonPOJO.EntityImpl.StorageDataImpl.StoragePolicyView;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -60,20 +61,19 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
     }
 
     @Override
-    public void apply(@Nonnull Builder storage,
+    public void apply(@Nonnull TopologyEntityImpl storage,
                       @Nonnull Map<EntitySettingSpecs, Setting> settings,
                       @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
         if (!HCIUtils.isVSAN(storage))  {
             return;
         }
 
-        List<TopologyEntityDTO.Builder> hosts = getHosts(storage);
+        List<TopologyEntityImpl> hosts = getHosts(storage);
 
         if (addAccessCommoditiesForVsan) {
-            TopologyDTO.CommodityType commodityType = TopologyDTO.CommodityType.newBuilder()
+            CommodityTypeView commodityType = new CommodityTypeImpl()
                     .setType(CommodityType.ACCESS_VALUE)
-                    .setKey(Long.toString(storage.getOid()))
-                    .build();
+                    .setKey(Long.toString(storage.getOid()));
 
             boolean addedToConsumer = applyConstraintForConsumer(storage, EntityType.PHYSICAL_MACHINE_VALUE, commodityType);
             if (addedToConsumer) {
@@ -97,7 +97,7 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
                                 EntitySettingSpecs.HciHostCapacityReservation);
 
         // OM-61627 Subtract the hosts that do not contribute to vSAN.
-        List<TopologyEntityDTO.Builder> activeHosts = getActiveHosts(hosts);
+        List<TopologyEntityImpl> activeHosts = getActiveHosts(hosts);
         hostCapacityReservation -= hosts.size() - activeHosts.size();
         hostCapacityReservation = hostCapacityReservation < 0 ? 0 : hostCapacityReservation;
 
@@ -138,14 +138,14 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
      * @return a factor <= 1.0 by which the raw storage amount is reduced to get
      *         usable space
      */
-    private static double computeRaidFactor(@Nonnull Builder storage) {
+    private static double computeRaidFactor(@Nonnull TopologyEntityImpl storage) {
         if (!storage.hasTypeSpecificInfo()) {
             logger.error("Storage '{}' does not have Type Specific Info.  "
                     + "Assuming RAID0. ", storage.getDisplayName());
             return RAID_FACTOR_DEFAULT;
         }
 
-        TypeSpecificInfo info = storage.getTypeSpecificInfo();
+        TypeSpecificInfoView info = storage.getTypeSpecificInfo();
 
         if (!info.hasStorage()) {
             logger.error("Storage '{}' does not have Storage Info. "
@@ -153,7 +153,7 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
             return RAID_FACTOR_DEFAULT;
         }
 
-        StorageInfo storageInfo = info.getStorage();
+        StorageInfoView storageInfo = info.getStorage();
 
         if (!storageInfo.hasPolicy()) {
             logger.debug("Storage '{}' does not have Storage Policy. "
@@ -161,7 +161,7 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
             return RAID_FACTOR_DEFAULT;
         }
 
-        StoragePolicy policy = storageInfo.getPolicy();
+        StoragePolicyView policy = storageInfo.getPolicy();
 
         if (!policy.hasRedundancy()) {
             logger.debug("Storage '{}' does not have Redundancy. "
@@ -193,11 +193,11 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
         return RAID_FACTOR_DEFAULT;
     }
 
-    private void applyToStorage(@Nonnull TopologyEntityDTO.Builder storage, double raidFactor,
+    private void applyToStorage(@Nonnull TopologyEntityImpl storage, double raidFactor,
             double slackSpaceRatio, double compressionRatio, double iopsCapacityPerHost,
-            double hostCapacityReservation, @Nonnull List<TopologyEntityDTO.Builder> activeHosts)
+            double hostCapacityReservation, @Nonnull List<TopologyEntityImpl> activeHosts)
             throws EntityApplicatorException {
-        CommoditySoldDTO.Builder storageAmount = getSoldStorageCommodityBuilder(
+        CommoditySoldImpl storageAmount = getSoldStorageCommodityImpl(
                         storage, CommodityType.STORAGE_AMOUNT);
         double effectiveSACapacity = storageAmount.getCapacity();
 
@@ -229,7 +229,7 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
                 CommodityType.STORAGE_ACCESS, storage, hostCapacityReservation, activeHostCount);
 
         //Set capacity for sold Storage Access.
-        CommoditySoldDTO.Builder storageAccess = getSoldStorageCommodityBuilder(
+        CommoditySoldImpl storageAccess = getSoldStorageCommodityImpl(
                         storage, CommodityType.STORAGE_ACCESS);
         logger.trace("Set sold StorageAccess for {} capacity to {}, host count {}",
                 storage.getDisplayName(), totalIOPSCapacity, activeHostCount);
@@ -237,7 +237,7 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
 
         //Set Storage Latency to 1 if Host Capacity reservation takes all hosts present.
         if (hostCapacityReservation >= activeHostCount) {
-            CommoditySoldDTO.Builder storageLatency = getSoldStorageCommodityBuilder(
+            CommoditySoldImpl storageLatency = getSoldStorageCommodityImpl(
                             storage, CommodityType.STORAGE_LATENCY);
             logger.warn("Setting sold Storage Latency capacity for {} to 1.0 because"
                             + " no hosts are available. Host capacity reservation: {}."
@@ -248,18 +248,18 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
     }
 
     @Nonnull
-    private List<TopologyEntityDTO.Builder> getHosts(@Nonnull TopologyEntityDTO.Builder storage) {
-        List<TopologyEntityDTO.Builder> result = new ArrayList<>();
+    private List<TopologyEntityImpl> getHosts(@Nonnull TopologyEntityImpl storage) {
+        List<TopologyEntityImpl> result = new ArrayList<>();
 
-        for (CommoditiesBoughtFromProvider.Builder boughtBuilder : storage
-                .getCommoditiesBoughtFromProvidersBuilderList()) {
+        for (CommoditiesBoughtFromProviderImpl boughtBuilder : storage
+                .getCommoditiesBoughtFromProvidersImplList()) {
             if (!boughtBuilder.hasProviderEntityType()
                     || boughtBuilder.getProviderEntityType() != EntityType.PHYSICAL_MACHINE_VALUE) {
                 continue;
             }
             Optional<TopologyEntity> provider = graph.getEntity(boughtBuilder.getProviderId());
             if (provider.isPresent()) {
-                result.add(provider.get().getTopologyEntityDtoBuilder());
+                result.add(provider.get().getTopologyEntityImpl());
             } else {
                 logger.error("No provider with ID {} in Topology Graph.",
                         boughtBuilder.getProviderId());
@@ -269,10 +269,10 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
         return result;
     }
 
-    private static void applyToStorageHosts(@Nonnull List<TopologyEntityDTO.Builder> hosts,
+    private static void applyToStorageHosts(@Nonnull List<TopologyEntityImpl> hosts,
             double iopsCapacityPerHost, double hciUsablePercentage,
             double storageOverprovisioningCoefficient) {
-        for (TopologyEntityDTO.Builder host : hosts) {
+        for (TopologyEntityImpl host : hosts) {
             setAccessCapacityForProvider(host, iopsCapacityPerHost);
             setProvisionedCapacityForProvider(host, storageOverprovisioningCoefficient);
             setUtilizationThresholdForProvider(host, hciUsablePercentage);
@@ -287,8 +287,8 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
      * @param hosts hosts
      * @return active hosts
      */
-    private static List<TopologyEntityDTO.Builder> getActiveHosts(
-            @Nonnull List<TopologyEntityDTO.Builder> hosts) {
+    private static List<TopologyEntityImpl> getActiveHosts(
+            @Nonnull List<TopologyEntityImpl> hosts) {
         return hosts.stream()
                 .filter(host -> host.getEntityState() != EntityState.POWERED_OFF
                         && host.getEntityState() != EntityState.MAINTENANCE)
@@ -296,10 +296,10 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
     }
 
     @Nonnull
-    private static CommoditySoldDTO.Builder getSoldStorageCommodityBuilder(
-                    @Nonnull Builder storage, @Nonnull CommodityType type)
+    private static CommoditySoldImpl getSoldStorageCommodityImpl(
+                    @Nonnull TopologyEntityImpl storage, @Nonnull CommodityType type)
                                     throws EntityApplicatorException {
-        Collection<CommoditySoldDTO.Builder> comms = getCommoditySoldBuilders(storage, type);
+        Collection<CommoditySoldImpl> comms = getCommoditySoldBuilders(storage, type);
         if (CollectionUtils.isEmpty(comms)) {
             throw new EntityApplicatorException("vSAN storage '" + storage.getDisplayName()
                     + "' is missing " + type + " commodity");
@@ -322,11 +322,11 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
      * @return The largest physical machine's disk capacity.
      */
     private static double getLargestHciHostRawDiskCapacity(
-            @Nonnull List<TopologyEntityDTO.Builder> activeHosts) {
+            @Nonnull List<TopologyEntityImpl> activeHosts) {
         double result = 0;
 
-        for (TopologyEntityDTO.Builder host : activeHosts) {
-            for (CommoditySoldDTO comm : host.getCommoditySoldListList()) {
+        for (TopologyEntityImpl host : activeHosts) {
+            for (CommoditySoldView comm : host.getCommoditySoldListList()) {
                 if (comm.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT.getNumber()) {
                     result = Math.max(result, comm.getCapacity());
                 }
@@ -347,7 +347,7 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
      * @return  the computed capacity if it's above the threshold or the threshold value
      */
     private static double checkCapacityAgainstThreshold(double capacity,
-            @Nonnull CommodityType commodityType, @Nonnull TopologyEntityDTO.Builder storage,
+            @Nonnull CommodityType commodityType, @Nonnull TopologyEntityImpl storage,
             double hostCapacityReservation, long hciHostCount) {
         if (capacity < THRESHOLD_EFFECTIVE_CAPACITY) {
             logger.warn(
@@ -360,22 +360,22 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
         return capacity;
     }
 
-    private static void setAccessCapacityForProvider(@Nonnull TopologyEntityDTO.Builder host,
+    private static void setAccessCapacityForProvider(@Nonnull TopologyEntityImpl host,
             double iopsCapacityPerHost) {
-        host.getCommoditySoldListBuilderList()
+        host.getCommoditySoldListImplList()
             .stream().filter(soldBuilder -> soldBuilder.getCommodityType().getType()
                             == CommodityType.STORAGE_ACCESS_VALUE)
             .forEach(soldBuilder -> soldBuilder.setCapacity(iopsCapacityPerHost));
     }
 
-    private static void setProvisionedCapacityForProvider(@Nonnull TopologyEntityDTO.Builder host,
+    private static void setProvisionedCapacityForProvider(@Nonnull TopologyEntityImpl host,
             double storageOverprovisioningCoefficient) {
         List<Double> storageAmountCapacities = host
-            .getCommoditySoldListBuilderList().stream()
+            .getCommoditySoldListImplList().stream()
             .filter(soldCommodityBuilder -> soldCommodityBuilder.getCommodityType().getType()
                             == CommodityType.STORAGE_AMOUNT_VALUE
                         && soldCommodityBuilder.hasCapacity())
-            .map(CommoditySoldDTO.Builder::getCapacity)
+            .map(CommoditySoldImpl::getCapacity)
             .collect(Collectors.toList());
 
         if (storageAmountCapacities.size() != 1)  {
@@ -386,16 +386,16 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
         }
         Double amountCapacity = storageAmountCapacities.iterator().next();
 
-        host.getCommoditySoldListBuilderList().stream()
+        host.getCommoditySoldListImplList().stream()
             .filter(soldBuilder -> soldBuilder.getCommodityType().getType()
                             == CommodityType.STORAGE_PROVISIONED_VALUE)
             .forEach(soldBuilder -> soldBuilder.setCapacity(amountCapacity *
                             storageOverprovisioningCoefficient));
     }
 
-    private static void setUtilizationThresholdForProvider(@Nonnull TopologyEntityDTO.Builder host,
+    private static void setUtilizationThresholdForProvider(@Nonnull TopologyEntityImpl host,
             double value) {
-        host.getCommoditySoldListBuilderList().stream()
+        host.getCommoditySoldListImplList().stream()
             .filter(soldBuilder -> soldBuilder.getCommodityType().getType()
                             == CommodityType.STORAGE_PROVISIONED_VALUE
                         || soldBuilder.getCommodityType().getType()
@@ -410,14 +410,13 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
      * @param providers The providers that need to sell the constraint.
      * @param constraint The commodity for use in constraining the providers.
      */
-    protected void addCommoditySold(@Nonnull final List<TopologyEntityDTO.Builder> providers,
-            @Nonnull final TopologyDTO.CommodityType constraint) {
+    protected void addCommoditySold(@Nonnull final List<TopologyEntityImpl> providers,
+            @Nonnull final CommodityTypeView constraint) {
 
-        CommoditySoldDTO commSold = CommoditySoldDTO.newBuilder()
+        CommoditySoldView commSold = new CommoditySoldImpl()
                 .setCommodityType(constraint)
                 .setUsed(1d)
-                .setCapacity(SDKConstants.ACCESS_COMMODITY_CAPACITY)
-                .build();
+                .setCapacity(SDKConstants.ACCESS_COMMODITY_CAPACITY);
 
         providers.forEach(provider -> {
                     provider.addCommoditySoldList(commSold);
@@ -436,9 +435,9 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
      * @param commodity The commodity to be sold.
      */
     protected void addCommoditySold(@Nonnull final long providerId,
-            @Nonnull final CommoditySoldDTO commodity) {
+            @Nonnull final CommoditySoldView commodity) {
         graph.getEntity(providerId)
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .map(TopologyEntity::getTopologyEntityImpl)
                 .ifPresent(provider -> {
                     provider.addCommoditySoldList(commodity);
                 });
@@ -452,18 +451,18 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
      * @param constraint cluster Commodity type.
      */
     private boolean applyConstraintForConsumer(
-            @Nonnull final Builder consumer,
+            @Nonnull final TopologyEntityImpl consumer,
             final int providerEntityType,
-            @Nonnull final TopologyDTO.CommodityType constraint) {
+            @Nonnull final CommodityTypeView constraint) {
         boolean completed = false;
-        List<CommoditiesBoughtFromProvider.Builder> commBoughtGrouping =
-                consumer.getCommoditiesBoughtFromProvidersBuilderList().stream()
+        List<CommoditiesBoughtFromProviderImpl> commBoughtGrouping =
+                consumer.getCommoditiesBoughtFromProvidersImplList().stream()
                     .filter(commodityBoughtGroup ->
                             commodityBoughtGroup.getProviderEntityType() == providerEntityType)
                     .collect(Collectors.toList());
 
-        for(CommoditiesBoughtFromProvider.Builder commodityBoughtBuilder : commBoughtGrouping) {
-            commodityBoughtBuilder.addCommodityBought(CommodityBoughtDTO.newBuilder()
+        for(CommoditiesBoughtFromProviderImpl commodityBoughtImpl : commBoughtGrouping) {
+            commodityBoughtImpl.addCommodityBought(new CommodityBoughtImpl()
                     .setCommodityType(constraint)
                     .setUsed(1.0d));
             completed = true;

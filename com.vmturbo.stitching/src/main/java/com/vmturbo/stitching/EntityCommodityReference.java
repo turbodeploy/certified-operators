@@ -9,7 +9,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 
 /**
  * Unique reference to an entity's commodity within a topology to use in collections.
@@ -20,7 +20,7 @@ public class EntityCommodityReference implements Serializable {
     private static final long NO_PROVIDER = 0L;
 
     private final long entityOid;
-    private final TopologyDTO.CommodityType commodityType;
+    private final CommodityTypeView commodityType;
     private final long providerOid;
 
     /**
@@ -30,7 +30,7 @@ public class EntityCommodityReference implements Serializable {
      * @param commodityType commodity base type + key
      * @param providerOid optional provider entity if bought, null if sold
      */
-    public EntityCommodityReference(long entityOid, @Nonnull TopologyDTO.CommodityType commodityType,
+    public EntityCommodityReference(long entityOid, @Nonnull CommodityTypeView commodityType,
                               @Nullable Long providerOid) {
         this.entityOid = entityOid;
         this.commodityType = commodityType;
@@ -42,7 +42,7 @@ public class EntityCommodityReference implements Serializable {
     }
 
     @Nonnull
-    public TopologyDTO.CommodityType getCommodityType() {
+    public CommodityTypeView getCommodityType() {
         return commodityType;
     }
 

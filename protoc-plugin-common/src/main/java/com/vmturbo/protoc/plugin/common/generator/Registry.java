@@ -123,11 +123,16 @@ public class Registry {
     @Nonnull
     public AbstractDescriptor getMessageDescriptor(@Nonnull final String name) {
         AbstractDescriptor result = null;
-        // The protobuf compiler presents
-        // fully qualified names prefixed with a ".".
+        // The protobuf compiler presents fully qualified names prefixed with a ".".
+        // although if the message descriptor is from a proto file with no proto
+        // package it may also be missing the dot.
         if (name.startsWith(".")) {
             result = messageDescriptorMap.get(StringUtils.removeStart(name, "."));
-        } else {
+        }
+
+        // If the lookup above failed, or if we are looking up a message descriptor
+        // by its compiler plugin equivalent name, do the associated lookup.
+        if (result == null) {
             result = messageDescriptorMap.get(name);
         }
 

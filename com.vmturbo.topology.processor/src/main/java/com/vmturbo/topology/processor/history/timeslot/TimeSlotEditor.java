@@ -35,9 +35,9 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -118,7 +118,7 @@ public class TimeSlotEditor extends
 
     @Override
     public boolean isCommodityApplicable(TopologyEntity entity,
-                    TopologyDTO.CommoditySoldDTO.Builder commSold,
+                    CommoditySoldImpl commSold,
                     TopologyInfo topoInfo) {
         return ENABLED_TIMESLOT_COMMODITY_TYPES
             .contains(CommodityType.forNumber(commSold.getCommodityType().getType()));
@@ -126,7 +126,7 @@ public class TimeSlotEditor extends
 
     @Override
     public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-            @Nonnull Builder commBought, int providerType) {
+            @Nonnull CommodityBoughtImpl commBought, int providerType) {
         return ENABLED_TIMESLOT_COMMODITY_TYPES
                 .contains(CommodityType.forNumber(commBought.getCommodityType().getType()));
     }

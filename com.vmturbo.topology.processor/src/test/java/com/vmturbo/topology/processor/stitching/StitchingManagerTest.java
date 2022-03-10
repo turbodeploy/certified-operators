@@ -58,10 +58,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageData;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation;
 import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation.ContextlessSignatureCachingStitchingOperation;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.ExternalSignatureCache;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperation;
@@ -74,7 +74,6 @@ import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
@@ -89,6 +88,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
+import com.vmturbo.topology.processor.topology.TopologyEntityUtils;
 
 public class StitchingManagerTest {
 
@@ -325,10 +325,10 @@ public class StitchingManagerTest {
         when(postStitchingOperationLibrary.getPostStitchingOperations()).thenReturn(
             Collections.singletonList(new EntityScopePostStitchingOperation()));
         final Map<Long, TopologyEntity.Builder> entities = ImmutableMap.of(
-            1L, topologyEntityBuilder(1L, EntityType.VIRTUAL_MACHINE, Collections.emptyList()),
-            2L, topologyEntityBuilder(2L, EntityType.PHYSICAL_MACHINE, Collections.emptyList()),
-            3L, topologyEntityBuilder(3L, EntityType.STORAGE, Collections.emptyList()),
-            4L, topologyEntityBuilder(4L, EntityType.VIRTUAL_MACHINE, Collections.emptyList())
+            1L, TopologyEntityUtils.topologyEntityBuilder(1L, EntityType.VIRTUAL_MACHINE, Collections.emptyList()),
+            2L, TopologyEntityUtils.topologyEntityBuilder(2L, EntityType.PHYSICAL_MACHINE, Collections.emptyList()),
+            3L, TopologyEntityUtils.topologyEntityBuilder(3L, EntityType.STORAGE, Collections.emptyList()),
+            4L, TopologyEntityUtils.topologyEntityBuilder(4L, EntityType.VIRTUAL_MACHINE, Collections.emptyList())
         );
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(entities);
         final StitchingJournal<TopologyEntity> stitchingJournal = new StitchingJournal<>();
@@ -782,7 +782,7 @@ public class StitchingManagerTest {
                                                    @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
             entities.forEach(entity ->
                 resultBuilder.queueUpdateEntityAlone(entity,
-                    e -> e.getTopologyEntityDtoBuilder().setDisplayName("post-stitch-updated-" + e.getOid())));
+                    e -> e.getTopologyEntityImpl().setDisplayName("post-stitch-updated-" + e.getOid())));
 
             return resultBuilder.build();
         }

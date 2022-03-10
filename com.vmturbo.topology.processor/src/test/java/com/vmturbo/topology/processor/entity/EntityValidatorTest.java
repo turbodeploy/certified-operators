@@ -11,18 +11,15 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -90,7 +87,7 @@ public class EntityValidatorTest {
 
     @Test
     public void testReplaceSoldCapacity() {
-        final TopologyEntityDTO.Builder teBuilder = entityBuilder()
+        final TopologyEntityImpl teBuilder = entityBuilder()
             .addCommoditySoldList(badCommoditySold());
         entityValidator
             .processIllegalCommodityValues(teBuilder, Optional.empty(), buildGraph(teBuilder));
@@ -102,7 +99,7 @@ public class EntityValidatorTest {
 
     @Test
     public void testReplaceNaNSoldCapacity() {
-        final TopologyEntityDTO.Builder teBuilder = entityBuilder()
+        final TopologyEntityImpl teBuilder = entityBuilder()
             .addCommoditySoldList(naNCommoditySoldCapacity());
         entityValidator
             .processIllegalCommodityValues(teBuilder, Optional.empty(), buildGraph(teBuilder));
@@ -112,7 +109,7 @@ public class EntityValidatorTest {
 
     @Test
     public void testReplaceNaNSoldCapacityAndNanUsed() {
-        final TopologyEntityDTO.Builder teBuilder = entityBuilder()
+        final TopologyEntityImpl teBuilder = entityBuilder()
             .addCommoditySoldList(naNCommoditySoldCapacityAndUsed());
         entityValidator
             .processIllegalCommodityValues(teBuilder, Optional.empty(), buildGraph(teBuilder));
@@ -123,7 +120,7 @@ public class EntityValidatorTest {
 
     @Test
     public void testReplaceSoldZeroCapacity() {
-        final TopologyEntityDTO.Builder teBuilder = entityBuilder()
+        final TopologyEntityImpl teBuilder = entityBuilder()
             .addCommoditySoldList(zeroCapacityCommoditySold());
         entityValidator
             .processIllegalCommodityValues(teBuilder, Optional.empty(), buildGraph(teBuilder));
@@ -133,7 +130,7 @@ public class EntityValidatorTest {
 
     @Test
     public void testNoReplaceSoldUnsetCapacity() {
-        final TopologyEntityDTO.Builder teBuilder =
+        final TopologyEntityImpl teBuilder =
             entityBuilder().addCommoditySoldList(noCapacityCommoditySold());
         entityValidator
             .processIllegalCommodityValues(teBuilder, Optional.empty(), buildGraph(teBuilder));
@@ -143,7 +140,7 @@ public class EntityValidatorTest {
 
     @Test
     public void testReplaceBoughtUsed() {
-        final TopologyEntityDTO.Builder teBuilder = entityBuilder()
+        final TopologyEntityImpl teBuilder = entityBuilder()
             .addCommoditiesBoughtFromProviders(boughtFromProvider(badCommodityBought()));
         entityValidator
             .processIllegalCommodityValues(teBuilder, Optional.empty(), buildGraph(teBuilder));
@@ -155,7 +152,7 @@ public class EntityValidatorTest {
 
     @Test
     public void testReplaceNaNBoughtUsed() {
-        final TopologyEntityDTO.Builder teBuilder = entityBuilder()
+        final TopologyEntityImpl teBuilder = entityBuilder()
             .addCommoditiesBoughtFromProviders(boughtFromProvider(naNCommodityBought()));
         final Optional<EntityValidationFailure> failure = entityValidator
             .validateSingleEntity(teBuilder, false);
@@ -174,7 +171,7 @@ public class EntityValidatorTest {
     @Test
     public void testControllableFalseWhenIllegalCapacity() {
         // VSAN PM
-        TopologyEntity.Builder pm = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        TopologyEntity.Builder pm = TopologyEntity.newBuilder(new TopologyEntityImpl()
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
             .addCommoditySoldList(badCommoditySold())
             .setOid(100));
@@ -182,16 +179,16 @@ public class EntityValidatorTest {
         // VM placed on PM
         TopologyEntity.Builder vm = TopologyEntity.newBuilder(entityBuilder()
             .setOid(1)
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
-                    CommodityType.newBuilder().setType(CommodityDTO.CommodityType.CPU_VALUE).build()))
+            .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
+                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(
+                    new CommodityTypeImpl().setType(CommodityDTO.CommodityType.CPU_VALUE)))
                 .setProviderId(100)));
 
         // Storage placed on VSAN PM
-        TopologyEntity.Builder storage = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        TopologyEntity.Builder storage = TopologyEntity.newBuilder(new TopologyEntityImpl()
             .setEntityType(EntityType.STORAGE_VALUE)
             .setOid(2)
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                 .addCommodityBought(badCommodityBought()).setProviderId(100)));
 
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(
@@ -201,10 +198,10 @@ public class EntityValidatorTest {
                 storage.getOid(), storage));
 
         entityValidator
-            .processIllegalCommodityValues(pm.getEntityBuilder(), Optional.empty(), graph);
-        assertFalse(pm.getEntityBuilder().getAnalysisSettings().getControllable());
-        assertTrue(vm.getEntityBuilder().getAnalysisSettings().getControllable());
-        assertFalse(storage.getEntityBuilder().getAnalysisSettings().getControllable());
+            .processIllegalCommodityValues(pm.getTopologyEntityImpl(), Optional.empty(), graph);
+        assertFalse(pm.getTopologyEntityImpl().getAnalysisSettings().getControllable());
+        assertTrue(vm.getTopologyEntityImpl().getAnalysisSettings().getControllable());
+        assertFalse(storage.getTopologyEntityImpl().getAnalysisSettings().getControllable());
     }
 
     @Test
@@ -234,7 +231,7 @@ public class EntityValidatorTest {
             .addCommoditiesBoughtFromProviders(boughtFromProvider(badCommodityBought()))
             .addCommoditySoldList(badCommoditySold()));
         entityValidator.validateTopologyEntities(buildGraph(te), false);
-        final Builder result = te.getEntityBuilder();
+        final TopologyEntityImpl result = te.getTopologyEntityImpl();
         assertEquals(0,
             result.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getPeak(), 0);
         assertEquals(0,
@@ -256,7 +253,7 @@ public class EntityValidatorTest {
         final TopologyEntity.Builder te = TopologyEntity.newBuilder(entityBuilder()
             .addCommoditySoldList(badCommoditySold()));
         ev.validateTopologyEntities(buildGraph(te), false);
-        final Builder result = te.getEntityBuilder();
+        final TopologyEntityImpl result = te.getTopologyEntityImpl();
         assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
         assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
         assertFalse(result.getCommoditySoldList(0).hasCapacity());
@@ -278,7 +275,7 @@ public class EntityValidatorTest {
         final TopologyEntity.Builder te2 = TopologyEntity.newBuilder(entityBuilder()
                         .addCommoditySoldList(badCommoditySold()));
         ev.validateTopologyEntities(buildGraph(te2), false);
-        final Builder result = te2.getEntityBuilder();
+        final TopologyEntityImpl result = te2.getTopologyEntityImpl();
         assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
         assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
         assertTrue(result.getCommoditySoldList(0).hasCapacity());
@@ -299,9 +296,9 @@ public class EntityValidatorTest {
         ev.validateTopologyEntities(buildGraph(te1), false);
         final TopologyEntity.Builder te2 = TopologyEntity.newBuilder(entityBuilder()
                         .addCommoditySoldList(badCommoditySold()))
-                        .setClonedFromEntity(te1.getEntityBuilder());
+                        .setClonedFromEntity(te1.getTopologyEntityImpl());
         ev.validateTopologyEntities(buildGraph(te2), true);
-        final Builder result = te2.getEntityBuilder();
+        final TopologyEntityImpl result = te2.getTopologyEntityImpl();
         assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
         assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
         assertTrue(result.getCommoditySoldList(0).hasCapacity());
@@ -322,83 +319,80 @@ public class EntityValidatorTest {
         final TopologyEntity.Builder te2 = TopologyEntity.newBuilder(entityBuilder()
                         .addCommoditySoldList(badCommoditySold()));
         ev.validateTopologyEntities(buildGraph(te2), false);
-        final Builder result = te2.getEntityBuilder();
+        final TopologyEntityImpl result = te2.getTopologyEntityImpl();
         assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
         assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
         assertFalse(result.getCommoditySoldList(0).hasCapacity());
         assertFalse(result.getAnalysisSettings().getControllable());
     }
 
-    private TopologyEntityDTO.Builder entityBuilder() {
-        return TopologyEntityDTO.newBuilder()
+    private TopologyEntityImpl entityBuilder() {
+        return new TopologyEntityImpl()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .setDisplayName("ASDF");
     }
 
-    private CommoditiesBoughtFromProvider boughtFromProvider(
-        @Nonnull final CommodityBoughtDTO bought) {
-        return CommoditiesBoughtFromProvider.newBuilder()
+    private CommoditiesBoughtFromProviderImpl boughtFromProvider(
+        @Nonnull final CommodityBoughtImpl bought) {
+        return new CommoditiesBoughtFromProviderImpl()
             .setProviderId(123456789)
-            .addCommodityBought(bought)
-            .build();
+            .addCommodityBought(bought);
     }
 
-    private CommodityBoughtDTO goodCommodityBought() {
-        return CommodityBoughtDTO.newBuilder().setCommodityType(
-            TopologyDTO.CommodityType.newBuilder().setType(1)).setPeak(1).setUsed(1).build();
+    private CommodityBoughtImpl goodCommodityBought() {
+        return new CommodityBoughtImpl().setCommodityType(
+            new CommodityTypeImpl().setType(1)).setPeak(1).setUsed(1);
     }
 
-    private CommodityBoughtDTO badCommodityBought() {
-        return CommodityBoughtDTO.newBuilder().setCommodityType(
-            TopologyDTO.CommodityType.newBuilder().setType(1)).setPeak(-1).setUsed(-1).build();
+    private CommodityBoughtImpl badCommodityBought() {
+        return new CommodityBoughtImpl().setCommodityType(
+                new CommodityTypeImpl().setType(1)).setPeak(-1).setUsed(-1);
     }
 
-    private CommodityBoughtDTO naNCommodityBought() {
-        return CommodityBoughtDTO.newBuilder().setCommodityType(
-            TopologyDTO.CommodityType.newBuilder().setType(1)).setPeak(Double.NaN)
-                        .setUsed(Double.NaN).build();
+    private CommodityBoughtImpl naNCommodityBought() {
+        return new CommodityBoughtImpl().setCommodityType(
+                        new CommodityTypeImpl().setType(1)).setPeak(Double.NaN)
+                        .setUsed(Double.NaN);
     }
 
-    private CommoditySoldDTO goodCommoditySold() {
-        return CommoditySoldDTO.newBuilder().setCommodityType(
-            TopologyDTO.CommodityType.newBuilder().setType(1)).setCapacity(4).setPeak(4).setUsed(4)
-            .build();
+    private CommoditySoldImpl goodCommoditySold() {
+        return new CommoditySoldImpl().setCommodityType(
+                        new CommodityTypeImpl().setType(1)).setCapacity(4).setPeak(4).setUsed(4);
     }
 
-    private CommoditySoldDTO badCommoditySold() {
-        return CommoditySoldDTO.newBuilder().setCommodityType(
-            TopologyDTO.CommodityType.newBuilder().setType(1)).setCapacity(-4).setPeak(-4)
-            .setUsed(-4).build();
+    private CommoditySoldImpl badCommoditySold() {
+        return new CommoditySoldImpl().setCommodityType(
+                        new CommodityTypeImpl().setType(1)).setCapacity(-4).setPeak(-4)
+            .setUsed(-4);
     }
 
-    private CommoditySoldDTO naNCommoditySoldCapacity() {
-        return CommoditySoldDTO.newBuilder().setCommodityType(
-            TopologyDTO.CommodityType.newBuilder().setType(1)).setCapacity(Double.NaN)
-            .setUsed(1).build();
+    private CommoditySoldImpl naNCommoditySoldCapacity() {
+        return new CommoditySoldImpl().setCommodityType(
+                        new CommodityTypeImpl().setType(1)).setCapacity(Double.NaN)
+            .setUsed(1);
     }
 
-    private CommoditySoldDTO naNCommoditySoldCapacityAndUsed() {
-        return CommoditySoldDTO.newBuilder().setCommodityType(
-            TopologyDTO.CommodityType.newBuilder().setType(1)).setCapacity(Double.NaN)
-            .setUsed(Double.NaN).build();
+    private CommoditySoldImpl naNCommoditySoldCapacityAndUsed() {
+        return new CommoditySoldImpl().setCommodityType(
+                        new CommodityTypeImpl().setType(1)).setCapacity(Double.NaN)
+            .setUsed(Double.NaN);
     }
 
-    private CommoditySoldDTO zeroCapacityCommoditySold() {
-        return CommoditySoldDTO.newBuilder().setCommodityType(
-            TopologyDTO.CommodityType.newBuilder().setType(1)).setCapacity(0).setPeak(0).setUsed(0)
-            .build();
+    private CommoditySoldImpl zeroCapacityCommoditySold() {
+        return new CommoditySoldImpl().setCommodityType(
+                        new CommodityTypeImpl().setType(1)).setCapacity(0).setPeak(0).setUsed(0);
     }
 
-    private CommoditySoldDTO noCapacityCommoditySold() {
-        return CommoditySoldDTO.newBuilder().setCommodityType(
-            TopologyDTO.CommodityType.newBuilder().setType(1)).setPeak(0).setUsed(0).build();
+    private CommoditySoldImpl noCapacityCommoditySold() {
+        return new CommoditySoldImpl().setCommodityType(
+                new CommodityTypeImpl().setType(1)).setPeak(0).setUsed(0);
     }
 
     private TopologyGraph<TopologyEntity> buildGraph(TopologyEntity.Builder te) {
         return TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(te.getOid(), te));
     }
 
-    private TopologyGraph<TopologyEntity> buildGraph(TopologyEntityDTO.Builder dto) {
+    private TopologyGraph<TopologyEntity> buildGraph(TopologyEntityImpl dto) {
         return buildGraph(TopologyEntity.newBuilder(dto));
     }
 }

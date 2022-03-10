@@ -54,7 +54,7 @@ public class PmStateChangePostStitchingOperation implements PostStitchingOperati
                 // some host went down, flip the failover ones into activity
                 for (TopologyEntity failoverHost : failoverHosts) {
                     resultBuilder.queueUpdateEntityAlone(failoverHost,
-                            f -> f.getTopologyEntityDtoBuilder()
+                            f -> f.getTopologyEntityImpl()
                                     .setEntityState(EntityState.POWERED_ON));
                 }
             }

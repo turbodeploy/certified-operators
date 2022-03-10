@@ -14,18 +14,19 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.PerTargetEntityInformationView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoView;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.journal.JournalableEntity;
 import com.vmturbo.topology.graph.SearchableProps;
@@ -34,20 +35,20 @@ import com.vmturbo.topology.graph.TopologyGraphEntity;
 import com.vmturbo.topology.graph.TopologyGraphSearchableEntity;
 
 /**
- * A wrapper around {@link TopologyEntityDTO.Builder}.Properties of the entity such as commodity values
+ * A wrapper around {@link TopologyEntityImpl}. Properties of the entity such as commodity values
  * may be updated, but relationships to other entities in the topology cannot be changed.
- *
+ * <p/>
  * {@link TopologyEntity}s are equivalent when their OIDs are equal. It is an error to create two different
  * {@link TopologyEntity}s with the same OIDs and behavior is undefined when this is done.
- *
- * The TopologyEntityDTO.Builder within a TopologyEntity may be edited but the TopologyEntity is immutable otherwise.
+ * <p/>
+ * The TopologyEntityImpl within a TopologyEntity may be edited but the TopologyEntity is immutable otherwise.
  */
 public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEntity>, JournalableEntity<TopologyEntity> {
 
     /**
-     * A builder for the entity in the topology corresponding to this TopologyEntity.
+     * A {@link TopologyEntityImpl} for the entity in the topology corresponding to this TopologyEntity.
      */
-    private final TopologyEntityDTO.Builder entityBuilder;
+    private final TopologyEntityImpl entityImpl;
 
     /**
      * The set of all entities in the topology that consume commodities from this TopologyEntity.
@@ -65,7 +66,7 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
      * These lists represent all connections of this entity:
      * outbound and inbound associations (which correspond
      * to connections of type
-     * {@link TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType#NORMAL_CONNECTION}),
+     * {@link com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType#NORMAL_CONNECTION}),
      * aggregations, ownerships, controls. Note that there can only be one owner.
      *
      * <p>The lists are mutable, because references to them are passed directly
@@ -80,20 +81,20 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
     private final List<TopologyEntity> aggregatedEntities;
     private final List<TopologyEntity> controllers;
     private final List<TopologyEntity> controlledEntities;
-    private TopologyEntityDTO.Builder clonedFromEntity;
+    private TopologyEntityImpl clonedFromEntity;
 
-    private TopologyEntity(@Nonnull final TopologyEntityDTO.Builder entity,
-                           @Nonnull final List<TopologyEntity> consumers,
-                           @Nonnull final List<TopologyEntity> providers,
-                           @Nonnull final List<TopologyEntity> outboundAssociatedEntities,
-                           @Nonnull final List<TopologyEntity> inboundAssociatedEntities,
-                           @Nonnull final AtomicReference<TopologyEntity> owner,
-                           @Nonnull final List<TopologyEntity> ownedEntities,
-                           @Nonnull final List<TopologyEntity> aggregators,
-                           @Nonnull final List<TopologyEntity> aggregatedEntities,
-                           @Nonnull final List<TopologyEntity> controllers,
-                           @Nonnull final List<TopologyEntity> controlledEntities) {
-        this.entityBuilder = Objects.requireNonNull(entity);
+    private TopologyEntity(@Nonnull final TopologyEntityImpl entity,
+                       @Nonnull final List<TopologyEntity> consumers,
+                       @Nonnull final List<TopologyEntity> providers,
+                       @Nonnull final List<TopologyEntity> outboundAssociatedEntities,
+                       @Nonnull final List<TopologyEntity> inboundAssociatedEntities,
+                       @Nonnull final AtomicReference<TopologyEntity> owner,
+                       @Nonnull final List<TopologyEntity> ownedEntities,
+                       @Nonnull final List<TopologyEntity> aggregators,
+                       @Nonnull final List<TopologyEntity> aggregatedEntities,
+                       @Nonnull final List<TopologyEntity> controllers,
+                       @Nonnull final List<TopologyEntity> controlledEntities) {
+        this.entityImpl = Objects.requireNonNull(entity);
         this.consumers = consumers;
         this.providers = providers;
         this.inboundAssociatedEntities = inboundAssociatedEntities;
@@ -108,24 +109,24 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
 
     @Override
     public long getOid() {
-        return entityBuilder.getOid();
+        return entityImpl.getOid();
     }
 
     @Override
     public int getEntityType() {
-        return entityBuilder.getEntityType();
+        return entityImpl.getEntityType();
     }
 
     @Nonnull
     @Override
     public EntityState getEntityState() {
-        return entityBuilder.getEntityState();
+        return entityImpl.getEntityState();
     }
 
     @Nonnull
     @Override
     public EnvironmentType getEnvironmentType() {
-        return entityBuilder.getEnvironmentType();
+        return entityImpl.getEnvironmentType();
     }
 
     @Nonnull
@@ -180,7 +181,7 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
 
         // Create and return the copy
         return new TopologyEntity(
-                entityBuilder.clone(), newConsumers, newProviders,
+                entityImpl.copy(), newConsumers, newProviders,
                 newConnectedToAssociatedEntities, newConnectedFromAssociatedEntities,
                 owner, newOwnedEntities, newAggregators, newAggregatedEntities, newControllers, newControlledEntities);
     }
@@ -188,31 +189,31 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
     @Nonnull
     @Override
     public String getDisplayName() {
-        return entityBuilder.getDisplayName();
+        return entityImpl.getDisplayName();
     }
 
     @Nonnull
-    public TypeSpecificInfo getTypeSpecificInfo() {
-        return entityBuilder.getTypeSpecificInfo();
+    public TypeSpecificInfoView getTypeSpecificInfo() {
+        return entityImpl.getTypeSpecificInfo();
     }
 
     @Nonnull
     public SearchableProps getSearchableProps() {
-        return ThickSearchableProps.newProps(entityBuilder);
+        return ThickSearchableProps.newProps(entityImpl.toProtoBuilder());
     }
 
     @Nonnull
     @Override
     public Stream<Long> getDiscoveringTargetIds() {
         return hasDiscoveryOrigin()
-            ? entityBuilder.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet().stream()
+            ? entityImpl.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet().stream()
             : Stream.empty();
     }
 
     @Override
     public String getVendorId(long targetId) {
         if (hasDiscoveryOrigin()) {
-            PerTargetEntityInformation info = entityBuilder.getOrigin().getDiscoveryOrigin()
+            PerTargetEntityInformationView info = entityImpl.getOrigin().getDiscoveryOrigin()
                             .getDiscoveredTargetDataMap().get(targetId);
             if (info != null && info.hasVendorId()) {
                 return info.getVendorId();
@@ -224,24 +225,28 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
     @Nonnull
     @Override
     public Stream<String> getAllVendorIds() {
-        return hasDiscoveryOrigin() ?
-            entityBuilder.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().values()
+        return hasDiscoveryOrigin()
+            ? entityImpl.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().values()
                 .stream()
-                .filter(PerTargetEntityInformation::hasVendorId)
-                .map(PerTargetEntityInformation::getVendorId) :
-            Stream.empty();
-    }
-
-    @Nonnull
-    public Map<Integer, List<CommoditySoldDTO>> soldCommoditiesByType() {
-        return entityBuilder.getCommoditySoldListList().stream()
-            .collect(Collectors.groupingBy(commSold -> commSold.getCommodityType().getType()));
+                .filter(PerTargetEntityInformationView::hasVendorId)
+                .map(PerTargetEntityInformationView::getVendorId)
+            : Stream.empty();
     }
 
     /**
-     * Get a builder for the entity associated with this TopologyEntity.
-     * The builder may be mutated to modify the properties of the entity.
+     * The sold commodities by type.
      *
+     * @return sold commodities by type.
+     */
+    public Map<Integer, List<TopologyPOJO.CommoditySoldView>> soldCommoditiesByType() {
+        return entityImpl.getCommoditySoldListList().stream()
+                .collect(Collectors.groupingBy(commSold -> commSold.getCommodityType().getType()));
+    }
+
+    /**
+     * Get a modifiable {@link TopologyEntityImpl} for the entity associated with this TopologyEntity.
+     * The builder may be mutated to modify the properties of the entity.
+     * <p/>
      * DO NOT modify the providers or consumers of the entity or the graph will be invalidated. This
      * means that commodities bought and sold by entities should not be modified in a way that they change
      * which entities are buying or selling commodities to each other. Properties of commodities such as
@@ -251,8 +256,8 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
      * @return The property information for the entity associated with this TopologyEntity.
      */
     @Nonnull
-    public TopologyEntityDTO.Builder getTopologyEntityDtoBuilder() {
-        return entityBuilder;
+    public TopologyEntityImpl getTopologyEntityImpl() {
+        return entityImpl;
     }
 
     @Nonnull
@@ -319,11 +324,11 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
      * Original entity from which current entity was cloned from.
      * @return original entity
      */
-    public Optional<TopologyEntityDTO.Builder> getClonedFromEntity() {
+    public Optional<TopologyEntityImpl> getClonedFromEntity() {
         return Optional.ofNullable(clonedFromEntity);
     }
 
-    private void setClonedFromEntity(@Nonnull final TopologyEntityDTO.Builder clonedFromEntity) {
+    private void setClonedFromEntity(@Nonnull final TopologyEntityImpl clonedFromEntity) {
         this.clonedFromEntity = clonedFromEntity;
     }
 
@@ -333,7 +338,7 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
      * @return True if discovered by a probe, false otherwise.
      */
     public boolean hasDiscoveryOrigin() {
-        return entityBuilder.hasOrigin() && entityBuilder.getOrigin().hasDiscoveryOrigin();
+        return entityImpl.hasOrigin() && entityImpl.getOrigin().hasDiscoveryOrigin();
     }
 
     /**
@@ -342,7 +347,7 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
      * @return True if created by a reservation, false otherwise.
      */
     public boolean hasReservationOrigin() {
-        return entityBuilder.hasOrigin() && entityBuilder.getOrigin().hasReservationOrigin();
+        return entityImpl.hasOrigin() && entityImpl.getOrigin().hasReservationOrigin();
     }
 
     /**
@@ -353,30 +358,30 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
      * @return True if added as part of a plan scenario, false otherwise.
      */
     public boolean hasPlanOrigin() {
-        return entityBuilder.hasOrigin() && entityBuilder.getOrigin().hasPlanScenarioOrigin();
+        return entityImpl.hasOrigin() && entityImpl.getOrigin().hasPlanScenarioOrigin();
     }
 
     /**
-     * Get the {@link Origin} for this entity. The Origin tracks where and how an entity came to be
+     * Get the {@link OriginView} for this entity. The Origin tracks where and how an entity came to be
      * included in the topology.
      *
      * @return The origin for this entity, or if not present, returns {@link Optional#empty()}.
      */
-    public Optional<Origin> getOrigin() {
-        return entityBuilder.hasOrigin() ? Optional.of(entityBuilder.getOrigin()) : Optional.empty();
+    public Optional<OriginView> getOrigin() {
+        return entityImpl.hasOrigin() ? Optional.of(entityImpl.getOrigin()) : Optional.empty();
     }
 
     /**
-     * Get the {@link DiscoveryOrigin} for this entity. The DiscoveryOrigin tracks information about which
+     * Get the {@link DiscoveryOriginImpl} for this entity. The DiscoveryOrigin tracks information about which
      * targets discovered the entity and when it was last updated.
      *
-     * @return The {@link DiscoveryOrigin} for this entity, or if the entity does not have a discovery origin,
+     * @return The {@link DiscoveryOriginImpl} for this entity, or if the entity does not have a discovery origin,
      * returns {@link Optional#empty()}.
      */
-    public Optional<DiscoveryOrigin> getDiscoveryOrigin() {
-        return hasDiscoveryOrigin() ?
-            Optional.of(entityBuilder.getOrigin().getDiscoveryOrigin()) :
-            Optional.empty();
+    public Optional<DiscoveryOriginImpl> getDiscoveryOrigin() {
+        return hasDiscoveryOrigin()
+            ? Optional.of(entityImpl.getOrCreateOrigin().getOrCreateDiscoveryOrigin())
+            : Optional.empty();
     }
 
     /**
@@ -385,35 +390,35 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
      * @param type commodity type.
      * @return list of used values.
      */
-    public Stream<Double> getCommoditiesUsedByConsumers(CommodityType type) {
+    public Stream<Double> getCommoditiesUsedByConsumers(CommodityTypeView type) {
         return getConsumers().stream()
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .map(TopologyEntity::getTopologyEntityImpl)
                 // The "shopping lists"
-                .map(TopologyEntityDTO.Builder::getCommoditiesBoughtFromProvidersList)
+                .map(TopologyEntityImpl::getCommoditiesBoughtFromProvidersList)
                 .flatMap(List::stream)
                 // Those buying from the seller
                 .filter(commsBought -> commsBought.getProviderId() == getOid())
-                .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+                .map(CommoditiesBoughtFromProviderView::getCommodityBoughtList)
                 .flatMap(List::stream) // All the commodities bought
                 .filter(commBought -> type.equals(commBought.getCommodityType()))
-                .filter(CommodityBoughtDTO::hasUsed)
-                .map(CommodityBoughtDTO::getUsed);
+                .filter(CommodityBoughtView::hasUsed)
+                .map(CommodityBoughtView::getUsed);
     }
 
     /**
-     * Get a stream of {@link CommodityBoughtDTO.Builder} with the specific type from consumers.
+     * Get a stream of {@link CommodityBoughtImpl} with the specific type from consumers.
      *
      * @param commType commodity type
-     * @return a stream of {@link CommodityBoughtDTO.Builder}
+     * @return a stream of {@link CommodityBoughtImpl}
      */
     @Nonnull
-    public Stream<CommodityBoughtDTO.Builder> getCommoditiesBoughtBuilderByConsumers(int commType) {
+    public Stream<CommodityBoughtImpl> getCommoditiesBoughtImplByConsumers(int commType) {
         return getConsumers().stream()
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                .map(TopologyEntityDTO.Builder::getCommoditiesBoughtFromProvidersBuilderList)
+                .map(TopologyEntity::getTopologyEntityImpl)
+                .map(TopologyEntityImpl::getCommoditiesBoughtFromProvidersImplList)
                 .flatMap(List::stream)
                 .filter(commBoughtFromProvider -> commBoughtFromProvider.getProviderId() == getOid())
-                .map(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList)
+                .map(CommoditiesBoughtFromProviderImpl::getCommodityBoughtImplList)
                 .flatMap(List::stream)
                 .filter(commBought -> commType == commBought.getCommodityType().getType());
     }
@@ -426,12 +431,12 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
     /**
      * Create a new builder for constructing a {@link TopologyEntity}.
      *
-     * @param entityBuilder The builder for the {@link TopologyEntityDTO.Builder} that the
+     * @param entityImpl The builder for the {@link TopologyEntityImpl} that the
      *                      {@link TopologyEntity} will wrap.
      * @return a new builder for constructing a {@link TopologyEntity}.
      */
-    public static Builder newBuilder(@Nonnull final TopologyEntityDTO.Builder entityBuilder) {
-        return new Builder(entityBuilder);
+    public static Builder newBuilder(@Nonnull final TopologyEntityImpl entityImpl) {
+        return new Builder(entityImpl);
     }
 
     /**
@@ -447,7 +452,7 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
         private final ArrayList<TopologyEntity> providers;
         private final ArrayList<TopologyEntity> outboundAssociatedEntities;
         private final ArrayList<TopologyEntity> inboundAssociatedEntities;
-        private AtomicReference<TopologyEntity> owner = new AtomicReference<>();
+        private final AtomicReference<TopologyEntity> owner = new AtomicReference<>();
         private final ArrayList<TopologyEntity> ownedEntities;
         private final ArrayList<TopologyEntity> aggregators;
         private final ArrayList<TopologyEntity> aggregatedEntities;
@@ -455,7 +460,7 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
         private final ArrayList<TopologyEntity> controlledEntities;
         private final TopologyEntity associatedTopologyEntity;
 
-        private Builder(@Nonnull final TopologyEntityDTO.Builder entityBuilder) {
+        private Builder(@Nonnull final TopologyEntityImpl entityImpl) {
             this.consumers = new ArrayList<>();
             this.providers = new ArrayList<>();
             this.outboundAssociatedEntities = new ArrayList<>();
@@ -466,14 +471,14 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
             this.controllers = new ArrayList<>();
             this.controlledEntities = new ArrayList<>();
             this.associatedTopologyEntity =
-                new TopologyEntity(entityBuilder, this.consumers, this.providers,
+                new TopologyEntity(entityImpl, this.consumers, this.providers,
                                    this.outboundAssociatedEntities, this.inboundAssociatedEntities,
                                    this.owner, this.ownedEntities,
                                    this.aggregators, this.aggregatedEntities, this.controllers, this.controlledEntities);
         }
 
         private Builder(@Nonnull final TopologyEntity.Builder topoEntityBuilder) {
-            this(topoEntityBuilder.getEntityBuilder().clone());
+            this(topoEntityBuilder.getTopologyEntityImpl().copy());
             this.consumers.addAll(topoEntityBuilder.consumers);
             this.providers.addAll(topoEntityBuilder.providers);
             this.outboundAssociatedEntities.addAll(topoEntityBuilder.outboundAssociatedEntities);
@@ -568,7 +573,7 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
          * @param clonedFromEntity original entity from which current entity was cloned
          * @return builder of current entity
          */
-        public Builder setClonedFromEntity(@Nonnull final TopologyEntityDTO.Builder clonedFromEntity) {
+        public Builder setClonedFromEntity(@Nonnull final TopologyEntityImpl clonedFromEntity) {
             associatedTopologyEntity.setClonedFromEntity(clonedFromEntity);
             return this;
         }
@@ -577,14 +582,14 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
         @Override
         public Set<Long> getProviderIds() {
             return TopologyGraphEntity.Builder.extractProviderIds(
-                associatedTopologyEntity.getTopologyEntityDtoBuilder());
+                associatedTopologyEntity.getTopologyEntityImpl());
         }
 
         @Nonnull
         @Override
         public Set<ConnectedEntity> getConnectionIds() {
             return TopologyGraphEntity.Builder.extractConnectionIds(
-                associatedTopologyEntity.getTopologyEntityDtoBuilder());
+                associatedTopologyEntity.getTopologyEntityImpl());
         }
 
         @Override
@@ -592,19 +597,39 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
             return associatedTopologyEntity.getOid();
         }
 
+        /**
+         * Get the entity type.
+         *
+         * @return the entity type.
+         */
         public int getEntityType() {
             return associatedTopologyEntity.getEntityType();
         }
 
+        /**
+         * Get the display name.
+         *
+         * @return the display name.
+         */
         public String getDisplayName() {
             return associatedTopologyEntity.getDisplayName();
         }
 
-        public TopologyEntityDTO.Builder getEntityBuilder() {
-            return associatedTopologyEntity.getTopologyEntityDtoBuilder();
+        /**
+         * Get the {@link TopologyEntityImpl}.
+         *
+         * @return the {@link TopologyEntityImpl}.
+         */
+        public TopologyEntityImpl getTopologyEntityImpl() {
+            return associatedTopologyEntity.getTopologyEntityImpl();
         }
 
-        public ArrayList<TopologyEntity> getConsumers() {
+        /**
+         * Get the list of consumers.
+         *
+         * @return the list of consumers.
+         */
+        public List<TopologyEntity> getConsumers() {
             return consumers;
         }
 

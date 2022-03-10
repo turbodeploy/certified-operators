@@ -37,6 +37,7 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.ExternalSignatureCache;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperation;
@@ -46,7 +47,6 @@ import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.TopologicalChangelog;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingPhase;
@@ -246,7 +246,7 @@ public class StitchingManager {
      * @param graphWithSettings An object containing both the topology graph and associated settings.
      * @param stitchingJournal The journal to use to trace changes made during stitching.
      * @param operationsToSkip Any optional operations to skip, non-empty for cloud migration plan.
-     * {@link TopologyGraph<TopologyEntity>} and settings to be used during post-stitching.
+     * {@link TopologyGraph< TopologyEntity >} and settings to be used during post-stitching.
      */
     public void postStitch(@Nonnull final GraphWithSettings graphWithSettings,
                            @Nonnull final IStitchingJournal<TopologyEntity> stitchingJournal,

@@ -4,7 +4,7 @@ import javax.annotation.Nonnull;
 
 /**
  * Formats names for types of fields. Used by {@link FieldDescriptor} when generating type names for fields.
- * Can be used to transform names of types (ie TopologyEntityDTO -> TopologyEntityPojo)
+ * Can be used to transform names of types (ie TopologyEntityDTO -> TopologyEntityImpl)
  */
 public interface TypeNameFormatter {
 

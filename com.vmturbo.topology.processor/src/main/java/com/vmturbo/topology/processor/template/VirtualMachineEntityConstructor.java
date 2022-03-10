@@ -28,13 +28,14 @@ import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc.CpuCapacit
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualMachineInfoImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -63,7 +64,7 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
     private static final Gson GSON = new Gson();
 
     /**
-     * Creates an object uses for converting templates into TopologyEntityDTO.Builder.
+     * Creates an object uses for converting templates into TopologyEntityImpl.
      *
      * @param cpuCapacityService the service used to estimate the scaling factor of a cpu model.
      */
@@ -72,18 +73,18 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
     }
 
     @Override
-    public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
+    public TopologyEntityImpl createTopologyEntityFromTemplate(
             @Nonnull final Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
-            @Nullable TopologyEntityDTO.Builder originalTopologyEntity,
+            @Nullable TopologyEntityImpl originalTopologyEntity,
             @Nonnull TemplateActionType actionType, @Nonnull IdentityProvider identityProvider,
             @Nullable String nameSuffix) throws TopologyEntityConstructorException {
-        TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
+        TopologyEntityImpl topologyEntityBuilder = super.generateTopologyEntityBuilder(
                 template, originalTopologyEntity, actionType, identityProvider,
                 EntityType.VIRTUAL_MACHINE_VALUE, nameSuffix);
 
-        final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints =
+        final List<CommoditiesBoughtFromProviderView> commodityBoughtConstraints =
                 sortAccessCommodityBought(getActiveCommoditiesWithKeysGroups(originalTopologyEntity));
-        final Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(
+        final Set<CommoditySoldView> commoditySoldConstraints = getCommoditySoldConstraint(
             originalTopologyEntity);
         final List<TemplateResource> computeTemplateResources = getTemplateResources(template,
                 Compute);
@@ -101,20 +102,19 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      * If there are commodity bought have provider id which means it contains some biclique commodities,
      * we need to unplaced these commodity bought and put original provider id into entityProperty map.
      *
-     * @param topologyEntityBuilder {@link TopologyEntityDTO.Builder}
+     * @param topologyEntityBuilder {@link TopologyEntityImpl}
      */
     private void handleProviderIdForCommodityBought(
-            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder) {
+            @Nonnull final TopologyEntityImpl topologyEntityBuilder) {
         final Map<Long, Long> oldProvidersMap = Maps.newHashMap();
         long fakeProvider = 0;
-        final List<CommoditiesBoughtFromProvider> cloneCommodityBoughtGroups = new ArrayList<>();
-        for (CommoditiesBoughtFromProvider bought
+        final List<CommoditiesBoughtFromProviderView> cloneCommodityBoughtGroups = new ArrayList<>();
+        for (CommoditiesBoughtFromProviderView bought
                 : topologyEntityBuilder.getCommoditiesBoughtFromProvidersList()) {
             if (bought.hasProviderId()) {
                 final long oldProvider = bought.getProviderId();
-                CommoditiesBoughtFromProvider cloneCommodityBought = bought.toBuilder()
-                                .setProviderId(--fakeProvider)
-                                .build();
+                CommoditiesBoughtFromProviderView cloneCommodityBought = bought.copy()
+                                .setProviderId(--fakeProvider);
                 cloneCommodityBoughtGroups.add(cloneCommodityBought);
                 oldProvidersMap.put(fakeProvider, oldProvider);
             } else {
@@ -140,7 +140,7 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      *                 factor.
      */
     private void addComputeCommodities(
-            @Nonnull TopologyEntityDTO.Builder topologyEntityBuilder,
+            @Nonnull TopologyEntityImpl topologyEntityBuilder,
             @Nonnull List<TemplateResource> computeTemplateResources,
             @Nonnull final Template template) {
         final Map<String, String> fieldNameValueMap = createFieldNameValueMap(
@@ -186,23 +186,22 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      *                      needs to be scaled because of the CPU model it expects.
      */
     private void addComputeCommoditiesBought(
-            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+            @Nonnull final TopologyEntityImpl topologyEntityBuilder,
             @Nonnull Map<String, String> fieldNameValueMap,
             @Nonnull final double scalingFactor) {
-        final List<CommodityBoughtDTO> cpuCommodity =
+        final List<CommodityBoughtView> cpuCommodity =
             addComputeCommoditiesBoughtCPU(fieldNameValueMap, scalingFactor);
-        final List<CommodityBoughtDTO> memCommodity =
+        final List<CommodityBoughtView> memCommodity =
             addComputeCommoditiesBoughtMem(fieldNameValueMap);
-        final List<CommodityBoughtDTO> ioNetCommodity =
+        final List<CommodityBoughtView> ioNetCommodity =
             addComputeCommoditiesBoughtIONet(fieldNameValueMap);
 
-        final CommoditiesBoughtFromProvider commoditiesBoughtFromProvider =
-            CommoditiesBoughtFromProvider.newBuilder()
+        final CommoditiesBoughtFromProviderView commoditiesBoughtFromProvider =
+            new CommoditiesBoughtFromProviderImpl()
                 .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                 .addAllCommodityBought(cpuCommodity)
                 .addAllCommodityBought(memCommodity)
-                .addAllCommodityBought(ioNetCommodity)
-                .build();
+                .addAllCommodityBought(ioNetCommodity);
         topologyEntityBuilder.addCommoditiesBoughtFromProviders(commoditiesBoughtFromProvider);
     }
 
@@ -212,9 +211,9 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      * @param fieldNameValueMap a Map which key is template field name and value is field value.
      * @param scalingFactor multiplier of how much better or worse this VM's cpu usage or capacity
      *                      needs to be scaled because of the CPU model it expects.
-     * @return a list of {@link CommodityBoughtDTO}.
+     * @return a list of {@link CommodityBoughtView}.
      */
-    private List<CommodityBoughtDTO> addComputeCommoditiesBoughtCPU(
+    private List<CommodityBoughtView> addComputeCommoditiesBoughtCPU(
             @Nonnull Map<String, String> fieldNameValueMap,
             double scalingFactor) {
         final double numOfCpu = Double.valueOf(
@@ -226,16 +225,14 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
 
         // if created entity is reservation entity, cpu used value should be 0.
         final double used = numOfCpu * cpuSpeed * cpuConsumedFactor;
-        final CommodityBoughtDTO partialCpuCommodity =
-                createCommodityBoughtDTO(CommodityDTO.CommodityType.CPU_VALUE, used);
-        final CommodityBoughtDTO cpuCommodity = partialCpuCommodity.toBuilder()
-            .setScalingFactor(scalingFactor)
-            .build();
-        final CommodityBoughtDTO partialCpuProvisionCommodity =
-                createCommodityBoughtDTO(CommodityType.CPU_PROVISIONED_VALUE, numOfCpu * cpuSpeed);
-        final CommodityBoughtDTO cpuProvisionCommodity = partialCpuProvisionCommodity.toBuilder()
-            .setScalingFactor(scalingFactor)
-            .build();
+        final CommodityBoughtView partialCpuCommodity =
+                createCommodityBoughtView(CommodityDTO.CommodityType.CPU_VALUE, used);
+        final CommodityBoughtView cpuCommodity = partialCpuCommodity.copy()
+            .setScalingFactor(scalingFactor);
+        final CommodityBoughtView partialCpuProvisionCommodity =
+                createCommodityBoughtView(CommodityType.CPU_PROVISIONED_VALUE, numOfCpu * cpuSpeed);
+        final CommodityBoughtView cpuProvisionCommodity = partialCpuProvisionCommodity.copy()
+            .setScalingFactor(scalingFactor);
 
         return Lists.newArrayList(cpuCommodity, cpuProvisionCommodity);
     }
@@ -244,9 +241,9 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      * Generate a list of Memory related commodity bought.
      *
      * @param fieldNameValueMap a Map which key is template field name and value is field value.
-     * @return a list of {@link CommodityBoughtDTO}.
+     * @return a list of {@link CommodityBoughtView}.
      */
-    private List<CommodityBoughtDTO> addComputeCommoditiesBoughtMem(
+    private List<CommodityBoughtView> addComputeCommoditiesBoughtMem(
             @Nonnull Map<String, String> fieldNameValueMap) {
         final double memorySize = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE, ZERO));
@@ -254,10 +251,10 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR, ZERO));
         // if created entity is reservation entity, memory used value should be 0.
         final double used = memorySize * memoryConsumedFactor;
-        CommodityBoughtDTO memCommodity =
-            createCommodityBoughtDTO(CommodityDTO.CommodityType.MEM_VALUE, used);
-        CommodityBoughtDTO memProvCommodity =
-            createCommodityBoughtDTO(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE, memorySize);
+        CommodityBoughtView memCommodity =
+            createCommodityBoughtView(CommodityDTO.CommodityType.MEM_VALUE, used);
+        CommodityBoughtView memProvCommodity =
+            createCommodityBoughtView(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE, memorySize);
         return Lists.newArrayList(memCommodity, memProvCommodity);
     }
 
@@ -265,9 +262,9 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      * Generate a list of IO and Network related commodity bought.
      *
      * @param fieldNameValueMap a Map which key is template field name and value is field value.
-     * @return a list of {@link CommodityBoughtDTO}.
+     * @return a list of {@link CommodityBoughtView}.
      */
-    private List<CommodityBoughtDTO> addComputeCommoditiesBoughtIONet(
+    private List<CommodityBoughtView> addComputeCommoditiesBoughtIONet(
             @Nonnull Map<String, String> fieldNameValueMap) {
         // if created entity is reservation entity, io throughput used value should be 0.
         final double ioThroughput = Double.valueOf(
@@ -276,10 +273,10 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
         final double netThroughput = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT, ZERO));
 
-        CommodityBoughtDTO ioThroughputCommodity =
-            createCommodityBoughtDTO(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, ioThroughput);
-        CommodityBoughtDTO netThroughputCommodity =
-            createCommodityBoughtDTO(CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, netThroughput);
+        CommodityBoughtView ioThroughputCommodity =
+            createCommodityBoughtView(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, ioThroughput);
+        CommodityBoughtView netThroughputCommodity =
+            createCommodityBoughtView(CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, netThroughput);
         return Lists.newArrayList(ioThroughputCommodity, netThroughputCommodity);
     }
 
@@ -292,7 +289,7 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      *                      needs to be scaled because of the CPU model it expects.
      */
     private void addComputeCommoditiesSold(
-            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+            @Nonnull final TopologyEntityImpl topologyEntityBuilder,
             @Nonnull final Map<String, String> fieldNameValueMap,
             @Nonnull final double scalingFactor) {
         final double numOfCpu = Double.valueOf(
@@ -303,19 +300,18 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE, ZERO));
 
         final double totalCpuSold = numOfCpu * cpuSpeed;
-        final CommoditySoldDTO partialCpuSoldCommodity =
+        final CommoditySoldView partialCpuSoldCommodity =
                 createCommoditySoldDTO(CommodityDTO.CommodityType.VCPU_VALUE, totalCpuSold);
-        final CommoditySoldDTO cpuSoldCommodity = partialCpuSoldCommodity.toBuilder()
-            .setScalingFactor(scalingFactor)
-            .build();
-        final CommoditySoldDTO memorySizeCommodity =
+        final CommoditySoldView cpuSoldCommodity = partialCpuSoldCommodity.copy()
+            .setScalingFactor(scalingFactor);
+        final CommoditySoldView memorySizeCommodity =
                 createCommoditySoldDTO(CommodityDTO.CommodityType.VMEM_VALUE, memorySize);
         topologyEntityBuilder.addCommoditySoldList(cpuSoldCommodity);
         topologyEntityBuilder.addCommoditySoldList(memorySizeCommodity);
 
         if (numOfCpu > 0) {
-            topologyEntityBuilder.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                .setVirtualMachine(VirtualMachineInfo.newBuilder().setNumCpus((int)numOfCpu)));
+            topologyEntityBuilder.setTypeSpecificInfo(new TypeSpecificInfoImpl()
+                .setVirtualMachine(new VirtualMachineInfoImpl().setNumCpus((int)numOfCpu)));
         }
     }
 
@@ -325,7 +321,7 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      * @param topologyEntityBuilder builder of TopologyEntityDTO.
      * @param storageTemplateResources a list of storage template resources.
      */
-    private void addStorageCommodities(@Nonnull TopologyEntityDTO.Builder topologyEntityBuilder,
+    private void addStorageCommodities(@Nonnull TopologyEntityImpl topologyEntityBuilder,
                                               @Nonnull List<TemplateResource> storageTemplateResources) {
         final double totalDiskSize = storageTemplateResources.stream()
             .map(TemplateResource::getFieldsList)
@@ -339,19 +335,19 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
         final List<TemplateResource> storageTemplateSortedByRDM =
             sortTemplateResource(storageTemplateResources);
         for (TemplateResource stTemplateSource : storageTemplateSortedByRDM) {
-            final List<CommodityBoughtDTO> storageRelatedCommoditiesBought = new ArrayList<>();
-            final List<CommodityBoughtDTO> storageCommoditiesBought =
+            final List<CommodityBoughtView> storageRelatedCommoditiesBought = new ArrayList<>();
+            final List<CommodityBoughtView> storageCommoditiesBought =
                 addStorageCommoditiesBought(stTemplateSource, stTemplateSource.getCategory().getType());
             storageRelatedCommoditiesBought.addAll(storageCommoditiesBought);
-            final CommoditiesBoughtFromProvider.Builder commoditiesBoughtFromProvider =
-                CommoditiesBoughtFromProvider.newBuilder()
+            final CommoditiesBoughtFromProviderImpl commoditiesBoughtFromProvider =
+                new CommoditiesBoughtFromProviderImpl()
                     .setProviderEntityType(EntityType.STORAGE_VALUE);
             if (stTemplateSource.getCategory().getType().toUpperCase().equals(RDM)) {
                 // create an extra LUN commodity between the VM and this rdm storage
                 storageRelatedCommoditiesBought.add(addLunCommoditiesBought());
             }
             commoditiesBoughtFromProvider.addAllCommodityBought(storageRelatedCommoditiesBought);
-            topologyEntityBuilder.addCommoditiesBoughtFromProviders(commoditiesBoughtFromProvider.build());
+            topologyEntityBuilder.addCommoditiesBoughtFromProviders(commoditiesBoughtFromProvider);
         }
     }
 
@@ -377,8 +373,8 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
     }
 
     /**
-     * Sort {@link CommoditiesBoughtFromProvider} by EXTENT commodity type, it tries to pull those
-     * {@link CommoditiesBoughtFromProvider} at first place which has EXTENT commodity. The reason
+     * Sort {@link CommoditiesBoughtFromProviderView} by EXTENT commodity type, it tries to pull those
+     * {@link CommoditiesBoughtFromProviderView} at first place which has EXTENT commodity. The reason
      * we need this sort is that we want to try the best to copy commodity constraints between same storage
      * types. For example: original VM#1 has two commodity bought groups: first one is normal DISK type,
      * second one is RDM type. And template VM also has two commodity bought groups, one is DISK and the
@@ -387,11 +383,11 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      * commodity(only RDM storage type will have this commodity), In this case, it will copy
      * constraints between same disk types.
      *
-     * @param accessCommodityBought a list of {@link CommoditiesBoughtFromProvider}
-     * @return a list of {@link CommoditiesBoughtFromProvider} after sorted.
+     * @param accessCommodityBought a list of {@link CommoditiesBoughtFromProviderView}
+     * @return a list of {@link CommoditiesBoughtFromProviderView} after sorted.
      */
-    private List<CommoditiesBoughtFromProvider> sortAccessCommodityBought(
-        @Nonnull final List<CommoditiesBoughtFromProvider> accessCommodityBought) {
+    private List<CommoditiesBoughtFromProviderView> sortAccessCommodityBought(
+        @Nonnull final List<CommoditiesBoughtFromProviderView> accessCommodityBought) {
         return accessCommodityBought.stream()
             .sorted((accessCommoditiesFirst, accessCommoditiesSecond) -> {
                 boolean firstAccessCommoditiesContainsRDM =
@@ -413,15 +409,15 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      *
      * @param stTemplateSource storage template resources.
      * @param type category type of template resource.
-     * @return a list of {@link CommodityBoughtDTO}.
+     * @return a list of {@link CommodityBoughtView}.
      */
-    private List<CommodityBoughtDTO> addStorageCommoditiesBought(
+    private List<CommodityBoughtView> addStorageCommoditiesBought(
             @Nonnull TemplateResource stTemplateSource,
             @Nonnull String type) {
         final Map<String, String> fieldNameValueMap = createFieldNameValueMap(
                 Lists.newArrayList(stTemplateSource));
 
-        List<CommodityBoughtDTO> storageCommodityBought =
+        List<CommodityBoughtView> storageCommodityBought =
             addStorageCommoditiesBoughtST(fieldNameValueMap, type);
         return storageCommodityBought;
     }
@@ -431,9 +427,9 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      *
      * @param fieldNameValueMap a Map which key is template field name and value is field value.
      * @param type category type of template resource.
-     * @return a list of {@link CommodityBoughtDTO}.
+     * @return a list of {@link CommodityBoughtView}.
      */
-    private List<CommodityBoughtDTO> addStorageCommoditiesBoughtST(
+    private List<CommodityBoughtView> addStorageCommoditiesBoughtST(
             @Nonnull Map<String, String> fieldNameValueMap,
             @Nonnull String type) {
         final double disSize = type.toUpperCase().equals(RDM)
@@ -445,15 +441,15 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
         final double disIops = type.toUpperCase().equals(RDM)
             ? Double.MIN_VALUE
             : Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_IOPS, ZERO));
-        CommodityBoughtDTO stAmountCommodity =
-            createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
+        CommodityBoughtView stAmountCommodity =
+            createCommodityBoughtView(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
                 disSize * disConsumedFactor);
-        CommodityBoughtDTO stProvCommodity =
-            createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE, disSize);
+        CommodityBoughtView stProvCommodity =
+            createCommodityBoughtView(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE, disSize);
         // if created entity is reservation entity, storage access used value should be 0.
         final double storageAccessValue = disIops;
-        CommodityBoughtDTO stAccessCommodity =
-            createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, storageAccessValue);
+        CommodityBoughtView stAccessCommodity =
+            createCommodityBoughtView(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, storageAccessValue);
         return Lists.newArrayList(stAmountCommodity, stProvCommodity, stAccessCommodity);
     }
 
@@ -464,10 +460,10 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      * @param totalDiskSize total disk size for sold.
      */
     private void addStorageCommoditiesSoldTotalDiskSize(
-            @Nonnull TopologyEntityDTO.Builder topologyEntityBuilder,
+            @Nonnull TopologyEntityImpl topologyEntityBuilder,
             @Nonnull double totalDiskSize) {
         if (Double.isFinite(totalDiskSize)) {
-            CommoditySoldDTO totalDiskSizeCommodity =
+            CommoditySoldView totalDiskSizeCommodity =
                     createCommoditySoldDTO(CommodityDTO.CommodityType.VSTORAGE_VALUE,
                             totalDiskSize);
             topologyEntityBuilder.addCommoditySoldList(totalDiskSizeCommodity);
@@ -477,11 +473,11 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
     /**
      * Generate Lun commodity bought for RDM type storage.
      *
-     * @return {@link CommodityBoughtDTO}
+     * @return {@link CommodityBoughtView}
      */
-    private CommodityBoughtDTO addLunCommoditiesBought() {
-        CommodityBoughtDTO lunCommodityBought =
-            createCommodityBoughtDTO(CommodityDTO.CommodityType.EXTENT_VALUE, 1);
+    private CommodityBoughtView addLunCommoditiesBought() {
+        CommodityBoughtView lunCommodityBought =
+            createCommodityBoughtView(CommodityDTO.CommodityType.EXTENT_VALUE, 1);
         return lunCommodityBought;
     }
 }

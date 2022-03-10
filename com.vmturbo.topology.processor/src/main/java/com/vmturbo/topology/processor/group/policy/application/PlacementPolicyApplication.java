@@ -9,14 +9,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
 import org.apache.commons.lang3.mutable.MutableInt;
@@ -25,11 +23,16 @@ import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -170,9 +173,9 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
      * @param segmentationCommodity The commodity for use in segmenting the providers.
      */
     protected void addCommoditySold(@Nonnull final Set<Long> providers,
-                                    @Nonnull final CommoditySoldDTO segmentationCommodity) {
+                                    @Nonnull final TopologyPOJO.CommoditySoldView segmentationCommodity) {
         providers.forEach(providerId -> topologyGraph.getEntity(providerId)
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+            .map(TopologyEntity::getTopologyEntityImpl)
             .ifPresent(provider -> {
                 recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
                 provider.addCommoditySoldList(segmentationCommodity);
@@ -191,9 +194,9 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
      * @param commodity The commodity to be sold.
      */
     protected void addCommoditySold(@Nonnull final long providerId,
-                                    @Nonnull final CommoditySoldDTO commodity) {
+                                    @Nonnull final TopologyPOJO.CommoditySoldView commodity) {
         topologyGraph.getEntity(providerId)
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+            .map(TopologyEntity::getTopologyEntityImpl)
             .ifPresent(provider -> {
                 recordCommodityAddition(commodity.getCommodityType().getType());
                 provider.addCommoditySoldList(commodity);
@@ -218,9 +221,9 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
                                     final float commoditySoldCapacity,
                                     final PlacementPolicy policy) {
         providers.forEach(providerId -> topologyGraph.getEntity(providerId)
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+            .map(TopologyEntity::getTopologyEntityImpl)
             .ifPresent(provider -> {
-                final CommoditySoldDTO segmentationCommodity = commoditySold(commoditySoldCapacity,
+                final CommoditySoldView segmentationCommodity = commoditySold(commoditySoldCapacity,
                     provider.getOid(), consumerGroupIds, policy);
                 recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
                 provider.addCommoditySoldList(segmentationCommodity);
@@ -254,15 +257,15 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
     protected void addCommoditySoldToComplementaryProviders(@Nonnull final Set<Long> consumers,
                 @Nonnull final Set<Long> providers,
                 final long providerEntityType,
-                @Nonnull final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> invertedIndex,
-                @Nonnull final CommoditySoldDTO segmentationCommodity) {
+                @Nonnull final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView> invertedIndex,
+                @Nonnull final TopologyPOJO.CommoditySoldView segmentationCommodity) {
 
         if (providerEntityType == EntityType.PHYSICAL_MACHINE_VALUE
                 || providerEntityType == EntityType.STORAGE_VALUE) {
             topologyGraph.entities()
                     .filter(entity -> entity.getEntityType() == providerEntityType)
                     .filter(vertex -> !providers.contains(vertex.getOid()))
-                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                    .map(TopologyEntity::getTopologyEntityImpl)
                     .forEach(provider -> {
                         recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
                         provider.addCommoditySoldList(segmentationCommodity);
@@ -278,13 +281,13 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
                     .map(this::getPolicyConsumerEntity)
                     .filter(Optional::isPresent)
                     .map(Optional::get)
-                    .flatMap(e -> e.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream())
+                    .flatMap(e -> e.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList().stream())
                     .flatMap(grouping -> invertedIndex.getSatisfyingSellers(grouping))
                     // Filter out the providers blocked by the policy.
                     .filter(potentialProvider -> !providers.contains(potentialProvider.getOid()))
                     // Enforce the provider entity type.
                     .filter(potentialProvider -> potentialProvider.getEntityType() == providerEntityType)
-                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                    .map(TopologyEntity::getTopologyEntityImpl)
                     .forEach(provider -> {
                         if (!providersSet.contains(provider.getOid())) {
                             providersSet.add(provider.getOid());
@@ -335,8 +338,8 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
         }
         final Optional<TopologyEntity> owner = entity.getOwner();
         return (!owner.isPresent() || owner.get().getEntityType() != BUSINESS_ACCOUNT_VALUE)
-                && entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().isEmpty()
-                && entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().isEmpty();
+                && entity.getTopologyEntityImpl().getCommoditySoldListList().isEmpty()
+                && entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList().isEmpty();
     }
 
     /**
@@ -351,7 +354,7 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
      */
     protected void addCommodityBought(@Nonnull final Set<Long> consumers,
                                       final int providerType,
-                                      @Nonnull final CommodityBoughtDTO segmentationCommodity)
+                                      @Nonnull final CommodityBoughtView segmentationCommodity)
         throws PolicyApplicationException {
         Set<Long> consumersWithPolicyApplicationExceptions = Sets.newHashSet();
         for (Long consumerId : consumers) {
@@ -361,7 +364,7 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
             }
             final TopologyEntity entity = optionalConsumer.get();
 
-            List<TopologyEntityDTO.Builder> consumerList;
+            List<TopologyEntityImpl> consumerList;
             final Optional<Long> onPremStorageId;
             if (isOnPremVolumeClassicModel(entity)) {
                 // if it's volume from classic model, the real consumer should be the VM which uses this volume
@@ -370,7 +373,7 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
                     .getInboundAssociatedEntities()
                     .stream()
                     .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
-                        && e.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+                        && e.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList().stream()
                             .anyMatch(prov -> prov.getProviderEntityType() == EntityType.STORAGE_VALUE
                             || prov.getProviderEntityType() == EntityType.STORAGE_TIER_VALUE))
                     .collect(Collectors.toList());
@@ -391,7 +394,7 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
                 }
                 // consumer should be the VM which is connected to this volume
                 consumerList = onPremVMs.stream()
-                        .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                        .map(TopologyEntity::getTopologyEntityImpl)
                         .collect(Collectors.toList());
                 //The volume is either connects to a storage or provided by a storage.
                 onPremStorageId = Stream.concat(entity.getOutboundAssociatedEntities().stream(),
@@ -403,7 +406,7 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
                 // cloud volume or if it is an on prem volume discovered with new model,
                 // in which case we create policy on that volume, instead of the VM,
                 // so consumer in this case should be the volume.
-                consumerList = Collections.singletonList(entity.getTopologyEntityDtoBuilder());
+                consumerList = Collections.singletonList(entity.getTopologyEntityImpl());
                 onPremStorageId = Optional.empty();
             }
             // Separate commoditiesBoughtFromProvider into two category:
@@ -412,17 +415,17 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
             // Key is False: list of commodityBought group, whose provider entity type doesn't
             // match with given providerType
 
-            for (TopologyEntityDTO.Builder consumer : consumerList) {
-                final Map<Boolean, List<CommoditiesBoughtFromProvider>> commodityBoughtsChangeMap =
+            for (TopologyEntityImpl consumer : consumerList) {
+                final Map<Boolean, List<CommoditiesBoughtFromProviderView>> commodityBoughtsChangeMap =
                         consumer.getCommoditiesBoughtFromProvidersList().stream()
                                 .collect(Collectors.partitioningBy(commodityBoughtGroup ->
                                         shouldAddSegmentToCommodityBought(commodityBoughtGroup,
                                                 topologyGraph, providerType, onPremStorageId)));
 
                 // All Commodity Bought list which should be added segmentation commodity
-                final List<CommoditiesBoughtFromProvider> commodityBoughtsToAddSegment = commodityBoughtsChangeMap.get(true);
+                final List<CommoditiesBoughtFromProviderView> commodityBoughtsToAddSegment = commodityBoughtsChangeMap.get(true);
                 // All Commodity Bought list which should not be added segmentation commodity
-                final List<CommoditiesBoughtFromProvider> commodityBoughtsToNotAddSegment = commodityBoughtsChangeMap.get(false);
+                final List<CommoditiesBoughtFromProviderView> commodityBoughtsToNotAddSegment = commodityBoughtsChangeMap.get(false);
                 // If there is no matched provider type, it means the consumer doesn't
                 // buy any commodity from this provider type. For example, VM1 buying ST1, and VM2
                 // not buying ST at all, If create a policy to Force VM1 and VM2 to buy ST1,
@@ -454,7 +457,7 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
      * @param filterProviderId provider id used to filter out commodities.
      * @return boolean type represents if provider entity type matches.
      */
-    private boolean shouldAddSegmentToCommodityBought(@Nonnull CommoditiesBoughtFromProvider commodityBoughtGrouping,
+    private boolean shouldAddSegmentToCommodityBought(@Nonnull CommoditiesBoughtFromProviderView commodityBoughtGrouping,
                                                       @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                                                       final int providerType,
                                                       @Nonnull final Optional<Long> filterProviderId) {
@@ -478,18 +481,17 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
         }
     }
 
-    private void addCommodityBoughtForProviders(@Nonnull CommodityBoughtDTO segmentationCommodity,
-                                                @Nonnull final TopologyEntityDTO.Builder consumer,
-                                                @Nonnull final List<CommoditiesBoughtFromProvider> providersOfType,
-                                                @Nonnull final List<CommoditiesBoughtFromProvider> nonProvidersOfType) {
+    private void addCommodityBoughtForProviders(@Nonnull CommodityBoughtView segmentationCommodity,
+                                                @Nonnull final TopologyEntityImpl consumer,
+                                                @Nonnull final List<CommoditiesBoughtFromProviderView> providersOfType,
+                                                @Nonnull final List<CommoditiesBoughtFromProviderView> nonProvidersOfType) {
         consumer.clearCommoditiesBoughtFromProviders();
         consumer.addAllCommoditiesBoughtFromProviders(nonProvidersOfType);
         providersOfType.forEach(providerCommodityGrouping -> {
             recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
             consumer.addCommoditiesBoughtFromProviders(
-                CommoditiesBoughtFromProvider.newBuilder(providerCommodityGrouping)
+                new CommoditiesBoughtFromProviderImpl(providerCommodityGrouping)
                     .addCommodityBought(segmentationCommodity)
-                    .build()
             );
         });
     }
@@ -499,9 +501,9 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
      * It specifies a SEGMENTATION commodity with the key based on the policy ID.
      *
      * @param policy The policy that's causing this commodity addition.
-     * @return A {@link CommodityType} suitable for application with this policy.
+     * @return A {@link CommodityTypeView} suitable for application with this policy.
      */
-    private CommodityType commodityType(final PlacementPolicy policy) {
+    private CommodityTypeView commodityType(final PlacementPolicy policy) {
         int accessType;
         switch (policy.getPolicyDefinition().getPolicyInfo().getPolicyDetailCase()) {
             case BIND_TO_GROUP_AND_LICENSE:
@@ -510,14 +512,13 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
             default:
                 accessType = CommodityDTO.CommodityType.SEGMENTATION.getNumber();
         }
-        return CommodityType.newBuilder()
+        return new CommodityTypeImpl()
             .setType(accessType)
-            .setKey(Long.toString(policy.getPolicyDefinition().getId()))
-            .build();
+            .setKey(Long.toString(policy.getPolicyDefinition().getId()));
     }
 
     /**
-     * Create a {@link CommoditySoldDTO} that all members of the consumer group of this policy should buy.
+     * Create a {@link CommoditySoldView} that all members of the consumer group of this policy should buy.
      * Sets the capacity to the specified capacity. The used value is calculated based on the number
      * of consumers in the consumer group currently buying from the provider whose {@code providerId}
      * is supplied.
@@ -527,9 +528,9 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
      * @param capacity The capacity for the commodity.
      * @param providerId The ID of the provider
      * @param consumerGroupIds The set of all members of the consumer group for the policy.
-     * @return An {@link CommoditySoldDTO} appropriate for the specified provider.
+     * @return An {@link CommoditySoldView} appropriate for the specified provider.
      */
-    protected CommoditySoldDTO commoditySold(float capacity,
+    protected CommoditySoldView commoditySold(float capacity,
                                              final long providerId,
                                              final Set<Long> consumerGroupIds,
                                              final PlacementPolicy policy) {
@@ -539,37 +540,34 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
             .filter(consumerGroupIds::contains)
             .count();
 
-        return CommoditySoldDTO.newBuilder()
+        return new CommoditySoldImpl()
             .setCapacity(capacity)
             .setCommodityType(commodityType(policy))
-            .setUsed((float)numConsumersInConsumerGroup)
-            .build();
+            .setUsed((float)numConsumersInConsumerGroup);
     }
 
     /**
-     * Create a {@link CommoditySoldDTO} that all members of the consumer group of this policy should buy.
+     * Create a {@link CommoditySoldView} that all members of the consumer group of this policy should buy.
      * The created commodity has MAX_CAPACITY_VALUE capacity. No used value is provided because the used
      * value is not relevant when the capacity is MAX_CAPACITY_VALUE.
      *
-     * @return A {@link CommoditySoldDTO} that all members of the providers group of this policy should buy.
+     * @return A {@link CommoditySoldView} that all members of the providers group of this policy should buy.
      */
-    protected CommoditySoldDTO commoditySold(final PlacementPolicy policy) {
-        return CommoditySoldDTO.newBuilder()
+    protected CommoditySoldView commoditySold(final PlacementPolicy policy) {
+        return new CommoditySoldImpl()
             .setCommodityType(commodityType(policy))
-            .setCapacity(SDKConstants.ACCESS_COMMODITY_CAPACITY)
-            .build();
+            .setCapacity(SDKConstants.ACCESS_COMMODITY_CAPACITY);
     }
 
     /**
-     * Create a {@link CommodityBoughtDTO} that all members of the consumers group of this policy should buy.
+     * Create a {@link CommodityBoughtView} that all members of the consumers group of this policy should buy.
      *
-     * @return A {@link CommodityBoughtDTO} that all members of the consumers group of this policy should buy.
+     * @return A {@link CommodityBoughtView} that all members of the consumers group of this policy should buy.
      */
-    protected CommodityBoughtDTO commodityBought(final PlacementPolicy policy) {
-        return CommodityBoughtDTO.newBuilder()
+    protected CommodityBoughtView commodityBought(final PlacementPolicy policy) {
+        return new CommodityBoughtImpl()
             .setCommodityType(commodityType(policy))
-            .setUsed(SEGM_BOUGHT_USED_VALUE)
-            .build();
+            .setUsed(SEGM_BOUGHT_USED_VALUE);
     }
 
     /**

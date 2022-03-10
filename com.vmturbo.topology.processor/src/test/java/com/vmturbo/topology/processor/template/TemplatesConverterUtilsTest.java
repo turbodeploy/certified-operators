@@ -17,8 +17,10 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -40,42 +42,38 @@ public class TemplatesConverterUtilsTest {
 
     @Before
     public void setup() {
-        storage.getEntityBuilder().addCommoditySoldList(
-            CommoditySoldDTO.newBuilder()
+        storage.getTopologyEntityImpl().addCommoditySoldList(
+            new CommoditySoldImpl()
                 .setAccesses(originalHost.getOid())
-                .setCommodityType(CommodityType.newBuilder()
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)
-                    .setKey("foo"))
-                .build()
-        );
+                    .setKey("foo")));
 
-        originalHost.getEntityBuilder().addCommoditySoldList(
-            CommoditySoldDTO.newBuilder()
+        originalHost.getTopologyEntityImpl().addCommoditySoldList(
+            new CommoditySoldImpl()
                 .setAccesses(storage.getOid())
-                .setCommodityType(CommodityType.newBuilder()
+                .setCommodityType(new CommodityTypeImpl()
                     .setType(CommodityDTO.CommodityType.DATASTORE_VALUE)
-                    .setKey("bar"))
-                .build()
-        );
+                    .setKey("bar")));
     }
 
     @Test
     public void testUpdateRelatedEntityAccesses() throws Exception {
-        assertEquals(1, storage.getEntityBuilder().getCommoditySoldListCount());
+        assertEquals(1, storage.getTopologyEntityImpl().getCommoditySoldListCount());
 
         // Should add an extra DSPM commodity to the storage that accesses the replacementHost.
-        TopologyEntityConstructor.updateRelatedEntityAccesses(originalHost.getEntityBuilder(),
-                replacementHost.getEntityBuilder(),
-                originalHost.getEntityBuilder().getCommoditySoldListList(), topology);
+        TopologyEntityConstructor.updateRelatedEntityAccesses(originalHost.getTopologyEntityImpl(),
+                replacementHost.getTopologyEntityImpl(),
+                originalHost.getTopologyEntityImpl().getCommoditySoldListList(), topology);
 
-        assertEquals(2, storage.getEntityBuilder().getCommoditySoldListCount());
-        assertThat(storage.getEntityBuilder().getCommoditySoldListList().stream()
-            .map(CommoditySoldDTO::getCommodityType)
-            .map(CommodityType::getType)
+        assertEquals(2, storage.getTopologyEntityImpl().getCommoditySoldListCount());
+        assertThat(storage.getTopologyEntityImpl().getCommoditySoldListList().stream()
+            .map(CommoditySoldView::getCommodityType)
+            .map(CommodityTypeView::getType)
             .collect(Collectors.toList()),
             contains(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, CommodityDTO.CommodityType.DSPM_ACCESS_VALUE));
-        assertThat(storage.getEntityBuilder().getCommoditySoldListList().stream()
-            .map(CommoditySoldDTO::getAccesses)
+        assertThat(storage.getTopologyEntityImpl().getCommoditySoldListList().stream()
+            .map(CommoditySoldView::getAccesses)
             .collect(Collectors.toList()),
             containsInAnyOrder(originalHost.getOid(), replacementHost.getOid()));
     }
@@ -85,11 +83,11 @@ public class TemplatesConverterUtilsTest {
      */
     @Test
     public void testCreateCommoditySoldDTO() {
-        final CommoditySoldDTO soldDTO = TopologyEntityConstructor
+        final CommoditySoldView soldDTO = TopologyEntityConstructor
                 .createCommoditySoldDTO(VSTORAGE_VALUE);
         assertFalse(soldDTO.getIsResizeable());
         assertTrue(soldDTO.getActive());
         // if capacity is not set, it will have default capacity.
-        assertEquals(CommoditySoldDTO.getDefaultInstance().getCapacity(), soldDTO.getCapacity(), 0.1);
+        assertEquals(CommoditySoldView.getDefaultInstance().getCapacity(), soldDTO.getCapacity(), 0.1);
     }
 }

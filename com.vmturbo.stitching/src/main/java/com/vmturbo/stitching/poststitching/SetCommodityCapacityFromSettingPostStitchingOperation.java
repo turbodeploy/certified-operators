@@ -1,7 +1,6 @@
 package com.vmturbo.stitching.poststitching;
 
 import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -9,9 +8,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -22,7 +19,6 @@ import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
-
 
     /**
      * A post-stitching operation that sets a sold commodity's capacity based on a setting value.
@@ -69,8 +65,8 @@ import com.vmturbo.stitching.TopologyEntity;
                 settingsCollection.getEntitySetting(entity.getOid(), settingName).ifPresent(
                         setting -> {
                             resultBuilder.queueUpdateEntityAlone(entity,
-                                    entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
-                                            .getCommoditySoldListBuilderList().stream()
+                                    entityToUpdate -> entityToUpdate.getTopologyEntityImpl()
+                                            .getCommoditySoldListImplList().stream()
                                             .filter(this::commodityTypeMatches)
                                             .forEach(commSold ->
                                                     commSold.setCapacity(setting
@@ -88,7 +84,7 @@ import com.vmturbo.stitching.TopologyEntity;
                     settingName);
         }
 
-        private boolean commodityTypeMatches(TopologyDTO.CommoditySoldDTO.Builder commodity) {
+        private boolean commodityTypeMatches(CommoditySoldView commodity) {
             return commodity.getCommodityType().getType() == commodityType.getNumber();
         }
 

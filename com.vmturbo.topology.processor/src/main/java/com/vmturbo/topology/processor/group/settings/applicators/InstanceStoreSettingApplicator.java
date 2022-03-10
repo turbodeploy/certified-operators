@@ -23,14 +23,13 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.Action.PrerequisiteType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.ComputeTierInfoView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -44,7 +43,7 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator.Si
  */
 @NotThreadSafe
 public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
-    private static final Collection<Predicate<ComputeTierInfo>> INSTANCE_STORE_PREDICATES =
+    private static final Collection<Predicate<ComputeTierInfoView>> INSTANCE_STORE_PREDICATES =
                     ImmutableList.of(InstanceStoreCommoditiesCreator.INSTANCE_DISK_SIZE_PREDICATE,
                                     InstanceStoreCommoditiesCreator.INSTANCE_DISK_TYPE_PREDICATE,
                                     InstanceStoreCommoditiesCreator.INSTANCE_DISK_COUNTS_PREDICATE);
@@ -85,7 +84,7 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
      * @param setting that we want to apply for the entity.
      */
     @Override
-    protected void apply(@Nonnull Builder entity, @Nonnull Setting setting) {
+    protected void apply(@Nonnull TopologyEntityImpl entity, @Nonnull Setting setting) {
         // Currently only AWS VMs with "instance store aware scaling" enabled will be populated
         // with instance store related commodities including INSTANCE_DISK_SIZE, INSTANCE_DISK_TYPE
         // and INSTANCE_DISK_COUNT. On prem VMs and Azure VMs do not buy or sell them. Instead of
@@ -108,7 +107,7 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
      *                 {@code false}.
      */
     @VisibleForTesting
-    public static boolean isApplicable(@Nonnull Builder entity, @Nonnull Setting setting) {
+    public static boolean isApplicable(@Nonnull TopologyEntityImpl entity, @Nonnull Setting setting) {
         // Check whether entity has the proper type (supported for VMs only).
         if (entity.getEntityType() != EntityType.VIRTUAL_MACHINE.getNumber()) {
             return false;
@@ -124,22 +123,22 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
         return setting.hasBooleanSettingValue() && setting.getBooleanSettingValue().getValue();
     }
 
-    private void populateInstanceStoreCommodities(@Nonnull Builder entity) {
-        final CommoditiesBoughtFromProvider.Builder computeTierProvider =
+    private void populateInstanceStoreCommodities(@Nonnull TopologyEntityImpl entity) {
+        final CommoditiesBoughtFromProviderImpl computeTierProvider =
                 getProvider(entity, EntityType.COMPUTE_TIER);
         if (computeTierProvider == null) {
             // Normal use-case for on-prem VMs
             return;
         }
-        final Optional<ComputeTierInfo> ct =
+        final Optional<ComputeTierInfoView> ct =
                 topologyGraph.getEntity(computeTierProvider.getProviderId())
-                        .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                        .map(TopologyEntity::getTopologyEntityImpl)
                         .filter(InstanceStoreSettingApplicator::hasComputeTierInfo)
                         .map(item -> item.getTypeSpecificInfo().getComputeTier());
         ct.ifPresent(computeTierInfo -> {
             final Integer usedEphemeralDisks = getUsedEphemeralDisks(entity, ct.get());
-            final Collection<CommodityBoughtDTO.Builder> boughtCommodities = vmCommoditiesCreator
-                    .create(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList,
+            final Collection<CommodityBoughtImpl> boughtCommodities = vmCommoditiesCreator
+                    .create(CommoditiesBoughtFromProviderImpl::getCommodityBoughtImplList,
                             computeTierProvider, computeTierInfo, usedEphemeralDisks);
             if (!boughtCommodities.isEmpty()) {
                 boughtCommodities.forEach(computeTierProvider::addCommodityBought);
@@ -153,17 +152,17 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
     /**
      * Used to get number of ephemeral disks currently attached to the VM.
      *
-     * @param vmBuilder Tries to get from VM's TopologyEntityDTO 'numEphemeralStorages' field.
+     * @param vmEntity Tries to get from VM's TopologyEntityImpl 'numEphemeralStorages' field.
      * @param computeTierInfo If not available from VM, gets it from Compute Tier's info.
      * @return Ephemeral storage used count, or 0.
      */
     @VisibleForTesting
-    public static int getUsedEphemeralDisks(@Nonnull final TopologyEntityDTO.Builder vmBuilder,
-            @Nonnull final ComputeTierInfo computeTierInfo) {
-        final Integer vmEphemeralDisks = vmBuilder.hasTypeSpecificInfo()
-                && vmBuilder.getTypeSpecificInfo().hasVirtualMachine()
-                && vmBuilder.getTypeSpecificInfo().getVirtualMachine().hasNumEphemeralStorages()
-                ? vmBuilder.getTypeSpecificInfo().getVirtualMachine().getNumEphemeralStorages()
+    public static int getUsedEphemeralDisks(@Nonnull final TopologyEntityImpl vmEntity,
+            @Nonnull final ComputeTierInfoView computeTierInfo) {
+        final Integer vmEphemeralDisks = vmEntity.hasTypeSpecificInfo()
+                && vmEntity.getTypeSpecificInfo().hasVirtualMachine()
+                && vmEntity.getTypeSpecificInfo().getVirtualMachine().hasNumEphemeralStorages()
+                ? vmEntity.getTypeSpecificInfo().getVirtualMachine().getNumEphemeralStorages()
                 : null;
         if (vmEphemeralDisks != null) {
             return vmEphemeralDisks;
@@ -179,9 +178,9 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
     private void createSoldCommodities() {
         final Stream<TopologyEntity> computeTiers =
                 topologyGraph.entitiesOfType(EntityType.COMPUTE_TIER);
-        computeTiers.map(TopologyEntity::getTopologyEntityDtoBuilder).forEach(ct -> {
-            final Collection<CommoditySoldDTO.Builder> ctCommodities = computeTierCommoditiesCreator
-                    .create(Builder::getCommoditySoldListBuilderList, ct,
+        computeTiers.map(TopologyEntity::getTopologyEntityImpl).forEach(ct -> {
+            final Collection<CommoditySoldImpl> ctCommodities = computeTierCommoditiesCreator
+                    .create(TopologyEntityImpl::getCommoditySoldListImplList, ct,
                             ct.getTypeSpecificInfo().getComputeTier(), null);
             ctCommodities.forEach(ct::addCommoditySoldList);
         });
@@ -195,7 +194,7 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
      * @return {@code true} in case entity has compute tier info associated with it,
      *                 otherwise returns {@code false}.
      */
-    private static boolean hasComputeTierInfo(@Nonnull Builder entity) {
+    private static boolean hasComputeTierInfo(@Nonnull TopologyEntityImpl entity) {
         // Check that entity has type specific info
         if (!entity.hasTypeSpecificInfo()) {
             return false;
@@ -204,15 +203,15 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
         if (!entity.getTypeSpecificInfo().hasComputeTier()) {
             return false;
         }
-        final ComputeTierInfo computeTier = entity.getTypeSpecificInfo().getComputeTier();
+        final ComputeTierInfoView computeTier = entity.getTypeSpecificInfo().getComputeTier();
         return INSTANCE_STORE_PREDICATES.stream().allMatch(p -> p.test(computeTier));
     }
 
     @Nullable
-    private CommoditiesBoughtFromProvider.Builder getProvider(@Nonnull Builder entity,
+    private CommoditiesBoughtFromProviderImpl getProvider(@Nonnull TopologyEntityImpl entity,
                     @Nonnull EntityType providerType) {
-        final Collection<CommoditiesBoughtFromProvider.Builder> boughtFromComputeTiers =
-                        entity.getCommoditiesBoughtFromProvidersBuilderList().stream()
+        final Collection<CommoditiesBoughtFromProviderImpl> boughtFromComputeTiers =
+                        entity.getCommoditiesBoughtFromProvidersImplList().stream()
                                         .filter(provider -> provider.getProviderEntityType()
                                                         == providerType.getNumber())
                                         .collect(Collectors.toSet());
@@ -222,7 +221,7 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
             logger.debug("There are no '{}' providers for '{}'", providerType, entity.getOid());
             return null;
         }
-        final CommoditiesBoughtFromProvider.Builder result =
+        final CommoditiesBoughtFromProviderImpl result =
                         boughtFromComputeTiers.iterator().next();
         if (numberOfComputeTierProviders > 1) {
             logger.warn("There are more than one '{}' provider for '{}', using first one '{}'.",

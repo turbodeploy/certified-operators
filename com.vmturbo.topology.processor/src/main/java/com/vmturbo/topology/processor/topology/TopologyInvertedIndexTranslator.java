@@ -9,8 +9,9 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.commons.lang.StringUtils;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.commons.analysis.InvertedIndexBaseTranslator;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.components.common.utils.CommodityTypeAllocatorConstants;
@@ -21,7 +22,7 @@ import com.vmturbo.stitching.TopologyEntity;
  *
  */
 public class TopologyInvertedIndexTranslator implements InvertedIndexBaseTranslator<TopologyEntity,
-        TopologyEntityDTO.CommoditiesBoughtFromProvider, List<TopologyDTO.CommoditySoldDTO>>, Serializable {
+        CommoditiesBoughtFromProviderView, List<CommoditySoldView>>, Serializable {
 
     private final NumericIDAllocator commodityTypeAllocator = new NumericIDAllocator();
 
@@ -38,16 +39,16 @@ public class TopologyInvertedIndexTranslator implements InvertedIndexBaseTransla
      * @return array of integers representing the types in the basketSold
      */
     public int[] getCommoditySoldTypeArrayFromEntity(final TopologyEntity seller) {
-        return getCommoditySoldTypeArray(seller.getTopologyEntityDtoBuilder().getCommoditySoldListList());
+        return getCommoditySoldTypeArray(seller.getTopologyEntityImpl().getCommoditySoldListList());
     }
 
     /**
      * return an array of type values present in basket.
      *
-     * @param basket whose {@link TopologyEntityDTO.CommoditiesBoughtFromProvider}'s are converted to type integers
+     * @param basket whose {@link CommoditiesBoughtFromProviderView}'s are converted to type integers
      * @return array of integers representing the types in the basket
      */
-    public int[] getCommodityBoughtTypeArray(final TopologyEntityDTO.CommoditiesBoughtFromProvider basket) {
+    public int[] getCommodityBoughtTypeArray(final CommoditiesBoughtFromProviderView basket) {
         return basket.getCommodityBoughtList().stream()
             // When there is a basket with no accessCommodities, it is possible that it could bring in entities from
             // outside the scope. When we filter out non-accessComms and use just accessCommodities while determining
@@ -62,10 +63,10 @@ public class TopologyInvertedIndexTranslator implements InvertedIndexBaseTransla
     /**
      * return an array of type values present in basket.
      *
-     * @param basket whose list of {@link TopologyDTO.CommoditySoldDTO}'s are converted to type integers
+     * @param basket whose list of {@link CommoditySoldView}'s are converted to type integers
      * @return array of integers representing the types in the basket
      */
-    public int[] getCommoditySoldTypeArray(final List<TopologyDTO.CommoditySoldDTO> basket) {
+    public int[] getCommoditySoldTypeArray(final List<CommoditySoldView> basket) {
         return basket.stream().mapToInt(commSold -> toMarketCommodityId(commSold.getCommodityType()))
                 .sorted().toArray();
     }
@@ -77,19 +78,19 @@ public class TopologyInvertedIndexTranslator implements InvertedIndexBaseTransla
      * @return and integer identifying the type
      */
     @VisibleForTesting
-    int toMarketCommodityId(@Nonnull final TopologyDTO.CommodityType commType) {
+    int toMarketCommodityId(@Nonnull final CommodityTypeView commType) {
         return commodityTypeAllocator.allocate(commodityTypeToString(commType), commType.hasKey()
                 ? CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT : 0);
     }
 
     /**
-     * Concatenates the type and the key of the {@link TopologyDTO.CommodityType}.
+     * Concatenates the type and the key of the {@link CommodityTypeView}.
      *
-     * @param commType the {@link TopologyDTO.CommodityType} for which string conversion is desired
-     * @return string conversion of {@link TopologyDTO.CommodityType}
+     * @param commType the {@link CommodityTypeView} for which string conversion is desired
+     * @return string conversion of {@link CommodityTypeView}
      */
     @Nonnull
-    private String commodityTypeToString(@Nonnull final TopologyDTO.CommodityType commType) {
+    private String commodityTypeToString(@Nonnull final CommodityTypeView commType) {
         int type = commType.getType();
         return type + (commType.hasKey() ?
                 "|" + commType.getKey()

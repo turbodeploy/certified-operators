@@ -14,17 +14,17 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
@@ -380,8 +380,8 @@ public class PropagateStorageAccessAndLatencyPostStitchingOperation implements P
      */
     @VisibleForTesting
     static class AccessAndLatencySold {
-        public final Optional<CommoditySoldDTO.Builder> latency;
-        public final Optional<CommoditySoldDTO.Builder> access;
+        public final Optional<CommoditySoldImpl> latency;
+        public final Optional<CommoditySoldImpl> access;
         public final TopologyEntity entity;
 
         /**
@@ -391,8 +391,8 @@ public class PropagateStorageAccessAndLatencyPostStitchingOperation implements P
          * @param entity The entity potentially selling Access and Latency.
          */
         public AccessAndLatencySold(@Nonnull final TopologyEntity entity) {
-            final List<CommoditySoldDTO.Builder> commoditiesSold =
-                entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList();
+            final List<CommoditySoldImpl> commoditiesSold =
+                entity.getTopologyEntityImpl().getCommoditySoldListImplList();
             latency = commoditiesSold.stream()
                 .filter(commodity -> commodity.getCommodityType().getType() == CommodityType.STORAGE_LATENCY_VALUE)
                 .findFirst();
@@ -436,7 +436,7 @@ public class PropagateStorageAccessAndLatencyPostStitchingOperation implements P
             return shouldUpdateValue(latency, latencyValue) || shouldUpdateValue(access, accessValue);
         }
 
-        private boolean shouldUpdateValue(@Nonnull final Optional<CommoditySoldDTO.Builder> commodity,
+        private boolean shouldUpdateValue(@Nonnull final Optional<CommoditySoldImpl> commodity,
                                           final double value) {
             return (commodity.isPresent() && (!commodity.get().hasUsed() ||
                 (commodity.map(c -> c.getUsed() == 0 && value != 0).orElse(false))));
@@ -450,7 +450,7 @@ public class PropagateStorageAccessAndLatencyPostStitchingOperation implements P
          * @param accessOrLatency The access or latency commodity to update if unset.
          * @param value The value that the commodity used and peak will be updated to if the used is unset.
          */
-        public void updateIfUnset(@Nonnull final Optional<CommoditySoldDTO.Builder> accessOrLatency,
+        public void updateIfUnset(@Nonnull final Optional<CommoditySoldImpl> accessOrLatency,
                                   final double value) {
             accessOrLatency.ifPresent(commodity -> {
                 if (!commodity.hasUsed() || commodity.getUsed() == 0) {
@@ -471,8 +471,8 @@ public class PropagateStorageAccessAndLatencyPostStitchingOperation implements P
      */
     @VisibleForTesting
     static class AccessAndLatencyBought {
-        public final Optional<CommodityBoughtDTO.Builder> latency;
-        public final Optional<CommodityBoughtDTO.Builder> access;
+        public final Optional<CommodityBoughtImpl> latency;
+        public final Optional<CommodityBoughtImpl> access;
 
         /**
          * Create a new {@link AccessAndLatencyBought} containing the StorageAccess and StorageLatency commodities
@@ -483,18 +483,18 @@ public class PropagateStorageAccessAndLatencyPostStitchingOperation implements P
          */
         public AccessAndLatencyBought(@Nonnull final TopologyEntity consumer,
                                       @Nonnull final TopologyEntity provider) {
-            final Optional<CommoditiesBoughtFromProvider.Builder> boughtFromProvider =
-                consumer.getTopologyEntityDtoBuilder()
-                    .getCommoditiesBoughtFromProvidersBuilderList().stream()
+            final Optional<CommoditiesBoughtFromProviderImpl> boughtFromProvider =
+                consumer.getTopologyEntityImpl()
+                    .getCommoditiesBoughtFromProvidersImplList().stream()
                     .filter(commoditiesBought -> commoditiesBought.getProviderId() == provider.getOid())
                     .findFirst();
 
             access = boughtFromProvider
-                .flatMap(fromProvider -> fromProvider.getCommodityBoughtBuilderList().stream()
+                .flatMap(fromProvider -> fromProvider.getCommodityBoughtImplList().stream()
                     .filter(commodity -> commodity.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE)
                     .findFirst());
             latency = boughtFromProvider
-                .flatMap(fromProvider -> fromProvider.getCommodityBoughtBuilderList().stream()
+                .flatMap(fromProvider -> fromProvider.getCommodityBoughtImplList().stream()
                     .filter(commodity -> commodity.getCommodityType().getType() == CommodityType.STORAGE_LATENCY_VALUE)
                     .findFirst());
         }
@@ -507,7 +507,7 @@ public class PropagateStorageAccessAndLatencyPostStitchingOperation implements P
          * @param accessOrLatency The access or latency commodity to update if unset.
          * @param valueSupplier A supplier for the value. Will not be evaluated if the value is not needed.
          */
-        public void updateIfUnset(@Nonnull final Optional<CommodityBoughtDTO.Builder> accessOrLatency,
+        public void updateIfUnset(@Nonnull final Optional<CommodityBoughtImpl> accessOrLatency,
                                   final Supplier<Double> valueSupplier) {
             accessOrLatency.ifPresent(commodity -> {
                 if (!commodity.hasUsed() || commodity.getUsed() == 0) {
@@ -532,11 +532,11 @@ public class PropagateStorageAccessAndLatencyPostStitchingOperation implements P
         public AccessAndLatency buildAccessAndLatency() {
             return new AccessAndLatency(
                 access
-                    .filter(Builder::hasUsed)
-                    .map(Builder::getUsed),
+                    .filter(CommodityBoughtView::hasUsed)
+                    .map(CommodityBoughtView::getUsed),
                 latency
-                    .filter(Builder::hasUsed)
-                    .map(Builder::getUsed)
+                    .filter(CommodityBoughtView::hasUsed)
+                    .map(CommodityBoughtView::getUsed)
             );
         }
     }

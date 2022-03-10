@@ -5,11 +5,11 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.google.gson.Gson;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.gson.Gson;
 
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -74,7 +74,7 @@ public class TopologyEntitySemanticDiffer implements SemanticDiffer<TopologyEnti
     @Nonnull
     @Override
     public String dumpEntity(@Nonnull TopologyEntity entity) {
-        return noPrettyGson.toJson(entity.getTopologyEntityDtoBuilder().build());
+        return noPrettyGson.toJson(entity.getTopologyEntityImpl().toProto());
     }
 
     @Nonnull
@@ -92,8 +92,8 @@ public class TopologyEntitySemanticDiffer implements SemanticDiffer<TopologyEnti
                                      @Nonnull final TopologyEntity entityB,
                                      @Nonnull final StringBuilder builder,
                                      @Nonnull final FormatRecommendation format) {
-        final TopologyEntityDTO a = entityA.getTopologyEntityDtoBuilder().build();
-        final TopologyEntityDTO b = entityB.getTopologyEntityDtoBuilder().build();
+        final TopologyEntityDTO a = entityA.getTopologyEntityImpl().toProto();
+        final TopologyEntityDTO b = entityB.getTopologyEntityImpl().toProto();
 
         if (a.equals(b)) {
             // No diff to append

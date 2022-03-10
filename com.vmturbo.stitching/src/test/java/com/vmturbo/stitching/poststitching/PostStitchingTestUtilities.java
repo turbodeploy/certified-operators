@@ -18,20 +18,24 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
+import com.vmturbo.platform.common.dto.CommonPOJO.EntityImpl.VirtualVolumeDataImpl.VirtualVolumeFileDescriptorImpl;
+import com.vmturbo.platform.common.dto.CommonPOJO.EntityImpl.VirtualVolumeDataImpl.VirtualVolumeFileDescriptorView;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
-import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 
 /**
@@ -81,14 +85,14 @@ public class PostStitchingTestUtilities {
         }
     }
 
-    static TopologyEntity makeTopologyEntity(@Nonnull final List<CommoditySoldDTO> commoditiesSold) {
+    static TopologyEntity makeTopologyEntity(@Nonnull final List<CommoditySoldView> commoditiesSold) {
         return TopologyEntityBuilder.newBuilder().withCommoditiesSold(commoditiesSold).build();
     }
 
     static TopologyEntity makeTopologyEntity(final int entityType,
-            @Nonnull final List<CommoditySoldDTO> commoditiesSold,
-            @Nonnull final List<CommodityBoughtDTO> commoditiesBought,
-            @Nonnull final List<TopologyEntity.Builder> providers) {
+                                         @Nonnull final List<CommoditySoldView> commoditiesSold,
+                                         @Nonnull final List<CommodityBoughtView> commoditiesBought,
+                                         @Nonnull final List<TopologyEntity.Builder> providers) {
         return TopologyEntityBuilder.newBuilder()
                 .withEntityType(entityType)
                 .withCommoditiesBought(commoditiesBought)
@@ -98,17 +102,17 @@ public class PostStitchingTestUtilities {
     }
 
     static TopologyEntity makeTopologyEntity(final int entityType,
-                                             final String name, final long oid,
-                                             final List<TopologyEntity.Builder> providers) {
+                                         final String name, final long oid,
+                                         final List<TopologyEntity.Builder> providers) {
         final TopologyEntityBuilder a = TopologyEntityBuilder.newBuilder().withEntityType(entityType).withProviders(providers);
-        a.builder.getEntityBuilder().setDisplayName(name).setOid(oid).build();
+        a.builder.getTopologyEntityImpl().setDisplayName(name).setOid(oid);
         return a.build();
     }
 
     static TopologyEntity makeTopologyEntity(final int entityType,
-            @Nonnull final List<CommoditySoldDTO> commoditiesSold,
-            @Nonnull final Set<CommoditiesBoughtFromProvider> commoditiesBoughtFromProvider,
-            @Nonnull final List<TopologyEntity.Builder> providers) {
+                                         @Nonnull final List<CommoditySoldView> commoditiesSold,
+                                         @Nonnull final Set<CommoditiesBoughtFromProviderView> commoditiesBoughtFromProvider,
+                                         @Nonnull final List<TopologyEntity.Builder> providers) {
         return TopologyEntityBuilder.newBuilder()
                 .withEntityType(entityType)
                 .withCommoditiesSold(commoditiesSold)
@@ -118,23 +122,23 @@ public class PostStitchingTestUtilities {
     }
 
     static TopologyEntity makeTopologyEntity(final int entityType,
-            @Nonnull final List<CommoditySoldDTO> commoditiesSold) {
-        return TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder().setEntityType(entityType)
+                                         @Nonnull final List<CommoditySoldView> commoditiesSold) {
+        return TopologyEntity.newBuilder(new TopologyEntityImpl().setEntityType(entityType)
             .addAllCommoditySoldList(commoditiesSold)).build();
     }
 
-    static TopologyEntity makeTopologyEntity(@Nonnull final List<CommoditySoldDTO> commoditiesSold,
-                                             @Nonnull final TypeSpecificInfo typeSpecificInfo) {
+    static TopologyEntity makeTopologyEntity(@Nonnull final List<CommoditySoldView> commoditiesSold,
+                                         @Nonnull final TypeSpecificInfoView typeSpecificInfo) {
         TopologyEntityBuilder builder = TopologyEntityBuilder.newBuilder()
             .withCommoditiesSold(commoditiesSold);
-        builder.getBuilder().getEntityBuilder().setTypeSpecificInfo(typeSpecificInfo);
+        builder.getBuilder().getTopologyEntityImpl().setTypeSpecificInfo(typeSpecificInfo);
         return builder.build();
     }
 
     static TopologyEntity makeTopologyEntity(final long oid,
-                                             final int entityType,
-                                             @Nonnull final List<CommoditySoldDTO> commoditiesSold,
-                                             @Nonnull final Map<String, String> propertyMap) {
+                                         final int entityType,
+                                         @Nonnull final List<CommoditySoldView> commoditiesSold,
+                                         @Nonnull final Map<String, String> propertyMap) {
         return TopologyEntityBuilder.newBuilder()
                 .withOid(oid)
                 .withEntityType(entityType)
@@ -144,8 +148,8 @@ public class PostStitchingTestUtilities {
     }
 
     static TopologyEntity.Builder makeTopologyEntityBuilder(final int entityType,
-            @Nonnull final List<CommoditySoldDTO> commoditiesSold,
-            @Nonnull final List<CommodityBoughtDTO> commoditiesBought) {
+            @Nonnull final List<CommoditySoldView> commoditiesSold,
+            @Nonnull final List<CommodityBoughtView> commoditiesBought) {
         return TopologyEntityBuilder.newBuilder()
             .withEntityType(entityType)
             .withCommoditiesBought(commoditiesBought)
@@ -157,13 +161,13 @@ public class PostStitchingTestUtilities {
                                                             String name, long oid) {
         final TopologyEntityBuilder a = TopologyEntityBuilder.newBuilder()
                 .withEntityType(entityType);
-        a.builder.getEntityBuilder().setOid(oid).setDisplayName(name).build();
+        a.builder.getTopologyEntityImpl().setOid(oid).setDisplayName(name);
         return a.getBuilder();
     }
 
     static TopologyEntity.Builder makeTopologyEntityBuilder(final int entityType,
-            @Nonnull final List<CommoditySoldDTO> commoditiesSold,
-            @Nonnull final Set<CommoditiesBoughtFromProvider> commoditiesBoughtFromProvider) {
+            @Nonnull final List<CommoditySoldView> commoditiesSold,
+            @Nonnull final Set<CommoditiesBoughtFromProviderView> commoditiesBoughtFromProvider) {
         return TopologyEntityBuilder.newBuilder()
             .withEntityType(entityType)
             .withCommoditiesSold(commoditiesSold)
@@ -173,21 +177,21 @@ public class PostStitchingTestUtilities {
 
     public static TopologyEntity.Builder makeTopologyEntityBuilder(
             final long oid, final int entityType,
-            @Nonnull final List<CommoditySoldDTO> commoditiesSold,
-            @Nonnull final List<CommodityBoughtDTO> commoditiesBought) {
+            @Nonnull final List<CommoditySoldView> commoditiesSold,
+            @Nonnull final List<CommodityBoughtView> commoditiesBought) {
         return TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
+            new TopologyEntityImpl()
                 .setOid(oid)
                 .setEntityType(entityType)
                 .addAllCommoditySoldList(commoditiesSold)
-                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                     .addAllCommodityBought(commoditiesBought)
                 ));
     }
 
     static TopologyEntity.Builder makeTopologyEntityBuilder(final long oid, final int entityType,
-            @Nonnull final List<CommoditySoldDTO> commoditiesSold,
-            @Nonnull final Set<CommoditiesBoughtFromProvider> commoditiesBoughtFromProvider) {
+            @Nonnull final List<CommoditySoldView> commoditiesSold,
+            @Nonnull final Set<CommoditiesBoughtFromProviderView> commoditiesBoughtFromProvider) {
         return TopologyEntityBuilder.newBuilder()
             .withOid(oid)
             .withEntityType(entityType)
@@ -197,8 +201,8 @@ public class PostStitchingTestUtilities {
     }
 
     static TopologyEntity.Builder makeTopologyEntityBuilder(final long oid, final int entityType,
-                    @Nonnull final List<CommoditySoldDTO> commoditiesSold,
-                    @Nonnull final Map<Long, List<CommodityBoughtDTO>> commoditiesBoughtMap) {
+                    @Nonnull final List<CommoditySoldView> commoditiesSold,
+                    @Nonnull final Map<Long, List<CommodityBoughtView>> commoditiesBoughtMap) {
         return TopologyEntityBuilder.newBuilder()
             .withOid(oid)
             .withEntityType(entityType)
@@ -208,16 +212,16 @@ public class PostStitchingTestUtilities {
     }
 
     /**
-     * For easily creating a TopologyEntity or TopologyEntity.Builder with any attributes.
+     * For easily creating a TopologyEntity or TopologyEntityImpl with any attributes.
      */
     static class TopologyEntityBuilder {
         private final TopologyEntity.Builder builder;
 
-        private final TopologyEntityDTO.Builder innerBuilder;
+        private final TopologyEntityImpl innerEntity;
 
         private TopologyEntityBuilder() {
-            innerBuilder = TopologyEntityDTO.newBuilder();
-            builder = TopologyEntity.newBuilder(innerBuilder);
+            innerEntity = new TopologyEntityImpl();
+            builder = TopologyEntity.newBuilder(innerEntity);
         }
 
         static TopologyEntityBuilder newBuilder() {
@@ -233,63 +237,63 @@ public class PostStitchingTestUtilities {
         }
 
         TopologyEntityBuilder withOid(final long oid) {
-            innerBuilder.setOid(oid);
+            innerEntity.setOid(oid);
             return this;
         }
 
-        TopologyEntityBuilder withCommoditiesSold(@Nonnull final CommoditySoldDTO... commodities) {
+        TopologyEntityBuilder withCommoditiesSold(@Nonnull final CommoditySoldView... commodities) {
             return withCommoditiesSold(Arrays.asList(commodities));
         }
 
         TopologyEntityBuilder withCommoditiesSold(@Nonnull final CommoditySoldBuilder... commodities) {
             for (final CommoditySoldBuilder commodity : commodities) {
-                innerBuilder.addCommoditySoldList(commodity.build());
+                innerEntity.addCommoditySoldList(commodity.build());
             }
             return this;
         }
 
-        TopologyEntityBuilder withCommoditiesSold(@Nonnull final Collection<CommoditySoldDTO> commodities) {
-            innerBuilder.addAllCommoditySoldList(commodities);
+        TopologyEntityBuilder withCommoditiesSold(@Nonnull final Collection<CommoditySoldView> commodities) {
+            innerEntity.addAllCommoditySoldList(commodities);
             return this;
         }
 
         TopologyEntityBuilder withEnvironmentType(@Nonnull final EnvironmentType environmentType) {
-            innerBuilder.setEnvironmentType(environmentType);
+            innerEntity.setEnvironmentType(environmentType);
             return this;
         }
 
         TopologyEntityBuilder withEntityType(final int type) {
-            innerBuilder.setEntityType(type);
+            innerEntity.setEntityType(type);
             return this;
         }
 
         TopologyEntityBuilder withCommoditiesBought(
-            @Nonnull final Collection<CommodityBoughtDTO> commodities) {
+            @Nonnull final Collection<CommodityBoughtView> commodities) {
 
-            innerBuilder.addCommoditiesBoughtFromProviders(
-                CommoditiesBoughtFromProvider.newBuilder().addAllCommodityBought(commodities));
+            innerEntity.addCommoditiesBoughtFromProviders(
+                new CommoditiesBoughtFromProviderImpl().addAllCommodityBought(commodities));
             return this;
         }
 
         TopologyEntityBuilder withCommoditiesBoughtFromProviders(
-            @Nonnull final Map<Long, List<CommodityBoughtDTO>> commodities) {
+            @Nonnull final Map<Long, List<CommodityBoughtView>> commodities) {
 
             commodities.entrySet().stream().map(entry ->
-                CommoditiesBoughtFromProvider.newBuilder().setProviderId(entry.getKey())
+                new CommoditiesBoughtFromProviderImpl().setProviderId(entry.getKey())
                     .addAllCommodityBought(entry.getValue())
-            ).forEach(innerBuilder::addCommoditiesBoughtFromProviders);
+            ).forEach(innerEntity::addCommoditiesBoughtFromProviders);
 
             return this;
         }
 
         TopologyEntityBuilder withCommoditiesBoughtFromProviders(
-            @Nonnull final Collection<CommoditiesBoughtFromProvider> commodities) {
-            innerBuilder.addAllCommoditiesBoughtFromProviders(commodities);
+            @Nonnull final Collection<CommoditiesBoughtFromProviderView> commodities) {
+            innerEntity.addAllCommoditiesBoughtFromProviders(commodities);
             return this;
         }
 
         TopologyEntityBuilder withProviders(@Nonnull final List<TopologyEntity.Builder> providers) {
-            for (final Builder provider : providers) {
+            for (final TopologyEntity.Builder provider : providers) {
                 builder.addProvider(provider);
             }
             return this;
@@ -303,7 +307,7 @@ public class PostStitchingTestUtilities {
         }
 
         TopologyEntityBuilder withConsumers(@Nonnull final List<TopologyEntity.Builder> consumers) {
-            for (final Builder consumer : consumers) {
+            for (final TopologyEntity.Builder consumer : consumers) {
                 builder.addConsumer(consumer);
             }
             return this;
@@ -317,17 +321,17 @@ public class PostStitchingTestUtilities {
         }
 
         TopologyEntityBuilder withProperty(@Nonnull final String key, @Nonnull final String value) {
-            innerBuilder.putEntityPropertyMap(key, value);
+            innerEntity.putEntityPropertyMap(key, value);
             return this;
         }
 
         TopologyEntityBuilder withProperties(@Nonnull final Map<String, String> properties) {
-            innerBuilder.putAllEntityPropertyMap(properties);
+            innerEntity.putAllEntityPropertyMap(properties);
             return this;
         }
 
-        TopologyEntityBuilder withTypeSpecificInfo(@Nonnull final TypeSpecificInfo.Builder builder) {
-            innerBuilder.setTypeSpecificInfo(builder);
+        TopologyEntityBuilder withTypeSpecificInfo(@Nonnull final TypeSpecificInfoImpl info) {
+            innerEntity.setTypeSpecificInfo(info);
             return this;
         }
 
@@ -337,14 +341,14 @@ public class PostStitchingTestUtilities {
      * For easily creating a CommoditySoldDTO or CommoditySoldDTO.Builder with any attributes.
      */
     static class CommoditySoldBuilder {
-        private CommoditySoldDTO.Builder builder;
+        private CommoditySoldImpl impl;
 
         private CommoditySoldBuilder() {
-            builder = CommoditySoldDTO.newBuilder();
+            impl = new CommoditySoldImpl();
         }
 
-        CommoditySoldDTO build() {
-            return builder.build();
+        CommoditySoldView build() {
+            return impl;
         }
 
         static CommoditySoldBuilder newBuilder() {
@@ -352,143 +356,120 @@ public class PostStitchingTestUtilities {
         }
 
         CommoditySoldBuilder withType(@Nonnull final CommodityType type) {
-            if (builder.hasCommodityType()) {
-                final TopologyDTO.CommodityType current = builder.getCommodityType();
-                builder.setCommodityType(current.toBuilder().setType(type.getNumber()));
-            } else {
-                builder.setCommodityType(
-                    TopologyDTO.CommodityType.newBuilder().setType(type.getNumber()));
-            }
+            impl.getOrCreateCommodityType().setType(type.getNumber());
             return this;
         }
 
         CommoditySoldBuilder withKey(@Nonnull final String key) {
-            if (builder.hasCommodityType()) {
-                final TopologyDTO.CommodityType current = builder.getCommodityType();
-                builder.setCommodityType(current.toBuilder().setKey(key));
-            } else {
-                builder.setCommodityType(TopologyDTO.CommodityType.newBuilder().setKey(key));
-            }
+            impl.getOrCreateCommodityType().setKey(key);
             return this;
         }
 
         CommoditySoldBuilder withCapacity(final double capacity) {
-            builder.setCapacity(capacity);
+            impl.setCapacity(capacity);
             return this;
         }
 
         CommoditySoldBuilder withUsed(final double used) {
-            builder.setUsed(used);
+            impl.setUsed(used);
             return this;
         }
     }
 
     /**
-     * For easily creating a CommodityBoughtDTO or CommodityBoughtDTO.Builder with any attributes.
+     * For easily creating a CommodityBoughtDTO or CommodityBoughtImpl with any attributes.
      */
     static class CommodityBoughtBuilder {
 
-        private CommodityBoughtDTO.Builder builder;
+        private CommodityBoughtImpl commBought;
 
         private CommodityBoughtBuilder() {
-            builder = CommodityBoughtDTO.newBuilder();
+            commBought = new CommodityBoughtImpl();
         }
 
         static CommodityBoughtBuilder newBuilder() {
             return new CommodityBoughtBuilder();
         }
 
-        CommodityBoughtDTO build() {
-            return builder.build();
+        CommodityBoughtView build() {
+            return commBought;
         }
 
-        CommodityBoughtDTO.Builder getBuilder() {
-            return builder;
+        CommodityBoughtImpl getImpl() {
+            return commBought;
         }
 
         CommodityBoughtBuilder withType(final int type) {
-            if (builder.hasCommodityType()) {
-                final TopologyDTO.CommodityType current = builder.getCommodityType();
-                builder.setCommodityType(current.toBuilder().setType(type));
-            } else {
-                builder.setCommodityType(
-                    TopologyDTO.CommodityType.newBuilder().setType(type));
-            }
+            commBought.getOrCreateCommodityType().setType(type);
             return this;
         }
 
         CommodityBoughtBuilder withKey(@Nonnull final String key) {
-            if (builder.hasCommodityType()) {
-                final TopologyDTO.CommodityType current = builder.getCommodityType();
-                builder.setCommodityType(current.toBuilder().setKey(key));
-            } else {
-                builder.setCommodityType(TopologyDTO.CommodityType.newBuilder().setKey(key));
-            }
+            commBought.getOrCreateCommodityType().setKey(key);
             return this;
         }
 
         CommodityBoughtBuilder withUsed(final double used) {
-            builder.setUsed(used);
+            commBought.setUsed(used);
             return this;
         }
     }
 
-    public static CommoditySoldDTO makeCommoditySold(@Nonnull final CommodityType type) {
-        return CommoditySoldDTO.newBuilder()
-            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                .setType(type.getNumber()))
-            .build();
+    public static CommoditySoldView makeCommoditySold(@Nonnull final CommodityType type) {
+        return new CommoditySoldImpl()
+            .setCommodityType(new CommodityTypeImpl()
+                .setType(type.getNumber()));
     }
 
-    static CommoditySoldDTO makeCommoditySold(@Nonnull final CommodityType type,
+    static CommoditySoldView makeCommoditySold(@Nonnull final CommodityType type,
                                               final double capacity, @Nonnull final String key) {
         return CommoditySoldBuilder.newBuilder()
             .withType(type).withKey(key).withCapacity(capacity).build();
     }
 
-    static CommoditySoldDTO makeCommoditySold(@Nonnull final CommodityType type,
+    static CommoditySoldView makeCommoditySold(@Nonnull final CommodityType type,
                     @Nonnull final String key) {
         return CommoditySoldBuilder.newBuilder().withType(type).withKey(key).build();
     }
 
-    static CommoditySoldDTO makeCommoditySold(@Nonnull final CommodityType type,
+    static CommoditySoldView makeCommoditySold(@Nonnull final CommodityType type,
         final double capacity) {
         return CommoditySoldBuilder.newBuilder().withCapacity(capacity).withType(type).build();
     }
 
-    static CommoditySoldDTO makeCommoditySold(@Nonnull final CommodityType type,
+    static CommoditySoldView makeCommoditySold(@Nonnull final CommodityType type,
             @Nonnull final String key, final double used) {
         return CommoditySoldBuilder.newBuilder().withType(type).withKey(key).withUsed(used).build();
     }
 
-    static CommodityBoughtDTO makeCommodityBought(@Nonnull final CommodityType type,
+    static CommodityBoughtView makeCommodityBought(@Nonnull final CommodityType type,
                                               @Nonnull final String key) {
         return CommodityBoughtBuilder.newBuilder().withType(type.getNumber()).withKey(key).build();
     }
 
-    static CommodityBoughtDTO makeCommodityBought(@Nonnull final CommodityType type) {
+    static CommodityBoughtView makeCommodityBought(@Nonnull final CommodityType type) {
         return CommodityBoughtBuilder.newBuilder().withType(type.getNumber()).build();
     }
 
-    static CommodityBoughtDTO makeCommodityBought(@Nonnull final CommodityType type,
+    static CommodityBoughtView makeCommodityBought(@Nonnull final CommodityType type,
                                                   final double used) {
         return CommodityBoughtBuilder.newBuilder().withType(type.getNumber()).withUsed(used).build();
     }
 
-    static CommoditiesBoughtFromProvider makeCommoditiesBoughtFromProvider(final long providerId,
-                                                                            final int providerType,
-                                                                            @Nonnull final List<CommodityBoughtDTO> commodities) {
-        return CommoditiesBoughtFromProvider.newBuilder().setProviderId(providerId)
-                .setProviderEntityType(providerType)
-                .addAllCommodityBought(commodities)
-                .build();
+    static CommoditiesBoughtFromProviderView makeCommoditiesBoughtFromProvider(final long providerId,
+                                                                               final int providerType,
+                                                                               @Nonnull final List<CommodityBoughtView> commodities) {
+        return new CommoditiesBoughtFromProviderImpl()
+            .setProviderId(providerId)
+            .setProviderEntityType(providerType)
+            .addAllCommodityBought(commodities);
     }
 
 
 
-    public static CommodityBoughtDTO.Builder makeCommodityBoughtBuilder(@Nonnull final CommodityType type) {
-        return CommodityBoughtDTO.newBuilder()
-            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+    public static CommodityBoughtImpl makeCommodityBoughtBuilder(@Nonnull final CommodityType type) {
+        return new CommodityBoughtImpl()
+            .setCommodityType(new CommodityTypeImpl()
                 .setType(type.getNumber()));
     }
 
@@ -505,15 +486,14 @@ public class PostStitchingTestUtilities {
                 .build();
     }
 
-    private static Collection<VirtualVolumeFileDescriptor> createFiles(
+    private static Collection<VirtualVolumeFileDescriptorView> createFiles(
             @Nonnull String[] pathNames, @Nonnull long[] sizes) {
         Assert.assertEquals(pathNames.length, sizes.length);
-        final List<VirtualVolumeFileDescriptor> retVal = new ArrayList<>(sizes.length);
+        final List<VirtualVolumeFileDescriptorView> retVal = new ArrayList<>(sizes.length);
         for (int i = 0; i < sizes.length; i++) {
-            retVal.add(VirtualVolumeFileDescriptor.newBuilder()
+            retVal.add(new VirtualVolumeFileDescriptorImpl()
                     .setPath(pathNames[i])
-                    .setSizeKb(sizes[i])
-                    .build());
+                    .setSizeKb(sizes[i]));
         }
         return retVal;
     }
@@ -529,12 +509,12 @@ public class PostStitchingTestUtilities {
             @Nonnull TopologyEntity.Builder builder,
             @Nonnull String[] pathNames,
             @Nonnull long[] fileSizes) {
-        builder.getEntityBuilder().setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+        builder.getTopologyEntityImpl().setTypeSpecificInfo(new TypeSpecificInfoImpl()
             .setVirtualVolume(
-                builder.getEntityBuilder()
+                builder.getTopologyEntityImpl()
                     .getTypeSpecificInfo()
                     .getVirtualVolume()
-                    .toBuilder()
+                    .copy()
                     .addAllFiles(createFiles(pathNames, fileSizes))));
     }
 
@@ -564,17 +544,17 @@ public class PostStitchingTestUtilities {
      */
     static void addFileToVirtualVolume(@Nonnull TopologyEntity.Builder builder,
                                                @Nonnull String path, @Nonnull String[] links) {
-        builder.getEntityBuilder().setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+        builder.getTopologyEntityImpl().setTypeSpecificInfo(new TypeSpecificInfoImpl()
             .setVirtualVolume(
-                builder.getEntityBuilder()
+                builder.getTopologyEntityImpl()
                     .getTypeSpecificInfo()
                     .getVirtualVolume()
-                    .toBuilder()
+                    .copy()
                     .addAllFiles(Collections.singletonList(
-                        VirtualVolumeFileDescriptor.newBuilder().setPath(path)
+                        new VirtualVolumeFileDescriptorImpl().setPath(path)
                             .setSizeKb((long) EntitySettingSpecs.MinWastedFilesSize
                                     .getNumericDefault() + 1)
-                            .addAllLinkedPaths(Arrays.asList(links)).build())
+                            .addAllLinkedPaths(Arrays.asList(links)))
                     )));
     }
 }

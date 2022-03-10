@@ -27,10 +27,10 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.HistoricalValuesImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -109,7 +109,7 @@ public class DemandOverriddenCommodityEditor {
             TopologyEntity vm = entry.getKey();
             Map<Integer, List<Double>> adjustmentByCommodityType = entry.getValue();
             for (TopologyEntity provider : vm.getProviders()) {
-                for (CommoditySoldDTO.Builder commSold : provider.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()) {
+                for (CommoditySoldImpl commSold : provider.getTopologyEntityImpl().getCommoditySoldListImplList()) {
                     // when we find a value mapped to the provider commodity sold type in
                     // vmUsageAdjustmentMap, it means that commodity sold has to be adjusted
                     // using the same quantity
@@ -123,7 +123,7 @@ public class DemandOverriddenCommodityEditor {
                         // change the commodity sold used
                         if (commSold.hasHistoricalUsed()) {
                             double oldUsed = commSold.getHistoricalUsed().getHistUtilization();
-                            commSold.getHistoricalUsedBuilder().setHistUtilization(oldUsed + usedDiff);
+                            commSold.getOrCreateHistoricalUsed().setHistUtilization(oldUsed + usedDiff);
                         } else {
                             double oldUsed = commSold.getUsed();
                             commSold.setUsed(oldUsed + usedDiff);
@@ -135,7 +135,7 @@ public class DemandOverriddenCommodityEditor {
                         // change the commodity sold peak
                         if (commSold.hasHistoricalPeak()) {
                             double oldPeak = commSold.getHistoricalPeak().getHistUtilization();
-                            commSold.getHistoricalPeakBuilder().setHistUtilization(oldPeak + peakDiff);
+                            commSold.getOrCreateHistoricalPeak().setHistUtilization(oldPeak + peakDiff);
                         } else {
                             double oldPeak = commSold.getPeak();
                             commSold.setPeak(oldPeak + peakDiff);
@@ -155,15 +155,15 @@ public class DemandOverriddenCommodityEditor {
      *
      * @return the amount difference
      */
-    private double applyChangeOnCommoditySold(@Nonnull CommoditySoldDTO.Builder commSold,
+    private double applyChangeOnCommoditySold(@Nonnull CommoditySoldImpl commSold,
                                               int percentage, boolean isPeak) {
         double difference;
         if (commSold.hasHistoricalUsed() && !isPeak) {
-            HistoricalValues.Builder builder = commSold.getHistoricalUsedBuilder();
-            difference = applyChangeOnHistoricalBuilder(commSold, builder, percentage);
+            HistoricalValuesImpl historicalValues = commSold.getOrCreateHistoricalUsed();
+            difference = applyChangeOnHistoricalImpl(commSold, historicalValues, percentage);
         } else if (commSold.hasHistoricalPeak() && isPeak) {
-            HistoricalValues.Builder builder = commSold.getHistoricalPeakBuilder();
-            difference = applyChangeOnHistoricalBuilder(commSold, builder, percentage);
+            HistoricalValuesImpl builder = commSold.getOrCreateHistoricalPeak();
+            difference = applyChangeOnHistoricalImpl(commSold, builder, percentage);
         } else {
             if (commSold.hasCapacity()) {
                 if (isPeak) {
@@ -189,19 +189,19 @@ public class DemandOverriddenCommodityEditor {
      * Utility method to apply change on historical values.
      *
      * @param commSold the dto to be changed
-     * @param builder the historical value builder
+     * @param historicalValues the historical value
      * @param percentage percentage level to be changed
      *
      * @return the amount difference
      */
-    private double applyChangeOnHistoricalBuilder(@Nonnull CommoditySoldDTO.Builder commSold,
-                                                @Nonnull HistoricalValues.Builder builder,
-                                                int percentage) {
+    private double applyChangeOnHistoricalImpl(@Nonnull CommoditySoldImpl commSold,
+                                               @Nonnull HistoricalValuesImpl historicalValues,
+                                               int percentage) {
         if (commSold.hasCapacity()) {
             double newUsed = Math.max(0, Math.min(commSold.getCapacity(),
-                builder.getHistUtilization() * (percentage / 100d + 1)));
-            double difference = newUsed - builder.getHistUtilization();
-            builder.setHistUtilization(Math.max(0, newUsed));
+                historicalValues.getHistUtilization() * (percentage / 100d + 1)));
+            double difference = newUsed - historicalValues.getHistUtilization();
+            historicalValues.setHistUtilization(Math.max(0, newUsed));
             return difference;
         } else {
             logger.debug("Historical utilization will not be overridden for commodity with missing capacity " + commSold);
@@ -216,16 +216,16 @@ public class DemandOverriddenCommodityEditor {
      * @param diff the difference to be applied
      * @param isPeak whether apply change on used or peak
      */
-    private void applyChangeOnCommodityBought(@Nonnull CommodityBoughtDTO.Builder commBought,
+    private void applyChangeOnCommodityBought(@Nonnull CommodityBoughtImpl commBought,
                                               double diff, boolean isPeak) {
         if (commBought.hasHistoricalUsed() && !isPeak) {
-            HistoricalValues.Builder builder = commBought.getHistoricalUsedBuilder();
-            double oldUsed = builder.getHistUtilization();
-            builder.setHistUtilization(Math.max(0, oldUsed + diff));
+            HistoricalValuesImpl historicalValues = commBought.getOrCreateHistoricalUsed();
+            double oldUsed = historicalValues.getHistUtilization();
+            historicalValues.setHistUtilization(Math.max(0, oldUsed + diff));
         } else if (commBought.hasHistoricalPeak() && isPeak) {
-            HistoricalValues.Builder builder = commBought.getHistoricalPeakBuilder();
-            double oldUsed =  builder.getHistUtilization();
-            builder.setHistUtilization(Math.max(0, oldUsed + diff));
+            HistoricalValuesImpl historicalValues = commBought.getOrCreateHistoricalPeak();
+            double oldUsed =  historicalValues.getHistUtilization();
+            historicalValues.setHistUtilization(Math.max(0, oldUsed + diff));
         } else if (isPeak) {
             double oldPeak = commBought.getPeak();
             commBought.setPeak(Math.max(0, oldPeak + diff));
@@ -252,7 +252,7 @@ public class DemandOverriddenCommodityEditor {
             Set<TopologyEntity> wls = entry.getValue();
             wls.stream().forEach(v ->  {
                 Map<Integer, List<Double>> usageChangebycommSoldType = new HashMap<>();
-                for (CommoditySoldDTO.Builder commSold : v.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()) {
+                for (CommoditySoldImpl commSold : v.getTopologyEntityImpl().getCommoditySoldListImplList()) {
                     double usedDifference = 0;
                     double peakDifference = 0;
                     int soldType = commSold.getCommodityType().getType();
@@ -268,9 +268,9 @@ public class DemandOverriddenCommodityEditor {
                 }
                 Map<Integer, List<Double>> usageChangebycommBoughtType = new HashMap<>();
                 workloadsBoughtUsageAdjustmentMap.put(v, usageChangebycommBoughtType);
-                for (CommoditiesBoughtFromProvider.Builder boughtFromProvider
-                        : v.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList()) {
-                    for (CommodityBoughtDTO.Builder commBought : boughtFromProvider.getCommodityBoughtBuilderList()) {
+                for (CommoditiesBoughtFromProviderImpl boughtFromProvider
+                        : v.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersImplList()) {
+                    for (CommodityBoughtImpl commBought : boughtFromProvider.getCommodityBoughtImplList()) {
                         int boughtType = commBought.getCommodityType().getType();
                         if (USAGE_OVERRIDDEN_COMMODITY_SET.contains(boughtType)) {
                             // for a given commodity bought, find the commodity sold that depends on it

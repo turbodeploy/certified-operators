@@ -16,11 +16,14 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesC
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -79,81 +82,70 @@ public class TemplateConverterTestUtil {
     /**
      * A sample sold commodity list from a VM.
      */
-    public static final Set<CommoditySoldDTO> VM_COMMODITY_SOLD = Sets.newHashSet(
-            CommoditySoldDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+    public static final Set<CommoditySoldView> VM_COMMODITY_SOLD = Sets.newHashSet(
+            new CommoditySoldImpl()
+                    .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityDTO.CommodityType.APPLICATION_VALUE)
                             .setKey("123-application"))
-                    .setUsed(1)
-                    .build()
-    );
+                    .setUsed(1));
 
-    private static final List<CommodityBoughtDTO> VM_COMMODITY_BOUGHT_FROM_HOST = Lists.newArrayList(
-            CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+    private static final List<CommodityBoughtView> VM_COMMODITY_BOUGHT_FROM_HOST = Lists.newArrayList(
+           new CommodityBoughtImpl()
+                    .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityDTO.CommodityType.NETWORK_VALUE)
                             .setKey("123-network"))
-                    .setUsed(1)
-                    .build(),
-            CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setUsed(1),
+            new CommodityBoughtImpl()
+                    .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityDTO.CommodityType.DATASTORE_VALUE)
                             .setKey("123-datastore"))
-                    .setUsed(1)
-                    .build(),
-            CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setUsed(1),
+            new CommodityBoughtImpl()
+                    .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityDTO.CommodityType.DATACENTER_VALUE)
                             .setKey("123-data-center"))
-                    .setUsed(1)
-                    .build(),
-            CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setUsed(1),
+            new CommodityBoughtImpl()
+                    .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityDTO.CommodityType.CLUSTER_VALUE)
                             .setKey("123-cluster"))
                     .setUsed(1)
-                    .build()
     );
 
-    private static final List<CommodityBoughtDTO> VM_COMMODITY_BOUGHT_FROM_STORAGE = Lists.newArrayList(
-            CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+    private static final List<CommodityBoughtView> VM_COMMODITY_BOUGHT_FROM_STORAGE = Lists.newArrayList(
+            new CommodityBoughtImpl()
+                    .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE)
                             .setKey("123-storage-cluster"))
-                    .setUsed(1)
-                    .build(),
-            CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setUsed(1),
+            new CommodityBoughtImpl()
+                    .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)
                             .setKey("123-dspm-access"))
-                    .setUsed(1)
-                    .build(),
-            CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setUsed(1),
+            new CommodityBoughtImpl()
+                    .setCommodityType(new CommodityTypeImpl()
                             .setType(CommodityDTO.CommodityType.EXTENT_VALUE)
                             .setKey("123-extent"))
                     .setUsed(1)
-                    .build()
     );
 
-    private static final CommoditiesBoughtFromProvider commodityBoughtFromProviderHost =
-            CommoditiesBoughtFromProvider.newBuilder()
+    private static final CommoditiesBoughtFromProviderView commodityBoughtFromProviderHost =
+            new CommoditiesBoughtFromProviderImpl()
                     .addAllCommodityBought(VM_COMMODITY_BOUGHT_FROM_HOST)
                     .setProviderId(123)
-                    .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                    .build();
+                    .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
 
-    private static final CommoditiesBoughtFromProvider commodityBoughtFromProviderStorage =
-            CommoditiesBoughtFromProvider.newBuilder()
+    private static final CommoditiesBoughtFromProviderView commodityBoughtFromProviderStorage =
+            new CommoditiesBoughtFromProviderImpl()
                     .addAllCommodityBought(VM_COMMODITY_BOUGHT_FROM_STORAGE)
                     .setProviderId(456)
-                    .setProviderEntityType(EntityType.STORAGE_VALUE)
-                    .build();
+                    .setProviderEntityType(EntityType.STORAGE_VALUE);
 
     /**
      * A sample bought commodity list for a VM.
      */
-    public static final List<CommoditiesBoughtFromProvider> VM_COMMODITY_BOUGHT_FROM_PROVIDER =
+    public static final List<CommoditiesBoughtFromProviderView> VM_COMMODITY_BOUGHT_FROM_PROVIDER =
             Stream.of(commodityBoughtFromProviderHost, commodityBoughtFromProviderStorage).collect(Collectors.toList());
 
     /**
@@ -164,7 +156,7 @@ public class TemplateConverterTestUtil {
      * @param commodityType the commodityType of the commodity to search for.
      * @return the first commodity sold that matches the provided type.
      */
-    public static Optional<CommoditySoldDTO> getCommoditySold(@Nonnull final List<CommoditySoldDTO> commoditySoldDTOList,
+    public static Optional<CommoditySoldView> getCommoditySold(@Nonnull final List<CommoditySoldView> commoditySoldDTOList,
                                                               final int commodityType) {
         return commoditySoldDTOList.stream()
             .filter(commodity -> commodity.getCommodityType().getType() == commodityType)
@@ -179,10 +171,10 @@ public class TemplateConverterTestUtil {
      * @param commodityType the commodityType of the commodity to search for.
      * @return the value from the first commodity sold that matches the provided type.
      */
-    public static double getCommoditySoldValue(@Nonnull final List<CommoditySoldDTO> commoditySoldDTOList,
+    public static double getCommoditySoldValue(@Nonnull final List<CommoditySoldView> commoditySoldDTOList,
                                                final int commodityType) {
         return getCommoditySold(commoditySoldDTOList, commodityType)
-            .map(CommoditySoldDTO::getCapacity)
+            .map(CommoditySoldView::getCapacity)
             .get();
     }
 
@@ -194,11 +186,11 @@ public class TemplateConverterTestUtil {
      * @param commodityType the commodityType of the commodity to search for.
      * @return the first commodity bought that matches the provided type.
      */
-    public static Optional<CommodityBoughtDTO> getCommodityBought(
-            @Nonnull final List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders,
+    public static Optional<CommodityBoughtView> getCommodityBought(
+            @Nonnull final List<CommoditiesBoughtFromProviderView> commoditiesBoughtFromProviders,
             final int commodityType) {
         return commoditiesBoughtFromProviders.stream()
-            .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+            .map(CommoditiesBoughtFromProviderView::getCommodityBoughtList)
             .flatMap(List::stream)
             .filter(commodity -> commodity.getCommodityType().getType() == commodityType)
             .findFirst();
@@ -212,10 +204,10 @@ public class TemplateConverterTestUtil {
      * @param commodityType the commodityType of the commodity to search for.
      * @return the value from the first commodity bought that matches the provided type.
      */
-    public static double getCommodityBoughtValue(List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders,
+    public static double getCommodityBoughtValue(List<CommoditiesBoughtFromProviderView> commoditiesBoughtFromProviders,
                                                  int commodityType) {
         return getCommodityBought(commoditiesBoughtFromProviders, commodityType)
-            .map(CommodityBoughtDTO::getUsed)
+            .map(CommodityBoughtView::getUsed)
             .get();
     }
 
@@ -227,11 +219,11 @@ public class TemplateConverterTestUtil {
      * @param commodityType the commodityType of the commodity to search for.
      * @return the key from the first commodity bought that matches the provided type.
      */
-    public static String getCommodityBoughtKey(List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders,
+    public static String getCommodityBoughtKey(List<CommoditiesBoughtFromProviderView> commoditiesBoughtFromProviders,
                                                int commodityType) {
         return getCommodityBought(commoditiesBoughtFromProviders, commodityType)
-            .map(CommodityBoughtDTO::getCommodityType)
-            .map(CommodityType::getKey)
+            .map(CommodityBoughtView::getCommodityType)
+            .map(CommodityTypeView::getKey)
             .get();
     }
 }

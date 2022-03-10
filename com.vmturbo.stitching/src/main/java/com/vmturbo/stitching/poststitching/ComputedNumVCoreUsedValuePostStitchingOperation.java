@@ -7,8 +7,8 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -49,8 +49,8 @@ public class ComputedNumVCoreUsedValuePostStitchingOperation implements PostStit
             @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
         entities.forEach(entity -> {
             resultBuilder.queueUpdateEntityAlone(entity,
-                entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
-                    .getCommoditySoldListBuilderList().stream()
+                entityToUpdate -> entityToUpdate.getTopologyEntityImpl()
+                    .getCommoditySoldListImplList().stream()
                         .filter(this::isNumVCoreCommodity)
                         .forEach(commSold -> {
                             double usedValue = usedValue(commSold, entityToUpdate);
@@ -69,7 +69,7 @@ public class ComputedNumVCoreUsedValuePostStitchingOperation implements PostStit
         return resultBuilder.build();
     }
 
-    private boolean isNumVCoreCommodity(@Nonnull final TopologyDTO.CommoditySoldDTO.Builder commodity) {
+    private boolean isNumVCoreCommodity(@Nonnull final CommoditySoldView commodity) {
         return commodity.getCommodityType().getType() == CommodityType.NUM_VCORE_VALUE;
     }
 
@@ -80,7 +80,7 @@ public class ComputedNumVCoreUsedValuePostStitchingOperation implements PostStit
      * @param seller an entity that sells the commodity.
      * @return the computed sum used value.
      */
-    private double usedValue(@Nonnull final CommoditySoldDTO.Builder commSold,
+    private double usedValue(@Nonnull final CommoditySoldImpl commSold,
             @Nonnull final TopologyEntity seller) {
         return seller.getCommoditiesUsedByConsumers(commSold.getCommodityType())
             .mapToDouble(Double::doubleValue)

@@ -28,15 +28,18 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesC
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -100,13 +103,13 @@ public class TopologyEntityConstructor {
      *             entities
      */
     @Nonnull
-    public TopologyEntityDTO.Builder generateTopologyEntityBuilder(@Nonnull Template template,
-            @Nullable TopologyEntityDTO.Builder originalTopologyEntity,
+    public TopologyEntityImpl generateTopologyEntityBuilder(@Nonnull Template template,
+            @Nullable TopologyEntityImpl originalTopologyEntity,
             @Nonnull TemplateActionType actionType, @Nonnull IdentityProvider identityProvider,
             int entityType, @Nullable String nameSuffix) throws TopologyEntityConstructorException {
-        TopologyEntityDTO.Builder result = TopologyEntityDTO.newBuilder()
-                .setEntityState(EntityState.POWERED_ON).setAnalysisSettings(AnalysisSettings
-                        .newBuilder().setIsAvailableAsProvider(true).setShopTogether(true));
+        TopologyEntityImpl result = new TopologyEntityImpl()
+                .setEntityState(EntityState.POWERED_ON).setAnalysisSettings(new AnalysisSettingsImpl()
+                        .setIsAvailableAsProvider(true).setShopTogether(true));
 
         long oid = identityProvider.generateTopologyId();
         result.setOid(oid);
@@ -117,8 +120,8 @@ public class TopologyEntityConstructor {
         if (originalTopologyEntity != null) {
             // Modify original topology entity.
             if (actionType == TemplateActionType.REPLACE) {
-                originalTopologyEntity.getEditBuilder()
-                        .getReplacedBuilder().setReplacementId(oid);
+                originalTopologyEntity.getOrCreateEdit()
+                        .getOrCreateReplaced().setReplacementId(oid);
             }
 
             displayName += " " + originalTopologyEntity.getDisplayName();
@@ -153,17 +156,17 @@ public class TopologyEntityConstructor {
     }
 
     /**
-     * Get all {@link CommoditiesBoughtFromProvider} which list of commodity
+     * Get all {@link CommoditiesBoughtFromProviderView} which list of commodity
      * bought are active and have keys. And in new
-     * CommoditiesBoughtFromProvider, it will only keep commodity constraints.
+     * CommoditiesBoughtFromProviderView, it will only keep commodity constraints.
      *
-     * @param entityDTO {@link TopologyEntityDTO}
-     * @return a list of {@link CommoditiesBoughtFromProvider}, if input
+     * @param entityDTO {@link TopologyEntityImpl}
+     * @return a list of {@link CommoditiesBoughtFromProviderView}, if input
      *         entityDTO is null, it will return a empty list.
      */
     @Nonnull
-    public static List<CommoditiesBoughtFromProvider> getActiveCommoditiesWithKeysGroups(
-            @Nullable TopologyEntityDTO.Builder entityDTO) {
+    public static List<CommoditiesBoughtFromProviderView> getActiveCommoditiesWithKeysGroups(
+            @Nullable TopologyEntityImpl entityDTO) {
         if (entityDTO == null) {
             return Collections.emptyList();
         }
@@ -175,42 +178,42 @@ public class TopologyEntityConstructor {
     }
 
     /**
-     * return a new {@link CommoditiesBoughtFromProvider} which only keeps
+     * return a new {@link CommoditiesBoughtFromProviderView} which only keeps
      * commodity constraints, if there is no commodity constraints, it will
      * return Optional empty.
      *
      * @param commoditiesBoughtFromProvider origianl
-     *            {@link CommoditiesBoughtFromProvider}
-     * @return Optional of {@link CommoditiesBoughtFromProvider}
+     *            {@link CommoditiesBoughtFromProviderView}
+     * @return Optional of {@link CommoditiesBoughtFromProviderView}
      */
     @Nonnull
-    private static Optional<CommoditiesBoughtFromProvider> keepCommodityBoughtActiveWithKey(
-            @Nonnull final CommoditiesBoughtFromProvider commoditiesBoughtFromProvider) {
-        final List<CommodityBoughtDTO> commodityBoughtDTOS = commoditiesBoughtFromProvider
-                .getCommodityBoughtList().stream().filter(CommodityBoughtDTO::getActive)
+    private static Optional<CommoditiesBoughtFromProviderView> keepCommodityBoughtActiveWithKey(
+            @Nonnull final CommoditiesBoughtFromProviderView commoditiesBoughtFromProvider) {
+        final List<CommodityBoughtView> commodityBoughtViews = commoditiesBoughtFromProvider
+                .getCommodityBoughtList().stream().filter(CommodityBoughtView::getActive)
                 .filter(commodityBoughtDTO -> !commodityBoughtDTO.getCommodityType().getKey()
                         .isEmpty())
                 .collect(Collectors.toList());
-        return commodityBoughtDTOS.isEmpty() ? Optional.empty()
-                : Optional.of(CommoditiesBoughtFromProvider
-                        .newBuilder(commoditiesBoughtFromProvider).clearCommodityBought()
-                        .addAllCommodityBought(commodityBoughtDTOS).build());
+        return commodityBoughtViews.isEmpty() ? Optional.empty()
+                : Optional.of(new CommoditiesBoughtFromProviderImpl(commoditiesBoughtFromProvider)
+                    .clearCommodityBought()
+                    .addAllCommodityBought(commodityBoughtViews));
     }
 
     /**
-     * Get all {@link CommoditySoldDTO} which are active and have keys.
+     * Get all {@link CommoditySoldView} which are active and have keys.
      *
-     * @param entityDTO {@link TopologyEntityDTO}
-     * @return set of {@link CommoditySoldDTO}
+     * @param entityDTO {@link TopologyEntityImpl}
+     * @return set of {@link CommoditySoldView}
      */
     @Nonnull
-    public static Set<CommoditySoldDTO> getCommoditySoldConstraint(
-            @Nullable TopologyEntityDTO.Builder entityDTO) {
+    public static Set<CommoditySoldView> getCommoditySoldConstraint(
+            @Nullable TopologyEntityImpl entityDTO) {
         if (entityDTO == null) {
             return Collections.emptySet();
         }
         return entityDTO.getCommoditySoldListList().stream()
-                .filter(CommoditySoldDTO::getActive)
+                .filter(CommoditySoldView::getActive)
                 .filter(commoditySoldDTO -> !commoditySoldDTO.getCommodityType().getKey().isEmpty())
                 .collect(Collectors.toSet());
     }
@@ -219,26 +222,26 @@ public class TopologyEntityConstructor {
      * Add commodity sold and commodity bought constraints to
      * topologyEntityBuilder.
      *
-     * @param topologyEntityBuilder builder of {@link TopologyEntityDTO}.
+     * @param topologyEntityBuilder builder of {@link TopologyEntityImpl}.
      * @param commoditySoldConstraints a set of commodity sold constraints.
      * @param commodityBoughtConstraints a list of
-     *            {@link CommoditiesBoughtFromProvider} which only contains
+     *            {@link CommoditiesBoughtFromProviderView} which only contains
      *            commodity bought constraints.
      */
     public static void addCommodityConstraints(
-            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
-            @Nonnull final Set<CommoditySoldDTO> commoditySoldConstraints,
-            @Nonnull final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints) {
+            @Nonnull final TopologyEntityImpl topologyEntityBuilder,
+            @Nonnull final Set<CommoditySoldView> commoditySoldConstraints,
+            @Nonnull final List<CommoditiesBoughtFromProviderView> commodityBoughtConstraints) {
         topologyEntityBuilder.addAllCommoditySoldList(commoditySoldConstraints);
         // use linkedList here, since we need to remove first element after
         // copied the first element.
-        final ListMultimap<Integer, CommoditiesBoughtFromProvider> commoditiesBoughtConstraintsMap = LinkedListMultimap
+        final ListMultimap<Integer, CommoditiesBoughtFromProviderView> commoditiesBoughtConstraintsMap = LinkedListMultimap
                 .create();
         commodityBoughtConstraints.stream()
-                .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+                .filter(CommoditiesBoughtFromProviderView::hasProviderEntityType)
                 .forEach(commoditiesBought -> commoditiesBoughtConstraintsMap
                         .put(commoditiesBought.getProviderEntityType(), commoditiesBought));
-        final List<CommoditiesBoughtFromProvider> commoditiesBoughtWithConstraintsGroup = new ArrayList<>();
+        final List<CommoditiesBoughtFromProviderView> commoditiesBoughtWithConstraintsGroup = new ArrayList<>();
         topologyEntityBuilder.getCommoditiesBoughtFromProvidersList().stream()
                 .forEach(commoditiesBoughtGroup -> addCommodityBoughtConstraints(
                         commoditiesBoughtGroup, commoditiesBoughtWithConstraintsGroup,
@@ -254,51 +257,51 @@ public class TopologyEntityConstructor {
      * matched commodity bought group.
      *
      * @param commoditiesBoughtGroup topology entity's
-     *            {@link CommoditiesBoughtFromProvider}.
+     *            {@link CommoditiesBoughtFromProviderView}.
      * @param commoditiesBoughtWithConstraintsGroup all
-     *            {@link CommoditiesBoughtFromProvider}. which contains
+     *            {@link CommoditiesBoughtFromProviderView}. which contains
      *            commodity bought constraints.
      * @param commoditiesBoughtConstraintsMap contains all commodity bought
      *            constraints.
      */
     private static void addCommodityBoughtConstraints(
-            @Nonnull final CommoditiesBoughtFromProvider commoditiesBoughtGroup,
-            @Nonnull final List<CommoditiesBoughtFromProvider> commoditiesBoughtWithConstraintsGroup,
-            @Nonnull final ListMultimap<Integer, CommoditiesBoughtFromProvider> commoditiesBoughtConstraintsMap) {
+            @Nonnull final CommoditiesBoughtFromProviderView commoditiesBoughtGroup,
+            @Nonnull final List<CommoditiesBoughtFromProviderView> commoditiesBoughtWithConstraintsGroup,
+            @Nonnull final ListMultimap<Integer, CommoditiesBoughtFromProviderView> commoditiesBoughtConstraintsMap) {
         if (!commoditiesBoughtConstraintsMap
                 .containsKey(commoditiesBoughtGroup.getProviderEntityType())
                 || !commoditiesBoughtGroup.hasProviderEntityType()) {
             commoditiesBoughtWithConstraintsGroup.add(commoditiesBoughtGroup);
             return;
         }
-        final List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders = commoditiesBoughtConstraintsMap
+        final List<CommoditiesBoughtFromProviderView> commoditiesBoughtFromProviders = commoditiesBoughtConstraintsMap
                 .get(commoditiesBoughtGroup.getProviderEntityType());
         if (commoditiesBoughtFromProviders.isEmpty()) {
             commoditiesBoughtWithConstraintsGroup.add(commoditiesBoughtGroup);
             return;
         }
-        final CommoditiesBoughtFromProvider commoditiesBoughtConstraintsGroup = commoditiesBoughtFromProviders
+        final CommoditiesBoughtFromProviderView commoditiesBoughtConstraintsGroup = commoditiesBoughtFromProviders
                 .remove(0);
         boolean isContainsBicliqueCommodity = containsBicliqueCommodity(
                 commoditiesBoughtConstraintsGroup);
-        final CommoditiesBoughtFromProvider.Builder commoditiesBoughtWithConstraints = generateCommodityBoughtWithConstraints(
-                commoditiesBoughtGroup.toBuilder(), commoditiesBoughtConstraintsGroup);
+        final CommoditiesBoughtFromProviderImpl commoditiesBoughtWithConstraints = generateCommodityBoughtWithConstraints(
+                commoditiesBoughtGroup.copy(), commoditiesBoughtConstraintsGroup);
         if (isContainsBicliqueCommodity) {
             commoditiesBoughtWithConstraints
                     .setProviderId(commoditiesBoughtConstraintsGroup.getProviderId());
         }
-        commoditiesBoughtWithConstraintsGroup.add(commoditiesBoughtWithConstraints.build());
+        commoditiesBoughtWithConstraintsGroup.add(commoditiesBoughtWithConstraints);
     }
 
     /**
      * Check if contains DSPM or DATASTORE commodity, if yes, we need to keep
      * the provider id in order to get correct biclique key in Market component.
      *
-     * @param commoditiesBoughtGroup {@link CommoditiesBoughtFromProvider}.
+     * @param commoditiesBoughtGroup {@link CommoditiesBoughtFromProviderView}.
      * @return Boolean indicate if contains DSPM or DATASTORE commodity.
      */
     private static boolean containsBicliqueCommodity(
-            @Nonnull final CommoditiesBoughtFromProvider commoditiesBoughtGroup) {
+            @Nonnull final CommoditiesBoughtFromProviderView commoditiesBoughtGroup) {
         return commoditiesBoughtGroup.getCommodityBoughtList().stream()
                 .anyMatch(commodityBoughtDTO -> DSPM_OR_DATASTORE
                         .contains(commodityBoughtDTO.getCommodityType().getType()));
@@ -312,21 +315,21 @@ public class TopologyEntityConstructor {
      * @param commoditiesBoughtGroup need to keep commodity bought constraints.
      * @param commoditiesBoughtConstraintsGroup contains commodity bought
      *            constraints.
-     * @return {@link CommoditiesBoughtFromProvider.Builder}
+     * @return {@link CommoditiesBoughtFromProviderImpl}
      */
-    private static CommoditiesBoughtFromProvider.Builder generateCommodityBoughtWithConstraints(
-            @Nonnull final CommoditiesBoughtFromProvider.Builder commoditiesBoughtGroup,
-            @Nonnull final CommoditiesBoughtFromProvider commoditiesBoughtConstraintsGroup) {
-        final List<CommodityBoughtDTO> commodityBoughtDTOS = new ArrayList<>();
-        final ListMultimap<Integer, CommodityBoughtDTO> commodityTypeToCommodityBoughtDTO = LinkedListMultimap
+    private static CommoditiesBoughtFromProviderImpl generateCommodityBoughtWithConstraints(
+            @Nonnull final CommoditiesBoughtFromProviderImpl commoditiesBoughtGroup,
+            @Nonnull final CommoditiesBoughtFromProviderView commoditiesBoughtConstraintsGroup) {
+        final List<CommodityBoughtView> commodityBoughtDTOS = new ArrayList<>();
+        final ListMultimap<Integer, CommodityBoughtView> commodityTypeToCommodityBoughtDTO = LinkedListMultimap
                 .create();
         commoditiesBoughtConstraintsGroup.getCommodityBoughtList().stream()
                 .forEach(commodityBoughtDTO -> commodityTypeToCommodityBoughtDTO
                         .put(commodityBoughtDTO.getCommodityType().getType(), commodityBoughtDTO));
         commoditiesBoughtGroup.getCommodityBoughtList().stream()
                 .map(commodityBoughtDTO -> generateCommodityBoughtDTOWithKeys(
-                        commodityBoughtDTO.toBuilder(), commodityTypeToCommodityBoughtDTO))
-                .map(Builder::build).forEach(commodityBoughtDTOS::add);
+                        commodityBoughtDTO.copy(), commodityTypeToCommodityBoughtDTO))
+                .map(CommodityBoughtImpl::new).forEach(commodityBoughtDTOS::add);
         commodityTypeToCommodityBoughtDTO.asMap().entrySet().stream().map(Entry::getValue)
                 .flatMap(Collection::stream).forEach(commodityBoughtDTOS::add);
         return commoditiesBoughtGroup.clearCommodityBought()
@@ -337,19 +340,19 @@ public class TopologyEntityConstructor {
      * If commodityTypeToCommodityBoughtDTO has same commodity type as
      * commodityBoughtDTO, it will only copy over commodity key.
      *
-     * @param commodityBoughtDTO {@link CommodityBoughtDTO.Builder}.
+     * @param commodityBoughtDTO {@link CommodityBoughtImpl}.
      * @param commodityTypeToCommodityBoughtDTO a list of Multimap which key is
      *            commodity type, value is commodity bought constraints.
-     * @return {@link CommodityBoughtDTO.Builder}.
+     * @return {@link CommodityBoughtImpl}.
      */
-    private static CommodityBoughtDTO.Builder generateCommodityBoughtDTOWithKeys(
-            @Nonnull final CommodityBoughtDTO.Builder commodityBoughtDTO,
-            @Nonnull final ListMultimap<Integer, CommodityBoughtDTO> commodityTypeToCommodityBoughtDTO) {
+    private static CommodityBoughtImpl generateCommodityBoughtDTOWithKeys(
+            @Nonnull final CommodityBoughtImpl commodityBoughtDTO,
+            @Nonnull final ListMultimap<Integer, CommodityBoughtView> commodityTypeToCommodityBoughtDTO) {
         final int commodityType = commodityBoughtDTO.getCommodityType().getType();
         if (!commodityTypeToCommodityBoughtDTO.containsKey(commodityType)) {
             return commodityBoughtDTO;
         }
-        final List<CommodityBoughtDTO> commodityBoughtDTOS = commodityTypeToCommodityBoughtDTO
+        final List<CommodityBoughtView> commodityBoughtDTOS = commodityTypeToCommodityBoughtDTO
                 .get(commodityType);
         if (commodityBoughtDTOS.isEmpty()) {
             return commodityBoughtDTO;
@@ -357,8 +360,8 @@ public class TopologyEntityConstructor {
 
         // remove related commodityBoughtDTO, since its key has been copied.
         final String commodityKey = commodityBoughtDTOS.remove(0).getCommodityType().getKey();
-        final CommodityType commodityTypeWithKey = commodityBoughtDTO.getCommodityType().toBuilder()
-                .setKey(commodityKey).build();
+        final CommodityTypeView commodityTypeWithKey = commodityBoughtDTO.getCommodityType().copy()
+                .setKey(commodityKey);
         return commodityBoughtDTO.clearCommodityType().setCommodityType(commodityTypeWithKey);
     }
 
@@ -444,13 +447,13 @@ public class TopologyEntityConstructor {
      * @throws TopologyEntityConstructorException error processing access commodity
      */
     public static void updateRelatedEntityAccesses(
-            @Nonnull TopologyEntityDTO.Builder originalEntity,
-            @Nonnull TopologyEntityDTO.Builder replacementEntity,
-            @Nonnull Collection<CommoditySoldDTO> commoditySoldConstraints,
+            @Nonnull TopologyEntityImpl originalEntity,
+            @Nonnull TopologyEntityImpl replacementEntity,
+            @Nonnull Collection<CommoditySoldView> commoditySoldConstraints,
             @Nonnull Map<Long, TopologyEntity.Builder> topology)
             throws TopologyEntityConstructorException {
 
-        for (CommoditySoldDTO commoditySoldConstraint : commoditySoldConstraints) {
+        for (CommoditySoldView commoditySoldConstraint : commoditySoldConstraints) {
             if (!commoditySoldConstraint.hasAccesses()) {
                 continue;
             }
@@ -461,7 +464,7 @@ public class TopologyEntityConstructor {
                 continue;
             }
 
-            TopologyEntityDTO.Builder relatedEntity = entity.getEntityBuilder();
+            TopologyEntityImpl relatedEntity = entity.getTopologyEntityImpl();
             addAccess(originalEntity, replacementEntity, relatedEntity);
         }
     }
@@ -474,10 +477,10 @@ public class TopologyEntityConstructor {
      * @param relatedEntity related entity
      * @throws TopologyEntityConstructorException error adding commodity
      */
-    public static void addAccess(TopologyEntityDTO.Builder originalEntity,
-            TopologyEntityDTO.Builder replacementEntity, TopologyEntityDTO.Builder relatedEntity)
+    public static void addAccess(TopologyEntityImpl originalEntity,
+            TopologyEntityImpl replacementEntity, TopologyEntityImpl relatedEntity)
             throws TopologyEntityConstructorException {
-        CommoditySoldDTO commodityAccessing = createRelatedEntityAccesses(originalEntity,
+        CommoditySoldView commodityAccessing = createRelatedEntityAccesses(originalEntity,
                 replacementEntity, relatedEntity);
 
         // Do not add the same commodity more then once
@@ -496,9 +499,9 @@ public class TopologyEntityConstructor {
      * @param comm access commodity
      * @return true, if has commodity
      */
-    public static boolean hasCommodity(@Nonnull TopologyEntityDTO.Builder entity,
-            @Nonnull CommoditySoldDTO comm) {
-        return entity.getCommoditySoldListBuilderList().stream()
+    public static boolean hasCommodity(@Nonnull TopologyEntityView entity,
+            @Nonnull CommoditySoldView comm) {
+        return entity.getCommoditySoldListList().stream()
                 .anyMatch(c -> c.getCommodityType().getType() == comm.getCommodityType().getType()
                         && c.getCommodityType().getKey().equals(comm.getCommodityType().getKey()));
     }
@@ -522,14 +525,14 @@ public class TopologyEntityConstructor {
      * @throws TopologyEntityConstructorException error processing access commodity
      */
     @Nullable
-    private static CommoditySoldDTO createRelatedEntityAccesses(
-            @Nonnull TopologyEntityDTO.Builder originalEntity,
-            @Nonnull TopologyEntityDTO.Builder replacementEntity,
-            @Nonnull TopologyEntityDTO.Builder relatedEntity)
+    private static CommoditySoldView createRelatedEntityAccesses(
+            @Nonnull TopologyEntityImpl originalEntity,
+            @Nonnull TopologyEntityImpl replacementEntity,
+            @Nonnull TopologyEntityImpl relatedEntity)
             throws TopologyEntityConstructorException {
-        List<CommoditySoldDTO.Builder> commoditiesAccessingOriginals = relatedEntity
-                .getCommoditySoldListBuilderList().stream()
-                .filter(CommoditySoldDTO.Builder::hasAccesses)
+        List<CommoditySoldImpl> commoditiesAccessingOriginals = relatedEntity
+                .getCommoditySoldListImplList().stream()
+                .filter(CommoditySoldView::hasAccesses)
                 .filter(relatedEntityCommodity -> relatedEntityCommodity
                         .getAccesses() == originalEntity.getOid())
                 .collect(Collectors.toList());
@@ -546,15 +549,15 @@ public class TopologyEntityConstructor {
                     + relatedEntity.getDisplayName());
         }
 
-        CommoditySoldDTO.Builder commodityAccessingOriginal = commoditiesAccessingOriginals.get(0);
+        CommoditySoldImpl commodityAccessingOriginal = commoditiesAccessingOriginals.get(0);
 
         // In addition to accessing the original, the related entity should also be able to
         // access the replacement. Keep the relation to the original as well because the original
         // remains in the topology until scoping happens in the market component.
-        CommoditySoldDTO.Builder commodityAccessing = commodityAccessingOriginal.clone();
+        CommoditySoldImpl commodityAccessing = commodityAccessingOriginal.copy();
         setKeyAndAccess(commodityAccessing, replacementEntity.getOid(), null);
 
-        return commodityAccessing.build();
+        return commodityAccessing;
     }
 
     /**
@@ -567,12 +570,12 @@ public class TopologyEntityConstructor {
      *            on OID
      * @return access commodity
      */
-    public static CommoditySoldDTO.Builder createAccessCommodity(
+    public static CommoditySoldImpl createAccessCommodity(
             @Nonnull CommodityDTO.CommodityType commType, long oid, @Nullable String key) {
-        TopologyDTO.CommodityType.Builder commTypeBuilder = TopologyDTO.CommodityType.newBuilder()
+        CommodityTypeImpl commTypeImpl = new CommodityTypeImpl()
                 .setType(commType.getNumber());
-        CommoditySoldDTO.Builder result = CommoditySoldDTO.newBuilder()
-                .setCommodityType(commTypeBuilder).setIsResizeable(false).setIsThin(true)
+        CommoditySoldImpl result = new CommoditySoldImpl()
+                .setCommodityType(commTypeImpl).setIsResizeable(false).setIsThin(true)
                 .setActive(true).setUsed(SDKConstants.ACCESS_COMMODITY_USED)
                 .setCapacity(SDKConstants.ACCESS_COMMODITY_CAPACITY);
         setKeyAndAccess(result, oid, key);
@@ -594,13 +597,13 @@ public class TopologyEntityConstructor {
      * @param accessesOid the entity being accessed
      * @param key commodity key. If key is null, it's auto-generated.
      */
-    private static void setKeyAndAccess(@Nonnull CommoditySoldDTO.Builder commodity,
+    private static void setKeyAndAccess(@Nonnull CommoditySoldImpl commodity,
             long accessesOid, @Nullable String key) {
         CommodityDTO.CommodityType commType = convertCommodityType(commodity.getCommodityType());
         String newKey = key != null ? key
                 : COMMODITY_KEY_PREFIX + commType.name() + COMMODITY_KEY_SEPARATOR
                         + accessesOid;
-        commodity.getCommodityTypeBuilder().setKey(newKey);
+        commodity.getOrCreateCommodityType().setKey(newKey);
 
         if (commType == CommodityDTO.CommodityType.DATASTORE
                 || commType == CommodityDTO.CommodityType.DSPM_ACCESS) {
@@ -610,13 +613,13 @@ public class TopologyEntityConstructor {
 
     @Nonnull
     protected static CommodityDTO.CommodityType convertCommodityType(
-            @Nonnull TopologyDTO.CommodityType commodityType) {
+            @Nonnull CommodityTypeView commodityType) {
         return CommodityDTO.CommodityType.internalGetValueMap()
                 .findValueByNumber(commodityType.getType());
     }
 
-    protected static CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, double used) {
-        return createCommodityBoughtDTO(commodityType, null, used);
+    protected static CommodityBoughtView createCommodityBoughtView(int commodityType, double used) {
+        return createCommodityBoughtView(commodityType, null, used);
     }
 
     /**
@@ -627,17 +630,17 @@ public class TopologyEntityConstructor {
      * @param used used value
      * @return commodity DTO
      */
-    public static CommodityBoughtDTO createCommodityBoughtDTO(int commodityType,
-            @Nullable String key, double used) {
-        final TopologyDTO.CommodityType.Builder commType = TopologyDTO.CommodityType.newBuilder()
+    public static CommodityBoughtView createCommodityBoughtView(
+        int commodityType, @Nullable String key, double used) {
+        final CommodityTypeImpl commType = new CommodityTypeImpl()
                 .setType(commodityType);
 
         if (key != null) {
             commType.setKey(key);
         }
 
-        return CommodityBoughtDTO.newBuilder().setUsed(used).setActive(true)
-                .setCommodityType(commType).build();
+        return new CommodityBoughtImpl().setUsed(used).setActive(true)
+                .setCommodityType(commType);
     }
 
     /**
@@ -646,43 +649,43 @@ public class TopologyEntityConstructor {
      * @param commodityType commodity type
      * @param capacity capacity
      * @param isResizable is resizable
-     * @return {@link CommoditySoldDTO}
+     * @return {@link CommoditySoldView}
      */
-    public static CommoditySoldDTO createCommoditySoldDTO(int commodityType,
+    public static CommoditySoldView createCommoditySoldDTO(int commodityType,
             @Nullable Double capacity, boolean isResizable) {
-        final CommoditySoldDTO.Builder builder = CommoditySoldDTO.newBuilder();
-        builder.setActive(true)
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(commodityType));
+        final CommoditySoldImpl commoditySold = new CommoditySoldImpl();
+        commoditySold.setActive(true)
+                .setCommodityType(new CommodityTypeImpl().setType(commodityType));
 
         if (capacity != null) {
-            builder.setCapacity(capacity);
+            commoditySold.setCapacity(capacity);
         }
 
-        builder.setIsResizeable(isResizable);
-        return builder.build();
+        commoditySold.setIsResizeable(isResizable);
+        return commoditySold;
     }
 
     /**
-     * Create commodity sold DTO. {@link CommoditySoldDTO} from template is not
+     * Create commodity sold DTO. {@link CommoditySoldView} from template is not
      * resizeable.
      *
      * @param commodityType commodity type
      * @param capacity capacity
-     * @return {@link CommoditySoldDTO}
+     * @return {@link CommoditySoldView}
      */
-    public static CommoditySoldDTO createCommoditySoldDTO(int commodityType,
+    public static CommoditySoldView createCommoditySoldDTO(int commodityType,
             @Nullable Double capacity) {
         return createCommoditySoldDTO(commodityType, capacity, false);
     }
 
     /**
-     * Create commodity sold DTO. {@link CommoditySoldDTO} from template is not
+     * Create commodity sold DTO. {@link CommoditySoldView} from template is not
      * resizeable.
      *
      * @param commodityType commodity type.
-     * @return {@link CommoditySoldDTO}
+     * @return {@link CommoditySoldView}
      */
-    public static CommoditySoldDTO createCommoditySoldDTO(int commodityType) {
+    public static CommoditySoldView createCommoditySoldDTO(int commodityType) {
         return createCommoditySoldDTO(commodityType, null, false);
     }
 
@@ -696,20 +699,20 @@ public class TopologyEntityConstructor {
      * @throws TopologyEntityConstructorException error processing template
      */
     protected static void addStorageCommoditiesSold(
-            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+            @Nonnull final TopologyEntityImpl topologyEntityBuilder,
             @Nonnull Map<String, String> fieldNameValueMap, boolean isResizable)
             throws TopologyEntityConstructorException {
         Double diskSize = getTemplateValue(fieldNameValueMap, TemplateProtoUtil.STORAGE_DISK_SIZE);
         Double diskIops = getTemplateValue(fieldNameValueMap, TemplateProtoUtil.STORAGE_DISK_IOPS);
 
-        CommoditySoldDTO storageAmoutCommodity = createCommoditySoldDTO(
+        CommoditySoldView storageAmoutCommodity = createCommoditySoldDTO(
                 CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, diskSize, isResizable);
-        CommoditySoldDTO storageAccessCommodity = createCommoditySoldDTO(
+        CommoditySoldView storageAccessCommodity = createCommoditySoldDTO(
                 CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, diskIops, isResizable);
 
         // Since storage templates don't have a latency value, but VMs do buy a
         // latency commodity, a sold commodity is added.
-        CommoditySoldDTO storageLatencyCommodity = createCommoditySoldDTO(
+        CommoditySoldView storageLatencyCommodity = createCommoditySoldDTO(
                 CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE,
                 EntitySettingSpecs.LatencyCapacity.getNumericDefault(), isResizable);
 
@@ -717,7 +720,7 @@ public class TopologyEntityConstructor {
         // provisioned commodities. By leaving capacities unset, they will be set later in the
         // topology pipeline when settings are available by the
         // OverprovisionCapacityPostStitchingOperation.
-        CommoditySoldDTO storageProvisionedCommodity = createCommoditySoldDTO(
+        CommoditySoldView storageProvisionedCommodity = createCommoditySoldDTO(
                 CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE, null, isResizable);
 
         topologyEntityBuilder.addCommoditySoldList(storageAccessCommodity)
@@ -736,26 +739,26 @@ public class TopologyEntityConstructor {
      * @throws TopologyEntityConstructorException error processing template
      */
     protected static void addStorageCommoditiesBought(
-            @Nonnull TopologyEntityDTO.Builder topologyEntityBuilder,
+            @Nonnull TopologyEntityImpl topologyEntityBuilder,
             long providerId, @Nonnull Map<String, String> fieldNameValueMap)
             throws TopologyEntityConstructorException {
 
         Double diskSize = getTemplateValue(fieldNameValueMap, TemplateProtoUtil.STORAGE_DISK_SIZE);
         Double diskIops = getTemplateValue(fieldNameValueMap, TemplateProtoUtil.STORAGE_DISK_IOPS);
 
-        CommodityBoughtDTO storageAmoutCommodity = createCommodityBoughtDTO(
+        CommodityBoughtView storageAmoutCommodity = createCommodityBoughtView(
                 CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, diskSize);
-        CommodityBoughtDTO storageAccessCommodity = createCommodityBoughtDTO(
+        CommodityBoughtView storageAccessCommodity = createCommodityBoughtView(
                 CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, diskIops);
 
-        CommodityBoughtDTO storageLatencyCommodity =
-                createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE, 0);
-        CommodityBoughtDTO storageProvisionedCommodity =
-                createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE,
+        CommodityBoughtView storageLatencyCommodity =
+                createCommodityBoughtView(CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE, 0);
+        CommodityBoughtView storageProvisionedCommodity =
+                createCommodityBoughtView(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE,
                         diskSize);
 
-        CommoditiesBoughtFromProvider.Builder commoditiesBoughtGroup = CommoditiesBoughtFromProvider
-                .newBuilder().setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+        CommoditiesBoughtFromProviderImpl commoditiesBoughtGroup = new CommoditiesBoughtFromProviderImpl()
+                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                 .setProviderId(providerId);
 
         commoditiesBoughtGroup.addCommodityBought(storageAmoutCommodity)
@@ -763,6 +766,6 @@ public class TopologyEntityConstructor {
                 .addCommodityBought(storageLatencyCommodity)
                 .addCommodityBought(storageProvisionedCommodity);
 
-        topologyEntityBuilder.addCommoditiesBoughtFromProviders(commoditiesBoughtGroup.build());
+        topologyEntityBuilder.addCommoditiesBoughtFromProviders(commoditiesBoughtGroup);
     }
 }

@@ -12,13 +12,10 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTOOrBuilder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfoOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualMachineInfoView;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -54,7 +51,7 @@ import com.vmturbo.stitching.TopologyEntity;
  **/
 public abstract class CpuConsistentScalingFactorPostStitchingOperation implements PostStitchingOperation {
 
-    private static final float DEFAULT_CONSISTENT_SCALING_FACTOR = AnalysisSettings.newBuilder()
+    private static final float DEFAULT_CONSISTENT_SCALING_FACTOR = AnalysisSettingsView.getDefaultInstance()
         .getConsistentScalingFactor();
 
     private final boolean enableConsistentScalingOnHeterogeneousProviders;
@@ -101,13 +98,12 @@ public abstract class CpuConsistentScalingFactorPostStitchingOperation implement
             return Optional.empty();
         }
 
-        final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
+        final TopologyEntityImpl entityBuilder = entity.getTopologyEntityImpl();
         return getCfsCommoditySold(entityBuilder).flatMap(commSold ->
-            getMillicorePerMHz(entityBuilder, commSold).map(millicorePerMhz -> {
-                return e -> e.getTopologyEntityDtoBuilder()
-                    .getAnalysisSettingsBuilder()
-                    .setConsistentScalingFactor(millicorePerMhz.floatValue());
-        }));
+            getMillicorePerMHz(entityBuilder, commSold)
+                .map(millicorePerMhz -> e -> e.getTopologyEntityImpl()
+                .getOrCreateAnalysisSettings()
+                .setConsistentScalingFactor(millicorePerMhz.floatValue())));
     }
 
     /**
@@ -116,8 +112,8 @@ public abstract class CpuConsistentScalingFactorPostStitchingOperation implement
      * @param entityBuilder The entity builder for the entity whose CSF should be calculated.
      * @return An optional for the commodity sold used for calculating the consistent scaling factor.
      */
-    protected abstract Optional<CommoditySoldDTO> getCfsCommoditySold(
-        @Nonnull TopologyEntityDTO.Builder entityBuilder);
+    protected abstract Optional<CommoditySoldView> getCfsCommoditySold(
+        @Nonnull TopologyEntityImpl entityBuilder);
 
     /**
      * Get the millicore/mHz value for the commodity sold.
@@ -126,8 +122,8 @@ public abstract class CpuConsistentScalingFactorPostStitchingOperation implement
      * @param commSold the commodity sold used for calculating the consistent scaling factor.
      * @return An optional for the millicore/mhz for the consistent scaling factor.
      */
-    protected abstract Optional<Double> getMillicorePerMHz(@Nonnull TopologyEntityDTO.Builder entityBuilder,
-                                                           @Nonnull CommoditySoldDTO commSold);
+    protected abstract Optional<Double> getMillicorePerMHz(@Nonnull TopologyEntityImpl entityBuilder,
+                                                           @Nonnull CommoditySoldView commSold);
 
     /**
      * Interface for setting consistent scaling factor.
@@ -170,8 +166,8 @@ public abstract class CpuConsistentScalingFactorPostStitchingOperation implement
         }
 
         @Override
-        protected Optional<CommoditySoldDTO> getCfsCommoditySold(
-            @Nonnull final TopologyEntityDTO.Builder entityBuilder) {
+        protected Optional<CommoditySoldView> getCfsCommoditySold(
+            @Nonnull final TopologyEntityImpl entityBuilder) {
             return entityBuilder.getCommoditySoldListList().stream()
                 .filter(sold -> sold.getCommodityType().getType() == VCPU_VALUE)
                 .findAny();
@@ -179,11 +175,11 @@ public abstract class CpuConsistentScalingFactorPostStitchingOperation implement
 
         @Override
         protected Optional<Double> getMillicorePerMHz(
-            @Nonnull final TopologyEntityDTO.Builder entityBuilder,
-            @Nonnull final CommoditySoldDTO commSold) {
+            @Nonnull final TopologyEntityImpl entityBuilder,
+            @Nonnull final CommoditySoldView commSold) {
             if (entityBuilder.hasTypeSpecificInfo()
                 && entityBuilder.getTypeSpecificInfo().hasVirtualMachine()) {
-                final VirtualMachineInfo vmInfo = entityBuilder.getTypeSpecificInfo().getVirtualMachine();
+                final VirtualMachineInfoView vmInfo = entityBuilder.getTypeSpecificInfo().getVirtualMachine();
                 if (vmInfo.hasNumCpus()) {
                     return Optional.of(computeMillicoreConsistentScalingFactor(vmInfo, commSold));
                 }
@@ -221,16 +217,16 @@ public abstract class CpuConsistentScalingFactorPostStitchingOperation implement
         }
 
         @Override
-        protected Optional<CommoditySoldDTO> getCfsCommoditySold(@Nonnull Builder entityBuilder) {
-            return entityBuilder.getCommoditySoldListList().stream()
+        protected Optional<CommoditySoldView> getCfsCommoditySold(@Nonnull TopologyEntityImpl entity) {
+            return entity.getCommoditySoldListList().stream()
                 .filter(sold -> sold.getCommodityType().getType() == VCPU_LIMIT_QUOTA_VALUE
                     || sold.getCommodityType().getType() == VCPU_REQUEST_QUOTA_VALUE)
                 .findAny();
         }
 
         @Override
-        protected Optional<Double> getMillicorePerMHz(@Nonnull Builder entityBuilder,
-                                                      @Nonnull CommoditySoldDTO commSold) {
+        protected Optional<Double> getMillicorePerMHz(@Nonnull TopologyEntityImpl entity,
+                                                      @Nonnull CommoditySoldView commSold) {
             return commSold.getScalingFactor() > 0
                 ? Optional.of(1 / commSold.getScalingFactor())
                 : Optional.empty();
@@ -254,8 +250,8 @@ public abstract class CpuConsistentScalingFactorPostStitchingOperation implement
      */
     @VisibleForTesting
     static double computeMillicoreConsistentScalingFactor(
-        @Nonnull final VirtualMachineInfoOrBuilder vmInfo,
-        @Nonnull final CommoditySoldDTOOrBuilder vcpu) {
+        @Nonnull final VirtualMachineInfoView vmInfo,
+        @Nonnull final CommoditySoldView vcpu) {
         double denominator = vcpu.getCapacity() * vcpu.getScalingFactor();
         return denominator == 0
             ? DEFAULT_CONSISTENT_SCALING_FACTOR

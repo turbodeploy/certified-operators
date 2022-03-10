@@ -15,7 +15,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -28,7 +28,7 @@ import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestRe
 
 public class StorageAccessPostStitchingOpTest {
 
-    private final CommoditySoldDTO emptyCommodity = CommoditySoldBuilder.newBuilder()
+    private final CommoditySoldView emptyCommodity = CommoditySoldBuilder.newBuilder()
         .withType(CommodityType.STORAGE_ACCESS).build();
 
     private EntitySettingsCollection settingsMock = mock(EntitySettingsCollection.class);
@@ -61,8 +61,8 @@ public class StorageAccessPostStitchingOpTest {
     @Before
     public void setup() {
 
-        when(settingsMock.getEntitySetting(any(), any())).thenReturn(Optional.empty());
-        when(settingsMock.getEntityUserSetting(any(), any())).thenReturn(Optional.empty());
+        when(settingsMock.getEntitySetting(any(TopologyEntity.class), any())).thenReturn(Optional.empty());
+        when(settingsMock.getEntityUserSetting(any(TopologyEntity.class), any())).thenReturn(Optional.empty());
         when(diskCapacityCalculator.calculateCapacity(any(), any(), any())).thenReturn(0.0);
 
         resultBuilder = new UnitTestResultBuilder();
@@ -80,9 +80,9 @@ public class StorageAccessPostStitchingOpTest {
         final TopologyEntity te = baseTe.withCommoditiesSold(CommoditySoldBuilder.newBuilder()
                 .withType(CommodityType.STORAGE_ACCESS).withCapacity(BAD_VALUE_1)).build();
 
-        when(settingsMock.getEntityUserSetting(any(), eq(EntitySettingSpecs.IOPSCapacity)))
+        when(settingsMock.getEntityUserSetting(any(TopologyEntity.class), eq(EntitySettingSpecs.IOPSCapacity)))
             .thenReturn(Optional.of(makeNumericSetting(GOOD_VALUE)));
-        when(settingsMock.getEntitySetting(any(), eq(EntitySettingSpecs.IOPSCapacity)))
+        when(settingsMock.getEntitySetting(any(TopologyEntity.class), eq(EntitySettingSpecs.IOPSCapacity)))
             .thenReturn(Optional.of(makeNumericSetting(GOOD_VALUE)));
         when(diskCapacityCalculator.calculateCapacity(any(), any(), any())).thenReturn((double)BAD_VALUE_2);
 
@@ -90,7 +90,7 @@ public class StorageAccessPostStitchingOpTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         assertEquals(1, resultBuilder.getChanges().size());
-        assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), DELTA);
+        assertEquals(GOOD_VALUE, te.getTopologyEntityImpl().getCommoditySoldList(0).getCapacity(), DELTA);
     }
 
     @Test
@@ -100,9 +100,9 @@ public class StorageAccessPostStitchingOpTest {
             .withCommoditiesSold(CommoditySoldBuilder.newBuilder()
                 .withType(CommodityType.STORAGE_ACCESS).withCapacity(GOOD_VALUE)).build();
 
-        when(settingsMock.getEntityUserSetting(any(), eq(EntitySettingSpecs.IOPSCapacity)))
+        when(settingsMock.getEntityUserSetting(any(TopologyEntity.class), eq(EntitySettingSpecs.IOPSCapacity)))
             .thenReturn(Optional.empty());
-        when(settingsMock.getEntitySetting(any(), eq(EntitySettingSpecs.IOPSCapacity)))
+        when(settingsMock.getEntitySetting(any(TopologyEntity.class), eq(EntitySettingSpecs.IOPSCapacity)))
             .thenReturn(Optional.of(makeNumericSetting(BAD_VALUE_1)));
         when(diskCapacityCalculator.calculateCapacity(any(), any(), any())).thenReturn((double)BAD_VALUE_2);
 
@@ -110,7 +110,7 @@ public class StorageAccessPostStitchingOpTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         assertTrue(resultBuilder.getChanges().isEmpty());
-        assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), DELTA);
+        assertEquals(GOOD_VALUE, te.getTopologyEntityImpl().getCommoditySoldList(0).getCapacity(), DELTA);
     }
 
     @Test
@@ -121,7 +121,7 @@ public class StorageAccessPostStitchingOpTest {
                 .withType(CommodityType.STORAGE_ACCESS)).build();
 
 
-        when(settingsMock.getEntitySetting(any(), any()))
+        when(settingsMock.getEntitySetting(any(TopologyEntity.class), any()))
             .thenReturn(Optional.of(makeNumericSetting(BAD_VALUE_1)));
         when(diskCapacityCalculator.calculateCapacity(any(), any(), any())).thenReturn((double)GOOD_VALUE);
 
@@ -129,14 +129,14 @@ public class StorageAccessPostStitchingOpTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         assertEquals(1, resultBuilder.getChanges().size());
-        assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), DELTA);
+        assertEquals(GOOD_VALUE, te.getTopologyEntityImpl().getCommoditySoldList(0).getCapacity(), DELTA);
     }
 
     @Test
     public void testUseDefaultIopsSettingWhenNoOtherValue() {
 
         final Setting mainSetting = makeNumericSetting(GOOD_VALUE);
-        when(settingsMock.getEntitySetting(any(), any())).thenReturn(Optional.of(mainSetting));
+        when(settingsMock.getEntitySetting(any(TopologyEntity.class), any())).thenReturn(Optional.of(mainSetting));
 
         final TopologyEntity te = baseTe.withCommoditiesSold(emptyCommodity).build();
 
@@ -144,7 +144,7 @@ public class StorageAccessPostStitchingOpTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         assertEquals(1, resultBuilder.getChanges().size());
-        assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), DELTA);
+        assertEquals(GOOD_VALUE, te.getTopologyEntityImpl().getCommoditySoldList(0).getCapacity(), DELTA);
 
     }
 
@@ -191,6 +191,6 @@ public class StorageAccessPostStitchingOpTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
         // check capacity which should be sum of capacities of two disk arrays
         assertEquals(DISK_ARRAY_1_STORAGE_ACCESS_CAPACITY + DISK_ARRAY_2_STORAGE_ACCESS_CAPACITY,
-                storageController.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), DELTA);
+                storageController.getTopologyEntityImpl().getCommoditySoldList(0).getCapacity(), DELTA);
     }
 }

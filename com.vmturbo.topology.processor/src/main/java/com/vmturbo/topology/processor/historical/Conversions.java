@@ -6,12 +6,13 @@ import java.util.List;
 import com.vmturbo.common.protobuf.topology.HistoricalInfo.HistoricalInfoDTO;
 import com.vmturbo.common.protobuf.topology.HistoricalInfo.HistoricalInfoDTO.HistoricalSEInfoDTO;
 import com.vmturbo.common.protobuf.topology.HistoricalInfo.HistoricalInfoDTO.HistoricalSEInfoDTO.HistoricalCommInfoDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO;
 
 public class Conversions {
 
     public static HistoricalCommodityInfo convertFromDto(HistoricalCommInfoDTO source) {
         HistoricalCommodityInfo histCommInfo = new HistoricalCommodityInfo();
-        histCommInfo.setCommodityTypeAndKey(source.getCommType());
+        histCommInfo.setCommodityTypeAndKey(TopologyPOJO.CommodityTypeImpl.fromProto(source.getCommType()));
         histCommInfo.setSourceId(source.getSourceId());
         histCommInfo.setMatched(source.getMatched());
         histCommInfo.setUpdated(source.getExisting());
@@ -41,7 +42,7 @@ public class Conversions {
 
     public static HistoricalCommInfoDTO convertToDto(HistoricalCommodityInfo source) {
         return HistoricalCommInfoDTO.newBuilder()
-                .setCommType(source.getCommodityTypeAndKey())
+                .setCommType(source.getCommodityTypeAndKey().toProto())
                 .setSourceId(source.getSourceId())
                 .setMatched(source.getMatched())
                 .setExisting(source.getUpdated())

@@ -9,7 +9,7 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.UtilizationDataView;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
@@ -100,7 +100,7 @@ public class PercentileCommodityData
         try {
             // do not update values in plan context, only set the result
             if (!context.isPlan()) {
-                UtilizationData utilizationData = commodityFieldsAccessor.getUtilizationData(field);
+                UtilizationDataView utilizationData = commodityFieldsAccessor.getUtilizationData(field);
                 if (utilizationData != null) {
                     final int pointCount = utilizationData.getPointCount();
                     if (pointCount > 0) {

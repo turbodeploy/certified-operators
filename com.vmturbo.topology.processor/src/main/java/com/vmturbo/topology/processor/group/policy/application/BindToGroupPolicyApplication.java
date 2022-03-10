@@ -14,7 +14,7 @@ import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -54,7 +54,7 @@ public class BindToGroupPolicyApplication extends PlacementPolicyApplication<Bin
      * @param policy the policy that will be applied.
      */
     protected void applyPlacePolicy(Map<PlacementPolicy, PolicyApplicationException> errors,
-            InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> invertedIndex,
+            InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView> invertedIndex,
             BindToGroupPolicy policy) {
         try {
             final PolicyDetailCase policyDetailCase =
@@ -108,7 +108,7 @@ public class BindToGroupPolicyApplication extends PlacementPolicyApplication<Bin
      * @throws PolicyApplicationException If the consumers cannot be segmented as desired.
      */
     protected void applyExclusivePolicy(
-            InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> invertedIndex,
+            InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView> invertedIndex,
             BindToGroupPolicy policy, PolicyDetailCase policyDetailCase,
             ApiEntityType consumerEntityType, Set<Long> providers, Set<Long> consumers,
             int providerType) throws PolicyApplicationException {

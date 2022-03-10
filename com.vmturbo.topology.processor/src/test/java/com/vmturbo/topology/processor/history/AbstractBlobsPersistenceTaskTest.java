@@ -39,7 +39,7 @@ import com.vmturbo.common.protobuf.stats.Stats.SetMovingStatisticsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.history.exceptions.HistoryCalculationException;
@@ -267,7 +267,7 @@ public class AbstractBlobsPersistenceTaskTest {
               boolean enableExpiredOidFiltering) throws IOException {
             final MovingStatisticsRecord rec = MovingStatisticsRecord.parseFrom(source);
             final EntityCommodityFieldReference ref = new EntityCommodityFieldReference(rec.getEntityOid(),
-                CommodityType.newBuilder().setType(1).build(), null, CommodityField.USED);
+                new CommodityTypeImpl().setType(1), null, CommodityField.USED);
 
             return ImmutableMap.of(ref, rec);
         }
