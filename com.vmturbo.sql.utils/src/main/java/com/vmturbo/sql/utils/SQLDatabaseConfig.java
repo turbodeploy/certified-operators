@@ -225,7 +225,7 @@ public abstract class SQLDatabaseConfig {
         return new JooqExceptionTranslator();
     }
 
-    private DefaultConfiguration configuration() {
+    protected DefaultConfiguration configuration() {
         DefaultConfiguration jooqConfiguration = new DefaultConfiguration();
 
         jooqConfiguration.set(connectionProvider());
