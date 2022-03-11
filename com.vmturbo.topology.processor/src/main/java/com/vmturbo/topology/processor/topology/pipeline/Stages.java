@@ -743,6 +743,7 @@ public class Stages {
     public static class TopologyEditStage extends PassthroughStage<Map<Long, TopologyEntity.Builder>> {
 
         private final TopologyEditor topologyEditor;
+        private final PlanScope scope;
         private final List<ScenarioChange> changes;
         private final SearchResolver<TopologyEntity> searchResolver;
         private final GroupServiceBlockingStub groupServiceClient;
@@ -755,10 +756,12 @@ public class Stages {
 
         public TopologyEditStage(@Nonnull final TopologyEditor topologyEditor,
                                  @Nonnull final SearchResolver<TopologyEntity> searchResolver,
+                                 @Nullable final PlanScope scope,
                                  @Nonnull final List<ScenarioChange> scenarioChanges,
                                  @Nullable final GroupServiceBlockingStub groupServiceClient,
                                  @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver) {
             this.topologyEditor = Objects.requireNonNull(topologyEditor);
+            this.scope = scope;
             this.changes = Objects.requireNonNull(scenarioChanges);
             this.searchResolver = Objects.requireNonNull(searchResolver);
             this.groupServiceClient = groupServiceClient;
@@ -776,7 +779,7 @@ public class Stages {
             final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient,
                     searchFilterResolver);
             try {
-                topologyEditor.editTopology(input, changes, getContext(),
+                topologyEditor.editTopology(input, scope, changes, getContext(),
                     groupResolver, sourceEntities.get(), destinationEntities.get());
             } catch (GroupResolutionException e) {
                 throw new PipelineStageException(e);

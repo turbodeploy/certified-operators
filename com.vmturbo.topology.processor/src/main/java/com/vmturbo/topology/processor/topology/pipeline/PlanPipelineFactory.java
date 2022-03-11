@@ -294,7 +294,8 @@ public class PlanPipelineFactory {
                 // TODO: Move the ToplogyEditStage after the GraphCreationStage
                 // That way the editstage can work on the graph instead of a
                 // separate structure.
-            .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient, searchFilterResolver))
+            .addStage(new TopologyEditStage(topologyEditor, searchResolver, scope, changes,
+                                            groupServiceClient, searchFilterResolver))
             .addStage(new GraphCreationStage())
             .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
             .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
@@ -353,7 +354,8 @@ public class PlanPipelineFactory {
             .initialContextMember(TopologyPipelineContextMembers.GROUP_RESOLVER,
                 () -> new GroupResolver(searchResolver, groupServiceClient, searchFilterResolver))
             .addStage(new TopologyAcquisitionStage(repositoryClient))
-            .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient, searchFilterResolver))
+            .addStage(new TopologyEditStage(topologyEditor, searchResolver, scope, changes,
+                                            groupServiceClient, searchFilterResolver))
             .addStage(new GraphCreationStage())
             .addStage(new ScopeResolutionStage(groupServiceClient, scope))
             .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
