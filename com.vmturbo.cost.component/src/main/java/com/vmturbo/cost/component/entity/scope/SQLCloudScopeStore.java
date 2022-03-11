@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.entity.scope;
 
 import java.time.Duration;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +26,7 @@ import org.jooq.ForeignKey;
 import org.jooq.Record1;
 import org.jooq.SelectJoinStep;
 import org.jooq.Table;
+import org.jooq.impl.DSL;
 import org.jooq.impl.TableImpl;
 import org.springframework.scheduling.TaskScheduler;
 
@@ -149,19 +151,31 @@ public class SQLCloudScopeStore implements CloudScopeStore,
      */
     @Override
     public Stream<EntityCloudScope> streamAll() {
-        return dslContext.selectFrom(Tables.ENTITY_CLOUD_SCOPE)
-                .fetchSize(batchFetchSize)
-                .stream()
-                .map(this::convertRecordToImmutable);
+        final List<EntityCloudScope> entityCloudScopes = new ArrayList<>();
+        dslContext.connection(conn -> {
+            conn.setAutoCommit(false);
+            DSL.using(conn, dslContext.settings()).selectFrom(Tables.ENTITY_CLOUD_SCOPE)
+                    .fetchSize(batchFetchSize)
+                    .stream()
+                    .map(this::convertRecordToImmutable)
+                    .forEach(entityCloudScopes::add);
+        });
+        return entityCloudScopes.stream();
     }
 
     @Override
     public Stream<EntityCloudScope> streamByFilter(@Nonnull final CloudScopeFilter filter) {
-        return dslContext.selectFrom(Tables.ENTITY_CLOUD_SCOPE)
-                .where(generateConditionsFromFilter(filter))
-                .fetchSize(1000)
-                .stream()
-                .map(this::convertRecordToImmutable);
+        final List<EntityCloudScope> entityCloudScopes = new ArrayList<>();
+        dslContext.connection(conn -> {
+            conn.setAutoCommit(false);
+            DSL.using(conn, dslContext.settings()).selectFrom(Tables.ENTITY_CLOUD_SCOPE)
+                    .where(generateConditionsFromFilter(filter))
+                    .fetchSize(1000)
+                    .stream()
+                    .map(this::convertRecordToImmutable)
+                    .forEach(entityCloudScopes::add);
+        });
+        return entityCloudScopes.stream();
     }
 
     private Set<Condition> generateConditionsFromFilter(@Nonnull CloudScopeFilter filter) {

@@ -15,6 +15,7 @@ import javax.annotation.Nullable;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -140,10 +141,10 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
             conditions.add(ACTION_HISTORY.ASSOCIATED_RESOURCE_GROUP_ID.in(rgOids));
         }
 
-        List<ActionView> actionList = new ArrayList<>();
+        final List<ActionView> actionList = new ArrayList<>();
         dsl.connection(conn -> {
             conn.setAutoCommit(false);
-            try (Stream<ActionHistoryRecord> stream = dsl
+            try (Stream<ActionHistoryRecord> stream = DSL.using(conn, dsl.settings())
                     .selectFrom(ACTION_HISTORY)
                     .where(conditions)
                     .fetchSize(recordFetchBatchSize)
