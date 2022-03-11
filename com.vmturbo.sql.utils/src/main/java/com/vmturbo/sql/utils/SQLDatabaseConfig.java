@@ -168,7 +168,20 @@ public abstract class SQLDatabaseConfig {
     @Primary
     public DataSource dataSource() {
         return dataSource(getSQLConfigObject().getDbRootUrl(), dbRootUsername,
-                getDBRootPassword(false), dbMinPoolSize, dbMaxPoolSize, true);
+                getDBRootPassword(false), dbMinPoolSize, dbMaxPoolSize, isConnectionPoolActive);
+    }
+
+    /**
+     * Get a {@link DataSource} that will produce connections that are not part of the connection
+     * pool. This may be advisable for connections that will be used for potentially long-running
+     * operations, to avoid tying up limited pool connections.
+     *
+     * @return unpooled datasource
+     */
+    @Bean
+    public DataSource unpooledDataSource() {
+        return getUnpooledDataSource(getDbSchemaName(), dbRootUsername,
+                Optional.of(getDBRootPassword(false)));
     }
 
     /**
@@ -208,16 +221,12 @@ public abstract class SQLDatabaseConfig {
         }
     }
 
-    private LazyConnectionDataSourceProxy lazyConnectionDataSource() {
-        return new LazyConnectionDataSourceProxy(dataSource());
-    }
-
-    private TransactionAwareDataSourceProxy transactionAwareDataSource() {
-        return new TransactionAwareDataSourceProxy(lazyConnectionDataSource());
-    }
-
-    private DataSourceConnectionProvider connectionProvider() {
-        return new DataSourceConnectionProvider(transactionAwareDataSource());
+    private DataSourceConnectionProvider connectionProvider(@Nonnull final DataSource dataSource) {
+        final LazyConnectionDataSourceProxy lazyConnectionDataSourceProxy =
+                new LazyConnectionDataSourceProxy(dataSource);
+        final TransactionAwareDataSourceProxy transactionAwareDataSourceProxy =
+                new TransactionAwareDataSourceProxy(lazyConnectionDataSourceProxy);
+        return new DataSourceConnectionProvider(transactionAwareDataSourceProxy);
     }
 
     @Bean
@@ -225,10 +234,14 @@ public abstract class SQLDatabaseConfig {
         return new JooqExceptionTranslator();
     }
 
-    protected DefaultConfiguration configuration() {
+    private DefaultConfiguration configuration() {
+        return configuration(dataSource());
+    }
+
+    private DefaultConfiguration configuration(@Nonnull final DataSource dataSource) {
         DefaultConfiguration jooqConfiguration = new DefaultConfiguration();
 
-        jooqConfiguration.set(connectionProvider());
+        jooqConfiguration.set(connectionProvider(dataSource));
         jooqConfiguration.set(new Settings()
                 .withRenderNameStyle(RenderNameStyle.LOWER)
                 // Set withRenderSchema to false to avoid rendering schema name in Jooq generated SQL
@@ -284,6 +297,18 @@ public abstract class SQLDatabaseConfig {
     @Bean
     public DSLContext dsl() {
         return new DefaultDSLContext(configuration());
+    }
+
+    /**
+     * Get a {@link DSLContext} that uses unpooled connections to perform database operations.
+     * This may be advisable when performing potentially long-running DB operaitions to avoid
+     * tying up limited pool connections.
+     *
+     * @return DSLContext that uses unpooled connections
+     */
+    @Bean
+    public DSLContext unpooledDsl() {
+        return new DefaultDSLContext(configuration(unpooledDataSource()));
     }
 
     /**

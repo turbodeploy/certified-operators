@@ -8,8 +8,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.flywaydb.core.api.callback.FlywayCallback;
-import org.jooq.DSLContext;
-import org.jooq.impl.DefaultDSLContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
@@ -75,18 +73,6 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
     public DataSource unpooledDataSource() {
         return getUnpooledDataSource(dbSchemaName, historyDbUsername, Optional.ofNullable(
                 !Strings.isEmpty(historyDbPassword) ? historyDbPassword : null));
-    }
-
-    /**
-     * Get a {@link DSLContext} that uses unpooled connections to perform database operations.
-     * This may be advisable when performing potentially long-running DB operaitions to avoid
-     * tying up limited pool connections.
-     *
-     * @return DSLContext that uses unpooled connections
-     */
-    @Bean
-    public DSLContext unpooledDsl() {
-        return new DefaultDSLContext(unpooledDataSource(), sqlDialect, configuration().settings());
     }
 
     @Override
