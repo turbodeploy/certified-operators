@@ -9,6 +9,7 @@ import org.mariadb.jdbc.MariaDbDataSource;
 
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.pool.DbConnectionPoolConfig;
 
 // TODO This adapter implementation - and the whole DbEndpoint approach in general - has not yet
 // been fully ported to work in MySQL/MariaDB. Initial focus on needs for XLR floodgate
@@ -23,14 +24,31 @@ class MySqlFamilyAdapter extends DbAdapter {
     }
 
     @Override
-    protected DataSource createUnpooledDataSource(String url, String user, String password)
+    protected DataSource createDataSource(String url, String user, String password, boolean pooled)
             throws SQLException {
-        final MariaDbDataSource dataSource = new MariaDbDataSource();
-        dataSource.setUrl(url);
-        dataSource.setUser(user);
-        dataSource.setPassword(password);
-        dataSource.setDatabaseName(config.getDatabaseName());
-        return dataSource;
+        if (pooled) {
+            final int minPoolSize = config.getMinPoolSize();
+            final int maxPoolSize = config.getMaxPoolSize();
+            final int keepAliveIntervalMinutes = config.getKeepAliveIntervalMinutes();
+            logger.debug("Creating a pooled datasource for user: {}, minPoolSize={}, maxPoolSize={}",
+                    user, minPoolSize, maxPoolSize);
+            final String poolName = DbConnectionPoolConfig.generatePoolName(config.getSchemaName());
+            DataSource dataSource = DbConnectionPoolConfig.getPooledDataSource(
+                    url, user, password, minPoolSize, maxPoolSize, keepAliveIntervalMinutes, poolName);
+            // In the SQLDatabaseConfig version of this initialization, we would create a
+            // HikariPoolMonitor here. If this ever replaces SQLDatabaseConfig as the main way
+            // for components to initialize their database connections, then we need to
+            // TODO: Create a pool monitor here
+            return  dataSource;
+        } else {
+            logger.debug("Creating a non-pooled datasource for user: {}", user);
+            final MariaDbDataSource dataSource = new MariaDbDataSource();
+            dataSource.setUrl(url);
+            dataSource.setUser(user);
+            dataSource.setPassword(password);
+            dataSource.setDatabaseName(config.getDatabaseName());
+            return dataSource;
+        }
     }
 
     @Override

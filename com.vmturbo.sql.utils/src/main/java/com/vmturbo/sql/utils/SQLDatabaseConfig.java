@@ -193,7 +193,7 @@ public abstract class SQLDatabaseConfig {
                 final String poolName = DbConnectionPoolConfig.generatePoolName(getDbSchemaName());
                 return DbConnectionPoolConfig.getPooledDataSource(
                         dbUrl, dbUsername, dbPassword, minPoolSize, maxPoolSize,
-                        dbPoolKeepAliveIntervalMinutes, poolName, sqlDialect);
+                        dbPoolKeepAliveIntervalMinutes, poolName);
             } else {
                 MariaDbDataSource dataSource = new MariaDbDataSource();
                 // Should be logged only once, on container startup

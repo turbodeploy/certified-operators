@@ -1,18 +1,14 @@
 package com.vmturbo.topology.processor.topology.clone;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
@@ -25,7 +21,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.util.K8sTaintProcessingUtil;
 
 /**
  * The {@link ContainerPodCloneEditor} implements the clone function for the container pod and all
@@ -34,11 +29,7 @@ import com.vmturbo.topology.processor.util.K8sTaintProcessingUtil;
 public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
 
     private static final Logger logger = LogManager.getLogger();
-    /**
-     * A collection of taints used to determine if an added pod should keep or drop its bought TAINT
-     * commodities.
-     */
-    private final Set<String> taintCollection = new HashSet<>();
+
     /**
      * Editor-wise flag to indicate whether to apply constraints.  True only if the corresponding
      * feature flag is enabled and this is a container cluster plan.
@@ -46,23 +37,19 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
     private final boolean shouldApplyConstraints;
 
     ContainerPodCloneEditor(@Nonnull final TopologyInfo topologyInfo,
-                            @Nonnull final IdentityProvider identityProvider,
-                            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-                            @Nullable final PlanScope scope) {
-        super(topologyInfo, identityProvider, topology, scope);
+                            @Nonnull final IdentityProvider identityProvider) {
+        super(topologyInfo, identityProvider);
         shouldApplyConstraints = FeatureFlags.APPLY_CONSTRAINTS_IN_CONTAINER_CLUSTER_PLAN.isEnabled()
                 && topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().hasPlanType()
                 && StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN.equals(topologyInfo.getPlanInfo().getPlanType());
-        if (shouldApplyConstraints) {
-            taintCollection.addAll(K8sTaintProcessingUtil.collectTaints(scope, topology));
-        }
     }
 
     @Override
     public TopologyEntity.Builder clone(@Nonnull final TopologyEntityImpl podDTO,
-                                        final long cloneCounter) {
-        final TopologyEntity.Builder clonedPod = super.clone(podDTO, cloneCounter);
-        cloneContainers(clonedPod, podDTO.getOid(), cloneCounter);
+                                        final long cloneCounter,
+                                        @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+        final TopologyEntity.Builder clonedPod = super.clone(podDTO, cloneCounter, topology);
+        cloneContainers(clonedPod, topology, podDTO.getOid(), cloneCounter);
         return clonedPod;
     }
 
@@ -76,11 +63,13 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
      * Containers to calculate CPU/memory overcommitments for ContainerPlatformCluster.
      *
      * @param clonedPod Given cloned provider entity builder.
+     * @param topology The entities in the topology, arranged by ID.
      * @param origPodId Original provider ID of the cloned provider entity.
      * @param cloneCounter Counter of the entity to be cloned to be used in the display
      *         name.
      */
     void cloneContainers(@Nonnull final TopologyEntity.Builder clonedPod,
+                         @Nonnull final Map<Long, TopologyEntity.Builder> topology,
                          final long origPodId,
                          final long cloneCounter) {
         final Map<Long, Long> origToClonedPodIdMap = new HashMap<>();
@@ -121,30 +110,14 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
 
     @Override
     protected boolean shouldCopyBoughtCommodity(@Nonnull CommodityBoughtView commodityBought) {
-        if (super.shouldCopyBoughtCommodity(commodityBought)) {
-            // If the commodity does not have a key, keep it
-            return true;
-        }
-        if (shouldApplyConstraints) {
-            // When feature flag is on and this is a container cluster plan
-            switch (commodityBought.getCommodityType().getType()) {
-                // We drop the cluster commodity, because there is no need for such a restriction
-                // for pods in the container cluster plan where there's only one container cluster.
-                // In the future when we support multiple clusters in plan, we will revisit but this
-                // still seems a good choice not to restrict the pods in any particular cluster.
-                case CommodityType.CLUSTER_VALUE:
-                    return false;
-                // For taint commodity, we only drop it when the taint does not exist in the cluster
-                // of the plan
-                case CommodityType.TAINT_VALUE:
-                    return taintCollection.contains(commodityBought.getCommodityType().getKey());
-                // For all other commodities with key, keep them
-                default:
-                    return true;
-            }
-        }
-        // When feature flag is disabled, drop the commodity
-        return false;
+        // The override behavior is enforced only when the feature flag is enabled and this is the
+        // container cluster plan.  In that case, we will copy except for the cluster commodity.
+        // That is because there is no need for such a restriction for pods in the plan where
+        // there's only one container cluster.  In the future when we support multiple clusters in
+        // plan, we will revisit but this still seems a good choice not to restrict the pods in any
+        // particular cluster.
+        return super.shouldCopyBoughtCommodity(commodityBought) || (shouldApplyConstraints
+                && CommodityType.CLUSTER_VALUE != commodityBought.getCommodityType().getType());
     }
 
     @Override

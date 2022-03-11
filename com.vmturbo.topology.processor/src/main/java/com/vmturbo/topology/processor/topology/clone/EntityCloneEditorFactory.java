@@ -4,11 +4,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -52,29 +50,22 @@ public class EntityCloneEditorFactory {
      *
      * @param entity the builder of the source topology entity
      * @param topologyInfo the topology info associated with this clone function
-     * @param topology the topology map
-     * @param scope the plan scope
      *
      * @return the topology entity clone function for the entity
      */
     public DefaultEntityCloneEditor createEntityCloneFunction(
             @Nonnull final TopologyEntity.Builder entity,
-            @Nonnull final TopologyInfo topologyInfo,
-            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nullable final PlanScope scope) {
+            @Nonnull final TopologyInfo topologyInfo) {
         return entityCloneFunctionMap.computeIfAbsent(
                 entityTypeToCloneType.getOrDefault(entity.getEntityType(), CloneType.Default),
                 cloneType -> {
                     switch (cloneType) {
                         case VirtualMachine:
-                            return new VirtualMachineCloneEditor(
-                                    topologyInfo, identityProvider, topology, scope);
+                            return new VirtualMachineCloneEditor(topologyInfo, identityProvider);
                         case ContainerPod:
-                            return new ContainerPodCloneEditor(
-                                    topologyInfo, identityProvider, topology, scope);
+                            return new ContainerPodCloneEditor(topologyInfo, identityProvider);
                         default:
-                            return new DefaultEntityCloneEditor(
-                                    topologyInfo, identityProvider, topology, scope);
+                            return new DefaultEntityCloneEditor(topologyInfo, identityProvider);
                     }
                 });
     }

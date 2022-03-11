@@ -5,12 +5,10 @@ import java.util.Map;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
 
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
@@ -34,19 +32,13 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
  */
 public class DefaultEntityCloneEditor {
 
-    final TopologyInfo topologyInfo;
-    final IdentityProvider identityProvider;
-    final Map<Long, TopologyEntity.Builder> topology;
-    final PlanScope scope;
+    TopologyInfo topologyInfo;
+    IdentityProvider identityProvider;
 
     DefaultEntityCloneEditor(@Nonnull final TopologyInfo topologyInfo,
-                             @Nonnull final IdentityProvider identityProvider,
-                             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-                             @Nullable final PlanScope scope) {
+                             @Nonnull final IdentityProvider identityProvider) {
         this.topologyInfo = topologyInfo;
         this.identityProvider = identityProvider;
-        this.topology = topology;
-        this.scope = scope;
     }
 
     /**
@@ -54,10 +46,12 @@ public class DefaultEntityCloneEditor {
      *
      * @param entityImpl the builder of the source topology entity
      * @param cloneCounter counter of the entity to be cloned for display
+     * @param topology the entities in the topology by id
      * @return the builder of the cloned topology entity
      */
     public TopologyEntity.Builder clone(@Nonnull TopologyEntityImpl entityImpl,
-                                        long cloneCounter) {
+                                        long cloneCounter,
+                                        @Nonnull Map<Long, Builder> topology) {
         // Create the new entity being added, but set the plan origin so these added
         // entities aren't counted in plan "current" stats
         // entities added in this stage will heave a plan origin pointed to the context id of this topology
