@@ -27,6 +27,7 @@ import org.jooq.DSLContext;
 import org.jooq.Record2;
 import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
 
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -286,10 +287,16 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
         // Use jooq lazy fetch to avoid load the whole table into memory.
         // https://www.jooq.org/doc/3.2/manual/sql-execution/fetching/lazy-fetching/
         // https://stackoverflow.com/questions/32209248/java-util-stream-with-resultset
-        return transactionContext.selectFrom(ENTITY_SAVINGS_STATE)
-                .fetchSize(chunkSize)
-                .fetchStream()
-                .map(record -> EntityState.fromJson(record.getEntityState()));
+        final List<EntityState> entityStates = new ArrayList<>();
+        transactionContext.connection(conn -> {
+            conn.setAutoCommit(false);
+            DSL.using(conn, transactionContext.settings()).selectFrom(ENTITY_SAVINGS_STATE)
+                    .fetchSize(chunkSize)
+                    .fetchStream()
+                    .map(record -> EntityState.fromJson(record.getEntityState()))
+                    .forEach(entityStates::add);
+        });
+        return entityStates.stream();
     }
 
     @Nullable

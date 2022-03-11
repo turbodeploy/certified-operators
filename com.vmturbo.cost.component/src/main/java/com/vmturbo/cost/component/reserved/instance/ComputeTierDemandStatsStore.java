@@ -76,11 +76,17 @@ public class ComputeTierDemandStatsStore implements
      */
     public Stream<ComputeTierTypeHourlyByWeekRecord> getStats(byte hour, byte day)
             throws DataAccessException {
-        return dslContext.selectFrom(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
-                .where(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.HOUR.eq(hour)
-                        .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.DAY.eq(day)))
-                .fetchSize(statsRecordsQueryBatchSize)
-                .stream();
+        final List<ComputeTierTypeHourlyByWeekRecord> records = new ArrayList<>();
+        dslContext.connection(conn -> {
+            conn.setAutoCommit(false);
+            DSL.using(conn, dslContext.settings()).selectFrom(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
+                    .where(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.HOUR.eq(hour)
+                            .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.DAY.eq(day)))
+                    .fetchSize(statsRecordsQueryBatchSize)
+                    .stream()
+                    .forEach(records::add);
+        });
+        return records.stream();
     }
 
     public void persistComputeTierDemandStats(

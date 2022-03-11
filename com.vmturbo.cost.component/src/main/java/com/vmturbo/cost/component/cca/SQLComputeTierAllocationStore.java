@@ -223,16 +223,21 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
      */
     @Override
     public Stream<EntityComputeTierAllocation> streamAllocations(@Nonnull final EntityComputeTierAllocationFilter filter) {
-
-        // Streaming allocations does not guarantee a lack of updates during the stream
-        return dslContext.select(DSL.asterisk())
-                .from(Tables.ENTITY_COMPUTE_TIER_ALLOCATION)
-                .join(Tables.ENTITY_CLOUD_SCOPE)
-                .onKey()
-                .where(generateConditionsFromFilter(filter))
-                .fetchSize(batchStreamSize)
-                .stream()
-                .map(this::createAllocationFromRecord);
+        final List<EntityComputeTierAllocation> allocations = new ArrayList<>();
+        dslContext.connection(conn -> {
+            conn.setAutoCommit(false);
+            // Streaming allocations does not guarantee a lack of updates during the stream
+            DSL.using(conn, dslContext.settings()).select(DSL.asterisk())
+                    .from(Tables.ENTITY_COMPUTE_TIER_ALLOCATION)
+                    .join(Tables.ENTITY_CLOUD_SCOPE)
+                    .onKey()
+                    .where(generateConditionsFromFilter(filter))
+                    .fetchSize(batchStreamSize)
+                    .stream()
+                    .map(this::createAllocationFromRecord)
+                    .forEach(allocations::add);
+        });
+        return allocations.stream();
     }
 
     @Nonnull
