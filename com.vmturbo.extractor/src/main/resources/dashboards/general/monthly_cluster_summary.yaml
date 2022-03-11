@@ -122,6 +122,7 @@ panels:
               LIMIT 1
         ) as foo ON true WHERE
           (type = 'VIRTUAL_MACHINE') and
+          (environment = 'ON_PREM') and
           (timestamptz $__timeTo() - interval '1 hour', $__timeTo()) OVERLAPS (first_seen, last_seen)),
         last_month_vms as (
         SELECT
@@ -137,6 +138,7 @@ panels:
               LIMIT 1
         ) as foo on true WHERE
           (type = 'VIRTUAL_MACHINE') and
+          (environment = 'ON_PREM') and
           (timestamptz $__timeTo() - interval '1 month' - interval '1 hour',
            timestamptz $__timeTo() - interval '1 month') OVERLAPS (first_seen, last_seen)),
         this_month_pm_count as (
@@ -296,6 +298,7 @@ panels:
         ) AS metric ON TRUE
         WHERE
           type = 'VIRTUAL_MACHINE'
+          AND environment = 'ON_PREM'
           AND (timestamptz $__timeTo() - interval '1 hour', timestamptz $__timeTo())
             OVERLAPS (first_seen, last_seen)
       ),
@@ -359,6 +362,7 @@ panels:
         ) AS metric ON TRUE
         WHERE
           type = 'VIRTUAL_MACHINE'
+          AND environment = 'ON_PREM'
           AND (timestamptz $__timeTo() - interval '1 hour', timestamptz $__timeTo())
             OVERLAPS (first_seen, last_seen)
       ),
