@@ -12,11 +12,9 @@ import com.cisco.intersight.client.api.AssetApi;
 import com.cisco.intersight.client.model.AssetTarget;
 import com.cisco.intersight.client.model.AssetWorkloadOptimizerService;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONObject;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.topology.processor.api.TargetInfo;
@@ -141,7 +139,7 @@ public class IntersightTargetStatusUpdater {
      * @throws JsonProcessingException thrown if there is a problem serializing the asset target
      */
     private void onNormalUpdate(@Nonnull final IntersightWrappedTarget target)
-            throws ApiException, JsonProcessingException {
+            throws ApiException {
         final long changedCount = Optional.ofNullable(target.intersight().getServices())
                 .orElse(Collections.emptyList()).stream()
                 .filter(AssetWorkloadOptimizerService.class::isInstance)
@@ -151,22 +149,17 @@ public class IntersightTargetStatusUpdater {
                 .map(service -> service.statusErrorReason(target.getNewStatusErrorReason(service))) // update err string
                 .count();
         if (changedCount > 0) {
-            final ObjectMapper jsonMapper = apiClient.getJSON().getMapper();
-            final String targetJsonString = jsonMapper.writeValueAsString(target.intersight());
-            final JSONObject editableJson = new JSONObject(targetJsonString);
-            editableJson.remove("CreateTime");
-            editableJson.remove("ModTime");
-            final AssetTarget editableTarget = jsonMapper.readValue(editableJson.toString(),
-                    AssetTarget.class);
-            final AssetApi assetApi = new AssetApi(apiClient);
-            // AssetTarget ManagementLocation is a enum with a default value "Unknown".
-            // This value wont be used for updating AssetTarget. We need to make Target
-            // ManagementLocation to be null for the AssetTarget other properties to be updated.
-            editableTarget.setManagementLocation(null);
-
+            // To update the target status we only need the "TargetType" field and the "Services" field which contains
+            // the updated "Status".
+            // In addition, we also need to set the "ManagementLocation" field to "null", as it is an enum with a
+            // default value "Unknown".  If not, we would be updating the "ManagementLocation" to "Unknown", which is
+            // both wrong and would fail the update as it wouldn't be allowed.
+            final AssetTarget assetTargetToUpdate = new AssetTarget().managementLocation(null)
+                    .targetType(target.intersight().getTargetType()).services(target.intersight().getServices());
             final String moid = target.intersight().getMoid();
             try {
-                assetApi.updateAssetTarget(moid, editableTarget, null);
+                final AssetApi assetApi = new AssetApi(apiClient);
+                assetApi.updateAssetTarget(moid, assetTargetToUpdate, null);
             } catch (ApiException e) {
                 logger.error("Attempted to update target {} status to {} but getting an error: {}",
                         moid, target.tp().getStatus(), e.getResponseBody());
