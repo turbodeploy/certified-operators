@@ -22,15 +22,11 @@ import com.vmturbo.platform.common.dto.Discovery.ProbeStageDetails.StageStatus;
 public class TargetDetailsMapperTest {
 
     private static final String DATABASE_DESCRIPTION = "Gets the database entities";
-    private static final String SAMPLE_STACK_TRACE = "java.io.IOException\n"
-            + "\tat com.vmturbo.mediation.appdynamics.AppDynamicsProbe.testValuesPresent("
-            + "AppDynamicsProbe.java:382)\n";
     private static final String DATABASE_SHORT_EXPLANATION = "Encountered an exception while grabbing databases";
     private static final String DATABASE_LONG_EXPLANATION = "Encountered an exception while grabbing databases please check the Turbonomic Target Configuration Guide";
     private static final ProbeStageDetails SAMPLE_FAILED_STAGE = ProbeStageDetails.newBuilder()
             .setDescription(DATABASE_DESCRIPTION)
                     .setStatus(StageStatus.FAILURE)
-                    .setStackTrace(SAMPLE_STACK_TRACE)
                     .setStatusShortExplanation(DATABASE_SHORT_EXPLANATION)
                     .setStatusLongExplanation(DATABASE_LONG_EXPLANATION)
                     .build();
@@ -54,7 +50,7 @@ public class TargetDetailsMapperTest {
         final TargetOperationStageStatusApiDTO actualStatus = actualStage.getStatus();
         assertEquals(TargetOperationStageState.FAILURE, actualStatus.getState());
         assertEquals(DATABASE_LONG_EXPLANATION, actualStatus.getFullExplanation());
-        assertEquals(SAMPLE_STACK_TRACE, actualStatus.getStackTrace());
+        assertNull(actualStatus.getStackTrace());
         assertEquals(DATABASE_SHORT_EXPLANATION, actualStatus.getSummary());
     }
 
@@ -114,7 +110,6 @@ public class TargetDetailsMapperTest {
             ProbeStageDetails probeStageDetails = ProbeStageDetails.newBuilder()
                     .setStatusLongExplanation(DATABASE_LONG_EXPLANATION + i)
                     .setStatusShortExplanation(DATABASE_SHORT_EXPLANATION + i)
-                    .setStackTrace(SAMPLE_STACK_TRACE + i)
                     .setStatus(StageStatus.FAILURE)
                     .setDescription(DATABASE_DESCRIPTION + i)
                     .build();
@@ -131,7 +126,7 @@ public class TargetDetailsMapperTest {
             assertNotNull(actualStage.getStatus());
             assertEquals(TargetOperationStageState.FAILURE, actualStatus.getState());
             assertEquals(DATABASE_LONG_EXPLANATION + i, actualStatus.getFullExplanation());
-            assertEquals(SAMPLE_STACK_TRACE + i, actualStatus.getStackTrace());
+            assertNull(actualStatus.getStackTrace());
             assertEquals(DATABASE_SHORT_EXPLANATION + i, actualStatus.getSummary());
         }
     }
