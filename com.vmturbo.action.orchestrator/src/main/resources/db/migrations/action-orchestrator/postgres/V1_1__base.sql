@@ -1,3 +1,6 @@
+-- case insensitive collation
+CREATE COLLATION IF NOT EXISTS ci (provider = 'icu', locale = 'und@colStrength=primary', deterministic = false);
+
 -- An action plan is a set of action recommendations produced by the market after it runs an analysis.
 -- It is a collection of actions associated with a specific topology and topology context.
 -- Action plans are immutable and their contents are replaced when a new plan arrives for the same
@@ -46,7 +49,7 @@ CREATE TABLE market_action (
     recommendation BYTEA NOT NULL,
 
     -- Adding description to market_action table to persist the action description when executing plans.
-    description VARCHAR(510) DEFAULT NULL,
+    description VARCHAR(510) COLLATE ci DEFAULT NULL,
 
     -- Add the associated account ID to market actions.
     associated_account_id BIGINT DEFAULT NULL,
@@ -95,7 +98,7 @@ CREATE TABLE action_history (
 
     current_state INT NOT NULL,
 
-    user_name VARCHAR(255) NOT NULL,
+    user_name VARCHAR(255) COLLATE ci NOT NULL,
 
     -- Adding action_detail_data to action_history table to persist the action description
     -- for accepted actions.
@@ -136,7 +139,7 @@ CREATE TABLE workflow_oid (
     target_id BIGINT NOT NULL,
 
     -- The "external name" captured from the target - the name given by the user via the target UI
-    external_name VARCHAR(255) NOT NULL,
+    external_name VARCHAR(255) COLLATE ci NOT NULL,
 
     -- the unique ID for this Workflow
     PRIMARY KEY (id),
@@ -516,8 +519,8 @@ CREATE TABLE accepted_actions (
     recommendation_id BIGINT NOT NULL,
     accepted_time TIMESTAMP NOT NULL DEFAULT '0001-01-01 00:00:00',
     latest_recommendation_time TIMESTAMP NOT NULL DEFAULT '0001-01-01 00:00:00',
-    accepted_by VARCHAR(255) NOT NULL,
-    acceptor_type VARCHAR(255) NOT NULL,
+    accepted_by VARCHAR(255) COLLATE ci NOT NULL,
+    acceptor_type VARCHAR(255) COLLATE ci NOT NULL,
 
     PRIMARY KEY (recommendation_id)
 );
@@ -538,8 +541,8 @@ DROP TABLE IF EXISTS rejected_actions;
 CREATE TABLE rejected_actions (
     recommendation_id BIGINT NOT NULL,
     rejected_time TIMESTAMP NOT NULL DEFAULT '0001-01-01 00:00:00',
-    rejected_by VARCHAR(255) NOT NULL,
-    rejector_type VARCHAR(255) NOT NULL,
+    rejected_by VARCHAR(255) COLLATE ci NOT NULL,
+    rejector_type VARCHAR(255) COLLATE ci NOT NULL,
 
     PRIMARY KEY (recommendation_id)
 );
@@ -568,7 +571,7 @@ CREATE TABLE related_risk_for_action (
 
     -- We use the checksum to quickly determine if a particular set of risks already has
     -- an associated risk_id in the database.
-    checksum CHAR(32) NOT NULL DEFAULT '',
+    checksum CHAR(32) COLLATE ci NOT NULL DEFAULT '',
 
     PRIMARY KEY (id),
     UNIQUE (checksum)
@@ -606,7 +609,7 @@ CREATE TABLE action_workflow_book_keeping (
 
     -- The name of the policy setting that the workflow was applied to on the target_entity_id.
     -- The longest setting at time of adding this column was 57 characters.
-    setting_name varchar(255) NOT NULL,
+    setting_name varchar(255) COLLATE ci NOT NULL,
 
     PRIMARY KEY (action_stable_id, workflow_id)
 );
@@ -621,7 +624,7 @@ CREATE TABLE related_risk_description (
     id INTEGER NOT NULL,
 
     -- The string describing the risk.
-    risk_description VARCHAR(100) NOT NULL,
+    risk_description VARCHAR(100) COLLATE ci NOT NULL,
 
     FOREIGN KEY (id) REFERENCES related_risk_for_action(id) ON DELETE CASCADE,
     -- The risk_description comes first in the key because that's what we query for.

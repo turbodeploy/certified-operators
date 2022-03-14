@@ -1,3 +1,6 @@
+-- case insensitive collation
+CREATE COLLATION IF NOT EXISTS ci (provider = 'icu', locale = 'und@colStrength=primary', deterministic = false);
+
 -- Initial baseline Postgres migration for history component, based on current cumulative
 -- impact of existing MariaDB migrations
 
@@ -8,12 +11,12 @@ AS $$
 BEGIN
   -- create latest table and indexes
   EXECUTE format('CREATE TABLE IF NOT EXISTS %1$I_stats_latest ('
-    'snapshot_time timestamp(3) NOT NULL, uuid varchar(20) NOT NULL, producer_uuid varchar(20),'
-    'property_type varchar(80), property_subtype varchar(36),'
-    'relation smallint, commodity_key varchar(80),'
+    'snapshot_time timestamp(3) NOT NULL, uuid varchar(20) COLLATE ci NOT NULL, producer_uuid varchar(20) COLLATE ci,'
+    'property_type varchar(80) COLLATE ci, property_subtype varchar(36) COLLATE ci,'
+    'relation smallint, commodity_key varchar(80) COLLATE ci,'
     'capacity float, effective_capacity float,'
     'avg_value float, min_value float, max_value float,'
-    'hour_key char(32))'
+    'hour_key char(32) COLLATE ci)'
     'PARTITION BY RANGE (snapshot_time)', prefix);
   EXECUTE format('CREATE INDEX IF NOT EXISTS %1$I_stats_latest_snapshot_time_idx '
     'ON %1$I_stats_latest(snapshot_time)', prefix);
@@ -25,12 +28,12 @@ BEGIN
     'ON %1$I_stats_latest(property_subtype)', prefix);
   -- create hourly rollup table
   EXECUTE format('CREATE TABLE IF NOT EXISTS %1$I_stats_by_hour ('
-    'snapshot_time timestamp(3) NOT NULL, uuid varchar(20) NOT NULL, producer_uuid varchar(20),'
-    'property_type varchar(80), property_subtype varchar(36),'
-    'relation smallint, commodity_key varchar(80),'
+    'snapshot_time timestamp(3) NOT NULL, uuid varchar(20) COLLATE ci NOT NULL, producer_uuid varchar(20) COLLATE ci,'
+    'property_type varchar(80) COLLATE ci, property_subtype varchar(36) COLLATE ci,'
+    'relation smallint, commodity_key varchar(80) COLLATE ci,'
     'capacity float, effective_capacity float,'
     'avg_value float, min_value float, max_value float, samples integer,'
-    'hour_key char(32) NOT NULL,'
+    'hour_key char(32) COLLATE ci NOT NULL,'
     'PRIMARY KEY(hour_key, snapshot_time))'
     'PARTITION BY RANGE (snapshot_time)', prefix);
   EXECUTE format('CREATE INDEX IF NOT EXISTS %1$I_stats_by_hour_snapshot_time_idx '
@@ -43,12 +46,12 @@ BEGIN
     'ON %1$I_stats_by_hour(property_subtype)', prefix);
   -- create daily rollup table
   EXECUTE format('CREATE TABLE IF NOT EXISTS %1$I_stats_by_day ('
-    'snapshot_time timestamp(3) NOT NULL, uuid varchar(20) NOT NULL, producer_uuid varchar(20),'
-    'property_type varchar(80), property_subtype varchar(36),'
-    'relation smallint, commodity_key varchar(80),'
+    'snapshot_time timestamp(3) NOT NULL, uuid varchar(20) COLLATE ci NOT NULL, producer_uuid varchar(20) COLLATE ci,'
+    'property_type varchar(80) COLLATE ci, property_subtype varchar(36) COLLATE ci,'
+    'relation smallint, commodity_key varchar(80) COLLATE ci,'
     'capacity float, effective_capacity float,'
     'avg_value float, min_value float, max_value float, samples integer,'
-    'day_key char(32),'
+    'day_key char(32) COLLATE ci,'
     'PRIMARY KEY(day_key, snapshot_time))'
     'PARTITION BY RANGE (snapshot_time)', prefix);
   EXECUTE format('CREATE INDEX IF NOT EXISTS %1$I_stats_by_day_snapshot_time_idx '
@@ -61,12 +64,12 @@ BEGIN
     'ON %1$I_stats_by_day(property_subtype)', prefix);
   -- create monthly rollup table
   EXECUTE format('CREATE TABLE IF NOT EXISTS %1$I_stats_by_month ('
-    'snapshot_time timestamp(3) NOT NULL, uuid varchar(20) NOT NULL, producer_uuid varchar(20),'
-    'property_type varchar(80), property_subtype varchar(36),'
-    'relation smallint, commodity_key varchar(80),'
+    'snapshot_time timestamp(3) NOT NULL, uuid varchar(20) COLLATE ci NOT NULL, producer_uuid varchar(20) COLLATE ci,'
+    'property_type varchar(80) COLLATE ci, property_subtype varchar(36) COLLATE ci,'
+    'relation smallint, commodity_key varchar(80) COLLATE ci,'
     'capacity float, effective_capacity float,'
     'avg_value float, min_value float, max_value float, samples integer,'
-    'month_key char(32),'
+    'month_key char(32) COLLATE ci,'
     'PRIMARY KEY(month_key, snapshot_time))'
     'PARTITION BY RANGE (snapshot_time)', prefix);
   EXECUTE format('CREATE INDEX IF NOT EXISTS %1$I_stats_by_month_snapshot_time_idx '
@@ -101,7 +104,7 @@ END; $$;
 -- data, and foreign-key constraints. Latter must appear after both related tables have been
 -- created.
 CREATE TABLE aggregation_meta_data (
-    aggregate_table character varying(64) NOT NULL,
+    aggregate_table character varying(64) COLLATE ci NOT NULL,
     last_aggregated timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     last_aggregated_by_hour timestamp with time zone,
     last_aggregated_by_day timestamp with time zone,
@@ -111,9 +114,9 @@ CREATE TABLE aggregation_meta_data (
 
 CREATE TABLE appl_performance (
     log_time timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    id character varying(32) DEFAULT NULL::character varying,
-    performance_type character varying(64) DEFAULT NULL::character varying,
-    entity_type character varying(64) DEFAULT NULL::character varying,
+    id character varying(32) COLLATE ci DEFAULT NULL::character varying,
+    performance_type character varying(64) COLLATE ci DEFAULT NULL::character varying,
+    entity_type character varying(64) COLLATE ci DEFAULT NULL::character varying,
     rows_aggregated bigint,
     start_time timestamp with time zone,
     end_time timestamp with time zone,
@@ -123,19 +126,19 @@ CREATE TABLE appl_performance (
 CREATE TABLE audit_log_entries (
     id bigserial,
     snapshot_time timestamp with time zone,
-    action_name character varying(80) DEFAULT NULL::character varying,
-    category character varying(80) DEFAULT NULL::character varying,
-    user_name character varying(80) DEFAULT NULL::character varying,
-    target_object_class character varying(80) DEFAULT NULL::character varying,
-    target_object_name character varying(250) DEFAULT NULL::character varying,
-    target_object_uuid varchar(20) DEFAULT NULL,
-    source_class character varying(80) DEFAULT NULL::character varying,
-    source_name character varying(250) DEFAULT NULL::character varying,
-    source_uuid varchar(20) DEFAULT NULL,
-    destination_class character varying(80) DEFAULT NULL::character varying,
-    destination_name character varying(250) DEFAULT NULL::character varying,
-    destination_uuid varchar(20) DEFAULT NULL,
-    details text,
+    action_name character varying(80) COLLATE ci DEFAULT NULL::character varying,
+    category character varying(80) COLLATE ci DEFAULT NULL::character varying,
+    user_name character varying(80) COLLATE ci DEFAULT NULL::character varying,
+    target_object_class character varying(80) COLLATE ci DEFAULT NULL::character varying,
+    target_object_name character varying(250) COLLATE ci DEFAULT NULL::character varying,
+    target_object_uuid varchar(20) COLLATE ci DEFAULT NULL,
+    source_class character varying(80) COLLATE ci DEFAULT NULL::character varying,
+    source_name character varying(250) COLLATE ci DEFAULT NULL::character varying,
+    source_uuid varchar(20) COLLATE ci DEFAULT NULL,
+    destination_class character varying(80) COLLATE ci DEFAULT NULL::character varying,
+    destination_name character varying(250) COLLATE ci DEFAULT NULL::character varying,
+    destination_uuid varchar(20) COLLATE ci DEFAULT NULL,
+    details text COLLATE ci,
     PRIMARY KEY (id)
 );
 CREATE INDEX audit_log_entries_action_name ON audit_log_entries USING btree (action_name);
@@ -146,7 +149,7 @@ CREATE INDEX audit_log_entries_source_uuid ON audit_log_entries USING btree (sou
 CREATE INDEX audit_log_entries_target_object_uuid ON audit_log_entries USING btree (target_object_uuid);
 
 CREATE TABLE audit_log_retention_policies (
-    policy_name character varying(50) NOT NULL,
+    policy_name character varying(50) COLLATE ci NOT NULL,
     retention_period bigint,
     PRIMARY KEY (policy_name)
 );
@@ -155,8 +158,8 @@ retention_days	365
 \.
 
 CREATE TABLE available_timestamps (
-    history_variety character varying(20) NOT NULL,
-    time_frame character varying(10) NOT NULL,
+    history_variety character varying(20) COLLATE ci NOT NULL,
+    time_frame character varying(10) COLLATE ci NOT NULL,
     time_stamp timestamp with time zone NOT NULL,
     expires_at timestamp with time zone,
     PRIMARY KEY (history_variety, time_frame, time_stamp)
@@ -164,18 +167,18 @@ CREATE TABLE available_timestamps (
 
 CREATE TABLE cluster_stats_latest (
     recorded_on timestamp with time zone NOT NULL,
-    internal_name character varying(250) NOT NULL,
-    property_type character varying(36) NOT NULL,
-    property_subtype character varying(36) NOT NULL,
+    internal_name character varying(250) COLLATE ci NOT NULL,
+    property_type character varying(36) COLLATE ci NOT NULL,
+    property_subtype character varying(36) COLLATE ci NOT NULL,
     value double precision NOT NULL,
     PRIMARY KEY (recorded_on, internal_name, property_type, property_subtype)
 );
 
 CREATE TABLE cluster_stats_by_hour (
     recorded_on timestamp with time zone NOT NULL,
-    internal_name character varying(250) NOT NULL,
-    property_type character varying(36) NOT NULL,
-    property_subtype character varying(36) NOT NULL,
+    internal_name character varying(250) COLLATE ci NOT NULL,
+    property_type character varying(36) COLLATE ci NOT NULL,
+    property_subtype character varying(36) COLLATE ci NOT NULL,
     value double precision NOT NULL,
     samples bigint,
     PRIMARY KEY (recorded_on, internal_name, property_type, property_subtype)
@@ -187,9 +190,9 @@ CREATE INDEX cluster_stats_by_hour_recorded_on ON cluster_stats_by_hour USING bt
 
 CREATE TABLE cluster_stats_by_day (
     recorded_on timestamp with time zone NOT NULL,
-    internal_name character varying(250) NOT NULL,
-    property_type character varying(36) NOT NULL,
-    property_subtype character varying(36) NOT NULL,
+    internal_name character varying(250) COLLATE ci NOT NULL,
+    property_type character varying(36) COLLATE ci NOT NULL,
+    property_subtype character varying(36) COLLATE ci NOT NULL,
     value double precision NOT NULL,
     samples bigint,
     PRIMARY KEY (recorded_on, internal_name, property_type, property_subtype)
@@ -201,9 +204,9 @@ CREATE INDEX cluster_stats_by_day_recorded_on ON cluster_stats_by_day USING btre
 
 CREATE TABLE cluster_stats_by_month (
     recorded_on timestamp with time zone NOT NULL,
-    internal_name character varying(250) NOT NULL,
-    property_type character varying(36) NOT NULL,
-    property_subtype character varying(36) NOT NULL,
+    internal_name character varying(250) COLLATE ci NOT NULL,
+    property_type character varying(36) COLLATE ci NOT NULL,
+    property_subtype character varying(36) COLLATE ci NOT NULL,
     value double precision NOT NULL,
     samples bigint,
     PRIMARY KEY (recorded_on, internal_name, property_type, property_subtype)
@@ -215,10 +218,10 @@ CREATE INDEX cluster_stats_by_month_recorded_on ON cluster_stats_by_month USING 
 
 CREATE TABLE entities (
     id bigint NOT NULL,
-    name character varying(250) DEFAULT NULL::character varying,
-    display_name character varying(250) DEFAULT NULL::character varying,
-    uuid varchar(80) DEFAULT NULL,
-    creation_class character varying(80) DEFAULT NULL::character varying,
+    name character varying(250) COLLATE ci DEFAULT NULL::character varying,
+    display_name character varying(250) COLLATE ci DEFAULT NULL::character varying,
+    uuid varchar(80) COLLATE ci DEFAULT NULL,
+    creation_class character varying(80) COLLATE ci DEFAULT NULL::character varying,
     created_at timestamp with time zone,
     PRIMARY KEY (id)
 );
@@ -231,8 +234,8 @@ CREATE INDEX entities_uuid ON entities USING btree (uuid);
 
 CREATE TABLE entity_attrs (
     id bigserial,
-    name character varying(80) DEFAULT NULL::character varying,
-    value character varying(1000) DEFAULT NULL::character varying,
+    name character varying(80) COLLATE ci DEFAULT NULL::character varying,
+    value character varying(1000) COLLATE ci DEFAULT NULL::character varying,
     entity_entity_id bigint,
     PRIMARY KEY (id)
 );
@@ -291,7 +294,7 @@ CREATE TABLE hist_utilization (
     producer_oid bigint NOT NULL,
     property_type_id bigint NOT NULL,
     property_subtype_id bigint NOT NULL,
-    commodity_key character varying(80) NOT NULL,
+    commodity_key character varying(80) COLLATE ci NOT NULL,
     value_type bigint NOT NULL,
     property_slot bigint NOT NULL,
     utilization numeric(15,3) DEFAULT NULL::numeric,
@@ -301,18 +304,18 @@ CREATE TABLE hist_utilization (
 
 CREATE TABLE ingestion_status (
     snapshot_time bigint NOT NULL,
-    status character varying(10000) DEFAULT NULL::character varying,
+    status character varying(10000) COLLATE ci DEFAULT NULL::character varying,
     PRIMARY KEY (snapshot_time)
 );
 
 CREATE TABLE market_stats_latest (
     snapshot_time timestamp with time zone,
-    time_series_key char(32),
+    time_series_key char(32) COLLATE ci,
     topology_context_id bigint,
     topology_id bigint,
-    entity_type character varying(80) DEFAULT NULL::character varying,
-    property_type character varying(36) DEFAULT NULL::character varying,
-    property_subtype character varying(36) DEFAULT NULL::character varying,
+    entity_type character varying(80) COLLATE ci DEFAULT NULL::character varying,
+    property_type character varying(36) COLLATE ci DEFAULT NULL::character varying,
+    property_subtype character varying(36) COLLATE ci DEFAULT NULL::character varying,
     capacity numeric(15,3) DEFAULT NULL::numeric,
     avg_value numeric(15,3) DEFAULT NULL::numeric,
     min_value numeric(15,3) DEFAULT NULL::numeric,
@@ -331,11 +334,11 @@ CREATE INDEX market_stats_latest_topology_id ON market_stats_latest USING btree 
 
 CREATE TABLE market_stats_by_hour (
     snapshot_time timestamp with time zone,
-    time_series_key char(32),
+    time_series_key char(32) COLLATE ci,
     topology_context_id bigint,
-    entity_type character varying(80) DEFAULT NULL::character varying,
-    property_type character varying(36) DEFAULT NULL::character varying,
-    property_subtype character varying(36) DEFAULT NULL::character varying,
+    entity_type character varying(80) COLLATE ci DEFAULT NULL::character varying,
+    property_type character varying(36) COLLATE ci DEFAULT NULL::character varying,
+    property_subtype character varying(36) COLLATE ci DEFAULT NULL::character varying,
     capacity numeric(15,3) DEFAULT NULL::numeric,
     avg_value numeric(15,3) DEFAULT NULL::numeric,
     min_value numeric(15,3) DEFAULT NULL::numeric,
@@ -354,11 +357,11 @@ CREATE INDEX market_stats_by_hour_topology_context_id ON market_stats_by_hour US
 
 CREATE TABLE market_stats_by_day (
     snapshot_time timestamp with time zone,
-    time_series_key char(32),
+    time_series_key char(32) COLLATE ci,
     topology_context_id bigint,
-    entity_type character varying(80) DEFAULT NULL::character varying,
-    property_type character varying(36) DEFAULT NULL::character varying,
-    property_subtype character varying(36) DEFAULT NULL::character varying,
+    entity_type character varying(80) COLLATE ci DEFAULT NULL::character varying,
+    property_type character varying(36) COLLATE ci DEFAULT NULL::character varying,
+    property_subtype character varying(36) COLLATE ci DEFAULT NULL::character varying,
     capacity numeric(15,3) DEFAULT NULL::numeric,
     avg_value numeric(15,3) DEFAULT NULL::numeric,
     min_value numeric(15,3) DEFAULT NULL::numeric,
@@ -377,11 +380,11 @@ CREATE INDEX market_stats_by_day_topology_context_id ON market_stats_by_day USIN
 
 CREATE TABLE market_stats_by_month (
     snapshot_time timestamp with time zone,
-    time_series_key char(32),
+    time_series_key char(32) COLLATE ci,
     topology_context_id bigint,
-    entity_type character varying(80) DEFAULT NULL::character varying,
-    property_type character varying(36) DEFAULT NULL::character varying,
-    property_subtype character varying(36) DEFAULT NULL::character varying,
+    entity_type character varying(80) COLLATE ci DEFAULT NULL::character varying,
+    property_type character varying(36) COLLATE ci DEFAULT NULL::character varying,
+    property_subtype character varying(36) COLLATE ci DEFAULT NULL::character varying,
     capacity numeric(15,3) DEFAULT NULL::numeric,
     avg_value numeric(15,3) DEFAULT NULL::numeric,
     min_value numeric(15,3) DEFAULT NULL::numeric,
@@ -402,8 +405,8 @@ CREATE TABLE mkt_snapshots (
     id bigserial,
     mkt_snapshot_source_id bigint,
     scenario_id bigint NOT NULL,
-    display_name character varying(250) DEFAULT ''::character varying NOT NULL,
-    state character varying(80) DEFAULT NULL::character varying,
+    display_name character varying(250) COLLATE ci DEFAULT ''::character varying NOT NULL,
+    state character varying(80) COLLATE ci DEFAULT NULL::character varying,
     committed boolean,
     run_time timestamp with time zone NOT NULL,
     run_complete_time timestamp with time zone,
@@ -416,8 +419,8 @@ CREATE TABLE mkt_snapshots_stats (
     id bigserial,
     recorded_on timestamp with time zone NOT NULL,
     mkt_snapshot_id bigint NOT NULL,
-    property_type character varying(36) DEFAULT ''::character varying NOT NULL,
-    property_subtype character varying(36) DEFAULT NULL::character varying,
+    property_type character varying(36) COLLATE ci DEFAULT ''::character varying NOT NULL,
+    property_subtype character varying(36) COLLATE ci DEFAULT NULL::character varying,
     capacity numeric(30,3) DEFAULT NULL::numeric,
     avg_value numeric(30,3) DEFAULT NULL::numeric,
     min_value numeric(30,3) DEFAULT NULL::numeric,
@@ -442,13 +445,13 @@ CREATE TABLE notifications (
     id bigint NOT NULL,
     clear_time timestamp with time zone,
     last_notify_time timestamp with time zone,
-    severity character varying(80) DEFAULT NULL::character varying,
-    category character varying(80) DEFAULT NULL::character varying,
-    name character varying(250) DEFAULT NULL::character varying,
-    uuid varchar(20) DEFAULT NULL,
+    severity character varying(80) COLLATE ci DEFAULT NULL::character varying,
+    category character varying(80) COLLATE ci DEFAULT NULL::character varying,
+    name character varying(250) COLLATE ci DEFAULT NULL::character varying,
+    uuid varchar(20) COLLATE ci DEFAULT NULL,
     importance double precision,
-    description text,
-    notification_uuid varchar(20) DEFAULT NULL,
+    description text COLLATE ci,
+    notification_uuid varchar(20) COLLATE ci DEFAULT NULL,
     PRIMARY KEY (id)
 );
 
@@ -462,9 +465,9 @@ CREATE TABLE percentile_blobs (
 CREATE INDEX percentile_blobs_start_timestamp ON percentile_blobs USING btree (start_timestamp);
 
 CREATE TABLE retention_policies (
-    policy_name character varying(50) NOT NULL,
+    policy_name character varying(50) COLLATE ci NOT NULL,
     retention_period bigint,
-    unit character varying(20) DEFAULT NULL::character varying,
+    unit character varying(20) COLLATE ci DEFAULT NULL::character varying,
     PRIMARY KEY (policy_name)
 );
 COPY retention_policies (policy_name, retention_period, unit) FROM stdin;
@@ -480,16 +483,16 @@ timeslot_retention_hours	720	\N
 
 CREATE TABLE ri_stats_latest (
     snapshot_time timestamp with time zone,
-    uuid varchar(20) DEFAULT NULL,
-    producer_uuid varchar(20) DEFAULT NULL,
-    property_type character varying(36) DEFAULT NULL::character varying,
-    property_subtype character varying(36) DEFAULT NULL::character varying,
+    uuid varchar(20) COLLATE ci DEFAULT NULL,
+    producer_uuid varchar(20) COLLATE ci DEFAULT NULL,
+    property_type character varying(36) COLLATE ci DEFAULT NULL::character varying,
+    property_subtype character varying(36) COLLATE ci DEFAULT NULL::character varying,
     capacity numeric(15,3) DEFAULT NULL::numeric,
     avg_value numeric(15,3) DEFAULT NULL::numeric,
     min_value numeric(15,3) DEFAULT NULL::numeric,
     max_value numeric(15,3) DEFAULT NULL::numeric,
     relation smallint,
-    commodity_key character varying(80) DEFAULT NULL::character varying,
+    commodity_key character varying(80) COLLATE ci DEFAULT NULL::character varying,
     effective_capacity numeric(15,3) DEFAULT NULL::numeric
 );
 CREATE INDEX ri_stats_latest_property_subtype ON ri_stats_latest USING btree (property_subtype);
@@ -499,59 +502,59 @@ CREATE INDEX ri_stats_latest_uuid ON ri_stats_latest USING btree (uuid);
 
 CREATE TABLE ri_stats_by_hour (
     snapshot_time timestamp with time zone,
-    uuid varchar(20) DEFAULT NULL,
-    producer_uuid varchar(20) DEFAULT NULL,
-    property_type character varying(36) DEFAULT NULL::character varying,
-    property_subtype character varying(36) DEFAULT NULL::character varying,
+    uuid varchar(20) COLLATE ci DEFAULT NULL,
+    producer_uuid varchar(20) COLLATE ci DEFAULT NULL,
+    property_type character varying(36) COLLATE ci DEFAULT NULL::character varying,
+    property_subtype character varying(36) COLLATE ci DEFAULT NULL::character varying,
     capacity numeric(15,3) DEFAULT NULL::numeric,
     avg_value numeric(15,3) DEFAULT NULL::numeric,
     min_value numeric(15,3) DEFAULT NULL::numeric,
     max_value numeric(15,3) DEFAULT NULL::numeric,
     relation smallint,
-    commodity_key character varying(80) DEFAULT NULL::character varying,
+    commodity_key character varying(80) COLLATE ci DEFAULT NULL::character varying,
     effective_capacity numeric(15,3) DEFAULT NULL::numeric
 );
 CREATE INDEX ri_stats_by_hour_snapshot_time ON ri_stats_by_hour USING btree (snapshot_time, uuid, property_type, property_subtype);
 
 CREATE TABLE ri_stats_by_day (
     snapshot_time date,
-    uuid varchar(20) DEFAULT NULL,
-    producer_uuid varchar(20) DEFAULT NULL,
-    property_type character varying(36) DEFAULT NULL::character varying,
-    property_subtype character varying(36) DEFAULT NULL::character varying,
+    uuid varchar(20) COLLATE ci DEFAULT NULL,
+    producer_uuid varchar(20) COLLATE ci DEFAULT NULL,
+    property_type character varying(36) COLLATE ci DEFAULT NULL::character varying,
+    property_subtype character varying(36) COLLATE ci DEFAULT NULL::character varying,
     capacity numeric(15,3) DEFAULT NULL::numeric,
     avg_value numeric(15,3) DEFAULT NULL::numeric,
     min_value numeric(15,3) DEFAULT NULL::numeric,
     max_value numeric(15,3) DEFAULT NULL::numeric,
     relation smallint,
-    commodity_key character varying(80) DEFAULT NULL::character varying,
+    commodity_key character varying(80) COLLATE ci DEFAULT NULL::character varying,
     effective_capacity numeric(15,3) DEFAULT NULL::numeric
 );
 CREATE INDEX ri_stats_by_day_snapshot_time ON ri_stats_by_day USING btree (snapshot_time, uuid, property_type, property_subtype);
 
 CREATE TABLE ri_stats_by_month (
     snapshot_time date,
-    uuid varchar(20) DEFAULT NULL,
-    producer_uuid varchar(20) DEFAULT NULL,
-    property_type character varying(36) DEFAULT NULL::character varying,
-    property_subtype character varying(36) DEFAULT NULL::character varying,
+    uuid varchar(20) COLLATE ci DEFAULT NULL,
+    producer_uuid varchar(20) COLLATE ci DEFAULT NULL,
+    property_type character varying(36) COLLATE ci DEFAULT NULL::character varying,
+    property_subtype character varying(36) COLLATE ci DEFAULT NULL::character varying,
     capacity numeric(15,3) DEFAULT NULL::numeric,
     avg_value numeric(15,3) DEFAULT NULL::numeric,
     min_value numeric(15,3) DEFAULT NULL::numeric,
     max_value numeric(15,3) DEFAULT NULL::numeric,
     relation smallint,
-    commodity_key character varying(80) DEFAULT NULL::character varying,
+    commodity_key character varying(80) COLLATE ci DEFAULT NULL::character varying,
     effective_capacity numeric(15,3) DEFAULT NULL::numeric
 );
 CREATE INDEX ri_stats_by_month_snapshot_time ON ri_stats_by_month USING btree (snapshot_time, uuid, property_type, property_subtype);
 
 CREATE TABLE scenarios (
     id bigserial,
-    display_name character varying(250) DEFAULT ''::character varying NOT NULL,
+    display_name character varying(250) COLLATE ci DEFAULT ''::character varying NOT NULL,
     create_time timestamp with time zone NOT NULL,
     update_time timestamp with time zone,
     source_scenario_id bigint,
-    type character varying(80) DEFAULT NULL::character varying,
+    type character varying(80) COLLATE ci DEFAULT NULL::character varying,
     PRIMARY KEY (id)
 );
 CREATE INDEX scenarios_display_name ON scenarios USING btree (display_name);
@@ -560,18 +563,18 @@ ALTER TABLE ONLY mkt_snapshots
     ADD CONSTRAINT mkt_snapshots_ibfk_1 FOREIGN KEY (scenario_id) REFERENCES scenarios(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 CREATE TABLE system_load (
-    slice character varying(250) DEFAULT NULL::character varying,
+    slice character varying(250) COLLATE ci DEFAULT NULL::character varying,
     snapshot_time timestamp with time zone,
-    uuid varchar(20) DEFAULT NULL,
-    producer_uuid varchar(20) DEFAULT NULL,
-    property_type character varying(36) DEFAULT NULL::character varying,
-    property_subtype character varying(36) DEFAULT NULL::character varying,
+    uuid varchar(20) COLLATE ci DEFAULT NULL,
+    producer_uuid varchar(20) COLLATE ci DEFAULT NULL,
+    property_type character varying(36) COLLATE ci DEFAULT NULL::character varying,
+    property_subtype character varying(36) COLLATE ci DEFAULT NULL::character varying,
     capacity double precision,
     avg_value double precision,
     min_value double precision,
     max_value double precision,
     relation smallint,
-    commodity_key character varying(80) DEFAULT NULL::character varying
+    commodity_key character varying(80) COLLATE ci DEFAULT NULL::character varying
 );
 CREATE INDEX system_load_slice_property_time ON system_load USING btree (slice, property_type, snapshot_time);
 CREATE INDEX system_load_time ON system_load USING btree (snapshot_time);

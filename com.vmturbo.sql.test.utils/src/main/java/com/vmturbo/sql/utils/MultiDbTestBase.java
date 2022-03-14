@@ -165,7 +165,7 @@ public class MultiDbTestBase {
 
     private TestDbEndpoint testEndpoint;
 
-    private TestDbEndpoint getTestEndpoint()
+    protected TestDbEndpoint getTestEndpoint()
             throws SQLException, UnsupportedDialectException, InterruptedException {
         if (testEndpoint == null) {
             testEndpoint = dbEndpointTestRule.completeEndpoint(endpointByDialect.apply(dialect),
