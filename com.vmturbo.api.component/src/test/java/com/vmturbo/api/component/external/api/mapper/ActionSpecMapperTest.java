@@ -655,7 +655,7 @@ public class ActionSpecMapperTest {
                 .thenReturn(dbReq);
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
-            buildActionSpec(scaleInfo, explanation), REAL_TIME_TOPOLOGY_CONTEXT_ID);
+                buildActionSpecWithDisruptiveReversible(scaleInfo, explanation, false, true), REAL_TIME_TOPOLOGY_CONTEXT_ID);
 
         assertEquals(ActionType.SCALE, actionApiDTO.getActionType());
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
@@ -2164,7 +2164,7 @@ public class ActionSpecMapperTest {
             .thenReturn(req);
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
-            buildActionSpec(deleteInfo, delete), CONTEXT_ID);
+                buildActionSpecWithDisruptiveReversible(deleteInfo, delete, false, false), CONTEXT_ID);
         // Verify that we set the context ID on the request.
         verify(req).contextId(CONTEXT_ID);
 
@@ -2177,6 +2177,12 @@ public class ActionSpecMapperTest {
         assertEquals("2.0", actionApiDTO.getCurrentValue());
         assertEquals("MB", actionApiDTO.getValueUnits());
         assertNull(actionApiDTO.getRisk().getReasonCommodities());
+        // Validate actionExecutionCharacteristics
+        ActionExecutionCharacteristicApiDTO actionExecutionCharacteristics
+                = actionApiDTO.getExecutionCharacteristics();
+        assertNotNull(actionExecutionCharacteristics);
+        assertEquals(ActionDisruptiveness.NON_DISRUPTIVE, actionExecutionCharacteristics.getDisruptiveness());
+        assertEquals(ActionReversibility.IRREVERSIBLE, actionExecutionCharacteristics.getReversibility());
     }
 
     /**
@@ -3413,14 +3419,33 @@ public class ActionSpecMapperTest {
 
         return builder.build();
     }
+
+    private ActionSpec buildActionSpecWithDisruptiveReversible(ActionInfo actionInfo, Explanation explanation,
+            boolean disruptive, boolean reversible) {
+        return ActionSpec.newBuilder()
+                .setRecommendation(buildActionWithDisruptiveReversible(actionInfo, explanation, disruptive, reversible))
+                .setExplanation(DEFAULT_EXPLANATION)
+                .build();
+    }
+
     private Action buildAction(ActionInfo actionInfo, Explanation explanation) {
         return Action.newBuilder()
                 .setDeprecatedImportance(0)
                 .setId(1234)
                 .setInfo(actionInfo)
                 .setExplanation(explanation)
-                .setDisruptive(false)
-                .setReversible(true)
+                .build();
+    }
+
+    private Action buildActionWithDisruptiveReversible(ActionInfo actionInfo, Explanation explanation,
+            boolean disruptive, boolean reversible) {
+        return Action.newBuilder()
+                .setDeprecatedImportance(0)
+                .setId(1234)
+                .setInfo(actionInfo)
+                .setExplanation(explanation)
+                .setDisruptive(disruptive)
+                .setReversible(reversible)
                 .build();
     }
 
