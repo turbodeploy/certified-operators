@@ -85,4 +85,11 @@ public class MultiDB implements PatternMatchingAdapter {
             @Nonnull Boolean positiveMatch, @Nonnull Boolean caseSensitive) {
         return patternMatchingAdapter.matchRegex(fieldToMatch, regex, positiveMatch, caseSensitive);
     }
+
+    @Nonnull
+    @Override
+    public Condition contains(@Nonnull Field<String> field, @Nonnull String pattern,
+            @Nonnull Boolean positiveMatch, @Nonnull Boolean caseSensitive) {
+        return patternMatchingAdapter.contains(field, pattern, positiveMatch, caseSensitive);
+    }
 }

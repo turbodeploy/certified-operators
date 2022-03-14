@@ -329,12 +329,25 @@ public class GroupDaoSearchTest extends MultiDbTestBase {
                         .addPropertyFilters(PropertyFilter.newBuilder()
                                 .setPropertyName(SearchableProperties.DISPLAY_NAME)
                                 .setStringFilter(StringFilter.newBuilder()
-                                        .addOptions("therG")
+                                        .addOptions("therg")
                                         .setCaseSensitive(false)))
                         .setIncludeHidden(true)
                         .build());
         Assert.assertEquals(Sets.newHashSet(OID2, OID3),
                 groupsByDisplayName3.stream().map(Grouping::getId).collect(Collectors.toSet()));
+
+        final Collection<Grouping> groupsByDisplayName4 = groupStore.getGroups(
+                GroupDTO.GroupFilter.newBuilder()
+                    .addPropertyFilters(PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.DISPLAY_NAME)
+                        .setStringFilter(StringFilter.newBuilder()
+                            .addOptions("therg")
+                            .setCaseSensitive(true)
+                            .setPositiveMatch(false)))
+                    .setIncludeHidden(true)
+                    .build());
+        Assert.assertEquals(Sets.newHashSet(OID1, OID2, OID3),
+                groupsByDisplayName4.stream().map(Grouping::getId).collect(Collectors.toSet()));
     }
 
     /**

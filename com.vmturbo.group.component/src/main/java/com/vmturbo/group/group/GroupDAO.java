@@ -1746,18 +1746,12 @@ public class GroupDAO implements IGroupStore {
                     multiDB.matchRegex(GROUPING.DISPLAY_NAME, filter.getStringPropertyRegex(),
                             filter.getPositiveMatch(), filter.getCaseSensitive()));
         } else if (filter.getOptionsCount() != 0) {
-            final Optional<Condition> condition;
-            if (filter.hasCaseSensitive() && filter.getCaseSensitive()) {
-                condition = combineConditions(filter.getOptionsList()
-                        .stream()
-                        .map(GROUPING.DISPLAY_NAME::contains)
-                        .collect(Collectors.toSet()), Condition::or);
-            } else {
-                condition = combineConditions(filter.getOptionsList()
-                        .stream()
-                        .map(GROUPING.DISPLAY_NAME::containsIgnoreCase)
-                        .collect(Collectors.toSet()), Condition::or);
-            }
+            final Optional<Condition> condition = combineConditions(filter
+                    .getOptionsList()
+                    .stream()
+                    .map(pattern -> multiDB.contains(GROUPING.DISPLAY_NAME, pattern, true,
+                            filter.hasCaseSensitive() && filter.getCaseSensitive()))
+                    .collect(Collectors.toSet()), Condition::or);
             if (!filter.hasPositiveMatch() || filter.getPositiveMatch()) {
                 return condition;
             } else {
