@@ -1,8 +1,10 @@
 package com.vmturbo.cost.component.rpc;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -29,7 +31,6 @@ import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -106,13 +107,14 @@ public class BilledCostUploadRpcServiceTest extends MultiDbTestBase {
         "science");
     private static final Map<String, String> TAG_GROUP_OWNER = ImmutableMap.of("owner", "alice");
     private static final Map<String, String> TAG_GROUP_OWNER_2 = ImmutableMap.of("owner", "bob");
-
+    private static final int BATCH_SIZE = 10;
 
     private BilledCostUploadClient client;
     private StreamObserver<Cost.UploadBilledCostRequest> requestStreamObserver;
     private BilledCostUploadRpcService billedCostUploadRpcService;
     private TagStore tagStore;
     private TagGroupStore tagGroupStore;
+    private BatchInserter batchInserter;
     private RollupTimesStore rollupTimesStore;
     private IdentityProvider identityProvider;
 
@@ -128,7 +130,7 @@ public class BilledCostUploadRpcServiceTest extends MultiDbTestBase {
         identityProvider = new IdentityProvider.DefaultIdentityProvider(4);
         rollupTimesStore = mock(RollupTimesStore.class);
         when(rollupTimesStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
-        final BatchInserter batchInserter = new BatchInserter(10, 1, rollupTimesStore);
+        batchInserter = spy(new BatchInserter(BATCH_SIZE, 1, rollupTimesStore));
         tagStore = spy(new TagStore(context, batchInserter));
         tagGroupStore = spy(new TagGroupStore(context, batchInserter));
         final BilledCostStore billedCostStore = createBilledCostStore(false);
@@ -136,8 +138,8 @@ public class BilledCostUploadRpcServiceTest extends MultiDbTestBase {
     }
 
     private TagGroupIdentityService createTagGroupIdentityResolver() {
-        final TagIdentityService tagIdentityService = new TagIdentityService(tagStore, identityProvider);
-        return new TagGroupIdentityService(tagGroupStore, tagIdentityService, identityProvider);
+        final TagIdentityService tagIdentityService = new TagIdentityService(tagStore, identityProvider, BATCH_SIZE);
+        return new TagGroupIdentityService(tagGroupStore, tagIdentityService, identityProvider, BATCH_SIZE);
     }
 
     private void initializeUploadClientAndService(final BilledCostStore billedCostStore) {
@@ -330,7 +332,6 @@ public class BilledCostUploadRpcServiceTest extends MultiDbTestBase {
      * such tag group should be inserted against a single durable tag group oid.
      */
     @Test
-    @Ignore("Postgres does not handle trailing spaces while mysql does.")
     public void testTagsWithTrailingSpaces() {
         final Map<String, String> tagGroup1 = Collections.singletonMap("Owner ", "Bob ");
         final Map<String, String> tagGroup2 = Collections.singletonMap(" Owner", " Bob");
@@ -342,9 +343,8 @@ public class BilledCostUploadRpcServiceTest extends MultiDbTestBase {
         requestStreamObserver.onNext(request.build());
         requestStreamObserver.onCompleted();
         final long tagId = verifyTagPersistedAndGetTagId("Owner", "Bob");
-        Assert.assertEquals(tagId, verifyTagPersistedAndGetTagId("Owner ", "Bob"));
         verifyTagGroupsPersisted(tagId, 1);
-        final long expectedTagGroupId = retrieveTagGroupId(tagGroup1);
+        final long expectedTagGroupId = retrieveTagGroupId(Collections.singletonMap("Owner", "Bob"));
         verifyBilledCostPointPersisted(ENTITY_ID, COST, expectedTagGroupId);
         verifyBilledCostPointPersisted(ENTITY_ID_2, COST, expectedTagGroupId);
     }
@@ -416,6 +416,83 @@ public class BilledCostUploadRpcServiceTest extends MultiDbTestBase {
         Assert.assertTrue(client.getErrorReceived());
         final long tagId1 = verifyTagPersistedAndGetTagId("owner", "alice");
         verifyTagGroupsPersisted(tagId1, 2);
+    }
+
+    /**
+     * Test that when the same tag group has been stored with multiple ids (due to non-transactional inserts that are
+     * fixed in this MR), then the larger id is picked.
+     */
+    @Test
+    public void testTagGroupMultipleIdsDataInconsistencyCase() {
+        final long tagId = 1234L;
+        final long expectedTagGroupId = 5555L;
+        context.insertInto(CostTag.COST_TAG)
+                .columns(CostTag.COST_TAG.TAG_ID, CostTag.COST_TAG.TAG_KEY, CostTag.COST_TAG.TAG_VALUE)
+                .values(tagId, "owner", "alice")
+                .execute();
+        context.insertInto(CostTagGrouping.COST_TAG_GROUPING)
+                .columns(CostTagGrouping.COST_TAG_GROUPING.TAG_ID, CostTagGrouping.COST_TAG_GROUPING.TAG_GROUP_ID)
+                .values(tagId, 4444L)
+                .execute();
+        context.insertInto(CostTagGrouping.COST_TAG_GROUPING)
+                .columns(CostTagGrouping.COST_TAG_GROUPING.TAG_ID, CostTagGrouping.COST_TAG_GROUPING.TAG_GROUP_ID)
+                .values(tagId, expectedTagGroupId)
+                .execute();
+        sendUploadRequest(requestStreamObserver);
+        requestStreamObserver.onCompleted();
+        verifyBilledCostPointPersisted(ENTITY_ID_2, COST, expectedTagGroupId);
+    }
+
+    /**
+     * Test that if insert of one batch of tag groups is successful while another batch is not, then the in-memory
+     * cache reflects this properly and in a subsequent upload the tag groups that were written successfully are not
+     * re-written into the table.
+     */
+    @Test
+    public void testPartialFailureInTagGroupInsertion() throws DbException {
+        final Cost.UploadBilledCostRequest.Builder requestBuilder = createUploadRequest();
+        addTagGroup(requestBuilder, 1L, Collections.singletonMap("one", "one"));
+        addTagGroup(requestBuilder, 2L, Collections.singletonMap("two", "two"));
+        addTagGroup(requestBuilder, 3L, Collections.singletonMap("three", "three"));
+        addTagGroup(requestBuilder, 4L, Collections.singletonMap("four", "four"));
+        addTagGroup(requestBuilder, 5L, Collections.singletonMap("five", "five"));
+        addTagGroup(requestBuilder, 6L, Collections.singletonMap("six", "six"));
+        addTagGroup(requestBuilder, 7L, Collections.singletonMap("seven", "seven"));
+        addTagGroup(requestBuilder, 8L, Collections.singletonMap("eight", "eight"));
+        addTagGroup(requestBuilder, 9L, Collections.singletonMap("nine", "nine"));
+        addTagGroup(requestBuilder, 10L, Collections.singletonMap("ten", "ten"));
+        addTagGroup(requestBuilder, 11L, Collections.singletonMap("eleven", "eleven"));
+        addTagGroup(requestBuilder, 12L, Collections.singletonMap("twelve", "twelve"));
+        addTagGroup(requestBuilder, 13L, Collections.singletonMap("thirteen", "thirteen"));
+        addBillingDataPoint(requestBuilder, createBillingDataPoint(ENTITY_ID, 13L));
+        final Cost.UploadBilledCostRequest request = requestBuilder.build();
+        // first batch of tag groups inserts successfully, second batch insert fails
+        doCallRealMethod().doCallRealMethod().doCallRealMethod().doThrow(new DbException("")).doCallRealMethod()
+                .when(batchInserter).insertBatch(anyListOf(Record.class), any(Table.class), any(DSLContext.class),
+                        anyBoolean(), anyLong());
+        requestStreamObserver.onNext(request);
+        requestStreamObserver.onCompleted();
+
+        final StreamObserver<Cost.UploadBilledCostRequest> nextUploadStreamObserver = billedCostUploadRpcService
+                .uploadBilledCost(client);
+        nextUploadStreamObserver.onNext(request);
+        nextUploadStreamObserver.onCompleted();
+
+        verifyTagGroupsPersisted(verifyTagPersistedAndGetTagId("one", "one"), 1);
+        verifyTagGroupsPersisted(verifyTagPersistedAndGetTagId("two", "two"), 1);
+        verifyTagGroupsPersisted(verifyTagPersistedAndGetTagId("three", "three"), 1);
+        verifyTagGroupsPersisted(verifyTagPersistedAndGetTagId("four", "four"), 1);
+        verifyTagGroupsPersisted(verifyTagPersistedAndGetTagId("five", "five"), 1);
+        verifyTagGroupsPersisted(verifyTagPersistedAndGetTagId("six", "six"), 1);
+        verifyTagGroupsPersisted(verifyTagPersistedAndGetTagId("seven", "seven"), 1);
+        verifyTagGroupsPersisted(verifyTagPersistedAndGetTagId("eight", "eight"), 1);
+        verifyTagGroupsPersisted(verifyTagPersistedAndGetTagId("nine", "nine"), 1);
+        verifyTagGroupsPersisted(verifyTagPersistedAndGetTagId("ten", "ten"), 1);
+        verifyTagGroupsPersisted(verifyTagPersistedAndGetTagId("eleven", "eleven"), 1);
+        verifyTagGroupsPersisted(verifyTagPersistedAndGetTagId("twelve", "twelve"), 1);
+        verifyTagGroupsPersisted(verifyTagPersistedAndGetTagId("thirteen", "thirteen"), 1);
+        verifyBilledCostPointPersisted(ENTITY_ID, COST,
+                retrieveTagGroupId(Collections.singletonMap("thirteen", "thirteen")));
     }
 
     private BilledCostStore createBilledCostStore(boolean throwsExceptionOnInsert) throws ExecutionException,

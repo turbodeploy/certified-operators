@@ -54,6 +54,6 @@ public class TagStore {
      * @throws com.vmturbo.sql.utils.DbException on encountering DataAccessException during query execution.
      */
     public void insertCostTagRecords(@Nonnull final Collection<CostTagRecord> costTagRecords) throws DbException {
-        batchInserter.insert(new ArrayList<>(costTagRecords), CostTag.COST_TAG, dslContext, false);
+        batchInserter.insertBatch(new ArrayList<>(costTagRecords), CostTag.COST_TAG, dslContext, false, null);
     }
 }
