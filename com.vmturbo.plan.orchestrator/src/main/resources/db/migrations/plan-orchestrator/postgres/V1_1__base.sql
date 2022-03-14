@@ -1,3 +1,6 @@
+-- case insensitive collation
+CREATE COLLATION IF NOT EXISTS ci (provider = 'icu', locale = 'und@colStrength=primary', deterministic = false);
+
 -- A template describes the pattern of service entity which created by user or discovered by Probe.
 CREATE TABLE IF NOT EXISTS template (
   -- The id of template
@@ -5,13 +8,13 @@ CREATE TABLE IF NOT EXISTS template (
   -- The target id of template, if it's user created template, it will be null.
   target_id           BIGINT         DEFAULT NULL,
   -- The name of template.
-  name                VARCHAR(255)   NOT NULL,
+  name                VARCHAR(255)   COLLATE ci NOT NULL,
   -- The type of service entity.
   entity_type         integer        NOT NULL,
   -- All the template fields stored as raw protobuf written to disk.
   template_info       bytea          NOT NULL,
-  probe_template_id   VARCHAR(255) DEFAULT NULL,
-  type VARCHAR(255) NOT NULL,
+  probe_template_id   VARCHAR(255)   COLLATE ci DEFAULT NULL,
+  type VARCHAR(255) COLLATE ci NOT NULL,
   PRIMARY KEY (id)
 );
 
@@ -21,9 +24,9 @@ CREATE TABLE IF NOT EXISTS deployment_profile (
   -- Target Id of deployment profile, for user created deployment profile, it should be null.
   target_id                   BIGINT         DEFAULT NULL,
   -- Probe send unique Id for deployment profile, for user created deployment profile, it should be null.
-  probe_deployment_profile_id VARCHAR(255)   DEFAULT NULL,
+  probe_deployment_profile_id VARCHAR(255)   COLLATE ci DEFAULT NULL,
   -- Name of deployment profile.
-  name                        VARCHAR(255)   NOT NULL,
+  name                        VARCHAR(255)   COLLATE ci NOT NULL,
   -- All the deployment profile fields stored as raw protobuf written to disk.
   deployment_profile_info     bytea          NOT NULL,
   -- Id as primary key.
@@ -62,13 +65,13 @@ CREATE TABLE IF NOT EXISTS plan_destination (
   -- id of plan destination, it should be primary key.
   id                                 BIGINT                      NOT NULL,
   -- id provided by the probe.
-  external_id                        VARCHAR(80)                 NOT NULL,
+  external_id                        VARCHAR(80)                 COLLATE ci NOT NULL,
   -- latest time of discovery.
   discovery_time                     TIMESTAMP                   NOT NULL DEFAULT now(),
   -- latest time plan orchestrator update info of the plan destination.
   update_time                        TIMESTAMP                   NULL,
   -- status of plan destination.
-  status                             VARCHAR(45)                 NOT NULL,
+  status                             VARCHAR(45)                 COLLATE ci NOT NULL,
   -- contains all specified constraints when creating reservation.
   target_id                          BIGINT                      NOT NULL,
   -- The plan destination project info object, stored as raw protobuf.
@@ -90,8 +93,8 @@ CREATE TABLE IF NOT EXISTS plan_instance (
   -- The plan instance object, stored as raw protobuf.
   -- See com.vmturbo.common.protobuf/src/main/protobuf/plan/PlanDTO.proto
   plan_instance        bytea          NOT NULL,
-  type                 VARCHAR(20)    DEFAULT NULL,
-  status               VARCHAR(30)    DEFAULT NULL,
+  type                 VARCHAR(20)    COLLATE ci DEFAULT NULL,
+  status               VARCHAR(30)    COLLATE ci DEFAULT NULL,
   PRIMARY KEY (id)
 );
 
@@ -104,8 +107,8 @@ CREATE TABLE IF NOT EXISTS plan_project (
   -- The plan project info object, stored as raw protobuf.
   -- See com.vmturbo.common.protobuf/src/main/protobuf/plan/PlanDTO.proto
   project_info        bytea           NOT NULL,
-  type                 VARCHAR(20)    DEFAULT NULL,
-  status               VARCHAR(30)    DEFAULT NULL,
+  type                 VARCHAR(20)    COLLATE ci DEFAULT NULL,
+  status               VARCHAR(30)    COLLATE ci DEFAULT NULL,
   PRIMARY KEY (id)
 );
 
@@ -114,7 +117,7 @@ CREATE TABLE IF NOT EXISTS reservation (
   -- id of reservation, it should be primary key.
   id                                 BIGINT                       NOT NULL,
   -- name of reservation.
-  name                               VARCHAR(255)                 NOT NULL,
+  name                               VARCHAR(255)                 COLLATE ci NOT NULL,
   -- start time of reservation.
   start_time                         TIMESTAMP                    NOT NULL DEFAULT now(),
   -- expire time of reservation.
