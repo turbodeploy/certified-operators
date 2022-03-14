@@ -102,7 +102,8 @@ public class BilledCostConfig {
      */
     @Bean
     public TagGroupIdentityService tagGroupIdentityService() {
-        return new TagGroupIdentityService(tagGroupStore(), tagIdentityService(), identityProvider());
+        return new TagGroupIdentityService(tagGroupStore(), tagIdentityService(), identityProvider(),
+                billedCostDataBatchSize);
     }
 
     /**
@@ -112,7 +113,7 @@ public class BilledCostConfig {
      */
     @Bean
     public TagIdentityService tagIdentityService() {
-        return new TagIdentityService(tagStore(), identityProvider());
+        return new TagIdentityService(tagStore(), identityProvider(), billedCostDataBatchSize);
     }
 
     /**

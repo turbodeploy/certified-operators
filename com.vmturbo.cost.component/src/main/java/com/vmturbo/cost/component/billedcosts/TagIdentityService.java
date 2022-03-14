@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.billedcosts;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -8,6 +9,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.Iterables;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,16 +31,19 @@ public class TagIdentityService {
     private final IdentityProvider identityProvider;
     private final Map<Tag, Long> tagIdentityCache = new HashMap<>();
     private final SetOnce<Boolean> cacheInitialized = SetOnce.create();
+    private final int batchSize;
 
     /**
      * Creates an instance of CostTagIdentityResolver.
      *
      * @param tagStore instance to retrieve / store data into the Cost Tag table.
      * @param identityProvider to generate new tag ids.
+     * @param batchSize num records inserted per batch.
      */
-    public TagIdentityService(@Nonnull TagStore tagStore, @Nonnull IdentityProvider identityProvider) {
+    public TagIdentityService(@Nonnull TagStore tagStore, @Nonnull IdentityProvider identityProvider, int batchSize) {
         this.tagStore = Objects.requireNonNull(tagStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
+        this.batchSize = batchSize;
     }
 
     /**
@@ -69,9 +75,12 @@ public class TagIdentityService {
                     record.setTagId(identityProvider.next());
                     return record;
                 }).collect(Collectors.toSet());
-            tagStore.insertCostTagRecords(recordsToInsert);
-            tagIdentityCache.putAll(recordsToInsert.stream()
-                .collect(Collectors.toMap(rec -> new Tag(rec.getTagKey(), rec.getTagValue()), CostTagRecord::getTagId)));
+            for (List<CostTagRecord> batchToInsert : Iterables.partition(recordsToInsert, batchSize)) {
+                tagStore.insertCostTagRecords(batchToInsert);
+                tagIdentityCache.putAll(batchToInsert.stream()
+                        .collect(Collectors.toMap(rec -> new Tag(rec.getTagKey(), rec.getTagValue()),
+                                CostTagRecord::getTagId)));
+            }
         }
         return tags.stream().collect(Collectors.toMap(Function.identity(), tagIdentityCache::get));
     }

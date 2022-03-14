@@ -73,22 +73,6 @@ public class BatchInserter implements AutoCloseable {
     }
 
     /**
-     * Inserts or updated records to table using the context instance based on the value of updateOnDuplicate.
-     *
-     * @param records to be inserted into the table.
-     * @param table to which the records are to be inserted.
-     * @param context to use for executing the operations.
-     * @param updateOnDuplicate if true, updates already existing records with the same primary key.
-     * @throws DbException on encountering DataAccessException during query execution.
-     */
-    public void insert(final List<? extends Record> records, final Table<?> table, final DSLContext context,
-                       final boolean updateOnDuplicate) throws DbException {
-        for (List<? extends Record> recordList : Lists.partition(records, batchSize)) {
-            insertBatch(recordList, table, context, updateOnDuplicate, null);
-        }
-    }
-
-    /**
      * Inserts records into the table via an ExecutorService. Returns the list of futures back to the caller.
      *
      * @param records to be inserted.
@@ -109,7 +93,17 @@ public class BatchInserter implements AutoCloseable {
                 .collect(Collectors.toList());
     }
 
-    private int insertBatch(final List<? extends Record> records,
+    /**
+     * Inserts or updated records to table using the context instance based on the value of updateOnDuplicate.
+     *
+     * @param records to be inserted into the table.
+     * @param table to which the records are to be inserted.
+     * @param context to use for executing the operations.
+     * @param updateOnDuplicate if true, updates already existing records with the same primary key.
+     * @param minSampleTime Minimal sample time that is inserted.
+     * @throws DbException on encountering DataAccessException during query execution.
+     */
+    public int insertBatch(final List<? extends Record> records,
                             final Table<?> table,
                             final DSLContext context,
                             final boolean updateOnDuplicate,

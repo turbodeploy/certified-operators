@@ -11,6 +11,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Iterables;
+
 import it.unimi.dsi.fastutil.longs.LongArraySet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 
@@ -35,6 +37,7 @@ public class TagGroupIdentityService {
     private final TagIdentityService tagIdentityService;
     private final Map<LongSet, Long> tagGroupIdentityCache = new HashMap<>();
     private final SetOnce<Boolean> cacheInitialized = SetOnce.create();
+    private final int batchSize;
 
     /**
      * Creates an instance of CostTagGroupIdentityResolver.
@@ -42,13 +45,16 @@ public class TagGroupIdentityService {
      * @param tagGroupStore for retrieving / writing into cost tag grouping table.
      * @param tagIdentityService for retrieving tag ids.
      * @param identityProvider for generating ids for new tag groups.
+     * @param batchSize num records inserted per batch.
      */
     public TagGroupIdentityService(@Nonnull TagGroupStore tagGroupStore,
                                    @Nonnull TagIdentityService tagIdentityService,
-                                   @Nonnull IdentityProvider identityProvider) {
+                                   @Nonnull IdentityProvider identityProvider,
+                                   int batchSize) {
         this.tagGroupStore = Objects.requireNonNull(tagGroupStore);
         this.tagIdentityService = Objects.requireNonNull(tagIdentityService);
         this.identityProvider = Objects.requireNonNull(identityProvider);
+        this.batchSize = batchSize;
     }
 
     /**
@@ -70,7 +76,10 @@ public class TagGroupIdentityService {
                 .entrySet().stream()
                 .collect(Collectors.toMap(e -> new LongArraySet(
                     e.getValue().stream().map(CostTagGroupingRecord::getTagId).collect(Collectors.toSet())),
-                    Map.Entry::getKey)));
+                    Map.Entry::getKey, (a, b) -> {
+                    logger.debug("Duplicate Tag Groups found, {}, {}", a, b);
+                            return a > b ? a : b;
+                        })));
             cacheInitialized.ensureSet(() -> true);
         }
         // Collect to List (instead of Set) - 2 Tag groups may resolve to the same durable Tag group oid if their
@@ -85,19 +94,21 @@ public class TagGroupIdentityService {
             .filter(tagGroup -> !tagGroupIdentityCache.containsKey(tagsToTagIds(tagGroup.getTags(), resolvedTagIds)))
             .collect(Collectors.toSet());
         if (!unseenTagGroups.isEmpty()) {
-            final Map<Long, TagGroup> unseenTagGroupsByOid = generateOidPerTagGroup(unseenTagGroups);
-            logger.debug("Inserting the following newly discovered tag groups: {}", unseenTagGroupsByOid::values);
-            final Set<CostTagGroupingRecord> newTagGroupRecords =
-                convertTagGroupsToRecords(unseenTagGroupsByOid, resolvedTagIds);
-            tagGroupStore.insertCostTagGroups(newTagGroupRecords);
-            unseenTagGroupsByOid.forEach((oid, tagGroup) ->
-                tagGroupIdentityCache.put(tagsToTagIds(tagGroup.getTags(), resolvedTagIds), oid));
+            logger.debug("Inserting the following newly discovered tag groups: {}", () -> unseenTagGroups);
+            for (List<TagGroup> batch : Iterables.partition(unseenTagGroups, batchSize)) {
+                final Map<Long, TagGroup> unseenTagGroupsByOid = generateOidPerTagGroup(batch);
+                final Set<CostTagGroupingRecord> newTagGroupRecords =
+                        convertTagGroupsToRecords(unseenTagGroupsByOid, resolvedTagIds);
+                tagGroupStore.insertCostTagGroups(newTagGroupRecords);
+                unseenTagGroupsByOid.forEach((oid, tagGroup) ->
+                        tagGroupIdentityCache.put(tagsToTagIds(tagGroup.getTags(), resolvedTagIds), oid));
+            }
         }
         return tagGroups.stream().collect(Collectors.toMap(TagGroup::getDiscoveredTagGroupId,
             tagGroup -> tagGroupIdentityCache.get(tagsToTagIds(tagGroup.getTags(), resolvedTagIds))));
     }
 
-    private Map<Long, TagGroup> generateOidPerTagGroup(final Set<TagGroup> tagGroups) {
+    private Map<Long, TagGroup> generateOidPerTagGroup(final Collection<TagGroup> tagGroups) {
         return tagGroups.stream()
             .collect(Collectors.toMap(tagGroup -> identityProvider.next(), Function.identity()));
     }
