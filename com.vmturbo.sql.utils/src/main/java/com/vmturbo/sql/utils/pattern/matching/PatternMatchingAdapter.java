@@ -21,4 +21,17 @@ public interface PatternMatchingAdapter {
     @Nonnull
     Condition matchRegex(@Nonnull Field<String> fieldToMatch, @Nonnull String regex,
             @Nonnull Boolean positiveMatch, @Nonnull Boolean caseSensitive);
+
+    /**
+     * Create a SQL "contains" condition checking whether a string field contains a pattern.
+     *
+     * @param field A string field.
+     * @param pattern The pattern we want the field to contain.
+     * @param positiveMatch Whether we want positive or negative match.
+     * @param caseSensitive Whether we want the matching to be case-sensitive or insensitive.
+     * @return A SQL "contains" {@link Condition} checking whether {@code field} contains the {@code pattern}.
+     */
+    @Nonnull
+    Condition contains(@Nonnull Field<String> field, @Nonnull String pattern,
+            @Nonnull Boolean positiveMatch, @Nonnull Boolean caseSensitive);
 }

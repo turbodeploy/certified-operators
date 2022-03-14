@@ -26,4 +26,23 @@ public class MariaDBPatternMatching implements PatternMatchingAdapter {
                 .collate(caseSensitive ? CASE_SENSITIVE_COLLATION : CASE_INSENSITIVE_COLLATION);
         return positiveMatch ? fieldToMatch.likeRegex(regex) : fieldToMatch.notLikeRegex(regex);
     }
+
+    @Nonnull
+    @Override
+    public Condition contains(@Nonnull Field<String> field, @Nonnull String pattern,
+            @Nonnull Boolean positiveMatch, @Nonnull Boolean caseSensitive) {
+        if (positiveMatch) {
+            if (caseSensitive) {
+                return field.contains(pattern);
+            } else {
+                return field.containsIgnoreCase(pattern);
+            }
+        } else {
+            if (caseSensitive) {
+                return field.notContains(pattern);
+            } else {
+                return field.notContainsIgnoreCase(pattern);
+            }
+        }
+    }
 }
