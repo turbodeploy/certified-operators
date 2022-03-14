@@ -694,6 +694,21 @@ public class ActionSpecMapper {
         // Set the related action count by type of impacting relation
         actionApiDTO.setRelatedActionsCountByType(RelatedActionMapper.countRelatedActionsByType(actionSpec));
 
+        // Set action execution characteristics
+        if (recommendation.hasDisruptive() || recommendation.hasReversible()) {
+            ActionExecutionCharacteristicApiDTO actionExecutionCharacteristicsDTO
+                    = new ActionExecutionCharacteristicApiDTO();
+            if (recommendation.hasDisruptive()) {
+                actionExecutionCharacteristicsDTO.setDisruptiveness(recommendation.getDisruptive()
+                        ? ActionDisruptiveness.DISRUPTIVE : ActionDisruptiveness.NON_DISRUPTIVE);
+            }
+            if (recommendation.hasReversible()) {
+                actionExecutionCharacteristicsDTO.setReversibility(recommendation.getReversible()
+                        ? ActionReversibility.REVERSIBLE : ActionReversibility.IRREVERSIBLE);
+            }
+            actionApiDTO.setExecutionCharacteristics(actionExecutionCharacteristicsDTO);
+        }
+
         return actionApiDTO;
     }
 
@@ -1169,20 +1184,6 @@ public class ActionSpecMapper {
             context.getCloudAspect(target.getId()).map(cloudAspect -> aspects.put(
                 AspectName.CLOUD, cloudAspect));
             wrapperDto.getTarget().setAspectsByName(aspects);
-        }
-
-        if (action.hasDisruptive() || action.hasReversible()) {
-            ActionExecutionCharacteristicApiDTO actionExecutionCharacteristicsDTO
-                    = new ActionExecutionCharacteristicApiDTO();
-            if (action.hasDisruptive()) {
-                actionExecutionCharacteristicsDTO.setDisruptiveness(action.getDisruptive()
-                        ? ActionDisruptiveness.DISRUPTIVE : ActionDisruptiveness.NON_DISRUPTIVE);
-            }
-            if (action.hasReversible()) {
-                actionExecutionCharacteristicsDTO.setReversibility(action.getReversible()
-                        ? ActionReversibility.REVERSIBLE : ActionReversibility.IRREVERSIBLE);
-            }
-            wrapperDto.setExecutionCharacteristics(actionExecutionCharacteristicsDTO);
         }
     }
 
