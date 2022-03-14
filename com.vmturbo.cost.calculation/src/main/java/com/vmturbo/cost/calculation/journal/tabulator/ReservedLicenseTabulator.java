@@ -40,10 +40,8 @@ public class ReservedLicenseTabulator<E> extends JournalEntryTabulator<E> {
                     (ReservedLicenseJournalEntry<E>)entry;
             final ReservedInstanceData riData = reservedLicenseEntry.getRiData();
             final ReservedInstanceSpec reservedInstanceSpec = riData.getReservedInstanceSpec();
-            asciiTable.addRow(
-                    reservedInstanceSpec.getReservedInstanceSpecInfo().getTierId(),
-                    riData.getReservedInstanceBought().getId(),
-                    reservedInstanceSpec.getId(),
+            asciiTable.addRow(reservedInstanceSpec.getReservedInstanceSpecInfo().getTierId(),
+                    riData.getReservedInstanceBought().getId(), reservedInstanceSpec.getId(),
                     reservedLicenseEntry.getRiBoughtPercentage().getValue());
         }
     }

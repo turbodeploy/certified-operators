@@ -31,7 +31,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.util.CollectionUtils;
 
-import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology;
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -43,6 +42,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.PriceForGuestOsType;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.utils.FuzzyDouble;
@@ -115,8 +115,6 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
     private final ReservedInstanceApplicatorFactory<ENTITY_CLASS> reservedInstanceApplicatorFactory;
 
-    private final CloudCommitmentApplicator.CloudCommitmentApplicatorFactory<ENTITY_CLASS> cloudCommitmentApplicatorFactory;
-
     private final DependentCostLookup<ENTITY_CLASS> dependentCostLookup;
 
     private Map<Long, EntityReservedInstanceCoverage> topologyRICoverage;
@@ -125,14 +123,12 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
                @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
                @Nonnull final ReservedInstanceApplicatorFactory<ENTITY_CLASS> reservedInstanceApplicatorFactory,
-               @Nonnull final CloudCommitmentApplicator.CloudCommitmentApplicatorFactory<ENTITY_CLASS> cloudCommitmentApplicatorFactory,
                @Nonnull final DependentCostLookup<ENTITY_CLASS> dependentCostLookup,
                @Nonnull final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage) {
         this.cloudCostData = Objects.requireNonNull(cloudCostData);
         this.cloudTopology = Objects.requireNonNull(cloudTopology);
         this.entityInfoExtractor = Objects.requireNonNull(entityInfoExtractor);
         this.reservedInstanceApplicatorFactory = Objects.requireNonNull(reservedInstanceApplicatorFactory);
-        this.cloudCommitmentApplicatorFactory = Objects.requireNonNull(cloudCommitmentApplicatorFactory);
         this.dependentCostLookup = Objects.requireNonNull(dependentCostLookup);
         this.topologyRICoverage = Objects.requireNonNull(topologyRICoverage);
     }
@@ -497,9 +493,6 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         final ReservedInstanceApplicator<ENTITY_CLASS> reservedInstanceApplicator =
                 reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
                     context.getCostJournal(), entityInfoExtractor, cloudCostData, topologyRICoverage);
-        final CloudCommitmentApplicator<ENTITY_CLASS> cloudCommitmentApplicator =
-                cloudCommitmentApplicatorFactory.newCloudCommitmentApplicator(
-                        context.getCostJournal(), entityInfoExtractor, cloudCostData, cloudTopology);
         // Recording vm volumes costs into the journal.
         // For storage costs, the primary entity for cost calculation is the volume.
         // The VM's storage cost just inherits the volumes.
@@ -553,7 +546,6 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     // covered by reserved instances.
                     boolean recordLicenseCost = computeConfig.getLicenseModel() == LicenseModel.LICENSE_INCLUDED;
                     reservedInstanceApplicator.recordRICoverage(computeTier, price, recordLicenseCost);
-                    cloudCommitmentApplicator.recordCloudCommitmentCoverage();
                     recordVMIpCost(entity, computeTier, onDemandPriceTable.get(), journal);
                 }
                 // Add entity uptime discounts to all categories
@@ -616,9 +608,9 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             // Use the Compute Config priced commodities if present. This will be available for real time pricing.
             // If not available, as in the case of projected topologies retrieve pricing commodities based on
             // the compute tier.
-            Map<CommodityType, Double> pricedCommodities = computeConfig.getPricedCommoditiesBought();
+            Map<TopologyDTO.CommodityType, Double> pricedCommodities = computeConfig.getPricedCommoditiesBought();
             if (pricedCommodities.size() < 2) {
-                Optional<Map<CommodityType, Double>> computeTierPricingCommodities =
+                Optional<Map<TopologyDTO.CommodityType, Double>> computeTierPricingCommodities =
                         entityInfoExtractor.getComputeTierPricingCommodities(computeTier);
                 if (computeTierPricingCommodities.isPresent()) {
                     pricedCommodities = computeTierPricingCommodities.get();
@@ -633,24 +625,24 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 logger.warn("Cost calculation may be missing a resource capacity for entity {} with id {} ",
                         entityInfoExtractor.getName(entity), entityInfoExtractor.getId(entity));
             }
-            for (Entry<CommodityType, Double> entry : pricedCommodities.entrySet()) {
-                    CommodityType commodityType =
+            for (Entry<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> entry : pricedCommodities.entrySet()) {
+                    com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType commodityType =
                             entry.getKey();
-                    List<Price> unitPriceList = basePrice.getConsumerCommodityPricesList().stream().filter(c -> c.getCommodityType()
-                            == commodityType).map(c -> c.getPrice()).collect(Collectors.toList());
+                    List<Price> unitPriceList = basePrice.getConsumerCommodityPricesList().stream().filter(c -> c.getCommodityType().getNumber()
+                            == commodityType.getType()).map(c -> c.getPrice()).collect(Collectors.toList());
                     if (unitPriceList.size() != 1) {
-                        String typeName = commodityType.name();
+                        String typeName = CommodityType.forNumber(commodityType.getType()).name();
                         logger.error(
                                 "Can't find commodity price for commodity type name: {}, type value: {} "
                                         + "(entity name: {} with ID {} with compute tier {} with ID {})",
-                                typeName, commodityType, entityInfoExtractor.getName(entity),
+                                typeName, commodityType.getType(), entityInfoExtractor.getName(entity),
                                 entityInfoExtractor.getId(entity), entityInfoExtractor.getName(computeTier),
                                 entityInfoExtractor.getId(computeTier));
                         break;
                     }
                     Double pricingConversionFactor =
                             basePrice.getConsumerCommodityPricesList().stream().filter(
-                                    c -> c.getCommodityType() == commodityType).map(
+                                    c -> c.getCommodityType().getNumber() == commodityType.getType()).map(
                                     c -> c.getPricingConversionFactor()).collect(Collectors.toList()).get(0);
                     journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
                             unitPriceList.get(0), trax(entry.getValue() / pricingConversionFactor,
@@ -1149,11 +1141,10 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
                     @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
                     @Nonnull final ReservedInstanceApplicatorFactory<ENTITY_CLASS> riApplicatorFactory,
-                    @Nonnull final CloudCommitmentApplicator.CloudCommitmentApplicatorFactory<ENTITY_CLASS> cloudCommitmentApplicatorFactory,
                     @Nonnull final DependentCostLookup<ENTITY_CLASS> dependentCostLookup,
                     @Nonnull final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage) {
                 return new CloudCostCalculator<>(cloudCostData, cloudTopology,
-                        entityInfoExtractor, riApplicatorFactory, cloudCommitmentApplicatorFactory,
+                        entityInfoExtractor, riApplicatorFactory,
                     dependentCostLookup, topologyRICoverage);
             }
         };
@@ -1184,7 +1175,6 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 @Nonnull CloudTopology<ENTITY_CLASS> cloudTopology,
                 @Nonnull EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
                 @Nonnull ReservedInstanceApplicatorFactory<ENTITY_CLASS> riApplicatorFactory,
-                @Nonnull CloudCommitmentApplicator.CloudCommitmentApplicatorFactory<ENTITY_CLASS> cloudCommitmentApplicatorFactory,
                 @Nonnull DependentCostLookup<ENTITY_CLASS> dependentCostLookup,
                 @Nonnull Map<Long, EntityReservedInstanceCoverage> topologyRICoverage);
     }

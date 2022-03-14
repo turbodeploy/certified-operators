@@ -29,15 +29,6 @@ public class InformationSchemaConstants {
     /** TABLE_TYPE for a regular table (not a view, etc.). */
     public static final String BASE_TABLE_TYPE = "BASE TABLE";
 
-    /** columns table. */
-    public static final Table<?> COLUMNS = tableNamed("columns");
-    /** column_name column. */
-    public static final Field<String> COLUMN_NAME = stringFieldNamed("column_name");
-    /** data_type column. */
-    public static final Field<String> DATA_TYPE = stringFieldNamed("data_type");
-    /** collation_name column. */
-    public static final Field<String> COLLATION_NAME = stringFieldNamed("collation_name");
-
     @Nonnull
     private static Table<Record> tableNamed(String tableName) {
         return DSL.table(DSL.name(INFORMATION_SCHEMA.getUnqualifiedName(), DSL.name(tableName)));

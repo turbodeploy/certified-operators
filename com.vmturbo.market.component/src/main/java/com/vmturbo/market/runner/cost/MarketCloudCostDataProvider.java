@@ -1,6 +1,5 @@
 package com.vmturbo.market.runner.cost;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -14,19 +13,13 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Maps;
-import com.google.common.collect.SetMultimap;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.CostProtoUtil;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentServiceGrpc;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -58,7 +51,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
-import com.vmturbo.cost.calculation.integration.AbstractCloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
@@ -68,7 +60,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * An implementation of {@link CloudCostDataProvider} that gets the relevant
  * {@link CloudCostData} via RPCs in the cost component.
  */
-public class MarketCloudCostDataProvider extends AbstractCloudCostDataProvider implements CloudCostDataProvider<TopologyEntityDTO> {
+public class MarketCloudCostDataProvider implements CloudCostDataProvider {
 
     private final ReservedInstanceBoughtServiceBlockingStub riBoughtServiceClient;
 
@@ -80,7 +72,6 @@ public class MarketCloudCostDataProvider extends AbstractCloudCostDataProvider i
 
     private final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationServiceClient;
     private final EntityUptimeServiceBlockingStub entityUptimeServiceClient;
-    private final CloudCommitmentServiceGrpc.CloudCommitmentServiceBlockingStub cloudCommitmentServiceClient;
 
     /**
      * Constructor for the market cloud cost data provider.
@@ -105,8 +96,6 @@ public class MarketCloudCostDataProvider extends AbstractCloudCostDataProvider i
                         .newBlockingStub(costChannel));
         this.entityUptimeServiceClient =
                 Objects.requireNonNull(EntityUptimeServiceGrpc.newBlockingStub(costChannel));
-        this.cloudCommitmentServiceClient = Objects.requireNonNull(CloudCommitmentServiceGrpc
-                .newBlockingStub(costChannel));
     }
 
     /**
@@ -210,25 +199,12 @@ public class MarketCloudCostDataProvider extends AbstractCloudCostDataProvider i
             final Optional<EntityUptimeDTO> defaultUptime = entityUptimeResponse.hasDefaultUptime()
                 ? Optional.of(entityUptimeResponse.getDefaultUptime()) : Optional.empty();
 
-            // fetch CloudCommitmentMapping
-            CloudCommitmentServices.GetCloudCommitmentInfoForAnalysisResponse cloudCommitmentResponse = cloudCommitmentServiceClient.getCloudCommitmentInfoForAnalysis(
-                    CloudCommitmentServices.GetCloudCommitmentInfoForAnalysisRequest.getDefaultInstance());
-            final SetMultimap<Long, CloudCommitmentDTO.CloudCommitmentMapping> cloudCommitmentMappingByEntityId = cloudCommitmentResponse.getCommitmentBucketList().stream()
-                    .map(infoBucket -> infoBucket.getCloudCommitmentMappingList())
-                    .flatMap(Collection::stream)
-                    .collect(ImmutableSetMultimap.toImmutableSetMultimap(CloudCommitmentDTO.CloudCommitmentMapping::getEntityOid, Function.identity()));
-
-            // fetch CloudCommitmentData
-            final Map<Long, CloudCommitmentData<TopologyDTO.TopologyEntityDTO>> cloudCommitmentDataByCloudCommitmentId = getCloudCommitments(cloudTopo);
-
             return new CloudCostData<>(coverageListMap,
                     filteredCoverageMap,
                     riBoughtById,
                     riSpecsById,
                     buyRIBoughtById, accountPricingDataByBusinessAccountOid,
-                    uptimeByOidMap, defaultUptime,
-                    cloudCommitmentMappingByEntityId,
-                    cloudCommitmentDataByCloudCommitmentId);
+                    uptimeByOidMap, defaultUptime);
         } catch (StatusRuntimeException e) {
             throw new CloudCostDataRetrievalException(e);
         }

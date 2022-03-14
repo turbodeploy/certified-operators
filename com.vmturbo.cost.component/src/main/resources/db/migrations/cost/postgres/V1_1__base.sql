@@ -1,6 +1,3 @@
--- case insensitive collation
-CREATE COLLATION IF NOT EXISTS ci (provider = 'icu', locale = 'und@colStrength=primary', deterministic = false);
-
 -- This base migration contains all the DDL changes from all the mariadb migration until V1_75
 -- The account_expenses table contains the latest record for each expense_date, associated_entity_id,
 -- and associated_account_id. We assume that given two records that represent the spent
@@ -35,7 +32,7 @@ CREATE INDEX IF NOT EXISTS exm_ai ON account_expenses_by_month (associated_accou
 
 DROP TABLE IF EXISTS account_expenses_retention_policies;
 CREATE TABLE account_expenses_retention_policies (
-    policy_name VARCHAR(50) COLLATE ci NOT NULL,
+    policy_name VARCHAR(50) NOT NULL,
     retention_period int NOT NULL,
     PRIMARY KEY (policy_name)
 );
@@ -69,18 +66,18 @@ CREATE TABLE IF NOT EXISTS action_context_ri_buy (
     action_id bigint,
     plan_id bigint,
     create_time timestamp,
-    template_type VARCHAR(100) COLLATE ci,
-    template_family VARCHAR(100) COLLATE ci,
+    template_type VARCHAR(100),
+    template_family VARCHAR(100),
     data bytea,
     demand_type int NOT NULL,
-    datapoint_interval VARCHAR(255) COLLATE ci NOT NULL,
+    datapoint_interval VARCHAR(255) NOT NULL,
     PRIMARY KEY (id)
 );
 
 -- Aggregation Meta Data table creation */
 -- This is a utility table used to store states of aggregation */
 CREATE TABLE IF NOT EXISTS aggregation_meta_data (
-    aggregate_table VARCHAR(64) COLLATE ci NOT NULL,
+    aggregate_table VARCHAR(64) NOT NULL,
     last_aggregated timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
     last_aggregated_by_hour timestamp NOT NULL DEFAULT '0001-01-01 00:00:00',
     last_aggregated_by_day timestamp NOT NULL DEFAULT '0001-01-01 00:00:00',
@@ -185,7 +182,7 @@ CREATE INDEX IF NOT EXISTS idx_billed_cost_monthly_region_id ON billed_cost_mont
 CREATE TABLE IF NOT EXISTS price_table_key_oid (
   -- unique ID for this price_table_key
   id bigint NOT NULL,
-  price_table_key text COLLATE ci NOT NULL,
+  price_table_key text NOT NULL,
   -- the unique ID for this price table
   PRIMARY KEY (id)
 );
@@ -495,11 +492,11 @@ CREATE TABLE IF NOT EXISTS entity_savings_audit_events (
   event_type int NOT NULL,
 
   -- Action OID if action event type, or Vendor event id for topology events if applicable, or ''.
-  event_id VARCHAR(255) COLLATE ci NOT NULL,
+  event_id VARCHAR(255) NOT NULL,
   event_time timestamp NOT NULL DEFAULT '0001-01-01 00:00:00.000',
 
   -- Additional info ('' if not applicable) about event where applicable, stored as a JSON string.
-  event_info TEXT COLLATE ci NOT NULL,
+  event_info TEXT NOT NULL,
 
   PRIMARY KEY (entity_oid, event_type, event_id, event_time)
 );
@@ -538,7 +535,7 @@ CREATE INDEX idx_entity_savings_by_month_stats_time ON entity_savings_by_month(s
 CREATE TABLE IF NOT EXISTS entity_savings_state (
     entity_oid BIGINT NOT NULL,
     updated SMALLINT NOT NULL DEFAULT 0,
-    entity_state TEXT COLLATE ci DEFAULT NULL,
+    entity_state TEXT DEFAULT NULL,
     next_expiration_time timestamp NOT NULL DEFAULT '0001-01-01 00:00:00.000',
     CONSTRAINT fk_entity_savings_state_entity_oid FOREIGN KEY (entity_oid) REFERENCES
     entity_cloud_scope (entity_oid) ON DELETE NO ACTION ON UPDATE NO ACTION,
@@ -642,8 +639,8 @@ CREATE TABLE IF NOT EXISTS ingested_live_topology (
 CREATE INDEX idx_ingested_live_topology_creation_time ON ingested_live_topology(creation_time);
 
 CREATE TABLE IF NOT EXISTS last_updated (
-  table_name varchar(50) COLLATE ci NOT NULL,
-  column_name varchar(50) COLLATE ci NOT NULL,
+  table_name varchar(50) NOT NULL,
+  column_name varchar(50) NOT NULL,
   last_update timestamp NULL DEFAULT NULL,
   PRIMARY KEY (table_name,column_name)
 );
@@ -818,7 +815,7 @@ CREATE TABLE IF NOT EXISTS price_table (
 
     oid                               bigint           NOT NULL,
 
-    price_table_key                   text             COLLATE ci DEFAULT NULL,
+    price_table_key                   text             DEFAULT NULL,
 
     checksum                          bigint           DEFAULT NULL,
 
@@ -852,9 +849,9 @@ CREATE TABLE IF NOT EXISTS reserved_instance_utilization_latest (
     -- The amount of coupons which used by other entities.
     used_coupons                       DOUBLE PRECISION          NOT NULL,
 
-    hour_key                           VARCHAR(32) COLLATE ci,
-    day_key                            VARCHAR(32) COLLATE ci,
-    month_key                          VARCHAR(32) COLLATE ci,
+    hour_key                           VARCHAR(32),
+    day_key                            VARCHAR(32),
+    month_key                          VARCHAR(32),
     PRIMARY KEY (snapshot_time, id)
 );
 CREATE INDEX IF NOT EXISTS idx_reserved_instance_utilization_latest_id on reserved_instance_utilization_latest(id);
@@ -881,7 +878,7 @@ CREATE TABLE IF NOT EXISTS reserved_instance_utilization_by_hour (
     -- The amount of coupons which used by other entities.
     used_coupons                       DOUBLE PRECISION          NOT NULL,
 
-    hour_key                           VARCHAR(32)     COLLATE ci NOT NULL,
+    hour_key                           VARCHAR(32)     NOT NULL,
     samples                            int             NOT NULL,
     PRIMARY KEY (hour_key)
 );
@@ -911,7 +908,7 @@ CREATE TABLE IF NOT EXISTS reserved_instance_utilization_by_day (
     -- The amount of coupons which used by other entities.
     used_coupons                       DOUBLE PRECISION          NOT NULL,
 
-    day_key                            VARCHAR(32)     COLLATE ci NOT NULL,
+    day_key                            VARCHAR(32)     NOT NULL,
     samples                            int             NOT NULL,
     PRIMARY KEY (day_key)
 );
@@ -941,7 +938,7 @@ CREATE TABLE IF NOT EXISTS reserved_instance_utilization_by_month (
     -- The amount of coupons which used by other entities.
     used_coupons                       DOUBLE PRECISION          NOT NULL,
 
-    month_key                            VARCHAR(32)    COLLATE ci NOT NULL,
+    month_key                            VARCHAR(32)     NOT NULL,
     samples                            int             NOT NULL,
     PRIMARY KEY (month_key)
 );
@@ -955,7 +952,7 @@ CREATE TABLE IF NOT EXISTS reserved_instance_bought (
     -- The business account id owns this reserved instance.
     business_account_id bigint NOT NULL,
     -- The probe send out unique id for the reserved instance.
-    probe_reserved_instance_id VARCHAR(255) COLLATE ci NOT NULL,
+    probe_reserved_instance_id VARCHAR(255) NOT NULL,
     -- The id of reserved instance spec which this reserved instance referring to.
     reserved_instance_spec_id bigint NOT NULL,
     -- The availability zone id of reserved instance.
@@ -982,9 +979,9 @@ CREATE TABLE IF NOT EXISTS reserved_instance_coverage_latest (
     business_account_id                BIGINT          NOT NULL,
     total_coupons                      DOUBLE PRECISION           NOT NULL,
     used_coupons                       DOUBLE PRECISION           NOT NULL,
-    hour_key                           VARCHAR(32)     COLLATE ci NOT NULL,
-    day_key                            VARCHAR(32)     COLLATE ci NOT NULL,
-    month_key                          VARCHAR(32)     COLLATE ci NOT NULL,
+    hour_key                           VARCHAR(32)     NOT NULL,
+    day_key                            VARCHAR(32)     NOT NULL,
+    month_key                          VARCHAR(32)     NOT NULL,
     PRIMARY KEY (snapshot_time, entity_id)
 );
 CREATE INDEX IF NOT EXISTS idx_reserved_instance_coverage_latest_entity_id on reserved_instance_coverage_latest(entity_id);
@@ -997,7 +994,7 @@ CREATE TABLE IF NOT EXISTS reserved_instance_coverage_by_hour (
     business_account_id                BIGINT          NOT NULL,
     total_coupons                      DOUBLE PRECISION           NOT NULL,
     used_coupons                       DOUBLE PRECISION           NOT NULL,
-    hour_key                           VARCHAR(32)     COLLATE ci NOT NULL,
+    hour_key                           VARCHAR(32)     NOT NULL,
     samples                            int             NOT NULL,
     PRIMARY KEY (hour_key)
 );
@@ -1013,7 +1010,7 @@ CREATE TABLE IF NOT EXISTS reserved_instance_coverage_by_day (
     business_account_id                BIGINT          NOT NULL,
     total_coupons                      DOUBLE PRECISION           NOT NULL,
     used_coupons                       DOUBLE PRECISION           NOT NULL,
-    day_key                            VARCHAR(32)     COLLATE ci NOT NULL,
+    day_key                            VARCHAR(32)     NOT NULL,
     samples                            int             NOT NULL,
     PRIMARY KEY (day_key)
 );
@@ -1029,7 +1026,7 @@ CREATE TABLE IF NOT EXISTS reserved_instance_coverage_by_month (
     business_account_id                BIGINT          NOT NULL,
     total_coupons                      DOUBLE PRECISION           NOT NULL,
     used_coupons                       DOUBLE PRECISION           NOT NULL,
-    month_key                          VARCHAR(32)     COLLATE ci NOT NULL,
+    month_key                          VARCHAR(32)     NOT NULL,
     samples                            int             NOT NULL,
     PRIMARY KEY (month_key)
 );

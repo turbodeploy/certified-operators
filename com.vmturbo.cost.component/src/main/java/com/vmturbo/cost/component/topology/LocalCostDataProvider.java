@@ -12,15 +12,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Maps;
-import com.google.common.collect.SetMultimap;
 
-import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.CostProtoUtil;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
@@ -29,12 +25,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
-import com.vmturbo.cost.calculation.integration.AbstractCloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
-import com.vmturbo.cost.component.cloud.commitment.mapping.CommitmentMappingFilter;
-import com.vmturbo.cost.component.cloud.commitment.mapping.MappingInfo;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
@@ -42,7 +35,6 @@ import com.vmturbo.cost.component.reserved.instance.EntityReservedInstanceMappin
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
-import com.vmturbo.cost.component.stores.SingleFieldDataStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.event.library.uptime.EntityUptime;
 import com.vmturbo.topology.event.library.uptime.EntityUptimeStore;
@@ -50,7 +42,7 @@ import com.vmturbo.topology.event.library.uptime.EntityUptimeStore;
 /**
  * A {@link CloudCostDataProvider} that gets the data locally from within the cost component.
  */
-public class LocalCostDataProvider extends AbstractCloudCostDataProvider implements CloudCostDataProvider<TopologyEntityDTO> {
+public class LocalCostDataProvider implements CloudCostDataProvider {
 
     private final PriceTableStore priceTableStore;
 
@@ -68,8 +60,6 @@ public class LocalCostDataProvider extends AbstractCloudCostDataProvider impleme
 
     private final EntityUptimeStore entityUptimeStore;
 
-    private final SingleFieldDataStore<MappingInfo, CommitmentMappingFilter> sourceTopologyCommitmentMappingStore;
-
     /**
      * Create a LocalCostDataProvider.
      *
@@ -83,7 +73,6 @@ public class LocalCostDataProvider extends AbstractCloudCostDataProvider impleme
      * @param discountApplicatorFactory for applying discounts
      * @param topologyEntityInfoExtractor for extracting topology info
      * @param entityUptimeStore for fetching entity uptime
-     * @param sourceTopologyCommitmentMappingStore for fetching cloud commitment mapping
      */
     public LocalCostDataProvider(@Nonnull final PriceTableStore priceTableStore,
                  @Nonnull final DiscountStore discountStore,
@@ -94,8 +83,7 @@ public class LocalCostDataProvider extends AbstractCloudCostDataProvider impleme
                                  IdentityProvider identityProvider,
                                  @Nonnull DiscountApplicatorFactory discountApplicatorFactory,
                                  @Nonnull TopologyEntityInfoExtractor topologyEntityInfoExtractor,
-                                 @Nonnull EntityUptimeStore entityUptimeStore,
-                 @Nonnull final SingleFieldDataStore<MappingInfo, CommitmentMappingFilter> sourceTopologyCommitmentMappingStore) {
+                                 @Nonnull EntityUptimeStore entityUptimeStore) {
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.discountStore = Objects.requireNonNull(discountStore);
         this.riBoughtStore = Objects.requireNonNull(riBoughtStore);
@@ -106,12 +94,11 @@ public class LocalCostDataProvider extends AbstractCloudCostDataProvider impleme
                 businessAccountPriceTableKeyStore, identityProvider, discountStore,
                 discountApplicatorFactory, topologyEntityInfoExtractor);
         this.entityUptimeStore = entityUptimeStore;
-        this.sourceTopologyCommitmentMappingStore = sourceTopologyCommitmentMappingStore;
     }
 
     @Nonnull
     @Override
-    public CloudCostData<TopologyEntityDTO> getCloudCostData(@Nonnull final TopologyInfo topoInfo,
+    public CloudCostData getCloudCostData(@Nonnull final TopologyInfo topoInfo,
                 @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopo,
                 @Nonnull final TopologyEntityInfoExtractor topologyEntityInfoExtractor) throws CloudCostDataRetrievalException {
         final Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingIdByBusinessAccountOid
@@ -126,16 +113,11 @@ public class LocalCostDataProvider extends AbstractCloudCostDataProvider impleme
         final Map<Long, EntityUptimeDTO> entityUptimeDTOByOid = getEntityUptime(topoInfo, cloudTopo);
         final Optional<EntityUptimeDTO> defaultUptimeDTO =
             entityUptimeStore.getDefaultUptime().map(EntityUptime::toProtobuf);
-        final SetMultimap<Long, CloudCommitmentDTO.CloudCommitmentMapping> cloudCommitmentMappingByEntityId = sourceTopologyCommitmentMappingStore.getData()
-                .map(mappingInfo -> mappingInfo.cloudCommitmentMappings()
-                        .stream()
-                        .collect(ImmutableSetMultimap.toImmutableSetMultimap(CloudCommitmentDTO.CloudCommitmentMapping::getEntityOid, Function.identity())))
-                .orElseGet(ImmutableSetMultimap::of);
-        final Map<Long, CloudCommitmentData<TopologyDTO.TopologyEntityDTO>> cloudCommitmentDataByCloudCommitmentId = getCloudCommitments(cloudTopo);
+
         return new CloudCostData<>(entityRiMappingStore.getEntityRiCoverage(),
             entityRiMappingStore.getEntityRiCoverage(), riBoughtById, riSpecById,
             Collections.emptyMap(), accountPricingIdByBusinessAccountOid, entityUptimeDTOByOid,
-            defaultUptimeDTO, cloudCommitmentMappingByEntityId, cloudCommitmentDataByCloudCommitmentId);
+            defaultUptimeDTO);
     }
 
     private Map<Long, EntityUptimeDTO> getEntityUptime(@Nonnull final TopologyInfo topoInfo,

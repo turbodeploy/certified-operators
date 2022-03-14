@@ -16,7 +16,7 @@ CREATE TABLE entity_savings_events (
   entity_type INT NOT NULL,
 
   -- Additional info ('' if not applicable) about event where applicable, stored as a JSON string.
-  event_info TEXT COLLATE ci NOT NULL,
+  event_info TEXT NOT NULL,
 
   PRIMARY KEY (event_id)
 );

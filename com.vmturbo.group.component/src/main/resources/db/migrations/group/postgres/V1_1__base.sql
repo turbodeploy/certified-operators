@@ -1,12 +1,9 @@
--- case insensitive collation
-CREATE COLLATION IF NOT EXISTS ci (provider = 'icu', locale = 'und@colStrength=primary', deterministic = false);
-
 CREATE table IF NOT EXISTS auto_topo_data_defs (
   id bigint NOT NULL,
-  name_prefix varchar(255) COLLATE ci NOT NULL,
+  name_prefix varchar(255) NOT NULL,
   entity_type integer NOT NULL,
   connected_entity_type integer NOT NULL,
-  tag_key varchar(255) COLLATE ci NOT NULL,
+  tag_key varchar(255) NOT NULL,
   PRIMARY KEY (id)
 );
 
@@ -15,8 +12,8 @@ CREATE table IF NOT EXISTS auto_topo_data_defs (
 
 CREATE TABLE IF NOT EXISTS entity_custom_tags (
   entity_id bigint NOT NULL,
-  tag_key varchar(255) COLLATE ci NOT NULL,
-  tag_value varchar(255) COLLATE ci NOT NULL,
+  tag_key varchar(255) NOT NULL,
+  tag_value varchar(255) NOT NULL,
   PRIMARY KEY (entity_id,tag_key,tag_value)
 ) ;
 
@@ -24,7 +21,7 @@ CREATE TABLE IF NOT EXISTS entity_custom_tags (
 -- group_component.global_settings definition
 
 CREATE TABLE IF NOT EXISTS global_settings (
-  name varchar(255) COLLATE ci NOT NULL,
+  name varchar(255) NOT NULL,
   setting_data bytea NOT NULL,
   PRIMARY KEY (name)
 ) ;
@@ -33,11 +30,11 @@ CREATE TABLE IF NOT EXISTS global_settings (
 CREATE TABLE IF NOT EXISTS grouping (
   id bigint NOT NULL,
   supports_member_reverse_lookup boolean NOT NULL,
-  origin_user_creator varchar(255) COLLATE ci DEFAULT NULL,
-  origin_discovered_src_id varchar(255) COLLATE ci DEFAULT NULL,
-  origin_system_description varchar(255) COLLATE ci DEFAULT NULL,
+  origin_user_creator varchar(255) DEFAULT NULL,
+  origin_discovered_src_id varchar(255) DEFAULT NULL,
+  origin_system_description varchar(255) DEFAULT NULL,
   group_type integer NOT NULL,
-  display_name varchar(255) COLLATE ci NOT NULL,
+  display_name varchar(255) NOT NULL,
   is_hidden boolean NOT NULL,
   owner_id bigint DEFAULT NULL,
   group_filters bytea DEFAULT NULL,
@@ -56,7 +53,7 @@ CREATE INDEX IF NOT EXISTS idx_grouping_disc_src_id ON grouping (origin_discover
 
 CREATE TABLE IF NOT EXISTS manual_topo_data_defs (
   id bigint NOT NULL,
-  name varchar(255) COLLATE ci NOT NULL,
+  name varchar(255) NOT NULL,
   entity_type integer NOT NULL,
   context_based boolean DEFAULT FALSE,
   PRIMARY KEY (id)
@@ -67,12 +64,12 @@ CREATE TABLE IF NOT EXISTS manual_topo_data_defs (
 
 CREATE TABLE IF NOT EXISTS policy (
   id bigint NOT NULL UNIQUE,
-  name varchar(255) COLLATE ci NOT null UNIQUE,
+  name varchar(255) NOT null UNIQUE,
   enabled boolean NOT NULL,
   discovered_by_id bigint DEFAULT NULL,
   policy_data bytea NOT NULL,
   hash bytea DEFAULT NULL,
-  display_name varchar(255) COLLATE ci NOT NULL,
+  display_name varchar(255) NOT NULL,
   PRIMARY KEY (id)
 ) ;
 
@@ -81,12 +78,12 @@ CREATE TABLE IF NOT EXISTS policy (
 
 CREATE TABLE IF NOT EXISTS schedule (
   id bigint NOT NULL,
-  display_name varchar(255) COLLATE ci NOT NULL UNIQUE,
+  display_name varchar(255) NOT NULL UNIQUE,
   start_time timestamp NOT NULL DEFAULT current_timestamp(3),
   end_time timestamp NOT NULL DEFAULT NULLIF('0000-00-00 00:00:00','0000-00-00 00:00:00')::timestamp,
   last_date timestamp NULL DEFAULT NULL,
-  recur_rule varchar(80) COLLATE ci DEFAULT NULL,
-  time_zone_id varchar(40) COLLATE ci NOT NULL,
+  recur_rule varchar(80) DEFAULT NULL,
+  time_zone_id varchar(40) NOT NULL,
   recurrence_start_time timestamp NULL DEFAULT NULL,
   delete_after_expiration boolean DEFAULT FALSE,
   PRIMARY KEY (id)
@@ -98,9 +95,9 @@ CREATE TABLE IF NOT EXISTS schedule (
 CREATE TABLE IF NOT EXISTS settings (
   id SERIAL NOT NULL,
   topology_context_id bigint NOT NULL,
-  setting_name varchar(255) COLLATE ci NOT NULL,
+  setting_name varchar(255) NOT NULL,
   setting_type smallint NOT NULL,
-  setting_value varchar(255) COLLATE ci NOT NULL,
+  setting_value varchar(255) NOT NULL,
   PRIMARY KEY (id)
  );
 
@@ -109,7 +106,7 @@ CREATE TABLE IF NOT EXISTS settings (
 
 CREATE TABLE IF NOT EXISTS topology_data_definition_oid (
   id bigint NOT NULL,
-  identity_matching_attributes text COLLATE ci NOT NULL,
+  identity_matching_attributes text NOT NULL,
   PRIMARY KEY (id)
 ) ;
 
@@ -196,8 +193,8 @@ CREATE TABLE IF NOT EXISTS group_supplementary_info (
 
 CREATE TABLE IF NOT EXISTS group_tags (
   group_id bigint NOT NULL,
-  tag_key varchar(255) COLLATE ci NOT NULL,
-  tag_value varchar(255) COLLATE ci NOT NULL,
+  tag_key varchar(255) NOT NULL,
+  tag_value varchar(255) NOT NULL,
   tag_origin smallint NOT NULL DEFAULT 1,
   PRIMARY KEY (group_id,tag_key,tag_value,tag_origin),
   CONSTRAINT fk_group_tags_grouping FOREIGN KEY (group_id) REFERENCES grouping (id) ON DELETE CASCADE
@@ -263,11 +260,11 @@ END $$;
 
 CREATE TABLE IF NOT EXISTS setting_policy (
   id bigint NOT NULL,
-  name varchar(255) COLLATE ci NOT NULL,
+  name varchar(255) NOT NULL,
   entity_type integer NOT NULL,
   policy_type policy_type NOT NULL,
   target_id bigint DEFAULT NULL,
-  display_name varchar(255) COLLATE ci DEFAULT NULL,
+  display_name varchar(255) DEFAULT NULL,
   enabled boolean NOT NULL,
   schedule_id bigint DEFAULT NULL,
   hash bytea DEFAULT NULL,
@@ -291,9 +288,9 @@ CREATE TABLE IF NOT EXISTS setting_policy_groups (
 
 CREATE TABLE IF NOT EXISTS setting_policy_setting (
   policy_id bigint NOT NULL,
-  setting_name varchar(255) COLLATE ci NOT NULL,
+  setting_name varchar(255) NOT NULL,
   setting_type smallint NOT NULL,
-  setting_value varchar(255) COLLATE ci NOT NULL,
+  setting_value varchar(255) NOT NULL,
   PRIMARY KEY (policy_id,setting_name),
   CONSTRAINT fk_setting_policy_setting_group FOREIGN KEY (policy_id) REFERENCES setting_policy (id) ON DELETE CASCADE
 );
@@ -303,7 +300,7 @@ CREATE TABLE IF NOT EXISTS setting_policy_setting (
 
 CREATE TABLE IF NOT EXISTS setting_policy_setting_oids (
   policy_id bigint NOT NULL,
-  setting_name varchar(255) COLLATE ci NULL,
+  setting_name varchar(255) NULL,
   oid_number integer NOT NULL,
   oid bigint NOT NULL,
   PRIMARY KEY (policy_id,setting_name,oid_number),
@@ -315,7 +312,7 @@ CREATE TABLE IF NOT EXISTS setting_policy_setting_oids (
 
 CREATE TABLE IF NOT EXISTS setting_policy_setting_schedule_ids (
   policy_id bigint NOT NULL,
-  setting_name varchar(255) COLLATE ci NOT NULL,
+  setting_name varchar(255) NOT NULL,
   execution_schedule_id bigint NOT NULL,
   PRIMARY KEY (policy_id,setting_name,execution_schedule_id),
   CONSTRAINT fk_execution_schedule_id FOREIGN KEY (execution_schedule_id) REFERENCES schedule (id),
@@ -347,16 +344,16 @@ CREATE TABLE IF NOT EXISTS settings_policies (
 
 CREATE TABLE IF NOT EXISTS tags_group (
   group_id bigint NOT NULL,
-  tag_key varchar(255) COLLATE ci NOT NULL,
-  tag_value varchar(255) COLLATE ci NOT NULL,
+  tag_key varchar(255) NOT NULL,
+  tag_value varchar(255) NOT NULL,
   PRIMARY KEY (group_id,tag_key,tag_value),
   CONSTRAINT fk_tags_group_id FOREIGN KEY (group_id) REFERENCES grouping (id) ON DELETE CASCADE ON UPDATE CASCADE
 ) ;
 
 DROP VIEW IF EXISTS all_topo_data_defs;
 CREATE VIEW all_topo_data_defs  AS
-  SELECT id, name AS name_or_prefix, 'MANUAL' COLLATE ci AS type
+  SELECT id, name AS name_or_prefix, 'MANUAL' AS type
   FROM manual_topo_data_defs
 UNION
-  SELECT id, name_prefix AS name_or_prefix, 'AUTO' COLLATE ci AS type
+  SELECT id, name_prefix AS name_or_prefix, 'AUTO' AS type
   FROM auto_topo_data_defs;

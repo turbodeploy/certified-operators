@@ -1,6 +1,3 @@
--- case insensitive collation
-CREATE COLLATION IF NOT EXISTS ci (provider = 'icu', locale = 'und@colStrength=primary', deterministic = false);
-
 -- A registered component is a particular instance of a particular component type - e.g.
 -- a specific topology processor pod - that's active in the deployment.
 --
@@ -9,26 +6,26 @@ CREATE COLLATION IF NOT EXISTS ci (provider = 'icu', locale = 'und@colStrength=p
 CREATE TABLE registered_component (
 
   -- The type of the component (e.g. topology-processor).
-  component_type            VARCHAR(255)       COLLATE ci NOT NULL,
+  component_type            VARCHAR(255)       NOT NULL,
 
   -- The instance id of the component (e.g. topology-processor-bs9resn).
-  instance_id               VARCHAR(255)       COLLATE ci NOT NULL,
+  instance_id               VARCHAR(255)       NOT NULL,
 
   -- The JVM id of this particular incarnation of the instance.
   jvm_id                    BIGINT             NOT NULL,
 
   -- The IP address the component is reachable at.
-  ip_address                VARCHAR(255)       COLLATE ci NOT NULL,
+  ip_address                VARCHAR(255)       NOT NULL,
 
   -- The port the component is reachable at.
   port                      INT                NOT NULL,
 
   -- The route to prefix all component HTTP paths with.
-  route                     VARCHAR(255)       COLLATE ci NOT NULL,
+  route                     VARCHAR(255)       NOT NULL,
 
   -- Additional information about the component that may be helpful for debugging.
   -- This could include things like version numbers, configuration property values, and so on.
-  auxiliary_info            TEXT               COLLATE ci DEFAULT NULL,
+  auxiliary_info            TEXT               DEFAULT NULL,
 
   -- The time the component first registered.
   registration_time         TIMESTAMP          NOT NULL DEFAULT now(),
@@ -40,7 +37,7 @@ CREATE TABLE registered_component (
   status                    INT                NOT NULL,
 
   -- Description of the current health status.
-  status_description        TEXT               COLLATE ci DEFAULT NULL,
+  status_description        TEXT               DEFAULT NULL,
 
   -- The time of the last status change.
   -- The difference between this value and the current time is how long the component has been

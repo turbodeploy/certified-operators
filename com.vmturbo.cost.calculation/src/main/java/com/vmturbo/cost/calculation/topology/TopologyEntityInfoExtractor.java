@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -67,13 +68,13 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
             && entity.hasTypeSpecificInfo() && entity.getTypeSpecificInfo().hasVirtualMachine()) {
             VirtualMachineInfo vmConfig = entity.getTypeSpecificInfo().getVirtualMachine();
-            final Map<CommodityType, Double> pricedCommoditiesBought = entity.getCommoditiesBoughtFromProvidersList().stream()
+            final Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> pricedCommoditiesBought = entity.getCommoditiesBoughtFromProvidersList().stream()
                     .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
                     .filter(c -> c.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE)
                     .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
                     .flatMap(Collection::stream)
                     .filter(commodity -> (commodityTypesSupported.contains(commodity.getCommodityType().getType())))
-                    .collect(Collectors.toMap(c -> CommodityType.valueOf(c.getCommodityType().getType()), c -> c.getUsed()));
+                    .collect(Collectors.toMap(c -> c.getCommodityType(), c -> c.getUsed()));
             return Optional.of(new ComputeConfig(vmConfig.getGuestOsInfo().getGuestOsType(),
                     vmConfig.getTenancy(),
                     vmConfig.getBillingType(),
@@ -158,18 +159,18 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
 
     @Nonnull
     @Override
-    public Optional<Map<CommodityType, Double>> getComputeTierPricingCommodities(
+    public Optional<Map<TopologyDTO.CommodityType, Double>> getComputeTierPricingCommodities(
             @Nonnull TopologyEntityDTO entity) {
         if (entity.getEntityType() != EntityType.COMPUTE_TIER_VALUE) {
             return Optional.empty();
         }
-        Map<CommodityType, Double> computeTierPricingCommodities = new HashMap<>();
+        Map<TopologyDTO.CommodityType, Double> computeTierPricingCommodities = new HashMap<>();
         final ComputeTierInfo tierInfo = entity.getTypeSpecificInfo().getComputeTier();
-        computeTierPricingCommodities.put(CommodityType.NUM_VCORE,
+        computeTierPricingCommodities.put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.NUM_VCORE_VALUE).build(),
                 Double.valueOf(tierInfo.getNumOfCores()));
         Optional<Float> memProvisioned = getRawCommodityCapacity(entity, CommodityType.MEM_PROVISIONED);
         if (memProvisioned.isPresent()) {
-            computeTierPricingCommodities.put(CommodityType.MEM_PROVISIONED,
+            computeTierPricingCommodities.put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.MEM_PROVISIONED_VALUE).build(),
                     memProvisioned.get().doubleValue());
         } else {
             logger.warn("Could not find the mem provisioned commodity for tier {}", entity.getDisplayName());

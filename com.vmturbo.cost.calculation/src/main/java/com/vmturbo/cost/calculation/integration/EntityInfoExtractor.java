@@ -145,7 +145,7 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
      * @return the commodities if passed entity is of type computetier.
      */
     @Nonnull
-    Optional<Map<CommodityType, Double>> getComputeTierPricingCommodities(@Nonnull ENTITY_CLASS entity);
+    Optional<Map<TopologyDTO.CommodityType, Double>> getComputeTierPricingCommodities(@Nonnull ENTITY_CLASS entity);
 
 
     /*
@@ -170,11 +170,11 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         private final VMBillingType billingType;
         private final int numCores;
         private final EntityDTO.LicenseModel licenseModel;
-        private final Map<CommodityType, Double> pricedCommoditiesBought;
+        private final Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> pricedCommoditiesBought;
 
         public ComputeConfig(final OSType os, final Tenancy tenancy, final VMBillingType billingType,
                              final int numCores, final EntityDTO.LicenseModel licenseModel,
-                             final Map<CommodityType, Double> pricedCommoditiesBought) {
+                             final Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> pricedCommoditiesBought) {
             this.os = os;
             this.tenancy = tenancy;
             this.billingType = billingType;
@@ -207,7 +207,7 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         }
 
         @Nonnull
-        public Map<CommodityType, Double> getPricedCommoditiesBought() {
+        public Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> getPricedCommoditiesBought() {
             return pricedCommoditiesBought;
         }
     }

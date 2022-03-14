@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import com.google.common.collect.ImmutableSetMultimap;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -144,12 +143,12 @@ public class CloudCostDataProviderTest {
     private CloudCostData<TopologyEntityDTO> cloudCostDataAWS =
             new CloudCostData<>(Collections.emptyMap(), Collections.emptyMap(),
     Collections.emptyMap(), Collections.emptyMap(),
-        Collections.emptyMap(), awsAccountPricingDatByBaMap, Collections.emptyMap(), Optional.empty(), ImmutableSetMultimap.of(), Collections.emptyMap());
+        Collections.emptyMap(), awsAccountPricingDatByBaMap, Collections.emptyMap(), Optional.empty());
 
     private CloudCostData<TopologyEntityDTO> cloudCostDataAzure =
             new CloudCostData<>(Collections.emptyMap(), Collections.emptyMap(),
     Collections.emptyMap(), Collections.emptyMap(),
-        Collections.emptyMap(), azureAccountPricingDatByBaMap, Collections.emptyMap(), Optional.empty(), ImmutableSetMultimap.of(), Collections.emptyMap());
+        Collections.emptyMap(), azureAccountPricingDatByBaMap, Collections.emptyMap(), Optional.empty());
 
     /**
      * Create a Price instance

@@ -1,5 +1,3 @@
--- case insensitive collation
-CREATE COLLATION IF NOT EXISTS ci (provider = 'icu', locale = 'und@colStrength=primary', deterministic = false);
 
 -- Bookkeeping information about the topologies known to the repository.
 -- Used to quickly look up the source/projected topology in a particular context and for
@@ -15,7 +13,7 @@ CREATE TABLE IF NOT EXISTS topology_metadata (
     topology_type SMALLINT NOT NULL,
 
     -- Miscellaneous information about the topology, mainly to aid debugging.
-    debug_info TEXT COLLATE ci NOT NULL,
+    debug_info TEXT NOT NULL,
 
     -- The status of the topology, indicating whether it's fully ingested and ready for queries.
     status SMALLINT NOT NULL,

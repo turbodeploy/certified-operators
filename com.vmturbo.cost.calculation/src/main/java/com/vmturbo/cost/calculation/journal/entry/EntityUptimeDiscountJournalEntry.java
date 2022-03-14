@@ -16,7 +16,6 @@ import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.journal.CostItem;
 import com.vmturbo.cost.calculation.journal.CostItem.CostSourceLink;
-import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.journal.CostJournal.RateExtractor;
 import com.vmturbo.trax.TraxNumber;
@@ -57,7 +56,7 @@ public class EntityUptimeDiscountJournalEntry<E> implements  QualifiedJournalEnt
                                           @Nonnull final DiscountApplicator discountApplicator,
                                           @Nonnull final RateExtractor rateExtractor) {
         // Retrieve the sum total of prices for all sources.
-        final Collection<CostItem> costItems = rateExtractor.lookupCostWithFilter(targetCostCategory, CostSourceFilter.INCLUDE_ALL, CostJournal.CommodityTypeFilter.INCLUDE_ALL);
+        final Collection<CostItem> costItems = rateExtractor.lookupCostWithFilter(targetCostCategory, CostSourceFilter.INCLUDE_ALL);
 
         return costItems.stream()
                 .map(costItem -> {

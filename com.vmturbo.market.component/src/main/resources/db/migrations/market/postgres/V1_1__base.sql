@@ -1,6 +1,3 @@
--- case insensitive collation
-CREATE COLLATION IF NOT EXISTS ci (provider = 'icu', locale = 'und@colStrength=primary', deterministic = false);
-
 -- In this table we persist the information for economy cache used for reservation.
 CREATE TABLE IF NOT EXISTS economy_cache (
 

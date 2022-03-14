@@ -1,6 +1,3 @@
--- case insensitive collation
-CREATE COLLATION IF NOT EXISTS ci (provider = 'icu', locale = 'und@colStrength=primary', deterministic = false);
-
 -- This table contains the properties that are associated with an id assigned to an object by the
 -- topology processor.
 --
@@ -22,7 +19,7 @@ CREATE TABLE assigned_identity (
   -- The 65,000 characters allowed by text should be sufficient (instead of LONGTEXT). Most probes
   -- use only a few properties for object identities, and the values for each property are likely
   -- to be relatively small.
-  properties TEXT COLLATE ci NOT NULL,
+  properties TEXT NOT NULL,
 
   -- Associate probeId of the probe which discovered the entities.
   probe_id BIGINT NOT NULL,
@@ -93,7 +90,7 @@ CREATE TABLE targetspec_oid (
   id BIGINT NOT NULL,
 
   -- identity matching attributes for the TargetSpec
-  identity_matching_attributes TEXT COLLATE ci NOT NULL,
+  identity_matching_attributes TEXT NOT NULL,
 
   -- the unique ID for this TargetSpec
   PRIMARY KEY (id)
@@ -118,12 +115,12 @@ CREATE TABLE historical_utilization (
 -- support for stale oids
 CREATE TABLE recurrent_operations (
   execution_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  operation_name VARCHAR(255) COLLATE ci,
+  operation_name VARCHAR(255),
   expiration_successful BOOLEAN NOT NULL DEFAULT FALSE,
   last_seen_update_successful BOOLEAN NOT NULL DEFAULT FALSE,
   expired_records INT NOT NULL DEFAULT 0,
   updated_records INT NOT NULL DEFAULT 0,
-  errors TEXT COLLATE ci DEFAULT NULL,
+  errors TEXT DEFAULT NULL,
 
   PRIMARY KEY(execution_time, operation_name)
 );
