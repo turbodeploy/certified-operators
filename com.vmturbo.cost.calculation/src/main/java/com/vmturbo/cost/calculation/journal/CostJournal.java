@@ -285,15 +285,14 @@ public class CostJournal<ENTITY_CLASS> {
          * Look up costs via cost category and cost source filter.
          *
          * @param costCategory The cost category.
-         * @param costSourceFilter The cost source filter. // so that discounts apply only to initial cost, not subsequent discounts
+         * @param costSourceFilter The cost source filter.
+         * @param commodityTypeFilter The commodity type filter
          *
          * @return A trax number representing the cost.
          */
         Collection<CostItem> lookupCostWithFilter(CostCategory costCategory,
                                                   CostSourceFilter costSourceFilter,
                                                   CommodityTypeFilter commodityTypeFilter);
-        // add parameter filter by commodity type
-        // OR costSourceFilter becomes categoryCostInfoFilter to bundle cost source and commodity type into one filter
     }
 
     @Nonnull
@@ -376,7 +375,7 @@ public class CostJournal<ENTITY_CLASS> {
     /**
      * Get the cost from a given journal entry for a given cost category.
      *
-     * @param costSourceFilter The journal entry. // incorrect comment
+     * @param costSourceFilter the cost source filter
      * @param costCategory The cost category.
      *
      * @return The TraxNumber representing the cost from a journal for a particular category.
@@ -392,7 +391,6 @@ public class CostJournal<ENTITY_CLASS> {
     private Collection<CostItem> getFilteredCostItemsForCategory(@Nonnull CostCategory costCategory,
                                                                  @Nonnull CostSourceFilter costSourceFilter,
                                                                  @Nonnull CommodityTypeFilter commodityTypeFilter) {
-// change or duplicate this method to take categoryCostInfoFilter
         final Map<CatagoryCostInfo, TraxNumber> costsBySourceLink = finalCostsByCategoryAndSource.row(costCategory);
         return costsBySourceLink.entrySet()
                 .stream()

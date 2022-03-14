@@ -24,8 +24,11 @@ public class CloudCommitmentDiscountTabulator<E> extends JournalEntryTabulator<E
     public CloudCommitmentDiscountTabulator() {
         super(CloudCommitmentDiscountJournalEntry.class, Arrays.asList(
                         new ColumnInfo("Commitment ID", 14, 18),
+                        new ColumnInfo("Type", 14, 18),
                         new ColumnInfo("Commodity", 14, 18),
-                        new ColumnInfo("Coverage percent", 14, 18)
+                        new ColumnInfo("Coverage percent", 14, 18),
+                        new ColumnInfo("Capacity", 14, 18),
+                        new ColumnInfo("Used", 14, 18)
         ));
     }
 
@@ -36,13 +39,19 @@ public class CloudCommitmentDiscountTabulator<E> extends JournalEntryTabulator<E
         if (entry instanceof CloudCommitmentDiscountJournalEntry) {
             final CloudCommitmentDiscountJournalEntry<E> commitmentEntry = (CloudCommitmentDiscountJournalEntry<E>)entry;
             long commitmentId = commitmentEntry.getCommitmentData().commitmentId();
+            String commitmentTypeString = commitmentEntry.getCoverageVector().getVectorType().getCoverageType().toString();
             String commodityTypeString = commitmentEntry.commodityType().map(Enum::toString).orElse("");
             TraxNumber coveragePercent = commitmentEntry.getCoverageRatio().times(100.0).compute();
-            String coveragePercentString = String.format("%f%%", coveragePercent.getValue());
+            String coveragePercentString = String.format("%.0f%%", coveragePercent.getValue());
+            double capacity = commitmentEntry.getCoverageVector().getCapacity();
+            double used = commitmentEntry.getCoverageVector().getUsed();
             asciiTable.addRow(
                 commitmentId,
+                commitmentTypeString,
                 commodityTypeString,
-                coveragePercentString
+                coveragePercentString,
+                capacity,
+                used
             );
         }
     }

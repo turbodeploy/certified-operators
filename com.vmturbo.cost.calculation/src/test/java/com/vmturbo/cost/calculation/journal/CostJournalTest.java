@@ -12,6 +12,8 @@ import static com.vmturbo.common.protobuf.cost.Cost.CostSource.ENTITY_UPTIME_DIS
 import static com.vmturbo.common.protobuf.cost.Cost.CostSource.ON_DEMAND_RATE;
 import static com.vmturbo.common.protobuf.cost.Cost.CostSource.RI_INVENTORY_DISCOUNT;
 import static com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter.INCLUDE_ALL;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.NUM_VCORE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -300,7 +302,7 @@ public class CostJournalTest {
      * Total On Demand Compute = 100 + (-25) = 75.
      */
     @Test
-    public void testFilterByCostCategoryAndCostSource() { // I think this test is relevant
+    public void testFilterByCostCategoryAndCostSource() {
         final Price computePrice = createPrice(Unit.HOURS, TOTAL_PRICE);
         final Price licensePrice = createPrice(Unit.HOURS, TOTAL_PRICE / 10);
         final TestEntityClass entity = TestEntityClass.newBuilder(7L).build(infoExtractor);
@@ -353,7 +355,7 @@ public class CostJournalTest {
         final TestEntityClass payee = TestEntityClass.newBuilder(123).build(infoExtractor);
 
         TopologyDTO.TopologyEntityDTO commitmentEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
-                        .setEntityType(EntityType.CLOUD_COMMITMENT_VALUE)
+                        .setEntityType(EntityType.CLOUD_COMMITMENT.getNumber())
                         .setOid(123)
                         .setTypeSpecificInfo(TopologyDTO.TypeSpecificInfo.newBuilder()
                                                              .setCloudCommitmentData(
@@ -369,7 +371,7 @@ public class CostJournalTest {
         CloudCommitmentCoverageVector vmemCoverageVector = CloudCommitmentCoverageVector.newBuilder().setVectorType(
                         CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo.newBuilder()
                                         .setCoverageType(COMMODITY)
-                                        .setCoverageSubtype(CommodityType.MEM_PROVISIONED.getNumber()))
+                                        .setCoverageSubtype(MEM_PROVISIONED.getNumber()))
                         .setCapacity(2)
                         .setUsed(1)
                         .build();
@@ -377,21 +379,34 @@ public class CostJournalTest {
         CloudCommitmentCoverageVector coresCoverageVector = CloudCommitmentCoverageVector.newBuilder().setVectorType(
                         CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo.newBuilder()
                                         .setCoverageType(COMMODITY)
-                                        .setCoverageSubtype(CommodityType.NUM_VCORE.getNumber()))
+                                        .setCoverageSubtype(NUM_VCORE.getNumber()))
                         .setCapacity(4)
                         .setUsed(1)
                         .build();
 
         final CostJournal<TestEntityClass> journal =
                         CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
-                                        .recordOnDemandCost(ON_DEMAND_COMPUTE, payee, computePrice, Trax.trax(1), Optional.of(CommodityType.MEM_PROVISIONED))
-                                        .recordOnDemandCost(ON_DEMAND_COMPUTE, payee, computePrice, Trax.trax(1), Optional.of(CommodityType.NUM_VCORE))
-                                        .recordCloudCommitmentDiscount(ON_DEMAND_COMPUTE, commitmentData, vmemCoverageVector)
-                                        .recordCloudCommitmentDiscount(ON_DEMAND_COMPUTE, commitmentData, coresCoverageVector)
+                                        .recordOnDemandCost(ON_DEMAND_COMPUTE,
+                                                            payee,
+                                                            computePrice,
+                                                            Trax.trax(1),
+                                                            Optional.of(MEM_PROVISIONED))
+                                        .recordOnDemandCost(ON_DEMAND_COMPUTE,
+                                                            payee,
+                                                            computePrice,
+                                                            Trax.trax(1),
+                                                            Optional.of(NUM_VCORE))
+                                        .recordCloudCommitmentDiscount(ON_DEMAND_COMPUTE,
+                                                                       commitmentData,
+                                                                       vmemCoverageVector)
+                                        .recordCloudCommitmentDiscount(ON_DEMAND_COMPUTE,
+                                                                       commitmentData,
+                                                                       coresCoverageVector)
                                         .build();
 
         TraxNumber totalHourlyCost = journal.getTotalHourlyCost();
-        TraxNumber cloudCommitmentDiscount = journal.getFilteredCategoryCostsBySource(ON_DEMAND_COMPUTE, INCLUDE_ALL)
+        TraxNumber cloudCommitmentDiscount = journal
+                        .getFilteredCategoryCostsBySource(ON_DEMAND_COMPUTE, INCLUDE_ALL)
                         .get(CLOUD_COMMITMENT_DISCOUNT);
 
         System.out.println(journal);
@@ -552,7 +567,7 @@ public class CostJournalTest {
      *   discount and the appropriate cost source and discounted cost source.
      */
     @Test
-    public void testCloudCommitmentByCommodityType() { // one for each type amount types - what would that look like? Not RI, right?
+    public void testCloudCommitmentByCommodityType() {
         TopologyDTO.TopologyEntityDTO commitmentEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
                         .setEntityType(EntityType.CLOUD_COMMITMENT_VALUE)
                         .setOid(123)
@@ -566,7 +581,7 @@ public class CostJournalTest {
 
         final TopologyCommitmentData commitmentData = TopologyCommitmentData.builder()
                         .commitment(commitmentEntity).build();
-        CommodityType coverageSubtype = CommodityType.MEM_PROVISIONED;
+        CommodityType coverageSubtype = MEM_PROVISIONED;
 
         CloudCommitmentCoverageVector coverageVector = CloudCommitmentCoverageVector.newBuilder().setVectorType(
                         CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo.newBuilder()
@@ -585,7 +600,7 @@ public class CostJournalTest {
 
         Mockito.when(rateExtractor.lookupCostWithFilter(eq(ON_DEMAND_COMPUTE),
                                                         eq(CostSourceFilter.EXCLUDE_CLOUD_COMMITMENT_DISCOUNTS_FILTER),
-                                                        any())) // get specific about the filter
+                                                        any()))
                         .thenReturn(Collections.singleton(CostItem.builder()
                                                                           .cost(Trax.trax(TOTAL_PRICE))
                                                                           .costSourceLink(CostSourceLink.of(ON_DEMAND_RATE))

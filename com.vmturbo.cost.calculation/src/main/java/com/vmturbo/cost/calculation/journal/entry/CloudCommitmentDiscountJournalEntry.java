@@ -1,6 +1,7 @@
 package com.vmturbo.cost.calculation.journal.entry;
 
-import static com.vmturbo.cost.calculation.journal.CostJournal.CommodityTypeFilter.includeOnly;
+import static com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType.COMMODITY;
+import static com.vmturbo.cost.calculation.journal.CostJournal.CommodityTypeFilter.INCLUDE_ALL;
 import static com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter.EXCLUDE_CLOUD_COMMITMENT_DISCOUNTS_FILTER;
 
 import java.util.Collection;
@@ -23,7 +24,9 @@ import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.journal.CostItem;
+import com.vmturbo.cost.calculation.journal.CostItem.CostSourceLink;
 import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal.CommodityTypeFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxNumber;
@@ -58,6 +61,12 @@ public class CloudCommitmentDiscountJournalEntry<E> implements QualifiedJournalE
         this.coverageVector = coverageVector;
         this.costCategory = costCategory;
         this.costSource = costSource;
+        if (!coverageVector.getVectorType().getCoverageType().equals(COMMODITY)) {
+            throw new IllegalArgumentException("CloudCommitmentDiscountJournalEntry only supports commodity-based discounts at this time.");
+        }
+        if (coverageVector.getCapacity() <= 0 || coverageVector.getUsed() <= 0) {
+            throw new IllegalArgumentException("Invalid CoverageVector - both capacity and used must be greater than zero.");
+        }
     }
 
     @Override
@@ -65,32 +74,37 @@ public class CloudCommitmentDiscountJournalEntry<E> implements QualifiedJournalE
                     @NotNull EntityInfoExtractor<E> infoExtractor,
                     @NotNull DiscountApplicator<E> discountApplicator,
                     @NotNull CostJournal.RateExtractor rateExtractor) {
-        Collection<CostItem> costItems = rateExtractor
-                        .lookupCostWithFilter(this.costCategory,
-                                              EXCLUDE_CLOUD_COMMITMENT_DISCOUNTS_FILTER,
-                                              includeOnly(commodityType().get()));
 
-        final TraxNumber coverageRatio =
-                        getCoverageRatio();
+        CommodityTypeFilter commodityTypeFilter = commodityType()
+                        .map(CommodityTypeFilter::includeOnly)
+                        .orElse(INCLUDE_ALL);
+        Collection<CostItem> costItems = rateExtractor.lookupCostWithFilter(
+                        this.costCategory,
+                        EXCLUDE_CLOUD_COMMITMENT_DISCOUNTS_FILTER,
+                        commodityTypeFilter);
 
         return costItems.stream().map(costItem -> {
-            TraxNumber
-                            discount =
-                            costItem.cost().times(coverageRatio.times(-1).compute())
-                                            .compute(String.format(
-                                                            "Cloud Commitment discounted %s cost (Cost Source Link = %s",
-                                                            this.costCategory,
-                                                            costItem.costSourceLink()));
+            TraxNumber discount = costItem.cost()
+                            .times(getCoverageRatio().times(-1).compute())
+                            .compute(String.format(
+                                            "Cloud Commitment discounted %s cost (Cost Source Link = %s",
+                                            this.costCategory,
+                                            costItem.costSourceLink()));
 
             return CostItem.builder()
-                            .costSourceLink(CostItem.CostSourceLink.of(this.costSource,
-                                                                       Optional.of(costItem.costSourceLink())))
+                            .costSourceLink(CostSourceLink.of(
+                                            this.costSource,
+                                            Optional.of(costItem.costSourceLink())))
                             .cost(discount)
                             .commodity(commodityType())
                             .build();
         }).collect(ImmutableList.toImmutableList());
     }
 
+    /**
+     * The ratio of used coverage to coverage capacity of the covered entity.
+     * @return the coverage ratio.
+     */
     @NotNull
     public TraxNumber getCoverageRatio() {
         return Trax.trax(this.coverageVector.getUsed())
@@ -104,7 +118,7 @@ public class CloudCommitmentDiscountJournalEntry<E> implements QualifiedJournalE
     @Nonnull
     @Override
     public Optional<CostSource> getCostSource() {
-        return Optional.empty();
+        return Optional.of(costSource);
     }
 
     @Nonnull
@@ -115,7 +129,7 @@ public class CloudCommitmentDiscountJournalEntry<E> implements QualifiedJournalE
 
     @Override
     public Optional<CommodityType> commodityType() {
-        return Optional.ofNullable(CommodityType.valueOf(coverageVector.getVectorType()
+        return Optional.ofNullable(CommodityType.forNumber(coverageVector.getVectorType()
                                                      .getCoverageSubtype()));
     }
 
