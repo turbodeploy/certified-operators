@@ -14,6 +14,7 @@ import java.util.Set;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 
 import org.apache.commons.lang3.StringUtils;
@@ -21,7 +22,11 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Matchers;
 
+import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServicesMoles;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -44,6 +49,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CommonCost;
@@ -65,6 +71,31 @@ public class MarketCloudCostDataProviderTest {
         TopologyDTO.TopologyEntityDTO.newBuilder()
             .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD).setOid(73695157440630L)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build();
+    private static final TopologyDTO.TopologyEntityDTO CLOUD_COMMITMENT_1 =
+            TopologyDTO.TopologyEntityDTO.newBuilder()
+                    .setEntityType(EntityType.CLOUD_COMMITMENT_VALUE)
+                    .setOid(123)
+                    .setTypeSpecificInfo(TopologyDTO.TypeSpecificInfo.newBuilder()
+                            .setCloudCommitmentData(TopologyDTO.TypeSpecificInfo.CloudCommitmentInfo.newBuilder()
+                                    .setCommitmentScope(CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)
+                                    .setCommitmentStatus(CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentStatus.CLOUD_COMMITMENT_STATUS_EXPIRED)
+                                    .setNumberCoupons(5)
+                                    .build())
+                            .build())
+                    .build();
+
+    private static final TopologyDTO.TopologyEntityDTO CLOUD_COMMITMENT_2 =
+            TopologyDTO.TopologyEntityDTO.newBuilder()
+                    .setEntityType(EntityType.CLOUD_COMMITMENT_VALUE)
+                    .setOid(456)
+                    .setTypeSpecificInfo(TopologyDTO.TypeSpecificInfo.newBuilder()
+                            .setCloudCommitmentData(TopologyDTO.TypeSpecificInfo.CloudCommitmentInfo.newBuilder()
+                                    .setCommitmentScope(CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope.CLOUD_COMMITMENT_SCOPE_ACCOUNT)
+                                    .setCommitmentStatus(CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentStatus.CLOUD_COMMITMENT_STATUS_EXPIRED)
+                                    .setNumberCoupons(5)
+                                    .build())
+                            .build())
+                    .build();
     private final CostMoles.CostServiceMole costService = spy(new CostMoles.CostServiceMole());
     private final PricingMoles.PricingServiceMole pricingService =
         spy(new PricingMoles.PricingServiceMole());
@@ -73,6 +104,7 @@ public class MarketCloudCostDataProviderTest {
     private CostMoles.ReservedInstanceSpecServiceMole riSpecService;
     private CostMoles.ReservedInstanceUtilizationCoverageServiceMole riUtilizationCoverageService;
     private EntityUptimeMoles.EntityUptimeServiceMole entityUptimeService;
+    private CloudCommitmentServicesMoles.CloudCommitmentServiceMole cloudCommitmentService;
 
     /**
      * Prepare mocks that need preparing.
@@ -85,6 +117,7 @@ public class MarketCloudCostDataProviderTest {
         riUtilizationCoverageService =
             spy(new CostMoles.ReservedInstanceUtilizationCoverageServiceMole());
         entityUptimeService = spy(new EntityUptimeMoles.EntityUptimeServiceMole());
+        cloudCommitmentService = spy(new CloudCommitmentServicesMoles.CloudCommitmentServiceMole());
     }
 
     /**
@@ -127,6 +160,7 @@ public class MarketCloudCostDataProviderTest {
             .thenReturn(ImmutableList.of(CLOUD_VM_1, CLOUD_VM_2));
         when(cloudTopology.getEntity(73695157440640L)).thenReturn(Optional.of(CLOUD_VM_1));
         when(cloudTopology.getEntity(73695157440641L)).thenReturn(Optional.empty());
+        when(cloudTopology.getAllEntitiesOfType(EntityType.CLOUD_COMMITMENT_VALUE)).thenReturn(ImmutableList.of(CLOUD_COMMITMENT_1, CLOUD_COMMITMENT_2));
 
         // RI Bought Info
         final Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo reservedInstanceBoughtInfo =
@@ -189,7 +223,7 @@ public class MarketCloudCostDataProviderTest {
         when(riUtilizationCoverageService.getEntityReservedInstanceCoverage(Matchers.any())).thenReturn(getEntityReservedInstanceCoverageResponse);
 
         GrpcTestServer mockServer = GrpcTestServer.newServer(riBoughtService, pricingService, costService, buyRIService,
-                                    riSpecService, riUtilizationCoverageService, entityUptimeService);
+                                    riSpecService, riUtilizationCoverageService, entityUptimeService, cloudCommitmentService);
         mockServer.start();
 
         TopologyDTO.TopologyInfo topoInfo = TopologyDTO.TopologyInfo.newBuilder().setTopologyContextId(1000L)
@@ -239,6 +273,7 @@ public class MarketCloudCostDataProviderTest {
         final TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
         when(cloudTopology.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE)).thenReturn(ImmutableList.of(CLOUD_VM_1));
         when(cloudTopology.getEntity(CLOUD_VM_1.getOid())).thenReturn(Optional.of(CLOUD_VM_1));
+        when(cloudTopology.getAllEntitiesOfType(EntityType.CLOUD_COMMITMENT_VALUE)).thenReturn(ImmutableList.of(CLOUD_COMMITMENT_1, CLOUD_COMMITMENT_2));
 
         TopologyDTO.TopologyInfo topoInfo = TopologyDTO.TopologyInfo.newBuilder()
             .setTopologyType(TopologyDTO.TopologyType.PLAN)
@@ -257,7 +292,7 @@ public class MarketCloudCostDataProviderTest {
             .thenReturn(uptimeByFilterResponse);
         final GrpcTestServer mockServer = GrpcTestServer.newServer(costService, pricingService,
             riBoughtService, buyRIService, riSpecService, riUtilizationCoverageService,
-            entityUptimeService);
+            entityUptimeService, cloudCommitmentService);
         mockServer.start();
 
         final MarketCloudCostDataProvider marketCloudCostDataProvider =
@@ -278,6 +313,81 @@ public class MarketCloudCostDataProviderTest {
             marketCloudCostDataProvider.getCloudCostData(topoInfo, cloudTopology,
                 topologyEntityInfoExtractor);
         verifyUptimePercentage(result2, CLOUD_VM_1.getOid(), 100d);
+    }
+
+    /**
+     * Test CloudCostData contains cloud commitment data and mappings.
+     *
+     * @throws IOException never
+     * @throws CloudCostDataRetrievalException never ever
+     */
+    @Test
+    public void testCloudCommitmentDataAndMappings() throws IOException, CloudCostDataRetrievalException {
+        final TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
+        when(cloudTopology.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE)).thenReturn(ImmutableList.of(CLOUD_VM_1));
+        when(cloudTopology.getEntity(CLOUD_VM_1.getOid())).thenReturn(Optional.of(CLOUD_VM_1));
+        when(cloudTopology.getAllEntitiesOfType(EntityType.CLOUD_COMMITMENT_VALUE)).thenReturn(ImmutableList.of(CLOUD_COMMITMENT_1, CLOUD_COMMITMENT_2));
+
+        final TopologyDTO.TopologyInfo topoInfo = TopologyDTO.TopologyInfo.newBuilder()
+                .setTopologyType(TopologyDTO.TopologyType.PLAN)
+                .setPlanInfo(PlanTopologyInfo.newBuilder()
+                        .setPlanProjectType(PlanProjectType.CLOUD_MIGRATION)
+                        .setPlanType(PlanProjectType.CLOUD_MIGRATION.toString())
+                        .setPlanSubType(StringConstants.CLOUD_MIGRATION_PLAN__ALLOCATION))
+                .build();
+        final EntityUptimeDTO lessThanFullUptime = EntityUptimeDTO.newBuilder()
+                .setUptimePercentage(90D).build();
+        final EntityUptime.GetEntityUptimeByFilterResponse uptimeByFilterResponse =
+                EntityUptime.GetEntityUptimeByFilterResponse.newBuilder()
+                        .putEntityUptimeByOid(CLOUD_VM_1.getOid(), lessThanFullUptime)
+                        .build();
+        when(entityUptimeService.getEntityUptimeByFilter(Matchers.any(GetEntityUptimeByFilterRequest.class)))
+                .thenReturn(uptimeByFilterResponse);
+        final GrpcTestServer mockServer = GrpcTestServer.newServer(costService, pricingService,
+                riBoughtService, buyRIService, riSpecService, riUtilizationCoverageService,
+                entityUptimeService, cloudCommitmentService);
+        mockServer.start();
+
+        // set up cloud commitment mappings
+        CloudCommitmentServices.GetCloudCommitmentInfoForAnalysisResponse cloudCommitmentResponse =
+                CloudCommitmentServices.GetCloudCommitmentInfoForAnalysisResponse.newBuilder()
+                        .addCommitmentBucket(CloudCommitmentServices.GetCloudCommitmentInfoForAnalysisResponse.CommitmentInfoBucket.newBuilder()
+                                .addCloudCommitmentMapping(
+                                        CloudCommitmentDTO.CloudCommitmentMapping.newBuilder()
+                                                .setEntityOid(111L)
+                                                .setCloudCommitmentOid(1)
+                                                .setCommitmentAmount(CloudCommitmentDTO.CloudCommitmentAmount.newBuilder()
+                                                        .setAmount(CommonCost.CurrencyAmount.newBuilder().setCurrency(123)))
+                                                .build())
+                                .addCloudCommitmentMapping(
+                                        CloudCommitmentDTO.CloudCommitmentMapping.newBuilder()
+                                                .setEntityOid(222L)
+                                                .setCloudCommitmentOid(2)
+                                                .setCommitmentAmount(CloudCommitmentDTO.CloudCommitmentAmount.newBuilder()
+                                                        .setAmount(CommonCost.CurrencyAmount.newBuilder().setCurrency(456)))
+                                                .build()))
+                        .build();
+        when(cloudCommitmentService.getCloudCommitmentInfoForAnalysis(Matchers.any()))
+                .thenReturn(cloudCommitmentResponse);
+
+        // create LocalCostDataProvider and call getCloudCostData to get CloudCostData
+        final MarketCloudCostDataProvider marketCloudCostDataProvider =
+                new MarketCloudCostDataProvider(mockServer.getChannel(), discountApplicatorFactory,
+                        topologyEntityInfoExtractor);
+        final CloudCostDataProvider.CloudCostData<TopologyDTO.TopologyEntityDTO> result =
+                marketCloudCostDataProvider.getCloudCostData(topoInfo, cloudTopology,
+                        topologyEntityInfoExtractor);
+
+        // verify commitment mappings
+        SetMultimap<Long, CloudCommitmentDTO.CloudCommitmentMapping> resultMapping = result.getCloudCommitmentMappingByEntityId();
+        assertTrue(resultMapping.containsKey(111L));
+        assertTrue(resultMapping.containsKey(222L));
+
+        // verify commitment data
+        Map<Long, CloudCommitmentData<TopologyDTO.TopologyEntityDTO>> cloudCommitmentDataByCloudCommitmentId = result.getCloudCommitmentDataByCloudCommitmentId();
+        assertTrue(cloudCommitmentDataByCloudCommitmentId.containsKey(123L));
+        assertTrue(cloudCommitmentDataByCloudCommitmentId.containsKey(456L));
+        assertEquals(cloudCommitmentDataByCloudCommitmentId.size(), 2);
     }
 
     private Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo buildRIBoughtInfo(String probeRIId,

@@ -5,12 +5,12 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.Assert.assertNotNull;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Maps;
 
 import org.junit.Assert;
@@ -25,6 +26,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.cloud.common.commitment.TopologyEntityCommitmentTopology;
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
@@ -45,6 +47,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.PriceForG
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.commons.Units;
+import com.vmturbo.cost.calculation.CloudCommitmentApplicator.CloudCommitmentApplicatorFactory;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
@@ -110,6 +113,9 @@ public class CloudCostCalculatorTest {
 
     private static final ReservedInstanceApplicatorFactory<TestEntityClass> reservedInstanceApplicatorFactory =
             (ReservedInstanceApplicatorFactory<TestEntityClass>)mock(ReservedInstanceApplicatorFactory.class);
+
+    private static final CloudCommitmentApplicatorFactory<TestEntityClass> cloudCommitmentApplicatorFactory =
+            (CloudCommitmentApplicatorFactory<TestEntityClass>)mock(CloudCommitmentApplicatorFactory.class);
 
     private static final Map<Long, EntityReservedInstanceCoverage> topologyRiCoverage = Maps.newHashMap();
 
@@ -201,7 +207,7 @@ public class CloudCostCalculatorTest {
     private static final PriceTable PRICE_TABLE_GCP = thePriceTable(Provider.GCP);
 
     private static final CloudCostData CLOUD_COST_DATA = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Optional.empty());
+        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Optional.empty(), ImmutableSetMultimap.of(), Collections.emptyMap());
     private static final double DELTA = 0.0001;
 
     private static Price price = Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder().setAmount(0)).build();
@@ -231,23 +237,27 @@ public class CloudCostCalculatorTest {
             any(), eq(infoExtractor), eq(CLOUD_COST_DATA), eq(topologyRiCoverage)))
             .thenReturn(riApplicator);
 
+        final CloudCommitmentApplicator<TestEntityClass> cloudCommitmentApplicator =
+                        mock(CloudCommitmentApplicator.class);
+        when(cloudCommitmentApplicatorFactory.newCloudCommitmentApplicator(
+                        any(), any(), any(), any()))
+                        .thenReturn(cloudCommitmentApplicator);
+
         // mock info extractor calls
         // create a fake commodities bought map
-        final Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> pricingCommodities = new HashMap<>();
+        final Map<CommodityType, Double> pricingCommodities = new HashMap<>();
         // memory amount => 2
-        com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType commodityType = com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
-                .setType(CommodityType.MEM_PROVISIONED_VALUE).build();
+        CommodityType commodityType = CommodityType.MEM_PROVISIONED;
         pricingCommodities.put(commodityType, 2.0);
         // vcore amount => 1
-        commodityType = com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
-                .setType(CommodityType.NUM_VCORE_VALUE).build();
+        commodityType = CommodityType.NUM_VCORE;
         pricingCommodities.put(commodityType, 1.0);
         Mockito.when(infoExtractor.getComputeTierPricingCommodities(any())).thenReturn(Optional.of(pricingCommodities));
     }
 
     private TestEntityClass createVmTestEntity(long id, EntityState state, OSType osType,
             Tenancy tenancy, VMBillingType billingType, int numCores,
-            EntityDTO.LicenseModel licenseModel, Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> pricedCommoditiesBought) {
+            EntityDTO.LicenseModel licenseModel, Map<CommodityType, Double> pricedCommoditiesBought) {
         return TestEntityClass.newBuilder(id)
                 .setType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setEntityState(state)
@@ -259,7 +269,7 @@ public class CloudCostCalculatorTest {
 
     private TestEntityClass createVmTestEntity(long id, OSType osType, Tenancy tenancy,
             VMBillingType billingType, int numCores, EntityDTO.LicenseModel licenseModel,
-            Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> pricedCommoditiesBought) {
+            Map<CommodityType, Double> pricedCommoditiesBought) {
         return createVmTestEntity(id, EntityState.POWERED_ON, osType, tenancy, billingType,
                 numCores, licenseModel, pricedCommoditiesBought);
     }
@@ -329,7 +339,7 @@ public class CloudCostCalculatorTest {
         final DependentCostLookup<TestEntityClass> volumeCostLookup = e -> volumeJournal;
         final CloudCostCalculator<TestEntityClass> calculator =
                 calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor,
-                        reservedInstanceApplicatorFactory,
+                        reservedInstanceApplicatorFactory, cloudCommitmentApplicatorFactory,
                         volumeCostLookup, topologyRiCoverage);
 
         final CostJournal<TestEntityClass> vmJournal = calculator.calculateCost(linuxVM);
@@ -380,7 +390,7 @@ public class CloudCostCalculatorTest {
                         .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
                                 .setTierId(computeTier.getId())
                                 .setType(ReservedInstanceType.newBuilder().setTermYears(1).build()).build()).build())
-                , Collections.emptyMap(), accountPricingDataByBusinessAccount, new HashMap<>(), Optional.empty());
+                , Collections.emptyMap(), accountPricingDataByBusinessAccount, new HashMap<>(), Optional.empty(), ImmutableSetMultimap.of(), Collections.emptyMap());
 
         cloudCostData.entityUptimeByEntityId.put(DEFAULT_VM_ID,
                 EntityUptimeDTO.newBuilder().setUptimePercentage(80D).build());
@@ -415,6 +425,7 @@ public class CloudCostCalculatorTest {
         final CloudCostCalculator<TestEntityClass> calculator =
                 calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor,
                         ReservedInstanceApplicator.newFactory(),
+                        cloudCommitmentApplicatorFactory,
                         volumeCostLookup, topologyRiCoverage);
 
         final CostJournal<TestEntityClass> vmJournal = calculator.calculateCost(linuxVM);
@@ -591,7 +602,7 @@ public class CloudCostCalculatorTest {
         final DependentCostLookup<TestEntityClass> volumeCostLookup = e -> volumeJournal;
 
         final CloudCostCalculator<TestEntityClass> calculator =
-                calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, reservedInstanceApplicatorFactory,
+                calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, reservedInstanceApplicatorFactory, cloudCommitmentApplicatorFactory,
                         volumeCostLookup, topologyRiCoverage);
 
         final CostJournal<TestEntityClass> vmJournal = calculator.calculateCost(vm);
@@ -962,6 +973,7 @@ public class CloudCostCalculatorTest {
                 .thenReturn(riApplicator);
 
         final CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
+        assertNotNull(cloudCostCalculator);
 
         // Act
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(vm);
@@ -1075,14 +1087,12 @@ public class CloudCostCalculatorTest {
         DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
 
         // create a fake commodities bought map
-        final Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> pricedCommoditiesBought = new HashMap<>();
+        final Map<CommodityType, Double> pricedCommoditiesBought = new HashMap<>();
         // memory amount => 2
-        com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType commodityType = com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
-                .setType(CommodityType.MEM_PROVISIONED_VALUE).build();
+        CommodityType commodityType = CommodityType.MEM_PROVISIONED;
         pricedCommoditiesBought.put(commodityType, 2.0);
         // vcore amount => 1
-        commodityType = com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
-                .setType(CommodityType.NUM_VCORE_VALUE).build();
+        commodityType = CommodityType.NUM_VCORE;
         pricedCommoditiesBought.put(commodityType, 1.0);
 
         TestEntityClass wsqlVm4Cores = createVmTestEntity(DEFAULT_VM_ID, OSType.WINDOWS_WITH_SQL_ENTERPRISE,
@@ -1125,10 +1135,9 @@ public class CloudCostCalculatorTest {
         DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
 
         // create a fake commodities bought map
-        final Map<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType, Double> pricedCommoditiesBought = new HashMap<>();
+        final Map<CommodityType, Double> pricedCommoditiesBought = new HashMap<>();
         // add just one commodity as in the case of a projected topology
-        com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType commodityType = com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
-                .setType(CommodityType.MEM_PROVISIONED_VALUE).build();
+        CommodityType commodityType = CommodityType.MEM_PROVISIONED;
         pricedCommoditiesBought.put(commodityType, 2.0);
 
         TestEntityClass wsqlVm4Cores = createVmTestEntity(DEFAULT_VM_ID, OSType.WINDOWS_WITH_SQL_ENTERPRISE,
@@ -1370,12 +1379,12 @@ public class CloudCostCalculatorTest {
 
     private static CloudCostCalculator<TestEntityClass> calculator(CloudCostData cloudCostData,
                                                                    DependentCostLookup dependentCostLookup) {
-        return calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, reservedInstanceApplicatorFactory,
+        return calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, reservedInstanceApplicatorFactory, cloudCommitmentApplicatorFactory,
                 dependentCostLookup, topologyRiCoverage);
     }
 
     private static CloudCostCalculator<TestEntityClass> calculator(CloudCostData cloudCostData) {
-        return calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, reservedInstanceApplicatorFactory,
+        return calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, reservedInstanceApplicatorFactory, cloudCommitmentApplicatorFactory,
                  e -> null, topologyRiCoverage);
     }
 
@@ -1392,7 +1401,7 @@ public class CloudCostCalculatorTest {
         Map<Long, AccountPricingData> accountPricingDataByBusinessAccount = new HashMap<>();
         accountPricingDataByBusinessAccount.put(baOid, accountPricingData);
         return new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-                Collections.emptyMap(), accountPricingDataByBusinessAccount, new HashMap<>(), Optional.empty());
+                Collections.emptyMap(), accountPricingDataByBusinessAccount, new HashMap<>(), Optional.empty(), ImmutableSetMultimap.of(), Collections.emptyMap());
     }
 
     private void mockDBSEntityCall(final long dbId, final float storageAmount, final float iopsAmount) {

@@ -16,6 +16,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.cloud.common.commitment.TopologyEntityCommitmentTopology;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
@@ -26,6 +27,7 @@ import com.vmturbo.components.common.utils.ComponentRestartHelper;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.api.impl.CostSubscription;
 import com.vmturbo.cost.api.impl.CostSubscription.Topic;
+import com.vmturbo.cost.calculation.CloudCommitmentApplicator;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.DiscountApplicator;
@@ -338,12 +340,18 @@ public class MarketRunnerConfig {
                 cloudCostCalculatorFactory(),
                 marketCloudCostDataProvider(),
                 discountApplicatorFactory(),
-                riApplicatorFactory());
+                riApplicatorFactory(),
+                cloudCommitmentApplicatorFactory());
     }
 
     @Bean
     public ReservedInstanceApplicatorFactory<TopologyEntityDTO> riApplicatorFactory() {
         return ReservedInstanceApplicator.newFactory();
+    }
+
+    @Bean
+    public CloudCommitmentApplicator.CloudCommitmentApplicatorFactory<TopologyEntityDTO> cloudCommitmentApplicatorFactory() {
+        return CloudCommitmentApplicator.newFactory(new TopologyEntityCommitmentTopology.TopologyEntityCommitmentTopologyFactory());
     }
 
     @Bean
