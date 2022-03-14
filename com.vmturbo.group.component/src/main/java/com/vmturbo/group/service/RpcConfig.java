@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingServiceContro
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 import com.vmturbo.group.DbAccessConfig;
+import com.vmturbo.group.GroupMultiDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.entitytags.EntityCustomTagsConfig;
 import com.vmturbo.group.group.GroupConfig;
@@ -55,7 +56,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         UserSessionConfig.class,
         TopologyProcessorClientConfig.class,
         TopologyDataDefinitionConfig.class,
-        EntityCustomTagsConfig.class})
+        EntityCustomTagsConfig.class,
+        GroupMultiDBConfig.class})
 public class RpcConfig {
 
     @Value("${groupRetrievePermitsSize:300000}")
@@ -103,6 +105,9 @@ public class RpcConfig {
     @Autowired
     private EntityCustomTagsConfig entityCustomTagsConfig;
 
+    @Autowired
+    private GroupMultiDBConfig groupMultiDBConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -138,7 +143,7 @@ public class RpcConfig {
         try {
             return new TransactionProviderImpl(settingConfig.settingStore(), databaseConfig.dsl(),
                     identityProviderConfig.identityProvider(),
-                    groupPaginationConfig.groupPaginationParams());
+                    groupPaginationConfig.groupPaginationParams(), groupMultiDBConfig.multiDB());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();

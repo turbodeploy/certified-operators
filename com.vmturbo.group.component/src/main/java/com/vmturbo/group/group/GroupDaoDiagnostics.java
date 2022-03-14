@@ -42,6 +42,7 @@ import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.group.service.TransactionProvider;
+import com.vmturbo.sql.utils.MultiDB;
 
 /**
  * Group DAO diagnostics provider. This class is responsible for loading and dumping diagnostics
@@ -60,16 +61,21 @@ public class GroupDaoDiagnostics implements DiagsRestorable<DSLContext> {
     private final GroupPaginationParams groupPaginationParams;
     private final Logger logger = LogManager.getLogger(getClass());
 
+    private final MultiDB multiDB;
+
     /**
      * Constructs diagnostics provider with the specified transaction provider.
      *
      * @param transactionProvider transaction provider
      * @param groupPaginationParams parameters for group pagination
+     * @param multiDB object that provides support for multiple databases
      */
     public GroupDaoDiagnostics(@Nonnull TransactionProvider transactionProvider,
-            @Nonnull GroupPaginationParams groupPaginationParams) {
+            @Nonnull GroupPaginationParams groupPaginationParams,
+            @Nonnull MultiDB multiDB) {
         this.transactionProvider = Objects.requireNonNull(transactionProvider);
         this.groupPaginationParams = groupPaginationParams;
+        this.multiDB = multiDB;
     }
 
     /**
@@ -151,7 +157,7 @@ public class GroupDaoDiagnostics implements DiagsRestorable<DSLContext> {
     @Override
     public void restoreDiags(@Nonnull List<String> collectedDiags, @Nonnull DSLContext context) throws DiagnosticsException {
         try {
-            restoreDiags(collectedDiags, new GroupDAO(context, groupPaginationParams));
+            restoreDiags(collectedDiags, new GroupDAO(context, groupPaginationParams, multiDB));
         } catch (StoreOperationException e) {
             throw new DiagnosticsException(e.getMessage(), e);
         }

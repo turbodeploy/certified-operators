@@ -108,6 +108,7 @@ import com.vmturbo.group.setting.SettingStore.SettingAdapter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDB;
 import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
@@ -196,7 +197,8 @@ public class SettingStoreTest extends MultiDbTestBase {
         settingStore =
                 new SettingStore(settingSpecStore, dsl, settingPolicyValidator,
                         settingsUpdatesSender);
-        groupStore = new GroupDAO(dsl, new GroupPaginationParams(100, 500));
+        final MultiDB multiDB = mock(MultiDB.class);
+        groupStore = new GroupDAO(dsl, new GroupPaginationParams(100, 500), multiDB);
         scheduleStore = new ScheduleStore(dsl, scheduleValidator,
             identityProviderSpy);
     }
