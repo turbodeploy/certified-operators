@@ -42,9 +42,7 @@ public class TargetDetailsMapper {
         if (probeStageDetails.hasStatus()) {
             discoveryStageStatusApiDTO.setState(convertToDiscoveryStageState(probeStageDetails.getStatus()));
         }
-        if (probeStageDetails.hasStackTrace()) {
-            discoveryStageStatusApiDTO.setStackTrace(probeStageDetails.getStackTrace());
-        }
+        // NOTE: Stacktrace is not exposed in the API due to security concerns and will be deprecated.
         if (probeStageDetails.hasStatusShortExplanation()) {
             discoveryStageStatusApiDTO.setSummary(probeStageDetails.getStatusShortExplanation());
         }
