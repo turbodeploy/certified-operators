@@ -85,10 +85,6 @@ public class RIJournalEntry<E> implements QualifiedJournalEntry<E> {
         // be under the same master account.
         final long providerId =
                 riData.getReservedInstanceSpec().getReservedInstanceSpecInfo().getTierId(); // only needed for price adjustments
-        // anecdotal evidence that aws provides discount to SOME customers, but we don't have any visibility
-        // so our users can configure discounts in the turbo ui
-        // does this discount apply to on demand only, or ris as well? not sure
-        //   azure can discount ri's as well, aws might
         final TraxNumber discountPercentage = discountApplicator.getDiscountPercentage(providerId);
         final TraxNumber fullPricePercentage =
                 Trax.trax(1.0, "100%").minus(discountPercentage).compute("full price portion");
