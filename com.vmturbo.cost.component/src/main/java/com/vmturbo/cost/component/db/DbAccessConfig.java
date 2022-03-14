@@ -62,6 +62,24 @@ public class DbAccessConfig {
     }
 
     /**
+     * Obtain a {@link DSLContext} instance that can be used to access the database and is not
+     * backed by a connection pool. This is useful for potentially long-running operations that
+     * shouldn't tie up limited pool connections.
+     *
+     * @return DSLContext
+     * @throws SQLException                if a DB initialization operation fails
+     * @throws UnsupportedDialectException if the DbEndpoint is based on a bogus SLQDialect
+     * @throws InterruptedException        if we're interrupted
+     */
+    public DSLContext unpooledDsl()
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        return FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
+                // TODO alter this when unpooledDslContext is supported in endpoints
+                ? costDbEndpointConfig.costEndpoint().dslContext()
+                : costDBConfig.unpooledDsl();
+    }
+
+    /**
      * Get the {@link DataSource} on a given {@link DbEndpoint} or legacy {@link SQLDatabaseConfig}
      * based on feature flag.
      *

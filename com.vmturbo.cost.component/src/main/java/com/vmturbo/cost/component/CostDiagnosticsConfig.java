@@ -24,7 +24,6 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsHandlerImportable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
 import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
-import com.vmturbo.cost.component.billedcosts.SqlBilledCostStore;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
 import com.vmturbo.cost.component.db.DbAccessConfig;
@@ -105,7 +104,7 @@ public class CostDiagnosticsConfig {
             DSLContext dsl = dbAccessConfig.dsl();
             if (dsl.dialect() == SQLDialect.POSTGRES) {
                 return new CostDiagnosticsHandler(recursiveZipReaderFactory(), getStoresToDump(),
-                        dbAccessConfig.dsl());
+                        dbAccessConfig.unpooledDsl());
             }
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {

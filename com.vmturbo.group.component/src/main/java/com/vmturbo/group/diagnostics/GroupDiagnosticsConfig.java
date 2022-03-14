@@ -90,7 +90,7 @@ public class GroupDiagnosticsConfig {
                             topologyDataDefConfig.topologyDataDefinitionStore(),
                             topologyDataDefConfig.persistentTopologyDataDefinitionIdentityStore(),
                             prometheusDiagnisticsProvider()),
-                    databaseConfig.dsl());
+                    databaseConfig.unpooledDsl());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
