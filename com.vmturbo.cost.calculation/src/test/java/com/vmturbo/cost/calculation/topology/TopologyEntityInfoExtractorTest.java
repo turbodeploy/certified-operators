@@ -7,20 +7,17 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 
-import com.google.common.base.Predicates;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.protobuf.MapEntry;
 
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -35,8 +32,6 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierC
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
-import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
@@ -99,16 +94,16 @@ public class TopologyEntityInfoExtractorTest {
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
             .setVirtualVolume(VirtualVolumeInfo.getDefaultInstance()))
         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder()
-                    .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()))
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.STORAGE_AMOUNT.getNumber()))
             .setCapacity(STORAGE_AMOUNT_CAP))
         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder()
-                    .setType(CommodityDTO.CommodityType.STORAGE_ACCESS.getNumber()))
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.STORAGE_ACCESS.getNumber()))
             .setCapacity(STORAGE_ACCESS_CAP))
         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder()
-                    .setType(CommodityDTO.CommodityType.IO_THROUGHPUT.getNumber()))
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.IO_THROUGHPUT.getNumber()))
             .setCapacity(IO_THROUGHPUT_CAP_KB))
         .build();
 
@@ -128,7 +123,7 @@ public class TopologyEntityInfoExtractorTest {
                     .setNumOfCores(2)
                     .build()))
             .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
-                    CommodityType.newBuilder().setType(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE).build()).setCapacity(10D))
+                    TopologyDTO.CommodityType.newBuilder().setType(CommodityType.MEM_PROVISIONED_VALUE).build()).setCapacity(10D))
         .build();
 
     private static final TopologyEntityDTO DB = TopologyEntityDTO.newBuilder()
@@ -142,8 +137,8 @@ public class TopologyEntityInfoExtractorTest {
                             .setLicenseModel(LicenseModel.LICENSE_INCLUDED)
                             .setDeploymentType(DeploymentType.SINGLE_AZ)))
             .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                    .setCommodityType(CommodityType.newBuilder()
-                            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()))
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                            .setType(CommodityType.STORAGE_AMOUNT.getNumber()))
                     .setCapacity(STORAGE_AMOUNT_CAP))
             .build();
 
@@ -233,7 +228,7 @@ public class TopologyEntityInfoExtractorTest {
     @Test
     public void testExtractDatabaseStorageAmount() {
         Optional<Float> dbStorageAmount = entityInfoExtractor.getRDBCommodityCapacity(DB,
-                CommodityDTO.CommodityType.STORAGE_AMOUNT);
+                CommodityType.STORAGE_AMOUNT);
         assertTrue(dbStorageAmount.isPresent());
         assertThat(dbStorageAmount.get(), is(STORAGE_AMOUNT_CAP));
     }
@@ -295,13 +290,13 @@ public class TopologyEntityInfoExtractorTest {
                 entityInfoExtractor.getComputeTierPricingCommodities(COMPUTE_TIER);
         assertTrue(pricingCommodities.isPresent());
         assertTrue(pricingCommodities.get().size() == 2);
-        Map<Integer, Double> expectedPricingCommodities = ImmutableMap.of(
-                CommodityDTO.CommodityType.MEM_PROVISIONED.getNumber(), 10D,
-                CommodityDTO.CommodityType.NUM_VCORE.getNumber(), 2D);
+        Map<CommodityType, Double> expectedPricingCommodities = ImmutableMap.of(
+                CommodityType.MEM_PROVISIONED, 10D,
+                CommodityType.NUM_VCORE, 2D);
         for (Entry<CommodityType, Double> entry : pricingCommodities.get().entrySet()) {
             assertThat("Pricing commodity key not expected",
-                    expectedPricingCommodities.containsKey(entry.getKey().getType()));
-            assertEquals(expectedPricingCommodities.get(entry.getKey().getType()), entry.getValue(),
+                    expectedPricingCommodities.containsKey(entry.getKey()));
+            assertEquals(expectedPricingCommodities.get(entry.getKey()), entry.getValue(),
                     0.0001);
         }
     }

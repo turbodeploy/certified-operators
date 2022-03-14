@@ -27,12 +27,15 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
+import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology;
+import com.vmturbo.cloud.common.commitment.TopologyEntityCommitmentTopology;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.api.CostClientConfig;
+import com.vmturbo.cost.calculation.CloudCommitmentApplicator;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.DiscountApplicator;
@@ -47,6 +50,8 @@ import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
+import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
+import com.vmturbo.cost.component.cloud.commitment.mapping.MappingInfo;
 import com.vmturbo.cost.component.cloud.commitment.TopologyCommitmentConfig;
 import com.vmturbo.cost.component.cloud.commitment.TopologyCommitmentCoverageEstimator.CommitmentCoverageEstimatorFactory;
 import com.vmturbo.cost.component.db.DbAccessConfig;
@@ -95,6 +100,7 @@ import com.vmturbo.topology.event.library.uptime.EntityUptimeStore;
         DbAccessConfig.class,
         SupplyChainServiceConfig.class,
         GroupClientConfig.class,
+        CloudCommitmentStatsConfig.class,
         CloudCommitmentAnalysisStoreConfig.class,
         CostClientConfig.class,
         CostComponentGlobalConfig.class,
@@ -131,6 +137,9 @@ public class TopologyListenerConfig {
 
     @Autowired
     private ReservedInstanceConfig reservedInstanceConfig;
+
+    @Autowired
+    private CloudCommitmentStatsConfig cloudCommitmentStatsConfig;
 
     @Autowired
     private CostConfig costConfig;
@@ -253,7 +262,7 @@ public class TopologyListenerConfig {
     public TopologyCostCalculatorFactory topologyCostCalculatorFactory() {
         return new DefaultTopologyCostCalculatorFactory(topologyEntityInfoExtractor(),
                 cloudCostCalculatorFactory(), localCostDataProvider(), discountApplicatorFactory(),
-                riApplicatorFactory());
+                riApplicatorFactory(), cloudCommitmentApplicatorFactory());
     }
 
     /**
@@ -297,6 +306,11 @@ public class TopologyListenerConfig {
     }
 
     @Bean
+    public CloudCommitmentApplicator.CloudCommitmentApplicatorFactory<TopologyEntityDTO> cloudCommitmentApplicatorFactory() {
+        return CloudCommitmentApplicator.newFactory(new TopologyEntityCommitmentTopology.TopologyEntityCommitmentTopologyFactory());
+    }
+
+    @Bean
     public DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory() {
         return DiscountApplicator.newFactory();
     }
@@ -327,7 +341,8 @@ public class TopologyListenerConfig {
                 reservedInstanceConfig.entityReservedInstanceMappingStore(),
                 identityProviderConfig.identityProvider(),
                 discountApplicatorFactory(), topologyEntityInfoExtractor(),
-                entityUptimeStore);
+                entityUptimeStore,
+                cloudCommitmentStatsConfig.sourceTopologyCommitmentMappingStore());
     }
 
     @Bean

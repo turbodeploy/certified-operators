@@ -8,12 +8,14 @@ import java.util.Map;
 import java.util.Optional;
 
 import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
+import com.vmturbo.cloud.common.commitment.TopologyEntityCommitmentTopology;
 import com.vmturbo.cloud.common.topology.SimulatedTopologyEntityCloudTopology;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.CloudCommitmentApplicator;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
@@ -80,9 +82,16 @@ public class SMACloudCostCalculator {
                 simulatedTopologyEntityCloudTopology.size());
         final DependentCostLookup<TopologyEntityDTO> dependentCostLookup = entity -> retCosts.get(
                 entity.getOid());
-        CloudCostCalculator<TopologyEntityDTO> costCalculator = factory.newCalculator(cloudCostData,
-                simulatedTopologyEntityCloudTopology, new TopologyEntityInfoExtractor(),
-                ReservedInstanceApplicator.newFactory(), dependentCostLookup, new HashMap<>());
+        CloudCostCalculator<TopologyEntityDTO> costCalculator = factory.newCalculator(
+                        cloudCostData,
+                        simulatedTopologyEntityCloudTopology,
+                        new TopologyEntityInfoExtractor(),
+                        ReservedInstanceApplicator
+                                        .newFactory(),
+                        CloudCommitmentApplicator.newFactory(new TopologyEntityCommitmentTopology
+                                        .TopologyEntityCommitmentTopologyFactory()),
+                        dependentCostLookup,
+                        new HashMap<>());
         return costCalculator;
     }
 

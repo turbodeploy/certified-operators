@@ -18,12 +18,12 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.journal.CostItem;
 import com.vmturbo.cost.calculation.journal.CostItem.CostSourceLink;
 import com.vmturbo.cost.calculation.journal.CostJournal.RateExtractor;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxNumber;
@@ -91,7 +91,7 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
             @Nonnull final EntityInfoExtractor<E> infoExtractor,
             @Nonnull final DiscountApplicator<E> discountApplicator,
             @Nonnull final RateExtractor rateExtractor) {
-        logger.trace("Calculating hourly cost for purchase from entity {} of type {}",
+        logger.trace("Calculating hourly cost for purchase from enticom.vmturbo.cost.calculation/src/test/java/com/vmturbo/cost/calculation/journal/CostJournalTest.javaty {} of type {}",
                 infoExtractor.getId(payee), infoExtractor.getEntityType(payee));
         final TraxNumber unitPrice = Trax.trax(price.getPriceAmount().getAmount(),
                 infoExtractor.getName(payee) + " unit price");
@@ -129,10 +129,14 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
         }
         logger.trace("Purchase from entity {} of type {} has cost: {}", infoExtractor.getId(payee),
                 infoExtractor.getEntityType(payee), cost);
-        return ImmutableList.of(
-                CostItem.builder()
+        CostItem.Builder builder = CostItem.builder()
                         .costSourceLink(CostSourceLink.of(costSource))
-                        .cost(cost)
+                        .cost(cost);
+        if (commodityType != null) {
+            builder = builder.commodity(commodityType);
+        }
+        return ImmutableList.of(
+                        builder
                         .build());
     }
 
@@ -189,5 +193,4 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
                     .build();
         }
     }
-
 }

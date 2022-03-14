@@ -541,6 +541,8 @@ enum CostCategory {
     // Represents the license costs associated with the RI coverage of a workload
     RESERVED_LICENSE = 6;
 
+    // Represents the portion of the cost of a cloud commitment consumed by a resource covered by that cloud commitment
+    CLOUD_COMMITMENT_USAGE = 7;
 }
 
 // The cost source represents the source of the cost in the cost category. For example the on Demand Compute cost
@@ -556,6 +558,9 @@ enum CostSource {
     UNCLASSIFIED = 4;
 
     ENTITY_UPTIME_DISCOUNT = 5;
+
+    // Represents the cost reduction of a resource due to being covered by a cloud commitment
+    CLOUD_COMMITMENT_DISCOUNT = 6;
 }
 
 // A request containing a snapshot of cost data to be stored by the cost service.
