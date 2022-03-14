@@ -50,6 +50,7 @@ import com.vmturbo.group.service.TransactionProvider;
 import com.vmturbo.group.service.TransactionProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.MultiDB;
 import com.vmturbo.sql.utils.MultiDbTestBase;
 
 /**
@@ -127,8 +128,10 @@ public class DefaultSettingPolicyCreatorDbTest extends MultiDbTestBase {
         final ScheduleStore scheduleStore = new ScheduleStore(dsl,
             mock(ScheduleValidator.class), identityProvider);
 
+        final MultiDB multiDB = mock(MultiDB.class);
+
         final TransactionProvider transactionProvider = new TransactionProviderImpl(settingStore,
-                dsl, identityProvider, new GroupPaginationParams(100, 500));
+                dsl, identityProvider, new GroupPaginationParams(100, 500), multiDB);
 
         // ACT
 
