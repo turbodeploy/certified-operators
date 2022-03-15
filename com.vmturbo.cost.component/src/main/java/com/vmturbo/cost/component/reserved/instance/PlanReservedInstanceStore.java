@@ -4,7 +4,10 @@ import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_SPEC;
 import static org.jooq.impl.DSL.sum;
 
 import java.math.BigDecimal;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,6 +24,7 @@ import org.jooq.TableRecord;
 import org.jooq.impl.TableImpl;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider;
+import com.vmturbo.common.protobuf.cloud.CloudCommon;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -28,6 +32,7 @@ import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.PlanReservedInstanceBought;
 import com.vmturbo.cost.component.db.tables.records.PlanReservedInstanceBoughtRecord;
+import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 
 /**
@@ -179,8 +184,88 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
      * @param planId plan ID.
      * @return list of {@link ReservedInstanceBought}.
      */
-    public List<ReservedInstanceBought> getReservedInstanceBoughtForAnalysis(final long planId) {
-        return adjustAvailableCouponsForPartialCloudEnv(getReservedInstanceBoughtByPlanId(planId));
+    public List<ReservedInstanceBought> getReservedInstanceBoughtForAnalysis(final long planId, final Set<Long> vmOidSet) {
+
+        final List<ReservedInstanceBought> reservedInstanceBoughtByPlanId = getReservedInstanceBoughtByPlanId(planId);
+
+        if (reservedInstanceBoughtByPlanId.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        //Get total Discovered RI Utilization for RIs in scope
+        final Map<Long, Double> riToDiscoveredUsageMap = entityReservedInstanceMappingStore
+                .getReservedInstanceUsedCouponsMapByFilter(
+                        EntityReservedInstanceMappingFilter.newBuilder().riBoughtFilter(
+                                Cost.ReservedInstanceBoughtFilter.newBuilder()
+                                        .addAllRiBoughtId(reservedInstanceBoughtByPlanId.stream()
+                                                .map(a -> a.getId()).collect(Collectors.toList())).build()).build());
+
+        // For VM oids, retrieve their entity to reserved instance mapping.
+        final Map<Long, Double> riUtilizationForVmsInScope = getRiUtilizationForVmsInScope(vmOidSet);
+
+        //Decrease both RI capacity and Utilization to filter out RI coupons used by undiscovered accounts.
+        final List<ReservedInstanceBought> riBoughtUndiscoveredAccountUsageFilteredOut = adjustAvailableCouponsForPartialCloudEnv(reservedInstanceBoughtByPlanId);
+
+        //Decrease both RI capacity and Utilization to filter out RI coupons used from accounts that are discovered but not in scope of the plan
+        final List<ReservedInstanceBought> riBoughtOutOfScopeDiscoveredUsageFilteredOut =
+                filterDiscoveredRIUtilizationNotInScope(riBoughtUndiscoveredAccountUsageFilteredOut, riUtilizationForVmsInScope,
+                        riToDiscoveredUsageMap);
+       return riBoughtOutOfScopeDiscoveredUsageFilteredOut;
+    }
+
+    private Map<Long, Double> getRiUtilizationForVmsInScope(Set<Long> vmOidSet) {
+        final EntityReservedInstanceMappingFilter entityReservedInstanceMappingFilter = EntityReservedInstanceMappingFilter.newBuilder()
+                .entityFilter(CloudCommon.EntityFilter.newBuilder().addAllEntityId(vmOidSet).build()).build();
+        final Map<Long, Set<Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage>> riCoverageByEntity =
+                entityReservedInstanceMappingStore.getRICoverageByEntity(entityReservedInstanceMappingFilter);
+        final Map<Long, Double> riUtilizationForVmsInScope = new HashMap<>();
+        for (Map.Entry<Long, Set<Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage>> entry : riCoverageByEntity.entrySet()) {
+            final Set<Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage> coverageSet = entry.getValue();
+            Iterator<Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage> iterator = coverageSet.iterator();
+            while (iterator.hasNext()) {
+                Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage coverage = iterator.next();
+                long reservedInstanceId = coverage.getReservedInstanceId();
+                double coveredCoupons = coverage.getCoveredCoupons();
+                if (riUtilizationForVmsInScope.containsKey(reservedInstanceId)) {
+                    double updatedCoverage = coveredCoupons + riUtilizationForVmsInScope.get(reservedInstanceId);
+                    riUtilizationForVmsInScope.put(reservedInstanceId, updatedCoverage);
+                } else {
+                    riUtilizationForVmsInScope.put(reservedInstanceId, coveredCoupons);
+                }
+            }
+        }
+        return riUtilizationForVmsInScope;
+    }
+
+    private List<ReservedInstanceBought> filterDiscoveredRIUtilizationNotInScope(List<ReservedInstanceBought> reservedInstanceBoughtList,
+                                                                                 Map<Long, Double> riUtilizationForVmsInScope,
+                                                                                 Map<Long, Double> riToDiscoveredUsageMap) {
+        return reservedInstanceBoughtList.stream().map(ReservedInstanceBought::toBuilder).peek(riBuilder -> {
+            final ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons.Builder riCouponsBuilder =
+                    riBuilder.getReservedInstanceBoughtInfoBuilder()
+                            .getReservedInstanceBoughtCouponsBuilder();
+            long riId = riBuilder.getId();
+            double numberOfCouponsUsedInScope = riUtilizationForVmsInScope.getOrDefault(riId, 0D);
+            double riUsageFromDiscoveredEntities = riToDiscoveredUsageMap.getOrDefault(riId, 0D);
+
+            //RI Coupon Utilization outside of scope = Total Discovered RI Utilization - RI Utilization In scope.
+            double riDiscoveredUtilizationOutsideScope = riUsageFromDiscoveredEntities - numberOfCouponsUsedInScope;
+
+            double numberOfCouponsCapacity = riCouponsBuilder.getNumberOfCoupons() - riDiscoveredUtilizationOutsideScope;
+            double numberOfCouponsUsed = riCouponsBuilder.getNumberOfCouponsUsed() - riDiscoveredUtilizationOutsideScope;
+            if (numberOfCouponsCapacity < 0 || numberOfCouponsUsed < 0) {
+                if (numberOfCouponsCapacity < 0) {
+                    logger.warn("For RI {}, overall number of coupons available for discovered workloads {} is less than RI utilization by discovered workloads outside scope {}. Setting the used and capacity to 0. Should never hit this case",
+                            riId, riCouponsBuilder.getNumberOfCoupons(), riDiscoveredUtilizationOutsideScope);
+                } else {
+                    logger.warn("For RI {}, overall RI utilization by discovered workloads {} is less than RI utilization by discovered workloads outside scope {}. Setting the used and capacity to 0. Should never hit this case",
+                            riId, riCouponsBuilder.getNumberOfCouponsUsed(), riDiscoveredUtilizationOutsideScope);
+                }
+                numberOfCouponsCapacity = 0;
+                numberOfCouponsUsed = 0;
+            }
+            riCouponsBuilder.setNumberOfCoupons(numberOfCouponsCapacity).setNumberOfCouponsUsed(numberOfCouponsUsed);
+        }).map(ReservedInstanceBought.Builder::build).collect(Collectors.toList());
     }
 
     private ReservedInstanceBought toReservedInstanceBoughtProto(PlanReservedInstanceBoughtRecord record) {

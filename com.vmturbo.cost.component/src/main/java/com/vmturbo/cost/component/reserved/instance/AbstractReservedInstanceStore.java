@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,7 +51,7 @@ public abstract class AbstractReservedInstanceStore {
     private final ReservedInstanceCostCalculator reservedInstanceCostCalculator;
 
     private final AccountRIMappingStore accountRIMappingStore;
-    private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
+    protected final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
     protected final BusinessAccountHelper businessAccountHelper;
 
     /**
@@ -148,7 +149,7 @@ public abstract class AbstractReservedInstanceStore {
                 .map(ReservedInstanceBought::getId)
                 .collect(Collectors.toList());
         // Retrieve the total  used coupons from discovered workloads for each RI
-        final Map<Long, Double> riToDiscoveredUsageMap = entityReservedInstanceMappingStore
+        final Map<Long, Double> undiscoveredRiToDiscoveredUsageMap = undiscoveredRiIds.isEmpty() ? Collections.EMPTY_MAP : entityReservedInstanceMappingStore
                 .getReservedInstanceUsedCouponsMapByFilter(
                         EntityReservedInstanceMappingFilter.newBuilder().riBoughtFilter(
                                 Cost.ReservedInstanceBoughtFilter.newBuilder()
@@ -166,22 +167,30 @@ public abstract class AbstractReservedInstanceStore {
                     riBuilder.getReservedInstanceBoughtInfoBuilder()
                             .getReservedInstanceBoughtCouponsBuilder();
             if (undiscoveredRiIds.contains(riBuilder.getId())) {
-                final double coupons = riToDiscoveredUsageMap.getOrDefault(riBuilder.getId(), 0d);
+                final double coupons = undiscoveredRiToDiscoveredUsageMap.getOrDefault(riBuilder.getId(), 0d);
                 riCouponsBuilder.setNumberOfCoupons(coupons).setNumberOfCouponsUsed(coupons);
             } else {
                 final double couponsUsedByUndiscoveredAccounts =
                         riToUndiscoveredAccountsUsage.getOrDefault(riBuilder.getId(), 0d);
                 if (couponsUsedByUndiscoveredAccounts > 0) {
-                    double numberOfCoupons = riCouponsBuilder.getNumberOfCoupons()
-                            - couponsUsedByUndiscoveredAccounts;
-                    if (numberOfCoupons < 0) {
-                        logger.warn(
-                                "Coupons used by undiscovered accounts {} is greater than number of coupons {} for RI {}. Number of coupons will be set to 0.",
+                    double numberOfCoupons = riCouponsBuilder.getNumberOfCoupons()  - couponsUsedByUndiscoveredAccounts;
+                    double numberOfCouponsUsed = riCouponsBuilder.getNumberOfCouponsUsed() - couponsUsedByUndiscoveredAccounts;
+                    if (numberOfCoupons < 0 || numberOfCouponsUsed < 0) {
+                        if (numberOfCoupons < 0) {
+                            logger.warn(
+                                    "Coupons used by undiscovered accounts {} is greater than number of coupons {} for RI {}. Number of coupons used and capacity will be set to 0.",
+                                    couponsUsedByUndiscoveredAccounts,
+                                    riCouponsBuilder.getNumberOfCoupons(), riBuilder.getId());
+                        } else {
+                             logger.warn(
+                                "Coupons used by undiscovered accounts {} is greater than number of coupons used {} for RI {}. Number of coupons used and capacity will be set to 0.",
                                 couponsUsedByUndiscoveredAccounts,
-                                riCouponsBuilder.getNumberOfCoupons(), riBuilder.getId());
+                                riCouponsBuilder.getNumberOfCouponsUsed(), riBuilder.getId());
+                        }
                         numberOfCoupons = 0;
+                        numberOfCouponsUsed = 0;
                     }
-                    riCouponsBuilder.setNumberOfCoupons(numberOfCoupons);
+                    riCouponsBuilder.setNumberOfCoupons(numberOfCoupons).setNumberOfCouponsUsed(numberOfCouponsUsed);
                 }
             }
             // adjust the instance size flexible and scope for unknown scopes

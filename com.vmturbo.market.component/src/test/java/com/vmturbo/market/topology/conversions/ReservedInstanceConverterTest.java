@@ -494,7 +494,7 @@ public class ReservedInstanceConverterTest {
         }
         boughtInfoBuilder.setBusinessAccountId(businessAccountOid);
         boughtInfoBuilder.setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons
-                .newBuilder().setNumberOfCoupons(couponCapacity).build());
+                .newBuilder().setNumberOfCoupons(couponCapacity).setNumberOfCouponsUsed(couponCapacity).build());
         final ReservedInstanceScopeInfo.Builder scopeInfoBuilder =
                 ReservedInstanceScopeInfo.newBuilder();
         if (sharedScope) {
