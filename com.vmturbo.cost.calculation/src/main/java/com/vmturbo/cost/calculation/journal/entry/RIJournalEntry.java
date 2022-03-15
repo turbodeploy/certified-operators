@@ -84,7 +84,7 @@ public class RIJournalEntry<E> implements QualifiedJournalEntry<E> {
         // a problem, because the RI purchase and the entity the RI is applying to should
         // be under the same master account.
         final long providerId =
-                riData.getReservedInstanceSpec().getReservedInstanceSpecInfo().getTierId();
+                riData.getReservedInstanceSpec().getReservedInstanceSpecInfo().getTierId(); // only needed for price adjustments
         final TraxNumber discountPercentage = discountApplicator.getDiscountPercentage(providerId);
         final TraxNumber fullPricePercentage =
                 Trax.trax(1.0, "100%").minus(discountPercentage).compute("full price portion");
@@ -129,7 +129,7 @@ public class RIJournalEntry<E> implements QualifiedJournalEntry<E> {
     @Override
     public boolean equals(final Object obj) {
 
-        if (obj == null || !(obj instanceof RIJournalEntry)) {
+        if (!(obj instanceof RIJournalEntry)) {
             return false;
         } else if (obj == this) {
             return true;

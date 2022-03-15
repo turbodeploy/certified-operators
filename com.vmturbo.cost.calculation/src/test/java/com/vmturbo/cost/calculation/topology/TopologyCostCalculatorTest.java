@@ -16,6 +16,7 @@ import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.cost.calculation.CloudCommitmentApplicator;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.journal.CostJournal;
@@ -51,9 +52,11 @@ public class TopologyCostCalculatorTest {
 
     private ReservedInstanceApplicatorFactory<TopologyEntityDTO> reservedInstanceApplicatorFactory = mock(ReservedInstanceApplicatorFactory.class);
 
+    private CloudCommitmentApplicator.CloudCommitmentApplicatorFactory<TopologyEntityDTO> cloudCommitmentApplicatorFactory = mock(CloudCommitmentApplicator.CloudCommitmentApplicatorFactory.class);
+
     private TopologyCostCalculatorFactory factory = new DefaultTopologyCostCalculatorFactory(
             topologyEntityInfoExtractor, cloudCostCalculatorFactory, localCostDataProvider,
-            discountApplicatorFactory, reservedInstanceApplicatorFactory);
+            discountApplicatorFactory, reservedInstanceApplicatorFactory, cloudCommitmentApplicatorFactory);
 
     private TopologyInfo topoInfo = TopologyInfo.newBuilder().setTopologyContextId(1000l).build();
     @Test
@@ -74,7 +77,7 @@ public class TopologyCostCalculatorTest {
                 eq(cloudTopology),
                 eq(topologyEntityInfoExtractor),
                 eq(reservedInstanceApplicatorFactory),
-                any(), any()))
+                any(), any(), any()))
             .thenReturn(costCalculator);
 
 

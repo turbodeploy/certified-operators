@@ -1,58 +1,68 @@
 package com.vmturbo.cost.calculation.journal;
 
+import static com.vmturbo.cost.calculation.journal.CostJournal.CommodityTypeFilter.INCLUDE_ALL;
 import static com.vmturbo.trax.Trax.trax;
 
-import java.util.*;
-import java.util.Map.Entry;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
+import javax.validation.constraints.Null;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Table;
-import com.google.common.collect.Table.Cell;
 
-import com.google.protobuf.MapEntry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 import org.stringtemplate.v4.ST;
 
-import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.cloud.common.commitment.TopologyCommitmentData;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageVector;
+import com.vmturbo.cost.calculation.journal.entry.CloudCommitmentDiscountJournalEntry;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
-import com.vmturbo.common.protobuf.cost.CostREST;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.journal.CostItem.CostSourceLink;
-import com.vmturbo.cost.calculation.journal.entry.OnDemandJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.EntityUptimeDiscountJournalEntry;
+import com.vmturbo.cost.calculation.journal.entry.OnDemandJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.QualifiedJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.RIDiscountJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.RIJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.ReservedLicenseJournalEntry;
+import com.vmturbo.cost.calculation.journal.tabulator.CloudCommitmentDiscountTabulator;
 import com.vmturbo.cost.calculation.journal.tabulator.OnDemandEntryTabulator;
 import com.vmturbo.cost.calculation.journal.tabulator.RIDiscountTabulator;
 import com.vmturbo.cost.calculation.journal.tabulator.RIEntryTabulator;
 import com.vmturbo.cost.calculation.journal.tabulator.ReservedLicenseTabulator;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.trax.TraxCollectors;
@@ -95,6 +105,8 @@ public class CostJournal<ENTITY_CLASS> {
             "<riDiscountEntries>\n" +
             "========== RESERVED LICENSE ENTRIES ==============\n" +
             "<reservedLicenseEntries>\n" +
+            "========== CLOUD COMMITMENT DISCOUNT ENTRIES ==============\n" +
+            "<cloudCommitmentDiscountEntries>\n" +
             "==================================================\n";
 
 
@@ -110,7 +122,6 @@ public class CostJournal<ENTITY_CLASS> {
     private final Map<CostCategory, SortedSet<QualifiedJournalEntry<ENTITY_CLASS>>> costEntries;
 
     private final Table<CostCategory, CatagoryCostInfo, TraxNumber> finalCostsByCategoryAndSource = HashBasedTable.create();
-
     /**
      * We calculate the costs from the journal entries the first time costs are actually requested.
      * However, we want to avoid calculating multiple times, so we use an atomic boolean to make
@@ -242,6 +253,8 @@ public class CostJournal<ENTITY_CLASS> {
 
         CostSourceFilter EXCLUDE_UPTIME = (cs) -> cs != CostSource.ENTITY_UPTIME_DISCOUNT;
 
+        CostSourceFilter EXCLUDE_CLOUD_COMMITMENT_DISCOUNTS_FILTER = (costSource) ->
+                        costSource != CostSource.CLOUD_COMMITMENT_DISCOUNT;
         /**
          * filter by cost source.
          *
@@ -250,6 +263,17 @@ public class CostJournal<ENTITY_CLASS> {
          * @return true if cost source is of the same type.
          */
         boolean filter(@Nonnull CostSource costSource);
+    }
+
+    @FunctionalInterface
+    public interface CommodityTypeFilter {
+        CommodityTypeFilter INCLUDE_ALL = (ct) -> true;
+
+        static CommodityTypeFilter includeOnly(@Nonnull CommodityType commodityType) {
+            return commodityType::equals;
+        }
+
+        boolean filter(CommodityType commodityType);
     }
 
     /**
@@ -262,10 +286,13 @@ public class CostJournal<ENTITY_CLASS> {
          *
          * @param costCategory The cost category.
          * @param costSourceFilter The cost source filter.
+         * @param commodityTypeFilter The commodity type filter
          *
          * @return A trax number representing the cost.
          */
-        Collection<CostItem> lookupCostWithFilter(CostCategory costCategory, CostSourceFilter costSourceFilter);
+        Collection<CostItem> lookupCostWithFilter(CostCategory costCategory,
+                                                  CostSourceFilter costSourceFilter,
+                                                  CommodityTypeFilter commodityTypeFilter);
     }
 
     @Nonnull
@@ -348,7 +375,7 @@ public class CostJournal<ENTITY_CLASS> {
     /**
      * Get the cost from a given journal entry for a given cost category.
      *
-     * @param costSourceFilter The journal entry.
+     * @param costSourceFilter the cost source filter
      * @param costCategory The cost category.
      *
      * @return The TraxNumber representing the cost from a journal for a particular category.
@@ -356,20 +383,21 @@ public class CostJournal<ENTITY_CLASS> {
     public TraxNumber getHourlyCostFilterEntries(final CostCategory costCategory,
             final CostSourceFilter costSourceFilter) {
         calculateCosts();
-        return getFilteredCostItemsForCategory(costCategory, costSourceFilter).stream()
+        return getFilteredCostItemsForCategory(costCategory, costSourceFilter, INCLUDE_ALL).stream()
                 .map(CostItem::cost)
                 .collect(TraxCollectors.sum("Total sum excluding filter"));
     }
 
     private Collection<CostItem> getFilteredCostItemsForCategory(@Nonnull CostCategory costCategory,
-                                                                 @Nonnull CostSourceFilter costSourceFilter) {
-
+                                                                 @Nonnull CostSourceFilter costSourceFilter,
+                                                                 @Nonnull CommodityTypeFilter commodityTypeFilter) {
         final Map<CatagoryCostInfo, TraxNumber> costsBySourceLink = finalCostsByCategoryAndSource.row(costCategory);
         return costsBySourceLink.entrySet()
                 .stream()
                 .filter(costEntry -> costEntry.getKey().costSourceLink().costSourceChain()
-                        .stream()
-                        .allMatch(costSourceFilter::filter))
+                                .stream()
+                                .allMatch(costSourceFilter::filter))
+                .filter(costEntry -> commodityTypeFilter.filter(costEntry.getKey().commodity().orElse(null)))
                 .collect(Collectors.groupingBy(
                         costEntry -> costEntry.getKey().costSourceLink()))
                 .entrySet().stream()
@@ -396,7 +424,7 @@ public class CostJournal<ENTITY_CLASS> {
                                                                         CostSourceFilter costSourceFilter) {
         calculateCosts();
 
-        Collection<CostItem> filteredCostItemsForCategory = getFilteredCostItemsForCategory(costCategory, costSourceFilter);
+        Collection<CostItem> filteredCostItemsForCategory = getFilteredCostItemsForCategory(costCategory, costSourceFilter, INCLUDE_ALL);
         Map<CostSource, TraxNumber> costsByCostSource = filteredCostItemsForCategory
                 .stream()
                 .collect(Collectors.groupingBy(
@@ -427,6 +455,8 @@ public class CostJournal<ENTITY_CLASS> {
         final RIDiscountTabulator<ENTITY_CLASS> riDiscountTabulator = new RIDiscountTabulator<>();
         final ReservedLicenseTabulator<ENTITY_CLASS> reservedLicenseTabulator =
                 new ReservedLicenseTabulator<>();
+        final CloudCommitmentDiscountTabulator<ENTITY_CLASS>
+                        cloudCommitmentDiscountTabulator = new CloudCommitmentDiscountTabulator<>();
         synchronized (finalCostsByCategoryAndSource) {
             final String dependencies = childCostEntities.stream().map(childCostEntity -> {
                 final int type = infoExtractor.getEntityType(childCostEntity);
@@ -473,6 +503,8 @@ public class CostJournal<ENTITY_CLASS> {
                             .add("reservedLicenseEntries",
                                     reservedLicenseTabulator.tabulateEntries(infoExtractor,
                                             costEntries))
+                            .add("cloudCommitmentDiscountEntries",
+                                 cloudCommitmentDiscountTabulator.tabulateEntries(infoExtractor, costEntries))
                             .render());
         }
         return stringBuilder.toString();
@@ -583,7 +615,7 @@ public class CostJournal<ENTITY_CLASS> {
                 @Nonnull final ENTITY_CLASS_ payee,
                 @Nonnull final Price price,
                 final TraxNumber amount,
-                final Optional<com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType> commodityType) {
+                final Optional<CommodityType> commodityType) {
             if (logger.isTraceEnabled()) {
                 logger.trace("On-demand {} purchase of {} from payee {} (id: {}) at price {}",
                         category, amount, infoExtractor.getName(payee), infoExtractor.getId(payee), price);
@@ -635,6 +667,18 @@ public class CostJournal<ENTITY_CLASS> {
             final Set<QualifiedJournalEntry<ENTITY_CLASS_>> prices =
                     costEntries.computeIfAbsent(category, k -> new TreeSet<>(journalEntryComparator));
             prices.add(new RIDiscountJournalEntry<>(riData, riBoughtPercentage, category, CostSource.RI_INVENTORY_DISCOUNT, false));
+            return this;
+        }
+
+        @Nonnull
+        public Builder<ENTITY_CLASS_> recordCloudCommitmentDiscount(
+                        @Nonnull final CostCategory category,
+                        @Nonnull final TopologyCommitmentData commitmentData,
+                        @Nonnull final CloudCommitmentCoverageVector coverageVector
+        ) {
+            final Set<QualifiedJournalEntry<ENTITY_CLASS_>> prices =
+                    costEntries.computeIfAbsent(category, k -> new TreeSet<>(journalEntryComparator));
+            prices.add(new CloudCommitmentDiscountJournalEntry<>(commitmentData, coverageVector, category, CostSource.CLOUD_COMMITMENT_DISCOUNT));
             return this;
         }
 
@@ -735,7 +779,6 @@ public class CostJournal<ENTITY_CLASS> {
                     dependentCostLookup);
         }
 
-
         private static class JournalEntryComparator implements Comparator<QualifiedJournalEntry> {
 
             private final Map<String, Integer> journalEntryOrderMap =
@@ -745,6 +788,7 @@ public class CostJournal<ENTITY_CLASS> {
                             .put(ReservedLicenseJournalEntry.class.getName(), 2)
                             .put(EntityUptimeDiscountJournalEntry.class.getName(), 3)
                             .put(RIDiscountJournalEntry.class.getName(), 4)
+                            .put(CloudCommitmentDiscountJournalEntry.class.getName(), 5)
                             .build();
 
             @Override

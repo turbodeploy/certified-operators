@@ -1,5 +1,7 @@
 package com.vmturbo.cost.calculation.journal.entry;
 
+import static com.vmturbo.cost.calculation.journal.CostJournal.CommodityTypeFilter.INCLUDE_ALL;
+
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
@@ -61,9 +63,9 @@ public class RIDiscountJournalEntry<E> implements QualifiedJournalEntry<E> {
     public RIDiscountJournalEntry(
             @Nonnull final ReservedInstanceData riData,
             @Nonnull final TraxNumber riBoughtPercentage,
-            @Nonnull final CostCategory targetCostCategory,
-            @Nonnull final CostSource costSource,
-            final boolean isBuyRI) {
+            @Nonnull final CostCategory targetCostCategory, // eg compute, license etc
+            @Nonnull final CostSource costSource,  // eg on demand rate, ri discount, uptime discount, buy ri discount
+            final boolean isBuyRI) { // separate cost source so we can distinguish savings from scaling vs savings from recommended ri purchases
         this.riData = riData;
         this.riBoughtPercentage = riBoughtPercentage;
         this.targetCostCategory = targetCostCategory;
@@ -77,7 +79,8 @@ public class RIDiscountJournalEntry<E> implements QualifiedJournalEntry<E> {
             @Nonnull final DiscountApplicator<E> discountApplicator,
             @Nonnull final RateExtractor rateExtractor) {
         // OnDemand rate is already price-adjusted (discounted), so don't discount again.
-        final Collection<CostItem> costItems = rateExtractor.lookupCostWithFilter(targetCostCategory, EXCLUDE_RI_DISCOUNTS_FILTER);
+        final Collection<CostItem> costItems = rateExtractor.lookupCostWithFilter(targetCostCategory, EXCLUDE_RI_DISCOUNTS_FILTER, INCLUDE_ALL); // ri discounts aren't cumulative, we don't want a discount on a discount
+        // implicit ordering of these calculations according to JournalEntryComparator
         final TraxNumber riDiscount =  Trax.trax(riBoughtPercentage.dividedBy(1).compute().times(-1).getValue());
 
         return costItems.stream()

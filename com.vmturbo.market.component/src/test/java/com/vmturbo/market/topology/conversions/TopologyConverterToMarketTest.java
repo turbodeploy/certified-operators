@@ -40,6 +40,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.protobuf.util.JsonFormat;
@@ -159,7 +160,7 @@ public class TopologyConverterToMarketTest {
     private CommodityType topologyCommodity2;
     private CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
     private CloudCostData ccd = spy(new CloudCostData<>(new HashMap<>(), new HashMap<>(), new HashMap<>(),
-            new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), Optional.empty()));
+            new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), Optional.empty(), ImmutableSetMultimap.of(), new HashMap<>()));
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
     private AccountPricingData accountPricingData = mock(AccountPricingData.class);
     private ConsistentScalingHelperFactory consistentScalingHelperFactory;
