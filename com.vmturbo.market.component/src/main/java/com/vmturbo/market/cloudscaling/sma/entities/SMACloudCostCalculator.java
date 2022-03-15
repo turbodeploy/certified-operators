@@ -7,10 +7,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.SetMultimap;
+
 import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.cloud.common.commitment.TopologyEntityCommitmentTopology;
 import com.vmturbo.cloud.common.topology.SimulatedTopologyEntityCloudTopology;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -21,12 +25,13 @@ import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFacto
 import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
 import com.vmturbo.cost.calculation.PricingContext;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator;
-import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.SimulatedCloudCostData;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine.SortTemplateByOID;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.trax.Trax;
 
 /**
@@ -37,7 +42,7 @@ public class SMACloudCostCalculator {
     /**
      * The cloud cost data.
      */
-    private final CloudCostData<TopologyEntityDTO> cloudCostData;
+    private final SimulatedCloudCostData<TopologyEntityDTO> cloudCostData;
 
     /**
      * Simulated cloud topology. This will have the cloud topology with simulation run on top of
@@ -70,7 +75,7 @@ public class SMACloudCostCalculator {
      * @param cloudCostData the cloud cost data.
      */
     public SMACloudCostCalculator(SimulatedTopologyEntityCloudTopology cloudTopology,
-            CloudCostData<TopologyEntityDTO> cloudCostData) {
+            SimulatedCloudCostData<TopologyEntityDTO> cloudCostData) {
         this.cloudCostData = cloudCostData;
         this.simulatedTopologyEntityCloudTopology = cloudTopology;
         costCalculator = createCostCalculator();
@@ -82,16 +87,12 @@ public class SMACloudCostCalculator {
                 simulatedTopologyEntityCloudTopology.size());
         final DependentCostLookup<TopologyEntityDTO> dependentCostLookup = entity -> retCosts.get(
                 entity.getOid());
-        CloudCostCalculator<TopologyEntityDTO> costCalculator = factory.newCalculator(
-                        cloudCostData,
-                        simulatedTopologyEntityCloudTopology,
-                        new TopologyEntityInfoExtractor(),
-                        ReservedInstanceApplicator
-                                        .newFactory(),
-                        CloudCommitmentApplicator.newFactory(new TopologyEntityCommitmentTopology
-                                        .TopologyEntityCommitmentTopologyFactory()),
-                        dependentCostLookup,
-                        new HashMap<>());
+        CloudCostCalculator<TopologyEntityDTO> costCalculator = factory.newCalculator(cloudCostData,
+                simulatedTopologyEntityCloudTopology, new TopologyEntityInfoExtractor(),
+                ReservedInstanceApplicator.newFactory(),
+                CloudCommitmentApplicator.newFactory(
+                        new TopologyEntityCommitmentTopology.TopologyEntityCommitmentTopologyFactory()),
+                dependentCostLookup, new HashMap<>());
         return costCalculator;
     }
 
@@ -105,31 +106,41 @@ public class SMACloudCostCalculator {
      * @return the cost journal for the vm if moved to computeTierId and covered by riId
      */
     private CostJournal<TopologyEntityDTO> calculateCost(Long entityId,
-            Long computeTierId, float riCoverage, Long riId) {
+            Long computeTierId, CloudCommitmentAmount riCoverage, Long riId) {
         Optional<TopologyEntityDTO> entity = simulatedTopologyEntityCloudTopology.getEntity(
                 entityId);
         if (!entity.isPresent()) {
             return null;
         }
-        Map<Long, Double> riCoverageMap = new HashMap<>();
-        if (riCoverage > SMAUtils.EPSILON) {
-            riCoverageMap.put(riId, (double)riCoverage);
-        }
         Map<Long, Long> entityIdToComputeTierIdSimulation = new HashMap<>();
         entityIdToComputeTierIdSimulation.put(entityId, computeTierId);
         simulatedTopologyEntityCloudTopology.setEntityIdToComputeTierIdSimulation(entityIdToComputeTierIdSimulation);
-        final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage = new HashMap<>();
-        if (!riCoverageMap.isEmpty()) {
-            EntityReservedInstanceCoverage entityReservedInstanceCoverage =
-                    EntityReservedInstanceCoverage.newBuilder()
-                            .setEntityId(entityId)
-                            .setEntityCouponCapacity(
-                                    simulatedTopologyEntityCloudTopology.getRICoverageCapacityForEntity(
-                                            entityId))
-                            .putAllCouponsCoveredByRi(riCoverageMap)
-                            .build();
-            topologyRICoverage.put(entityId, entityReservedInstanceCoverage);
-            costCalculator.setTopologyRICoverage(topologyRICoverage);
+        if (riCoverage.hasCoupons()) {
+            if (CommitmentAmountCalculator.isPositive(riCoverage, SMAUtils.EPSILON)) {
+                Map<Long, Double> riCoverageMap = new HashMap<>();
+                riCoverageMap.put(riId, riCoverage.getCoupons());
+                final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage = new HashMap<>();
+                EntityReservedInstanceCoverage entityReservedInstanceCoverage =
+                        EntityReservedInstanceCoverage.newBuilder().setEntityId(entityId).setEntityCouponCapacity(
+                                simulatedTopologyEntityCloudTopology.getRICoverageCapacityForEntity(
+                                        entityId)).putAllCouponsCoveredByRi(riCoverageMap).build();
+                topologyRICoverage.put(entityId, entityReservedInstanceCoverage);
+                costCalculator.setTopologyRICoverage(topologyRICoverage);
+            }
+        } else if (riCoverage.hasCommoditiesBought()) {
+            SetMultimap<Long, CloudCommitmentMapping> cloudCommitmentMappingByEntityId =
+                    HashMultimap.create();
+            if (CommitmentAmountCalculator.isPositive(riCoverage, SMAUtils.EPSILON)) {
+                CloudCommitmentMapping cloudCommitmentMapping = CloudCommitmentMapping
+                        .newBuilder()
+                        .setCloudCommitmentOid(riId)
+                        .setEntityOid(entityId)
+                        .setCommitmentAmount(riCoverage)
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .build();
+                cloudCommitmentMappingByEntityId.put(entityId, cloudCommitmentMapping);
+                cloudCostData.setCloudCommitmentMappingByEntityId(cloudCommitmentMappingByEntityId);
+            }
         }
         return costCalculator.calculateCost(entity.get());
     }
@@ -149,8 +160,11 @@ public class SMACloudCostCalculator {
             CloudCommitmentAmount coverageAvailable, Long riId) {
         Long computeTierId = smaTemplate.getOid();
         // TODO this has to be more generic to deal with GCP
-        float riCoverage = (float)(CommitmentAmountCalculator.isStrictSuperSet(coverageAvailable, smaTemplate.getCommitmentAmount(), SMAUtils.EPSILON)
-                ? smaTemplate.getCommitmentAmount().getCoupons() : coverageAvailable.getCoupons());
+        CloudCommitmentAmount riCoverage = CommitmentAmountCalculator.min(
+                coverageAvailable, smaTemplate.getCommitmentAmount());
+        if (CommitmentAmountCalculator.isZero(riCoverage, SMAUtils.EPSILON)) {
+            riCoverage = CommitmentAmountCalculator.ZERO_COVERAGE;
+        }
         PricingContext pricingContext = new PricingContext(virtualMachine.getRegionId(),
                 virtualMachine.getOsType(), virtualMachine.getOsLicenseModel(), computeTierId,
                 virtualMachine.getAccountPricingDataOid());
@@ -172,12 +186,28 @@ public class SMACloudCostCalculator {
             double onDemandLicense = costJournal.getFilteredCategoryCostsBySource(
                     CostCategory.ON_DEMAND_LICENSE, CostSourceFilter.ON_DEMAND_RATE).getOrDefault(
                     CostSource.ON_DEMAND_RATE, Trax.trax(0d)).getValue();
-            double discountCompute = costJournal.getFilteredCategoryCostsBySource(
-                    CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.EXCLUDE_UPTIME).getOrDefault(
-                    CostSource.RI_INVENTORY_DISCOUNT, Trax.trax(0d)).getValue();
-            double discountLicense = costJournal.getFilteredCategoryCostsBySource(
-                    CostCategory.ON_DEMAND_LICENSE, CostSourceFilter.EXCLUDE_UPTIME).getOrDefault(
-                    CostSource.RI_INVENTORY_DISCOUNT, Trax.trax(0d)).getValue();
+            double discountCompute = 0d;
+            double discountLicense = 0d;
+            switch (riCoverage.getValueCase()) {
+                case COUPONS:
+                    discountCompute = costJournal.getFilteredCategoryCostsBySource(
+                            CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.EXCLUDE_UPTIME).getOrDefault(
+                            CostSource.RI_INVENTORY_DISCOUNT, Trax.trax(0d)).getValue();
+                    discountLicense = costJournal.getFilteredCategoryCostsBySource(
+                            CostCategory.ON_DEMAND_LICENSE, CostSourceFilter.EXCLUDE_UPTIME).getOrDefault(
+                            CostSource.RI_INVENTORY_DISCOUNT, Trax.trax(0d)).getValue();
+                    break;
+                case COMMODITIES_BOUGHT:
+                    discountCompute = costJournal.getFilteredCategoryCostsBySource(
+                            CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.EXCLUDE_UPTIME).getOrDefault(
+                            CostSource.CLOUD_COMMITMENT_DISCOUNT, Trax.trax(0d)).getValue();
+                    discountLicense = costJournal.getFilteredCategoryCostsBySource(
+                            CostCategory.ON_DEMAND_LICENSE, CostSourceFilter.EXCLUDE_UPTIME).getOrDefault(
+                            CostSource.CLOUD_COMMITMENT_DISCOUNT, Trax.trax(0d)).getValue();
+                    break;
+                default:
+                    break;
+            }
             if (onDemandCompute != Double.MAX_VALUE) {
                 savedCost = (float)(onDemandCompute + onDemandLicense + discountCompute
                         + discountLicense);
@@ -334,9 +364,44 @@ public class SMACloudCostCalculator {
                 }
             }
         }
+        minCostProviderPerFamily.put(SMAUtils.UNKNOWN_FAMILY, naturalOptional.orElse(currentTemplate));
         // If no minimum  is found, then use the current as the natural one
         smaVirtualMachineProvider.setNaturalTemplate(naturalOptional.orElse(currentTemplate));
         smaVirtualMachineProvider.setMinCostProviderPerFamily(minCostProviderPerFamily);
+    }
+
+    /**
+     * Convert the cloudcommitment amount to a float. For coupons and savings plan it is trivial.
+     * For CUD we use the ondemand rate - ondemand cost as the result.
+     * @param vm the vvirtual machine associated with the cloud commmitment.
+     * @param template the template for which we are computing the coverage
+     * @param riOid the ri id associated with the coverage
+     * @param amountA the cloud commit amount of interest
+     * @return float value for the cloud commitment amount.
+     */
+    public  float covertCommitmentToFloat(SMAVirtualMachine vm, SMATemplate template,
+            long riOid, CloudCommitmentAmount amountA) {
+
+        switch (amountA.getValueCase()) {
+            case AMOUNT:
+                return (float)amountA.getAmount().getAmount();
+            case COUPONS:
+                return (float)amountA.getCoupons();
+            case COMMODITIES_BOUGHT:
+                // zero coverage
+                float onDemandRate = this.getNetCost(vm, template,
+                        CommitmentAmountCalculator.ZERO_COVERAGE, SMAUtils.UNKNOWN_OID);
+                float onDemandCost = this.getNetCost(vm, template,
+                        amountA, riOid);
+
+                return (onDemandRate - onDemandCost);
+            case VALUE_NOT_SET:
+                return 0f;
+            default:
+                throw new UnsupportedOperationException(
+                        String.format("Cloud commitment amount case %s is not supported",
+                                amountA.getValueCase()));
+        }
     }
 
     /**
@@ -401,25 +466,12 @@ public class SMACloudCostCalculator {
         float netSavingVm1 = computeSaving(vm1, virtualMachineGroupMap, coupons, reservedInstance);
         float netSavingVm2 = computeSaving(vm2, virtualMachineGroupMap, coupons, reservedInstance);
 
-        String riFamily = reservedInstance.getNormalizedTemplate().getFamily();
-        CloudCommitmentAmount couponsVm1 = CommitmentAmountCalculator.ZERO_COVERAGE;
-        CloudCommitmentAmount couponsVm2 = CommitmentAmountCalculator.ZERO_COVERAGE;
-        if (reservedInstance.isIsf()) {
-            couponsVm1 =
-                    CommitmentAmountCalculator.min(coupons,
-                            CommitmentAmountCalculator.multiplyAmount(vm1.getMinCostProviderPerFamily(riFamily).getCommitmentAmount(),
-                                    vm1.getGroupSize()));
-            couponsVm2 = CommitmentAmountCalculator.min(coupons,
-                    CommitmentAmountCalculator.multiplyAmount(vm2.getMinCostProviderPerFamily(riFamily).getCommitmentAmount(), vm2.getGroupSize()));
-        } else {
-            couponsVm1 = CommitmentAmountCalculator.multiplyAmount(reservedInstance.getNormalizedTemplate().getCommitmentAmount(),
-                    vm1.getGroupSize());
-            couponsVm2 = CommitmentAmountCalculator.multiplyAmount(reservedInstance.getNormalizedTemplate().getCommitmentAmount(),
-                    vm2.getGroupSize());
-        }
 
-        float netSavingVm1PerCoupon = netSavingVm1 / (float)couponsVm1.getCoupons();
-        float netSavingVm2PerCoupon = netSavingVm2 / (float)couponsVm2.getCoupons();
+        float couponsVm1 = couponsUsed(vm1, coupons, reservedInstance);
+        float couponsVm2 = couponsUsed(vm2, coupons, reservedInstance);
+
+        float netSavingVm1PerCoupon = netSavingVm1 / couponsVm1;
+        float netSavingVm2PerCoupon = netSavingVm2 / couponsVm2;
 
         netSavingVm1PerCoupon = SMAUtils.round(netSavingVm1PerCoupon);
         netSavingVm2PerCoupon = SMAUtils.round(netSavingVm2PerCoupon);
@@ -432,5 +484,24 @@ public class SMACloudCostCalculator {
             return 1;
         }
         return 0;
+    }
+
+    private float couponsUsed(SMAVirtualMachine vm, CloudCommitmentAmount coupons,
+            SMAReservedInstance reservedInstance) {
+        String riFamily = reservedInstance.getNormalizedTemplate().getFamily();
+        CloudCommitmentAmount totalCommitment = reservedInstance.isIsf()
+                ? CommitmentAmountCalculator.min(coupons,
+                        CommitmentAmountCalculator.multiplyAmount(vm.getMinCostProviderPerFamily(riFamily).getCommitmentAmount(),
+                                vm.getGroupSize()))
+                : CommitmentAmountCalculator.multiplyAmount(reservedInstance.getNormalizedTemplate().getCommitmentAmount(),
+                        vm.getGroupSize());
+        CloudCommitmentAmount commitmentPerVM = CommitmentAmountCalculator.multiplyAmount(totalCommitment,
+                1.0f / vm.getGroupSize());
+        SMATemplate template = reservedInstance.isIsf() ? vm.getMinCostProviderPerFamily(riFamily)
+                : reservedInstance.getNormalizedTemplate();
+        float  scalarValuePerVM = covertCommitmentToFloat(vm, template,
+                reservedInstance.getOid(), commitmentPerVM);
+        return (float)(vm.getGroupSize()) * scalarValuePerVM;
+
     }
 }

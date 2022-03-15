@@ -280,4 +280,11 @@ public interface CloudTopology<ENTITY_CLASS> {
     @Nonnull
     Optional<GroupAndMembers> getResourceGroup(long entityId);
 
+    /**
+     * Checks if the cloud topology is simulated.
+     *
+     * @return true if the topology is simulated.
+     */
+    boolean isSimulated();
+
 }

@@ -3,6 +3,7 @@ package com.vmturbo.cost.calculation.integration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,13 +14,17 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.SetMultimap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -31,7 +36,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.AccountPricingData.DebugInfoNeverUsedInCode;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
-import com.vmturbo.cloud.common.topology.CloudTopology;
 
 /**
  * An interface provided by the users of the cost calculation library to get the
@@ -58,6 +62,34 @@ public interface CloudCostDataProvider<T> {
     CloudCostData<T> getCloudCostData(@Nonnull TopologyInfo topoInfo, CloudTopology<TopologyEntityDTO> cloudTopo,
                                    @Nonnull TopologyEntityInfoExtractor topologyEntityInfoExtractor) throws CloudCostDataRetrievalException;
 
+    class SimulatedCloudCostData<T> extends CloudCostData<T> {
+
+        SetMultimap<Long, CloudCommitmentMapping> cloudCommitmentMappingByEntityId =
+                HashMultimap.create();
+
+        public SimulatedCloudCostData(CloudCostData cloudCostData) {
+            super(cloudCostData.getRiCoverageByEntityId(),
+                    cloudCostData.getFilteredRiCoverageByEntityId(),
+                    cloudCostData.getRiBoughtById(), cloudCostData.getRiSpecById(),
+                    cloudCostData.getBuyRIBoughtById(),
+                    cloudCostData.getAccountPricingDataByBusinessAccountOid(),
+                    cloudCostData.getEntityUptimeByEntityId(),
+                    Optional.of(cloudCostData.getDefaultEntityUptime()),
+                    cloudCostData.getCloudCommitmentMappingByEntityId(),
+                    cloudCostData.getCloudCommitmentDataByCloudCommitmentId());
+        }
+
+        @Override
+        public SetMultimap<Long, CloudCommitmentMapping> getCloudCommitmentMappingByEntityId() {
+            return this.cloudCommitmentMappingByEntityId;
+        }
+
+        public void setCloudCommitmentMappingByEntityId(
+                SetMultimap<Long, CloudCommitmentMapping> cloudCommitmentMappingByEntityId) {
+            this.cloudCommitmentMappingByEntityId = cloudCommitmentMappingByEntityId;
+        }
+    }
+
     /**
      * The bundle of non-topology data required to compute costs. This can include things like
      * the {@link PriceTable} from the cost probes, the discounts for various business accounts,
@@ -75,6 +107,42 @@ public interface CloudCostDataProvider<T> {
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
                 Collections.emptyMap(), Collections.emptyMap(), Optional.empty(), ImmutableSetMultimap.of(), Collections.emptyMap());
 
+        public Map<Long, ReservedInstanceData> getRiBoughtDataById() {
+            return riBoughtDataById;
+        }
+
+        public Map<Long, ReservedInstanceData> getBuyRIBoughtDataById() {
+            return buyRIBoughtDataById;
+        }
+
+        public Map<Long, AccountPricingData<T>> getAccountPricingDataByBusinessAccountOid() {
+            return accountPricingDataByBusinessAccountOid;
+        }
+
+        public Map<Long, ReservedInstanceBought> getRiBoughtById() {
+            return riBoughtById;
+        }
+
+        public Map<Long, ReservedInstanceSpec> getRiSpecById() {
+            return riSpecById;
+        }
+
+        public Map<Long, ReservedInstanceBought> getBuyRIBoughtById() {
+            return buyRIBoughtById;
+        }
+
+        public Map<Long, EntityUptimeDTO> getEntityUptimeByEntityId() {
+            return entityUptimeByEntityId;
+        }
+
+        public EntityUptimeDTO getDefaultEntityUptime() {
+            return defaultEntityUptime;
+        }
+
+        public Map<Long, EntityReservedInstanceCoverage> getRiCoverageByEntityId() {
+            return riCoverageByEntityId;
+        }
+
         private final Map<Long, EntityReservedInstanceCoverage> riCoverageByEntityId;
 
         private final Map<Long, ReservedInstanceData> riBoughtDataById;
@@ -86,10 +154,19 @@ public interface CloudCostDataProvider<T> {
         private final Map<Long, EntityReservedInstanceCoverage> filteredRiCoverageByEntityId;
 
         // map from entity id to CloudCommitmentMapping
-        private SetMultimap<Long, CloudCommitmentDTO.CloudCommitmentMapping> cloudCommitmentMappingByEntityId;
+        SetMultimap<Long, CloudCommitmentDTO.CloudCommitmentMapping> cloudCommitmentMappingByEntityId =
+                HashMultimap.create();
 
         // map from cloud commitment id to CloudCommitmentData
-        private final Map<Long, CloudCommitmentData<TopologyDTO.TopologyEntityDTO>> cloudCommitmentDataByCloudCommitmentId;
+        private final Map<Long, CloudCommitmentData<TopologyDTO.TopologyEntityDTO>>
+                cloudCommitmentDataByCloudCommitmentId;
+
+        private final Map<Long, ReservedInstanceBought> riBoughtById;
+
+        private final Map<Long, ReservedInstanceSpec> riSpecById;
+
+        private final Map<Long, ReservedInstanceBought> buyRIBoughtById;
+
         /**
          * Map to hold each entity's uptime percentage.
          */
@@ -108,6 +185,9 @@ public interface CloudCostDataProvider<T> {
                              @Nonnull final Optional<EntityUptimeDTO> defaultEntityUptime,
                              @Nonnull final SetMultimap<Long, CloudCommitmentDTO.CloudCommitmentMapping> cloudCommitmentMappingByEntityId,
                              @Nonnull final Map<Long, CloudCommitmentData<TopologyDTO.TopologyEntityDTO>> cloudCommitmentDataByCloudCommitmentId) {
+            this.riBoughtById = Objects.requireNonNull(riBoughtById);
+            this.buyRIBoughtById = Objects.requireNonNull(buyRIBoughtById);
+            this.riSpecById = Objects.requireNonNull(riSpecById);
             this.riCoverageByEntityId = Objects.requireNonNull(riCoverageByEntityId);
             this.accountPricingDataByBusinessAccountOid = Objects.requireNonNull(accountPricingDataByBusinessAccountOid);
             this.filteredRiCoverageByEntityId = Objects.requireNonNull(filteredRiCoverageByEntityId);

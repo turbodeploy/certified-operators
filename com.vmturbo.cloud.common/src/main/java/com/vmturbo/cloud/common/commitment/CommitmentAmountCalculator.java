@@ -2,9 +2,11 @@ package com.vmturbo.cloud.common.commitment;
 
 import static com.vmturbo.cloud.common.commitment.CommitmentAmountUtils.EMPTY_COMMITMENT_AMOUNT;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BinaryOperator;
 
 import javax.annotation.Nonnull;
@@ -14,6 +16,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.lang3.tuple.Pair;
+
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount.ValueCase;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -22,76 +26,50 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.C
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
 /**
- * A calculator for performing mathematical operations on instances of {@link CloudCommitmentAmount}.
+ * A calculator for performing mathematical operations on instances of {@link
+ * CloudCommitmentAmount}.
  */
 public class CommitmentAmountCalculator {
 
     /**
      * Zero coverage CloudCommitmentAmount.
      */
-    public static final CloudCommitmentAmount ZERO_COVERAGE = CloudCommitmentAmount.newBuilder().build();
-
-    private CommitmentAmountCalculator() {}
+    public static final CloudCommitmentAmount ZERO_COVERAGE =
+            CloudCommitmentAmount.newBuilder().build();
 
     /**
-     * Subtracts {@code subtrahendAmount} from {@code minuendAmount}. {@link CloudCommitmentAmount} instances
-     * that are not set are treated as zero.
-     * @param minuendAmount The minuend amount.
-     * @param subtrahendAmount The subtrahend amount.
-     * @return The results of subtracting {@code subtrahendAmount} from {@code minuendAmount}.
+     * Rounding value to get a consistant hash.
      */
-    @Nonnull
-    public static CloudCommitmentAmount subtract(@Nonnull CloudCommitmentAmount minuendAmount,
-                                                 @Nonnull CloudCommitmentAmount subtrahendAmount) {
+    public static final float ROUNDING = 100000f;
 
-        validateTypeCompatibility(minuendAmount, subtrahendAmount);
-
-        switch (minuendAmount.getValueCase()) {
-
-            case AMOUNT:
-                return subtrahendAmount.getValueCase() != ValueCase.VALUE_NOT_SET
-                        ? CloudCommitmentAmount.newBuilder()
-                                .setAmount(subtractCurrencyAmount(minuendAmount.getAmount(), subtrahendAmount.getAmount()))
-                                .build()
-                        : minuendAmount;
-            case COUPONS:
-                return subtrahendAmount.getValueCase() != ValueCase.VALUE_NOT_SET
-                        ? CloudCommitmentAmount.newBuilder()
-                                .setCoupons(minuendAmount.getCoupons() - subtrahendAmount.getCoupons())
-                                .build()
-                        : minuendAmount;
-            case VALUE_NOT_SET:
-                return negate(subtrahendAmount);
-            default:
-                throw new UnsupportedOperationException(
-                        String.format("Cloud commitment amount case %s is not supported", minuendAmount.getValueCase()));
-
-        }
-
-    }
+    /**
+     * CommitmentAmountCalculator constructor.
+     */
+    private CommitmentAmountCalculator() {}
 
     /**
      * Sums all {@link CloudCommitmentAmount} instances in {@code amounts}. The amounts must all be
      * of the same coverage type or not set.
+     *
      * @param amounts The {@link CloudCommitmentAmount} instances to sum.
      * @return The sum of the {@code amounts}.
      */
     @Nonnull
     public static CloudCommitmentAmount sum(@Nonnull Collection<CloudCommitmentAmount> amounts) {
 
-        return amounts.stream()
-                .reduce(EMPTY_COMMITMENT_AMOUNT, CommitmentAmountCalculator::sum);
+        return amounts.stream().reduce(EMPTY_COMMITMENT_AMOUNT, CommitmentAmountCalculator::sum);
     }
 
     /**
      * Sums {@code amountA} and {@code amountB}.
+     *
      * @param amountA The first commitment amount.
      * @param amountB The second commitment amount.
      * @return The sum of {@code amountA} and {@code amountB}.
      */
     @Nonnull
     public static CloudCommitmentAmount sum(@Nonnull CloudCommitmentAmount amountA,
-                                            @Nonnull CloudCommitmentAmount amountB) {
+            @Nonnull CloudCommitmentAmount amountB) {
 
         validateTypeCompatibility(amountA, amountB);
 
@@ -100,68 +78,65 @@ public class CommitmentAmountCalculator {
             case AMOUNT:
                 return amountB.getValueCase() != ValueCase.VALUE_NOT_SET
                         ? CloudCommitmentAmount.newBuilder()
-                                .setAmount(opCurrencyAmount(amountA.getAmount(), amountB.getAmount(), Double::sum))
-                                .build()
-                        : amountA;
+                        .setAmount(opCurrencyAmount(amountA.getAmount(), amountB.getAmount(),
+                                Double::sum))
+                        .build() : amountA;
             case COUPONS:
                 return amountB.getValueCase() != ValueCase.VALUE_NOT_SET
-                        ? CloudCommitmentAmount.newBuilder()
-                                .setCoupons(amountA.getCoupons() + amountB.getCoupons())
-                                .build()
-                        : amountA;
+                        ? CloudCommitmentAmount.newBuilder().setCoupons(
+                        amountA.getCoupons() + amountB.getCoupons()).build() : amountA;
             case COMMODITIES_BOUGHT:
-                final Map<CommodityType, Double> commodityMapA = amountA.getCommoditiesBought()
-                        .getCommodityList()
-                        .stream()
-                        .collect(ImmutableMap.toImmutableMap(
-                                CommittedCommodityBought::getCommodityType,
-                                CommittedCommodityBought::getCapacity));
+                final Map<CommodityType, Double> commodityMapA =
+                        amountA.getCommoditiesBought().getCommodityList().stream().collect(
+                                ImmutableMap.toImmutableMap(
+                                        CommittedCommodityBought::getCommodityType,
+                                        CommittedCommodityBought::getCapacity));
 
-                final Map<CommodityType, Double> commodityMapB = amountB.getCommoditiesBought()
-                        .getCommodityList()
-                        .stream()
-                        .collect(ImmutableMap.toImmutableMap(
-                                CommittedCommodityBought::getCommodityType,
-                                CommittedCommodityBought::getCapacity));
+                final Map<CommodityType, Double> commodityMapB =
+                        amountB.getCommoditiesBought().getCommodityList().stream().collect(
+                                ImmutableMap.toImmutableMap(
+                                        CommittedCommodityBought::getCommodityType,
+                                        CommittedCommodityBought::getCapacity));
 
-                final List<CommittedCommodityBought> aggregateCommBought =
-                        Sets.union(commodityMapA.keySet(), commodityMapB.keySet()).stream()
-                                .map(commType -> CommittedCommodityBought.newBuilder()
-                                        .setCommodityType(commType)
-                                        .setCapacity(commodityMapA.getOrDefault(commType, 0.0)
-                                                + commodityMapB.getOrDefault(commType, 0.0))
-                                        .build())
-                                .collect(ImmutableList.toImmutableList());
+                final List<CommittedCommodityBought> aggregateCommBought = Sets.union(
+                        commodityMapA.keySet(), commodityMapB.keySet()).stream().map(
+                        commType -> CommittedCommodityBought.newBuilder()
+                                .setCommodityType(commType)
+                                .setCapacity(commodityMapA.getOrDefault(commType, 0.0)
+                                        + commodityMapB.getOrDefault(commType, 0.0))
+                                .build()).collect(ImmutableList.toImmutableList());
 
-                return CloudCommitmentAmount.newBuilder()
-                        .setCommoditiesBought(CommittedCommoditiesBought.newBuilder()
-                                .addAllCommodity(aggregateCommBought))
-                        .build();
+                return CloudCommitmentAmount.newBuilder().setCommoditiesBought(
+                        CommittedCommoditiesBought.newBuilder()
+                                .addAllCommodity(aggregateCommBought)).build();
             case VALUE_NOT_SET:
                 return amountB;
             default:
                 throw new UnsupportedOperationException(
-                        String.format("Cloud commitment amount case %s is not supported", amountA.getValueCase()));
-
+                        String.format("Cloud commitment amount case %s is not supported",
+                                amountA.getValueCase()));
         }
     }
 
     /**
-     * Subtracts {@code subtrahendAmount} from {@code minuendAmount}. The {@link CurrencyAmount} instances
+     * Subtracts {@code subtrahendAmount} from {@code minuendAmount}. The {@link CurrencyAmount}
+     * instances
      * must be of the same currency.
+     *
      * @param minuendAmount The minuend amount.
      * @param subtrahendAmount The subtrahend amount.
      * @return The result of subtracting {@code subtrahendAmount} from {@code minuendAmount}.
      */
     @Nonnull
     public static CurrencyAmount subtractCurrencyAmount(@Nonnull CurrencyAmount minuendAmount,
-                                                        @Nonnull CurrencyAmount subtrahendAmount) {
+            @Nonnull CurrencyAmount subtrahendAmount) {
 
         return opCurrencyAmount(minuendAmount, subtrahendAmount, (a, b) -> a - b);
     }
 
     /**
      * Negates {@code amount}.
+     *
      * @param amount The commitment amount.
      * @return The negated value of {@code amount}.
      */
@@ -169,60 +144,58 @@ public class CommitmentAmountCalculator {
     public static CloudCommitmentAmount negate(@Nonnull CloudCommitmentAmount amount) {
 
         Preconditions.checkNotNull(amount, "Amount cannot be null");
-
-        switch (amount.getValueCase()) {
-            case AMOUNT:
-                return amount.toBuilder()
-                        .setAmount(amount.getAmount()
-                                .toBuilder()
-                                .setAmount(-amount.getAmount().getAmount()))
-                        .build();
-            case COUPONS:
-                return amount.toBuilder()
-                        .setCoupons(-amount.getCoupons())
-                        .build();
-
-            case VALUE_NOT_SET:
-                return amount;
-            default:
-                throw new UnsupportedOperationException(
-                        String.format("Cloud commitment amount case %s is not supported", amount.getValueCase()));
-        }
+        return multiplyAmount(amount, -1.0d);
     }
 
     /**
      * Multiplies the {@code commitmentAmount} by {@code multiplier}.
+     *
      * @param commitmentAmount The commitment amount.
      * @param multiplier The multiplier.
      * @return The result of the multiplication.
      */
     @Nonnull
-    public static CloudCommitmentAmount multiplyAmount(@Nonnull CloudCommitmentAmount commitmentAmount,
-                                                       double multiplier) {
-
+    public static CloudCommitmentAmount multiplyAmount(
+            @Nonnull CloudCommitmentAmount commitmentAmount, double multiplier) {
 
         final CloudCommitmentAmount.Builder productAmount = commitmentAmount.toBuilder();
         switch (commitmentAmount.getValueCase()) {
             case AMOUNT:
-                productAmount.getAmountBuilder()
-                        .setAmount(commitmentAmount.getAmount().getAmount() * multiplier);
+                productAmount.getAmountBuilder().setAmount(
+                        commitmentAmount.getAmount().getAmount() * multiplier);
                 break;
             case COUPONS:
                 productAmount.setCoupons(commitmentAmount.getCoupons() * multiplier);
                 break;
+            case COMMODITIES_BOUGHT:
+                CommittedCommoditiesBought.Builder commoditiesBought =
+                        CommittedCommoditiesBought.newBuilder();
+                for (CommittedCommodityBought commInFirst : commitmentAmount.getCommoditiesBought()
+                        .getCommodityList()) {
+                    commoditiesBought.addCommodity(
+                            (CommittedCommodityBought.newBuilder()
+                                    .setCommodityType(commInFirst.getCommodityType())
+                                    .setProviderType(commInFirst.getProviderType())
+                                    .setCapacity(multiplier * commInFirst.getCapacity())
+                                    .build()));
+                }
+                return CloudCommitmentAmount.newBuilder()
+                        .setCommoditiesBought(commoditiesBought)
+                        .build();
             case VALUE_NOT_SET:
                 // Noop
                 break;
             default:
                 throw new UnsupportedOperationException(
-                        String.format("Cloud commitment amount case %s is not supported", commitmentAmount.getValueCase()));
+                        String.format("Cloud commitment amount case %s is not supported",
+                                commitmentAmount.getValueCase()));
         }
 
         return productAmount.build();
     }
 
     private static void validateTypeCompatibility(@Nonnull CloudCommitmentAmount amountA,
-                                                  @Nonnull CloudCommitmentAmount amountB) {
+            @Nonnull CloudCommitmentAmount amountB) {
 
         final boolean valuesSet = amountA.getValueCase() != ValueCase.VALUE_NOT_SET
                 && amountB.getValueCase() != ValueCase.VALUE_NOT_SET;
@@ -232,102 +205,15 @@ public class CommitmentAmountCalculator {
 
     @Nonnull
     private static CurrencyAmount opCurrencyAmount(@Nonnull CurrencyAmount amountA,
-                                                   @Nonnull CurrencyAmount amountB,
-                                                   BinaryOperator<Double> operator) {
+            @Nonnull CurrencyAmount amountB, BinaryOperator<Double> operator) {
 
         Preconditions.checkArgument(
-                amountA.hasCurrency() == amountB.hasCurrency()
-                        && (!amountA.hasCurrency() || amountA.getCurrency() == amountB.getCurrency()),
+                amountA.hasCurrency() == amountB.hasCurrency() && (!amountA.hasCurrency()
+                        || amountA.getCurrency() == amountB.getCurrency()),
                 "Currencies must match");
 
-
-        return amountA.toBuilder()
-                .setAmount(operator.apply(amountA.getAmount(), amountB.getAmount()))
-                .build();
-    }
-
-    /**
-     * Checks if amountA has resources which is strictly greater than the amountB.
-     * amountB might have resources that amountA does not have.
-     *
-     * @param amountA the first commitment amount
-     * @param amountB the second commitment amount
-     * @param epsilon the epsilon used for comparison
-     * @return true if amountA is a strict super set of amountB
-     */
-    public static boolean isStrictSuperSet(CloudCommitmentAmount amountA,
-            CloudCommitmentAmount amountB, double epsilon) {
-        final boolean valuesSet = amountA.getValueCase() != ValueCase.VALUE_NOT_SET
-                && amountB.getValueCase() != ValueCase.VALUE_NOT_SET;
-        Preconditions.checkArgument(!valuesSet || amountA.getValueCase() == amountB.getValueCase(),
-                "Commitment amounts must be of the same type");
-        switch (amountA.getValueCase()) {
-            case AMOUNT:
-                return amountB.getValueCase() != ValueCase.VALUE_NOT_SET
-                        ? amountA.getAmount().getAmount() - amountB.getAmount().getAmount() > epsilon
-                        : true;
-            case COUPONS:
-                return amountB.getValueCase() != ValueCase.VALUE_NOT_SET
-                        ? amountA.getCoupons() - amountB.getCoupons() > epsilon : true;
-            case COMMODITIES_BOUGHT:
-                if (amountB.getValueCase() == ValueCase.VALUE_NOT_SET) {
-                    return true;
-                }
-                final Map<CommodityType, Double> commodityMapB =
-                        amountB.getCommoditiesBought().getCommodityList().stream().collect(
-                                ImmutableMap.toImmutableMap(
-                                        CommittedCommodityBought::getCommodityType,
-                                        CommittedCommodityBought::getCapacity));
-
-                for (CommittedCommodityBought commInFirst : amountA.getCommoditiesBought()
-                        .getCommodityList()) {
-                    Double capacityInSecond = commodityMapB.get(commInFirst.getCommodityType());
-                    // one commodity is lessthanequal or absent
-                    if (capacityInSecond == null
-                            || commInFirst.getCapacity() - capacityInSecond < epsilon) {
-                        return false;
-                    }
-                }
-                return true;
-            case VALUE_NOT_SET:
-                return false;
-            default:
-                throw new UnsupportedOperationException(
-                        String.format("Cloud commitment amount case %s is not supported",
-                                amountA.getValueCase()));
-        }
-    }
-
-    /**
-     * divide two cloud commitment amount.
-     *
-     * @param numerator the numerator cloudcommitment amount
-     * @param denominator the denominator cloud commitment amount
-     * @return convert the cloud commitment amount to a float and then take ratio.
-     */
-    public static float divide(CloudCommitmentAmount numerator, CloudCommitmentAmount denominator) {
-        final boolean valuesSet = numerator.getValueCase() != ValueCase.VALUE_NOT_SET
-                && denominator.getValueCase() != ValueCase.VALUE_NOT_SET;
-        Preconditions.checkArgument(
-                !valuesSet || numerator.getValueCase() == denominator.getValueCase(),
-                "Commitment amounts must be of the same type");
-        switch (numerator.getValueCase()) {
-            case AMOUNT:
-                return denominator.getValueCase() != ValueCase.VALUE_NOT_SET ? (float)(
-                        numerator.getAmount().getAmount() / denominator.getAmount().getAmount())
-                        : 0.0f;
-            case COUPONS:
-                return denominator.getValueCase() != ValueCase.VALUE_NOT_SET ? (float)(
-                        numerator.getCoupons() / denominator.getCoupons()) : 0.0f;
-            case COMMODITIES_BOUGHT:
-                return 0.0f;
-            case VALUE_NOT_SET:
-                return 0.0f;
-            default:
-                throw new UnsupportedOperationException(
-                        String.format("Cloud commitment amount case %s is not supported",
-                                numerator.getValueCase()));
-        }
+        return amountA.toBuilder().setAmount(
+                operator.apply(amountA.getAmount(), amountB.getAmount())).build();
     }
 
     /**
@@ -362,6 +248,83 @@ public class CommitmentAmountCalculator {
     }
 
     /**
+     * Find if the two cloud commitment amounts are same.
+     *
+     * @param amountA the first cloud commitment amount.
+     * @param amountB the second cloud commitment amount.
+     * @param epsilon tolerance.
+     * @return return true if the two cloud commitment amount are same.
+     */
+    public static boolean isSame(CloudCommitmentAmount amountA, CloudCommitmentAmount amountB,
+            double epsilon) {
+        {
+            validateTypeCompatibility(amountA, amountB);
+            switch (amountA.getValueCase()) {
+                case AMOUNT:
+                    return amountB.getValueCase() != ValueCase.VALUE_NOT_SET ? Math.abs(
+                            amountA.getAmount().getAmount() - amountB.getAmount().getAmount())
+                            < epsilon : false;
+                case COUPONS:
+                    return amountB.getValueCase() != ValueCase.VALUE_NOT_SET ? Math.abs(
+                            amountA.getCoupons() - amountB.getCoupons()) < epsilon : false;
+                case COMMODITIES_BOUGHT:
+                    if (amountB.getValueCase() == ValueCase.VALUE_NOT_SET) {
+                        return false;
+                    }
+                    final Map<CommodityType, Double> commodityMapA =
+                            amountA.getCommoditiesBought().getCommodityList().stream().collect(
+                                    ImmutableMap.toImmutableMap(
+                                            CommittedCommodityBought::getCommodityType,
+                                            CommittedCommodityBought::getCapacity));
+
+                    final Map<CommodityType, Double> commodityMapB =
+                            amountB.getCommoditiesBought().getCommodityList().stream().collect(
+                                    ImmutableMap.toImmutableMap(
+                                            CommittedCommodityBought::getCommodityType,
+                                            CommittedCommodityBought::getCapacity));
+
+                    for (CommittedCommodityBought commInFirst : amountA.getCommoditiesBought()
+                            .getCommodityList()) {
+                        Double capacityInSecond = commodityMapB.getOrDefault(
+                                commInFirst.getCommodityType(), 0d);
+                        if (Math.abs(commInFirst.getCapacity() - capacityInSecond) > epsilon) {
+                            return false;
+                        }
+                    }
+                    for (CommittedCommodityBought commInSecond : amountB.getCommoditiesBought()
+                            .getCommodityList()) {
+                        Double capacityInFirst = commodityMapA.getOrDefault(
+                                commInSecond.getCommodityType(), 0d);
+                        if (Math.abs(commInSecond.getCapacity() - capacityInFirst) > epsilon) {
+                            return false;
+                        }
+                    }
+                    return true;
+                case VALUE_NOT_SET:
+                    return amountB.getValueCase() == ValueCase.VALUE_NOT_SET;
+                default:
+                    throw new UnsupportedOperationException(
+                            String.format("Cloud commitment amount case %s is not supported",
+                                    amountA.getValueCase()));
+            }
+        }
+    }
+
+    /**
+     * Find amountA - min(amountA, amountB).
+     *
+     * @param amountA the first cloud commitment amount.
+     * @param amountB the second cloud commitment amount.
+     * @return return the min of the two cloud commitment amount.
+     */
+    public static CloudCommitmentAmount subtract(CloudCommitmentAmount amountA,
+            CloudCommitmentAmount amountB) {
+        validateTypeCompatibility(amountA, amountB);
+        CloudCommitmentAmount min = min(amountA, amountB);
+        return sum(amountA, negate(min));
+    }
+
+    /**
      * Find the minimum of two cloud commitment amounts. (intersection)
      *
      * @param amountA the first cloud commitment amount.
@@ -370,24 +333,23 @@ public class CommitmentAmountCalculator {
      */
     public static CloudCommitmentAmount min(CloudCommitmentAmount amountA,
             CloudCommitmentAmount amountB) {
-        final boolean valuesSet = amountA.getValueCase() != ValueCase.VALUE_NOT_SET
-                && amountB.getValueCase() != ValueCase.VALUE_NOT_SET;
-        Preconditions.checkArgument(!valuesSet || amountA.getValueCase() == amountB.getValueCase(),
-                "Commitment amounts must be of the same type");
+        validateTypeCompatibility(amountA, amountB);
         switch (amountA.getValueCase()) {
 
             case AMOUNT:
                 return amountB.getValueCase() != ValueCase.VALUE_NOT_SET
                         ? CloudCommitmentAmount.newBuilder().setAmount(CurrencyAmount.newBuilder()
                         .setAmount(Math.min(amountA.getAmount().getAmount(),
-                                amountB.getAmount().getAmount()))).build() : amountA;
+                                amountB.getAmount().getAmount()))).build()
+                        : CommitmentAmountCalculator.ZERO_COVERAGE;
             case COUPONS:
                 return amountB.getValueCase() != ValueCase.VALUE_NOT_SET
                         ? CloudCommitmentAmount.newBuilder().setCoupons(
-                        Math.min(amountA.getCoupons(), amountB.getCoupons())).build() : amountA;
+                        Math.min(amountA.getCoupons(), amountB.getCoupons())).build()
+                        : CommitmentAmountCalculator.ZERO_COVERAGE;
             case COMMODITIES_BOUGHT:
                 if (amountB.getValueCase() == ValueCase.VALUE_NOT_SET) {
-                    return amountA;
+                    return CommitmentAmountCalculator.ZERO_COVERAGE;
                 }
                 final Map<CommodityType, Double> commodityMapB =
                         amountB.getCommoditiesBought().getCommodityList().stream().collect(
@@ -414,7 +376,7 @@ public class CommitmentAmountCalculator {
                         .setCommoditiesBought(commoditiesBought)
                         .build();
             case VALUE_NOT_SET:
-                return amountB;
+                return CommitmentAmountCalculator.ZERO_COVERAGE;
             default:
                 throw new UnsupportedOperationException(
                         String.format("Cloud commitment amount case %s is not supported",
@@ -445,6 +407,38 @@ public class CommitmentAmountCalculator {
                 return true;
             case VALUE_NOT_SET:
                 return true;
+            default:
+                throw new UnsupportedOperationException(
+                        String.format("Cloud commitment amount case %s is not supported",
+                                amountA.getValueCase()));
+        }
+    }
+
+    /**
+     * Find the hash value for the cloud commitment amount.
+     * @param amountA the CloudCommitmentAmount of interest.
+     * @return the hash value for the CloudCommitmentAmount.
+     */
+    public static long hash(CloudCommitmentAmount amountA) {
+        switch (amountA.getValueCase()) {
+            case AMOUNT:
+                return (long)(amountA.getAmount().getAmount()
+                        * CommitmentAmountCalculator.ROUNDING);
+            case COUPONS:
+                return (long)(amountA.getCoupons() * CommitmentAmountCalculator.ROUNDING);
+            case COMMODITIES_BOUGHT:
+                List<Pair<CommodityType, Long>> list = new ArrayList<>();
+                for (CommittedCommodityBought commInFirst : amountA.getCommoditiesBought()
+                        .getCommodityList()) {
+                    list.add(Pair.of(commInFirst.getCommodityType(),
+                            (long)(commInFirst.getCapacity()
+                                    * CommitmentAmountCalculator.ROUNDING)));
+                }
+                list.sort(
+                        (a, b) -> Integer.compare(a.getKey().getNumber(), b.getKey().getNumber()));
+                return Objects.hash(list);
+            case VALUE_NOT_SET:
+                return 0L;
             default:
                 throw new UnsupportedOperationException(
                         String.format("Cloud commitment amount case %s is not supported",

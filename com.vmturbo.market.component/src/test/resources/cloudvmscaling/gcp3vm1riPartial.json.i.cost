@@ -1,0 +1,145 @@
+[
+    {
+        "costContext": {
+            "pricingContext": {
+                "regionId": "31",
+                "osType": "LINUX",
+                "operatingSystemLicenseModel": "LICENSE_INCLUDED",
+                "computeTierId": "100003",
+                "accountPricingDataOid": "10"
+            },
+            "coverage": {}
+        },
+        "costValue": 3.0
+    },
+    {
+        "costContext": {
+            "pricingContext": {
+                "regionId": "31",
+                "osType": "LINUX",
+                "operatingSystemLicenseModel": "LICENSE_INCLUDED",
+                "computeTierId": "100001",
+                "accountPricingDataOid": "10"
+            },
+            "coverage": {}
+        },
+        "costValue": 6.0
+    },
+    {
+        "costContext": {
+            "pricingContext": {
+                "regionId": "31",
+                "osType": "LINUX",
+                "operatingSystemLicenseModel": "LICENSE_INCLUDED",
+                "computeTierId": "100002",
+                "accountPricingDataOid": "10"
+            },
+            "coverage": {}
+        },
+        "costValue": 9.0
+    },
+    {
+        "costContext": {
+            "pricingContext": {
+                "regionId": "31",
+                "osType": "LINUX",
+                "operatingSystemLicenseModel": "LICENSE_INCLUDED",
+                "computeTierId": "100001",
+                "accountPricingDataOid": "10"
+            },
+            "coverage": {
+                "commoditiesBought": {
+                    "commodity": [
+                        {
+                            "commodityType": "CPU",
+                            "capacity": 1.0
+                        },
+                        {
+                            "commodityType": "MEM",
+                            "capacity": 1.0
+                        }
+                    ]
+                }
+            }
+        },
+        "costValue": 1.0
+    },
+    {
+        "costContext": {
+            "pricingContext": {
+                "regionId": "31",
+                "osType": "LINUX",
+                "operatingSystemLicenseModel": "LICENSE_INCLUDED",
+                "computeTierId": "100002",
+                "accountPricingDataOid": "10"
+            },
+            "coverage": {
+                "commoditiesBought": {
+                    "commodity": [
+                        {
+                            "commodityType": "CPU",
+                            "capacity": 2.0
+                        },
+                        {
+                            "commodityType": "MEM",
+                            "capacity": 1.0
+                        }
+                    ]
+                }
+            }
+        },
+        "costValue": 0.0
+    },
+    {
+        "costContext": {
+            "pricingContext": {
+                "regionId": "31",
+                "osType": "LINUX",
+                "operatingSystemLicenseModel": "LICENSE_INCLUDED",
+                "computeTierId": "100001",
+                "accountPricingDataOid": "10"
+            },
+            "coverage": {
+                "commoditiesBought": {
+                    "commodity": [
+                        {
+                            "commodityType": "CPU",
+                            "capacity": 1.0
+                        },
+                        {
+                            "commodityType": "MEM",
+                            "capacity": 2.0
+                        }
+                    ]
+                }
+            }
+        },
+        "costValue": 0.0
+    },
+    {
+        "costContext": {
+            "pricingContext": {
+                "regionId": "31",
+                "osType": "LINUX",
+                "operatingSystemLicenseModel": "LICENSE_INCLUDED",
+                "computeTierId": "100002",
+                "accountPricingDataOid": "10"
+            },
+            "coverage": {
+                "commoditiesBought": {
+                    "commodity": [
+                        {
+                            "commodityType": "CPU",
+                            "capacity": 1.0
+                        },
+                        {
+                            "commodityType": "MEM",
+                            "capacity": 0.0
+                        }
+                    ]
+                }
+            }
+        },
+        "costValue": 5.0
+    }
+]

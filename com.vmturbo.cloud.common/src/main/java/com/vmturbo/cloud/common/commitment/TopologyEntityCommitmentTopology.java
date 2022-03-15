@@ -1,10 +1,13 @@
 package com.vmturbo.cloud.common.commitment;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -31,6 +34,8 @@ public class TopologyEntityCommitmentTopology implements CloudCommitmentTopology
 
     private static final Set<Integer> COVERAGE_SUPPORTED_ENTITY_TYPES = ImmutableSet.of(
             EntityType.VIRTUAL_MACHINE_VALUE);
+
+    private static final List<Integer> PRICING_COMMODITIES_SUPPORTED = Arrays.asList(CommodityType.NUM_VCORE_VALUE, CommodityType.MEM_PROVISIONED_VALUE);
 
     private static final SetMultimap<String, CloudCommitmentCoverageTypeInfo> SERVICE_PROVIDER_COVERAGE_VECTOR_MAP =
             ImmutableSetMultimap.<String, CloudCommitmentCoverageTypeInfo>builder()
@@ -127,9 +132,32 @@ public class TopologyEntityCommitmentTopology implements CloudCommitmentTopology
                 .filter(commBought -> commBought.getCommodityType().getType() == commodityType)
                 .findAny();
 
-        if (commodityBought.isPresent()) {
+        // Check if the Virtual machine is buying both the mem provisioned and
+        // num_vcore commodity. In projected topology it will not be buying both.
+        // We identify that by checking the pricingCommodities size and use the
+        // commodities sold by the compute tier instead.
+        List<CommodityBoughtDTO> pricingCommodities =
+                buyer.getCommoditiesBoughtFromProvidersList()
+                        .stream()
+                        // Right now, only compute tier resources are supported.
+                        .filter(commoditiesBought -> commoditiesBought.getProviderEntityType()
+                                == EntityType.COMPUTE_TIER_VALUE)
+                        .flatMap(commoditiesBought -> commoditiesBought.getCommodityBoughtList()
+                                .stream())
+                        .filter(commBought -> PRICING_COMMODITIES_SUPPORTED.contains(
+                                        commBought.getCommodityType().getType()))
+                        .collect(Collectors.toList());
+
+
+        if (pricingCommodities.size() == PRICING_COMMODITIES_SUPPORTED.size() && !cloudTopology.isSimulated()) {
             return commodityBought.get().getUsed();
         } else {
+            if (commodityType == CommodityType.NUM_VCORE_VALUE) {
+                return cloudTopology.getComputeTier(buyer.getOid()).map(
+                        computeTier -> computeTier.getTypeSpecificInfo()
+                                .getComputeTier()
+                                .getNumOfCores()).orElse(0.0);
+            }
             return cloudTopology.getComputeTier(buyer.getOid())
                     .map(computeTier -> computeTier.getCommoditySoldListList()
                             .stream()

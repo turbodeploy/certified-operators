@@ -16,7 +16,7 @@ import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.cloud.common.topology.SimulatedTopologyEntityCloudTopology;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.SimulatedCloudCostData;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAMatchTestTrim;
 import com.vmturbo.market.cloudscaling.sma.entities.CloudCostContextEntry;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
@@ -51,7 +51,7 @@ public class JsonToSMAInputTranslator {
             e.printStackTrace();
         }
 
-        SMAMatchTestTrim[] output = new Gson().fromJson(br, SMAMatchTestTrim[].class);
+        SMAMatchTestTrim[] output = GSON.fromJson(br, SMAMatchTestTrim[].class);
         List<SMAMatch> smaMatches = new ArrayList<>();
         for (SMAMatchTestTrim smaMatchTestTrim : output) {
             SMAVirtualMachine smaVirtualMachine = inputContext.getVirtualMachines().stream()
@@ -66,7 +66,9 @@ public class JsonToSMAInputTranslator {
                     .findFirst().get();
             CloudCommitmentAmount discountedCoupons = smaMatchTestTrim.getReservedInstanceOid() == null ?
                     CommitmentAmountCalculator.ZERO_COVERAGE
-                    : CloudCommitmentAmount.newBuilder().setCoupons(smaMatchTestTrim.getDiscountedCoupons()).build();
+                    : smaMatchTestTrim.getCloudCommitmentAmount() == null ?
+                    CloudCommitmentAmount.newBuilder().setCoupons(smaMatchTestTrim.getDiscountedCoupons()).build()
+                            : smaMatchTestTrim.getCloudCommitmentAmount();
             smaMatches.add(new SMAMatch(smaVirtualMachine, smaTemplate,
                     smaReservedInstance, discountedCoupons));
         }
@@ -82,7 +84,8 @@ public class JsonToSMAInputTranslator {
         BufferedReader br = null;
         SMACloudCostCalculator cloudCostCalculator = new SMACloudCostCalculator(
                 Mockito.mock(SimulatedTopologyEntityCloudTopology.class),
-                Mockito.mock(CloudCostData.class));
+
+                Mockito.mock(SimulatedCloudCostData.class));
         try {
             br = new BufferedReader(new FileReader(filename));
         } catch (FileNotFoundException e) {

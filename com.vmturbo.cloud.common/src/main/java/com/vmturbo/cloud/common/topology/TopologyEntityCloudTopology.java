@@ -547,6 +547,11 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
         }
     }
 
+    @Override
+    public boolean isSimulated() {
+        return false;
+    }
+
     /**
      * Creates a map from account id to Billing family group. It first retrieves all the billing
      * family groups from the group component and then constructs the map from account id to

@@ -1,0 +1,25 @@
+[
+    {
+        "virtualMachineOid": "2000002",
+        "templateOid": "100003"
+    },
+    {
+        "virtualMachineOid": "2000001",
+        "reservedInstanceOid": "1000001",
+        "templateOid": "100001",
+        "cloudCommitmentAmount": {
+            "commoditiesBought": {
+                "commodity": [
+                    {
+                        "commodityType": "CPU",
+                        "capacity": 1.0
+                    },
+                    {
+                        "commodityType": "MEM",
+                        "capacity": 1.0
+                    }
+                ]
+            }
+        }
+    }
+]

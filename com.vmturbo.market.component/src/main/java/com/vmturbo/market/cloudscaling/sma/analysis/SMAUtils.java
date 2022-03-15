@@ -4,6 +4,8 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
@@ -19,9 +21,35 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 public class SMAUtils {
 
     /**
+     * Cloud Service Providers with unknown context OS placeholder.
+     */
+    public static final Set<SMACSP> CSP_WITH_UNKNOWN_OS = ImmutableSet.of(SMACSP.AZURE, SMACSP.GCP);
+
+    /**
+     * Cloud Service Providers with unknown context tenancy placeholder.
+     */
+    public static final Set<SMACSP> CSP_WITH_UNKNOWN_TENANCY = Collections.singleton(SMACSP.GCP);
+
+    /**
+     * Placeholder for contexts, to avoid sharing RI between 2 or more input contexts.
+     */
+    public static final Tenancy UNKNOWN_TENANCY_PLACEHOLDER = Tenancy.DEFAULT;
+
+    /**
+     * Placeholder for contexts, to avoid sharing RI between 2 or more input contexts.
+     */
+    public static final OSType UNKNOWN_OS_TYPE_PLACEHOLDER = OSType.UNKNOWN_OS;
+
+    /**
      * When the name is UNKNOWN.
      */
     public static final String UNKNOWN_NAME = "-";
+
+    /**
+     * Family name for family flexible cud/ savings plan
+     */
+    public static final String UNKNOWN_FAMILY = "UNKNOWN_FAMILY";
+
     /**
      * OID for zonal ID, when there is no zone.
      */
@@ -105,7 +133,7 @@ public class SMAUtils {
      * Placeholder for invalid SMATemplate.
      */
     public static final SMATemplate BOGUS_TEMPLATE = new SMATemplate(-1, "SMATemplate placeholder",
-        "xxx", ZERO_COUPONS_COMMITMENT, null, 0F);
+        "xxx", ZERO_COUPONS_COMMITMENT, 0F);
 
     /**
      * if Azure, then OS type agnostic and use UNKNOWN_OS.
