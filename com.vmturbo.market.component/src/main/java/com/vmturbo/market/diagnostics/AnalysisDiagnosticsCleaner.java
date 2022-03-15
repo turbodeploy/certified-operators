@@ -1,19 +1,14 @@
 package com.vmturbo.market.diagnostics;
 
-import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.ANALYSIS_DIAGS_DIRECTORY;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.ANALYSIS_DIAGS_SUFFIX;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.M2_ZIP_LOCATION_PREFIX;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Comparator;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -73,22 +68,9 @@ public class AnalysisDiagnosticsCleaner implements IDiagnosticsCleaner {
             Path pathToDelete = Paths.get(fullPath);
             fileSystem.deleteIfExists(pathToDelete);
         }
-
         // Keep only numRealTimeAnalysisDiagsToRetain real time diags around
-        List<Path> realtimeAnalysisDiags;
-        try (Stream<Path> stream = fileSystem.listFiles(Paths.get(ANALYSIS_DIAGS_DIRECTORY))) {
-            realtimeAnalysisDiags = stream.filter(file -> !fileSystem.isDirectory(file))
-                    .filter(f -> f.getFileName().toString().startsWith(getRealTimeAnalysisDiagsStart()))
-                    .collect(Collectors.toList());
-            if (realtimeAnalysisDiags.size() > numRealTimeAnalysisDiagsToRetain) {
-                int numFilesToDelete = realtimeAnalysisDiags.size() - numRealTimeAnalysisDiagsToRetain;
-                List<Path> filesToDelete = realtimeAnalysisDiags.stream()
-                        .sorted(Comparator.comparingLong(fileSystem::getLastModified))
-                        .limit(numFilesToDelete)
-                        .collect(Collectors.toList());
-                filesToDelete.forEach(fileSystem::deleteIfExists);
-            }
-        }
+        AnalysisDiagnosticsUtils.reduceNumberOfDiagsByFilePrefix(getRealTimeAnalysisDiagsStart(),
+                numRealTimeAnalysisDiagsToRetain, fileSystem);
     }
 
     private String getRealTimeAnalysisDiagsStart() {

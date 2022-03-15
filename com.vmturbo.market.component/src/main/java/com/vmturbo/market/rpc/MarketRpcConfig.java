@@ -45,6 +45,9 @@ public class MarketRpcConfig {
     @Value("${maxRequestReservationTimeoutInSeconds:6000}")
     private long maxRequestReservationTimeoutInSeconds;
 
+    @Value("${numPlacementDiagsToRetain:5}")
+    private int numPlacementDiagsToRetain;
+
     @Autowired
     private PlanOrchestratorClientConfig planClientConfig;
 
@@ -92,7 +95,8 @@ public class MarketRpcConfig {
     public InitialPlacementHandler getInitialPlacementHandler() {
         try {
             return new InitialPlacementHandler(dbAccessConfig.dsl(), getReservationService(),
-                    prepareReservationCache, maxRetry, maxGroupingRetry, analysisDiagnosticsCollectorFactory());
+                    prepareReservationCache, maxRetry, maxGroupingRetry, analysisDiagnosticsCollectorFactory(),
+                    numPlacementDiagsToRetain);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();

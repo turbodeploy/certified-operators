@@ -190,7 +190,7 @@ public class EconomyCachePersistenceTest extends MultiDbTestBase {
         when(diagsCollectorFactory.newDiagsCollector(any(), any())).thenReturn(Optional.empty());
         ReservationServiceBlockingStub stub = ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
         InitialPlacementHandler handler = new InitialPlacementHandler(dsl, stub, true, 2, 5,
-                diagsCollectorFactory);
+                diagsCollectorFactory, 5);
         final long buyer1Oid = 1234L;
         final long buyerSl1Oid = 1000L;
         final long reservation1Oid = 1L;
