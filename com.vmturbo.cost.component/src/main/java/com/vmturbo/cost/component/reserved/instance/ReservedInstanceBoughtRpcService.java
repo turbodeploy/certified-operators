@@ -2,6 +2,8 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -50,6 +52,7 @@ import com.vmturbo.common.protobuf.cost.Pricing;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceImplBase;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
@@ -116,6 +119,16 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
     }
 
 
+    /**
+     *              RIs owned by accounts \ in Scope                         RIs owned by accounts out of scope.                                                            RIs owned by undiscovered accounts
+     * -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     * Real time	capacity = RI capacity.    			 				                                                                                                    capacity = used = discovered coupons
+     * 		        used = RI used.			                                 Not applicable
+     * -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     * Plans.       capacity = RI coupons used in scope + free coupons.      capacity = RI capacity - scoped by accounts out of scope - used by undiscovered accounts       capacity = used = discovered coupons
+     * 		        used = RI coupons used in scope.                         used = RI used - used by accounts out of scope - used by undiscovered accounts
+     * -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+     */
     @Override
     public void getReservedInstanceBoughtForAnalysis(
             GetReservedInstanceBoughtForAnalysisRequest request,
@@ -127,7 +140,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
         if (topoInfo.hasTopologyContextId() && topoInfo.getTopologyContextId() != realtimeTopologyContextId) {
             unstitchedReservedInstances =
                     planReservedInstanceStore.getReservedInstanceBoughtForAnalysis(
-                            topoInfo.getTopologyContextId());
+                            topoInfo.getTopologyContextId(), getScopedVmList(topoInfo));
         } else {
             unstitchedReservedInstances = reservedInstanceBoughtStore.getReservedInstanceBoughtForAnalysis(
                     ReservedInstanceBoughtFilter.SELECT_ALL_FILTER);
@@ -141,23 +154,21 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
 
         if (isBoughtRiInAnalysis) {
             List<ReservedInstanceBought> buyRIs = getBuyRIs(topoInfo);
+            final EntityReservedInstanceMappingFilter filter =
+                    EntityReservedInstanceMappingFilter.newBuilder().riBoughtFilter(
+                            Cost.ReservedInstanceBoughtFilter.newBuilder()
+                                    .addAllRiBoughtId(buyRIs.stream()
+                                            .map(ReservedInstanceBought::getId)
+                                            .collect(Collectors.toSet()))
+                                    .build()).build();
+            Collection<ReservedInstanceBought> buyRIs_Reset = stitchNumberOfUsedCoupons(buyRIs,
+                    entityReservedInstanceMappingStore.getReservedInstanceUsedCouponsMapByFilter(filter));
             unstitchedReservedInstances = Collections.unmodifiableList(
-                    Stream.concat(buyRIs.stream(), unstitchedReservedInstances.stream())
+                    Stream.concat(buyRIs_Reset.stream(), unstitchedReservedInstances.stream())
                             .collect(Collectors.toList()));
         }
 
-        final EntityReservedInstanceMappingFilter filter =
-                EntityReservedInstanceMappingFilter.newBuilder().riBoughtFilter(
-                        Cost.ReservedInstanceBoughtFilter.newBuilder()
-                                .addAllRiBoughtId(unstitchedReservedInstances.stream()
-                                        .map(ReservedInstanceBought::getId)
-                                        .collect(Collectors.toSet()))
-                                .build()).build();
-
-        final Collection<ReservedInstanceBought> stitchedRIs = stitchOnDemandComputeTierCost(
-                stitchNumberOfUsedCoupons(unstitchedReservedInstances,
-                        entityReservedInstanceMappingStore.getReservedInstanceUsedCouponsMapByFilter(
-                                filter)));
+        final Collection<ReservedInstanceBought> stitchedRIs = stitchOnDemandComputeTierCost(unstitchedReservedInstances);
 
         final GetReservedInstanceBoughtForAnalysisResponse response =
                 GetReservedInstanceBoughtForAnalysisResponse.newBuilder()
@@ -165,6 +176,20 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                         .build();
         responseObserver.onNext(response);
         responseObserver.onCompleted();
+    }
+
+    private Set<Long> getScopedVmList(final TopologyInfo topoInfo) {
+        Iterator<RepositoryDTO.RetrieveTopologyResponse> retrieveTopologyResponseIterator =
+                repositoryClient.retrieveTopology(topoInfo.getTopologyId());
+        final Set<Long> aggregatedVmSet = new HashSet<>();
+        while (retrieveTopologyResponseIterator.hasNext()) {
+            RepositoryDTO.RetrieveTopologyResponse next = retrieveTopologyResponseIterator.next();
+            Set<Long> vmOidSet = next.getEntitiesList().stream()
+                    .filter(a -> a.getFullEntity().getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                    .map(vm -> vm.getFullEntity().getOid()).collect(Collectors.toSet());
+            aggregatedVmSet.addAll(vmOidSet);
+        }
+        return aggregatedVmSet;
     }
 
     @Override

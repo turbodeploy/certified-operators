@@ -2,6 +2,8 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.when;
 
 import java.sql.SQLException;
 import java.util.Arrays;
@@ -9,8 +11,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.jooq.DSLContext;
@@ -21,12 +26,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
+import org.mockito.Mockito;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.db.tables.records.PlanReservedInstanceBoughtRecord;
@@ -127,9 +134,9 @@ public class PlanReservedInstanceStoreTest extends MultiDbTestBase {
     public void setup() throws Exception {
         reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new DefaultIdentityProvider(0), 10);
         reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
-        businessAccountHelper = new BusinessAccountHelper();
-        entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
-        accountRIMappingStore = new AccountRIMappingStore(dsl);
+        businessAccountHelper = Mockito.mock(BusinessAccountHelper.class);
+        entityReservedInstanceMappingStore = Mockito.mock(EntityReservedInstanceMappingStore.class);
+        accountRIMappingStore = Mockito.mock(AccountRIMappingStore.class);
         planReservedInstanceStore =
                 new PlanReservedInstanceStore(dsl, new DefaultIdentityProvider(0),
                         reservedInstanceCostCalculator, businessAccountHelper,
@@ -235,4 +242,66 @@ public class PlanReservedInstanceStoreTest extends MultiDbTestBase {
         dsl.batchInsert(Arrays.asList(specRecordOne, specRecordTwo)).execute();
     }
 
+    /**
+     * Test get RI Bought for Analysis.
+     *
+     * Test Setting:
+     * RI1: capacity = 10 coupons, used = 8 coupons
+     * RI usage from undiscovered accounts = 3 coupons
+     * RI usage from discovered accounts = 5 coupons
+     * RI usage from Business Account in scope = 3 coupons
+     *
+     * Final RI capacity = RI Capacity - RI usage from undiscovered account - RI usage from out-of-scope account == (10 - 3 - 2) = 5 coupons
+     * Final RI utilization = RI Utilization - RI usage from undiscovered account - RI usage from out-of-scope account == (8 - 3 - 2) = 3 coupons
+     */
+    @Test
+    public void testGetReservedInstanceBoughtForAnalysis() {
+        long PLAN_ID = 2222l;
+        long RI_ID1 = 1000l;
+        long VM1_OID = 1l;
+        long BA_OID = 123L;
+        Set<Long> vmOidSet = Collections.singleton(VM1_OID);
+
+        ReservedInstanceBoughtInfo riBoughtInfo1 = ReservedInstanceBoughtInfo.newBuilder()
+                .setBusinessAccountId(BA_OID)
+                .setProbeReservedInstanceId("smoke")
+                .setReservedInstanceSpec(tierId1)
+                .setAvailabilityZoneId(100L)
+                .setNumBought(1)
+                .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost.newBuilder()
+                        .setFixedCost(CurrencyAmount.newBuilder().setAmount(0))
+                        .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(0.25)))
+                .setDisplayName(tierName1)
+                .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons.newBuilder()
+                        .setNumberOfCoupons(10)
+                        .setNumberOfCouponsUsed(8).build())
+                .build();
+        final List<ReservedInstanceBought> reservedInstanceBoughtInfos =
+                Arrays.asList(ReservedInstanceBought.newBuilder().setId(RI_ID1).setReservedInstanceBoughtInfo(riBoughtInfo1).build());
+        planReservedInstanceStore.insertPlanReservedInstanceBought(reservedInstanceBoughtInfos, PLAN_ID);
+
+        final ImmutableMap<Long, Double> riToDiscoveredUsageMap = ImmutableMap.<Long, Double>builder().put(RI_ID1, 5.0D).build();
+        when(entityReservedInstanceMappingStore.getReservedInstanceUsedCouponsMapByFilter(any())).thenReturn(riToDiscoveredUsageMap);
+
+        final Coverage riCoverage1 = Coverage.newBuilder().setReservedInstanceId(RI_ID1).setCoveredCoupons(3.0D).build();
+        Set<Coverage> coverageSet1 = Collections.singleton(riCoverage1);
+
+        final ImmutableMap<Long, Set<Coverage>> riCoverageByEntityMap = ImmutableMap.<Long, Set<Coverage>>builder().put(VM1_OID, coverageSet1).build();
+        when(entityReservedInstanceMappingStore.getRICoverageByEntity(any())).thenReturn(riCoverageByEntityMap);
+
+        final ImmutableSet baList = ImmutableSet.builder().add(BA_OID).build();
+        when(businessAccountHelper.getDiscoveredBusinessAccounts()).thenReturn(baList);
+
+        final ImmutableMap<Long, Double> riUsageFronUndisocveredAccounts = ImmutableMap.<Long, Double>builder().put(RI_ID1, 3.0D).build();
+        when(accountRIMappingStore.getUndiscoveredAccountUsageForRI()).thenReturn(riUsageFronUndisocveredAccounts);
+
+        final List<ReservedInstanceBought> reservedInstanceBoughtForAnalysis = planReservedInstanceStore.getReservedInstanceBoughtForAnalysis(PLAN_ID, vmOidSet);
+
+        Assert.assertFalse(reservedInstanceBoughtForAnalysis.isEmpty());
+        final ReservedInstanceBought reservedInstanceBought = reservedInstanceBoughtForAnalysis.get(0);
+        final ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons reservedInstanceBoughtCoupons = reservedInstanceBought
+                .getReservedInstanceBoughtInfo().getReservedInstanceBoughtCoupons();
+        Assert.assertEquals(5.0D, reservedInstanceBoughtCoupons.getNumberOfCoupons(), DELTA);
+        Assert.assertEquals(3.0D, reservedInstanceBoughtCoupons.getNumberOfCouponsUsed(), DELTA);
+    }
 }

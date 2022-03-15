@@ -92,11 +92,7 @@ class ReservedInstanceAggregator {
                                 .getNumCoupons()).reversed()));
         final Map<ReservedInstanceKey, ReservedInstanceAggregate> riAggregates
                 = new HashMap<>();
-        final Map<Long, Double> couponsUsedByRi = cloudCostData.getFilteredRiCoverageByEntityId().values()
-                .stream().map(Cost.EntityReservedInstanceCoverage::getCouponsCoveredByRiMap)
-                .flatMap(map -> map.entrySet().stream())
-                .collect(Collectors.toMap(Entry::getKey, Entry::getValue, Double::sum));
-        logger.trace("Coupons used by RI map dump: {}", () -> couponsUsedByRi);
+
         for (ReservedInstanceData riData : riCollection) {
             final long businessAccountId = riData.getReservedInstanceBought()
                     .getReservedInstanceBoughtInfo().getBusinessAccountId();
@@ -143,7 +139,8 @@ class ReservedInstanceAggregator {
                                         computeTiersInScope,
                                         applicableBusinessAccounts);
                             });
-                    final double usedCoupons = couponsUsedByRi.getOrDefault(riBoughtId, 0d);
+                    final double usedCoupons = riData.getReservedInstanceBought().getReservedInstanceBoughtInfo()
+                            .getReservedInstanceBoughtCoupons().getNumberOfCouponsUsed();
                     logger.trace("Adding constituent RI: {} with usedCoupons: {} to RI Aggregate:" +
                                     " {}", riData::getReservedInstanceBought, () -> usedCoupons,
                             riAggregate::getDisplayName);

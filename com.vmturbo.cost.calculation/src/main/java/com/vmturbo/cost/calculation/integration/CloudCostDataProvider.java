@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -307,7 +308,13 @@ public interface CloudCostDataProvider<T> {
         public Collection<ReservedInstanceData> getAllRiBought() {
             List<ReservedInstanceData> allRiData = new ArrayList<>();
             allRiData.addAll(riBoughtDataById.values());
-            allRiData.addAll(buyRIBoughtDataById.values());
+            // RIs from buy RI analysis are already coming part of riBoughtByDataId for OCP. Avoid adding the same duplicate RI from the buyRIBoughtDatabyID
+            for (Entry<Long, ReservedInstanceData> entry : buyRIBoughtDataById.entrySet()) {
+                final Long buyRIId = entry.getKey();
+                if (!riBoughtDataById.containsKey(buyRIId)) {
+                    allRiData.add(entry.getValue());
+                }
+            }
             return Collections.unmodifiableCollection(allRiData);
         }
 
