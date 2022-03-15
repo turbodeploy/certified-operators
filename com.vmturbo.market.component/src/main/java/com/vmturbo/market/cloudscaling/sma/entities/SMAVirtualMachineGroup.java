@@ -7,9 +7,6 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
-import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
-
 /**
  *  SMAVirtualMachineGroup is used to capture a group of vms that are part of Auto scaling group.
  */
@@ -113,13 +110,6 @@ public class SMAVirtualMachineGroup {
          */
         @Override
         public int compare(SMAVirtualMachine vm1, SMAVirtualMachine vm2) {
-            if (CommitmentAmountCalculator.isStrictSuperSet(vm1.getCurrentRICoverage(), vm2.getCurrentRICoverage(),
-                    SMAUtils.EPSILON)) {
-                return -1;
-            } else if (CommitmentAmountCalculator.isStrictSuperSet(vm2.getCurrentRICoverage(), vm1.getCurrentRICoverage(),
-                    SMAUtils.EPSILON)) {
-                return 1;
-            }
             return (vm1.getOid() - vm2.getOid() > 0) ? -1 : 1;
         }
     }

@@ -8,7 +8,7 @@
                                 "computeTierId":"100001",
                                 "accountPricingDataOid":"11"
                         },
-                        "coverage":0.0
+                        "coverage": {}
                 },
                 "costValue":1.0
         },
@@ -21,7 +21,7 @@
                                 "computeTierId":"100001",
                                 "accountPricingDataOid":"12"
                         },
-                        "coverage":0.0
+                        "coverage": {}
                 },
                 "costValue":1.0
         },
@@ -34,7 +34,7 @@
                                 "computeTierId":"100001",
                                 "accountPricingDataOid":"13"
                         },
-                        "coverage":0.0
+                        "coverage": {}
                 },
                 "costValue":1.0
         },
@@ -47,7 +47,7 @@
                                 "computeTierId":"100001",
                                 "accountPricingDataOid":"11"
                         },
-                        "coverage":1.0
+                        "coverage":{"coupons": 1.0}
                 },
                 "costValue":0.5
         },
@@ -60,7 +60,7 @@
                                 "computeTierId":"100001",
                                 "accountPricingDataOid":"12"
                         },
-                        "coverage":1.0
+                        "coverage":{"coupons": 1.0}
                 },
                 "costValue":0.5
         },
@@ -73,7 +73,7 @@
                                 "computeTierId":"100001",
                                 "accountPricingDataOid":"13"
                         },
-                        "coverage":1.0
+                        "coverage":{"coupons": 1.0}
                 },
                 "costValue":0.5
         }

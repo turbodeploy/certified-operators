@@ -8,7 +8,7 @@
                                 "computeTierId":"100001",
                                 "accountPricingDataOid":"10"
                         },
-                        "coverage":0.0
+                        "coverage": {}
                 },
                 "costValue":1.0
         },
@@ -21,7 +21,7 @@
                                 "computeTierId":"100002",
                                 "accountPricingDataOid":"10"
                         },
-                        "coverage":0.0
+                        "coverage": {}
                 },
                 "costValue":2.0
         },
@@ -34,7 +34,7 @@
                                 "computeTierId":"100003",
                                 "accountPricingDataOid":"10"
                         },
-                        "coverage":0.0
+                        "coverage": {}
                 },
                 "costValue":8.0
         },
@@ -47,7 +47,7 @@
                                 "computeTierId":"100001",
                                 "accountPricingDataOid":"10"
                         },
-                        "coverage":1.0
+                        "coverage":{"coupons": 1.0}
                 },
                 "costValue":0.5
         },
@@ -60,7 +60,7 @@
                                 "computeTierId":"100002",
                                 "accountPricingDataOid":"10"
                         },
-                        "coverage":1.0
+                        "coverage":{"coupons": 1.0}
                 },
                 "costValue":1.5
         },
@@ -73,7 +73,7 @@
                                 "computeTierId":"100002",
                                 "accountPricingDataOid":"10"
                         },
-                        "coverage":2.0
+                        "coverage":{"coupons": 2.0}
                 },
                 "costValue":1.0
         },
@@ -86,7 +86,7 @@
                                 "computeTierId":"100003",
                                 "accountPricingDataOid":"10"
                         },
-                        "coverage":8.0
+                        "coverage":{"coupons": 8.0}
                 },
                 "costValue":2.0
         }

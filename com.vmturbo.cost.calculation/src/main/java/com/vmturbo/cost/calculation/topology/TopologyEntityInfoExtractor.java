@@ -160,6 +160,18 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
     @Override
     public Optional<Map<CommodityType, Double>> getComputeTierPricingCommodities(
             @Nonnull TopologyEntityDTO entity) {
+        return TopologyEntityInfoExtractor.getComputeTierPricingCommoditiesStatic(entity);
+    }
+
+    /**
+     * Get pricing commodities for an entity based on its compute tier.
+     *
+     * @param entity compute tier
+     * @return the commodities if passed entity is of type computetier.
+     */
+    @Nonnull
+    public static Optional<Map<CommodityType, Double>> getComputeTierPricingCommoditiesStatic(
+            @Nonnull TopologyEntityDTO entity) {
         if (entity.getEntityType() != EntityType.COMPUTE_TIER_VALUE) {
             return Optional.empty();
         }

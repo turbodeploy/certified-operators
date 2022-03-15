@@ -35,6 +35,21 @@ public class SMATest {
         Assert.assertTrue(compareSMAMatches(outputActualContext.getMatches(), expectedouput));
     }
 
+    /**
+     * wrapper method to run the SMA for various scenarios.
+     */
+    @Test
+    public void testGcpSMA() {
+
+         /*
+          * 2 vms and 2 ris and 2 templates. Each vm has only 1 provider which makes the matching
+            straightforward.
+           */
+        testExactResult("gcp2vm1ri.json");
+
+        testExactResult("gcp3vm1riPartial.json");
+    }
+
 
     /**
      * wrapper method to run the SMA for various scenarios.
@@ -217,8 +232,8 @@ public class SMATest {
             for (SMAMatch match2 : matches2) {
                 if (compareReservedInstance(match1.getReservedInstance(),
                         match2.getReservedInstance())
-                        && CommitmentAmountCalculator.isZero(CommitmentAmountCalculator.subtract(match1.getDiscountedCoupons(),
-                            match2.getDiscountedCoupons()), SMAUtils.BIG_EPSILON)
+                        && CommitmentAmountCalculator.isSame(match1.getDiscountedCoupons(),
+                            match2.getDiscountedCoupons(), SMAUtils.BIG_EPSILON)
                         && (match1.getVirtualMachine().getOid() == match2.getVirtualMachine().getOid())
                         && (match1.getTemplate().getOid() == match2.getTemplate().getOid())) {
                     found = true;

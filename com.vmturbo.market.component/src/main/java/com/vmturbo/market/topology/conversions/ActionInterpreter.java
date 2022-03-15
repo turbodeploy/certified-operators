@@ -627,41 +627,6 @@ public class ActionInterpreter {
         return destinationRegion;
     }
 
-    /**
-     * determine if the move action is a accounting action.
-     * @param destinationRegion the destination region.
-     * @param sourceRegion the source region.
-     * @param sourceMarketTier the source market tier
-     * @param move the move action.
-     * @param sourceTier the topololgyEntityDTO of source
-     * @param destTier the topololgyEntityDTO of destination
-     * @param targetOid The target of the move.
-     * @return true if the action is a accounting action (RI optimisation)
-     */
-    private boolean isAccountingAction (TopologyEntityDTO destinationRegion,
-            TopologyEntityDTO sourceRegion,
-            MarketTier sourceMarketTier,
-            @Nonnull final MoveTO move,
-            TopologyEntityDTO sourceTier,
-            TopologyEntityDTO destTier,
-            Long targetOid) {
-        final boolean isAccountingAction = destinationRegion == sourceRegion
-                && destTier == sourceTier
-                && (move.hasCouponDiscount() && move.hasCouponId() ||
-                sourceMarketTier.hasRIDiscount());
-        if (isAccountingAction) {
-            // We need to check if the original projected RI coverage of the target are the same.
-            // If they are the same, we should drop the action.
-            final double originalRICoverage = getTotalRiCoverage(
-                    cloudTc.getRiCoverageForEntity(targetOid).orElse(null));
-            final double projectedRICoverage = getTotalRiCoverage(
-                    projectedRICoverageCalculator.getProjectedRICoverageForEntity(targetOid));
-            return !areEqual(originalRICoverage, projectedRICoverage);
-        } else {
-            return false;
-        }
-    }
-
     private ShoppingListInfo getShoppingListInfo(@Nonnull final MoveTO moveTO) {
         final ShoppingListInfo shoppingListInfo =
                 shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
@@ -1102,14 +1067,10 @@ public class ActionInterpreter {
                 if (sourceTierId.isPresent()) {
                     sourceTier = originalTopology.get(sourceTierId.get());
                 }
-                boolean isAccountingAction = isAccountingAction(destinationRegion, sourceRegion,
-                        sourceMarketTier, moveTO, sourceTier, destTier, targetOid);
-                if (isAccountingAction) {
+                if (sourceTier == destTier) {
                     return ActionType.ALLOCATE;
-                } else if (sourceTier != destTier) {
-                    return ActionType.SCALE;
                 } else {
-                    return ActionType.NONE;
+                    return ActionType.SCALE;
                 }
             } else {
                 return ActionType.SCALE;

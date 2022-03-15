@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount.ValueCase;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
@@ -129,7 +130,8 @@ public class SMAConverter {
                 Long destinationRIDiscountedMarketTierOid = destinationOnDemandMarketTierOid;
                 // If SMAMatch uses an RI, then create a corresponding
                 // RiDiscountedMarketTier and use it instead of the OnDemandMarketTier.
-                if (CommitmentAmountCalculator.isPositive(smaMatch.getDiscountedCoupons(), SMAUtils.EPSILON)) {
+                if (smaMatch.getDiscountedCoupons().getValueCase() == ValueCase.COUPONS &&
+                        CommitmentAmountCalculator.isPositive(smaMatch.getDiscountedCoupons(), SMAUtils.EPSILON)) {
                     final ReservedInstanceData riData = converter.getCloudTc().getRiDataById(
                             smaMatch.getReservedInstance().getOid());
                     if (riData == null) {
@@ -162,7 +164,8 @@ public class SMAConverter {
                         ShoppingListTO.newBuilder(sl)
                                 .setSupplier(destinationOnDemandMarketTierOid)
                                 .clearCouponId();
-                if (CommitmentAmountCalculator.isPositive(smaMatch.getDiscountedCoupons(), SMAUtils.EPSILON)) {
+                if (smaMatch.getDiscountedCoupons().getValueCase() == ValueCase.COUPONS &&
+                        CommitmentAmountCalculator.isPositive(smaMatch.getDiscountedCoupons(), SMAUtils.EPSILON)) {
                     // add the coupon commodity to the compute shopping list.
                     Optional<CommodityBoughtTO> coupon =
                             converter.createCouponCommodityBoughtForCloudEntity(
@@ -227,7 +230,8 @@ public class SMAConverter {
                 Long sourceRIDiscountedMarketTierOid = sourceOnDemandMarketTierOid;
                 // If SMAMatch is already in an RI, then create a corresponding
                 // RiDiscountedMarketTier and use it instead of the OnDemandMarketTier.
-                if (smaMatch.getVirtualMachine().getCurrentRI() != null) {
+                if (smaMatch.getVirtualMachine().getCurrentRI() != null &&
+                        smaMatch.getVirtualMachine().getCurrentRICoverage().getValueCase() == ValueCase.COUPONS) {
                     final ReservedInstanceData riData = converter.getCloudTc().getRiDataById(
                             smaMatch.getVirtualMachine().getCurrentRI().getOid());
                     if (riData != null) {
@@ -294,8 +298,8 @@ public class SMAConverter {
                 }
                 if (smaMatch.getVirtualMachine()
                         .getCurrentTemplate().getOid() == smaMatch.getTemplate().getOid()
-                        && CommitmentAmountCalculator.isZero(CommitmentAmountCalculator.subtract(smaMatch.getVirtualMachine().getCurrentRICoverage(),
-                        smaMatch.getDiscountedCoupons()), 0.01d)) {
+                        && CommitmentAmountCalculator.isSame(smaMatch.getVirtualMachine().getCurrentRICoverage(),
+                        smaMatch.getDiscountedCoupons(), 0.01d)) {
                     continue;
                 }
                 MoveExplanation.Builder moveExplanation = MoveExplanation.newBuilder();

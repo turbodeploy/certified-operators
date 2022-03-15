@@ -2,6 +2,8 @@ package com.vmturbo.market.cloudscaling.sma.entities;
 
 import java.util.Objects;
 
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.cost.calculation.PricingContext;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 
@@ -11,11 +13,15 @@ import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 public class CostContext {
 
     private final PricingContext pricingContext;
-    private final float coverage;
+    private final CloudCommitmentAmount coverage;
 
-    CostContext(PricingContext pricingContext, float coverage) {
+    CostContext(PricingContext pricingContext, CloudCommitmentAmount coverage) {
         this.pricingContext = pricingContext;
         this.coverage = coverage;
+    }
+
+    public PricingContext getPricingContext() {
+        return pricingContext;
     }
 
     @Override
@@ -28,8 +34,8 @@ public class CostContext {
                 return false;
             }
             CostContext that = (CostContext)o;
-            return pricingContext.equals(that.pricingContext) && Math.abs(coverage - that.coverage)
-                    < SMAUtils.BIG_EPSILON;
+            return pricingContext.equals(that.pricingContext)
+                    && CommitmentAmountCalculator.isSame(coverage, that.coverage, SMAUtils.BIG_EPSILON);
         } else {
             return false;
         }
@@ -37,6 +43,6 @@ public class CostContext {
 
     @Override
     public int hashCode() {
-        return Objects.hash(pricingContext, (long)(coverage * SMAUtils.ROUNDING));
+        return Objects.hash(pricingContext, CommitmentAmountCalculator.hash(coverage));
     }
 }

@@ -1,5 +1,7 @@
 package com.vmturbo.market.cloudscaling.sma.analysis;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+
 /**
  * A class used to save the expected output for unittest purposes.
  */
@@ -8,6 +10,7 @@ public class SMAMatchTestTrim {
     private final Long virtualMachineOid;
     private final Long reservedInstanceOid;
     private final Long templateOid;
+    private final CloudCommitmentAmount cloudCommitmentAmount;
     private final Float discountedCoupons;
 
     /**
@@ -17,16 +20,23 @@ public class SMAMatchTestTrim {
      * @param reservedInstanceOid oid of the reserved instance.
      * @param templateOid            oid of the templateOid.
      * @param discountedCoupons   discounted coupons.
+     * @param cloudCommitmentAmount the cloud commitment amount.
      */
     public SMAMatchTestTrim(Long virtualMachineOid,
                             Long reservedInstanceOid,
                             Long templateOid,
-                            Float discountedCoupons) {
+            CloudCommitmentAmount cloudCommitmentAmount,
+            Float discountedCoupons) {
 
         this.discountedCoupons = discountedCoupons;
         this.reservedInstanceOid = reservedInstanceOid;
         this.templateOid = templateOid;
         this.virtualMachineOid = virtualMachineOid;
+        this.cloudCommitmentAmount = cloudCommitmentAmount;
+    }
+
+    public CloudCommitmentAmount getCloudCommitmentAmount() {
+        return cloudCommitmentAmount;
     }
 
     public Float getDiscountedCoupons() {

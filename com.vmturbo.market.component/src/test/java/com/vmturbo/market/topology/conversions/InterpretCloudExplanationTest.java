@@ -203,7 +203,7 @@ public class InterpretCloudExplanationTest {
         projectedTopology.put(tier.getOid(), ProjectedTopologyEntity.newBuilder().setEntity(tier).build());
 
         // Test case 1: originalRICoverage = 0.001, projectedRICoverage = 0.002
-        // difference = 0.001, skip this action
+        // difference = 0.001, skip this action -> New logic. SMA will check coverage difference.
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(Optional.of(
             EntityReservedInstanceCoverage.newBuilder().setEntityId(VM1_OID)
                 .putCouponsCoveredByRi(1L, 0.001)
@@ -217,7 +217,8 @@ public class InterpretCloudExplanationTest {
 
         verify(ai, times(0))
             .interpretMoveAction(any(), any(), any());
-        assertTrue(actions.isEmpty());
+        assertEquals(1, actions.size());
+        assertTrue(actions.get(0).getInfo().hasAllocate());
 
         // Test case 2: originalRICoverage = 0.01, projectedRICoverage = 0.02
         // difference = 0.01, keep this action

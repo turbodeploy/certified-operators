@@ -1,0 +1,64 @@
+[
+    {
+        "costContext": {
+            "pricingContext": {
+                "regionId": "31",
+                "osType": "LINUX",
+                "operatingSystemLicenseModel": "LICENSE_INCLUDED",
+                "computeTierId": "100001",
+                "accountPricingDataOid": "10"
+            },
+            "coverage": {}
+        },
+        "costValue": 120.0
+    },
+    {
+        "costContext": {
+            "pricingContext": {
+                "regionId": "31",
+                "osType": "LINUX",
+                "operatingSystemLicenseModel": "LICENSE_INCLUDED",
+                "computeTierId": "100002",
+                "accountPricingDataOid": "10"
+            },
+            "coverage": {}
+        },
+        "costValue": 140.0
+    },
+    {
+        "costContext": {
+            "pricingContext": {
+                "regionId": "31",
+                "osType": "LINUX",
+                "operatingSystemLicenseModel": "LICENSE_INCLUDED",
+                "computeTierId": "100003",
+                "accountPricingDataOid": "10"
+            },
+            "coverage": {
+            }
+        },
+        "costValue": 160.0
+    },
+    {
+        "costContext": {
+            "pricingContext": {
+                "regionId": "31",
+                "osType": "LINUX",
+                "operatingSystemLicenseModel": "LICENSE_INCLUDED",
+                "computeTierId": "100003",
+                "accountPricingDataOid": "10"
+            },
+            "coverage": {
+                "commoditiesBought": {
+                    "commodity": [
+                        {
+                            "commodityType": "CPU",
+                            "capacity": 3.0
+                        }
+                    ]
+                }
+            }
+        },
+        "costValue": 0.0
+    }
+]

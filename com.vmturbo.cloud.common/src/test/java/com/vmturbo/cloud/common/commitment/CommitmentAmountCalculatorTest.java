@@ -71,8 +71,7 @@ public class CommitmentAmountCalculatorTest {
                 .build();
 
         final CloudCommitmentAmount actualAmount = CommitmentAmountCalculator.subtract(CommitmentAmountUtils.EMPTY_COMMITMENT_AMOUNT, subtrahend);
-        assertTrue(actualAmount.hasAmount());
-        assertThat(actualAmount.getAmount().getAmount(), closeTo(-2.3, TOLERANCE));
+        assertTrue(!actualAmount.hasAmount());
     }
 
     /**
@@ -145,8 +144,7 @@ public class CommitmentAmountCalculatorTest {
                 .build();
 
         final CloudCommitmentAmount actualAmount = CommitmentAmountCalculator.subtract(CommitmentAmountUtils.EMPTY_COMMITMENT_AMOUNT, subtrahend);
-        assertTrue(actualAmount.hasCoupons());
-        assertThat(actualAmount.getCoupons(), closeTo(-2.3, TOLERANCE));
+        assertTrue(!actualAmount.hasCoupons());
     }
 
     /**

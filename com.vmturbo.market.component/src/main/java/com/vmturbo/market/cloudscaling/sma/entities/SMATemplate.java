@@ -34,12 +34,6 @@ public class SMATemplate {
 
     private final CloudCommitmentAmount commitmentAmount;
 
-    /*
-     * The compute tier in XL data structures.  Needed to compute costs.
-     */
-    private TopologyEntityDTO computeTier;
-
-
     /**
      * The scaling penalty that will be applied as a tie breaker in the
      * natural template selection when the template prices are the same.
@@ -61,18 +55,12 @@ public class SMATemplate {
                        @Nonnull final String name,
                        @Nonnull final String family,
                        @Nonnull final CloudCommitmentAmount commitmentAmount,
-                       final TopologyEntityDTO computeTier,
                        final float scalingPenalty) {
         this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null");
         this.family = Objects.requireNonNull(family, "family is null");
         this.commitmentAmount = commitmentAmount;
-        this.computeTier = computeTier;
         this.scalingPenalty = scalingPenalty;
-    }
-
-    public void setComputeTier(final TopologyEntityDTO computeTier) {
-        this.computeTier = computeTier;
     }
 
     @Nonnull
@@ -91,10 +79,6 @@ public class SMATemplate {
 
     public CloudCommitmentAmount getCommitmentAmount() {
         return commitmentAmount;
-    }
-
-    public TopologyEntityDTO getComputeTier() {
-        return computeTier;
     }
 
 

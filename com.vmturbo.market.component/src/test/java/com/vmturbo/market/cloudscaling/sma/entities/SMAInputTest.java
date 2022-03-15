@@ -18,7 +18,7 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSetMultimap;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -278,7 +279,7 @@ public class SMAInputTest {
 
 
         //create CloudCostData
-        final CloudCostData<TopologyEntityDTO> cloudCostData = mock(CloudCostData.class);
+        final CloudCostData<TopologyEntityDTO> cloudCostData = mockCloudCostData();
         when(cloudCostData.getAccountPricingData(Mockito.anyLong())).thenReturn(
                 Optional.of(accountPricingData));
 
@@ -326,54 +327,7 @@ public class SMAInputTest {
     }
 
 
-    /**
-     *  Create a Region that is accessible for zone1 and zone2, a CT that is only connected with zone1.
-     *  Test partitionComputeTiersByRegionId for the given CT.
-     */
-    @Test
-    public void testPartitionComputeTiersByRegionId() {
-        final long regionId = 2345678L;
-        final long zone1Id = 44444L;
-        TopologyEntityDTO zone1Dto = TopologyEntityDTO.newBuilder()
-                .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
-                .setOid(zone1Id)
-                .setDisplayName("Zone" + zone1Id)
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .build();
-        final long zone2Id = 55555L;
-        TopologyEntityDTO zone2Dto = TopologyEntityDTO.newBuilder()
-                .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
-                .setOid(zone2Id)
-                .setDisplayName("Zone" + zone2Id)
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .build();
-        // Connecting two zones to a region.
-        TopologyEntityDTO regDto = TopologyEntityDTO.newBuilder().setEntityType(
-                EntityType.REGION_VALUE).setOid(regionId).setDisplayName(regionName)
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
-                        .setConnectedEntityId(zone1Id)
-                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE))
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
-                        .setConnectedEntityId(zone2Id)
-                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)).build();
-        // Connecting only zone1 to the GCP CT.
-        TopologyEntityDTO gcpCT = createComputeTier(ct1Id, ct1Name, ctFamily, 0,
-                zone1Id, EntityType.AVAILABILITY_ZONE_VALUE);
-        CloudCostData costData = mockCloudCostData();
-        CloudTopology<TopologyEntityDTO> cloudTopology = spy(defaultFactory.newCloudTopology(Stream
-                .of(gcpCT, regDto, zone1Dto, zone2Dto)));
-        SMAInput smaInput = new SMAInput(cloudTopology, new HashMap<>(), costData,
-                consistentScalingHelper, false, false, mock(GroupMemberRetriever.class));
 
-        when(cloudTopology.getOwner(zone1Id)).thenReturn(Optional.of(regDto));
-        when(cloudTopology.getOwner(zone2Id)).thenReturn(Optional.of(regDto));
-        Map<Long, List<TopologyEntityDTO>> map = smaInput.partitionComputeTiersByRegionId(
-                Arrays.asList(gcpCT), Sets.newHashSet(regionId), cloudTopology);
-
-        assertEquals(1, map.get(regionId).size());
-        assertEquals(gcpCT, map.get(regionId).get(0));
-    }
 
     private ComputePriceBundle createComputePriceBundle(final float linuxRate,
                                                         final float windowsRate) {
@@ -401,6 +355,17 @@ public class SMAInputTest {
         when(cloudCostData.getAccountPricingData(Mockito.anyLong())).thenReturn(
             Optional.of(accountPricingData));
         when(cloudCostData.getFilteredRiCoverage(anyLong())).thenReturn(Optional.empty());
+        when(cloudCostData.getCloudCommitmentMappingByEntityId()).thenReturn(
+                ImmutableSetMultimap.of());
+
+        when(cloudCostData.getRiCoverageByEntityId()).thenReturn(new HashMap<>());
+        when(cloudCostData.getFilteredRiCoverageByEntityId()).thenReturn(new HashMap<>());
+        when(cloudCostData.getRiBoughtById()).thenReturn(new HashMap<>());
+        when(cloudCostData.getRiSpecById()).thenReturn(new HashMap<>());
+        when(cloudCostData.getBuyRIBoughtById()).thenReturn(new HashMap<>());
+        when(cloudCostData.getAccountPricingDataByBusinessAccountOid()).thenReturn(new HashMap<>());
+        when(cloudCostData.getEntityUptimeByEntityId()).thenReturn(new HashMap<>());
+        when(cloudCostData.getDefaultEntityUptime()).thenReturn(EntityUptimeDTO.newBuilder().build());
         return cloudCostData;
     }
 

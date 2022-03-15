@@ -8,7 +8,7 @@
 				"computeTierId":"100003",
 				"accountPricingDataOid":"10"
 			},
-			"coverage":0.0
+			"coverage": {}
 		},
 		"costValue":4.0
 	},
@@ -21,7 +21,7 @@
 				"computeTierId":"100003",
 				"accountPricingDataOid":"10"
 			},
-			"coverage":3.9996
+			"coverage":{"coupons": 3.9996}
 		},
 		"costValue":0.0004
 	}

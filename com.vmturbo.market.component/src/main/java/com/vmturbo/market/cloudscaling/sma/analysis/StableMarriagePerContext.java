@@ -301,8 +301,8 @@ public class StableMarriagePerContext {
             SMAReservedInstance newRI = newEngagement.getReservedInstance();
             SMAReservedInstance oldRI = oldEngagement.getReservedInstance();
 
-            float newRiCoverage = newRI.getRICoverage(vm);
-            float oldRiCoverage = oldRI.getRICoverage(vm);
+            float newRiCoverage = newRI.getRICoverage(vm, cloudCostCalculator);
+            float oldRiCoverage = oldRI.getRICoverage(vm, cloudCostCalculator);
 
             // if vm is already covered by one of the RI prefer that RI
             if (newRiCoverage - oldRiCoverage > SMAUtils.EPSILON) {
@@ -575,7 +575,9 @@ public class StableMarriagePerContext {
                             freeRIs.add(oldRI);
                         }
                     }
-                } else if (CommitmentAmountCalculator.isStrictSuperSet(currentVMCouponRequest, currentRICoupons, SMAUtils.EPSILON)) {//currentVMCouponRequest - currentRICoupons > EPSILON
+                } else if (CommitmentAmountCalculator.isPositive(
+                        CommitmentAmountCalculator.subtract(currentVMCouponRequest, currentRICoupons),
+                        SMAUtils.EPSILON)) {//currentVMCouponRequest - currentRICoupons > EPSILON
                     currentRI.addToSkippedVMs(currentVM);
                 }
 
@@ -686,7 +688,7 @@ public class StableMarriagePerContext {
             // to reduce dependency do the cost comparison is done after current coverage comparison.
             // this will prevent relinquishing.
             if (reduceDependency) {
-                int currentCoverageComparison = currentCoverageComparison(vm1, vm2, reservedInstance);
+                int currentCoverageComparison = currentCoverageComparison(vm1, vm2, reservedInstance, cloudCostCalculator);
                 if (currentCoverageComparison != 0) {
                     return currentCoverageComparison;
                 }
@@ -699,7 +701,7 @@ public class StableMarriagePerContext {
             }
 
             if (!reduceDependency) {
-                int currentCoverageComparison = currentCoverageComparison(vm1, vm2, reservedInstance);
+                int currentCoverageComparison = currentCoverageComparison(vm1, vm2, reservedInstance, cloudCostCalculator);
                 if (currentCoverageComparison != 0) {
                     return currentCoverageComparison;
                 }
@@ -759,9 +761,10 @@ public class StableMarriagePerContext {
      * @return prefer the vm with higher coverage.
      */
     private static int currentCoverageComparison(SMAVirtualMachine vm1, SMAVirtualMachine vm2,
-                                                 SMAReservedInstance reservedInstance) {
-        float riCoverageVm1 = reservedInstance.getRICoverage(vm1);
-        float riCoverageVm2 = reservedInstance.getRICoverage(vm2);
+                                                 SMAReservedInstance reservedInstance,
+            SMACloudCostCalculator smaCloudCostCalculator) {
+        float riCoverageVm1 = reservedInstance.getRICoverage(vm1, smaCloudCostCalculator);
+        float riCoverageVm2 = reservedInstance.getRICoverage(vm2, smaCloudCostCalculator);
         // if vm is already covered by one of the RI prefer that RI.
         // If both vms are covered by this RI then prefer the vm which is not scaling up.
 

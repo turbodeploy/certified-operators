@@ -99,7 +99,7 @@ public class SMAReservedInstance {
     // map to keep track of RI Coverage for each group.
     // Saved to avoid recomputing everytime.
     // ASG Group Name x Pair<couponsCoveredOfASG, totalCouponsOfASG>
-    private HashMap<String, Pair<CloudCommitmentAmount, CloudCommitmentAmount>> riCoveragePerGroup;
+    private HashMap<String, Pair<Float, Float>> riCoveragePerGroup;
 
     // last discounted VM
     private SMAVirtualMachine lastDiscountedVM;
@@ -335,16 +335,22 @@ public class SMAReservedInstance {
      *
      * @param virtualMachineGroup the vm group to be checked
      */
-    public void updateRICoveragePerGroup(SMAVirtualMachineGroup virtualMachineGroup) {
-        CloudCommitmentAmount coverage = CommitmentAmountCalculator.ZERO_COVERAGE;
-        CloudCommitmentAmount total = CommitmentAmountCalculator.ZERO_COVERAGE;
+    public void updateRICoveragePerGroup(SMAVirtualMachineGroup virtualMachineGroup,
+            SMACloudCostCalculator smaCloudCostCalculator) {
+        Float coverage = 0f;
+        Float total = 0f;
         for (SMAVirtualMachine member : virtualMachineGroup.getVirtualMachines()) {
             if (isVMDiscountedByThisRI(member)) {
-                coverage = CommitmentAmountCalculator.sum(coverage, member.getCurrentRICoverage());
+                float memberCoverage = smaCloudCostCalculator.covertCommitmentToFloat(member,
+                        member.getCurrentTemplate(), this.oid, member.getCurrentRICoverage());
+                coverage = coverage + memberCoverage;
             }
-            total = CommitmentAmountCalculator.sum(total, member.getCurrentTemplate().getCommitmentAmount());
+            float totalMemberCoverage = smaCloudCostCalculator.covertCommitmentToFloat(member,
+                    member.getCurrentTemplate(), this.oid,
+                    member.getCurrentTemplate().getCommitmentAmount());
+            total = total + totalMemberCoverage;
         }
-        Pair<CloudCommitmentAmount, CloudCommitmentAmount> pair = new Pair<>(coverage, total);
+        Pair<Float, Float> pair = new Pair<>(coverage, total);
         riCoveragePerGroup.put(virtualMachineGroup.getName(), pair);
     }
 
@@ -354,15 +360,18 @@ public class SMAReservedInstance {
      * @param vm the vm to be checked
      * @return discounted coupons.
      */
-    public float getRICoverage(SMAVirtualMachine vm) {
+    public float getRICoverage(SMAVirtualMachine vm, SMACloudCostCalculator smaCloudCostCalculator) {
         float riCoverage = 0;
         if (vm.getGroupSize() > 1) {
-            riCoverage = CommitmentAmountCalculator.divide(riCoveragePerGroup.get(vm.getGroupName()).first
-                    , riCoveragePerGroup.get(vm.getGroupName()).second);
+            riCoverage = (riCoveragePerGroup.get(vm.getGroupName()).first /
+                     riCoveragePerGroup.get(vm.getGroupName()).second);
         } else {
             if (isVMDiscountedByThisRI(vm)) {
-                riCoverage = CommitmentAmountCalculator.divide(vm.getCurrentRICoverage(),
-                        vm.getCurrentTemplate().getCommitmentAmount());
+                float vmCoverage = smaCloudCostCalculator.covertCommitmentToFloat(vm,
+                        vm.getCurrentTemplate(),this.getOid(),vm.getCurrentRICoverage());
+                float totalCoverage = smaCloudCostCalculator.covertCommitmentToFloat(vm,
+                        vm.getCurrentTemplate(),this.getOid(),vm.getCurrentTemplate().getCommitmentAmount());
+                riCoverage = vmCoverage / totalCoverage;
             } else {
                 return 0;
             }

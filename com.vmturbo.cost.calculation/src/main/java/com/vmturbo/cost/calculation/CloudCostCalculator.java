@@ -617,7 +617,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             // If not available, as in the case of projected topologies retrieve pricing commodities based on
             // the compute tier.
             Map<CommodityType, Double> pricedCommodities = computeConfig.getPricedCommoditiesBought();
-            if (pricedCommodities.size() < 2) {
+            if (pricedCommodities.size() < 2 || cloudTopology.isSimulated()) {
                 Optional<Map<CommodityType, Double>> computeTierPricingCommodities =
                         entityInfoExtractor.getComputeTierPricingCommodities(computeTier);
                 if (computeTierPricingCommodities.isPresent()) {

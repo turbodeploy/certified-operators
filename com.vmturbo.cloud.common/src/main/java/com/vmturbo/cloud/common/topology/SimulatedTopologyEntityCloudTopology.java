@@ -64,4 +64,9 @@ public class SimulatedTopologyEntityCloudTopology extends TopologyEntityCloudTop
             return super.getComputeTier(entityId);
         }
     }
+
+    @Override
+    public boolean isSimulated() {
+        return true;
+    }
 }

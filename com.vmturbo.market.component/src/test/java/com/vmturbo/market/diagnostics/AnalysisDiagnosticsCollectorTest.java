@@ -75,7 +75,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.SimulatedCloudCostData;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
 import com.vmturbo.market.cloudscaling.sma.entities.CloudCostContextEntry;
@@ -254,7 +254,6 @@ public class AnalysisDiagnosticsCollectorTest {
             SMAOutput smaOutput = StableMarriageAlgorithm.execute(smaInput.get());
             logger.info("SMA generated {} outputContexts", smaOutput.getContexts().size());
             assertTrue(getActionCount(smaOutput) > 0);
-            //computeSaving(smaOutput, smaInput.get().getSmaCloudCostCalculator());
         } else {
             logger.error("Could not create SMAInput. SMA was not run.");
         }
@@ -304,8 +303,8 @@ public class AnalysisDiagnosticsCollectorTest {
         for (SMAOutputContext outputContext : smaOutput.getContexts()) {
             for (SMAMatch match : outputContext.getMatches()) {
                 if ((match.getVirtualMachine().getCurrentTemplate().getOid() != match.getTemplate().getOid())
-                        || !CommitmentAmountCalculator.isZero(CommitmentAmountCalculator.subtract(match.getVirtualMachine().getCurrentRICoverage(),
-                        match.getDiscountedCoupons()), SMAUtils.EPSILON)) {
+                        || !CommitmentAmountCalculator.isSame(match.getVirtualMachine().getCurrentRICoverage(),
+                        match.getDiscountedCoupons(), SMAUtils.EPSILON)) {
                     actionCount++;
                 }
             }
@@ -585,7 +584,7 @@ public class AnalysisDiagnosticsCollectorTest {
             }
             SMACloudCostCalculator cloudCostCalculator = new SMACloudCostCalculator(
                     Mockito.mock(SimulatedTopologyEntityCloudTopology.class),
-                    Mockito.mock(CloudCostData.class));
+                    Mockito.mock(SimulatedCloudCostData.class));
             cloudCostContextEntries.stream().forEach(entry ->
                     cloudCostCalculator.getCloudCostLookUp().put(entry.getCostContext(), entry.getCostValue()));
             for (Integer index : contextList.keySet()) {

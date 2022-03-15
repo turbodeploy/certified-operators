@@ -48,11 +48,12 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAInput.CspFromRegion;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CommittedCommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.trax.Trax;
 
 /**
  * This class externalizes a list of actions or the SMA output to the log in common separated value (CSV) format.
@@ -71,8 +72,8 @@ public class ActionLogger {
     private static final String header = "engine,CSP,billingFamily,businessAccount,region,"
             + "osType,tenancy,vm,vmOid,vmGroup,savingsPerHour,"
             + "sourceTemplate,sourceCoupons,naturalTemplate,naturalCoupons,"
-            + "sourceRI,sourceRIKey,sourceRITemplate,sourceRICoupons,"
-            + "projectedTemplate,projectedCoupons,projectedRI,ProjectedRIKey,projectedRITemplate,projectedRICoupons,"
+            + "sourceRI,sourceRIKey,sourceRITemplate,sourceRICoupons,sourceRICouponsPercentage,"
+            + "projectedTemplate,projectedCoupons,projectedRI,ProjectedRIKey,projectedRITemplate,projectedRICoupons,projectedRICouponsPercentage,"
             + "templateChange,familyChange";
     /*
      * What is written to the log for each action
@@ -90,26 +91,26 @@ public class ActionLogger {
     private float savingsPerHour;
     private String sourceTemplateName;
     private String sourceFamilyName;
-    private float sourceTemplateCoupons;
+    private String sourceTemplateCoupons;
     private String naturalTemplateName;
-    private float naturalTemplateCoupons;
+    private String naturalTemplateCoupons;
     private String sourceReservedInstanceName;
     private long sourceReservedInstanceKey;
     private long sourceReservedInstanceId;
     private String sourceReservedInstanceTemplateName;
     private CloudCommitmentAmount sourceReservedInstanceCouponsApplied;
+    private float sourceReservedInstanceCouponsAppliedPercentage;
     private String projectedTemplateName;
     private String projectedFamilyName;
-    private float projectedTemplateCoupons;
+    private String projectedTemplateCoupons;
     private String projectedReservedInstanceName;
     private long projectedReservedInstanceKey;
     private long projectedReservedInstanceId;
     private String projectedReservedInstanceTemplateName;
     private CloudCommitmentAmount projectedReservedInstanceCouponsApplied;
+    private float projectedReservedInstanceCouponsAppliedPecentage;
     private int templateChange;
     private int familyChange;
-
-    private CspFromRegion cspFromRegion;
 
     /**
      * Given a list of actions, log each action in CSV format.
@@ -137,7 +138,6 @@ public class ActionLogger {
         List<String> buffer = new ArrayList<>();
         buffer.add(header);
         engine = "M2";
-        cspFromRegion = new CspFromRegion(sourceCloudTopology);
         for (Action action : actions) {
             initialize();
             ActionInfo info = action.getInfo();
@@ -176,10 +176,7 @@ public class ActionLogger {
      *
      * @param smaOutput                         Output of SMA
      * @param sourceCloudTopology               source cloud topology
-     * @param projectedCloudTopology            projected cloud topology
      * @param cloudCostData                     dictionary of cloud costs, determine source templates RI coverage
-     * @param projectedReservedInstanceCoverage projected RI coverage
-     * @param consistentScalingHelper           used to figure out the consistent scaling information.
      *
      * @return list of actions
      */
@@ -231,7 +228,7 @@ public class ActionLogger {
         SMATemplate naturalTemplate = vm.getNaturalTemplate();
         if (naturalTemplate != null) {
             naturalTemplateName = naturalTemplate.getName();
-            naturalTemplateCoupons = (float)naturalTemplate.getCommitmentAmount().getCoupons();
+            naturalTemplateCoupons = convertCloudCommitmentToString(naturalTemplate.getCommitmentAmount());
         }
         if (vm.getCurrentRI() != null && vm.getCurrentRI().getOid() != SMAUtils.UNKNOWN_OID) {
             SMAReservedInstance ri = vm.getCurrentRI();
@@ -240,6 +237,12 @@ public class ActionLogger {
             sourceReservedInstanceKey = ri.getRiKeyOid();
             sourceReservedInstanceId = ri.getOid();
             sourceReservedInstanceTemplateName = ri.getTemplate().getName();
+            sourceReservedInstanceCouponsAppliedPercentage =
+                    cloudCostCalculator.covertCommitmentToFloat(vm, vm.getCurrentTemplate(),
+                    vm.getCurrentRI().getOid(), vm.getCurrentRICoverage()) /
+                            cloudCostCalculator.covertCommitmentToFloat(vm, vm.getCurrentTemplate(),
+                                    vm.getCurrentRI().getOid(), vm.getCurrentTemplate().getCommitmentAmount());
+
         }
         long businessAccountId = vm.getBusinessAccountId();
         billingFamilyName = getBillingFamilyName(businessAccountId, sourceCloudTopology);
@@ -254,16 +257,16 @@ public class ActionLogger {
         SMATemplate sourceTemplate = vm.getCurrentTemplate();
         sourceTemplateName = sourceTemplate.getName();
         sourceFamilyName = sourceTemplate.getFamily();
-        sourceTemplateCoupons = (float)sourceTemplate.getCommitmentAmount().getCoupons();
+        sourceTemplateCoupons = convertCloudCommitmentToString(sourceTemplate.getCommitmentAmount());
 
         SMATemplate projectedTemplate = match.getTemplate();
         projectedTemplateName = projectedTemplate.getName();
         projectedFamilyName = projectedTemplate.getFamily();
-        projectedTemplateCoupons = (float)projectedTemplate.getCommitmentAmount().getCoupons();
+        projectedTemplateCoupons = convertCloudCommitmentToString(projectedTemplate.getCommitmentAmount());
 
         SMAReservedInstance ri = match.getReservedInstance();
         if (ri != null) {
-            setProjectedReservedInstanceAttributes(ri, match);
+            setProjectedReservedInstanceAttributes(ri, match, cloudCostCalculator);
         }
 
         float sourceCost = cloudCostCalculator.getNetCost(vm,sourceTemplate,
@@ -279,12 +282,20 @@ public class ActionLogger {
 
     }
 
-    private void setProjectedReservedInstanceAttributes(SMAReservedInstance ri, SMAMatch match) {
+    private void setProjectedReservedInstanceAttributes(SMAReservedInstance ri, SMAMatch match,
+            SMACloudCostCalculator cloudCostCalculator) {
         projectedReservedInstanceName = ri.getName();
         projectedReservedInstanceTemplateName = ri.getTemplate().getName();
         projectedReservedInstanceCouponsApplied = match.getDiscountedCoupons();
         projectedReservedInstanceKey = ri.getRiKeyOid();
         projectedReservedInstanceId = ri.getOid();
+        projectedReservedInstanceCouponsAppliedPecentage =
+                cloudCostCalculator.covertCommitmentToFloat(match.getVirtualMachine(),
+                        match.getTemplate(), match.getReservedInstance().getOid(),
+                        match.getDiscountedCoupons()) /
+                        cloudCostCalculator.covertCommitmentToFloat(match.getVirtualMachine(),
+                                match.getTemplate(), match.getReservedInstance().getOid(),
+                                match.getTemplate().getCommitmentAmount());
     }
 
     /**
@@ -319,20 +330,44 @@ public class ActionLogger {
             .append(sourceTemplateName).append(",")
             .append(sourceTemplateCoupons).append(",")
             .append(naturalTemplateName).append(",")
-            .append(naturalTemplateCoupons == INT_UNKNOWN ? "-" : naturalTemplateCoupons).append(",")
+            .append(naturalTemplateCoupons.equals(STRING_UNKNOWN) ? "-" : naturalTemplateCoupons).append(",")
             .append(sourceReservedInstanceName).append(",")
             .append(sourceReservedInstanceKey == LONG_UNKNOWN ? "-" : sourceReservedInstanceKey).append(",")
             .append(sourceReservedInstanceTemplateName).append(",")
-            .append(sourceReservedInstanceKey == LONG_UNKNOWN ? "-" : sourceReservedInstanceCouponsApplied.getCoupons()).append(",")
+            .append(sourceReservedInstanceKey == LONG_UNKNOWN ? "-" : convertCloudCommitmentToString(sourceReservedInstanceCouponsApplied)).append(",")
+            .append(sourceReservedInstanceKey == LONG_UNKNOWN ? "-" : sourceReservedInstanceCouponsAppliedPercentage).append(",")
             .append(projectedTemplateName).append(",")
             .append(projectedTemplateCoupons).append(",")
             .append(projectedReservedInstanceName).append(",")
             .append(projectedReservedInstanceKey == LONG_UNKNOWN ? "-" : projectedReservedInstanceKey).append(",")
             .append(projectedReservedInstanceTemplateName).append(",")
-            .append(projectedReservedInstanceKey == LONG_UNKNOWN ? "-" : projectedReservedInstanceCouponsApplied.getCoupons()).append(",")
+            .append(projectedReservedInstanceKey == LONG_UNKNOWN ? "-" : convertCloudCommitmentToString(projectedReservedInstanceCouponsApplied)).append(",")
+            .append(projectedReservedInstanceKey == FLOAT_UNKNOWN ? "-" : projectedReservedInstanceCouponsAppliedPecentage).append(",")
             .append(templateChange).append(",")
             .append(familyChange);
         return buffer.toString();
+    }
+
+    /**
+     * convert the cloud commitment amount to a string.
+     * @param amount the cloudcommitment amount of interest.
+     * @return string for of cloud commitment amount
+     */
+    String convertCloudCommitmentToString(CloudCommitmentAmount amount) {
+        String returnValue = "";
+        switch (amount.getValueCase()) {
+            case COUPONS:
+                returnValue = returnValue + amount.getCoupons();
+                break;
+            case COMMODITIES_BOUGHT:
+                for(CommittedCommodityBought commoditiesBought : amount.getCommoditiesBought().getCommodityList()) {
+                    returnValue = returnValue + commoditiesBought.getCommodityType() + " - " + commoditiesBought.getCapacity() + " ";
+                }
+                break;
+            default:
+                break;
+        }
+        return returnValue;
     }
 
     /**
@@ -395,9 +430,8 @@ public class ActionLogger {
                 oid, virtualMachineName);
         } else {
             TopologyEntityDTO region = optional.get();
-            cspFromRegion.updateWithRegion(region);
             regionName = region.getDisplayName();
-            csp = cspFromRegion.lookupWithRegionId(region.getOid());
+            csp = SMAInput.entityToSMACSP(region.getOid(), sourceCloudTopology);
         }
         businessAccountName = getBusinessAccountName(oid, sourceCloudTopology);
         long businessAccountId = SMAInput.getBusinessAccountId(oid, sourceCloudTopology, "externalize");
@@ -567,11 +601,11 @@ public class ActionLogger {
         if (isSource) {
             sourceTemplateName = templateEntity.getDisplayName();
             sourceFamilyName = computeTierInfo.getFamily();
-            sourceTemplateCoupons = (float)computeTierInfo.getNumCoupons();
+            sourceTemplateCoupons = String.valueOf(computeTierInfo.getNumCoupons());
         } else {
             projectedTemplateName = templateEntity.getDisplayName();
             projectedFamilyName = computeTierInfo.getFamily();
-            projectedTemplateCoupons = (float)computeTierInfo.getNumCoupons();
+            projectedTemplateCoupons = String.valueOf(computeTierInfo.getNumCoupons());
         }
     }
 
@@ -597,21 +631,23 @@ public class ActionLogger {
         savingsPerHour = FLOAT_UNKNOWN;
         sourceTemplateName = STRING_UNKNOWN;
         sourceFamilyName = STRING_UNKNOWN;
-        sourceTemplateCoupons = FLOAT_UNKNOWN;
+        sourceTemplateCoupons = STRING_UNKNOWN;
         naturalTemplateName = STRING_UNKNOWN;
-        naturalTemplateCoupons = FLOAT_UNKNOWN;
+        naturalTemplateCoupons = STRING_UNKNOWN;
         projectedTemplateName = STRING_UNKNOWN;
         projectedFamilyName = STRING_UNKNOWN;
-        projectedTemplateCoupons = FLOAT_UNKNOWN;
+        projectedTemplateCoupons = STRING_UNKNOWN;
         sourceReservedInstanceName = STRING_UNKNOWN;
         sourceReservedInstanceKey = LONG_UNKNOWN;
         sourceReservedInstanceId = LONG_UNKNOWN;
         sourceReservedInstanceTemplateName = STRING_UNKNOWN;
         sourceReservedInstanceCouponsApplied = CommitmentAmountCalculator.ZERO_COVERAGE;
+        sourceReservedInstanceCouponsAppliedPercentage = FLOAT_UNKNOWN;
         projectedReservedInstanceName = STRING_UNKNOWN;
         projectedReservedInstanceKey = LONG_UNKNOWN;
         projectedReservedInstanceTemplateName = STRING_UNKNOWN;
         projectedReservedInstanceCouponsApplied = CommitmentAmountCalculator.ZERO_COVERAGE;
+        projectedReservedInstanceCouponsAppliedPecentage = FLOAT_UNKNOWN;
         virtualMachineName = STRING_UNKNOWN;
         virtualMachineOid = LONG_UNKNOWN;
         templateChange = 0;

@@ -61,16 +61,16 @@ public class StableMarriageAlgorithm {
             Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap =
                     createVirtualMachineGroupMap(inputContext.getVirtualMachines(),
                             input.getSmaCloudCostCalculator());
-            preProcessing(inputContext, virtualMachineGroupMap);
+            preProcessing(inputContext, virtualMachineGroupMap,
+                    input.getSmaCloudCostCalculator());
             SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext,virtualMachineGroupMap,
                     input.getSmaCloudCostCalculator());
             postProcessing(outputContext, input.getSmaCloudCostCalculator());
             outputContexts.add(outputContext);
             for (SMAMatch match : outputContext.getMatches()) {
                 if ((match.getVirtualMachine().getCurrentTemplate().getOid() != match.getTemplate().getOid())
-                        || !CommitmentAmountCalculator.isZero(CommitmentAmountCalculator
-                        .subtract(match.getVirtualMachine().getCurrentRICoverage(),
-                        match.getDiscountedCoupons()), SMAUtils.EPSILON)) {
+                        || !CommitmentAmountCalculator.isSame(match.getVirtualMachine().getCurrentRICoverage(),
+                        match.getDiscountedCoupons(), SMAUtils.EPSILON)) {
                     actionCount++;
                 }
             }
@@ -117,16 +117,13 @@ public class StableMarriageAlgorithm {
      * @param virtualMachineGroupMap map from group name to virtualMachine Group
      */
     public static void preProcessing(SMAInputContext inputContext,
-                                     Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
+                                     Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
+                                    SMACloudCostCalculator smaCloudCostCalculator) {
 
         /*
          *  List of templates; that is, providers
          */
         final List<SMATemplate> templates = inputContext.getTemplates();
-        /*
-         * Precompute map from family name to list of SMATemplates
-         */
-        Map<String, List<SMATemplate>> familyNameToTemplates = StableMarriagePerContext.computeFamilyToTemplateMap(templates);
 
         // Set the scaleUp boolean for virtual machines. This has to be done before we start
         // iterations because the current template will be updated after that and it will
@@ -148,7 +145,7 @@ public class StableMarriageAlgorithm {
          * Two RIs can be combined if their RI template, and zone match.
          * We already scale the isf to the cheapest template. so we can safely compare template.
          */
-        normalizeReservedInstances(reservedInstances, familyNameToTemplates);
+        normalizeReservedInstances(reservedInstances);
         /*
          * Sort RIs based on OID. This is to create consistency.
          */
@@ -159,7 +156,7 @@ public class StableMarriageAlgorithm {
          */
         for (SMAReservedInstance reservedInstance : reservedInstances) {
             for (SMAVirtualMachineGroup group : virtualMachineGroupMap.values()) {
-                reservedInstance.updateRICoveragePerGroup(group);
+                reservedInstance.updateRICoveragePerGroup(group, smaCloudCostCalculator);
             }
         }
     }
@@ -172,29 +169,8 @@ public class StableMarriageAlgorithm {
      * Market component will take care of redistributing the coupons.
      *
      * @param reservedInstances the reserved instances to normalize. This is used to store output too.
-     * @param familyNameToTemplates map from family name to the templates
      */
-    public static void normalizeReservedInstances(List<SMAReservedInstance> reservedInstances,
-                                                  Map<String, List<SMATemplate>> familyNameToTemplates) {
-        Map<String, SMATemplate> familyNameToSmallestTemplate = new HashMap<>();
-        for (Map.Entry<String, List<SMATemplate>> entry : familyNameToTemplates.entrySet()) {
-            String familyName = entry.getKey();
-            List<SMATemplate> templatesInFamily = entry.getValue();
-            SMATemplate smallestTemplateInFamily = templatesInFamily.get(0);
-            for (SMATemplate template : templatesInFamily) {
-                if (CommitmentAmountCalculator.isPositive(CommitmentAmountCalculator.subtract(smallestTemplateInFamily.getCommitmentAmount(),
-                        template.getCommitmentAmount()), SMAUtils.EPSILON)) {
-                    smallestTemplateInFamily = template;
-                }
-            }
-            familyNameToSmallestTemplate.put(familyName, smallestTemplateInFamily);
-
-        }
-        for (SMAReservedInstance reservedInstance : reservedInstances) {
-            reservedInstance.normalizeTemplate(familyNameToSmallestTemplate
-                    .get(reservedInstance.getTemplate().getFamily()));
-        }
-
+    public static void normalizeReservedInstances(List<SMAReservedInstance> reservedInstances) {
         Map<Long, List<SMAReservedInstance>> distinctRIs = new HashMap<>();
         for (SMAReservedInstance ri : reservedInstances) {
             Long riKeyOid = ri.getRiKeyOid();
@@ -214,15 +190,13 @@ public class StableMarriageAlgorithm {
             }
             Collections.sort(members, new SortByRIOID());
             SMAReservedInstance representative = members.get(0);
-            double representativeTotalCoupons = 0;
+            CloudCommitmentAmount representativeTotalCoupons = CommitmentAmountCalculator.ZERO_COVERAGE;
             for (SMAReservedInstance ri : members) {
-                representativeTotalCoupons =
-                        representativeTotalCoupons + ri.getCommitmentAmount().getCoupons();
-                ri.setCommitmentAmount(SMAUtils.ZERO_COUPONS_COMMITMENT);
+                representativeTotalCoupons = CommitmentAmountCalculator.sum(
+                        representativeTotalCoupons, ri.getCommitmentAmount());
+                ri.setCommitmentAmount(CommitmentAmountCalculator.ZERO_COVERAGE);
             }
-            representative.setCommitmentAmount(CloudCommitmentAmount.newBuilder()
-                    .setCoupons(representativeTotalCoupons)
-                    .build());
+            representative.setCommitmentAmount(representativeTotalCoupons);
             reservedInstances.add(representative);
         }
     }
@@ -288,6 +262,7 @@ public class StableMarriageAlgorithm {
      * The net savings remain unchanged. All investment RI  optimisation are negated.
      *
      * @param outputContext the output context of interest.
+     * @param cloudCostCalculator the cloud cost calculator.
      * @return true is at-least 1 RI optimization was negated.
      */
     public static boolean removeRIOptimizationInvestmentAction(SMAOutputContext outputContext,
@@ -300,14 +275,15 @@ public class StableMarriageAlgorithm {
             SMAReservedInstance sourceRI = smaMatch.getVirtualMachine().getCurrentRI();
             // investment optimisation action. outgoing  coupons
             // from getVirtualMachine().getCurrentRI().
-            if (isOutgoing(smaMatch)) {
+            if (isOutgoing(smaMatch, cloudCostCalculator)) {
                 Long rikeyoid = sourceRI.getRiKeyOid();
                 // for every rikeyoid we create atleast an empty matchesWithOutgoingCoupons list
                 // and matchesWithIncomingCoupons list.
                 matchesWithOutgoingCoupons.putIfAbsent(rikeyoid, new ArrayList<>());
                 matchesWithIncomingCoupons.putIfAbsent(rikeyoid, new ArrayList<>());
                 matchesWithOutgoingCoupons.get(rikeyoid).add(smaMatch);
-            } else if (isIncoming(smaMatch)) {
+            }
+            if (isIncoming(smaMatch, cloudCostCalculator)) {
                 // incoming coupons. all the coupons accumulated are confirmed
                 // to be not available to this VM before SMA. Could have moved to the same RI.
                 // but even then we would have gained more coupons.
@@ -332,7 +308,12 @@ public class StableMarriageAlgorithm {
                 CloudCommitmentAmount couponsRequired = CommitmentAmountCalculator.subtract(CommitmentAmountCalculator.min(outgoingCouponMatch.getVirtualMachine()
                         .getCurrentRICoverage(), outgoingCouponMatch.getTemplate().getCommitmentAmount()),
                         outgoingCouponMatch.getDiscountedCoupons());
+                CloudCommitmentAmount totalCouponsToBeAssigned = outgoingCouponMatch.getDiscountedCoupons();
                 for (SMAMatch incomingCouponMatch : matchesWithIncomingCoupons.get(riKeyId)) {
+                    if (incomingCouponMatch.getVirtualMachine().getOid()
+                            == outgoingCouponMatch.getVirtualMachine().getOid()) {
+                        continue;
+                    }
                     CloudCommitmentAmount couponsGrabbed;
                     if (incomingCouponMatch.getVirtualMachine().getCurrentRI() == null
                             || incomingCouponMatch.getVirtualMachine().getCurrentRI()
@@ -354,9 +335,12 @@ public class StableMarriageAlgorithm {
                         actionNegated = true;
                         couponsRequired = CommitmentAmountCalculator.subtract(couponsRequired,
                                 couponsGrabbed);
+                        totalCouponsToBeAssigned = CommitmentAmountCalculator.sum(
+                                totalCouponsToBeAssigned, couponsGrabbed);
                         incomingCouponMatch.setDiscountedCoupons(
                                 CommitmentAmountCalculator.subtract(incomingCouponMatch.getDiscountedCoupons(),
                                         couponsGrabbed));
+
                     }
                     if (!CommitmentAmountCalculator.isPositive(couponsRequired, SMAUtils.EPSILON)) {
                         break;
@@ -365,10 +349,7 @@ public class StableMarriageAlgorithm {
                 // adjust the outgoingCouponMatch based on the couponsRequired. Ideally couponsRequired
                 // should be 0 and the VM should retain all the coupons it already had. If not it will
                 // retain coupons to be 100% covered if it had scaled down.
-                outgoingCouponMatch.setDiscountedCoupons(CommitmentAmountCalculator.min(
-                        outgoingCouponMatch.getVirtualMachine().getCurrentRICoverage(),
-                        CommitmentAmountCalculator.subtract(outgoingCouponMatch.getTemplate().getCommitmentAmount() ,
-                                couponsRequired)));
+                outgoingCouponMatch.setDiscountedCoupons(totalCouponsToBeAssigned);
                 outgoingCouponMatch.setReservedInstance(outgoingCouponMatch.getVirtualMachine()
                         .getCurrentRI());
             }
@@ -492,10 +473,10 @@ public class StableMarriageAlgorithm {
                 CloudCommitmentAmount couponsLeftover = leftoverCoupons.getOrDefault(smaMatch
                         .getReservedInstance().getRiKeyOid(), CommitmentAmountCalculator.ZERO_COVERAGE);
                 if (CommitmentAmountCalculator.isPositive(couponsRequired, SMAUtils.EPSILON) && CommitmentAmountCalculator.isPositive(couponsLeftover, SMAUtils.EPSILON)) {
-                    CloudCommitmentAmount coupons_swapped = CommitmentAmountCalculator.min(couponsRequired, couponsLeftover);
-                    smaMatch.setDiscountedCoupons(CommitmentAmountCalculator.sum(currentCoupons, coupons_swapped));
+                    CloudCommitmentAmount couponsSwapped = CommitmentAmountCalculator.min(couponsRequired, couponsLeftover);
+                    smaMatch.setDiscountedCoupons(CommitmentAmountCalculator.sum(currentCoupons, couponsSwapped));
                     leftoverCoupons.put(smaMatch.getReservedInstance().getRiKeyOid(),
-                            CommitmentAmountCalculator.subtract(couponsLeftover, coupons_swapped));
+                            CommitmentAmountCalculator.subtract(couponsLeftover, couponsSwapped));
                 }
             }
         }
@@ -503,19 +484,19 @@ public class StableMarriageAlgorithm {
         // This will be ok since we are anyway recommending the VM to be moved to this RI.
         for (SMAMatch smaMatch : outputContext.getMatches()) {
             if (smaMatch.getReservedInstance() == null) {
-                CloudCommitmentAmount coupons_required = smaMatch.getTemplate().getCommitmentAmount();
+                CloudCommitmentAmount couponsRequired = smaMatch.getTemplate().getCommitmentAmount();
                 Optional<SMAReservedInstance> riWithCouponsLeft = findDiscountableRI(smaMatch,
                         riKeyOidToSMAReservedInstance, leftoverCoupons);
                 CloudCommitmentAmount couponsLeftover = riWithCouponsLeft.isPresent()
                         ? leftoverCoupons.get(riWithCouponsLeft.get().getRiKeyOid())
                         : CommitmentAmountCalculator.ZERO_COVERAGE;
-                if (CommitmentAmountCalculator.isPositive(coupons_required, SMAUtils.EPSILON)
+                if (CommitmentAmountCalculator.isPositive(couponsRequired, SMAUtils.EPSILON)
                         && CommitmentAmountCalculator.isPositive(couponsLeftover, SMAUtils.EPSILON)) {
-                        CloudCommitmentAmount coupons_swapped = CommitmentAmountCalculator.min(coupons_required, couponsLeftover);
-                        smaMatch.setDiscountedCoupons(coupons_swapped);
+                        CloudCommitmentAmount couponsSwapped = CommitmentAmountCalculator.min(couponsRequired, couponsLeftover);
+                        smaMatch.setDiscountedCoupons(couponsSwapped);
                         smaMatch.setReservedInstance(riWithCouponsLeft.get());
                         leftoverCoupons.put(riWithCouponsLeft.get().getRiKeyOid(),
-                                CommitmentAmountCalculator.subtract(couponsLeftover, coupons_swapped));
+                                CommitmentAmountCalculator.subtract(couponsLeftover, couponsSwapped));
                 }
             }
         }
@@ -555,9 +536,10 @@ public class StableMarriageAlgorithm {
      * determine if the virtual machine in the smaMatch lost coverage while staying in same template.
      *
      * @param smaMatch smaMatch of interest
+     * @param cloudCostCalculator the cloud cost calculator.
      * @return true if the virtual machine in the smaMatch lost coverage.
      */
-    private static boolean isOutgoing(SMAMatch smaMatch) {
+    private static boolean isOutgoing(SMAMatch smaMatch, SMACloudCostCalculator cloudCostCalculator) {
         SMAReservedInstance projectedRI = smaMatch.getReservedInstance();
         SMAReservedInstance sourceRI = smaMatch.getVirtualMachine().getCurrentRI();
         SMAVirtualMachine virtualMachine = smaMatch.getVirtualMachine();
@@ -568,9 +550,9 @@ public class StableMarriageAlgorithm {
                 .equals(smaMatch.getTemplate().getFamily()))) // same family for ISF.
                 && (projectedRI == null // lost coverage. vm did not use up any other RI.
                 || ((sourceRI.getRiKeyOid() == projectedRI.getRiKeyOid())
-                && (CommitmentAmountCalculator.isPositive(CommitmentAmountCalculator.subtract(virtualMachine.getCurrentRICoverage(),
-                    smaMatch.getDiscountedCoupons()), SMAUtils.EPSILON))) //same RI lesser coupons
-        ));
+                &&
+                (CommitmentAmountCalculator.isPositive(CommitmentAmountCalculator.subtract(virtualMachine.getCurrentRICoverage(),
+                        smaMatch.getDiscountedCoupons()), SMAUtils.EPSILON)))));
     }
 
     /**
@@ -578,19 +560,18 @@ public class StableMarriageAlgorithm {
      * A vm moving from another RI is considered gained coverage even if the coverage is less.
      *
      * @param smaMatch smaMatch of interest
+     * @param cloudCostCalculator the cloud cost calculator.
      * @return true if the virtual machine in the smaMatch gained coverage.
      */
-    private static boolean isIncoming(SMAMatch smaMatch) {
+    private static boolean isIncoming(SMAMatch smaMatch, SMACloudCostCalculator cloudCostCalculator) {
         SMAReservedInstance projectedRI = smaMatch.getReservedInstance();
         SMAReservedInstance sourceRI = smaMatch.getVirtualMachine().getCurrentRI();
         SMAVirtualMachine virtualMachine = smaMatch.getVirtualMachine();
         return (projectedRI != null
                 && (sourceRI == null //a vm which had 0 coverage now has some coverage.
                 || sourceRI.getRiKeyOid() != projectedRI.getRiKeyOid() //a vm covered by another RI.
-                || CommitmentAmountCalculator.isPositive(CommitmentAmountCalculator.subtract(
-                        smaMatch.getDiscountedCoupons(),
-                virtualMachine.getCurrentRICoverage()), SMAUtils.EPSILON) //gained coverage from same RI.
-        ));
+                || ((CommitmentAmountCalculator.isPositive(CommitmentAmountCalculator.subtract(smaMatch.getDiscountedCoupons(),
+                virtualMachine.getCurrentRICoverage()), SMAUtils.EPSILON)))));//gained coverage from same RI.
     }
 }
 
