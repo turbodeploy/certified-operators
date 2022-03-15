@@ -17,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.cost.calculation.CloudCommitmentApplicator;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
@@ -42,6 +43,8 @@ public class TopologyCostCalculator {
 
     private final ReservedInstanceApplicatorFactory<TopologyEntityDTO> riApplicatorFactory;
 
+    private final CloudCommitmentApplicator.CloudCommitmentApplicatorFactory<TopologyEntityDTO> cloudCommitmentApplicatorFactory;
+
     private final CloudCostData cloudCostData;
 
     private final CloudTopology<TopologyEntityDTO> cloudTopo;
@@ -53,10 +56,12 @@ public class TopologyCostCalculator {
                   @Nonnull final CloudCostDataProvider cloudCostDataProvider,
                   @Nonnull final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory,
                   @Nonnull final ReservedInstanceApplicatorFactory<TopologyEntityDTO> riApplicatorFactory,
+                  @Nonnull final CloudCommitmentApplicator.CloudCommitmentApplicatorFactory<TopologyEntityDTO> cloudCommitmentApplicatorFactory,
                   @Nonnull final TopologyInfo topoInfo, @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
         this.topologyEntityInfoExtractor = Objects.requireNonNull(topologyEntityInfoExtractor);
         this.cloudCostCalculatorFactory = Objects.requireNonNull(cloudCostCalculatorFactory);
         this.riApplicatorFactory = Objects.requireNonNull(riApplicatorFactory);
+        this.cloudCommitmentApplicatorFactory = Objects.requireNonNull(cloudCommitmentApplicatorFactory);
         this.topoInfo = Objects.requireNonNull(topoInfo);
         this.cloudTopo = Objects.requireNonNull(cloudTopology);
         CloudCostData cloudCostData;
@@ -139,6 +144,7 @@ public class TopologyCostCalculator {
                 cloudTopology,
                 topologyEntityInfoExtractor,
                 riApplicatorFactory,
+                cloudCommitmentApplicatorFactory,
                 dependentCostLookup,
                 topologyRICoverage);
         cloudCostData.logMissingAccountPricingData();
@@ -181,17 +187,21 @@ public class TopologyCostCalculator {
 
             private final ReservedInstanceApplicatorFactory<TopologyEntityDTO> riApplicatorFactory;
 
+            private final CloudCommitmentApplicator.CloudCommitmentApplicatorFactory<TopologyEntityDTO> cloudCommitmentApplicatorFactory;
+
             public DefaultTopologyCostCalculatorFactory(
                     @Nonnull final TopologyEntityInfoExtractor topologyEntityInfoExtractor,
                     @Nonnull final CloudCostCalculatorFactory<TopologyEntityDTO> cloudCostCalculatorFactory,
                     @Nonnull final CloudCostDataProvider cloudCostDataProvider,
                     @Nonnull final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory,
-                    @Nonnull final ReservedInstanceApplicatorFactory<TopologyEntityDTO> riApplicatorFactory) {
+                    @Nonnull final ReservedInstanceApplicatorFactory<TopologyEntityDTO> riApplicatorFactory,
+                    @Nonnull final CloudCommitmentApplicator.CloudCommitmentApplicatorFactory<TopologyEntityDTO> cloudCommitmentApplicatorFactory) {
                 this.topologyEntityInfoExtractor = topologyEntityInfoExtractor;
                 this.cloudCostCalculatorFactory = cloudCostCalculatorFactory;
                 this.cloudCostDataProvider = cloudCostDataProvider;
                 this.discountApplicatorFactory = discountApplicatorFactory;
                 this.riApplicatorFactory = riApplicatorFactory;
+                this.cloudCommitmentApplicatorFactory = Objects.requireNonNull(cloudCommitmentApplicatorFactory);
             }
 
             /**
@@ -205,6 +215,7 @@ public class TopologyCostCalculator {
                         cloudCostDataProvider,
                         discountApplicatorFactory,
                         riApplicatorFactory,
+                        cloudCommitmentApplicatorFactory,
                         topoInfo, originalCloudTopology);
             }
         }

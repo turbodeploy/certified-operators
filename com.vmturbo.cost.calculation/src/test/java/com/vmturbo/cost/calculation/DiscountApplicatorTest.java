@@ -12,6 +12,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSetMultimap;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -48,7 +49,7 @@ public class DiscountApplicatorTest {
 
     private CloudCostData<TestEntityClass> emptyCloudCostData =
             new CloudCostData<>(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Optional.empty());
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Optional.empty(), ImmutableSetMultimap.of(), Collections.emptyMap());
 
     @Before
     public void setup() {

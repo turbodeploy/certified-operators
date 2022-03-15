@@ -18,12 +18,12 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.journal.CostItem;
 import com.vmturbo.cost.calculation.journal.CostItem.CostSourceLink;
 import com.vmturbo.cost.calculation.journal.CostJournal.RateExtractor;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxNumber;
@@ -129,10 +129,14 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
         }
         logger.trace("Purchase from entity {} of type {} has cost: {}", infoExtractor.getId(payee),
                 infoExtractor.getEntityType(payee), cost);
-        return ImmutableList.of(
-                CostItem.builder()
+        CostItem.Builder builder = CostItem.builder()
                         .costSourceLink(CostSourceLink.of(costSource))
-                        .cost(cost)
+                        .cost(cost);
+        if (commodityType != null) {
+            builder = builder.commodity(commodityType);
+        }
+        return ImmutableList.of(
+                        builder
                         .build());
     }
 
@@ -189,5 +193,4 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
                     .build();
         }
     }
-
 }
