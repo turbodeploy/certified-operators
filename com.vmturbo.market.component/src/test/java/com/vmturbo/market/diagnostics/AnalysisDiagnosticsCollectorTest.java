@@ -17,6 +17,7 @@ import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.TOPOLO
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.TRADER_DIAGS_FILE_NAME;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -89,6 +90,7 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.InitialPlacementCommTypeMap;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
@@ -137,6 +139,8 @@ public class AnalysisDiagnosticsCollectorTest {
     //Change this to the location of unzipped SMA diags.
     private final String unzippedSMADiagsLocation = "target/test-classes/cloudvmscaling/smaDiags";
     private final String unzippedInitialPlacementDiagsLocation = "";
+    private final AnalysisDiagnosticsCollectorFactory diagsCollectorFactory =
+            Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class);
 
     /**
      * Initializes traderTOs to empty list.
@@ -152,6 +156,8 @@ public class AnalysisDiagnosticsCollectorTest {
     @Test
     @Ignore
     public void testInitialPlacementFromDiags() {
+        IdentityGenerator.initPrefix(0);
+        when(diagsCollectorFactory.newDiagsCollector(any(), any())).thenReturn(Optional.empty());
         List<InitialPlacementCommTypeMap> historicalCachedCommType = new ArrayList<>();
         List<InitialPlacementCommTypeMap> realtimeCachedCommType = new ArrayList<>();
         List<InitialPlacementDTO> newBuyers = new ArrayList<>();
@@ -214,7 +220,7 @@ public class AnalysisDiagnosticsCollectorTest {
                 ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
         InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 1, 5,
-                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
+                diagsCollectorFactory, 5);
         BiMap<CommodityType, Integer> realtimeCachedCommTypeMap = HashBiMap.create();
         BiMap<CommodityType, Integer> historicalCachedCommTypeMap = HashBiMap.create();
         realtimeCachedCommType.stream().forEach(entry -> realtimeCachedCommTypeMap.put(entry.commodityType, entry.type));

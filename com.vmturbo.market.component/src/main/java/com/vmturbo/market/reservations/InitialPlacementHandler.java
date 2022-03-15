@@ -63,9 +63,9 @@ public class InitialPlacementHandler {
     public InitialPlacementHandler(@Nonnull DSLContext dsl,
             @Nonnull final ReservationServiceBlockingStub stub,
             final boolean prepareReservationCache, int maxRetry, final int maxGroupingRetry,
-            AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory) {
+            AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory, int numPlacementDiagsToRetain) {
         this.placementFinder = new InitialPlacementFinder(dsl, stub,
-            prepareReservationCache, maxRetry, maxGroupingRetry, analysisDiagnosticsCollectorFactory);
+            prepareReservationCache, maxRetry, maxGroupingRetry, analysisDiagnosticsCollectorFactory, numPlacementDiagsToRetain);
         this.cacheAccessService = Executors.newFixedThreadPool(1,
                 new ThreadFactoryBuilder().setNameFormat("Economy-cache-accessor").build());
     }

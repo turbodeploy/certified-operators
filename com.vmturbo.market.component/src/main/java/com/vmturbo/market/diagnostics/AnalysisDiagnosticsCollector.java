@@ -5,6 +5,7 @@ import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.ADJUST
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.ANALYSIS_CONFIG_DIAGS_FILE_NAME;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.HISTORICAL_CACHED_COMMTYPE_NAME;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.HISTORICAL_CACHED_ECONOMY_NAME;
+import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.INITIAL_PLACEMENT_ZIP_LOCATION_PREFIX;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.MAX_NUM_TRADERS_PER_PARTITION;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.NEW_BUYERS_NAME;
 import static com.vmturbo.market.diagnostics.AnalysisDiagnosticsConstants.REALTIME_CACHED_COMMTYPE_NAME;
@@ -71,6 +72,7 @@ public class AnalysisDiagnosticsCollector {
     private final String zipFilenameSuffix;
     private final AnalysisMode analysisMode;
     private final ExecutorService diagsWriterExecutorService;
+    private final IDiagsFileSystem fileSystem;
 
     /**
      * To identify which analysis diags we are saving.
@@ -128,6 +130,7 @@ public class AnalysisDiagnosticsCollector {
             @Nonnull ExecutorService diagsWriterExecutorService) {
         this.zipFilenameSuffix = zipFilenameSuffix;
         this.analysisMode = analysisMode;
+        this.fileSystem = new DiagsFileSystem();
         this.diagsWriterExecutorService = diagsWriterExecutorService;
     }
 
@@ -179,8 +182,9 @@ public class AnalysisDiagnosticsCollector {
                                                    @Nullable BiMap<CommodityType, Integer> realtimeCachedCommTypeMap,
                                                    @Nonnull List<InitialPlacementDTO> newInitialPlacements,
                                                    @Nullable Economy historicalCachedEconomy,
-                                                   @Nullable Economy realtimeCachedEconomy) {
-        if (!isEnabled()) {
+                                                   @Nullable Economy realtimeCachedEconomy,
+                                                    boolean saveOnError, int numPlacementDiagsToRetain) {
+        if (!isPlacementDiagsSaveEnabled(saveOnError, numPlacementDiagsToRetain)) {
             return;
         }
         final Stopwatch stopwatch = Stopwatch.createStarted();
@@ -239,6 +243,8 @@ public class AnalysisDiagnosticsCollector {
             logger.error("FindInitialPlacement: Error when attempting to save InitialPlacement diags", e);
         } finally {
             closeZipOutputStream(diagnosticZip);
+            AnalysisDiagnosticsUtils.reduceNumberOfDiagsByFilePrefix(
+                    INITIAL_PLACEMENT_ZIP_LOCATION_PREFIX, numPlacementDiagsToRetain, fileSystem);
             stopwatch.stop();
             logger.info("FindInitialPlacement: Completed dump of InitialPlacement diagnostics with timeStamp  {} in {} seconds",
                     timeStamp, stopwatch.elapsed(TimeUnit.SECONDS));
@@ -436,6 +442,20 @@ public class AnalysisDiagnosticsCollector {
     @VisibleForTesting
     static boolean isAnalysisDiagsSaveEnabled(final TopologyInfo topologyInfo, final int numRealTimeAnalysisDiagsToRetain) {
         return isEnabled() || !topologyInfo.hasPlanInfo() && numRealTimeAnalysisDiagsToRetain > 0;
+    }
+
+    /**
+     * Placement diags should be saved when either:
+     * 1. debug is enabled
+     * OR
+     * 2. error occurred on initial placement
+     * @param saveOnError flag to determined by whether an error occurred
+     * @param numPlacementDiagsToRetain number of placement diags to retain
+     * @return true if Placement diags is to be saved, false otherwise
+     */
+    @VisibleForTesting
+    static boolean isPlacementDiagsSaveEnabled(boolean saveOnError, int numPlacementDiagsToRetain) {
+        return isEnabled() || (saveOnError && numPlacementDiagsToRetain > 0);
     }
 
     private <T> void writeAnalysisDiagsEntry(final DiagnosticsWriter diagsWriter,
