@@ -72,6 +72,9 @@ public class GroupConfig {
     @Value("${considerUtilizationConstraintInClusterHeadroomPlan:false}")
     private boolean considerUtilizationConstraintInClusterHeadroomPlan;
 
+    @Value("${considerDesiredStateForProvisioningInClusterHeadroomPlan:false}")
+    private boolean considerDesiredStateForProvisioningInClusterHeadroomPlan;
+
     @Value("${addAccessCommoditiesForVsan:false}")
     private boolean addAccessCommoditiesForVsan;
 
@@ -163,7 +166,8 @@ public class GroupConfig {
     @Bean
     public EntitySettingsApplicator entitySettingsApplicator() {
         return new EntitySettingsApplicator(considerUtilizationConstraintInClusterHeadroomPlan,
-                                            addAccessCommoditiesForVsan);
+                                            addAccessCommoditiesForVsan,
+                considerDesiredStateForProvisioningInClusterHeadroomPlan);
     }
 
     @Bean
