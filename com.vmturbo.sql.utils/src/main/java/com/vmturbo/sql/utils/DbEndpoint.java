@@ -196,6 +196,7 @@ public class DbEndpoint {
      * @throws InterruptedException        if interrupted
      */
     public DataSource datasource() throws UnsupportedDialectException, SQLException, InterruptedException {
+        awaitCompletion(endpointCompleter.getMaxAwaitCompletionMs(), TimeUnit.MILLISECONDS);
         return datasource(config.getUseConnectionPool());
     }
 
