@@ -196,22 +196,9 @@ public class DbEndpoint {
      * @throws InterruptedException        if interrupted
      */
     public DataSource datasource() throws UnsupportedDialectException, SQLException, InterruptedException {
-        return datasource(config.getUseConnectionPool());
-    }
-
-    /**
-     * Get a {@link DataSource} bound to this endpoint.
-     *
-     * @param pooled if connection should be pooled
-     * @return dataSource data source
-     * @throws UnsupportedDialectException if this endpoint is mis-configured
-     * @throws SQLException                if there's a problem gaining access
-     * @throws InterruptedException        if interrupted
-     */
-    public DataSource datasource(boolean pooled) throws UnsupportedDialectException, SQLException, InterruptedException {
         awaitCompletion(endpointCompleter.maxAwaitCompletionMs, TimeUnit.MILLISECONDS);
         if (config.isEndpointEnabled()) {
-            return adapter.getDataSource(pooled);
+            return adapter.getDataSource(true);
         } else {
             throw new IllegalStateException("Attempt to use disabled database endpoint");
         }

@@ -19,7 +19,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointException;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.pool.DbConnectionPoolConfig;
 
 /**
  * Class used by {@link DbEndpoint} to perform various database operations that may be needed for
@@ -85,9 +84,6 @@ public abstract class DbAdapter {
     protected final Logger logger = LogManager.getLogger();
 
     protected final DbEndpointConfig config;
-
-    // singleton
-    private DataSource pooledDataSource;
 
     protected DbAdapter(DbEndpointConfig config) {
         this.config = config;
@@ -168,66 +164,28 @@ public abstract class DbAdapter {
     /**
      * Create a {@link DataSource} object for this endpoint, using non-root credentials.
      *
-     *
      * @param pooled true if the connection should be allocated from a pooled data source
      * @return new datasource object
      * @throws UnsupportedDialectException for an unsupported endpoint dialect
      * @throws SQLException                if the datasource cannot be created
      */
-    synchronized DataSource getDataSource(boolean pooled)
-            throws UnsupportedDialectException, SQLException {
-        if (pooled && pooledDataSource == null) {
-            pooledDataSource = createDataSource(getUrl(config), config.getUserName(),
-                    config.getPassword(), true);
-        }
-
-        return pooled ? pooledDataSource : createDataSource(getUrl(config), config.getUserName(),
-                config.getPassword(), false);
+    DataSource getDataSource(boolean pooled) throws UnsupportedDialectException, SQLException {
+        return createDataSource(getUrl(config), config.getUserName(), config.getPassword(), pooled);
     }
 
     /**
      * Create a new {@link DataSource} for the given DB url and credentials.
-     * A pooled datasource comes with its own new pool.
-     *
+     * A pooled datasource comes with it's own new pool.
      *
      * @param url      URL for DB server
-     * @param user     login username
+     * @param user     login user name
      * @param password login password
      * @param pooled   true if a pooled datasource is desired
      * @return new datasource
      * @throws SQLException if the datasource cannot be created
      */
-    protected DataSource createDataSource(String url, String user, String password, boolean pooled)
-            throws SQLException {
-        if (pooled) {
-            final int minPoolSize = config.getMinPoolSize();
-            final int maxPoolSize = config.getMaxPoolSize();
-            final int keepAliveIntervalMinutes = config.getKeepAliveIntervalMinutes();
-            logger.debug("Creating a pooled datasource for user: {}, minPoolSize={}, maxPoolSize={}",
-                    user, minPoolSize, maxPoolSize);
-            final String poolName = DbConnectionPoolConfig.generatePoolName(config.getSchemaName());
-            return DbConnectionPoolConfig.getPooledDataSource(
-                    url, user, password, minPoolSize, maxPoolSize, keepAliveIntervalMinutes, poolName, config.getDialect());
-            // In the SQLDatabaseConfig version of this initialization, we would create a
-            // HikariPoolMonitor here. If this ever replaces SQLDatabaseConfig as the main way
-            // for components to initialize their database connections, then we need to
-            // TODO: Create a pool monitor here
-        } else {
-            logger.debug("Creating a non-pooled datasource for user: {}", user);
-            return createUnpooledDataSource(url, user, password);
-        }
-    }
-
-    /**
-     * Create a new {@link DataSource} for the given DB url and credentials.
-     *
-     * @param url db url
-     * @param user db username
-     * @param password db password
-     * @return unpooled data source
-     * @throws SQLException if failed to create data source.
-     */
-    protected abstract DataSource createUnpooledDataSource(String url, String user, String password) throws SQLException;
+    protected abstract DataSource createDataSource(String url, String user, String password, boolean pooled)
+            throws SQLException;
 
     /**
      * Get a new {@link DataSource} object for this endpoint, suitable for use with flyway.
