@@ -303,7 +303,7 @@
                                     <goal>start</goal>
                                 </goals>
                                 <configuration>
-                                    <dockerHost>${dockerHost}</dockerHost>
+                                    <dockerHost>${fabricateDockerHost}</dockerHost>
                                     <showLogs>false</showLogs>
                                     <images>
                                         <image>
@@ -348,7 +348,7 @@
                                     <goal>stop</goal>
                                 </goals>
                                 <configuration>
-                                    <dockerHost>${dockerHost}</dockerHost>
+                                    <dockerHost>${fabricateDockerHost}</dockerHost>
                                     <images>
                                         <image>
                                             <name>${postgres-image}</name>
