@@ -306,7 +306,6 @@ public abstract class SQLDatabaseConfig {
      *
      * @return DSLContext that uses unpooled connections
      */
-    @Bean
     public DSLContext unpooledDsl() {
         return new DefaultDSLContext(configuration(unpooledDataSource()));
     }
