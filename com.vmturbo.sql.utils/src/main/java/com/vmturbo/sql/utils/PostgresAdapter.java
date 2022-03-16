@@ -51,15 +51,9 @@ public class PostgresAdapter extends DbAdapter {
         super(config);
     }
 
-    /**
-     * In this implementation, pooled datasources are not currently supported, and the `pooled`
-     * argument is ignored.
-     *
-     * <p>@see {@link DbAdapter#createDataSource(String, String, String, boolean)}
-     * </p>
-     */
     @Override
-    protected DataSource createDataSource(String url, String user, String password, boolean pooled) {
+    protected DataSource createUnpooledDataSource(String url, String user, String password)
+            throws SQLException {
         final PGSimpleDataSource dataSource = new PGSimpleDataSource();
         dataSource.setUrl(url);
         dataSource.setUser(user);
