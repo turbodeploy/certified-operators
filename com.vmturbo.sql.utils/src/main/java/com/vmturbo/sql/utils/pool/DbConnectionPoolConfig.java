@@ -11,6 +11,7 @@ import com.zaxxer.hikari.HikariDataSource;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.SQLDialect;
 import org.springframework.context.annotation.Configuration;
 
 /**
@@ -47,6 +48,9 @@ public class DbConnectionPoolConfig {
      */
     private static final long LEAK_DETECTION_THRESHOLD_MSEC = TimeUnit.MINUTES.toMillis(2);
 
+    private static final String MARIADB_DRIVER_CLASS_NAME = "org.mariadb.jdbc.Driver";
+    private static final String POSTGRES_DRIVER_CLASS_NAME = "org.postgresql.Driver";
+
     private DbConnectionPoolConfig() {
         // prevent instantiation of the utility class
     }
@@ -61,12 +65,13 @@ public class DbConnectionPoolConfig {
      * @param maxPoolSize maximum size for the DB connection pool
      * @param dbKeepAliveIntervalMinutes the keep-alive time in minutes
      * @param poolName The name of the connection pool.
+     * @param sqlDialect the sql dialect.
      * @return a HikariDataSource, providing a pool of database connections
      */
     public static DataSource getPooledDataSource(final String dbUrl,
            final String dbUsername, final String dbPassword, final int minPoolSize,
            final int maxPoolSize, @Nullable final Integer dbKeepAliveIntervalMinutes,
-           @Nonnull final String poolName) {
+           @Nonnull final String poolName, @Nonnull SQLDialect sqlDialect) {
         HikariDataSource dataSource = new HikariDataSource();
         // Minimum keep-alive time is 1 minute
         final long keepAliveTimeMillis =
@@ -76,7 +81,8 @@ public class DbConnectionPoolConfig {
         // Should be logged only once, on container startup
         logger.info("Initializing database connection pool: minPoolSize={}, maxPoolSize={}, "
                         + "keepAliveMillis={}", minPoolSize, maxPoolSize, keepAliveTimeMillis);
-        dataSource.setDriverClassName("org.mariadb.jdbc.Driver");
+        dataSource.setDriverClassName(sqlDialect == SQLDialect.POSTGRES ? POSTGRES_DRIVER_CLASS_NAME
+                : MARIADB_DRIVER_CLASS_NAME);
         dataSource.setJdbcUrl(dbUrl);
         dataSource.setUsername(dbUsername);
         dataSource.setPassword(dbPassword);
