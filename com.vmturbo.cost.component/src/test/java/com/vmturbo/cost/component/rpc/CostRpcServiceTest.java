@@ -93,7 +93,7 @@ import com.vmturbo.cost.component.entity.cost.EntityCostToStatRecordConverter;
 import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
 import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
-import com.vmturbo.cost.component.savings.EntitySavingsStore;
+import com.vmturbo.cost.component.savings.bottomup.EntitySavingsStore;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
