@@ -216,6 +216,8 @@ public class ScopeTableManagerTest {
             return;
         }
 
+        // cannot use hikari connection pool since it does not inherit BaseConnection
+        // TestDbEndpoint defaults connection pools to be off.
         BaseConnection pgcon = (BaseConnection)connection;
         CopyManager copyManager = new CopyManager(pgcon);
         File pathToCsv = Paths.get(scopeCsv.toURI()).toFile();
