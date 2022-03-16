@@ -611,7 +611,7 @@ public class EntitySettingsApplicatorTest {
      */
     @Before
     public void init() {
-        applicator = new EntitySettingsApplicator(false, false);
+        applicator = new EntitySettingsApplicator(false, false, false);
         cpuCapacityService = CpuCapacityServiceGrpc.newBlockingStub(grpcServer.getChannel());
     }
 
@@ -1918,7 +1918,7 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testHeadroomCpuUtilizationFeatureFlagEnabled() {
-        applicator = new EntitySettingsApplicator(true, false);
+        applicator = new EntitySettingsApplicator(true, false, false);
         final TopologyEntityImpl builder =
             createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU);
         // Suppose the effective capacity is 80 - i.e. 20% is reserved for HA
@@ -1932,6 +1932,27 @@ public class EntitySettingsApplicatorTest {
         // The effective capacity for headroom should be 75% * 50% = 37.5%
         Assert.assertEquals(37.5f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
             0.0001);
+    }
+
+    /**
+     * When ConsiderDesiredStateForProvisioningInClusterHeadroomPlan is set to true ,
+     * cpu provisioned EffectiveCapacityPercentage capacity percentage should be
+     * EffectiveCapacityPercentage * maxDesiredUtilization.
+     */
+    @Test
+    public void testConsiderDesiredStateForProvisioningInClusterHeadroomPlan() {
+        applicator = new EntitySettingsApplicator(false,
+                false, true);
+        final TopologyEntityImpl builder =
+                createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU_PROVISIONED);
+        builder.getCommoditySoldListImpl(0).setEffectiveCapacityPercentage(100.0f);
+        // Suppose the maximum desired utilization is 75%
+        applySettings(CLUSTER_HEADROOM_TOPOLOGY_INFO, builder,
+                createSetting(EntitySettingSpecs.TargetBand, 10f),
+                createSetting(EntitySettingSpecs.UtilTarget, 70f));
+        // The effective capacity for headroom should be 75%
+        Assert.assertEquals(75.0f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
+                0.0001);
     }
 
     /**

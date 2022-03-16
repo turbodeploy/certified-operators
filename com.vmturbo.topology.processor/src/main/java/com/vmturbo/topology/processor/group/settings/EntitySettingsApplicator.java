@@ -84,17 +84,22 @@ public class EntitySettingsApplicator {
 
     private final boolean considerUtilizationConstraintInClusterHeadroomPlan;
     private final boolean addAccessCommoditiesForVsan;
+    private final boolean considerDesiredStateForProvisioningInClusterHeadroomPlan;
 
     /**
      * Constructor.
      *
      * @param considerUtilizationConstraintInClusterHeadroomPlan consider utilization constraint in cluster headroom plan or not
      * @param addAccessCommoditiesForVsan add access commodities between vsan hosts and storages when true.
+     * @param considerDesiredStateForProvisioningInClusterHeadroomPlan use desired state for over provisioning in headroom.
      */
     public EntitySettingsApplicator(final boolean considerUtilizationConstraintInClusterHeadroomPlan,
-                                    final boolean addAccessCommoditiesForVsan) {
+                                    final boolean addAccessCommoditiesForVsan,
+                                    final boolean considerDesiredStateForProvisioningInClusterHeadroomPlan) {
         this.considerUtilizationConstraintInClusterHeadroomPlan = considerUtilizationConstraintInClusterHeadroomPlan;
         this.addAccessCommoditiesForVsan = addAccessCommoditiesForVsan;
+        this.considerDesiredStateForProvisioningInClusterHeadroomPlan =
+                considerDesiredStateForProvisioningInClusterHeadroomPlan;
     }
 
     /**
@@ -108,7 +113,7 @@ public class EntitySettingsApplicator {
                               @Nonnull final GraphWithSettings graphWithSettings) {
         final List<SettingApplicator> applicators =
             buildApplicators(topologyInfo, graphWithSettings,
-                    considerUtilizationConstraintInClusterHeadroomPlan, addAccessCommoditiesForVsan);
+                    considerUtilizationConstraintInClusterHeadroomPlan, addAccessCommoditiesForVsan, considerDesiredStateForProvisioningInClusterHeadroomPlan);
         graphWithSettings.getTopologyGraph().entities()
             .map(TopologyEntity::getTopologyEntityImpl)
             .forEach(entity -> {
@@ -147,12 +152,14 @@ public class EntitySettingsApplicator {
      * @param graphWithSettings {@link GraphWithSettings} of the in-progress topology
      * @param considerUtilizationConstraintInClusterHeadroomPlan consider utilization constraint in cluster headroom plan or not
      * @param addAccessCommoditiesForVsan add access commodities between vsan hosts and storages when true.
+     * @param considerDesiredStateForProvisioningInClusterHeadroomPlan use desired state for over provisioning in headroom.
      * @return A list of {@link SettingApplicator}s for settings that apply to this topology.
      */
     private static List<SettingApplicator> buildApplicators(@Nonnull final TopologyInfo topologyInfo,
                                                             @Nonnull final GraphWithSettings graphWithSettings,
                                                             final boolean considerUtilizationConstraintInClusterHeadroomPlan,
-                                                            final boolean addAccessCommoditiesForVsan) {
+                                                            final boolean addAccessCommoditiesForVsan,
+                                                            final boolean considerDesiredStateForProvisioningInClusterHeadroomPlan) {
         return ImmutableList.of(new MoveApplicator(),
                 new VMShopTogetherApplicator(topologyInfo),
                 new ReconfigureApplicator(),
@@ -205,7 +212,7 @@ public class EntitySettingsApplicator {
                         CommodityType.STORAGE_AMOUNT),
                 new UtilTargetApplicator(),
                 new TargetBandApplicator(),
-                new HaDependentUtilizationApplicator(topologyInfo, considerUtilizationConstraintInClusterHeadroomPlan),
+                new HaDependentUtilizationApplicator(topologyInfo, considerUtilizationConstraintInClusterHeadroomPlan, considerDesiredStateForProvisioningInClusterHeadroomPlan),
                 new VmCpuScalingApplicator(graphWithSettings.getTopologyGraph()),
                 new ResizeIncrementApplicator(EntitySettingSpecs.VmVmemIncrement,
                         CommodityType.VMEM),
@@ -963,10 +970,14 @@ public class EntitySettingsApplicator {
 
         private final boolean considerUtilizationConstraintInClusterHeadroomPlan;
 
+        private final boolean considerDesiredStateForProvisioningInClusterHeadroomPlan;
+
         private HaDependentUtilizationApplicator(@Nonnull final TopologyInfo topologyInfo,
-                                                 final boolean considerUtilizationConstraintInClusterHeadroomPlan) {
+                                                 final boolean considerUtilizationConstraintInClusterHeadroomPlan,
+                                                 final boolean considerDesiredStateForProvisioningInClusterHeadroomPlan) {
             this.topologyInfo = Objects.requireNonNull(topologyInfo);
             this.considerUtilizationConstraintInClusterHeadroomPlan = considerUtilizationConstraintInClusterHeadroomPlan;
+            this.considerDesiredStateForProvisioningInClusterHeadroomPlan = considerDesiredStateForProvisioningInClusterHeadroomPlan;
         }
 
         @Override
@@ -996,6 +1007,12 @@ public class EntitySettingsApplicator {
                                 0f));
                     applyMaxUtilizationToCapacity(entity, CommodityType.CPU, maxDesiredUtilization);
                     applyMaxUtilizationToCapacity(entity, CommodityType.MEM, maxDesiredUtilization);
+                    if (considerDesiredStateForProvisioningInClusterHeadroomPlan) {
+                        applyMaxUtilizationToCapacity(entity,
+                                CommodityType.CPU_PROVISIONED, maxDesiredUtilization);
+                        applyMaxUtilizationToCapacity(entity,
+                                CommodityType.MEM_PROVISIONED, maxDesiredUtilization);
+                    }
                 }
             }
         }
