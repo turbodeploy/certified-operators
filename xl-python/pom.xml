@@ -14,7 +14,6 @@
     <description>Python bindings for XL components' internal communications over gRPC.</description>
 
     <properties>
-        <dockerHost>unix:///var/run/docker.sock</dockerHost>
         <rawProtoLocation>${project.build.directory}/protobuf</rawProtoLocation>
         <outputProtoLocation>${project.build.directory}/${project.name}</outputProtoLocation>
         <zipLocation>${project.build.directory}/${project.name}-${project.version}.zip</zipLocation>
@@ -97,7 +96,7 @@
                             <allContainers>true</allContainers>
                             <removeVolumes>true</removeVolumes>
 
-                            <dockerHost>${dockerHost}</dockerHost>
+                            <dockerHost>${fabricateDockerHost}</dockerHost>
                             <showLogs>true</showLogs>
                             <images>
                                 <image>
@@ -184,21 +183,6 @@
             </plugin>
         </plugins>
     </build>
-
-    <profiles>
-        <profile>
-            <id>windows-docker-host</id>
-            <activation>
-                <os>
-                    <family>windows</family>
-                </os>
-            </activation>
-            <properties>
-                <!-- On Docker for Windows this will require exposing the Daemon with TLS disabled . -->
-                <dockerHost>tcp://localhost:2375</dockerHost>
-            </properties>
-        </profile>
-    </profiles>
 
     <dependencies>
         <dependency>
