@@ -141,6 +141,7 @@ public class ExtractorDbConfig extends DbEndpointsConfig {
     @Bean
     public DbEndpoint ingesterEndpoint() {
         return derivedDbEndpoint("dbs.extractor", dbBaseConfig.extractorDbEndpointBase())
+                .withUseConnectionPool(false)
                 .withAccess(DbEndpointAccess.ALL)
                 .withShouldProvision(true)
                 .withRootAccessEnabled(true)
@@ -157,6 +158,7 @@ public class ExtractorDbConfig extends DbEndpointsConfig {
     @Bean
     public DbEndpoint ingesterMySqlEndpoint() {
         return derivedDbEndpoint("dbs.search", searchDbBaseConfig.extractorMySqlDbEndpoint())
+                .withUseConnectionPool(false)
                 .withAccess(DbEndpointAccess.ALL)
                 .withShouldProvision(true)
                 .withRootAccessEnabled(true)
@@ -173,6 +175,7 @@ public class ExtractorDbConfig extends DbEndpointsConfig {
     public DbEndpoint queryEndpoint() {
         return derivedDbEndpoint("dbs.extractor.query",
                 dbBaseConfig.extractorQueryDbEndpointBase())
+                .withUseConnectionPool(false)
                 .withShouldProvisionUser(true)
                 .withRootAccessEnabled(true)
                 .withEndpointEnabled(extractorGlobalConfig.requireDatabase())
@@ -193,6 +196,7 @@ public class ExtractorDbConfig extends DbEndpointsConfig {
     @Bean
     public DbEndpoint grafanaWriterEndpoint() {
         return dbEndpoint("dbs.grafana", SQLDialect.POSTGRES)
+                .withUseConnectionPool(false)
                 .withSchemaName("grafana_writer")
                 .withAccess(DbEndpointAccess.ALL)
                 .withShouldProvision(true)
