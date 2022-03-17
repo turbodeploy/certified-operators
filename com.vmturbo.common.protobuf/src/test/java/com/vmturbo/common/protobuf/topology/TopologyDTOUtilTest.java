@@ -18,12 +18,14 @@ import com.vmturbo.common.protobuf.action.ActionDTOREST.Action.PrerequisiteType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -285,5 +287,32 @@ public class TopologyDTOUtilTest {
         assertTrue(topologyEntity.getEntityPropertyMapMap().containsKey(EXECUTION_CONSTRAINT_PROPERTY));
         assertEquals(ephemeralDiskCount, outActionVmInfo.getAttachedEphemeralVolumes());
         assertEquals(PrerequisiteType.LOCAL_SSD_ATTACHED.name(), outActionVmInfo.getExecutionConstraint());
+    }
+
+    /**
+     * Checks to make sure the locks are correctly applied on volume
+     * being set correctly in the ActionVolumeInfo.
+     */
+    @Test
+    public void actionVolumeLocks() {
+        long volId = 1001;
+        final String lock = "[Scope: VolumeLock, name: DeleteLock, locktype: CanNotDelete, notes: Delete Lock]";
+        final TopologyEntityDTO.Builder topologyEntity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setOid(volId);
+        final VirtualVolumeInfo.Builder volInfoBuilder = VirtualVolumeInfo.newBuilder();
+        volInfoBuilder.setLocks(lock);
+        topologyEntity.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualVolume(volInfoBuilder)
+                .build());
+
+        // Before setting, verify lock dones not present on volume.
+        Optional<ActionEntityTypeSpecificInfo.Builder> actionInfo =
+                TopologyDTOUtil.makeActionTypeSpecificInfo(topologyEntity);
+        assertTrue(actionInfo.isPresent());
+        assertTrue(actionInfo.get().hasVolume());
+        ActionVolumeInfo outActionVolume = actionInfo.get().getVolume();
+        assertTrue(outActionVolume.hasLocks());
+        assertEquals(lock, outActionVolume.getLocks());
     }
 }

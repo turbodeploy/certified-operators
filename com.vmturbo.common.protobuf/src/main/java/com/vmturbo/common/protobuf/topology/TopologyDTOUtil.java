@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionPhysicalMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionStorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -699,6 +700,14 @@ public final class TopologyDTOUtil {
                 return Optional.of(ActionEntityTypeSpecificInfo.newBuilder()
                     .setStorage(ActionStorageInfo.newBuilder()
                             .setStorageType(typeSpecificInfo.getStorage().getStorageType())));
+            case VIRTUAL_VOLUME:
+                if (typeSpecificInfo.getVirtualVolume().hasLocks()) {
+                    return Optional.of(ActionEntityTypeSpecificInfo.newBuilder()
+                        .setVolume(ActionVolumeInfo.newBuilder()
+                                .setLocks(typeSpecificInfo.getVirtualVolume().getLocks())));
+                 } else {
+                    return Optional.empty();
+                 }
             default:
                 // No other action-specific data.
                 return Optional.empty();

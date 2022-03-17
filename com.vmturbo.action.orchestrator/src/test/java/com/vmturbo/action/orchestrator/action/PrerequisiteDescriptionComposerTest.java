@@ -13,6 +13,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.PrerequisiteType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
@@ -83,4 +84,24 @@ public class PrerequisiteDescriptionComposerTest {
                 + "navigate to the Azure portal and adjust at the scale set", prerequisites.get(0));
     }
 
+    /**
+     * Test prerequisite description for Azure delete volume action.
+     */
+    @Test
+    public void testComposeDeleteVolumeActionPrerequisiteDescription() {
+        ActionDTO.Action action = ActionDTO.Action.newBuilder().setId(0)
+                .setInfo(ActionInfo.newBuilder().setDelete(
+                        Delete.newBuilder().setTarget(ActionEntity.newBuilder()
+                                .setId(1).setType(EntityType.VIRTUAL_VOLUME.getNumber()))))
+                .setDeprecatedImportance(0)
+                .setExplanation(Explanation.getDefaultInstance())
+                .addAllPrerequisite(Arrays.asList(
+                     Prerequisite.newBuilder().setPrerequisiteType(PrerequisiteType.LOCKS)
+                    .setLocks("[Scope: VolumeLock, name: DeleteLock, locktype: CanNotDelete, notes: Delete Lock]").build()))
+                .build();
+        List<String> prerequisites = PrerequisiteDescriptionComposer.composePrerequisiteDescription(action);
+        assertEquals(1, prerequisites.size());
+        assertEquals("(^_^)~To execute action on {entity:1:displayName:Virtual Volume}, "
+                + "please remove these locks: [Scope: VolumeLock, name: DeleteLock, locktype: CanNotDelete, notes: Delete Lock]", prerequisites.get(0));
+    }
 }

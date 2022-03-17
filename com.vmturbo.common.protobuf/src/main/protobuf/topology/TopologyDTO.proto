@@ -402,6 +402,9 @@ message TypeSpecificInfo {
 
         // Usage for the volume, i.e. what the volume is used for.
         optional .common_dto.EntityDTO.VirtualVolumeData.UsageType usage_type = 14;
+
+        // If present, info about any locks that might prevent Volume action execution.
+        optional string locks = 15;
     }
 
     // specific data for a Storage entity
@@ -702,6 +705,7 @@ message PartialEntity {
                 ActionPhysicalMachineInfo physical_machine = 2;
                 ActionComputeTierInfo compute_tier = 3;
                 ActionStorageInfo storage = 4;
+                ActionVolumeInfo volume = 5;
             }
 
             message ActionComputeTierInfo {
@@ -740,6 +744,10 @@ message PartialEntity {
 
             message ActionStorageInfo {
                 optional .common_dto.EntityDTO.StorageType storage_type = 1;
+            }
+
+            message ActionVolumeInfo {
+               optional string locks = 1;
             }
 
         }
