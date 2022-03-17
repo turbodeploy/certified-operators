@@ -46,7 +46,7 @@ import com.vmturbo.cost.component.db.tables.records.ReservedInstanceCoverageLate
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
-import com.vmturbo.cost.component.savings.EntitySavingsException;
+import com.vmturbo.cost.component.savings.bottomup.EntitySavingsException;
 import com.vmturbo.cost.component.topology.IngestedTopologyStore;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;

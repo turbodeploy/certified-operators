@@ -27,7 +27,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
-import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology;
 import com.vmturbo.cloud.common.commitment.TopologyEntityCommitmentTopology;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
@@ -51,7 +50,6 @@ import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
-import com.vmturbo.cost.component.cloud.commitment.mapping.MappingInfo;
 import com.vmturbo.cost.component.cloud.commitment.TopologyCommitmentConfig;
 import com.vmturbo.cost.component.cloud.commitment.TopologyCommitmentCoverageEstimator.CommitmentCoverageEstimatorFactory;
 import com.vmturbo.cost.component.db.DbAccessConfig;
@@ -70,7 +68,7 @@ import com.vmturbo.cost.component.reserved.instance.ReservedInstanceRollupProces
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.rollup.RollupConfig;
 import com.vmturbo.cost.component.savings.EntitySavingsConfig;
-import com.vmturbo.cost.component.savings.EntitySavingsTopologyMonitor;
+import com.vmturbo.cost.component.savings.bottomup.EntitySavingsTopologyMonitor;
 import com.vmturbo.cost.component.topology.cloud.listener.CCADemandCollector;
 import com.vmturbo.cost.component.topology.cloud.listener.EntityCostWriter;
 import com.vmturbo.cost.component.topology.cloud.listener.LiveCloudTopologyListener;

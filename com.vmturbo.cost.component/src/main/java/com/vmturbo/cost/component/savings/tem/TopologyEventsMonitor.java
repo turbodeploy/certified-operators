@@ -14,10 +14,10 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.component.savings.MonitoredEntity;
-import com.vmturbo.cost.component.savings.SavingsEvent;
-import com.vmturbo.cost.component.savings.TopologyEvent.Builder;
-import com.vmturbo.cost.component.savings.TopologyEvent.EventType;
+import com.vmturbo.cost.component.savings.bottomup.MonitoredEntity;
+import com.vmturbo.cost.component.savings.bottomup.SavingsEvent;
+import com.vmturbo.cost.component.savings.bottomup.TopologyEvent.Builder;
+import com.vmturbo.cost.component.savings.bottomup.TopologyEvent.EventType;
 
 /**
  * Generate topology events based on differences between a discovered topology and the state of

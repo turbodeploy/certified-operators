@@ -40,6 +40,23 @@ import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.rollup.RollupConfig;
+import com.vmturbo.cost.component.savings.bottomup.ActionListener;
+import com.vmturbo.cost.component.savings.bottomup.AuditLogWriter;
+import com.vmturbo.cost.component.savings.bottomup.DataRetentionProcessor;
+import com.vmturbo.cost.component.savings.bottomup.EntityEventsJournal;
+import com.vmturbo.cost.component.savings.bottomup.EntitySavingsProcessor;
+import com.vmturbo.cost.component.savings.bottomup.EntitySavingsRetentionConfig;
+import com.vmturbo.cost.component.savings.bottomup.EntitySavingsStore;
+import com.vmturbo.cost.component.savings.bottomup.EntitySavingsTracker;
+import com.vmturbo.cost.component.savings.bottomup.EntityStateStore;
+import com.vmturbo.cost.component.savings.bottomup.EventInjector;
+import com.vmturbo.cost.component.savings.bottomup.InMemoryEntityEventsJournal;
+import com.vmturbo.cost.component.savings.bottomup.RollupSavingsProcessor;
+import com.vmturbo.cost.component.savings.bottomup.SqlAuditLogWriter;
+import com.vmturbo.cost.component.savings.bottomup.SqlEntityEventsJournal;
+import com.vmturbo.cost.component.savings.bottomup.SqlEntitySavingsStore;
+import com.vmturbo.cost.component.savings.bottomup.SqlEntityStateStore;
+import com.vmturbo.cost.component.savings.bottomup.TopologyEventsPoller;
 import com.vmturbo.cost.component.savings.tem.TopologyEventsMonitor;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -462,7 +479,7 @@ public class EntitySavingsConfig {
      * @return Set of supported types.
      */
     @Nonnull
-    static Set<EntityType> getSupportedEntityTypes() {
+    public static Set<EntityType> getSupportedEntityTypes() {
         return supportedEntityTypes;
     }
 
@@ -471,7 +488,7 @@ public class EntitySavingsConfig {
      * @return Set of supported actions.
      */
     @Nonnull
-    static Set<ActionType> getSupportedActionTypes() {
+    public static Set<ActionType> getSupportedActionTypes() {
         return supportedActionTypes;
     }
 
