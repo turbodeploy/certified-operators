@@ -7,7 +7,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -402,121 +401,6 @@ public class GroupMapper {
     }
 
     /**
-     * Return the environment type and the cloud type for a given group.
-     * @param groupAndMembers - the parsed groupAndMembers object for a given group.
-     * @param entities map of all the entities (this map contains members of a group, not
-     *         vice versa).
-     * @return the EnvCloudMapper:
-     * EnvironmentType:
-     *  - CLOUD if all group members are CLOUD entities or it is empty cloud group or regular
-     *          group with cloud group members
-     *  - ON_PREM if all group members are ON_PREM entities
-     *  - HYBRID if the group contains members both CLOUD entities and ON_PREM entities.
-     *  CloudType:
-     *  - AWS if all group members are AWS entities
-     *  - AZURE if all group members are AZURE entities
-     *  - HYBRID if the group contains members both AWS entities and AZURE entities.
-     *  - UNKNOWN if the group type cannot be determined
-     */
-    private EntityEnvironment getEnvironmentAndCloudTypeForGroup(
-            @Nonnull final GroupAndMembers groupAndMembers,
-            @Nonnull Map<Long, MinimalEntity> entities) {
-        // parse the entities members of groupDto
-        final Set<CloudType> cloudTypes = EnumSet.noneOf(CloudType.class);
-        EnvironmentTypeEnum.EnvironmentType envType = null;
-        final Set<Long> targetSet = new HashSet<>(groupAndMembers.entities());
-        if (!targetSet.isEmpty()) {
-            for (MinimalEntity entity : groupAndMembers.entities()
-                    .stream()
-                    .map(entities::get)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList())) {
-                if (envType != entity.getEnvironmentType()) {
-                    envType = (envType == null) ? entity.getEnvironmentType() : EnvironmentTypeEnum.EnvironmentType.HYBRID;
-                }
-                // Trying to determine the cloud type
-                if (entity.getDiscoveringTargetIdsCount() > 0 && !envType.equals(EnvironmentTypeEnum.EnvironmentType.ON_PREM)) {
-                    // If entity is discovered by several targets iterate over
-                    // loop before finding target with cloud type
-                    for (Long targetId : entity.getDiscoveringTargetIdsList()) {
-                        Optional<ThinTargetCache.ThinTargetInfo> thinInfo = thinTargetCache.getTargetInfo(targetId);
-                        if (thinInfo.isPresent() && (!thinInfo.get().isHidden())) {
-                            ThinTargetCache.ThinTargetInfo getProbeInfo = thinInfo.get();
-                            Optional<CloudType> cloudType = cloudTypeMapper.fromTargetType(getProbeInfo.probeInfo().type());
-                            // Multiple targets might have stitched to the cloud entity. For instance,
-                            // in OM-54171, AppD stitched to a cloud VM, causing an NPE.
-                            if (cloudType.isPresent()) {
-                                cloudTypes.add(cloudType.get());
-                                break;
-                            }
-                        }
-                    }
-                    // Once we get more than one cloudType, we know that cloudType is HYBRID.
-                    // Also check that environmentType is already Hybrid.
-                    // If two conditions is true we can break loop through the entities in other case continue iterating in
-                    // order to not to miss entities with environmentType different from current envType.
-                    if (cloudTypes.size() > 1 && envType == EnvironmentTypeEnum.EnvironmentType.HYBRID) {
-                        break;
-                    }
-                }
-            }
-        } else {
-            final GroupType groupType = groupAndMembers.group().getDefinition().getType();
-            final List<MemberType> expectedTypes = groupAndMembers.group().getExpectedTypesList();
-            // case for empty cloud groups or regular groups with cloud groups
-            if (groupType == GroupType.RESOURCE || groupType == GroupType.BILLING_FAMILY ||
-                    expectedTypes.contains(
-                            MemberType.newBuilder().setGroup(GroupType.RESOURCE).build()) ||
-                    expectedTypes.contains(
-                            MemberType.newBuilder().setGroup(GroupType.BILLING_FAMILY).build())) {
-                envType = EnvironmentTypeEnum.EnvironmentType.CLOUD;
-            }
-        }
-
-        final EnvironmentTypeEnum.EnvironmentType environmentType;
-        final OptimizationMetadata optMetaData =
-                getGroupOptimizationMetaData(groupAndMembers.group());
-        if (optMetaData != null && optMetaData.hasEnvironmentType()) {
-            environmentType = optMetaData.getEnvironmentType();
-        } else if (envType != null) {
-            environmentType = envType;
-        } else {
-            // Case for group of non-cloud entities.
-            environmentType = hasAppOrContainerEnvironmentTarget()
-                    ? EnvironmentTypeEnum.EnvironmentType.HYBRID
-                    : EnvironmentTypeEnum.EnvironmentType.ON_PREM;
-        }
-
-        final CloudType cloudType;
-        if (cloudTypes.size() == 1) {
-            cloudType = cloudTypes.iterator().next();
-        } else if (cloudTypes.size() > 1) {
-            cloudType = CloudType.HYBRID;
-        } else {
-            cloudType = CloudType.UNKNOWN;
-        }
-
-        return new EntityEnvironment(
-                EnvironmentTypeMapper.fromXLToApi(environmentType), cloudType);
-    }
-
-    /**
-     * Returns a {@link OptimizationMetadata} from a given {@link Grouping} object.
-     *
-     * @param group The parsed {@link Grouping} object for a given {@link GroupAndMembers}.
-     * @return A {@link OptimizationMetadata} if exists, otherwise null.
-     */
-    private OptimizationMetadata getGroupOptimizationMetaData(
-                                        @Nullable final Grouping group) {
-        if (group != null && group.hasDefinition()
-                && group.getDefinition().hasOptimizationMetadata()) {
-            return group.getDefinition().getOptimizationMetadata();
-        } else {
-            return null;
-        }
-    }
-
-    /**
      * Converts an internal representation of a group represented as a {@link Grouping} object
      * to API representation of the object. Resulting groups are guaranteed to be in the same
      * size and order as source {@code group}.
@@ -669,7 +553,6 @@ public class GroupMapper {
                 .map(StaticMembersByType::getMembersList)
                 .flatMap(List::stream)
                 .collect(Collectors.toSet());
-
         } else {
             return Sets.newHashSet(groupAndMembers.members());
         }
@@ -719,6 +602,9 @@ public class GroupMapper {
              case BILLING_FAMILY:
                 outputDTO = extractBillingFamilyInfo(groupAndMembers);
                 break;
+             case BUSINESS_ACCOUNT_FOLDER:
+                 outputDTO = extractFolderInfo(groupAndMembers);
+                 break;
              case NODE_POOL:
              case RESOURCE:
                 final ResourceGroupApiDTO resourceGroup = new ResourceGroupApiDTO();
@@ -740,25 +626,13 @@ public class GroupMapper {
                 outputDTO = new GroupApiDTO();
          }
          outputDTO.setUuid(String.valueOf(group.getId()));
-
          outputDTO.setClassName(convertGroupTypeToApiType(groupDefinition.getType()));
 
-         List<String> directMemberTypes = GroupProtoUtil.getDirectMemberTypes(groupDefinition)
-                 .map(GroupMapper::convertMemberTypeToApiType)
-                 .filter(StringUtils::isNotEmpty)
-                 .collect(Collectors.toList());
-
-         if (!directMemberTypes.isEmpty()) {
-             if (groupDefinition.getType() == GroupType.RESOURCE) {
-                 outputDTO.setGroupType(StringConstants.WORKLOAD);
-             } else if (groupDefinition.getType() == GroupType.NODE_POOL) {
-                 outputDTO.setGroupType(StringConstants.VIRTUAL_MACHINE);
-             }else {
-                 outputDTO.setGroupType(String.join(",", directMemberTypes));
-             }
-         } else {
-             outputDTO.setGroupType(ApiEntityType.UNKNOWN.apiStr());
-         }
+        final List<String> directMemberTypes = GroupProtoUtil.getDirectMemberTypes(groupDefinition)
+            .map(GroupMapper::convertMemberTypeToApiType)
+            .filter(StringUtils::isNotEmpty)
+            .collect(Collectors.toList());
+        outputDTO.setGroupType(getGroupType(groupDefinition, directMemberTypes));
 
          outputDTO.setMemberTypes(directMemberTypes);
          outputDTO.setEntityTypes(group.getExpectedTypesList()
@@ -892,6 +766,26 @@ public class GroupMapper {
          return outputDTO;
     }
 
+    private String getGroupType(final GroupDefinition groupDefinition, final List<String> directMemberTypes) {
+        final String groupType;
+        switch (groupDefinition.getType()) {
+            case RESOURCE:
+                groupType = StringConstants.WORKLOAD;
+                break;
+            case NODE_POOL:
+                groupType = StringConstants.VIRTUAL_MACHINE;
+                break;
+            case BUSINESS_ACCOUNT_FOLDER:
+                groupType = StringConstants.BUSINESS_ACCOUNT;
+                break;
+            default:
+                groupType = directMemberTypes.isEmpty()
+                    ? ApiEntityType.UNKNOWN.apiStr() : String.join(",", directMemberTypes);
+                break;
+        }
+        return groupType;
+    }
+
     /**
      * Chooses if we must replace the currently selected target for return.
      * The logic is that non-hidden targets have priority over hidden targets, and in the case that
@@ -933,6 +827,22 @@ public class GroupMapper {
         return apiDTO;
     }
 
+    private GroupApiDTO extractFolderInfo(final GroupAndMembers groupAndMembers) throws ConversionException,
+        InterruptedException {
+        final GroupApiDTO groupApiDTO = new GroupApiDTO();
+        final int numDiscoveredAccounts = (int)businessAccountRetriever.getBusinessAccounts(groupAndMembers.entities())
+            .stream()
+            .filter(account -> account.getAssociatedTargetId() != null)
+            .count();
+        groupApiDTO.setEntitiesCount(numDiscoveredAccounts);
+        final List<String> memberUuids = GroupProtoUtil.getStaticMembers(groupAndMembers.group()).stream()
+            .map(id -> Long.toString(id))
+            .collect(Collectors.toList());
+        groupApiDTO.setMemberUuidList(memberUuids);
+        groupApiDTO.setMembersCount(memberUuids.size());
+        return groupApiDTO;
+    }
+
     private BillingFamilyApiDTO extractBillingFamilyInfo(GroupAndMembers groupAndMembers)
             throws ConversionException, InterruptedException {
         BillingFamilyApiDTO billingFamilyApiDTO = new BillingFamilyApiDTO();
@@ -952,8 +862,6 @@ public class GroupMapper {
             if (businessUnit.getCloudType() != null) {
                 billingFamilyApiDTO.setCloudType(businessUnit.getCloudType());
             }
-
-            String displayName = businessUnit.getDisplayName();
 
             if (businessUnit.isMaster()) {
                 billingFamilyApiDTO.setMasterAccountUuid(businessUnit.getUuid());
@@ -981,21 +889,18 @@ public class GroupMapper {
 
     @Nonnull
     private Set<Long> getGroupMembersAsLong(GroupApiDTO groupDto) {
-            if (groupDto.getMemberUuidList() == null) {
-                return Collections.emptySet();
-            } else {
-                Set<Long> result = new HashSet<>();
-                for (String uuid : groupDto.getMemberUuidList()) {
-                    try {
-                      //parse the uuids for the members
-                      result.add(Long.parseLong(uuid));
-                    } catch (NumberFormatException e) {
-                        logger.error("Invalid group member uuid in the list of group `{}` members: `{}`. Only long values as uuid are accepted.",
-                                        groupDto.getDisplayName(), String.join(",", groupDto.getMemberUuidList()));
-                    }
-                }
-                return result;
+        Set<Long> result = new HashSet<>();
+        for (String uuid : groupDto.getMemberUuidList()) {
+            try {
+                //parse the uuids for the members
+                result.add(Long.parseLong(uuid));
+            } catch (NumberFormatException e) {
+                logger.error("Invalid group member uuid in the list of group `{}` members: `{}`. "
+                        + "Only long values as uuid are accepted.",
+                    groupDto.getDisplayName(), String.join(",", groupDto.getMemberUuidList()));
             }
+        }
+        return result;
     }
 
     @Nonnull
@@ -1664,7 +1569,6 @@ public class GroupMapper {
                         .map(MinimalEntity::getOid).collect(Collectors.toSet());
             } catch (ExecutionException | TimeoutException e) {
                 errors.put("Failed to get entities from repository. Error: " + e.getMessage(), e);
-                entitiesFromRepository = Collections.emptyMap();
                 // fallback values for valid/active entities
                 validEntities = Sets.newHashSet(members);
                 activeEntities = Sets.newHashSet(members);

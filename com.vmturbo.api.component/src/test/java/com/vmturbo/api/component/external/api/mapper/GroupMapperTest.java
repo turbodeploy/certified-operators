@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.BUSINESS_ACCOUNT;
 import static com.vmturbo.common.protobuf.utils.StringConstants.BUSINESS_ACCOUNT_FOLDER;
 import static com.vmturbo.common.protobuf.utils.StringConstants.RESOURCE_GROUP;
 import static com.vmturbo.common.protobuf.utils.StringConstants.WORKLOAD;
@@ -224,6 +225,8 @@ public class GroupMapperTest {
             .addDiscoveringTargetIds(VC_TARGET.oid())
             .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
             .build();
+    private static final String FOLDER_NAME = "folder-1";
+    private static final long FOLDER_ID = 4444444L;
 
     /**
      * Expected exception rule.
@@ -1493,52 +1496,164 @@ public class GroupMapperTest {
     }
 
     /**
-     * Tests conversion of a Business Account Folder message.
+     * Tests conversion of an empty BusinessAccountFolder.
+     *
+     * @throws Exception if any error occurs.
+     */
+    @Test
+    public void testMapEmptyBusinessAccountFolder() throws Exception {
+        final Grouping grouping = createFolderGrouping(Collections.emptyList(), Collections.emptyList());
+        createGroupWithMembers(grouping, Collections.emptyList());
+        mockRepositoryEntitiesRequest(Collections.emptyList());
+        when(businessAccountRetriever.getBusinessAccounts(any())).thenReturn(Collections.emptyList());
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Collections.singletonList(grouping), false, null, null)
+            .getObjects().iterator().next();
+        verifyBusinessAccountFolder(mappedDto, 0, 0, Collections.emptySet());
+    }
+
+    /**
+     * Tests conversion of a BusinessAccountFolder containing only discovered child accounts.
      *
      * @throws Exception on exceptions occurred
      */
     @Test
-    public void testMapBusinessAccountFolder() throws Exception {
-        final long parentId = 1L;
-        final String parentDisplayName = "Test Business Account Folder";
-        final Grouping group = Grouping.newBuilder().setId(9L)
-                .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
-                .setDefinition(GroupDefinition.newBuilder().setType(GroupType.BUSINESS_ACCOUNT_FOLDER)
-                        .setDisplayName("foo")
-                        .setOwner(parentId))
-                .build();
+    public void testMapBusinessAccountFolderWithOnlyDiscoveredChildAccounts() throws Exception {
+        final List<Long> childAccounts = Arrays.asList(44444L, 55555L, 66666L);
+        final Grouping group = createFolderGrouping(Collections.emptyList(), childAccounts);
+        createGroupWithMembers(group, childAccounts);
+        mockRepositoryEntitiesRequest(childAccounts);
+        mockBusinessAccountRetrieverRequest(childAccounts, Collections.emptySet());
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Collections.singletonList(group), false, null, null)
+            .getObjects().iterator().next();
+        verifyBusinessAccountFolder(mappedDto, 3, 3, getFolderMemberUuids(Collections.emptyList(), childAccounts));
+    }
 
-        List<MinimalEntity> entities = new ArrayList<>();
-        for (long i = 1; i <= 9; i++) {
-            entities.add(MinimalEntity.newBuilder()
-                    .setOid(i)
-                    .build());
+    /**
+     * Tests conversion of a BusinessAccountFolder containing only undiscovered child accounts.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testMapBusinessAccountFolderWithOnlyUnDiscoveredChildAccounts() throws Exception {
+        final List<Long> childAccounts = Arrays.asList(44444L, 55555L, 66666L);
+        final Grouping group = createFolderGrouping(Collections.emptyList(), childAccounts);
+        createGroupWithMembers(group, childAccounts);
+        mockRepositoryEntitiesRequest(childAccounts);
+        mockBusinessAccountRetrieverRequest(childAccounts, new HashSet<>(childAccounts));
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Collections.singletonList(group), false, null, null)
+            .getObjects().iterator().next();
+        verifyBusinessAccountFolder(mappedDto, 0, 3, getFolderMemberUuids(Collections.emptyList(), childAccounts));
+    }
+
+    /**
+     * Tests conversion of a BusinessAccountFolder containing only child Folders.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testMapBusinessAccountFolderWithOnlyChildFolders() throws Exception {
+        final List<Long> childFolders = Arrays.asList(11111L, 22222L);
+        final Grouping group = createFolderGrouping(childFolders, Collections.emptyList());
+        createGroupWithMembers(group, childFolders, Collections.emptyList());
+        mockRepositoryEntitiesRequest(Collections.emptyList());
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Collections.singletonList(group), false, null, null)
+            .getObjects().iterator().next();
+        verifyBusinessAccountFolder(mappedDto, 0, 2, getFolderMemberUuids(Collections.emptyList(), childFolders));
+    }
+
+    /**
+     * Tests conversion of a BusinessAccountFolder containing a child folder and child accounts out of which one is an
+     * undiscovered account.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testMapBusinessAccountFolderWithChildFolderAndAccounts() throws Exception {
+        final List<Long> childFolders = Collections.singletonList(33333L);
+        final List<Long> childAccounts = Arrays.asList(44444L, 55555L, 66666L);
+        final Grouping group = createFolderGrouping(childFolders, childAccounts);
+        createGroupWithMembers(group, childFolders, childAccounts);
+        mockRepositoryEntitiesRequest(childAccounts);
+        mockBusinessAccountRetrieverRequest(childAccounts, Collections.singleton(55555L));
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Collections.singletonList(group), false, null, null)
+                    .getObjects().iterator().next();
+        verifyBusinessAccountFolder(mappedDto, 2, 4, getFolderMemberUuids(childFolders, childAccounts));
+    }
+
+    private void mockBusinessAccountRetrieverRequest(final List<Long> accountsToReturn,
+                                                     final Set<Long> undiscoveredAccounts) throws ConversionException,
+        InterruptedException {
+        final Set<BusinessUnitApiDTO> accounts = accountsToReturn.stream()
+            .map(id -> {
+                final BusinessUnitApiDTO account = new BusinessUnitApiDTO();
+                account.setAccountId(Long.toString(id));
+                if (!undiscoveredAccounts.contains(id)) {
+                    account.setAssociatedTargetId(111111L);
+                }
+                return account;
+            }).collect(Collectors.toSet());
+        when(businessAccountRetriever.getBusinessAccounts(any())).thenReturn(accounts);
+    }
+
+    private void mockRepositoryEntitiesRequest(final List<Long> entityIds) {
+        final MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiMinEntityReq(entityIds.stream()
+            .map(id -> MinimalEntity.newBuilder()
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .setOid(id)
+                .build())
+            .collect(Collectors.toList()));
+        when(repositoryApi.entitiesRequest(new HashSet<>(entityIds))).thenReturn(multiEntityRequest);
+    }
+
+    private Set<String> getFolderMemberUuids(final List<Long> childFolders, List<Long> childAccounts) {
+        final Set<Long> members = new HashSet<>();
+        members.addAll(childFolders);
+        members.addAll(childAccounts);
+        return members.stream()
+            .map(id -> Long.toString(id))
+            .collect(Collectors.toSet());
+    }
+
+    private void verifyBusinessAccountFolder(final GroupApiDTO group, final int expectedEntitiesCount,
+                                             final int expectedMembersCount, final Set<String> memberUuids) {
+        assertThat(group.getTemporary(), is(false));
+        assertThat(group.getUuid(), is(Long.toString(FOLDER_ID)));
+        assertThat(group.getClassName(), is(BUSINESS_ACCOUNT_FOLDER));
+        assertThat(group.getDisplayName(), is(FOLDER_NAME));
+        assertThat(group.getGroupType(), is(BUSINESS_ACCOUNT));
+        assertThat(group.getEntitiesCount(), is(expectedEntitiesCount));
+        assertThat(group.getMembersCount(), is(expectedMembersCount));
+        assertThat(new HashSet<>(group.getMemberUuidList()), is(memberUuids));
+        assertThat(group.getIsStatic(), is(true));
+    }
+
+    private Grouping createFolderGrouping(final List<Long> immediateFolderMembers,
+                                          final List<Long> immediateProjectMembers) {
+        final Grouping.Builder group = Grouping.newBuilder().setId(FOLDER_ID)
+            .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD);
+        final GroupDefinition.Builder definition = GroupDefinition.newBuilder()
+            .setDisplayName(FOLDER_NAME)
+            .setType(GroupType.BUSINESS_ACCOUNT_FOLDER);
+        final StaticMembers.Builder staticMembers = StaticMembers.newBuilder();
+        if (!immediateFolderMembers.isEmpty()) {
+            staticMembers.addMembersByType(StaticMembersByType.newBuilder()
+                    .setType(MemberType.newBuilder()
+                        .setGroup(GroupType.BUSINESS_ACCOUNT_FOLDER)
+                        .build())
+                    .addAllMembers(immediateFolderMembers)
+                .build());
         }
-        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(entities);
-        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
-
-        final MultiEntityRequest testRg = ApiTestUtils.mockMultiMinEntityReq(
-                Collections.singletonList(MinimalEntity.newBuilder()
-                        .setOid(parentId)
-                        .setDisplayName(parentDisplayName)
-                        .build()));
-        when(repositoryApi.entitiesRequest(Collections.singleton(parentId))).thenReturn(testRg);
-
-        when(groupExpander.getMembersForGroups(Arrays.asList(group))).thenReturn(Arrays.asList(ImmutableGroupAndMembers.builder()
-                .group(group).entities(GroupProtoUtil.getStaticMembers(group))
-                .members(GroupProtoUtil.getStaticMembers(group)).build()));
-        Mockito.when(targetCache.getAllTargets())
-                .thenReturn(Collections.singletonList(AWS_TARGET));
-
-        final GroupApiDTO mappedDto =
-                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
-                        .values()
-                        .iterator()
-                        .next();
-
-        assertThat(mappedDto.getTemporary(), is(false));
-        assertThat(mappedDto.getUuid(), is("9"));
-        assertThat(mappedDto.getClassName(), is(BUSINESS_ACCOUNT_FOLDER));
+        if (!immediateProjectMembers.isEmpty()) {
+            staticMembers.addMembersByType(StaticMembersByType.newBuilder()
+                .setType(MemberType.newBuilder()
+                    .setEntity(EntityType.BUSINESS_ACCOUNT_VALUE)
+                    .build())
+                .addAllMembers(immediateProjectMembers)
+                .build());
+        }
+        definition.setStaticGroupMembers(staticMembers);
+        group.setDefinition(definition);
+        return group.build();
     }
 
     @Test
