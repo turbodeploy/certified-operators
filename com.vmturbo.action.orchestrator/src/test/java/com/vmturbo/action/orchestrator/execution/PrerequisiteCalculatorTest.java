@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Architecture;
@@ -61,6 +62,7 @@ public class PrerequisiteCalculatorTest {
     private static final Long region2 = 101L;
 
     private static final String LOCK_MESSAGE = "[Scope: vm1, name: vm-lock-1, notes: VM lock]";
+    private static final String LOCK_MESSAGE_VOLUME = "[Scope: Disk_Delete, name: Disk-Delete,locktype: CanNotDelete]";
     private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
 
     private CoreQuotaStore coreQuotaStore = mock(CoreQuotaStore.class);
@@ -88,6 +90,18 @@ public class PrerequisiteCalculatorTest {
 
         Action.Builder actionBuilder = Action.newBuilder().setId(0).setDeprecatedImportance(0)
                 .setInfo(ActionInfo.newBuilder().setScale(scaleBuilder))
+                .setExplanation(Explanation.getDefaultInstance());
+
+        return actionBuilder.build();
+    }
+
+    private Action buildDeleteAction(final long sourceId) {
+        ActionDTO.Delete.Builder deleteBuilder = ActionDTO.Delete.newBuilder()
+                .setTarget(ActionEntity.newBuilder().setId(VM1)
+                        .setType(EntityType.VIRTUAL_VOLUME_VALUE));
+
+        Action.Builder actionBuilder = Action.newBuilder().setId(0).setDeprecatedImportance(0)
+                .setInfo(ActionInfo.newBuilder().setDelete(deleteBuilder))
                 .setExplanation(Explanation.getDefaultInstance());
 
         return actionBuilder.build();
@@ -146,6 +160,27 @@ public class PrerequisiteCalculatorTest {
         return ActionPartialEntity.newBuilder().setOid(VM1)
             .setTypeSpecificInfo(ActionEntityTypeSpecificInfo.newBuilder()
                 .setVirtualMachine(builder)).build();
+    }
+
+    /**
+     * Build a general volume {@link ActionPartialEntity}.
+     *
+     * @param prerequisiteTypes an array of {@link PrerequisiteType}
+     * @return an {@link ActionPartialEntity}
+     */
+    private ActionPartialEntity buildGeneralVolumeActionPartialEntity(PrerequisiteType... prerequisiteTypes) {
+        final ActionVolumeInfo.Builder builder = ActionVolumeInfo.newBuilder();
+        for (PrerequisiteType type : prerequisiteTypes) {
+            switch (type) {
+                    case LOCKS:
+                         builder.setLocks(LOCK_MESSAGE_VOLUME);
+                         break;
+            }
+        }
+
+        return ActionPartialEntity.newBuilder().setOid(VM1)
+                .setTypeSpecificInfo(ActionEntityTypeSpecificInfo.newBuilder()
+                        .setVolume(builder)).build();
     }
 
     /**
@@ -300,6 +335,23 @@ public class PrerequisiteCalculatorTest {
                 is(Collections.singleton(Prerequisite.newBuilder()
                         .setPrerequisiteType(PrerequisiteType.LOCKS)
                         .setLocks(LOCK_MESSAGE)
+                        .build())));
+    }
+
+    /**
+     * Tests whether prerequisite for (Azure) Volumes ( read-only / Delete ) lock is being set/computed correctly.
+     */
+    @Test
+    public void testCalculateGeneralPrerequisitesVolumeLocks() {
+        final long destinationId = 1;
+        final Action action = buildDeleteAction(2);
+        final ActionPartialEntity target = buildGeneralVolumeActionPartialEntity(PrerequisiteType.LOCKS);
+
+        assertThat(PrerequisiteCalculator.calculateGeneralPrerequisites(
+                action, target, snapshot, ProbeCategory.CLOUD_MANAGEMENT),
+                is(Collections.singleton(Prerequisite.newBuilder()
+                        .setPrerequisiteType(PrerequisiteType.LOCKS)
+                        .setLocks(LOCK_MESSAGE_VOLUME)
                         .build())));
     }
 
@@ -583,31 +635,32 @@ public class PrerequisiteCalculatorTest {
         final ActionComputeTierInfo computeTierInfo = ActionComputeTierInfo.newBuilder().build();
         final Map<String, Setting> settingsMap = Collections.emptyMap();
         final ActionVirtualMachineInfo.Builder actionVmInfoBuilder = ActionVirtualMachineInfo.newBuilder();
+        final ActionVolumeInfo actionVolumeInfoBuilder = ActionVolumeInfo.newBuilder().build();
 
         // No ephemeral disks and no execution constraint set.
         Optional<Prerequisite> noPrerequisite1 = PrerequisiteCalculator.calculateGcpLocalSsdPrerequisite(
-                actionVmInfoBuilder.build(), computeTierInfo, settingsMap);
+                actionVmInfoBuilder.build(), computeTierInfo, actionVolumeInfoBuilder, settingsMap);
         assertFalse(noPrerequisite1.isPresent());
 
         // Non-0 ephemeral disks, but no execution constraint set.
         int ephemeralDiskCount = 4;
         Optional<Prerequisite> noPrerequisite2 = PrerequisiteCalculator.calculateGcpLocalSsdPrerequisite(
                 actionVmInfoBuilder.setAttachedEphemeralVolumes(ephemeralDiskCount)
-                        .build(), computeTierInfo, settingsMap);
+                        .build(), computeTierInfo, actionVolumeInfoBuilder, settingsMap);
         assertFalse(noPrerequisite2.isPresent());
 
         // Non-0 ephemeral disks, but constraint set to something else, other than local SSD.
         Optional<Prerequisite> noPrerequisite3 = PrerequisiteCalculator.calculateGcpLocalSsdPrerequisite(
                 actionVmInfoBuilder.setAttachedEphemeralVolumes(ephemeralDiskCount)
                         .setExecutionConstraint("something else")
-                        .build(), computeTierInfo, settingsMap);
+                        .build(), computeTierInfo, actionVolumeInfoBuilder, settingsMap);
         assertFalse(noPrerequisite3.isPresent());
 
         // Both ephemeral disk counts and execution constraint set correctly.
         Optional<Prerequisite> yesPrerequisite4 = PrerequisiteCalculator.calculateGcpLocalSsdPrerequisite(
                 actionVmInfoBuilder.setAttachedEphemeralVolumes(ephemeralDiskCount)
                         .setExecutionConstraint(PrerequisiteType.LOCAL_SSD_ATTACHED.name())
-                        .build(), computeTierInfo, settingsMap);
+                        .build(), computeTierInfo, actionVolumeInfoBuilder, settingsMap);
         assertTrue(yesPrerequisite4.isPresent());
         final Prerequisite prerequisite = yesPrerequisite4.get();
         assertEquals(ephemeralDiskCount, prerequisite.getAttachedEphemeralVolumes());

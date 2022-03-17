@@ -47,6 +47,8 @@ public class PrerequisiteDescriptionComposer {
         "Can not give a proper pre-requisite description as action type is not defined";
     private static final String LOCK_PREREQUISITE_FORMAT =
             "To execute action on {0}, please remove these read-only locks: {1}";
+    private static final String LOCK_PREREQUISITE_FORMAT_VOLUME =
+            "To execute action on {0}, please remove these locks: {1}";
     private static final String SCALESET_PREREQUISITE_FORMAT =
             "To execute action on {0}, navigate to the Azure portal and adjust the scale set instance size";
     private static final String SCALESET_VOLUME_PREREQUISITE_FORMAT =
@@ -97,12 +99,14 @@ public class PrerequisiteDescriptionComposer {
                                             .setType(EntityType.REGION_VALUE).build()),
                                     buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action)));
                         case LOCKS:
+                            ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
                             return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
-                                    LOCK_PREREQUISITE_FORMAT,
+                                    actionEntity.getType() == EntityType.VIRTUAL_VOLUME_VALUE
+                                              ? LOCK_PREREQUISITE_FORMAT_VOLUME : LOCK_PREREQUISITE_FORMAT,
                                     buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action)),
                                     prerequisite.getLocks());
                         case SCALE_SET:
-                            ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
+                            actionEntity = ActionDTOUtil.getPrimaryEntity(action);
                             return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
                                     actionEntity.getType() == EntityType.VIRTUAL_VOLUME_VALUE
                                             ? SCALESET_VOLUME_PREREQUISITE_FORMAT : SCALESET_PREREQUISITE_FORMAT,

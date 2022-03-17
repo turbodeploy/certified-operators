@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -108,11 +109,13 @@ class PrerequisiteCalculator {
          *
          * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info
          * @param computeTierInfo computeTierInfo which contains pre-requisite info
+         * @param volumeInfo volumeInfo which contains pre-requisite info for volume
          * @param settingsForTargetEntity settings for the target entity
          * @return a {@link Prerequisite} if there's any
          */
         Optional<Prerequisite> calculate(ActionVirtualMachineInfo virtualMachineInfo,
                                          ActionComputeTierInfo computeTierInfo,
+                                         ActionVolumeInfo volumeInfo,
                                          Map<String, Setting> settingsForTargetEntity);
     }
 
@@ -124,7 +127,8 @@ class PrerequisiteCalculator {
                     PrerequisiteCalculator::calculateArchitecturePrerequisite,
                     PrerequisiteCalculator::calculateVirtualizationTypePrerequisite,
                     PrerequisiteCalculator::calculateLockPrerequisite,
-                    PrerequisiteCalculator::calculateGcpLocalSsdPrerequisite
+                    PrerequisiteCalculator::calculateGcpLocalSsdPrerequisite,
+                    PrerequisiteCalculator::calculateVolumeLocksSetPrerequisite
             );
 
     /**
@@ -142,6 +146,23 @@ class PrerequisiteCalculator {
             @Nonnull final ActionPartialEntity target,
             @Nonnull final EntitiesAndSettingsSnapshot snapshot,
             @Nonnull final ProbeCategory probeCategory) {
+
+
+        // Check if the category of the probe which discovers the target is CLOUD_MANAGEMENT and this
+        // action is a Delete action and the target of the action has volume type specific info.
+        if (probeCategory == ProbeCategory.CLOUD_MANAGEMENT
+            && action.getInfo().getActionTypeCase() == ActionTypeCase.DELETE
+            && target.getTypeSpecificInfo().hasVolume()) {
+            return generalPrerequisiteCalculators.stream()
+                    .map(calculator -> calculator.calculate(
+                            target.getTypeSpecificInfo().getVirtualMachine(),
+                            target.getTypeSpecificInfo().getComputeTier(),
+                            target.getTypeSpecificInfo().getVolume(),
+                            Collections.emptyMap()))
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toSet());
+        }
         // Check if the category of the probe which discovers the target is CLOUD_MANAGEMENT and this
         // action is a Scale action and the target of the action has virtual machine type specific info.
         // If not, there's no need to calculate pre-requisites for this action because
@@ -151,6 +172,7 @@ class PrerequisiteCalculator {
                 || !target.getTypeSpecificInfo().hasVirtualMachine()) {
             return Collections.emptySet();
         }
+
 
         for (ChangeProvider changeProvider : action.getInfo().getScale().getChangesList()) {
             if (changeProvider.hasDestination()) {
@@ -167,6 +189,7 @@ class PrerequisiteCalculator {
                         .map(calculator -> calculator.calculate(
                             target.getTypeSpecificInfo().getVirtualMachine(),
                             destinationOptional.get().getTypeSpecificInfo().getComputeTier(),
+                            target.getTypeSpecificInfo().getVolume(),
                             settingsForTargetEntity))
                         .filter(Optional::isPresent)
                         .map(Optional::get)
@@ -184,12 +207,14 @@ class PrerequisiteCalculator {
      *
      * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info
      * @param computeTierInfo computeTierInfo which contains pre-requisite info
+     * @param volumeInfo volumeInfo which contains pre-requisite info for volume
      * @param settingsForTargetEntity settings for the target entity
      * @return a {@link Prerequisite} if there's any
      */
     private static Optional<Prerequisite> calculateEnaPrerequisite(
         @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
         @Nonnull final ActionComputeTierInfo computeTierInfo,
+        @Nonnull final ActionVolumeInfo volumeInfo,
         @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         // Check if the compute tier supports only Ena vms.
         final boolean computeTierSupportsOnlyEnaVms = computeTierInfo.hasSupportedCustomerInfo()
@@ -213,12 +238,14 @@ class PrerequisiteCalculator {
      *
      * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info
      * @param computeTierInfo computeTierInfo which contains pre-requisite info
+     * @param volumeInfo volumeInfo which contains pre-requisite info for volume
      * @param settingsForTargetEntity settings for the target entity
      * @return a {@link Prerequisite} if there's any
      */
     private static Optional<Prerequisite> calculateNVMePrerequisite(
             @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
             @Nonnull final ActionComputeTierInfo computeTierInfo,
+            @Nonnull final ActionVolumeInfo volumeInfo,
             @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         Setting ignoreNvmeSetting = settingsForTargetEntity.get(IgnoreNvmePreRequisite.getSettingName());
         boolean ignoreNvme = ignoreNvmeSetting != null
@@ -248,12 +275,14 @@ class PrerequisiteCalculator {
      *
      * @param virtualMachineInfo VM info which may have optional read-only lock message set.
      * @param computeTierInfo Not used.
+     * @param volumeInfo volumeInfo which contains pre-requisite info for volume
      * @param settingsForTargetEntity Not used.
      * @return Prerequisite if there is a valid read-only lock, or empty.
      */
     private static Optional<Prerequisite> calculateLockPrerequisite(
             @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
             @Nonnull final ActionComputeTierInfo computeTierInfo,
+            @Nonnull final ActionVolumeInfo volumeInfo,
             @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         if (!virtualMachineInfo.hasLocks()
                 || StringUtils.isBlank(virtualMachineInfo.getLocks())) {
@@ -270,12 +299,14 @@ class PrerequisiteCalculator {
      *
      * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info
      * @param computeTierInfo computeTierInfo which contains pre-requisite info
+     * @param volumeInfo volumeInfo which contains pre-requisite info for volume
      * @param settingsForTargetEntity settings for the target entity
      * @return a {@link Prerequisite} if there's any
      */
     private static Optional<Prerequisite> calculateArchitecturePrerequisite(
         @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
         @Nonnull final ActionComputeTierInfo computeTierInfo,
+        @Nonnull final ActionVolumeInfo volumeInfo,
         @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         // Check if the compute tier has supported architectures.
         final boolean computeTierHasSupportedArchitectures =
@@ -300,12 +331,14 @@ class PrerequisiteCalculator {
      *
      * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info
      * @param computeTierInfo computeTierInfo which contains pre-requisite info
+     * @param volumeInfo volumeInfo which contains pre-requisite info for volume
      * @param settingsForTargetEntity settings for the target entity
      * @return a {@link Prerequisite} if there's any
      */
     private static Optional<Prerequisite> calculateVirtualizationTypePrerequisite(
             @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
             @Nonnull final ActionComputeTierInfo computeTierInfo,
+            @Nonnull final ActionVolumeInfo volumeInfo,
             @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         // Check if the compute tier has supported virtualization types.
         final boolean computeTierHasSupportedVirtualizationTypes =
@@ -555,6 +588,7 @@ class PrerequisiteCalculator {
      *
      * @param virtualMachineInfo Info about VM.
      * @param computeTierInfo Not used.
+     * @param volumeInfo Not used
      * @param settingsForTargetEntity Not used.
      * @return Prerequisite if applicable, or empty.
      */
@@ -562,6 +596,7 @@ class PrerequisiteCalculator {
     static Optional<Prerequisite> calculateGcpLocalSsdPrerequisite(
             @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
             @Nonnull final ActionComputeTierInfo computeTierInfo,
+            @Nonnull final ActionVolumeInfo volumeInfo,
             @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         if (!virtualMachineInfo.hasAttachedEphemeralVolumes()
                 || virtualMachineInfo.getAttachedEphemeralVolumes() == 0
@@ -575,4 +610,28 @@ class PrerequisiteCalculator {
                 .setAttachedEphemeralVolumes(virtualMachineInfo.getAttachedEphemeralVolumes())
                 .build());
     }
+    /**
+     * Checks if a prerequisite is needed for Volume based on whether we got info
+     * about any locks for the Volume from probe.
+     ** @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info Not used
+     * @param computeTierInfo Not used.
+     * @param volumeInfo volumeInfo which contains pre-requisite info for volume
+     * @param settingsForTargetEntity Not used.
+     * @return Prerequisite if applicable, or empty.
+     */
+    private static Optional<Prerequisite> calculateVolumeLocksSetPrerequisite(
+            @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
+            @Nonnull final ActionComputeTierInfo computeTierInfo,
+            @Nonnull final ActionVolumeInfo volumeInfo,
+            @Nonnull final Map<String, Setting> settingsForTargetEntity) {
+        if (!volumeInfo.hasLocks()
+                || StringUtils.isBlank(volumeInfo.getLocks())) {
+            return Optional.empty();
+        } else {
+            return Optional.of(Prerequisite.newBuilder()
+                .setPrerequisiteType(PrerequisiteType.LOCKS)
+                .setLocks(volumeInfo.getLocks())
+                .build());
+        }
+     }
 }

@@ -4,6 +4,9 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang.StringUtils;
+
+import com.vmturbo.common.protobuf.VirtualMachineProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
@@ -48,6 +51,12 @@ public class VirtualVolumeInfoMapper extends TypeSpecificInfoMapper {
         if (vvData.hasUsageType()) {
             vvInfo.setUsageType(vvData.getUsageType());
         }
+        // If there are any (Azure) locks prerequisites preventing action execution.
+        final String locks = entityPropertyMap.get(VirtualMachineProtoUtil.PROPERTY_LOCKS);
+        if (StringUtils.isNotBlank(locks)) {
+            vvInfo.setLocks(locks);
+        }
+
         vvInfo.addAllFiles(vvData.getFileList());
         retBuilder.setVirtualVolume(vvInfo.build());
         return retBuilder.build();
