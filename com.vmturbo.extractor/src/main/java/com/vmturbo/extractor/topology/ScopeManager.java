@@ -37,6 +37,7 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
 import org.jooq.CreateTableColumnStep;
 import org.jooq.DSLContext;
 import org.jooq.Field;
@@ -47,6 +48,7 @@ import org.jooq.conf.Settings;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.Constants;
@@ -101,7 +103,14 @@ import com.vmturbo.sql.utils.jooq.JooqUtil.TempTable;
 public class ScopeManager {
     private static final Logger logger = LogManager.getLogger();
 
-    static final OffsetDateTime EPOCH_TIMESTAMP = OffsetDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC);
+    static final OffsetDateTime EPOCH_TIMESTAMP =
+            OffsetDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC);
+
+    private static final String CHUNK_START_TIME_QUERY = "select min(range_start) as %s "
+            + "from timescaledb_information.chunks "
+            + "where hypertable_schema = 'extractor' and hypertable_name = 'scope'";
+
+    private static final String CHUNK_START = "chunk_start";
 
     private final DbEndpoint db;
     private final DataPack<Long> oidPack;
@@ -520,13 +529,31 @@ public class ScopeManager {
 
         @Override
         protected List<String> getPostCopyHookSql(final Connection transConn) {
-            final String sql = DSL.using(transConn, dsl.configuration().settings())
+
+            Condition whereClause = SCOPE.SEED_OID
+                    .eq(tempTable.field(SCOPE.SEED_OID))
+                    .and(SCOPE.SCOPED_OID.eq(tempTable.field(SCOPE.SCOPED_OID)))
+                    .and(SCOPE.FINISH.ge(MAX_TIMESTAMP));
+
+            if (FeatureFlags.SCOPE_HYPERTABLE.isEnabled()) {
+                String chunkStartFromDb = DSL
+                        .using(transConn, dsl.configuration().settings())
+                        .fetchSingle(String.format(CHUNK_START_TIME_QUERY, CHUNK_START))
+                        .get(CHUNK_START, String.class);
+
+                if (chunkStartFromDb != null) {
+                    OffsetDateTime chunkStart = OffsetDateTime.parse(chunkStartFromDb);
+                    logger.debug("Start of the first uncompressed scope chunk is {}", chunkStart);
+                    whereClause = whereClause.and(SCOPE.START.ge(chunkStart));
+                }
+            }
+
+            final String sql = DSL
+                    .using(transConn, dsl.configuration().settings())
                     .update(SCOPE)
                     .set(SCOPE.FINISH, priorTimestamp)
                     .from(tempTable.table())
-                    .where(SCOPE.SEED_OID.eq(tempTable.field(SCOPE.SEED_OID))
-                            .and(SCOPE.SCOPED_OID.eq(tempTable.field(SCOPE.SCOPED_OID)))
-                            .and(SCOPE.FINISH.ge(MAX_TIMESTAMP)))
+                    .where(whereClause)
                     .getSQL(ParamType.INLINED);
             return Collections.singletonList(sql);
         }
