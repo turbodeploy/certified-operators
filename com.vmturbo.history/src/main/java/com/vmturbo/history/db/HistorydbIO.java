@@ -1501,7 +1501,7 @@ public class HistorydbIO {
                 if (useTempTable) {
                     tempTableName = createTemporaryTableFromUuids(uuids, conn);
                 }
-                DSLContext connDsl = DSL.using(conn, dsl.dialect());
+                DSLContext connDsl = DSL.using(conn, dsl.dialect(), unpooledDsl.settings());
                 Result<?> statsRecords = connDsl.fetch(
                         new EntityCommoditiesMaxValuesQuery(
                                 table.get(),
@@ -1510,7 +1510,7 @@ public class HistorydbIO {
                                 isBought,
                                 uuids,
                                 tempTableName,
-                                DSL.using(conn)).getQuery());
+                                unpooledDsl).getQuery());
                 logger.debug("Number of records fetched for table {} = {}",
                         table.get(), statsRecords.size());
                 if (useTempTable) {
