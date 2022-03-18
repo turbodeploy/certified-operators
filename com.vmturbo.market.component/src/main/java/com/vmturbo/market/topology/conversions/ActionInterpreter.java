@@ -34,8 +34,8 @@ import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value.Immutable;
 import org.springframework.util.CollectionUtils;
 
-import com.vmturbo.api.enums.DatabasePricingModel;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableTupleImplementation;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -70,9 +70,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.SingleRegionMarketTier;
@@ -202,8 +200,6 @@ public class ActionInterpreter {
                     action = createAction(actionTO);
                     final ActionType translatedActionType = findTranslatedActionType(actionTO, originalCloudTopology);
                     if (translatedActionType == ActionType.SCALE) {
-                        // TODO: Remove setVCoreDbSupportingLevel when OM-79522 is implemented
-                        setVCoreDbSupportingLevel(actionTO, action, projectedTopology);
                         action.getInfoBuilder().setScale(interpretScaleAction(actionTO.getMove(),
                                 projectedTopology, originalCloudTopology));
                         actionList.add(ActionData.of(actionTO, action));
@@ -316,27 +312,6 @@ public class ActionInterpreter {
             }
 
             return Collections.EMPTY_LIST;
-        }
-    }
-
-    private void setVCoreDbSupportingLevel(
-            ActionTO actionTO,
-            Action.Builder action,
-            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
-        final ShoppingListInfo shoppingListInfo = getShoppingListInfo(actionTO.getMove());
-        final long targetEntityId = shoppingListInfo.getCollapsedBuyerId().orElse(shoppingListInfo.getBuyerId());
-        final ProjectedTopologyEntity projectedTopologyEntity = projectedTopology.get(targetEntityId);
-        if (Objects.isNull(projectedTopologyEntity)) {
-            return;
-        }
-        final TopologyEntityDTO projectedEntity = projectedTopologyEntity.getEntity();
-        if (EntityType.DATABASE_VALUE == projectedEntity.getEntityType()) {
-            String pricingModel = projectedEntity.getEntityPropertyMapOrDefault(StringConstants.DB_PRICING_MODEL, null);
-            if (pricingModel != null && DatabasePricingModel.vCore.toString().equals(pricingModel)) {
-                logger.debug("setSupportingLevel == SHOW_ONLY, executable == false on db: {} to ", projectedEntity.getDisplayName());
-                action.setSupportingLevel(Action.SupportLevel.SHOW_ONLY);
-                action.setExecutable(false);
-            }
         }
     }
 
@@ -627,14 +602,39 @@ public class ActionInterpreter {
         return destinationRegion;
     }
 
-    private ShoppingListInfo getShoppingListInfo(@Nonnull final MoveTO moveTO) {
-        final ShoppingListInfo shoppingListInfo =
-                shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
-        if (shoppingListInfo == null) {
-            throw new IllegalStateException(
-                    "Market returned invalid shopping list for MOVE: " + moveTO);
+    /**
+     * determine if the move action is a accounting action.
+     * @param destinationRegion the destination region.
+     * @param sourceRegion the source region.
+     * @param sourceMarketTier the source market tier
+     * @param move the move action.
+     * @param sourceTier the topololgyEntityDTO of source
+     * @param destTier the topololgyEntityDTO of destination
+     * @param targetOid The target of the move.
+     * @return true if the action is a accounting action (RI optimisation)
+     */
+    private boolean isAccountingAction (TopologyEntityDTO destinationRegion,
+            TopologyEntityDTO sourceRegion,
+            MarketTier sourceMarketTier,
+            @Nonnull final MoveTO move,
+            TopologyEntityDTO sourceTier,
+            TopologyEntityDTO destTier,
+            Long targetOid) {
+        final boolean isAccountingAction = destinationRegion == sourceRegion
+                && destTier == sourceTier
+                && (move.hasCouponDiscount() && move.hasCouponId() ||
+                sourceMarketTier.hasRIDiscount());
+        if (isAccountingAction) {
+            // We need to check if the original projected RI coverage of the target are the same.
+            // If they are the same, we should drop the action.
+            final double originalRICoverage = getTotalRiCoverage(
+                    cloudTc.getRiCoverageForEntity(targetOid).orElse(null));
+            final double projectedRICoverage = getTotalRiCoverage(
+                    projectedRICoverageCalculator.getProjectedRICoverageForEntity(targetOid));
+            return !areEqual(originalRICoverage, projectedRICoverage);
+        } else {
+            return false;
         }
-        return shoppingListInfo;
     }
 
     /**
@@ -651,7 +651,12 @@ public class ActionInterpreter {
     public ActionDTO.Scale interpretScaleAction(@Nonnull final MoveTO moveTO,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
             @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
-        final ShoppingListInfo shoppingListInfo = getShoppingListInfo(moveTO);
+        final ShoppingListInfo shoppingListInfo =
+                shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
+        if (shoppingListInfo == null) {
+            throw new IllegalStateException(
+                    "Market returned invalid shopping list for MOVE: " + moveTO);
+        }
         // Set action target entity.
         final ActionEntity actionTargetEntity = createActionTargetEntity(shoppingListInfo, projectedTopology);
         ActionDTO.Scale.Builder builder = ActionDTO.Scale.newBuilder().setTarget(actionTargetEntity);
