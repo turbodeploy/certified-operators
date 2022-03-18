@@ -217,7 +217,8 @@ public class MarketRunnerConfig {
             analysisGate(),
             marketRpcConfig.getInitialPlacementHandler(),
             rtAnalysisTimeoutSecs,
-            new ComponentRestartHelper(pipelineFailureHours));
+            new ComponentRestartHelper(pipelineFailureHours),
+            new AnalysisHealthTracker());
     }
 
     @Bean

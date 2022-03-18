@@ -92,6 +92,8 @@ public class MarketRunner {
 
     private final InitialPlacementHandler initialPlacementHandler;
 
+    private final AnalysisHealthTracker analysisHealthTracker;
+
     public MarketRunner(@Nonnull final ExecutorService runnerThreadPool,
                         @Nonnull final MarketNotificationSender serverApi,
                         @Nonnull final AnalysisFactory analysisFactory,
@@ -99,7 +101,8 @@ public class MarketRunner {
                         final TopologyProcessingGate topologyProcessingGate,
                         @Nonnull final InitialPlacementHandler initialPlacementHandler,
                         final long rtAnalysisTimeoutSecs,
-                        @Nonnull final ComponentRestartHelper componentRestartHelper) {
+                        @Nonnull final ComponentRestartHelper componentRestartHelper,
+                        @Nonnull final AnalysisHealthTracker analysisHealthTracker) {
         this.runnerThreadPool = Objects.requireNonNull(runnerThreadPool);
         this.serverApi = Objects.requireNonNull(serverApi);
         this.marketDebugRpcService = Objects.requireNonNull(marketDebugRpcService);
@@ -108,6 +111,7 @@ public class MarketRunner {
         this.initialPlacementHandler = Objects.requireNonNull(initialPlacementHandler);
         this.rtAnalysisTimeoutSecs = rtAnalysisTimeoutSecs;
         this.componentRestartHelper = componentRestartHelper;
+        this.analysisHealthTracker = analysisHealthTracker;
     }
 
     /**
@@ -290,6 +294,15 @@ public class MarketRunner {
     }
 
     /**
+     * Returns the analysis time out in seconds.
+     *
+     * @return the analysis time out in seconds.
+     */
+    public long getRtAnalysisTimeoutSecs() {
+        return rtAnalysisTimeoutSecs;
+    }
+
+    /**
      * Run the analysis, when done - remove it from the map of runs and notify listeners.
      *
      * <P>AnalysisStatusNotification is for RunTime exceptions. Actions/Projected entity/topology creation,
@@ -331,6 +344,7 @@ public class MarketRunner {
         }
         try {
             componentRestartHelper.updateResult(analysis.isDone());
+            analysisHealthTracker.update(analysis);
             if (analysis.isDone()) {
                 marketDebugRpcService.ifPresent(debugService -> {
                     debugService.recordCompletedAnalysis(analysis);
@@ -524,4 +538,11 @@ public class MarketRunner {
         return analysisMap.values();
     }
 
+    /**
+     * Get the analysis health tracker
+     * @return analysisHealthTracker
+     */
+    public AnalysisHealthTracker getAnalysisHealthTracker() {
+        return analysisHealthTracker;
+    }
 }

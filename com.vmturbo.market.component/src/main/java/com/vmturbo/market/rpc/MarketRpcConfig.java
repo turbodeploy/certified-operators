@@ -23,6 +23,7 @@ import com.vmturbo.market.db.DbAccessConfig;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.reservations.InitialPlacementHandler;
+import com.vmturbo.market.runner.MarketRunner;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -63,6 +64,16 @@ public class MarketRpcConfig {
     @Bean
     public MarketDebugServiceController marketDebugServiceController() {
         return marketDebugRpcService().map(MarketDebugServiceController::new).orElse(null);
+    }
+
+    /**
+     * Create the AnalysisStateRpcService to get the analysis state.
+     *
+     * @return A {@link AnalysisStateRpcService} instance.
+     */
+    @Bean
+    public AnalysisStateRpcService analysisStateRpcService(MarketRunner marketRunner) {
+        return new AnalysisStateRpcService(marketRunner);
     }
 
     /**

@@ -113,7 +113,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         LicenseCheckClientConfig.class,
         UserSessionConfig.class,
         KeyValueStoreConfig.class,
-        SearchDBConfig.class})
+        SearchDBConfig.class
+})
 @PropertySource("classpath:api-component.properties")
 public class ServiceConfig {
 
@@ -225,6 +226,9 @@ public class ServiceConfig {
     @Value("${enableEntitySavings:true}")
     private boolean enableEntitySavings;
 
+    @Value("${realtimeTopologyContextId}")
+    private Long realtimeTopologyContextId;
+
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
      */
@@ -263,6 +267,7 @@ public class ServiceConfig {
 
     @Autowired
     private RepositoryClient repositoryClient;
+
 
     @Bean
     public ActionsService actionsService() {
@@ -1126,7 +1131,7 @@ public class ServiceConfig {
      */
     @Bean
     public HealthDataAggregator healthDataAggregator() {
-        return new HealthDataAggregator(communicationConfig.targetsService());
+        return new HealthDataAggregator(communicationConfig.targetsService(), communicationConfig.analysisStateService(), realtimeTopologyContextId);
     }
 
     @Bean

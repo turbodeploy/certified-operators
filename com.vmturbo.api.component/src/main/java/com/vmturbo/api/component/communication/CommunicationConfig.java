@@ -73,6 +73,8 @@ import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
+import com.vmturbo.common.protobuf.market.AnalysisStateServiceGrpc;
+import com.vmturbo.common.protobuf.market.AnalysisStateServiceGrpc.AnalysisStateServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanExportServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanExportServiceGrpc.PlanExportServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanProjectServiceGrpc;
@@ -126,6 +128,7 @@ import com.vmturbo.extractor.api.ExtractorClientConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
+import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.notification.NotificationInMemoryStore;
 import com.vmturbo.notification.NotificationStore;
 import com.vmturbo.notification.api.impl.NotificationClientConfig;
@@ -155,7 +158,7 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
         RepositoryClientConfig.class, ReportingClientConfig.class, AuthClientConfig.class,
         CostClientConfig.class, ApiComponentGlobalConfig.class, ClusterMgrClientConfig.class,
         UserSessionConfig.class, ApiWebsocketConfig.class, BaseKafkaConsumerConfig.class,
-        ExtractorClientConfig.class})
+        ExtractorClientConfig.class,  MarketClientConfig.class})
 public class CommunicationConfig {
 
     @Autowired
@@ -187,6 +190,10 @@ public class CommunicationConfig {
 
     @Autowired
     private ExtractorClientConfig extractorClientConfig;
+
+    @Autowired
+    private MarketClientConfig marketClientConfig;
+
 
     /**
      * No explicit import to avoid circular dependency.
@@ -277,6 +284,16 @@ public class CommunicationConfig {
     @Bean
     public TargetsServiceBlockingStub targetsService() {
         return TargetsServiceGrpc.newBlockingStub(tpClientConfig.topologyProcessorChannel());
+    }
+
+    /**
+     * Target gRPC service.
+     *
+     * @return instance of market gRPC service
+     */
+    @Bean
+    public AnalysisStateServiceBlockingStub analysisStateService() {
+        return AnalysisStateServiceGrpc.newBlockingStub(marketClientConfig.marketChannel());
     }
 
     @Bean

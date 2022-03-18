@@ -146,7 +146,8 @@ public class MarketTimeoutTest {
         // initialize market runner with a low timeout of 1secs
         runner = new MarketRunner(threadPool, serverApi, analysisFactory, Optional.empty(),
                 new SingleTopologyProcessingGate(10, TimeUnit.MINUTES),
-                initialPlacementHandler, 1, new ComponentRestartHelper(6));
+                initialPlacementHandler, 1, new ComponentRestartHelper(6),
+                new AnalysisHealthTracker());
 
         AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,

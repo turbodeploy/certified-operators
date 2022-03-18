@@ -33,6 +33,10 @@ import com.vmturbo.api.enums.health.HealthCategory;
 import com.vmturbo.api.enums.health.HealthState;
 import com.vmturbo.api.enums.health.TargetErrorType;
 import com.vmturbo.api.enums.health.TargetStatusSubcategory;
+import com.vmturbo.common.protobuf.market.AnalysisStateServiceGrpc;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
+import com.vmturbo.common.protobuf.market.MarketNotification.GetAnalysisStateResponse;
+import com.vmturbo.common.protobuf.market.MarketNotificationMoles.AnalysisStateServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetDetailsResponse;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
@@ -55,12 +59,13 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
 
     private TargetsServiceMole targetBackend = spy(TargetsServiceMole.class);
     private SettingServiceMole settingBackend = spy(SettingServiceMole.class);
+    private AnalysisStateServiceMole analysisStateServiceMole = spy(AnalysisStateServiceMole.class);
 
     /**
      * gRPC test server.
      */
     @Rule
-    public GrpcTestServer testServer = GrpcTestServer.newServer(targetBackend, settingBackend);
+    public GrpcTestServer testServer = GrpcTestServer.newServer(targetBackend, settingBackend, analysisStateServiceMole);
 
     private HealthDataAggregator healthDataAggregator;
 
@@ -69,7 +74,8 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
      */
     @Before
     public void setup() {
-        healthDataAggregator = new HealthDataAggregator(TargetsServiceGrpc.newBlockingStub(testServer.getChannel()));
+        healthDataAggregator = new HealthDataAggregator(TargetsServiceGrpc.newBlockingStub(testServer.getChannel()),
+                AnalysisStateServiceGrpc.newBlockingStub(testServer.getChannel()), 777777L);
     }
 
     /**
@@ -332,7 +338,7 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         defaultMockTargetHealth(healthOfTargets);
 
         List<HealthCategoryResponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(null);
-        Assert.assertEquals(1, aggregatedData.size());
+        Assert.assertEquals(2, aggregatedData.size());
         HealthCategoryResponseDTO responseDTO = aggregatedData.get(0);
         Assert.assertEquals(HealthCategory.TARGET, responseDTO.getHealthCategory());
         Assert.assertEquals(HealthState.MINOR, responseDTO.getCategoryHealthState());
@@ -375,5 +381,27 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         AggregatedHealthResponseDTO response = responseItems.get(0);
         Assert.assertEquals(HealthState.NORMAL, response.getHealthState());
         Assert.assertEquals(2, response.getNumberOfItems());
+    }
+
+    /**
+     * Test getAggregateHealth with action health included.
+     */
+    @Test
+    public void testGetAggregatedHealth() {
+        Map<Long, TargetDetails> targetDetails = new HashMap<>();
+        targetDetails.put(0L, createTargetDetails(0L,
+                makeHealthNormal(TargetHealthSubCategory.VALIDATION, "normallyValidated"),
+                new ArrayList<>(), new ArrayList<>(), false));
+        mockTargetHealth(targetDetails);
+        doAnswer(invocationOnMock -> {
+            GetAnalysisStateResponse.Builder respBuilder = GetAnalysisStateResponse.newBuilder();
+            respBuilder.setAnalysisState(AnalysisState.FAILED).setTimeOutSetting(3600L);
+            return respBuilder.build();
+        }).when(analysisStateServiceMole).getAnalysisState(any());
+        List<HealthCategoryResponseDTO> responseDTOs = healthDataAggregator.getAggregatedHealth(null);
+        List<HealthCategoryResponseDTO> actionDTO = responseDTOs.stream().filter(dto
+                -> dto.getHealthCategory().equals(HealthCategory.ACTION)).collect(Collectors.toList());
+        Assert.assertEquals(1, actionDTO.size());
+        Assert.assertEquals(HealthState.CRITICAL, actionDTO.get(0).getCategoryHealthState());
     }
 }
