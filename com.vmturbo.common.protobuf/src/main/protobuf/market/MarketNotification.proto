@@ -46,3 +46,15 @@ message AnalysisStatusNotification {
         FAILED = 4;
     }
 }
+
+message GetAnalysisStateRequest {
+    // topology_context_id of the plan or real-time topology
+    optional int64 topology_context_id = 1;
+}
+message GetAnalysisStateResponse {
+    optional AnalysisStatusNotification.AnalysisState analysis_state = 1;
+    optional int64 time_out_setting = 2;
+}
+service AnalysisStateService {
+    rpc GetAnalysisState (GetAnalysisStateRequest) returns (GetAnalysisStateResponse);
+}

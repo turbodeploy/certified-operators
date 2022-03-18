@@ -105,6 +105,7 @@ public class MarketComponent extends BaseVmtComponent {
         final List<BindableService> services = new ArrayList<>();
         services.add(marketGlobalConfig.traxConfigurationRpcService());
         services.add(marketRpcConfig.initialPlacementRpcService());
+        services.add(marketRpcConfig.analysisStateRpcService(marketRunnerConfig.marketRunner()));
         return services;
     }
 

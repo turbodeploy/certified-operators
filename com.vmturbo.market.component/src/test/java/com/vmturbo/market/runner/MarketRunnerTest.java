@@ -154,7 +154,7 @@ public class MarketRunnerTest {
         threadPool = Executors.newFixedThreadPool(2);
         runner = new MarketRunner(threadPool, serverApi,
                 analysisFactory, Optional.empty(), PASSTHROUGH_GATE, initialPlacementHandler, 10000,
-                new ComponentRestartHelper(6));
+                new ComponentRestartHelper(6), new AnalysisHealthTracker());
 
         topologyContextId += 100;
 

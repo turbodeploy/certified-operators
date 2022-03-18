@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -21,6 +22,7 @@ import com.vmturbo.api.dto.target.DiscoveryInfoApiDTO;
 import com.vmturbo.api.dto.target.TargetErrorDetailsApiDTO;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.dto.target.TargetThirdPartyErrorDetailsApiDTO;
+import com.vmturbo.api.enums.health.ActionStatusSubcategory;
 import com.vmturbo.api.enums.health.HealthState;
 import com.vmturbo.api.enums.health.TargetErrorType;
 import com.vmturbo.api.enums.health.TargetStatusSubcategory;
@@ -44,6 +46,10 @@ public class HealthDataMapper {
      * A suffix appended to the message (error) text for hidden targets.
      */
     public static final String HIDDEN_TARGET_MESSAGE_SUFFIX = " (Hidden Target)";
+
+    static final String ANALYSIS_TIME_OUT_INFO = "Analysis timed out after %d seconds. Actions may be incomplete. Please contact support.";
+
+    static final String ANALYSIS_TIME_OUT_ERROR = "TIMEOUT";
 
     private static final Map<ErrorTypeInfoCase, TargetErrorType> ERROR_TYPE_INFO_CONVERTER = Maps.newHashMap();
 
@@ -214,6 +220,21 @@ public class HealthDataMapper {
             }
         }
         return result;
+    }
+
+    /**
+     * Aggregate action health info into a list of {@link AggregatedHealthResponseDTO} items.
+     *
+     * @param timeout the analysis time out.
+     * @return a list of AggregatedHealthResponseDTOs.
+     */
+    public static @Nonnull List<AggregatedHealthResponseDTO> aggregateAnalysisHealthDTO(long timeout) {
+        AggregatedHealthResponseDTO aggregatedHealthResponseDTO =
+                new AggregatedHealthResponseDTO(ActionStatusSubcategory.ANALYSIS.name(),
+                        HealthState.CRITICAL, 1);
+        Recommendation rec = new Recommendation(ANALYSIS_TIME_OUT_ERROR, String.format(ANALYSIS_TIME_OUT_INFO, timeout));
+        aggregatedHealthResponseDTO.addRecommendation(rec);
+        return Arrays.asList(aggregatedHealthResponseDTO);
     }
 
     @Nonnull

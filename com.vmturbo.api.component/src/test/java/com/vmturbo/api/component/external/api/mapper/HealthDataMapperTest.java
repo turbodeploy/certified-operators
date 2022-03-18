@@ -17,6 +17,7 @@ import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO;
 import com.vmturbo.api.dto.target.DiscoveryInfoApiDTO;
 import com.vmturbo.api.dto.target.TargetErrorDetailsApiDTO;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
+import com.vmturbo.api.enums.health.ActionStatusSubcategory;
 import com.vmturbo.api.enums.health.HealthState;
 import com.vmturbo.api.enums.health.TargetStatusSubcategory;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
@@ -99,5 +100,22 @@ public class HealthDataMapperTest extends HealthChecksTestBase {
         TargetErrorDetailsApiDTO errorDetails = targetHealthApiDTO.getTargetErrorDetails().iterator().next();
         Assert.assertTrue(errorDetails instanceof DiscoveryInfoApiDTO);
         Assert.assertEquals(numberOfFailures, ((DiscoveryInfoApiDTO)errorDetails).getNumberOfConsecutiveFailures());
+    }
+
+    /**
+     * Test the creation of an analysis time out health response dto.
+     */
+    @Test
+    public void testAggregateActionHealthDTO() {
+        long timeout = 3600L;
+        List<AggregatedHealthResponseDTO> responseDTOS = HealthDataMapper.aggregateAnalysisHealthDTO(timeout);
+        Assert.assertEquals(1, responseDTOS.size());
+        AggregatedHealthResponseDTO response = responseDTOS.get(0);
+        Assert.assertEquals(ActionStatusSubcategory.ANALYSIS.name(), response.getSubcategory());
+        Assert.assertEquals(HealthState.CRITICAL, response.getHealthState());
+        Assert.assertEquals(1, response.getNumberOfItems());
+        Assert.assertEquals(1, response.getRecommendations().size());
+        Assert.assertEquals(HealthDataMapper.ANALYSIS_TIME_OUT_ERROR, response.getRecommendations().get(0).getErrorType());
+        Assert.assertEquals( String.format(HealthDataMapper.ANALYSIS_TIME_OUT_INFO, timeout), response.getRecommendations().get(0).getDescription());
     }
 }
