@@ -327,6 +327,19 @@ public class TemplatesServiceTest {
     }
 
     /**
+     * Test that having a missing DisplayName throws the expected exceptions.
+     */
+    @Test
+    public void testValidateInputEmptyDisplayName() {
+        final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
+        templateApiInputDTO.setDisplayName("");
+        templateApiInputDTO.setClassName("VirtualMachineProfile");
+        expectedEx.expectMessage("DisplayName is a required field");
+
+        templatesService.validateInput(templateApiInputDTO, null);
+    }
+
+    /**
      * Test that having an invalid ComputeResources stats throws the expected exceptions.
      */
     @Test
