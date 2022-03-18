@@ -13,6 +13,7 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
@@ -239,7 +240,7 @@ public class TemplatesService implements ITemplatesService {
         if (dto.getClassName() == null) {
             errorMsgBuilder.append(". ClassName is a required field");
         }
-        if (dto.getDisplayName() == null) {
+        if (StringUtils.isBlank(dto.getDisplayName())) {
             errorMsgBuilder.append(". DisplayName is a required field");
         }
         if (dto.getComputeResources() != null) {
