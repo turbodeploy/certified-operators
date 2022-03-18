@@ -1564,6 +1564,11 @@ message UploadBilledCostRequest {
         optional int64 cost_tag_group_id = 11;
         optional int64 provider_oid = 12;
         optional int32 provider_type = 13;
+
+        // For a small subset of data points (those related to VMs, DBs etc.), we need to track
+        // the changes, so that we can know and notify of cost changes. For only these, we set
+        // this flag, not used for rest of the data points (like network etc.).
+        optional bool track_changes = 14;
     }
 
     message CostTagGroupMap {

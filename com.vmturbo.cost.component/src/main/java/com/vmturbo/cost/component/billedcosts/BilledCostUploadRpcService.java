@@ -37,7 +37,6 @@ public class BilledCostUploadRpcService extends BilledCostUploadServiceGrpc.Bill
      *
      * @param tagGroupIdentityService used to resolve tag group ids by creating new ones or retrieving existing ones.
      * @param billedCostStore to insert into billed cost tables.
-     *
      */
     public BilledCostUploadRpcService(@Nonnull final TagGroupIdentityService tagGroupIdentityService,
                                       @Nonnull final BilledCostStore billedCostStore) {
@@ -48,7 +47,8 @@ public class BilledCostUploadRpcService extends BilledCostUploadServiceGrpc.Bill
     @Override
     public StreamObserver<Cost.UploadBilledCostRequest> uploadBilledCost(
         @Nonnull final StreamObserver<Cost.UploadBilledCostResponse> responseObserver) {
-        return new BilledCostRequestStreamObserver(responseObserver, tagGroupIdentityService, billedCostStore);
+        return new BilledCostRequestStreamObserver(responseObserver, tagGroupIdentityService,
+                billedCostStore);
     }
 
     /**
@@ -67,6 +67,7 @@ public class BilledCostUploadRpcService extends BilledCostUploadServiceGrpc.Bill
             granularityByBillingId = new HashMap<>();
         private final List<Future<Integer>> submittedBatches = new ArrayList<>();
         private State state = State.INITIALIZED;
+        private long requestCreationTime;
 
         /**
          * States of the Stream observer.
@@ -101,7 +102,9 @@ public class BilledCostUploadRpcService extends BilledCostUploadServiceGrpc.Bill
                 return;
             }
             if (state == State.INITIALIZED) {
-                logger.info("Start processing BilledCostUpload requests.");
+                requestCreationTime = uploadBilledCostRequest.getCreatedTime();
+                logger.info("Start processing BilledCostUpload requests. Request time: {}",
+                        requestCreationTime);
                 state = State.IN_PROGRESS;
             }
             if (uploadBilledCostRequest.hasBillingIdentifier() && uploadBilledCostRequest.hasGranularity()) {
@@ -120,7 +123,7 @@ public class BilledCostUploadRpcService extends BilledCostUploadServiceGrpc.Bill
                         final Map<Long, Long> discoveredTagGroupIdToOid = tagGroupIdentityService
                             .resolveIdForDiscoveredTagGroups(tagGroupByGroupId);
                         submittedBatches.addAll(billedCostStore.insertBillingDataPoints(points,
-                            discoveredTagGroupIdToOid, granularity));
+                            discoveredTagGroupIdToOid, granularity, requestCreationTime));
                     } catch (DbException exception) {
                         logger.error("Exception encountered processing Billed Cost Upload request.", exception);
                         state = State.COMPLETE;
@@ -160,14 +163,15 @@ public class BilledCostUploadRpcService extends BilledCostUploadServiceGrpc.Bill
                     final CostBilling.CloudBillingData.CloudBillingBucket.Granularity granularity =
                         granularityByBillingId.get(billingId);
                     submittedBatches.addAll(billedCostStore.insertBillingDataPoints(points, discoveredTagGroupIdToOid,
-                        granularity));
+                        granularity, requestCreationTime));
                 }
                 final Cost.UploadBilledCostResponse.Builder response = Cost.UploadBilledCostResponse.newBuilder();
                 int totalItemsProcessed = 0;
                 for (final Future<Integer> batch : submittedBatches) {
                     totalItemsProcessed += batch.get();
                 }
-                logger.info("Completed persisting {} billing data items.", totalItemsProcessed);
+                logger.info("Completed persisting {} billing data items, notified request time: {}.",
+                        totalItemsProcessed, requestCreationTime);
                 responseObserver.onNext(response.build());
                 responseObserver.onCompleted();
             } catch (final DbException | ExecutionException | InterruptedException  exception) {

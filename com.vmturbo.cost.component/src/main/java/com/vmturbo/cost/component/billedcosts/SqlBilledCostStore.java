@@ -71,7 +71,8 @@ public class SqlBilledCostStore implements BilledCostStore {
     public List<Future<Integer>> insertBillingDataPoints(
         @Nonnull List<Cost.UploadBilledCostRequest.BillingDataPoint> points,
         @Nonnull Map<Long, Long> discoveredTagGroupIdToOid,
-        @Nonnull CostBilling.CloudBillingData.CloudBillingBucket.Granularity granularity) {
+        @Nonnull CostBilling.CloudBillingData.CloudBillingBucket.Granularity granularity,
+            long requestCreationTime) {
         if (granularity == CostBilling.CloudBillingData.CloudBillingBucket.Granularity.DAILY) {
             final List<Cost.UploadBilledCostRequest.BillingDataPoint> malformedPoints = new ArrayList<>();
             final AtomicLong minSampleTime = new AtomicLong(Long.MAX_VALUE);
@@ -121,6 +122,18 @@ public class SqlBilledCostStore implements BilledCostStore {
                             record.setProviderType((short)point.getProviderType());
                         } else {
                             record.setProviderType((short)0);
+                        }
+                        if (!point.hasTrackChanges()
+                                || !point.getTrackChanges()
+                                || record.getEntityId() == 0
+                                || record.getProviderId() == 0) {
+                            // If this record is not to be tracked, then we set last updated to 0
+                            // here, so that we can check for that during update and set it
+                            // to null instead. We don't want to set a value in this case. For
+                            // new records, we end up setting it to 0 initially.
+                            record.setLastUpdated(0L);
+                        } else {
+                            record.setLastUpdated(requestCreationTime);
                         }
                         return record;
                     } else {

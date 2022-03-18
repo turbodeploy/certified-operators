@@ -298,6 +298,9 @@ public class BilledCostUploader {
         if (originalDataPoint.hasCostTagGroupId()) {
             billingDp.setCostTagGroupId(originalDataPoint.getCostTagGroupId());
         }
+        if (originalDataPoint.hasTrackChanges() && originalDataPoint.getTrackChanges()) {
+            billingDp.setTrackChanges(true);
+        }
         return billingDp.build();
     }
 
