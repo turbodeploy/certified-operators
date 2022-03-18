@@ -25,12 +25,14 @@ public interface BilledCostStore {
      * @param points to be inserted into Billed Cost table.
      * @param discoveredTagGroupIdToOid map to lookup tag group id of the points.
      * @param granularity (hourly, daily or monthly) of the data points being inserted.
+     * @param requestCreationTime Timestamp when billing request was created.
      * @return list of futures for submitted insert tasks.
      */
     List<Future<Integer>> insertBillingDataPoints(
         @Nonnull List<Cost.UploadBilledCostRequest.BillingDataPoint> points,
         @Nonnull Map<Long, Long> discoveredTagGroupIdToOid,
-        @Nonnull CostBilling.CloudBillingData.CloudBillingBucket.Granularity granularity);
+        @Nonnull CostBilling.CloudBillingData.CloudBillingBucket.Granularity granularity,
+            long requestCreationTime);
 
     /**
      * Roll up billed cost data points from source table to destination table.
