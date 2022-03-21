@@ -30,7 +30,10 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.api.pagination.TagOrderBy;
+import com.vmturbo.api.pagination.TagPaginationRequest;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
@@ -51,7 +54,7 @@ public class TagsServiceTest {
     private final GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
     private final RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
     private final PaginationMapper paginationMapper = Mockito.mock(PaginationMapper.class);
-    private final TagsPaginationMapper tagPaginationMapper = Mockito.mock(TagsPaginationMapper.class);
+    private final TagsPaginationMapper tagPaginationMapper = new TagsPaginationMapper();
 
     /**
      * Testing gRPC server.
@@ -199,35 +202,14 @@ public class TagsServiceTest {
         Assert.assertEquals(responseEntity, tagsService.getEntitiesByTagKey(tagKey, searchPaginationRequest));
     }
 
-    /**
-     * Tests {@link TagsService#getEntitiesByTagKey}.
-     *
-     * @throws Exception should not happen
-     */
-    @Test
-    public void testGetEntitiesByTagKey() throws Exception {
-        final String tagKey = "tagKey";
-        final SearchRequest searchRequest = Mockito.mock(SearchRequest.class);
-        final ServiceEntityApiDTO mockSE = new ServiceEntityApiDTO();
-        final ResponseEntity<List<ServiceEntityApiDTO>> mockResult = new ResponseEntity<List<ServiceEntityApiDTO>>(Collections.singletonList(mockSE), new HttpHeaders(), HttpStatus.OK);
-        Mockito.when(searchRequest.getSEList()).thenReturn(mockResult.getBody());
-        Mockito.when(repositoryApi.newSearchRequest(Mockito.eq(
-                SearchParameters.newBuilder()
-                    .setStartingFilter(PropertyFilter.newBuilder()
-                                            .setPropertyName(StringConstants.TAGS_ATTR)
-                                            .setMapFilter(MapFilter.newBuilder().setKey(tagKey)))
-                    .build())))
-            .thenReturn(searchRequest);
-
-        SearchPaginationRequest searchPaginationRequest = null;
-        Assert.assertEquals(mockResult, tagsService.getEntitiesByTagKey(tagKey, searchPaginationRequest));
-    }
-
     private SearchTagsRequest callGetTags(@Nullable final List<String> scope,
                                           @Nullable final String entityType,
                                           @Nullable final EnvironmentType envType)
-            throws OperationFailedException {
-        tagsService.getTags(scope, entityType, envType, null);
+            throws OperationFailedException, InvalidOperationException {
+        TagPaginationRequest tagPaginationRequest = new TagPaginationRequest(null, 500,
+                true, TagOrderBy.DEFAULT);
+
+        tagsService.getTags(scope, entityType, envType, tagPaginationRequest);
         Mockito.verify(searchService).searchTags(searchTagsRequestArgumentCaptor.capture());
         return searchTagsRequestArgumentCaptor.getValue();
     }
