@@ -6,11 +6,16 @@ import java.sql.Statement;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 
 import javax.sql.DataSource;
 
 import com.google.common.base.Strings;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.sun.istack.NotNull;
+import com.zaxxer.hikari.HikariDataSource;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,6 +25,7 @@ import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointException;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.pool.DbConnectionPoolConfig;
+import com.vmturbo.sql.utils.pool.HikariPoolMonitor;
 
 /**
  * Class used by {@link DbEndpoint} to perform various database operations that may be needed for
@@ -205,12 +211,15 @@ public abstract class DbAdapter {
             logger.debug("Creating a pooled datasource for user: {}, minPoolSize={}, maxPoolSize={}",
                     user, minPoolSize, maxPoolSize);
             final String poolName = DbConnectionPoolConfig.generatePoolName(config.getSchemaName());
-            return DbConnectionPoolConfig.getPooledDataSource(
+            final int poolMonitorIntervalSec = config.getPoolMonitorIntervalSec();
+            final DataSource dataSource = DbConnectionPoolConfig.getPooledDataSource(
                     url, user, password, minPoolSize, maxPoolSize, keepAliveIntervalMinutes, poolName, config.getDialect());
-            // In the SQLDatabaseConfig version of this initialization, we would create a
-            // HikariPoolMonitor here. If this ever replaces SQLDatabaseConfig as the main way
-            // for components to initialize their database connections, then we need to
-            // TODO: Create a pool monitor here
+            if (config.getUseConnectionPool() && poolMonitorIntervalSec > 0 && dataSource instanceof HikariDataSource) {
+                final HikariDataSource hikariDataSourceataSource = (HikariDataSource)dataSource;
+                final HikariPoolMonitor poolMonitor = new HikariPoolMonitor(poolName, poolMonitorIntervalSec, dataSource.getConnection().getSchema(), poolMonitorExecutorService(dataSource.getConnection().getSchema()));
+                hikariDataSourceataSource.setMetricRegistry(poolMonitor.getMetricRegistry());
+            }
+            return dataSource;
         } else {
             logger.debug("Creating a non-pooled datasource for user: {}", user);
             return createUnpooledDataSource(url, user, password);
@@ -227,6 +236,18 @@ public abstract class DbAdapter {
      * @throws SQLException if failed to create data source.
      */
     protected abstract DataSource createUnpooledDataSource(String url, String user, String password) throws SQLException;
+
+    /**
+     * Get the executor service for the pool monitor.
+     * @param schemaName the schema name
+     * @return the executor service
+     */
+    public ScheduledExecutorService poolMonitorExecutorService(String schemaName) {
+        final String poolName = DbConnectionPoolConfig.generatePoolName(schemaName);
+        final ThreadFactory threadFactory =
+                new ThreadFactoryBuilder().setNameFormat("DbPoolMonitor-" + poolName + "-%d").build();
+        return Executors.newScheduledThreadPool(1, threadFactory);
+    }
 
     /**
      * Get a new {@link DataSource} object for this endpoint, suitable for use with flyway.

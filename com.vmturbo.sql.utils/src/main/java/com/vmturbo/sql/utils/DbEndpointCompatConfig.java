@@ -133,6 +133,8 @@ public class DbEndpointCompatConfig {
         builder = builder.withUseConnectionPool(isConnectionPoolActive);
         builder = builder.withMinPoolSize(dbMinPoolSize);
         builder = builder.withMaxPoolSize(dbMaxPoolSize);
+        builder = builder.withPoolMonitorIntervalSec(poolMonitorIntervalSec);
+
         if (dbHost != null) {
             builder = builder.withHost(dbHost);
         }
