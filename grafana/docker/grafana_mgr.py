@@ -386,7 +386,6 @@ def main():
     home_path = os.environ["GF_PATHS_HOME"]
     config_path = os.environ["GF_PATHS_CONFIG"]
     license_path = os.environ.get("LICENSE_PATH")
-    SENSITIVE_KEYS = {"dbRootPassword", "dbs.grafana.password", "grafanaAdminPassword", "grafanaDb.password"}
     ASTERISKS = "xxxxx"
     if license_path is None:
         license_path = "/tmp/license.jwt"
@@ -418,12 +417,13 @@ def main():
             logger.warning("Invalid polling interval override: %s. Falling back to default",
                            polling_interval_override)
 
-    props = get_config_properties(['extractor', 'grafana'])
-    for (prop) in sorted(props):
-        if prop in SENSITIVE_KEYS:
-            logger.info(f"Configured property {prop}={ASTERISKS}")
-        else:
-            logger.info(f"Configured property {prop}={props[prop]}")
+    props: dict = get_config_properties(['extractor', 'grafana'])
+
+    def hide_if_sensitive(_key: str, _val: str) -> str:
+        return ASTERISKS if 'password' in _key.lower() else _val
+
+    for key, value in sorted(props.items()):
+        logger.info(f"Configured property {key}={hide_if_sensitive(key, value)}")
 
     grafana = Grafana(home_path, config_path, license_path)
 
