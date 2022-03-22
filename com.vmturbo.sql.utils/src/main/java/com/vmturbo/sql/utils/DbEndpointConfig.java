@@ -37,6 +37,7 @@ public class DbEndpointConfig {
     private Integer keepAliveIntervalMinutes;
     private Boolean secure;
     private String migrationLocations;
+    private Integer poolMonitorIntervalSec;
     /**
      * transient keyword has been added to flywayCallbacks to avoid
      * serialization of the field. Serialization of the field will cause failure of unit test
@@ -311,6 +312,22 @@ public class DbEndpointConfig {
 
     public void setPlugins(List<DbPlugin> plugins) {
         this.plugins = plugins;
+    }
+
+    /**
+     * Sets the pool monitor interval.
+     * @param poolMonitorIntervalSec the interval in seconds
+     */
+    public void setPoolMonitorIntervalSec(Integer poolMonitorIntervalSec) {
+        this.poolMonitorIntervalSec = poolMonitorIntervalSec;
+    }
+
+    /**
+     * Gets the pool monitor interval.
+     * @return the interval in seconds
+     */
+    public int getPoolMonitorIntervalSec() {
+        return poolMonitorIntervalSec;
     }
 
 

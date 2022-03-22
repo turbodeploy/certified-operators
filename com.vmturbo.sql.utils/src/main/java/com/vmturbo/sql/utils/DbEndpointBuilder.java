@@ -381,4 +381,14 @@ public class DbEndpointBuilder {
         config.setPlugins(Arrays.asList(plugins));
         return this;
     }
+
+    /**
+     * Specify the Pool monitor interval in seconds.
+     * @param poolMonitorSecs the interval in seconds
+     * @return this endpoint builder
+     */
+    public DbEndpointBuilder withPoolMonitorIntervalSec(int poolMonitorSecs) {
+        config.setPoolMonitorIntervalSec(poolMonitorSecs);
+        return this;
+    }
 }
