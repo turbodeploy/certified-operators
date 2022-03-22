@@ -132,7 +132,7 @@ public abstract class AbstractReservedInstanceStore {
     }
 
     protected List<ReservedInstanceBought> adjustAvailableCouponsForPartialCloudEnv(
-            final List<ReservedInstanceBought> reservedInstances) {
+            final List<ReservedInstanceBought> reservedInstances, Map<Long, Double> reservedInstanceUsedCouponsMap) {
         if (reservedInstances.isEmpty()) {
             return reservedInstances;
         }
@@ -174,7 +174,7 @@ public abstract class AbstractReservedInstanceStore {
                         riToUndiscoveredAccountsUsage.getOrDefault(riBuilder.getId(), 0d);
                 if (couponsUsedByUndiscoveredAccounts > 0) {
                     double numberOfCoupons = riCouponsBuilder.getNumberOfCoupons()  - couponsUsedByUndiscoveredAccounts;
-                    double numberOfCouponsUsed = riCouponsBuilder.getNumberOfCouponsUsed() - couponsUsedByUndiscoveredAccounts;
+                    double numberOfCouponsUsed = reservedInstanceUsedCouponsMap.getOrDefault(riBuilder.getId(), 0D) - couponsUsedByUndiscoveredAccounts;
                     if (numberOfCoupons < 0 || numberOfCouponsUsed < 0) {
                         if (numberOfCoupons < 0) {
                             logger.warn(
@@ -191,6 +191,9 @@ public abstract class AbstractReservedInstanceStore {
                         numberOfCouponsUsed = 0;
                     }
                     riCouponsBuilder.setNumberOfCoupons(numberOfCoupons).setNumberOfCouponsUsed(numberOfCouponsUsed);
+                } else {
+                    double numberOfCouponsUsed = reservedInstanceUsedCouponsMap.getOrDefault(riBuilder.getId(), 0D);
+                    riCouponsBuilder.setNumberOfCouponsUsed(numberOfCouponsUsed);
                 }
             }
             // adjust the instance size flexible and scope for unknown scopes

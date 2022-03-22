@@ -189,6 +189,9 @@ public class SupplementalCoverageAnalysisTest {
         doReturn(ImmutableMap.of(3L, 1d))
                 .when(reservedInstanceMappingStore).getReservedInstanceUsedCouponsMapByFilter(any());
 
+        doReturn(Collections.EMPTY_MAP).when(reservedInstanceBoughtStore).getNumberOfUsedCouponsForReservedInstances(Matchers.anyList());
+        //when(reservedInstanceBoughtStore.getNumberOfUsedCouponsForReservedInstances(any())).thenReturn(Collections.EMPTY_MAP);
+
         /*ReservedInstanceBoughtRpcServiceTest.java
         Setup Factory
          */

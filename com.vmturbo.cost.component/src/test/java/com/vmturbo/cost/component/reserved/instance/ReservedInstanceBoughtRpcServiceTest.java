@@ -547,6 +547,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
 
         doReturn(ImmutableMap.of(RI_BOUGHT_ID_4, numUsedCouponsByDiscAccounts, RI_BOUGHT_ID_5, 10D))
             .when(reservedInstanceMappingStore).getReservedInstanceUsedCouponsMapByFilter(any());
+        doReturn(ImmutableMap.of(RI_BOUGHT_ID_3, 5.0D)).when(reservedInstanceBoughtStore).getNumberOfUsedCouponsForReservedInstances(anyCollection());
 
         when(accountRIMappingStore.getUndiscoveredAccountUsageForRI()).thenReturn(
                 ImmutableMap.of(RI_BOUGHT_ID_3, numUsedCouponsByUnDiscAccounts, RI_BOUGHT_ID_5,

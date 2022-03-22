@@ -44,6 +44,8 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
 
     private static final String planReservedInstanceDumpFile = "planReservedInstance_dump";
 
+    private final ReservedInstanceBoughtStore reservedInstanceBoughtStore;
+
     /**
      * Creates {@link PlanReservedInstanceStore} instance.
      *  @param dsl DSL context.
@@ -57,9 +59,11 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
                                      @Nonnull final ReservedInstanceCostCalculator reservedInstanceCostCalculator,
                                      final BusinessAccountHelper businessAccountHelper,
                                      final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
-                                     final AccountRIMappingStore accountRIMappingStore) {
+                                     final AccountRIMappingStore accountRIMappingStore,
+                                     final ReservedInstanceBoughtStore reservedInstanceBoughtStore) {
         super(dsl, identityProvider, reservedInstanceCostCalculator,
                 accountRIMappingStore, entityReservedInstanceMappingStore, businessAccountHelper);
+        this.reservedInstanceBoughtStore = reservedInstanceBoughtStore;
     }
 
     /**
@@ -192,6 +196,12 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
             return Collections.emptyList();
         }
 
+        //Get total RI Utilization
+        Map<Long, Double> numberOfUsedCouponsForReservedInstances = reservedInstanceBoughtStore.getNumberOfUsedCouponsForReservedInstances(
+                reservedInstanceBoughtByPlanId.stream()
+                        .map(ReservedInstanceBought::getId)
+                        .collect(Collectors.toSet()));
+
         //Get total Discovered RI Utilization for RIs in scope
         final Map<Long, Double> riToDiscoveredUsageMap = entityReservedInstanceMappingStore
                 .getReservedInstanceUsedCouponsMapByFilter(
@@ -204,7 +214,7 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
         final Map<Long, Double> riUtilizationForVmsInScope = getRiUtilizationForVmsInScope(vmOidSet);
 
         //Decrease both RI capacity and Utilization to filter out RI coupons used by undiscovered accounts.
-        final List<ReservedInstanceBought> riBoughtUndiscoveredAccountUsageFilteredOut = adjustAvailableCouponsForPartialCloudEnv(reservedInstanceBoughtByPlanId);
+        final List<ReservedInstanceBought> riBoughtUndiscoveredAccountUsageFilteredOut = adjustAvailableCouponsForPartialCloudEnv(reservedInstanceBoughtByPlanId, numberOfUsedCouponsForReservedInstances);
 
         //Decrease both RI capacity and Utilization to filter out RI coupons used from accounts that are discovered but not in scope of the plan
         final List<ReservedInstanceBought> riBoughtOutOfScopeDiscoveredUsageFilteredOut =
