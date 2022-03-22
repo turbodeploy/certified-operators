@@ -12,7 +12,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -27,6 +26,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
+import org.jooq.Scope;
 import org.jooq.tools.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
@@ -40,7 +40,6 @@ import org.springframework.validation.Errors;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
 import com.vmturbo.api.component.external.api.mapper.UserMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -64,7 +63,6 @@ import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
-import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
@@ -73,11 +71,6 @@ import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
-import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesRequest;
-import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesResponse;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseFilter;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.ExternalLicense.Type;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 
 /**
@@ -99,8 +92,40 @@ public class UsersService implements IUsersService {
     private static final String SAML_IDP_ENTITY_NAME = "SAML IDP entity name: ";
     private static final String NOT_ASSIGNED = "Not assigned";
     private static final String PERMISSION_CHANGED = "Permission changed, current role is %s, scope is %s";
+    private static final String INVALID_SCOPE_UUID = "Invalid scope Uuid specified for user.";
+    private static final String INVALID_SCOPE_AD = "Invalid scope Uuid specified for active directory group.";
+    private static final String NO_SCOPE_USER = "No valid scope specified for user.";
+    private static final String NO_SCOPE_AD = "No valid scope specified for active directory group.";
     private final Set<String> invalidScopes = new HashSet<>();
     private final UuidMapper uuidMapper;
+    public enum UserSourceType {
+        /**
+         * if the UserSourceType is User.
+         */
+        USER,
+        /**
+         * if the UserSourceType is Active Directory.
+         */
+        ACTIVE_DIRECTORY,
+        /**
+         * if the UserSourceType is Active Directory Group.
+         */
+        ACTIVE_DIRECTORY_GROUP
+    }
+    public enum ScopeErrorType {
+        /**
+         * if the scope is invalid.
+         */
+        INVALID_SCOPE,
+        /**
+         * if the scope is empty or null
+         */
+        NO_SCOPE,
+        /**
+         * if the scope is valid
+         */
+        VALID_SCOPE
+    }
     /**
      * The logger.
      */
@@ -543,12 +568,49 @@ public class UsersService implements IUsersService {
         if (StringUtils.isBlank(userApiDTO.getType())) {
             throw new IllegalArgumentException("No type specified for user.");
         }
-
         if (userApiDTO.getScope() != null && !userApiDTO.getScope().isEmpty()) {
             if (!isUserScopeAllowed(userApiDTO.getScope())) {
                 throw new IllegalArgumentException("Scope not allowed for user.");
             }
         }
+        //Validate RoleName without Scope
+        ScopeErrorType errType =
+        validateSharedUserScope(userApiDTO.getRoleName(), userApiDTO.getScope());
+        if (errType != ScopeErrorType.VALID_SCOPE) {
+            throw new IllegalArgumentException(mapMessage(UserSourceType.USER, errType));
+        }
+    }
+
+    /**
+     * Validate that the user api dto specified has a valid user roleName and scope
+     *
+     */
+    private ScopeErrorType validateSharedUserScope(String roleName, List<GroupApiDTO> scope){
+        if (roleName != null && UserScopeUtils.containsSharedRole(Collections.singletonList(roleName))) {
+            if (scope == null || scope.isEmpty()) {
+                return ScopeErrorType.NO_SCOPE;
+            }
+            //Scope is not empty. Check that this scope consists of valid groups.
+            for (GroupApiDTO groupScope : scope) {
+                ApiId id;
+                try {
+                    //Check that UUID is not null or empty
+                    if (StringUtils.isBlank(groupScope.getUuid())) {
+                        return ScopeErrorType.INVALID_SCOPE;
+                    }
+                    //UUID mapper validates if it corresponds to an object
+                    id = uuidMapper.fromUuid(groupScope.getUuid());
+                } catch (OperationFailedException e) {
+                    //This may happen if invalid UUID's were passed to UUID mapper
+                    return ScopeErrorType.INVALID_SCOPE;
+                }
+                //Check that id is group.
+                if (!id.isGroup()) {
+                    return ScopeErrorType.INVALID_SCOPE;
+                }
+            }
+        }
+        return ScopeErrorType.VALID_SCOPE;
     }
 
     /**
@@ -1171,33 +1233,11 @@ public class UsersService implements IUsersService {
         if (StringUtils.isBlank(apiDTO.getType())) {
             throw new IllegalArgumentException("No type specified for active directory group.");
         }
-        if (apiDTO.getRoleName() != null && UserScopeUtils.containsSharedRole(Collections.singletonList(apiDTO.getRoleName()))) {
-            if (apiDTO.getScope() == null || apiDTO.getScope().isEmpty()) {
-                throw new IllegalArgumentException(
-                        "No valid scope specified. Shared active directory groups require a valid scope.");
-            }
-            //Scope is not empty. Check that this scope consists of valid groups.
-            for (GroupApiDTO scope : apiDTO.getScope()) {
-                ApiId id;
-                try {
-                    //Check that UUID is not null or empty
-                    if (StringUtils.isBlank(scope.getUuid())) {
-                        throw new IllegalArgumentException(
-                                "Invalid scope Uuid specified for active directory group.");
-                    }
-                    //UUID mapper validates if it corresponds to an object
-                    id = uuidMapper.fromUuid(scope.getUuid());
-                } catch (OperationFailedException e) {
-                    //This may happen if invalid UUID's were passed to UUID mapper
-                    throw new IllegalArgumentException(
-                            "Invalid scope Uuid specified for active directory group.", e);
-                }
-                //Check that id is group.
-                if (!id.isGroup()) {
-                    throw new IllegalArgumentException(
-                            "Invalid scope Uuid specified for active directory group.");
-                }
-            }
+        //Validate RoleName without Scope
+        ScopeErrorType errType =
+                validateSharedUserScope(apiDTO.getRoleName(), apiDTO.getScope());
+        if (errType != ScopeErrorType.VALID_SCOPE) {
+            throw new IllegalArgumentException(mapMessage(UserSourceType.ACTIVE_DIRECTORY_GROUP, errType));
         }
     }
 
@@ -1211,6 +1251,38 @@ public class UsersService implements IUsersService {
                 StringUtils.isBlank(apiDTO.getLoginProviderURI())) {
             throw new IllegalArgumentException("Must supply either a domain name, "
                     + "a login provider URL or both");
+        }
+        if (apiDTO.getGroups() != null && !apiDTO.getGroups().isEmpty()) {
+            for (ActiveDirectoryGroupApiDTO adGroupDTO : apiDTO.getGroups()) {
+                //Validate RoleName without Scope
+                ScopeErrorType errType =
+                        validateSharedUserScope(adGroupDTO.getRoleName(), adGroupDTO.getScope());
+                if (errType != ScopeErrorType.VALID_SCOPE) {
+                    throw new IllegalArgumentException(mapMessage(UserSourceType.ACTIVE_DIRECTORY, errType));
+                }
+            }
+        }
+    }
+
+    /**
+     * Map the message depending on the type User, Active Directory
+     * and Active Directory Group
+     * @param userSourceType
+     * @return
+     */
+    private String mapMessage(UserSourceType userSourceType, ScopeErrorType errorType) {
+        if (userSourceType.equals(UserSourceType.USER)) {
+            if (errorType == ScopeErrorType.NO_SCOPE){
+                return NO_SCOPE_USER;
+            }else{
+                return INVALID_SCOPE_UUID;
+            }
+        } else {
+            if (errorType == ScopeErrorType.NO_SCOPE){
+                return NO_SCOPE_AD;
+            }else{
+                return INVALID_SCOPE_AD;
+            }
         }
     }
 }
