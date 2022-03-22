@@ -342,7 +342,10 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
     @Override
     public List<ReservedInstanceBought> getReservedInstanceBoughtForAnalysis(
             @Nonnull final ReservedInstanceBoughtFilter filter) {
-        return adjustAvailableCouponsForPartialCloudEnv(getReservedInstanceBoughtByFilter(filter));
+        List<ReservedInstanceBought> reservedInstanceBoughtByFilter = getReservedInstanceBoughtByFilter(filter);
+        Map<Long, Double> numberOfUsedCouponsForReservedInstances = getNumberOfUsedCouponsForReservedInstances(reservedInstanceBoughtByFilter.stream().map(ReservedInstanceBought::getId)
+                .collect(Collectors.toSet()));
+        return adjustAvailableCouponsForPartialCloudEnv(reservedInstanceBoughtByFilter, numberOfUsedCouponsForReservedInstances);
     }
 
     private List<ReservedInstanceBoughtInfo> internalCheckRIBoughtAndUpdatePrices(

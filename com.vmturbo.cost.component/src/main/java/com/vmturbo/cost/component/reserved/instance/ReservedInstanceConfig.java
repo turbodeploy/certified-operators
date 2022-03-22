@@ -170,7 +170,7 @@ public class ReservedInstanceConfig {
         try {
             return new PlanReservedInstanceStore(dbAccessConfig.dsl(), identityProviderConfig.identityProvider(),
                     repositoryInstanceCostCalculator(), costConfig.businessAccountHelper(), entityReservedInstanceMappingStore(),
-                    accountRIMappingStore());
+                    accountRIMappingStore(), reservedInstanceBoughtStore());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();

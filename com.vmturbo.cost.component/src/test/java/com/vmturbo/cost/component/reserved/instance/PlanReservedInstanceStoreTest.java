@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -124,6 +125,7 @@ public class PlanReservedInstanceStoreTest extends MultiDbTestBase {
     private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
     private AccountRIMappingStore accountRIMappingStore;
     private PlanReservedInstanceStore planReservedInstanceStore;
+    private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
     /**
      * Initialize instances before test.
@@ -137,10 +139,11 @@ public class PlanReservedInstanceStoreTest extends MultiDbTestBase {
         businessAccountHelper = Mockito.mock(BusinessAccountHelper.class);
         entityReservedInstanceMappingStore = Mockito.mock(EntityReservedInstanceMappingStore.class);
         accountRIMappingStore = Mockito.mock(AccountRIMappingStore.class);
+        reservedInstanceBoughtStore = Mockito.mock(ReservedInstanceBoughtStore.class);
         planReservedInstanceStore =
                 new PlanReservedInstanceStore(dsl, new DefaultIdentityProvider(0),
                         reservedInstanceCostCalculator, businessAccountHelper,
-                        entityReservedInstanceMappingStore, accountRIMappingStore);
+                        entityReservedInstanceMappingStore, accountRIMappingStore, reservedInstanceBoughtStore);
         insertDefaultReservedInstanceSpec();
         final List<ReservedInstanceBought> reservedInstanceBoughtInfos =
                 Arrays.asList(ReservedInstanceBought.newBuilder().setId(riId_1).setReservedInstanceBoughtInfo(RI_INFO_1).build(),
@@ -294,6 +297,9 @@ public class PlanReservedInstanceStoreTest extends MultiDbTestBase {
 
         final ImmutableMap<Long, Double> riUsageFronUndisocveredAccounts = ImmutableMap.<Long, Double>builder().put(RI_ID1, 3.0D).build();
         when(accountRIMappingStore.getUndiscoveredAccountUsageForRI()).thenReturn(riUsageFronUndisocveredAccounts);
+
+        final ImmutableMap<Long, Double> totalRIUtilizationMap = ImmutableMap.<Long, Double>builder().put(RI_ID1, 8.0D).build();
+        when(reservedInstanceBoughtStore.getNumberOfUsedCouponsForReservedInstances(any())).thenReturn(totalRIUtilizationMap);
 
         final List<ReservedInstanceBought> reservedInstanceBoughtForAnalysis = planReservedInstanceStore.getReservedInstanceBoughtForAnalysis(PLAN_ID, vmOidSet);
 
