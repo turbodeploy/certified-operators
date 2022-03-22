@@ -34,4 +34,42 @@ public class DBMigrationScriptsTest extends TestDBMigrationChecksums {
         ensureAllFilesUnchanged(migrationDir, checksumFile);
     }
 
+    /**
+     * Compares postgres migrations in this project with their recorded checksums.
+     *
+     * @throws Exception If there was any properly reading the migration file, or checksums,
+     *     or if any checksums did not match
+     */
+    @Test
+    public void testPostgresMigrations() throws Exception {
+        final File migrationDir = new File("src/main/resources/db/migrations/market/postgres");
+        Assert.assertTrue("Migration directory must exist and must be a directory.",
+                migrationDir.exists() && migrationDir.isDirectory());
+
+        final File checksumFile = new File("src/test/resources/postgres-db-migration-checksums.properties");
+        assertTrue("Checksum record file must be available",
+                checksumFile.exists() && checksumFile.isFile());
+
+        ensureAllFilesUnchanged(migrationDir, checksumFile);
+    }
+
+    /**
+     * Compares mariadb migrations in this project with their recorded checksums.
+     *
+     * @throws Exception If there was any properly reading the migration file, or checksums,
+     *     or if any checksums did not match
+     */
+    @Test
+    public void testMariaDBMigrations() throws Exception {
+        final File migrationDir = new File("src/main/resources/db/migrations/market/mariadb");
+        Assert.assertTrue("Migration directory must exist and must be a directory.",
+                migrationDir.exists() && migrationDir.isDirectory());
+
+        final File checksumFile = new File("src/test/resources/mariadb-db-migration-checksums.properties");
+        assertTrue("Checksum record file must be available",
+                checksumFile.exists() && checksumFile.isFile());
+
+        ensureAllFilesUnchanged(migrationDir, checksumFile);
+    }
+
 }
