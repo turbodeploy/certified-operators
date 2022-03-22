@@ -90,9 +90,13 @@ public class PercentileEditor extends
     // percentile on a bought commodity will not add up unless there is no more than one
     // consumer per provider, so only certain commodity types are applicable
     private static final Set<CommodityType> ENABLED_BOUGHT_COMMODITY_TYPES =
+            Sets.immutableEnumSet(CommodityType.DTU, CommodityType.STORAGE_AMOUNT);
+    //For Business users, even if the utilization data is empty, we still want to send percentile data,
+    //because we want to move business users even though they are disconnected and have no activity.
+    private static final Set<CommodityType> ENABLED_WITHOUT_UTILIZATION_DATA_BOUGHT_COMMODITY_TYPES =
             Sets.immutableEnumSet(CommodityDTO.CommodityType.IMAGE_CPU,
-                    CommodityDTO.CommodityType.IMAGE_MEM, CommodityDTO.CommodityType.IMAGE_STORAGE,
-                    CommodityType.DTU, CommodityType.STORAGE_AMOUNT);
+                    CommodityDTO.CommodityType.IMAGE_MEM, CommodityDTO.CommodityType.IMAGE_STORAGE);
+
     // percentile may be calculated on a bought commodity if the provider has infinite capacity
     private static final Map<EntityType, Set<CommodityType>> ENABLED_BOUGHT_FROM_PROVIDER_TYPES =
         ImmutableMap.of(EntityType.COMPUTE_TIER,
@@ -108,7 +112,8 @@ public class PercentileEditor extends
      * Entity types for which percentile calculation is not supported.
      * These entities trade commodities with the types listed in {@link
      * PercentileEditor#REQUIRED_SOLD_COMMODITY_TYPES} and
-     * {@link PercentileEditor#ENABLED_BOUGHT_COMMODITY_TYPES}
+     * {@link PercentileEditor#ENABLED_BOUGHT_COMMODITY_TYPES} and
+     * {@link PercentileEditor#ENABLED_WITHOUT_UTILIZATION_DATA_BOUGHT_COMMODITY_TYPES}
      */
     private static final Set<EntityType> NOT_APPLICABLE_ENTITY_TYPES =
             ImmutableSet.of(EntityType.CONTAINER,
@@ -239,6 +244,9 @@ public class PercentileEditor extends
             int providerType) {
         final CommodityType boughtType =
             CommodityType.forNumber(commBought.getCommodityType().getType());
+        if (ENABLED_WITHOUT_UTILIZATION_DATA_BOUGHT_COMMODITY_TYPES.contains(boughtType)) {
+            return true;
+        }
         return commBought.hasUtilizationData() &&
             (ENABLED_BOUGHT_COMMODITY_TYPES.contains(boughtType) ||
             ENABLED_BOUGHT_FROM_PROVIDER_TYPES.getOrDefault(EntityType.forNumber(providerType),
