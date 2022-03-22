@@ -26,6 +26,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -155,6 +156,88 @@ public class UserServiceTest {
                 thenReturn(new ResponseEntity<>(new ActiveDirectoryDTO(CORP_VMTURBO_COM, LDAP_DELL_1_VMTURBO_COM, true), HttpStatus.OK));
         ActiveDirectoryApiDTO responseDto = usersService.createActiveDirectory(getCreateAdInputDto());
         verifyAdResponse(responseDto);
+    }
+
+    /**
+     * Test create AD.
+     * Testing Active Directory Group input if Role name not provided with Scope
+     * Testing with valid Group Input
+     * @throws Exception if something wrong.
+     */
+    @Test
+    public void testCreateActiveDirectoryValidGroup() throws Exception {
+        logon("admin");
+        setupGetAdGroup();
+        Mockito.when(restTemplate.exchange(Matchers.eq(AD_REQUEST),
+                Matchers.eq(HttpMethod.POST),
+                Matchers.<HttpEntity>any(),
+                Matchers.<Class<ActiveDirectoryDTO>>any())).
+                thenReturn(new ResponseEntity<>(new ActiveDirectoryDTO(CORP_VMTURBO_COM, LDAP_DELL_1_VMTURBO_COM, true), HttpStatus.OK));
+        try {
+            usersService.createActiveDirectory(getCreateAdInputDtoValid());
+        }catch(IllegalArgumentException e){
+            Assert.fail("Creation of active directory should not fail for a valid group.");
+        }
+    }
+
+    /**
+     * Test create AD.
+     * Testing Active Directory Group input if Role name not provided with Scope
+     * Testing with invalid Entity Input
+     * @throws Exception if something wrong.
+     */
+    @Test
+    public void testCreateActiveDirectoryWithEntity() throws Exception {
+        expectedException.expectMessage("Invalid scope Uuid specified for active directory group.");
+        usersService.createActiveDirectory(getCreateAdInputDtoEntityInput());
+    }
+
+    /**
+     * Test create AD.
+     * Testing Active Directory Group input if Role name not provided with Scope
+     * Testing with empty string as uuid in Input
+     * @throws Exception if something wrong.
+     */
+    @Test
+    public void testCreateActiveDirectoryWithEmptyUuid() throws Exception {
+        expectedException.expectMessage("Invalid scope Uuid specified for active directory group.");
+        usersService.createActiveDirectory(getCreateAdInputDtoEmptyUuid());
+    }
+
+    /**
+     * Test create AD.
+     * Testing Active Directory Group input if Role name not provided with Scope
+     * Testing with empty scope list
+     * @throws Exception if something wrong.
+     */
+    @Test
+    public void testCreateActiveDirectoryWithEmptyScope() throws Exception {
+        expectedException.expectMessage("Invalid scope Uuid specified for active directory group.");
+        usersService.createActiveDirectory(getCreateAdInputDtoEmptyScope());
+    }
+
+    /**
+     * Test create AD.
+     * Testing Active Directory Group input if Role name not provided with Scope
+     * Testing with no scope.
+     * @throws Exception if something wrong.
+     */
+    @Test
+    public void testCreateActiveDirectoryWithNoScope() throws Exception {
+        expectedException.expectMessage("No valid scope specified for active directory group.");
+        usersService.createActiveDirectory(getCreateAdInputDtoNoScope());
+    }
+
+    /**
+     * Test create AD.
+     * Testing Active Directory Group input if Role name not provided with Scope
+     * Testing with null uuid in scope.
+     * @throws Exception if something wrong.
+     */
+    @Test
+    public void testCreateActiveDirectoryWithNullScope() throws Exception {
+        expectedException.expectMessage("Invalid scope Uuid specified for active directory group.");
+        usersService.createActiveDirectory(getCreateAdInputDtoNullScope());
     }
 
     /**
@@ -873,6 +956,126 @@ public class UserServiceTest {
     }
 
     /**
+     * Testing that the creation of a user with no scope
+     * @throws Exception when the service fails to create the user
+     */
+    @Test
+    public void createUserNoScope() throws Exception {
+        final String userName = "test1";
+        final String userType = "DedicatedCustomer";
+        final String userLoginProvider = "LOCAL";
+
+        logon("admin");
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setPassword(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoles(makeRole(SHARED_ADVISOR));
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        expectedException.expectMessage("No valid scope specified for user.");
+        usersService.createUser(userApiDTO);
+    }
+
+    /**
+     * Testing that the creation of a user with one valid group uuid and one invalid entity uuid in scope
+     * @throws Exception when the service fails to create the user
+     */
+    @Test
+    public void createUserEntityScope() throws Exception {
+        final String userName = "test1";
+        final String userType = "Dedicated  Customer";
+        final String userLoginProvider = "LOCAL";
+        List scope = new ArrayList<>();
+
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        GroupApiDTO groupApiDTO1 = new GroupApiDTO();
+        groupApiDTO.setUuid(VALID_GROUP1);
+        groupApiDTO1.setUuid(VALID_ENTITY);
+        scope.add(groupApiDTO);
+        scope.add(groupApiDTO1);
+        ApiTestUtils.mockGroupId(VALID_GROUP1, uuidMapper);
+        ApiTestUtils.mockEntityId(VALID_ENTITY, uuidMapper);
+
+        logon("admin");
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setPassword(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoles(makeRole(SHARED_ADVISOR));
+        userApiDTO.setScope(scope);
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        expectedException.expectMessage("Invalid scope Uuid specified for user.");
+        usersService.createUser(userApiDTO);
+    }
+
+    /**
+     * Testing that the creation of a user with valid group scope
+     * @throws Exception when the service fails to create the user
+     */
+    @Test
+    public void createUserValidScope() throws Exception {
+        final String userName = "test1";
+        final String userType = "DedicatedCustomer";
+        final String userLoginProvider = "LOCAL";
+        List scope = new ArrayList<>();
+
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        GroupApiDTO groupApiDTO1 = new GroupApiDTO();
+        groupApiDTO.setUuid(VALID_GROUP1);
+        groupApiDTO1.setUuid(VALID_GROUP);
+        scope.add(groupApiDTO);
+        scope.add(groupApiDTO1);
+        ApiTestUtils.mockGroupId(VALID_GROUP1, uuidMapper);
+        ApiTestUtils.mockGroupId(VALID_GROUP, uuidMapper);
+
+        logon("admin");
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setPassword(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoles(makeRole(SHARED_OBSERVER));
+        userApiDTO.setScope(scope);
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        final HttpEntity<AuthUserDTO> entity = new HttpEntity<>(composeHttpHeaders());
+        final ResponseEntity<String> responseEntity = new ResponseEntity<>( "234256", HttpStatus.OK);
+        when(restTemplate.exchange(eq("http://:0/users/add"), any(), any(), eq(String.class)))
+                .thenReturn(responseEntity);
+        try {
+            usersService.createUser(userApiDTO);
+        }catch(IllegalArgumentException e){
+            Assert.fail("Create user should not fail with valid group");
+        }
+    }
+
+    /**
+     * Testing that the creation of a user with empty scope
+     * @throws Exception when the service fails to create the user
+     */
+    //not able to test ""
+    @Test
+    public void createUserEmptyScope() throws Exception {
+        final String userName = "test1";
+        final String userType = "DedicatedCustomer";
+        final String userLoginProvider = "LOCAL";
+        List scope = new ArrayList<>();
+
+        logon("admin");
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setPassword(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoles(makeRole(SHARED_OBSERVER));
+        userApiDTO.setScope(scope);
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        expectedException.expectMessage("No valid scope specified for user.");
+        usersService.createUser(userApiDTO);
+    }
+
+    /**
      * Testing that editing a user with updated password returns the modified user
      * data back.
      * @throws Exception when the service fails to edit the user
@@ -975,6 +1178,134 @@ public class UserServiceTest {
         inputDto.setGroups(ImmutableList.of(getActiveDirectoryGroupApiDTO(AD_GROUP_NAME, AD_GROUP_TYPE, AD_GROUP_ROLE_NAME)));
         inputDto.setIsSecure(true);
         inputDto.setLoginProviderURI(LDAP_DELL_1_VMTURBO_COM);
+        return inputDto;
+    }
+
+    private ActiveDirectoryApiDTO getCreateAdInputDtoValid() throws Exception {
+        ActiveDirectoryApiDTO inputDto = new ActiveDirectoryApiDTO();
+        inputDto.setDomainName(CORP_VMTURBO_COM);
+        List<ActiveDirectoryGroupApiDTO> groups = new ArrayList<>();
+        List<GroupApiDTO> scope = new ArrayList<>();
+
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        GroupApiDTO groupApiDTO1 = new GroupApiDTO();
+        ActiveDirectoryGroupApiDTO adGroupDTO = new ActiveDirectoryGroupApiDTO();
+        groupApiDTO.setUuid(VALID_GROUP1);
+        groupApiDTO1.setUuid(VALID_GROUP);
+        scope.add(groupApiDTO);
+        scope.add(groupApiDTO1);
+        adGroupDTO.setRoleName(SHARED_OBSERVER);
+        adGroupDTO.setType("DedicatedCustomer");
+        adGroupDTO.setScope(scope);
+        ApiTestUtils.mockGroupId(VALID_GROUP1, uuidMapper);
+        ApiTestUtils.mockGroupId(VALID_GROUP, uuidMapper);
+
+        groups.add(adGroupDTO);
+        inputDto.setGroups(groups);
+        return inputDto;
+    }
+
+    private ActiveDirectoryApiDTO getCreateAdInputDtoEntityInput() throws Exception {
+        ActiveDirectoryApiDTO inputDto = new ActiveDirectoryApiDTO();
+        inputDto.setDomainName(CORP_VMTURBO_COM);
+        List<ActiveDirectoryGroupApiDTO> groups = new ArrayList<>();
+        List<GroupApiDTO> scope = new ArrayList<>();
+
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        GroupApiDTO groupApiDTO1 = new GroupApiDTO();
+        ActiveDirectoryGroupApiDTO adGroupDTO = new ActiveDirectoryGroupApiDTO();
+        groupApiDTO.setUuid(VALID_ENTITY);
+        groupApiDTO1.setUuid(VALID_GROUP);
+        scope.add(groupApiDTO);
+        scope.add(groupApiDTO1);
+        adGroupDTO.setRoleName(SHARED_OBSERVER);
+        adGroupDTO.setType("DedicatedCustomer");
+        adGroupDTO.setScope(scope);
+        ApiTestUtils.mockGroupId(VALID_GROUP, uuidMapper);
+        ApiTestUtils.mockEntityId(VALID_ENTITY, uuidMapper);
+
+        groups.add(adGroupDTO);
+        inputDto.setGroups(groups);
+        return inputDto;
+    }
+
+    private ActiveDirectoryApiDTO getCreateAdInputDtoEmptyUuid() throws Exception {
+        ActiveDirectoryApiDTO inputDto = new ActiveDirectoryApiDTO();
+        inputDto.setDomainName(CORP_VMTURBO_COM);
+        List<ActiveDirectoryGroupApiDTO> groups = new ArrayList<>();
+        List<GroupApiDTO> scope = new ArrayList<>();
+
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        GroupApiDTO groupApiDTO1 = new GroupApiDTO();
+        ActiveDirectoryGroupApiDTO adGroupDTO = new ActiveDirectoryGroupApiDTO();
+        groupApiDTO.setUuid("");
+        groupApiDTO1.setUuid(VALID_GROUP);
+        scope.add(groupApiDTO);
+        scope.add(groupApiDTO1);
+        adGroupDTO.setRoleName(SHARED_OBSERVER);
+        adGroupDTO.setType("DedicatedCustomer");
+        adGroupDTO.setScope(scope);
+        ApiTestUtils.mockGroupId(VALID_GROUP, uuidMapper);
+
+        groups.add(adGroupDTO);
+        inputDto.setGroups(groups);
+        return inputDto;
+    }
+
+    private ActiveDirectoryApiDTO getCreateAdInputDtoEmptyScope() throws Exception {
+        ActiveDirectoryApiDTO inputDto = new ActiveDirectoryApiDTO();
+        inputDto.setDomainName(CORP_VMTURBO_COM);
+        List<ActiveDirectoryGroupApiDTO> groups = new ArrayList<>();
+        List<GroupApiDTO> scope = new ArrayList<>();
+
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        GroupApiDTO groupApiDTO1 = new GroupApiDTO();
+        ActiveDirectoryGroupApiDTO adGroupDTO = new ActiveDirectoryGroupApiDTO();
+        scope.add(groupApiDTO);
+        scope.add(groupApiDTO1);
+        adGroupDTO.setRoleName(SHARED_OBSERVER);
+        adGroupDTO.setType("DedicatedCustomer");
+        adGroupDTO.setScope(scope);
+
+        groups.add(adGroupDTO);
+        inputDto.setGroups(groups);
+        return inputDto;
+    }
+
+    private ActiveDirectoryApiDTO getCreateAdInputDtoNoScope() throws Exception {
+        ActiveDirectoryApiDTO inputDto = new ActiveDirectoryApiDTO();
+        inputDto.setDomainName(CORP_VMTURBO_COM);
+        List<ActiveDirectoryGroupApiDTO> groups = new ArrayList<>();
+
+        ActiveDirectoryGroupApiDTO adGroupDTO = new ActiveDirectoryGroupApiDTO();
+        adGroupDTO.setRoleName(SHARED_OBSERVER);
+        adGroupDTO.setType("DedicatedCustomer");
+
+        groups.add(adGroupDTO);
+        inputDto.setGroups(groups);
+        return inputDto;
+    }
+
+    private ActiveDirectoryApiDTO getCreateAdInputDtoNullScope() throws Exception {
+        ActiveDirectoryApiDTO inputDto = new ActiveDirectoryApiDTO();
+        inputDto.setDomainName(CORP_VMTURBO_COM);
+        List<ActiveDirectoryGroupApiDTO> groups = new ArrayList<>();
+        List<GroupApiDTO> scope = new ArrayList<>();
+
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        GroupApiDTO groupApiDTO1 = new GroupApiDTO();
+        ActiveDirectoryGroupApiDTO adGroupDTO = new ActiveDirectoryGroupApiDTO();
+        groupApiDTO.setUuid(null);
+        groupApiDTO1.setUuid(VALID_GROUP);
+        scope.add(groupApiDTO);
+        scope.add(groupApiDTO1);
+        adGroupDTO.setRoleName(SHARED_OBSERVER);
+        adGroupDTO.setType("DedicatedCustomer");
+        adGroupDTO.setScope(scope);
+        ApiTestUtils.mockGroupId(VALID_GROUP, uuidMapper);
+
+        groups.add(adGroupDTO);
+        inputDto.setGroups(groups);
         return inputDto;
     }
 
