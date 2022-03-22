@@ -89,8 +89,8 @@ provision_database() {
 
 start_grafana() {
   echo "Starting grafana manager"
-  echo "Grafana.ini file:"
-  cat /etc/grafana/grafana.ini
+  echo "Grafana.ini file (passwords removed):"
+  cat /etc/grafana/grafana.ini | grep -iv password
   exec python3 /grafana_mgr.py
 }
 
