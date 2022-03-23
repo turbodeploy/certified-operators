@@ -65,8 +65,7 @@ public class DbAccessConfig {
     public DSLContext unpooledDsl()
             throws SQLException, UnsupportedDialectException, InterruptedException {
         return FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
-               // TODO alter this when unpooledDslContext is supported in endpoints
-               ? historyDbEndpointConfig.historyEndpoint().dslContext()
+               ? historyDbEndpointConfig.historyEndpoint().dslContext(false)
                : historyDbConfig.unpooledDsl();
     }
 
