@@ -166,7 +166,7 @@ public class StatsConfig {
         try {
             loaders = new SimpleBulkLoaderFactory(dbAccessConfig.dsl(),
                     dbAccessConfig.bulkLoaderConfig(),
-                    ingestersConfig.partmanHelper(), Executors.newSingleThreadExecutor());
+                    ingestersConfig.partmanHelper(), () -> Executors.newSingleThreadExecutor());
             return loaders.getLoader(ClusterStatsByDay.CLUSTER_STATS_BY_DAY);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {

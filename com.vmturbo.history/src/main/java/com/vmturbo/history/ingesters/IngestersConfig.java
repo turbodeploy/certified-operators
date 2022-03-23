@@ -444,7 +444,7 @@ public class IngestersConfig {
         try {
             return new RollupProcessor(
                     dbAccessConfig.dsl(), dbAccessConfig.unpooledDsl(), partmanHelper(),
-                    dbAccessConfig.bulkLoaderThreadPool());
+                    dbAccessConfig.bulkLoaderThreadPoolSupplier());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -545,7 +545,7 @@ public class IngestersConfig {
             try {
                 return new SimpleBulkLoaderFactory(dbAccessConfig.dsl(),
                         dbAccessConfig.bulkLoaderConfig(), partmanHelper(),
-                        dbAccessConfig.bulkLoaderThreadPool());
+                        dbAccessConfig.bulkLoaderThreadPoolSupplier());
             } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
                 if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();

@@ -53,4 +53,12 @@ public interface BulkInserterConfig {
     default boolean dropOnClose() {
         return false;
     }
+
+    /**
+     * Get the max # of seconds we will wait for a bulk inserter to complete its outstanding work,
+     * typically when the inserter is closed.
+     *
+     * @return timeout interval in seconds
+     */
+    long flushTimeoutSecs();
 }

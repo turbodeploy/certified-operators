@@ -38,6 +38,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -111,18 +112,17 @@ public class RollupProcessor {
 
     /**
      * Create a new instance.
-     *
-     * @param dsl             DB access for general use
+     *  @param dsl             DB access for general use
      * @param unpooledDsl     DB access for long-running operations
      * @param partmanHelper   for integration with the pg_partman extension if needed
-     * @param executorService thread pool to run individual tasks
+     * @param executorServiceSupplier thread pool to run individual tasks
      */
     public RollupProcessor(DSLContext dsl, DSLContext unpooledDsl,
-            PartmanHelper partmanHelper, ExecutorService executorService) {
+            PartmanHelper partmanHelper, Supplier<ExecutorService> executorServiceSupplier) {
         this.dsl = dsl;
         this.unpooledDsl = unpooledDsl;
         this.partmanHelper = partmanHelper;
-        this.executorService = executorService;
+        this.executorService = executorServiceSupplier.get();
     }
 
     /**

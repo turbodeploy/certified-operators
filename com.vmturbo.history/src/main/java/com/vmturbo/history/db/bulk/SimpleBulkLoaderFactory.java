@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
@@ -84,16 +85,15 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
 
     /**
      * Create a new instance.
-     *
-     * @param dsl           base db utilities
+     *  @param dsl           base db utilities
      * @param defaultConfig config to be used by default when creating inserters
      * @param partmanHelper for integration with pg_partman postgres extension if needed
-     * @param executor      executor service to manage concurrent statement executions
+     * @param executorServiceSupplier      executor service to manage concurrent statement executions
      */
     public SimpleBulkLoaderFactory(final @Nonnull DSLContext dsl,
             final @Nonnull BulkInserterConfig defaultConfig, PartmanHelper partmanHelper,
-            final @Nonnull ExecutorService executor) {
-        this(dsl, new BulkInserterFactory(dsl, defaultConfig, executor), partmanHelper);
+            final @Nonnull Supplier<ExecutorService> executorServiceSupplier) {
+        this(dsl, new BulkInserterFactory(dsl, defaultConfig, executorServiceSupplier), partmanHelper);
     }
 
     /**

@@ -23,8 +23,8 @@ import org.jooq.Record;
 import org.jooq.Table;
 import org.jooq.UpdatableRecord;
 import org.jooq.VisitListener;
+import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
-import org.springframework.dao.DataAccessException;
 
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.sql.utils.jooq.JooqUtil;

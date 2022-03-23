@@ -88,11 +88,12 @@ public class RollupProcessorTest extends MultiDbTestBase {
                 .maxBatchRetries(1)
                 .maxRetryBackoffMsec(1000)
                 .maxPendingBatches(1)
+                .flushTimeoutSecs(10)
                 .build();
         loaders = new SimpleBulkLoaderFactory(dsl, config, mock(PartmanHelper.class),
-                Executors.newSingleThreadExecutor());
+                () -> Executors.newSingleThreadExecutor());
         rollupProcessor = new RollupProcessor(dsl, dsl, mock(PartmanHelper.class),
-                Executors.newFixedThreadPool(8));
+                () -> Executors.newFixedThreadPool(8));
         RetentionPolicy.init(dsl);
         IdentityGenerator.initPrefix(1L);
     }

@@ -4,6 +4,7 @@ import java.sql.SQLException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.function.Supplier;
 
 import javax.sql.DataSource;
 
@@ -168,6 +169,13 @@ public class DbAccessConfig {
     private int maxPendingBatches;
 
     /**
+     * Number of seconds to wait while trying to flush all the pending batches in a BulkInserter
+     * instance.
+     */
+    @Value("${bulk.flushTimeoutSecs:300}")
+    private long flushTimeoutSecs;
+
+    /**
      * Default config for bulk inserter/loader instances.
      *
      * @return bulk inserter config
@@ -179,6 +187,7 @@ public class DbAccessConfig {
                 .maxBatchRetries(matchBatchRetries)
                 .maxRetryBackoffMsec(maxRetryBackoffMsec)
                 .maxPendingBatches(maxPendingBatches)
+                .flushTimeoutSecs(flushTimeoutSecs)
                 .build();
     }
 
@@ -193,11 +202,10 @@ public class DbAccessConfig {
      *
      * @return new thread pool
      */
-    @Bean(destroyMethod = "shutdownNow")
-    public ExecutorService bulkLoaderThreadPool() {
+    public Supplier<ExecutorService> bulkLoaderThreadPoolSupplier() {
         ThreadFactory factory = new ThreadFactoryBuilder()
                 .setNameFormat(BulkInserter.class.getSimpleName() + "-%d")
                 .build();
-        return Executors.newFixedThreadPool(parallelBatchInserts, factory);
+        return () -> Executors.newFixedThreadPool(parallelBatchInserts, factory);
     }
 }

@@ -15,7 +15,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
@@ -37,7 +36,6 @@ import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -125,7 +123,8 @@ public class SystemLoadWriterTest extends MultiDbTestBase {
         if (groupService == null) {
             this.groupService = createGroupService();
          }
-        loaders = new SimpleBulkLoaderFactory(dsl, config, mock(PartmanHelper.class), threadPool);
+        loaders = new SimpleBulkLoaderFactory(dsl, config, mock(PartmanHelper.class),
+                () -> MoreExecutors.newDirectExecutorService());
         this.writerFactory = new SystemLoadWriter.Factory(groupService, dsl, dsl);
     }
 
@@ -189,7 +188,6 @@ public class SystemLoadWriterTest extends MultiDbTestBase {
 
     private SystemLoadWriter.Factory writerFactory;
 
-    private static final ExecutorService threadPool = MoreExecutors.newDirectExecutorService();
     private SimpleBulkLoaderFactory loaders;
 
     private static final BulkInserterConfig config = ImmutableBulkInserterConfig.builder()
@@ -197,6 +195,7 @@ public class SystemLoadWriterTest extends MultiDbTestBase {
             .maxPendingBatches(2)
             .maxBatchRetries(3)
             .maxRetryBackoffMsec(1000)
+            .flushTimeoutSecs(10)
             .build();
 
     /**
@@ -207,14 +206,6 @@ public class SystemLoadWriterTest extends MultiDbTestBase {
     @After
     public void after() throws InterruptedException {
         loaders.close();
-    }
-
-    /**
-     * Shut down the threadpool.
-     */
-    @AfterClass
-    public static void afterClass() {
-        threadPool.shutdownNow();
     }
 
     /**
