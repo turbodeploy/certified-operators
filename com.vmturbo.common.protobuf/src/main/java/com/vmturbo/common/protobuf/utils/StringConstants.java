@@ -526,6 +526,11 @@ public class StringConstants {
     public static final String OPTIMIZE_CONTAINER_CLUSTER_PLAN = "OPTIMIZE_CONTAINER_CLUSTER";
 
     /**
+     * Migrate container workload plan type.
+     */
+    public static final String MIGRATE_CONTAINER_WORKLOAD_PLAN = "MIGRATE_CONTAINER_WORKLOAD";
+
+    /**
      * Buy RI plan type.
      */
     public static final String BUY_RI_PLAN = "BUY_RI_PLAN";

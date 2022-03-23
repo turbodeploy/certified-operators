@@ -123,10 +123,14 @@ public class TopologyEditorTest {
     private static final long pmId = 20;
     private static final long stId = 30;
     private static final long podId = 40;
+    private static final long podId_1 = 41;
     private static final long containerId = 50;
-    private static final long controllerId = 60;
+    private static final long workloadControllerId = 60;
     private static final long volumeId = 70;
+    private static final long containerSpecId = 80;
+    private static final long namespaceId = 90;
     private static final long clusterId = 134;
+    private static final long sourceClusterId = 74327977713718L;
     private static final double USED = 100;
     private static final double VCPU_CAPACITY = 1000;
     private static final double VMEM_CAPACITY = 1000;
@@ -173,6 +177,7 @@ public class TopologyEditorTest {
     private PlanScope scope;
     private TopologyPipelineContext context;
     private TopologyPipelineContext containerClusterPlanContext;
+    private TopologyPipelineContext migrateContainerWorkloadPlanContext;
     private static final TopologyEntity.Builder vm = TopologyEntityUtils.topologyEntityBuilder(
         new TopologyEntityImpl()
             .setOid(vmId)
@@ -211,6 +216,13 @@ public class TopologyEditorTest {
             new TopologyEntityImpl()
                     .setOid(clusterId)
                     .setDisplayName("ContainerPlatformCluster")
+                    .setEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
+    );
+    private static String sourceContainerClusterName = "SourceContainerPlatformCluster";
+    private static final TopologyEntity.Builder sourceCluster = TopologyEntityUtils.topologyEntityBuilder(
+            new TopologyEntityImpl()
+                    .setOid(sourceClusterId)
+                    .setDisplayName(sourceContainerClusterName)
                     .setEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
     );
     private static final TopologyEntity.Builder unplacedVm = TopologyEntityUtils.topologyEntityBuilder(
@@ -255,15 +267,17 @@ public class TopologyEditorTest {
                             .setAccesses(pmId))
     );
 
+    private static final String workloadControllerKey = "1a7237fb-c464-46d5-b6fd-b493cf417509";
+    private static final String namespaceKey = "7115df29-394a-44d0-bbb4-91d3f210bb1d";
     private static final TopologyEntity.Builder container =
         TopologyEntityUtils.topologyEntityBuilder(new TopologyEntityImpl()
             .setOid(containerId)
-            .setDisplayName("Container")
+            .setDisplayName("catalogue")
             .setEntityType(EntityType.CONTAINER_VALUE)
             .setAnalysisSettings(
                 new AnalysisSettingsImpl()
-                    .setSuspendable(false)
-                    .setControllable(false)
+                    .setSuspendable(true)
+                    .setControllable(true)
             )
             .addCommoditiesBoughtFromProviders(
                 new CommoditiesBoughtFromProviderImpl()
@@ -289,13 +303,18 @@ public class TopologyEditorTest {
             .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(VMPM)
                 .setUsed(1.0)
-                .setCapacity(1.0)));
+                .setCapacity(1.0))
+            .addConnectedEntityList(new ConnectedEntityImpl()
+                .setConnectedEntityId(containerSpecId)
+                .setConnectedEntityType(EntityType.CONTAINER_SPEC_VALUE)
+                .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION))
+            .putEntityPropertyMap("KubernetesNamespace", "robotshop"));
 
     // Create a test pod that is suspendable
     private static final TopologyEntity.Builder pod = TopologyEntityUtils.topologyEntityBuilder(
         new TopologyEntityImpl()
             .setOid(podId)
-            .setDisplayName("ContainerPod")
+            .setDisplayName("robotshop/catalogue-74768b7f66-mgssg")
             .setEntityType(EntityType.CONTAINER_POD_VALUE)
             .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                 .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -310,11 +329,20 @@ public class TopologyEditorTest {
                 .addCommodityBought(new CommodityBoughtImpl().setCommodityType(CLUSTER_KEYED)))
             .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                 .setProviderEntityType(EntityType.WORKLOAD_CONTROLLER_VALUE)
-                .setProviderId(controllerId)
-                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(VCPU_REQUEST_QUOTA).setUsed(USED))
-                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(VCPU_LIMIT_QUOTA).setUsed(USED))
-                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(VMEM_REQUEST_QUOTA).setUsed(USED))
-                .addCommodityBought(new CommodityBoughtImpl().setCommodityType(VMEM_LIMIT_QUOTA).setUsed(USED)))
+                .setProviderId(workloadControllerId)
+                .addCommodityBought(new CommodityBoughtImpl()
+                    .setCommodityType(VCPU_LIMIT_QUOTA.copy().setKey(workloadControllerKey))
+                    .setUsed(USED))
+                .addCommodityBought(new CommodityBoughtImpl()
+                    .setCommodityType(VCPU_REQUEST_QUOTA.copy().setKey(workloadControllerKey))
+                    .setUsed(USED))
+                .addCommodityBought(new CommodityBoughtImpl()
+                    .setCommodityType(VMEM_LIMIT_QUOTA.copy().setKey(workloadControllerKey))
+                    .setUsed(USED))
+                .addCommodityBought(new CommodityBoughtImpl()
+                    .setCommodityType(VMEM_REQUEST_QUOTA.copy().setKey(workloadControllerKey))
+                    .setUsed(USED))
+                .setMovable(false))
             .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
                 .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                 .setProviderId(volumeId)
@@ -331,7 +359,122 @@ public class TopologyEditorTest {
                 .setCommodityType(VMPM_POD_TO_CONTAINER)
                 .setUsed(1.0)
                 .setCapacity(1.0))
-    ).addConsumer(container);
+            .addConnectedEntityList(new ConnectedEntityImpl()
+                .setConnectedEntityId(workloadControllerId)
+                .setConnectedEntityType(EntityType.WORKLOAD_CONTROLLER_VALUE)
+                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
+            .putEntityPropertyMap("KubernetesNamespace", "robotshop")
+    );
+
+    private static final TopologyEntity.Builder pod1 = TopologyEntityUtils.topologyEntityBuilder(
+            pod.getTopologyEntityImpl().copy()
+                    .setOid(podId_1)
+                    .setDisplayName("robotshop/catalogue-74768b7f66-m6nqq"));
+
+    private static final CommoditySoldView VCPU_LIMIT_QUOTA_COMM = new CommoditySoldImpl()
+            .setCommodityType(VCPU_LIMIT_QUOTA)
+            .setUsed(USED)
+            .setCapacity(VCPU_CAPACITY);
+    private static final CommoditySoldView VMEM_LIMIT_QUOTA_COMM = new CommoditySoldImpl()
+            .setCommodityType(VMEM_LIMIT_QUOTA)
+            .setUsed(USED)
+            .setCapacity(VMEM_CAPACITY);
+    private static final CommoditySoldView VCPU_REQUEST_QUOTA_COMM = new CommoditySoldImpl()
+            .setCommodityType(VCPU_REQUEST_QUOTA)
+            .setUsed(USED)
+            .setCapacity(VCPU_CAPACITY);
+    private static final CommoditySoldView VMEM_REQUEST_QUOTA_COMM = new CommoditySoldImpl()
+            .setCommodityType(VMEM_REQUEST_QUOTA)
+            .setUsed(USED)
+            .setCapacity(VMEM_CAPACITY);
+    private static final TopologyEntity.Builder namespace = TopologyEntityUtils.topologyEntityBuilder(
+            new TopologyEntityImpl()
+                    .setOid(namespaceId)
+                    .setDisplayName("robotshop")
+                    .setEntityType(EntityType.NAMESPACE_VALUE)
+                    .addCommoditySoldList(VCPU_LIMIT_QUOTA_COMM.copy().setCommodityType(
+                            VCPU_LIMIT_QUOTA.copy().setKey(namespaceKey)))
+                    .addCommoditySoldList(VMEM_LIMIT_QUOTA_COMM.copy().setCommodityType(
+                            VMEM_LIMIT_QUOTA.copy().setKey(namespaceKey)))
+                    .addCommoditySoldList(VCPU_REQUEST_QUOTA_COMM.copy().setCommodityType(
+                            VCPU_REQUEST_QUOTA.copy().setKey(namespaceKey)))
+                    .addCommoditySoldList(VMEM_REQUEST_QUOTA_COMM.copy().setCommodityType(
+                            VMEM_REQUEST_QUOTA.copy().setKey(namespaceKey)))
+                    .addCommoditiesBoughtFromProviders(
+                            new CommoditiesBoughtFromProviderImpl()
+                                    .setProviderId(sourceClusterId)
+                                    .setProviderEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
+                                    .addCommodityBought(new CommodityBoughtImpl()
+                                        .setCommodityType(VMEM)
+                                        .setUsed(USED))
+                                    .addCommodityBought(new CommodityBoughtImpl()
+                                        .setCommodityType(VCPU)
+                                        .setUsed(USED))
+                                    .addCommodityBought(new CommodityBoughtImpl()
+                                        .setCommodityType(CLUSTER_KEYED.copy()
+                                            .setKey("cluster-22ecf12e-402c-438b-a3ae-d483b2a06b49"))
+                                        .setUsed(1.0)))
+                    .addConnectedEntityList(
+                            new ConnectedEntityImpl()
+                                    .setConnectedEntityId(sourceClusterId)
+                                    .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                                    .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)));
+
+    private static String sourceWorkloadControllerName = "catalogue";
+    private static final TopologyEntity.Builder workloadController = TopologyEntityUtils.topologyEntityBuilder(
+            new TopologyEntityImpl()
+                    .setOid(workloadControllerId)
+                    .setDisplayName(sourceWorkloadControllerName)
+                    .setEntityType(EntityType.WORKLOAD_CONTROLLER_VALUE)
+                    .addCommoditySoldList(VCPU_LIMIT_QUOTA_COMM.copy().setCommodityType(
+                            VCPU_LIMIT_QUOTA.copy().setKey(workloadControllerKey)))
+                    .addCommoditySoldList(VMEM_LIMIT_QUOTA_COMM.copy().setCommodityType(
+                            VMEM_LIMIT_QUOTA.copy().setKey(workloadControllerKey)))
+                    .addCommoditySoldList(VCPU_REQUEST_QUOTA_COMM.copy().setCommodityType(
+                            VCPU_REQUEST_QUOTA.copy().setKey(workloadControllerKey)))
+                    .addCommoditySoldList(VMEM_REQUEST_QUOTA_COMM.copy().setCommodityType(
+                            VMEM_REQUEST_QUOTA.copy().setKey(workloadControllerKey)))
+                    .addCommoditiesBoughtFromProviders(
+                            new CommoditiesBoughtFromProviderImpl()
+                                    .setProviderId(namespaceId)
+                                    .setProviderEntityType(EntityType.NAMESPACE_VALUE)
+                                    .addCommodityBought(new CommodityBoughtImpl()
+                                        .setCommodityType(VCPU_LIMIT_QUOTA.copy().setKey(namespaceKey))
+                                        .setUsed(USED))
+                                    .addCommodityBought(new CommodityBoughtImpl()
+                                        .setCommodityType(VMEM_LIMIT_QUOTA.copy().setKey(namespaceKey))
+                                        .setUsed(USED))
+                                    .addCommodityBought(new CommodityBoughtImpl()
+                                        .setCommodityType(VCPU_REQUEST_QUOTA.copy().setKey(namespaceKey))
+                                        .setUsed(USED))
+                                    .addCommodityBought(new CommodityBoughtImpl()
+                                        .setCommodityType(VMEM_REQUEST_QUOTA.copy().setKey(namespaceKey))
+                                        .setUsed(USED)))
+                    .addConnectedEntityList(
+                            new ConnectedEntityImpl()
+                                    .setConnectedEntityId(containerSpecId)
+                                    .setConnectedEntityType(EntityType.CONTAINER_SPEC_VALUE)
+                                    .setConnectionType(ConnectionType.OWNS_CONNECTION))
+                    .addConnectedEntityList(
+                            new ConnectedEntityImpl()
+                                    .setConnectedEntityId(namespaceId)
+                                    .setConnectedEntityType(EntityType.NAMESPACE_VALUE)
+                                    .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
+                    .putEntityPropertyMap("KubernetesNamespace", "robotshop"));
+    private static final TopologyEntity.Builder containerSpec = TopologyEntityUtils.topologyEntityBuilder(
+            new TopologyEntityImpl()
+                    .setOid(containerSpecId)
+                    .setDisplayName("catalogue")
+                    .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                                                  .setCommodityType(VCPU)
+                                                  .setUsed(USED)
+                                                  .setCapacity(VCPU_CAPACITY))
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                                                  .setCommodityType(VMEM)
+                                                  .setUsed(USED)
+                                                  .setCapacity(VMEM_CAPACITY)));
+
 
     private static final int NUM_CLONES = 5;
 
@@ -375,6 +518,13 @@ public class TopologyEditorTest {
             .build())
         .build();
 
+    private static final ScenarioChange ADD_WORKLOAD = ScenarioChange.newBuilder()
+            .setTopologyAddition(TopologyAddition.newBuilder()
+                .setAdditionCount(1)
+                .setEntityId(workloadControllerId)
+                .setTargetEntityType(EntityType.WORKLOAD_CONTROLLER_VALUE))
+            .build();
+
     private IdentityProvider identityProvider = mock(IdentityProvider.class);
     private long cloneId = 1000L;
 
@@ -405,6 +555,15 @@ public class TopologyEditorTest {
                     .setPlanType(StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN).build())
             .build();
 
+    private final TopologyInfo migrateContainerWorkloadPlanTopologyInfo = TopologyInfo.newBuilder()
+            .setTopologyContextId(3)
+            .setTopologyId(3)
+            .setCreationTime(System.currentTimeMillis())
+            .setTopologyType(TopologyType.PLAN)
+            .setPlanInfo(PlanTopologyInfo.newBuilder()
+                .setPlanType(StringConstants.MIGRATE_CONTAINER_WORKLOAD_PLAN))
+            .build();
+
     private final Set<Long> sourceEntities = new HashSet<>();
     private final Set<Long> destinationEntities = new HashSet<>();
 
@@ -419,6 +578,8 @@ public class TopologyEditorTest {
             .thenAnswer(invocation -> cloneId++);
         context = new TopologyPipelineContext(topologyInfo);
         containerClusterPlanContext = new TopologyPipelineContext(containerClusterPlanTopologyInfo);
+        migrateContainerWorkloadPlanContext =
+                new TopologyPipelineContext(migrateContainerWorkloadPlanTopologyInfo);
         topologyEditor = new TopologyEditor(identityProvider,
                 templateConverterFactory,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
@@ -1353,7 +1514,7 @@ public class TopologyEditorTest {
      * Test adding a container pod to a plan.
      */
     private void testTopologyAdditionPodClone(boolean applyConstraints) throws Exception {
-        Map<Long, TopologyEntity.Builder> topology = Stream.of(container, pod, vm, pm, cluster)
+        Map<Long, TopologyEntity.Builder> topology = Stream.of(container, pod, workloadController, vm, pm, cluster)
             .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
         List<ScenarioChange> changes = Lists.newArrayList(ADD_POD);
         PlanScope cntClusterPlanScope = PlanScope.newBuilder()
@@ -1372,9 +1533,12 @@ public class TopologyEditorTest {
             .collect(Collectors.groupingBy(TopologyEntity.Builder::getEntityType));
         final List<TopologyEntity.Builder> clonedContainerPods = clonedEntitiesMap.get(EntityType.CONTAINER_POD_VALUE);
         final List<TopologyEntity.Builder> clonedContainers = clonedEntitiesMap.get(EntityType.CONTAINER_VALUE);
+        final List<TopologyEntity.Builder> clonedWorkloadControllers =
+                clonedEntitiesMap.get(EntityType.WORKLOAD_CONTROLLER_VALUE);
         // Cloned pods and containers exist.
         assertNotNull("There must be cloned container pods.", clonedContainerPods);
         assertNotNull("There must be cloned containers.", clonedContainers);
+        assertNull("There must not be workload controllers.", clonedWorkloadControllers);
         // There are NUM_CLONES cloned pods and containers.
         assertEquals(NUM_CLONES, clonedContainerPods.size());
         assertEquals(NUM_CLONES, clonedContainers.size());
@@ -1402,7 +1566,7 @@ public class TopologyEditorTest {
                     final CommodityTypeView expected = VMPM_POD_TO_CONTAINER.copy()
                             .setKey(VMPM_POD_TO_CONTAINER.getKey() + DefaultEntityCloneEditor.cloneSuffix(cloneCounter));
                     assertEquals("Cloned containers buy a keyed VMPM access commodity",
-                            Collections.singletonList(expected), keyed);
+                                 Collections.singletonList(expected), keyed);
                 } else {
                     // Verify that the cloned containers do not buy any keyed commodities
                     assertTrue("Cloned containers do not buy any keyed commodities", keyed.isEmpty());
@@ -1450,6 +1614,114 @@ public class TopologyEditorTest {
             }
             cloneCounter++;
         }
+    }
+
+    /**
+     * Test container workload migration plan.
+     */
+    @Test
+    public void testTopologyMigrateContainerWorkload() throws Exception {
+        final Set<TopologyEntity.Builder> originalEntities = ImmutableSet.of(
+                container, pod, pod1, workloadController, containerSpec, namespace, sourceCluster, cluster);
+        featureFlagTestRule.enable(FeatureFlags.MIGRATE_CONTAINER_WORKLOAD_PLAN);
+        Map<Long, TopologyEntity.Builder> topology = originalEntities.stream()
+                .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
+        List<ScenarioChange> changes = Lists.newArrayList(ADD_WORKLOAD);
+        PlanScope cntClusterPlanScope = PlanScope.newBuilder()
+                .addScopeEntries(PlanScopeEntry.newBuilder()
+                    .setScopeObjectOid(clusterId)
+                    .setClassName(ApiEntityType.CONTAINER_PLATFORM_CLUSTER.apiStr()))
+                .build();
+        topologyEditor.editTopology(topology, cntClusterPlanScope, changes,
+                                    migrateContainerWorkloadPlanContext,
+                                    groupResolver, sourceEntities, destinationEntities);
+        // Create topology graph
+        final TopologyGraph<TopologyEntity> topologyGraph =
+                TopologyEntityTopologyGraphCreator.newGraph(topology);
+        final Set<Long> originalOidSet = originalEntities.stream()
+                .map(TopologyEntity.Builder::getOid)
+                .collect(Collectors.toSet());
+        // Get cloned entities
+        final List<TopologyEntity> clonedContainers =
+                topologyGraph.entitiesOfType(EntityType.CONTAINER_VALUE)
+                        .filter(entity -> !originalOidSet.contains(entity.getOid()))
+                        .collect(Collectors.toList());
+        final List<TopologyEntity> clonedPods =
+                topologyGraph.entitiesOfType(EntityType.CONTAINER_POD_VALUE)
+                        .filter(entity -> !originalOidSet.contains(entity.getOid()))
+                        .collect(Collectors.toList());
+        final List<TopologyEntity> clonedContainerSpecs =
+                topologyGraph.entitiesOfType(EntityType.CONTAINER_SPEC_VALUE)
+                        .filter(entity -> !originalOidSet.contains(entity.getOid()))
+                        .collect(Collectors.toList());
+        final List<TopologyEntity> clonedWorkloadControllers =
+                topologyGraph.entitiesOfType(EntityType.WORKLOAD_CONTROLLER_VALUE)
+                        .filter(entity -> !originalOidSet.contains(entity.getOid()))
+                        .collect(Collectors.toList());
+        final List<TopologyEntity> clonedNamespaces =
+                topologyGraph.entitiesOfType(EntityType.NAMESPACE_VALUE)
+                        .filter(entity -> !originalOidSet.contains(entity.getOid()))
+                        .collect(Collectors.toList());
+        final List<TopologyEntity> clusters =
+                topologyGraph.entitiesOfType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
+                        .collect(Collectors.toList());
+        assertEquals(1, clonedContainers.size());
+        assertEquals(2, clonedPods.size());
+        assertEquals(1, clonedContainerSpecs.size());
+        assertEquals(1, clonedWorkloadControllers.size());
+        assertEquals(1, clonedNamespaces.size());
+        assertEquals(2, clusters.size());
+        // Verify that the cloned containers are controllable but not suspendable.
+        final boolean allControllable = clonedContainers.stream()
+                .allMatch(clone -> clone.getTopologyEntityImpl().getAnalysisSettings().getControllable());
+        final boolean noneSuspendable = clonedContainers.stream()
+                .noneMatch(clone -> clone.getTopologyEntityImpl().getAnalysisSettings().getSuspendable());
+        assertTrue("Cloned containers must be controllable", allControllable);
+        assertTrue("Cloned containers must not be suspendable", noneSuspendable);
+        // Verify that cloned containers have correct bought keyed commodities
+        int cloneCounter = 0;
+        for (final TopologyEntity entity : clonedContainers) {
+            for (final CommoditiesBoughtFromProviderView bought : entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()) {
+                assertEquals("Cloned containers only buy from pods", EntityType.CONTAINER_POD_VALUE,
+                             bought.getProviderEntityType());
+                final List<CommodityTypeView> keyed = bought.getCommodityBoughtList().stream().map(
+                        CommodityBoughtView::getCommodityType).filter(CommodityTypeView::hasKey).collect(
+                        Collectors.toList());
+                // Verify that the cloned containers each buy a VMPM keyed commodity
+                final CommodityTypeView expected = VMPM_POD_TO_CONTAINER.copy()
+                        .setKey(VMPM_POD_TO_CONTAINER.getKey() + DefaultEntityCloneEditor.cloneSuffix(cloneCounter));
+                assertEquals("Cloned containers buy a keyed VMPM access commodity",
+                             Collections.singletonList(expected), keyed);
+            }
+            cloneCounter++;
+        }
+        // Verify that the two cloned pods have the same provider, which is the cloned workload controller
+        assertTrue(clonedPods.stream()
+                           .allMatch(pod -> pod.getProviders().stream()
+                                   .allMatch(clonedWorkloadControllers.get(0)::equals)));
+        // Verify that the two cloned pods have the same aggregator, which is the cloned workload controller
+        assertTrue(clonedPods.stream()
+                           .allMatch(pod -> pod.getAggregators().stream()
+                                   .allMatch(clonedWorkloadControllers.get(0)::equals)));
+        // Verify that the cloned workload controller is aggregated by the cloned namespace
+        assertTrue(clonedWorkloadControllers.stream()
+                           .allMatch(wc -> wc.getAggregators().stream()
+                                   .allMatch(clonedNamespaces.get(0)::equals)));
+        // Verify that the cloned workload controller has the correct display name
+        assertEquals(sourceWorkloadControllerName + " - Clone from " + sourceContainerClusterName,
+                     clonedWorkloadControllers.get(0).getDisplayName());
+        // Verify that the cloned workload controller owns the cloned container spec
+        assertTrue(clonedWorkloadControllers.stream()
+                           .allMatch(wc -> wc.getOwnedEntities().stream()
+                                   .allMatch(clonedContainerSpecs.get(0)::equals)));
+        // Verify that the cloned namespace consumes from the destination cluster
+        assertTrue(clonedNamespaces.stream()
+                           .allMatch(ns -> ns.getProviders().stream()
+                                   .allMatch(clusters.get(0)::equals)));
+        // Verify that the cloned container is controlled by the cloned container spec
+        assertTrue(clonedContainers.stream()
+                           .allMatch(cnt -> cnt.getControllers().stream()
+                                   .allMatch(clonedContainerSpecs.get(0)::equals)));
     }
 
     /**

@@ -1,27 +1,20 @@
 package com.vmturbo.topology.processor.topology.clone;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginView;
-import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.util.K8sProcessingUtil;
+import com.vmturbo.topology.processor.util.TopologyEditorUtil;
 
 /**
  * The {@link ContainerPodCloneEditor} implements the clone function for the container pod and all
@@ -29,99 +22,46 @@ import com.vmturbo.topology.processor.util.K8sProcessingUtil;
  */
 public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
 
-    /**
-     * A map of node commodities used to determine if an added pod should keep or drop its
-     * commodities.
-     */
-    private final Map<CommodityType, Set<String>> nodeCommodities = new HashMap<>();
-
-    /**
-     * Editor-wise flag to indicate whether to apply constraints.  True only if the corresponding
-     * feature flag is enabled and this is a container cluster plan.
-     */
-    private final boolean shouldApplyConstraints;
-
-    ContainerPodCloneEditor(@Nonnull final TopologyInfo topologyInfo,
-                            @Nonnull final IdentityProvider identityProvider,
-                            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-                            @Nullable final PlanScope scope) {
-        super(topologyInfo, identityProvider, topology, scope);
-        shouldApplyConstraints = FeatureFlags.APPLY_CONSTRAINTS_IN_CONTAINER_CLUSTER_PLAN.isEnabled()
-                && topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().hasPlanType()
-                && StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN.equals(topologyInfo.getPlanInfo().getPlanType());
-        if (shouldApplyConstraints) {
-            nodeCommodities.putAll(K8sProcessingUtil.collectNodeCommodities(scope, topology));
-        }
-    }
-
     @Override
-    public TopologyEntity.Builder clone(@Nonnull final TopologyEntityImpl podDTO,
-                                        final long cloneCounter) {
-        final TopologyEntity.Builder clonedPod = super.clone(podDTO, cloneCounter);
-        cloneContainers(clonedPod, podDTO.getOid(), cloneCounter);
-        return clonedPod;
-    }
-
-    /**
-     * Create clones of consumer entities from corresponding cloned provider entity and add them in
-     * the topology. This is specifically used to clone consumer entities when cloning a provider
-     * entity so that plan result will take consumer data into consideration. Cloned consumers are
-     * not movable.
-     *
-     * <p>For example, when adding ContainerPods in plan, we clone the corresponding consumer
-     * Containers to calculate CPU/memory overcommitments for ContainerPlatformCluster.
-     *
-     * @param clonedPod Given cloned provider entity builder.
-     * @param origPodId Original provider ID of the cloned provider entity.
-     * @param cloneCounter Counter of the entity to be cloned to be used in the display
-     *         name.
-     */
-    void cloneContainers(@Nonnull final TopologyEntity.Builder clonedPod,
-                         final long origPodId,
-                         final long cloneCounter) {
-        final Map<Long, Long> origToClonedPodIdMap = new HashMap<>();
-        origToClonedPodIdMap.put(origPodId, clonedPod.getOid());
-        final OriginView entityOrigin = clonedPod.getTopologyEntityImpl().getOrigin();
-        // Clone corresponding consumers of the given added entity
-        for (TopologyEntity container : topology.get(origPodId).getConsumers()) {
-            TopologyEntityImpl containerDTO = container.getTopologyEntityImpl();
-            TopologyEntityImpl clonedContainerDTO =
-                    internalClone(containerDTO, cloneCounter,
-                                  new HashMap<>(), origToClonedPodIdMap)
-                            .setOrigin(entityOrigin);
-            // Set controllable and suspendable to false to avoid generating actions on cloned consumers.
-            // Consider this as allocation model, where we clone a provider along with corresponding
-            // consumer resources but we won't run further analysis on the cloned consumers.
-            clonedContainerDTO.getOrCreateAnalysisSettings()
-                    .setControllable(false)
-                    .setSuspendable(false);
-            // Set providerId to the cloned consumers to make sure cloned provider won't be suspended.
-            TopologyEntity.Builder clonedContainer = TopologyEntity
-                    .newBuilder(clonedContainerDTO)
-                    .setClonedFromEntity(containerDTO)
-                    .addProvider(clonedPod);
-            topology.put(clonedContainerDTO.getOid(), clonedContainer);
-            clonedPod.addConsumer(clonedContainer);
+    public TopologyEntity.Builder clone(@Nonnull final TopologyEntityImpl podImpl,
+                                        @Nonnull final CloneContext cloneContext,
+                                        @Nonnull final CloneInfo cloneInfo) {
+        final TopologyEntity.Builder origPod = cloneContext.getTopology().get(podImpl.getOid());
+        // Clone myself
+        final TopologyEntity.Builder clonedPod = super.clone(podImpl, cloneContext, cloneInfo);
+        // Clone consumer containers
+        cloneRelatedEntities(origPod, cloneContext, cloneInfo, Relation.Consumer,
+                             EntityType.CONTAINER_VALUE);
+        // Update aggregatedBy relationship for workload migration plan
+        if (cloneContext.isMigrateContainerWorkloadPlan()) {
+            replaceConnectedEntities(clonedPod, cloneContext, cloneInfo,
+                                     ConnectionType.AGGREGATED_BY_CONNECTION_VALUE);
         }
+        return clonedPod;
     }
 
     @Override
     protected boolean shouldSkipProvider(
-            @Nonnull CommoditiesBoughtFromProviderView boughtFromProvider) {
+            @Nonnull CommoditiesBoughtFromProviderView boughtFromProvider,
+            @Nonnull final CloneContext cloneContext) {
         // As we aren't copying the related workload controller nor the volume into the plan, we
         // will skip those providers.
         return Objects.requireNonNull(boughtFromProvider).hasProviderEntityType()
                 && (boughtFromProvider.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE
-                || boughtFromProvider.getProviderEntityType() == EntityType.WORKLOAD_CONTROLLER_VALUE);
+                || (!cloneContext.isMigrateContainerWorkloadPlan()
+                && boughtFromProvider.getProviderEntityType() == EntityType.WORKLOAD_CONTROLLER_VALUE));
     }
 
     @Override
-    protected boolean shouldCopyBoughtCommodity(@Nonnull CommodityBoughtView commodityBought) {
-        if (super.shouldCopyBoughtCommodity(commodityBought)) {
+    protected boolean shouldCopyBoughtCommodity(@Nonnull CommodityBoughtView commodityBought,
+                                                @Nonnull final CloneContext cloneContext) {
+        if (super.shouldCopyBoughtCommodity(commodityBought, cloneContext)) {
             // If the commodity does not have a key, keep it
             return true;
         }
-        if (shouldApplyConstraints) {
+        if (cloneContext.shouldApplyConstraints() || cloneContext.isMigrateContainerWorkloadPlan()) {
+            final Map<CommodityType, Set<String>> nodeCommodities =
+                    cloneContext.getNodeCommodities();
             // When feature flag is on and this is a container cluster plan
             switch (commodityBought.getCommodityType().getType()) {
                 // We drop the cluster commodity, because there is no need for such a restriction
@@ -133,15 +73,15 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
                 // For taint commodity, we only drop it when the taint does not exist in the cluster
                 // of the plan
                 case CommodityType.TAINT_VALUE:
-                    return nodeCommodities.get(CommodityType.TAINT)
-                        .contains(commodityBought.getCommodityType()
-                            .getKey());
+                    return nodeCommodities.containsKey(CommodityType.TAINT)
+                            && nodeCommodities.get(CommodityType.TAINT)
+                            .contains(commodityBought.getCommodityType().getKey());
                 // For label commodity, we only drop it when the label does not exist in the cluster
                 // of the plan
                 case CommodityType.LABEL_VALUE:
-                    return nodeCommodities.get(CommodityType.LABEL)
-                        .contains(commodityBought.getCommodityType()
-                            .getKey());
+                    return nodeCommodities.containsKey(CommodityType.LABEL)
+                            && nodeCommodities.get(CommodityType.LABEL)
+                            .contains(commodityBought.getCommodityType().getKey());
                 // For all other commodities with key, keep them
                 default:
                     return true;
@@ -153,10 +93,10 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
 
     @Override
     protected boolean shouldReplaceBoughtKey(@Nonnull final CommodityTypeView commodityType,
-            final int providerEntityType) {
+                                             final int providerEntityType) {
         return Objects.requireNonNull(commodityType).hasKey()
-                && CommodityType.VMPM_ACCESS_VALUE == commodityType.getType()
-                && EntityType.CONTAINER_POD_VALUE == providerEntityType;
+                && TopologyEditorUtil.isQuotaCommodity(commodityType.getType())
+                && EntityType.WORKLOAD_CONTROLLER_VALUE == providerEntityType;
     }
 
     @Override

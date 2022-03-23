@@ -782,9 +782,7 @@ public class Stages {
             try {
                 topologyEditor.editTopology(input, scope, changes, getContext(),
                     groupResolver, sourceEntities.get(), destinationEntities.get());
-            } catch (GroupResolutionException e) {
-                throw new PipelineStageException(e);
-            } catch (TopologyEditorException e) {
+            } catch (GroupResolutionException | TopologyEditorException e) {
                 throw new PipelineStageException(e);
             }
             // TODO (roman, Oct 23 2018): Add some information about the number/type of
@@ -1848,7 +1846,8 @@ public class Stages {
                     searchFilterResolver);
             final String planType = topologyInfo.getPlanInfo().getPlanType();
             if (!StringConstants.CLOUD_PLAN_TYPES.contains(planType)) {
-                if (planType.equals(StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN)) {
+                if (planType.equals(StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN)
+                        || planType.equals(StringConstants.MIGRATE_CONTAINER_WORKLOAD_PLAN)) {
                     logger.info("Indexing container platform entities for scoping .....");
                 } else {
                     logger.info("Indexing on-prem entities for scoping .....");

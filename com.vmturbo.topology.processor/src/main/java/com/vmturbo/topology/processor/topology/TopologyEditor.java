@@ -66,9 +66,12 @@ import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
+import com.vmturbo.topology.processor.topology.clone.CloneContext;
+import com.vmturbo.topology.processor.topology.clone.CloneInfo;
 import com.vmturbo.topology.processor.topology.clone.DefaultEntityCloneEditor;
 import com.vmturbo.topology.processor.topology.clone.EntityCloneEditorFactory;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
+import com.vmturbo.topology.processor.util.TopologyEditorUtil;
 
 /**
  * The {@link TopologyEditor} is responsible for applying a set of changes (reflected
@@ -89,12 +92,15 @@ public class TopologyEditor {
     private static final Set<Integer> UTILIZATION_LEVEL_TYPES = ImmutableSet
             .of(CommodityType.CPU_VALUE, CommodityType.MEM_VALUE);
 
+    private static final Set<Integer> controllerTypes =
+            ImmutableSet.of(EntityType.WORKLOAD_CONTROLLER_VALUE);
+
     TopologyEditor(@Nonnull final IdentityProvider identityProvider,
                    @Nonnull final TemplateConverterFactory templateConverterFactory,
                    @Nonnull final GroupServiceBlockingStub groupServiceClient) {
         this.templateConverterFactory = Objects.requireNonNull(templateConverterFactory);
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
-        this.identityProvider =  Objects.requireNonNull(identityProvider);;
+        this.identityProvider =  Objects.requireNonNull(identityProvider);
     }
 
     /**
@@ -117,7 +123,8 @@ public class TopologyEditor {
                              @Nonnull final TopologyPipelineContext context,
                              @Nonnull final GroupResolver groupResolver,
                              @Nonnull final Set<Long> sourceEntities,
-                             @Nonnull final Set<Long> destinationEntities) throws GroupResolutionException {
+                             @Nonnull final Set<Long> destinationEntities)
+            throws GroupResolutionException, TopologyEditorException {
         final TopologyInfo topologyInfo = context.getTopologyInfo();
         // Set shopTogether to false for all entities if it's not a alleviate pressure plan,
         // so SNM is not performed by default.
@@ -142,9 +149,9 @@ public class TopologyEditor {
             entity.getTopologyEntityImpl().getOrCreateAnalysisSettings()
                 .setShopTogether(isAlleviatePressurePlan));
 
-        Map<Long, Long> entityAdditions = new HashMap<>();
-        Set<Long> entitiesToRemove = new HashSet<>();
-        Set<Long> entitiesToReplace = new HashSet<>();
+        final Map<Long, Long> entitiesToAdd = new HashMap<>();
+        final Set<Long> entitiesToRemove = new HashSet<>();
+        final Set<Long> entitiesToReplace = new HashSet<>();
         final Map<Long, Long> templateToAdd = new HashMap<>();
         // Map key is template id, and value is the replaced topologyEntity.
         final Multimap<Long, Long> templateToReplacedEntity =
@@ -152,45 +159,42 @@ public class TopologyEditor {
         final Map<Long, Grouping> groupIdToGroupMap = getGroups(changes);
         final TopologyGraph<TopologyEntity> topologyGraph =
             TopologyEntityTopologyGraphCreator.newGraph(topology);
+        final Map<Long, Integer> entitiesWithReplicas = new HashMap<>();
 
         for (ScenarioChange change : changes) {
             if (change.hasTopologyAddition()) {
                 final TopologyAddition addition = change.getTopologyAddition();
-                int targetType = addition.getTargetEntityType();
                 long additionCount = addition.hasAdditionCount() ? addition.getAdditionCount() : 1L;
-                // user can choose a group whose member may not directly match with the addition type,
-                // in such cases, we need to traverse up/down supply chain to find the real entities they
-                // want to add
-                if (addition.hasEntityId()) {
-                    TopologyEntity.Builder entityToAdd = topology.get(addition.getEntityId());
-                    if (addition.hasTargetEntityType() && entityToAdd.getEntityType() != targetType) {
-                        // for instance: user can add VM from a pm cluster
-                        addEntitiesToMap(targetType, additionCount, entityToAdd,
-                                topologyGraph, entityAdditions)
-                                .entrySet()
-                                .forEach(entry -> entityAdditions.put(entry.getKey(), entry.getValue()));
-                    } else {
-                        addTopologyAdditionCount(entityAdditions, addition, addition.getEntityId());
-                    }
-                } else if (addition.hasTemplateId()) {
-                    addTopologyAdditionCount(templateToAdd, addition, addition.getTemplateId());
-                } else if (addition.hasGroupId()) {
-                    Set<Long> entityToAddId = groupResolver.resolve(groupIdToGroupMap.get(addition.getGroupId()),
-                            topologyGraph).getAllEntities();
-                    for (long id : entityToAddId) {
-                        TopologyEntity.Builder entity = topology.get(id);
-                        if (addition.hasTargetEntityType() && entity.getEntityType() != targetType) {
-                            // remove host from storage cluster group that user selected
-                            addEntitiesToMap(targetType, additionCount, entity, topologyGraph, entityAdditions)
-                                    .entrySet()
-                                    .forEach(entry -> entityAdditions.put(entry.getKey(), entry.getValue()));
-                        } else {
-                            addTopologyAdditionCount(entityAdditions, addition, id);
+                switch (addition.getAdditionTypeCase()) {
+                    case ENTITY_ID:
+                        // Add entity
+                        if (controllerTypes.contains(addition.getTargetEntityType())) {
+                            // Addition count is always 1 for controllers
+                            addTopologyAdditionCount(entitiesToAdd, addition.getEntityId(), 1);
+                            // Overload the addition count from the input
+                            if (addition.hasAdditionCount()) {
+                                entitiesWithReplicas.put(addition.getEntityId(), addition.getAdditionCount());
+                            }
+                            break;
                         }
-                    }
-                } else {
-                    logger.warn("Unimplemented handling for topology addition with {}",
-                            addition.getAdditionTypeCase());
+                        addTopologyAddition(addition, topology.get(addition.getEntityId()),
+                                            additionCount, entitiesToAdd, topologyGraph);
+                        break;
+                    case GROUP_ID:
+                        // Expand the group and add each member entity
+                        groupResolver.resolve(groupIdToGroupMap.get(addition.getGroupId()),
+                                              topologyGraph).getAllEntities().stream()
+                                .map(topology::get)
+                                .forEach(entity -> addTopologyAddition(
+                                        addition, entity, additionCount, entitiesToAdd, topologyGraph));
+                        break;
+                    case TEMPLATE_ID:
+                        // Add template
+                        addTopologyAdditionCount(templateToAdd, addition.getTemplateId(), additionCount);
+                        break;
+                    default:
+                        logger.warn("Unimplemented handling for topology addition with {}",
+                                    addition.getAdditionTypeCase());
                 }
             } else if (change.hasTopologyMigration()) {
                 // also consider on-prem migration use case
@@ -298,17 +302,22 @@ public class TopologyEditor {
                 logger.warn("Unimplemented handling for change of type {}", change.getDetailsCase());
             }
         }
-        // Clone the added entities and add the cloned entities into the topology
-        // We need to create a new factory as it caches clone functions which in turn may cache
-        // information such as taint collection. This information changes for each plan run.
-        final EntityCloneEditorFactory entityCloneEditorFactory =
-                new EntityCloneEditorFactory(identityProvider);
-        entityAdditions.forEach((oid, addCount) -> Optional.ofNullable(topology.get(oid))
-                .ifPresent(entity -> {
-                    final DefaultEntityCloneEditor cloneFunction = entityCloneEditorFactory
-                            .createEntityCloneFunction(entity, topologyInfo, topology, scope);
-                    LongStream.range(0, addCount).forEach(i -> cloneFunction
-                            .clone(entity.getTopologyEntityImpl(), i));
+        // Create the clone context to be shared by all clones
+        final CloneContext cloneContext = CloneContext.createContext(
+                topologyInfo, identityProvider, topology, scope);
+        entitiesToAdd.forEach((oid, addCount) -> Optional.ofNullable(topology.get(oid))
+                .ifPresent(entityBuilder -> {
+                    // Create or get the cached clone function based on entity type
+                    final DefaultEntityCloneEditor cloneFunction = EntityCloneEditorFactory
+                            .createEntityCloneFunction(entityBuilder.getEntityType());
+                    // Create the clone info specific to this clone
+                    final CloneInfo cloneInfo = CloneInfo.createCloneInfo(
+                            entityBuilder, topologyGraph, entitiesWithReplicas, cloneContext);
+                    // Perform the clone
+                    LongStream.range(0, addCount)
+                            .mapToObj(cloneInfo::withCloneCounter)
+                            .forEach(cInfo -> cloneFunction
+                                    .clone(entityBuilder.getTopologyEntityImpl(), cloneContext, cInfo));
         }));
 
         // Prepare any entities that are getting removed as part of the plan, for removal from the
@@ -479,27 +488,6 @@ public class TopologyEditor {
     }
 
     /**
-     * Add entities into a map with entity oid as key and the number of copied to be clones as value.
-     *
-     * @param targetType the target entity type
-     * @param additionCount the number of clones to be added
-     * @param entity the entity to be cloned
-     * @param topologyGraph the topology graph
-     * @param entityAdditions the mapping of entity oid to the number of clones to be added
-     * @return an oid to entity addition count mapping
-     */
-    private Map<Long, Long> addEntitiesToMap(final int targetType,
-                                             final long additionCount,
-                                             final @Nonnull TopologyEntity.Builder entity,
-                                             final @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
-                                             final @Nonnull Map<Long, Long> entityAdditions) {
-        for (final Builder targetEntity : getTargetEntities(targetType, entity, topologyGraph)) {
-            entityAdditions.put(targetEntity.getOid(), additionCount);
-        }
-        return entityAdditions;
-    }
-
-    /**
      * Obtain the associated entity of a given type starting from a given entity.
      *
      * @param targetType the type of entity to be found
@@ -507,14 +495,16 @@ public class TopologyEditor {
      * @param topologyGraph the topology graph
      * @return a set of TopologyEntity.Builder
      */
-    private Set<TopologyEntity.Builder> getTargetEntities(final int targetType,
-                                                          final @Nonnull TopologyEntity.Builder entity,
-                                                          final @Nonnull TopologyGraph<TopologyEntity> topologyGraph) {
+    private static Set<TopologyEntity.Builder> getTargetEntities(
+            final int targetType,
+            final @Nonnull TopologyEntity.Builder entity,
+            final @Nonnull TopologyGraph<TopologyEntity> topologyGraph) {
         // traver supply chain up to find target entities based on consumer relation, if none exists,
         // traverse down supply chain to find target entities based on provider relation
-        Set<TopologyEntity.Builder> topologyentities = traverseSupplyChain(targetType, entity, topologyGraph, true);
+        Set<TopologyEntity.Builder> topologyentities =
+                TopologyEditorUtil.traverseSupplyChain(targetType, entity, topologyGraph, true);
         if (topologyentities.isEmpty()) {
-            topologyentities = traverseSupplyChain(targetType, entity, topologyGraph, false);
+            topologyentities = TopologyEditorUtil.traverseSupplyChain(targetType, entity, topologyGraph, false);
         }
         return topologyentities;
     }
@@ -557,47 +547,6 @@ public class TopologyEditor {
             }
             RemoveAllConsumersRecursive(entitiesToRemove, consumer);
         });
-    }
-
-    /**
-     * Recursively looking for the consumers or providers of a type from the given entity.
-     *
-     * @param targetType the type of entity to be found
-     * @param entity the given entity candidate
-     * @param topologyGraph the topology graph
-     * @param traverseUp traverse up or down the supply chain to find related entities
-     * @return a set of TopologyEntity.Builder
-     */
-    private Set<TopologyEntity.Builder> traverseSupplyChain(final int targetType,
-                                                            final @Nonnull TopologyEntity.Builder entity,
-                                                            final @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
-                                                            final boolean traverseUp) {
-        Set<TopologyEntity.Builder> targetEntities = new HashSet<>();
-        Set<TopologyEntity> directRelatedEntities = new HashSet<>();
-        if (traverseUp) {
-            directRelatedEntities = topologyGraph.getEntity(entity.getOid())
-                .get().getConsumers().stream()
-                .collect(Collectors.toSet());
-        } else {
-            directRelatedEntities = topologyGraph.getEntity(entity.getOid())
-                .get().getProviders().stream()
-                .collect(Collectors.toSet());
-        }
-        if (directRelatedEntities.isEmpty()) {
-            return targetEntities;
-        }
-        targetEntities = directRelatedEntities.stream()
-                .filter(e -> targetType == e.getEntityType())
-                .map(TopologyEntity::getTopologyEntityImpl)
-                .map(TopologyEntity::newBuilder)
-                .collect(Collectors.toSet());
-        if (targetEntities.isEmpty()) {
-            for (TopologyEntity c : directRelatedEntities) {
-                targetEntities.addAll(traverseSupplyChain(targetType,
-                        TopologyEntity.newBuilder(c.getTopologyEntityImpl()), topologyGraph, traverseUp));
-            }
-        }
-        return targetEntities;
     }
 
     /**
@@ -751,15 +700,29 @@ public class TopologyEditor {
         }
     }
 
-    private static void addTopologyAdditionCount(@Nonnull final Map<Long, Long> additionMap,
-                                                 @Nonnull TopologyAddition addition,
-                                                 long key) {
-        final long additionCount =
-                addition.hasAdditionCount() ? addition.getAdditionCount() : 1L;
-        additionMap.put(key, additionMap.getOrDefault(key, 0L) + additionCount);
-
+    private static void addTopologyAddition(@Nonnull TopologyAddition addition,
+                                            @Nonnull final TopologyEntity.Builder entity,
+                                            final long additionCount,
+                                            @Nonnull final Map<Long, Long> additionMap,
+                                            @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
+        // user can choose a group whose member may not directly match with the addition type,
+        // in such cases, we need to traverse up/down supply chain to find the real entities they
+        // want to add
+        final int targetType = addition.getTargetEntityType();
+        if (addition.hasTargetEntityType() && entity.getEntityType() != targetType) {
+            for (final Builder targetEntity : getTargetEntities(targetType, entity, topologyGraph)) {
+                addTopologyAdditionCount(additionMap, targetEntity.getOid(), additionCount);
+            }
+            return;
+        }
+        addTopologyAdditionCount(additionMap, entity.getOid(), additionCount);
     }
 
+    private static void addTopologyAdditionCount(@Nonnull final Map<Long, Long> additionMap,
+                                                 final long entityId,
+                                                 final long additionCount) {
+        additionMap.put(entityId, additionMap.getOrDefault(entityId, 0L) + additionCount);
+    }
 
     private Map<Long, Grouping> getGroups(List<ScenarioChange> changes) {
         final Set<Long> groupIds = PlanDTOUtil.getInvolvedGroups(changes);
