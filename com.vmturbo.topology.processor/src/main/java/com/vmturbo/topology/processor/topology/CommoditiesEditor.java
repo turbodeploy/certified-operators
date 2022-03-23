@@ -58,7 +58,7 @@ public class CommoditiesEditor {
                                     CommodityType.TEMPLATE_ACCESS, CommodityType.LICENSE_ACCESS,
                                     CommodityType.ACCESS, CommodityType.TENANCY_ACCESS,
                                     CommodityType.VMPM_ACCESS, CommodityType.VAPP_ACCESS,
-                                    CommodityType.TAINT);
+                                    CommodityType.TAINT, CommodityType.LABEL);
 
     private final Logger logger = LogManager.getLogger();
     private final StatsHistoryServiceBlockingStub historyClient;

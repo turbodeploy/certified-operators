@@ -143,6 +143,7 @@ public class ClassicEnumMapper {
             .put("ConcurrentSession",           CommodityType.CONCURRENT_SESSION)
             .put("ConcurrentWorker",            CommodityType.CONCURRENT_WORKER)
             .put("Taint",                       CommodityType.TAINT)
+            .put("Label",                       CommodityType.LABEL)
             .build();
 
     /**

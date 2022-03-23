@@ -188,6 +188,7 @@ public class CommodityTypeMapping {
             .put(CommodityType.IO_THROUGHPUT_READ, CommodityInfo.of("IOThroughputRead", "IOThroughputRead", "KByte/sec"))
             .put(CommodityType.IO_THROUGHPUT_WRITE, CommodityInfo.of("IOThroughputWrite", "IOThroughputWrite", "KByte/sec"))
             .put(CommodityType.TAINT, CommodityInfo.of("Taint", "Taint", ""))
+            .put(CommodityType.LABEL, CommodityInfo.of("Label", "Label", ""))
             .put(CommodityType.UNKNOWN, CommodityInfo.of("Unknown", "Unknown", ""))
             .build();
 

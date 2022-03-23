@@ -273,6 +273,8 @@ public enum UICommodityType {
     IO_THROUGHPUT_WRITE(CommodityType.IO_THROUGHPUT_WRITE, "IO Throughput Write"),
     /** The commodity TAINT **/
     TAINT(CommodityType.TAINT, "Kubernetes Taint"),
+    /** The commodity LABEL */
+    LABEL(CommodityType.LABEL, "Kubernetes Label"),
     /** The commodity UNKNOWN. */
     UNKNOWN(CommodityType.UNKNOWN, "Unknown");
 
