@@ -55,10 +55,14 @@ public class GroupStitchingManagerTest {
     private static final String GROUP_ID_2 = "group-2";
     private static final String BF_ID_1 = "BillingFamily::1";
     private static final String BF_ID_2 = "BillingFamily::2";
+    private static final String FOLDER_ID_1 = "folder/123";
+    private static final String FOLDER_ID_2 = "folder/456";
 
     private static final String BF_DISPLAY_NAME_1_FROM_AWS = "Development";
     private static final String BF__DISPLAY_NAME_1_FROM_AWS_BILLING = "1";
     private static final String BF__DISPLAY_NAME_2_FROM_AWS = "Test";
+    private static final String FOLDER_1_DISPLAY_NAME = "Folder-1";
+    private static final String FOLDER_2_DISPLAY_NAME = "Folder-2";
 
     private static final long ACCOUNT_ID_1 = 1;
     private static final long ACCOUNT_ID_2 = 1;
@@ -102,6 +106,20 @@ public class GroupStitchingManagerTest {
             GroupTestUtils.createUploadedGroupWithDisplayName(GroupType.BILLING_FAMILY, BF_ID_2,
                     ImmutableMap.of(EntityType.BUSINESS_ACCOUNT_VALUE,
                             Sets.newHashSet(ACCOUNT_ID_2)), BF__DISPLAY_NAME_2_FROM_AWS);
+    private static final UploadedGroup folderGroup1 =
+        GroupTestUtils.createUploadedGroupWithDisplayName(GroupType.BUSINESS_ACCOUNT_FOLDER, FOLDER_ID_1,
+            ImmutableMap.of(EntityType.BUSINESS_ACCOUNT_VALUE,
+                Sets.newHashSet(ACCOUNT_ID_2)), FOLDER_1_DISPLAY_NAME);
+    private static final UploadedGroup folderGroup1Duplicate =
+        GroupTestUtils.createUploadedGroupWithDisplayName(GroupType.BUSINESS_ACCOUNT_FOLDER, FOLDER_ID_1,
+            ImmutableMap.of(EntityType.BUSINESS_ACCOUNT_VALUE,
+                Sets.newHashSet(ACCOUNT_ID_2)), FOLDER_1_DISPLAY_NAME);
+    private static final UploadedGroup folderGroup2 =
+        GroupTestUtils.createUploadedGroupWithDisplayName(GroupType.BUSINESS_ACCOUNT_FOLDER, FOLDER_ID_2,
+            ImmutableMap.of(EntityType.BUSINESS_ACCOUNT_VALUE,
+                Sets.newHashSet(ACCOUNT_ID_1)), FOLDER_2_DISPLAY_NAME);
+
+
 
     private IGroupStore groupStore;
     private GroupStitchingManager stitchingManager;
@@ -177,6 +195,67 @@ public class GroupStitchingManagerTest {
         Assert.assertEquals(BF_DISPLAY_NAME_1_FROM_AWS,
                 stitchingGroup.getGroupDefinition().getDisplayName());
         Assert.assertEquals(Sets.newHashSet(TARGET_1, TARGET_2), stitchingGroup.getTargetIds());
+    }
+
+    /**
+     * Test that Folders with the same source_id but discovered from different SA targets are stitched together.
+     */
+    @Test
+    public void testFoldersStitchingWithSameSourceId() {
+        groupStitchingContext.setTargetGroups(TARGET_1, SDKProbeType.GCP_SERVICE_ACCOUNT.getProbeType(),
+            Collections.singletonList(folderGroup1));
+        groupStitchingContext.setTargetGroups(TARGET_2, SDKProbeType.GCP_SERVICE_ACCOUNT.getProbeType(),
+            Collections.singletonList(folderGroup1Duplicate));
+        Mockito.when(groupStore.getDiscoveredGroupsIds()).thenReturn(Collections.emptyList());
+        final StitchingResult result = stitchingManager.stitch(groupStore, groupStitchingContext);
+        Assert.assertEquals(1, result.getGroupsToAddOrUpdate().size());
+        final StitchingGroup stitchingGroup = result.getGroupsToAddOrUpdate().iterator().next();
+        Assert.assertEquals(FOLDER_ID_1, stitchingGroup.getSourceId());
+        Assert.assertEquals(FOLDER_1_DISPLAY_NAME,
+            stitchingGroup.getGroupDefinition().getDisplayName());
+        Assert.assertEquals(Sets.newHashSet(TARGET_1, TARGET_2), stitchingGroup.getTargetIds());
+    }
+
+    /**
+     * Test that Folders with different source_ids from the same target are not stitched together.
+     */
+    @Test
+    public void testNoStitchingFoldersWithDifferentSourceIdSameTarget() {
+        groupStitchingContext.setTargetGroups(TARGET_1, SDKProbeType.GCP_SERVICE_ACCOUNT.getProbeType(),
+            Arrays.asList(folderGroup1, folderGroup2));
+        Mockito.when(groupStore.getDiscoveredGroupsIds()).thenReturn(Collections.emptyList());
+        final StitchingResult result = stitchingManager.stitch(groupStore, groupStitchingContext);
+        Assert.assertEquals(2, result.getGroupsToAddOrUpdate().size());
+        final Collection<StitchingGroup> resultGroups = result.getGroupsToAddOrUpdate();
+        final List<String> sourceIds = resultGroups.stream().map(StitchingGroup::getSourceId)
+            .collect(Collectors.toList());
+        Assert.assertTrue(sourceIds.containsAll(Arrays.asList(FOLDER_ID_1, FOLDER_ID_2)));
+        final Set<Long> sourceTargetIds = resultGroups.stream().map(StitchingGroup::getTargetIds)
+            .flatMap(Set::stream)
+            .collect(Collectors.toSet());
+        Assert.assertTrue(sourceTargetIds.contains(TARGET_1));
+    }
+
+    /**
+     * Test that Folders with different source_ids from the different targets are not stitched together.
+     */
+    @Test
+    public void testNoStitchingFoldersWithDifferentSourceIdDifferentTargets() {
+        groupStitchingContext.setTargetGroups(TARGET_1, SDKProbeType.GCP_SERVICE_ACCOUNT.getProbeType(),
+            Collections.singletonList(folderGroup1));
+        groupStitchingContext.setTargetGroups(TARGET_2, SDKProbeType.GCP_SERVICE_ACCOUNT.getProbeType(),
+            Collections.singletonList(folderGroup2));
+        Mockito.when(groupStore.getDiscoveredGroupsIds()).thenReturn(Collections.emptyList());
+        final StitchingResult result = stitchingManager.stitch(groupStore, groupStitchingContext);
+        Assert.assertEquals(2, result.getGroupsToAddOrUpdate().size());
+        final Collection<StitchingGroup> resultGroups = result.getGroupsToAddOrUpdate();
+        final List<String> sourceIds = resultGroups.stream().map(StitchingGroup::getSourceId)
+            .collect(Collectors.toList());
+        Assert.assertTrue(sourceIds.containsAll(Arrays.asList(FOLDER_ID_1, FOLDER_ID_2)));
+        final Set<Long> sourceTargetIds = resultGroups.stream().map(StitchingGroup::getTargetIds)
+            .flatMap(Set::stream)
+            .collect(Collectors.toSet());
+        Assert.assertTrue(sourceTargetIds.containsAll(Arrays.asList(TARGET_1, TARGET_2)));
     }
 
     /**

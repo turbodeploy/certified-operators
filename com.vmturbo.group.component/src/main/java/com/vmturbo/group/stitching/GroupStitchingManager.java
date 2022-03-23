@@ -101,6 +101,7 @@ public class GroupStitchingManager {
                 final GroupIdProvider idProvider =
                         (group.getDefinition().getType() == GroupType.RESOURCE
                                 || group.getDefinition().getType() == GroupType.BILLING_FAMILY
+                                || group.getDefinition().getType() == GroupType.BUSINESS_ACCOUNT_FOLDER
                                 || group.getStitchAcrossTargets())
                                 ? crossTargetIdProvider : targetLocalIdProvider;
                 final String groupSourceIdentifier =
