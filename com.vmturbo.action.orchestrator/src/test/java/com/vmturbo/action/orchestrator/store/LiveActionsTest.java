@@ -527,7 +527,7 @@ public class LiveActionsTest {
     }
 
     @Test
-    public void testGetByFilterWithStartEndDateAllInvolvedEntities() {
+    public void testGetByFilterWithStartEndDateNoInvolvedEntities() {
         final Instant start = clock.instant().minusMillis(100);
         final Instant end = clock.instant().plusMillis(100);
         final LocalDateTime startDate = LocalDateTime.ofInstant(start, clock.getZone());
@@ -618,7 +618,7 @@ public class LiveActionsTest {
         when(actionHistoryDao.getActionHistoryByFilter(actionQueryFilter)).thenReturn(Arrays.asList(action1, action2));
 
         assertThat(liveActions.get(actionQueryFilter).collect(Collectors.toList()), containsInAnyOrder(action1, action2));
-        verify(queryFilter,times(1)).test(action1);
+        verify(queryFilter, times(1)).test(action1);
         verify(queryFilter, times(1)).test(action2);
 
         // Repeat test without start end dates.  We should only get action1 - action 2 shouldn't even be considered
@@ -637,7 +637,7 @@ public class LiveActionsTest {
 
         assertThat(liveActions.get(actionQueryFilterWithoutDates).collect(Collectors.toList()), containsInAnyOrder(action1));
         // Only action1 is valid in this case.
-        verify(queryFilter,times(2)).test(action1);
+        verify(queryFilter, times(2)).test(action1);
         verify(queryFilter, times(1)).test(action2);
     }
 

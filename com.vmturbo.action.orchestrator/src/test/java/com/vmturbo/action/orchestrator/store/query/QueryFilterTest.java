@@ -9,8 +9,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -49,6 +51,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResourceGroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -370,7 +373,7 @@ public class QueryFilterTest {
                                           .build())
                         .build();
 
-        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+        assertTrue(new QueryFilter(filter, LiveActionStore.VISIBILITY_PREDICATE)
                                     .test(actionView));
     }
 
@@ -385,8 +388,34 @@ public class QueryFilterTest {
                         .build())
                 .build();
 
-        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+        assertTrue(new QueryFilter(filter, LiveActionStore.VISIBILITY_PREDICATE)
                 .test(actionView));
+    }
+
+    @Test
+    public void testInvolvedEntitiesMatchWithOrganizationalScopeFilter() {
+        final ActionView actionViewInvolved =
+                executableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
+        final List<Long> involvedEntities = Arrays.asList(1L, 5L);
+
+        final ActionView actionViewDeleted =
+                executableDeleteAction(7L/*id*/, 3L/*targetId*/, ActionState.SUCCEEDED/*actionState*/);
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+                .setInvolvedEntities(InvolvedEntities.newBuilder()
+                        .addAllOids(involvedEntities).build())
+                .setAccountFilter(AccountFilter.newBuilder().addAccountId(2L)
+                        .build())
+                .build();
+
+        // Set up combined entitiesRestriction
+        Set<Long> expectedEntitiesRestriction = ImmutableSet.of(1L, 3L, 5L, 7L);
+        assertTrue(new QueryFilter(filter, LiveActionStore.VISIBILITY_PREDICATE, expectedEntitiesRestriction,
+                InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES)
+                .test(actionViewInvolved));
+        assertTrue(new QueryFilter(filter, LiveActionStore.VISIBILITY_PREDICATE, expectedEntitiesRestriction,
+                InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES)
+                .test(actionViewDeleted));
     }
 
     /**
