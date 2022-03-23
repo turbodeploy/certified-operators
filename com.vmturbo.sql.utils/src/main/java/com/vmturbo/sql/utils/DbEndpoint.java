@@ -149,6 +149,7 @@ public class DbEndpoint {
     private Throwable failureCause;
     private final DbEndpointCompleter endpointCompleter;
     private DataSourceConnectionProvider connectionProvider;
+    private DataSourceConnectionProvider unpooledConnectionProvider;
 
     DbEndpoint(DbEndpointConfig config, DbEndpointCompleter endpointCompleter) {
         this.config = config;
@@ -171,7 +172,8 @@ public class DbEndpoint {
     }
 
     /**
-     * Create a {@link DSLContext} bound to this endpoint.
+     * Create a {@link DSLContext} bound to this endpoint, which uses pooled connections to
+     * perform database operations.
      *
      * @return dsl context
      * @throws UnsupportedDialectException if this endpoint is mis-configured
@@ -180,8 +182,22 @@ public class DbEndpoint {
      */
     public DSLContext dslContext() throws UnsupportedDialectException, SQLException, InterruptedException {
         awaitCompletion(endpointCompleter.getMaxAwaitCompletionMs(), TimeUnit.MILLISECONDS);
+        return dslContext(config.getUseConnectionPool());
+    }
+
+    /**
+     * Create a {@link DSLContext} bound to this endpoint.
+     *
+     * @param pooled true if the {@link DSLContext} should use pooled connections
+     * @return dsl context
+     * @throws UnsupportedDialectException if this endpoint is mis-configured
+     * @throws SQLException                if there's a problem gaining access
+     * @throws InterruptedException        if interrupted
+     */
+    public DSLContext dslContext(boolean pooled) throws UnsupportedDialectException, SQLException, InterruptedException {
+        awaitCompletion(endpointCompleter.getMaxAwaitCompletionMs(), TimeUnit.MILLISECONDS);
         if (config.isEndpointEnabled()) {
-            return DSL.using(getConfiguration());
+            return DSL.using(getConfiguration(pooled));
         } else {
             throw new IllegalStateException("Attempt to use disabled database endpoint");
         }
@@ -221,13 +237,14 @@ public class DbEndpoint {
     /**
      * Get a jOOQ {@link Configuration} object configured for and bound to this endpoint.
      *
+     * @param pooled true if the connection should be allocated from a pooled data source
      * @return the configuration object
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      * @throws SQLException                if there's a problem creating the configuration
      */
-    private Configuration getConfiguration() throws UnsupportedDialectException, SQLException {
+    private Configuration getConfiguration(boolean pooled) throws UnsupportedDialectException, SQLException {
         DefaultConfiguration jooqConfiguration = new DefaultConfiguration();
-        jooqConfiguration.set(connectionProvider());
+        jooqConfiguration.set(connectionProvider(pooled));
         jooqConfiguration.set(new Settings()
                 .withRenderNameStyle(RenderNameStyle.LOWER)
                 // Set withRenderSchema to false to avoid rendering schema name in Jooq generated SQL
@@ -242,24 +259,34 @@ public class DbEndpoint {
     }
 
     /**
-     * Get a jooq's connection provider bound to this endpoint.
-     * There is only a single provider per endpoint.
-     * So if adapter supports pooling, all DSL contexts created from this endpoint instance
-     * will be using same single pool.
+     * Get a jooq's connection provider bound to this endpoint. There may be two providers per
+     * endpoint: pooled and unpooled, depending on the configuration. If pooled, all DSL contexts
+     * created from this endpoint instance will be using same single pool.
      *
+     * @param pooled true if the connection should be allocated from a pooled data source
      * @return the connection provider
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      * @throws SQLException                if there's a problem gaining access
      */
-    private synchronized DataSourceConnectionProvider connectionProvider()
+    private synchronized DataSourceConnectionProvider connectionProvider(boolean pooled)
             throws UnsupportedDialectException, SQLException {
-        if (connectionProvider == null) {
-            connectionProvider = new DataSourceConnectionProvider(
-                            new TransactionAwareDataSourceProxy(
-                                    new LazyConnectionDataSourceProxy(
-                                            adapter.getDataSource(config.getUseConnectionPool()))));
+        if (pooled) {
+            if (connectionProvider == null) {
+                connectionProvider = new DataSourceConnectionProvider(
+                        new TransactionAwareDataSourceProxy(
+                                new LazyConnectionDataSourceProxy(
+                                        adapter.getDataSource(true))));
+            }
+            return connectionProvider;
+        } else {
+            if (unpooledConnectionProvider == null) {
+                unpooledConnectionProvider = new DataSourceConnectionProvider(
+                        new TransactionAwareDataSourceProxy(
+                                new LazyConnectionDataSourceProxy(
+                                        adapter.getDataSource(false))));
+            }
+            return unpooledConnectionProvider;
         }
-        return connectionProvider;
     }
 
     /**

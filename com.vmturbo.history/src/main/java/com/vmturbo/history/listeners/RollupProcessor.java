@@ -423,8 +423,8 @@ public class RollupProcessor {
                 logger.warn("Source or rollup for table {} were missing", table.getName());
                 return futures;
             }
-            String low = lowBound > 0 ? String.format("'%x'", lowBound) : null;
-            String high = highBound < 16 ? String.format("'%x'", highBound) : null;
+            String low = lowBound > 0 ? String.format("%x", lowBound) : null;
+            String high = highBound < 16 ? String.format("%x", highBound) : null;
             futures.add(executorService.submit(() -> {
                 unpooledDsl.transaction(trans -> {
                     trans.dsl().connection(conn ->
@@ -433,17 +433,12 @@ public class RollupProcessor {
                         new EntityStatsRollups(source, rollup, snapshotTime, rollupTime, low, high)
                                 .execute(trans.dsl());
                     } else {
-                        String sql = String.format(
-                                "CALL %s('%s', '%s', '%s', '%s', %s, %s, %d, %d, %d, %d, @count)",
-                                ENTITY_ROLLUP_PROC, source.getName(), rollup.getName(),
-                                snapshotTime,
-                                rollupTime,
-                                low, high,
-                                rollupType.isCopyHourKey() ? 1 : 0,
-                                rollupType.isCopyDayKey() ? 1 : 0,
-                                rollupType.isCopyMonthKey() ? 1 : 0,
-                                rollupType.sourceHasSamples() ? 1 : 0);
-                        trans.dsl().execute(sql);
+                        Routines.entityStatsRollup(trans, source.getName(), rollup.getName(),
+                                snapshotTime, rollupTime, low, high,
+                                (byte)(rollupType.isCopyHourKey() ? 1 : 0),
+                                (byte)(rollupType.isCopyDayKey() ? 1 : 0),
+                                (byte)(rollupType.isCopyMonthKey() ? 1 : 0),
+                                (byte)(rollupType.sourceHasSamples() ? 1 : 0));
                     }
                 });
                 return null;
