@@ -673,8 +673,7 @@ class LiveActions implements QueryableActionViews {
             final List<Long> oidsList = actionQueryFilter.getInvolvedEntities().getOidsList();
             // If involved entities contains only ARM entities, it will be expanded.
             // If it contains at least one non-arm entity, it will not be expanded.
-            InvolvedEntitiesFilter filter =
-                involvedEntitiesExpander.expandInvolvedEntitiesFilter(oidsList);
+            InvolvedEntitiesFilter filter = involvedEntitiesExpander.expandInvolvedEntitiesFilter(oidsList);
             entitiesRestriction = filter.getEntities();
             // If the user is scoped user, only retain the entities user has access to.
             // Otherwise, the result set will contain entities that the user cannot see, causing the entire request to fail with AuthorizationException$UserAccessScopeException.
@@ -704,38 +703,44 @@ class LiveActions implements QueryableActionViews {
         }
 
         final Stream<ActionView> candidateActionViews;
+        final boolean existsOrganizationalScopeRestriction = ActionDTOUtil.hasOrganizationalScopeRestriction(actionQueryFilter);
         if (actionQueryFilter.hasStartDate() && actionQueryFilter.hasEndDate()) {
             final LocalDateTime endDate = ActionDTOUtil.getLocalDateTime(actionQueryFilter.getEndDate());
-            final List<ActionView> succeededOrFailedActionList =
-                                            actionHistoryDao.getActionHistoryByFilter(actionQueryFilter);
+            final List<ActionView> succeededOrFailedActionList = actionHistoryDao.getActionHistoryByFilter(actionQueryFilter);
             Stream<ActionView> historical = succeededOrFailedActionList.stream().filter(view -> {
-                   if (!ActionDTOUtil.hasOrganizationalScopeRestriction(actionQueryFilter)
-                           && entitiesRestriction != null) {
-                        try {
-                            // include actions with ANY involved entities in the set.
-                            return ActionDTOUtil.getInvolvedEntityIds(view.getRecommendation()).stream()
+                try {
+                    if (entitiesRestriction != null  && !existsOrganizationalScopeRestriction) {
+                        // include actions with ANY involved entities in the set.
+                        return ActionDTOUtil.getInvolvedEntityIds(view.getRecommendation()).stream()
                                 .anyMatch(entitiesRestriction::contains);
-                        } catch (UnsupportedActionException e) {
-                            return false;
-                        }
-                    } else { // if there's a scope filter set, the historical actions will already be filtered correctly.
-                       return true;
+                    } else if (entitiesRestriction != null  && existsOrganizationalScopeRestriction) {
+                        // For supported organizational scopes, expand entitiesRestriction to allow relevant executed
+                        // actions of active as well as deleted entities.  This should be the case for scoped
+                        // users scoped to an organizational scope.
+                        entitiesRestriction.addAll(ActionDTOUtil.getInvolvedEntityIds(view.getRecommendation()));
+                        // With organizational scope filter set, actions from db are already filtered correctly.
+                        return true;
                     }
-                });
+                    return true;
+                } catch (UnsupportedActionException e) {
+                    return false;
+                }
+            });
+
             final Stream<ActionView> current = currentActions
-                .filter(action -> !isSucceededorFailed(action))
-                .filter(action -> endDate.compareTo(action.getRecommendationTime()) > 0);
+                    .filter(action -> !isSucceededorFailed(action))
+                    .filter(action -> endDate.compareTo(action.getRecommendationTime()) > 0);
             candidateActionViews = Stream.concat(historical, current);
         } else {
             candidateActionViews = currentActions;
         }
 
         final QueryFilter queryFilter =
-            queryFilterFactory.newQueryFilter(
-                actionQueryFilter,
-                LiveActionStore.VISIBILITY_PREDICATE,
-                entitiesRestriction != null ? entitiesRestriction : Collections.emptySet(),
-                involvedEntityCalculation);
+                queryFilterFactory.newQueryFilter(
+                        actionQueryFilter,
+                        LiveActionStore.VISIBILITY_PREDICATE,
+                        entitiesRestriction != null ? entitiesRestriction : Collections.emptySet(),
+                        involvedEntityCalculation);
         return candidateActionViews.filter(queryFilter::test);
     }
 
