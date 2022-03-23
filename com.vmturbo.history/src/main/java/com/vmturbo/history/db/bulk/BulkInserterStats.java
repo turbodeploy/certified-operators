@@ -34,6 +34,9 @@ public class BulkInserterStats {
     private long workTimeNanos = 0L;
     // total nanoseconds spent
     private long lostTimeNanos;
+    // indicates that the stats may not represent all saved records due to timeout during
+    // flush operation
+    private boolean mayBePartial = false;
 
     /**
      * Create a new instance.
@@ -115,6 +118,23 @@ public class BulkInserterStats {
     }
 
     /**
+     * Check if these stats may not be complete (due to a timeout when flushing pending batches at
+     * close).
+     *
+     * @return true if stat may not represent all saved records
+     */
+    public synchronized boolean mayBePartial() {
+        return mayBePartial;
+    }
+
+    /**
+     * Indicate that these stats may not represent all records saved by the inserter.
+     */
+    public synchronized void setMayBePartial() {
+        this.mayBePartial = true;
+    }
+
+    /**
      * Register stats for a batch execution.
      *
      * @param batchStats {@link BulkInserter.BatchStats} object
@@ -133,17 +153,17 @@ public class BulkInserterStats {
     /**
      * Incorporate new data into this stats object.
      *
-     * @param written addition to written records count
-     * @param batches addition to batch count
+     * @param written       addition to written records count
+     * @param batches       addition to batch count
      * @param failedBatches addition to failed batch count
      * @param workTimeNanos addition to work time
      * @param lostTimeNanos addition to lost time
      */
     public synchronized void update(final long written,
-                       final int batches,
-                       final int failedBatches,
-                       final long workTimeNanos,
-                       final long lostTimeNanos) {
+            final int batches,
+            final int failedBatches,
+            final long workTimeNanos,
+            final long lostTimeNanos) {
         this.written += written;
         this.batches += batches;
         this.failedBatches += failedBatches;

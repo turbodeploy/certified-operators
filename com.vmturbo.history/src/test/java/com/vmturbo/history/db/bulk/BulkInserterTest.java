@@ -5,6 +5,7 @@ import static com.vmturbo.history.schema.abstraction.Tables.SYSTEM_LOAD;
 import static com.vmturbo.history.schema.abstraction.tables.Notifications.NOTIFICATIONS;
 import static com.vmturbo.history.schema.abstraction.tables.VmStatsLatest.VM_STATS_LATEST;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
@@ -26,6 +27,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -42,7 +44,6 @@ import org.jooq.TableField;
 import org.jooq.exception.DataAccessException;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -96,45 +97,30 @@ public class BulkInserterTest extends MultiDbTestBase {
         this.dsl = super.getDslContext();
     }
 
-    /**
-     * Set up and populate live database for tests, and create required mocks.
-     *
-     * @throws SQLException if a DB operation fials
-     * @throws UnsupportedDialectException if the dialect is bogus
-     * @throws InterruptedException if we're interrupted
-     */
-    @Before
-    public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
-        // entities table starts out with a couple of records during migration that make
-        // the tests a little clumsier, so we just get rid of them during setup.
-        try {
-            dsl.deleteFrom(ENTITIES).execute();
-        } catch (DataAccessException e) {
-            e.printStackTrace();
-        }
-        config = mkConfig(2);
-        loaders = new SimpleBulkLoaderFactory(dsl, config, mock(PartmanHelper.class), threadPool);
-    }
-
-    private static ExecutorService threadPool;
     private static BulkInserterConfig config;
     private SimpleBulkLoaderFactory loaders;
 
-    private BulkInserterConfig mkConfig(int batchSize) {
-        return ImmutableBulkInserterConfig.builder()
+    private SimpleBulkLoaderFactory mkLoaders(int batchSize, int poolSize, int fetchTimeout) {
+        this.config = ImmutableBulkInserterConfig.builder()
                 .batchSize(batchSize)
                 .maxPendingBatches(2)
                 .maxBatchRetries(3)
                 .maxRetryBackoffMsec(1000)
+                .flushTimeoutSecs(fetchTimeout)
                 .build();
+        return new SimpleBulkLoaderFactory(dsl, config, mock(PartmanHelper.class),
+                () -> Executors.newFixedThreadPool(poolSize));
     }
 
     /**
-     * Set up a thread pool for bulk inserters.
+     * Create a factory for record laoders, using default config.
+     *
+     * <p>Any test that requires different configuration should close this factory and
+     * create another.</p>
      */
-    @BeforeClass
-    public static void beforeClass() {
-        threadPool = Executors.newFixedThreadPool(2);
+    @Before
+    public void before() {
+        this.loaders = mkLoaders(2, 2, 10);
     }
 
     /**
@@ -151,13 +137,6 @@ public class BulkInserterTest extends MultiDbTestBase {
         try {
             loaders.close();
         } catch (InterruptedException ignored) {
-        }
-        final BulkInserterFactoryStats stats = loaders.getStats();
-        // stats comes back null in some mocked tests
-        if (stats != null) {
-            for (Table table : stats.getOutTables()) {
-                dsl.deleteFrom(table).execute();
-            }
         }
     }
 
@@ -288,8 +267,7 @@ public class BulkInserterTest extends MultiDbTestBase {
     public void testParallelLoaders() throws InterruptedException, ExecutionException, DataAccessException {
         ExecutorService pool = Executors.newFixedThreadPool(4);
         loaders.close();
-        config = mkConfig(100);
-        loaders = new SimpleBulkLoaderFactory(dsl, config, mock(PartmanHelper.class), threadPool);
+        this.loaders = mkLoaders(100, 2, 10);
         List<Future<Void>> futures = new ArrayList<>();
         for (long i = 0; i < 4000; i += 1000) {
             final long finalI = i;
@@ -334,6 +312,7 @@ public class BulkInserterTest extends MultiDbTestBase {
      */
     @Test
     public void testUpserter() throws InterruptedException, DataAccessException {
+        dsl.deleteFrom(ENTITIES).execute();
         final BulkLoader<EntitiesRecord> entitiesLoader = loaders.getLoader(ENTITIES);
         // send in initial batch of records
         entitiesLoader.insertAll(entitiesSet1);
@@ -388,6 +367,52 @@ public class BulkInserterTest extends MultiDbTestBase {
         performInserts(loader, NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(10));
         loaders.close();
         verifyInserts(NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(10));
+    }
+
+    /**
+     * Make sure that the timeout mechanism built into factory close works as intended. We test once
+     * with normal test settings, and once with very tight timeouts and an artificially delayed
+     * inserter. The timeout should kick occur in the second scenario only. We test it by checking
+     * whether the {@link BulkInserterStats} object delivered from the inserter is marked as
+     * "partial" - which should only happen in the timeout-triggering scenario.
+     *
+     * @throws InterruptedException if we're interrupted
+     */
+    @Test
+    public void testCloseTimeout() throws InterruptedException {
+        // use default laoder to show timeout is not fired (as evidenced by the stats object not
+        // being marked "partial"
+        BulkInserter<EntitiesRecord, EntitiesRecord> loader =
+                loaders.getFactory().getInserter(ENTITIES, ENTITIES, RecordTransformer.IDENTITY,
+                        DbInserters.valuesInserter());
+        loader.insertAll(entitiesSet1);
+        loader.close(null);
+        assertFalse(loader.getStats().mayBePartial());
+        // now use a factory that has a short flush/drain timeout. It will be paid for both loader
+        // flush and completer drain, and will run for all DB scenarios, so the 10-second default
+        // can really add up
+        loaders.close();
+        loaders = mkLoaders(2, 2, 1);
+        // and use an inserter that artificially takes a long time to insert a batch of records
+        DbInserter<EntitiesRecord> inserter = new DbInserter() {
+            DbInserter<EntitiesRecord> valuesInserter = DbInserters.valuesInserter();
+
+            @Override
+            public void insert(Table table, List records, DSLContext dsl)
+                    throws DataAccessException {
+                try {
+                    Thread.sleep(TimeUnit.MINUTES.toMillis(1));
+                    valuesInserter.insert(table, records, dsl);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        };
+        loader = loaders.getFactory().getInserter(ENTITIES, ENTITIES, RecordTransformer.IDENTITY,
+                inserter);
+        loader.insertAll(entitiesSet1);
+        loader.close(null);
+        assertTrue(loader.getStats().mayBePartial());
     }
 
     /**

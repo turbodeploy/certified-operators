@@ -128,18 +128,25 @@ public class TopologyIngesterBase<T>
             logger.error("Failed to close bulk writers", e);
         }
         final BulkInserterFactoryStats stats = state.getLoaders().getStats();
+        int width = stats.getKeys().stream()
+                .filter(key -> !stats.getByKey(key).isEmpty())
+                .map(BulkInserterFactory::getKeyLabel)
+                .mapToInt(String::length)
+                .max().orElse(5);
         String statsSummary =
-                String.format("  %-25s %11s %7s %5s\n", "TABLE", "RECORDS", "BATCHES", "FAILS")
+                String.format("  %-" + width + "s %11s %7s %5s\n",
+                        "TABLE", "RECORDS", "BATCHES", "FAILS")
                         + stats.getKeys().stream()
-                        .sorted(Comparator.comparing(BulkInserterFactory::getKeyLabel))
                         .filter(key -> !stats.getByKey(key).isEmpty())
+                        .sorted(Comparator.comparing(BulkInserterFactory::getKeyLabel))
                         .map(key -> {
                             BulkInserterStats stat = stats.getByKey(key);
-                            return String.format("  %-25s %,11d %,7d %,5d",
+                            return String.format("  %-" + width + "s %,11d %,7d %,5d%s",
                                     BulkInserterFactory.getKeyLabel(key),
                                     stat.getWritten(),
                                     stat.getBatches(),
-                                    stat.getFailedBatches());
+                                    stat.getFailedBatches(),
+                                    stat.mayBePartial() ? " (partial)" : "");
                         })
                         .collect(Collectors.joining("\n"));
         logger.info("Completed ingestion for {}:\n{}",

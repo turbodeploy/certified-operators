@@ -115,6 +115,7 @@ public abstract class RollupTestBase extends MultiDbTestBase {
             .maxBatchRetries(1)
             .maxRetryBackoffMsec(1000)
             .maxPendingBatches(1)
+            .flushTimeoutSecs(10)
             .build();
     private RollupProcessor rollupProcessor;
 
@@ -123,8 +124,10 @@ public abstract class RollupTestBase extends MultiDbTestBase {
      */
     @Before
     public void rolllupTestBaseBefore() {
-        loaders = new SimpleBulkLoaderFactory(dsl, config, partmanHelper, Executors.newSingleThreadExecutor());
-        rollupProcessor = new RollupProcessor(dsl, dsl, partmanHelper, Executors.newFixedThreadPool(8));
+        loaders = new SimpleBulkLoaderFactory(dsl, config, partmanHelper,
+                () -> Executors.newSingleThreadExecutor());
+        rollupProcessor = new RollupProcessor(dsl, dsl, partmanHelper,
+                () -> Executors.newFixedThreadPool(8));
         IdentityGenerator.initPrefix(1L);
         RetentionPolicy.init(dsl);
     }

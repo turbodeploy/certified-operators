@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -83,18 +84,17 @@ public class BulkInserterFactory implements AutoCloseable {
 
     /**
      * Create a new instance.
-     *
-     * @param dsl basic database helpers
+     *  @param dsl basic database helpers
      * @param config default configuration for inserters
      * @param executor threadpool for execution of loader batches
      */
     public BulkInserterFactory(@Nonnull DSLContext dsl,
             @Nonnull BulkInserterConfig config,
-            @Nonnull ExecutorService executor) {
+            @Nonnull Supplier<ExecutorService> executor) {
         this.dsl = dsl;
         this.defaultConfig = config;
-        this.batchCompleter = new ThrottlingCompletingExecutor<>(executor,
-                config.maxPendingBatches());
+        this.batchCompleter = new ThrottlingCompletingExecutor<>(executor.get(),
+                config.maxPendingBatches(), config.flushTimeoutSecs());
     }
 
     /**
@@ -271,11 +271,9 @@ public class BulkInserterFactory implements AutoCloseable {
      * @throws InterruptedException if interrupted
      */
     public void flushAll() throws InterruptedException {
-        // first flush all inserters, so they can write pending records in parallel
         for (BulkInserter<?, ?> bulkInserter : inserters.values()) {
-            bulkInserter.flush(false);
+            bulkInserter.flush(true);
         }
-        batchCompleter.drain();
     }
 
     /**
@@ -336,9 +334,6 @@ public class BulkInserterFactory implements AutoCloseable {
      * @throws InterruptedException if interrupted
      */
     public void close(Logger logger) throws InterruptedException {
-        // flush explicitly rather than as side-effect of close, so that we get any logging
-        // produced by all flushes prior to stats logged by close operations
-        flushAll();
         for (BulkInserter<?, ?> bulkInserter : inserters.values()) {
             bulkInserter.close(logger);
         }

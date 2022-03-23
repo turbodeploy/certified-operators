@@ -25,7 +25,7 @@ public class BulkLoaderUtils {
      */
     public static SimpleBulkLoaderFactory getRecordWriterFactory(DSLContext dsl) {
         return new SimpleBulkLoaderFactory(dsl, getConfig(), mock(PartmanHelper.class),
-                getRecordWritersThreadPool());
+                () -> getRecordWritersThreadPool());
     }
 
     public static ExecutorService getRecordWritersThreadPool() {
@@ -34,10 +34,11 @@ public class BulkLoaderUtils {
 
     public static ImmutableBulkInserterConfig getConfig() {
         return ImmutableBulkInserterConfig.builder()
-            .batchSize(1000)
-            .maxBatchRetries(2)
-            .maxRetryBackoffMsec(5000)
-            .maxPendingBatches(2)
-            .build();
+                .batchSize(1000)
+                .maxBatchRetries(2)
+                .maxRetryBackoffMsec(5000)
+                .maxPendingBatches(2)
+                .flushTimeoutSecs(10)
+                .build();
     }
 }
