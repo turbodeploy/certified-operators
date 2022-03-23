@@ -94,7 +94,6 @@ public abstract class TestDBMigrationChecksums {
         final String key = file.getName();
         final String actualChecksum = computeChecksum(file);
         final Object expectedChecksum = checksums.get(key);
-
         if (expectedChecksum == null) {
             throw new ChecksumValidationException("File " + key + " must have a recorded checksum. "
                   + "Use " + actualChecksum + " if you want to add it");
