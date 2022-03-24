@@ -26,6 +26,7 @@
             {"inputType": "#", "elements": "virtualMachineInfoRepoDTO.numCpus", "filterCategory": "property", "filterType": "vmsByNumCPUs"},
             {"inputType": "s", "elements": "virtualMachineInfoRepoDTO.vendorToolsInstalled", "filterCategory": "property", "filterType": "vendorToolsInstalled"},
             {"inputType": "*", "elements": "virtualMachineInfoRepoDTO.vendorToolsVersion", "filterCategory": "property", "filterType": "vendorToolsVersion"},
+            {"inputType": "s", "elements": "discoveredBy:probeCategory", "filterCategory": "property", "filterType": "vmByTargetCategory", "loadOptions": true},
             {"inputType": "*", "elements": "discoveredBy:displayName", "filterCategory": "property", "filterType": "vmByTargetName"},
             {"inputType": "s", "elements": "discoveredBy:probeType", "filterCategory": "property", "filterType": "vmByTargetType", "loadOptions": true},
             {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "vmsByBusinessAccountUuid", "loadOptions": true},

@@ -35,6 +35,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.probe.ProbeDTO;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
@@ -232,6 +233,7 @@ public class SearchService implements ISearchService {
                 .put(REGION_FILTER_PATH, (a, b, c) -> getRegionFilterOptions())
                 .put("discoveredBy:cloudProvider", (a, b, c) -> getCloudProviderOptions())
                 .put("discoveredBy:probeType", (a, b, c) -> getProbeTypeOptions())
+                .put("discoveredBy:probeCategory", (a, b, c) -> getProbeCategoryOptions())
                 .put(EntityFilterMapper.MEMBER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsUUIDOptions())
                 .put(EntityFilterMapper.MEMBER_OF_RESOURCE_GROUP_NAME, (a, b, c) -> getResourceGroupsNameOptions())
                 .put(EntityFilterMapper.MEMBER_OF_BILLING_FAMILY_OID, (a, b, c) -> getBillingFamiliesOptions())
@@ -1423,6 +1425,27 @@ public class SearchService implements ISearchService {
                 })
                 .collect(Collectors.toList());
     }
+
+    /**
+     * TargetApiDTO.category holds the actual value for target category, TargetApiDTO.uiCategory
+     * always holds value as null.
+     * While retrieving target category, Function mapper should always be considered to return a
+     * stream based on "category" of target instead of "uiCategory".
+     */
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getProbeCategoryOptions() {
+        return targetsService.getProbes()
+                        .stream()
+                        .map(probe -> probe.getCategory())
+                        .distinct()
+                        .map(probeCategory -> {
+                            final CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
+                            crOpt.setValue(probeCategory);
+                            return crOpt;
+                        })
+                        .collect(Collectors.toList());
+    }
+
 
     @Nonnull
     private List<CriteriaOptionApiDTO> getResourceGroupsUUIDOptions()
