@@ -18,6 +18,7 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.TagPaginationRequest.TagPaginationResponse;
@@ -68,7 +69,8 @@ public class TagsService implements ITagsService {
      * @param scopes if not null, limit the search to the given scopes.
      * @param entityType if not null, limit the search to the given entity types.
      * @param envType if not null, limit the search to the given environment types.
-     * @param paginationRequest the {@link TagPaginationRequest}.
+     * @param paginationRequest the {@link TagPaginationRequest}. paginationRequest = null should not
+     * be used, and it's a leftover due to SearchService::getSTagAttributeOptions.
      * @return a list of all available tags in the live topology.
      * @throws Exception happens when the use of remote services fails.
      */
@@ -97,11 +99,13 @@ public class TagsService implements ITagsService {
             requestBuilder.setEntityType(ApiEntityType.fromString(entityType).typeNumber());
         }
 
-        // Add pagination parameters
-        PaginationParameters params = tagsPaginationMapper.toProtoParams(paginationRequest);
-        requestBuilder.setPaginationParams(params);
+        // Check to see if pagination is requested, otherwise we will return all tags.
+        if (paginationRequest != null) {
+            // Add pagination parameters to request builder
+            requestBuilder.setPaginationParams(tagsPaginationMapper.toProtoParams(paginationRequest));
+        }
 
-        // perform the search
+        // Get the tags
         final SearchTagsResponse response;
         try {
             response = searchServiceBlockingStub.searchTags(requestBuilder.build());
@@ -129,8 +133,19 @@ public class TagsService implements ITagsService {
         }
 
         final Integer totalRecordCount = response.getPaginationResponse().getTotalRecordCount();
+        // Get tags from response and convert to ApiDTOs
         final List<TagApiDTO> tagApiDTOS = TagsMapper.convertTagsToApi(response.getTags().getTagsMap());
 
+        // If no pagination is requested, then return response with all tags
+        if (paginationRequest == null) {
+            try {
+                TagPaginationRequest tagPaginationRequest = new TagPaginationRequest();
+                return tagPaginationRequest.allResultsResponse(tagApiDTOS, false);
+            } catch (InvalidOperationException e) {
+                throw new OperationFailedException("Retrieval of tags failed.");
+            }
+        }
+        // else, if pagination parameters are given, return paginated response
         return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
             .map(nextCursor -> paginationRequest.nextPageResponse(tagApiDTOS, nextCursor, totalRecordCount))
             .orElseGet(() -> paginationRequest.finalPageResponse(tagApiDTOS, totalRecordCount));
