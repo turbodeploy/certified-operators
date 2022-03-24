@@ -216,7 +216,8 @@ public abstract class DbAdapter {
                     url, user, password, minPoolSize, maxPoolSize, keepAliveIntervalMinutes, poolName, config.getDialect());
             if (config.getUseConnectionPool() && poolMonitorIntervalSec > 0 && dataSource instanceof HikariDataSource) {
                 final HikariDataSource hikariDataSourceataSource = (HikariDataSource)dataSource;
-                final HikariPoolMonitor poolMonitor = new HikariPoolMonitor(poolName, poolMonitorIntervalSec, dataSource.getConnection().getSchema(), poolMonitorExecutorService(dataSource.getConnection().getSchema()));
+                final String schemaName = config.getSchemaName();
+                final HikariPoolMonitor poolMonitor = new HikariPoolMonitor(poolName, poolMonitorIntervalSec, schemaName, poolMonitorExecutorService(schemaName));
                 hikariDataSourceataSource.setMetricRegistry(poolMonitor.getMetricRegistry());
             }
             return dataSource;
