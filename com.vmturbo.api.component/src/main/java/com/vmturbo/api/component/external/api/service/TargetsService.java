@@ -74,7 +74,6 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.api.pagination.PaginationUtil;
 import com.vmturbo.api.pagination.TargetPaginationRequest;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
@@ -733,7 +732,8 @@ public class TargetsService implements ITargetsService {
      *
      * @param targetUuid the unique ID for the target
      * @param cursor - index to indicate where to start the results
-     * @param limit - Maximum number of items to return after the cursor
+     * @param limit - Maximum number of items to return after the cursor. If null is given the default
+     * limit applied is 100.
      * @param searchOrderBy - field used to order the results
      * @param ascending - ascending order
      * @return {@link ResponseEntity} with collection of ServiceEntityApiDTO
@@ -751,16 +751,6 @@ public class TargetsService implements ITargetsService {
                 .build();
 
         RepositoryApi.SearchRequest searchRequest = repositoryApi.newSearchRequest(build);
-        /* supports backwards compatibility for non-pagination calls.
-         * Use of any of the pagination-related params here will explicitly trigger a pagination response
-         */
-        if (limit == null && cursor == null & ascending == null && searchOrderBy == null) {
-            //UNPAGINATED CALLS
-            List<ServiceEntityApiDTO> entities = searchRequest.getSEList();
-            return PaginationUtil.buildResponseEntity(entities, null, null, null);
-        }
-
-        //PAGINATED CALLS
         final SearchOrderBy protoSearchOrderByEnum = searchOrderBy == null
                 ? SearchOrderBy.ENTITY_NAME
                 : SearchOrderByMapper.fromApiToProtoEnum(
