@@ -2604,33 +2604,6 @@ public class TargetsServiceTest {
     }
 
     /**
-     * Tests backwards compatibility of getEntitiesByTargetUuid non-paginated call.
-     * @throws Exception error in thread interruption or converting api dtos
-     */
-    @Test
-    public void getEntitiesByTargetUuidWithoutPagination() throws Exception {
-        //GIVEN
-        String targetUuid = "123";
-
-        SearchRequest searchRequest = Mockito.mock(SearchRequest.class);
-        doReturn(searchRequest).when(repositoryApi).newSearchRequest(Mockito.any());
-
-        List<ServiceEntityApiDTO> entities = Collections.EMPTY_LIST;
-        doReturn(entities).when(searchRequest).getSEList();
-
-        //WHEN
-        ResponseEntity<List<ServiceEntityApiDTO>> response =
-                this.targetsService.getEntitiesByTargetUuid(targetUuid, null, null, null, null);
-
-        //THEN
-        verify(searchRequest, times(1) ).getSEList();
-        Assert.assertEquals(response.getBody(), entities);
-        assertFalse(response.getHeaders().containsKey("X-Previous-Cursor"));
-        assertFalse(response.getHeaders().containsKey("X-Total-Record-Count"));
-        assertTrue(response.getHeaders().containsKey("X-Next-Cursor"));
-    }
-
-    /**
      * Tests getEntitiesByTargetUuid setting pagination parameters correctly.
      *
      * @throws Exception error in thread interruption or converting api dtos
