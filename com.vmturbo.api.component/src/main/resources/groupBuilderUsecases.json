@@ -27,6 +27,7 @@
             {"inputType": "s", "elements": "virtualMachineInfoRepoDTO.vendorToolsInstalled", "filterCategory": "property", "filterType": "vendorToolsInstalled"},
             {"inputType": "*", "elements": "virtualMachineInfoRepoDTO.vendorToolsVersion", "filterCategory": "property", "filterType": "vendorToolsVersion"},
             {"inputType": "*", "elements": "discoveredBy:displayName", "filterCategory": "property", "filterType": "vmByTargetName"},
+            {"inputType": "s", "elements": "discoveredBy:probeType", "filterCategory": "property", "filterType": "vmByTargetType", "loadOptions": true},
             {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "vmsByBusinessAccountUuid", "loadOptions": true},
             {"inputType": "#", "elements": "commoditySoldList[type=VMem,capacity]", "filterCategory": "property", "filterType": "vmsByMem"},
             {"inputType": "*", "elements": "LogicalPool:displayName:PRODUCES:Storage:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByLogicalPoolName"},
