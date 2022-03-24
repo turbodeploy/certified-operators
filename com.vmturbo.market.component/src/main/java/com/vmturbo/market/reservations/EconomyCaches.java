@@ -360,7 +360,7 @@ public class EconomyCaches {
             logger.error(logPrefix + "Updating access commodity in historical economy cache encounter error {},"
                     + " resetting historical economy to be the same as real time", e);
             updateHistoricalCachedEconomy(realtimeCachedEconomy, realtimeCachedCommTypeMap,
-                    buyerOidToPlacement, existingReservations, new HashMap<>());
+                    buyerOidToPlacement, existingReservations);
         }
     }
 
@@ -433,34 +433,14 @@ public class EconomyCaches {
             @Nonnull final Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
             @Nonnull final Map<Long, InitialPlacementDTO> existingReservations) {
-        return updateHistoricalCachedEconomy(clonedEconomy, commTypeToSpecMap, buyerOidToPlacement, existingReservations,
-                new HashMap<>());
-    }
-
-    /**
-     * Update historical cached economy.
-     *
-     * @param clonedEconomy the economy to be cloned.
-     * @param commTypeToSpecMap the commodity type to commoditySpecification's type mapping.
-     * @param buyerOidToPlacement a map of buyer oid to its placement decisions.
-     * @param existingReservations a map of existing reservations by oid.
-     * @param buyerPlacements a map that lists out placement results for a consumer.
-     * @return a map of buyer oid to its placement decisions after update.
-     */
-    public Map<Long, List<InitialPlacementDecision>> updateHistoricalCachedEconomy(
-            @Nonnull final Economy clonedEconomy,
-            @Nonnull final Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap,
-            @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
-            @Nonnull final Map<Long, InitialPlacementDTO> existingReservations,
-            Map<Long, List<InitialPlacementDecision>> buyerPlacements) {
+        Map<Long, List<InitialPlacementDecision>> newResult;
         try {
-            buyerPlacements.clear();
             historicalCacheStartUpdateTime = clock.instant();
             // Replay all existing reservation entities to newEconomy which currently only contains PM and DS
             logger.debug(logPrefix + "Replaying reservation {} with buyers {} on historical economy cache",
                     existingReservations.keySet(), buyerOidToPlacement.keySet());
-            buyerPlacements.putAll(replayReservationBuyers(clonedEconomy, HashBiMap.create(commTypeToSpecMap),
-                    buyerOidToPlacement, existingReservations));
+            newResult = replayReservationBuyers(clonedEconomy, HashBiMap.create(commTypeToSpecMap),
+                    buyerOidToPlacement, existingReservations);
         } catch (Exception exception) { // Return old placement decisions if update has exceptions.
             historicalCacheEndUpdateTime = clock.instant();
             logger.error(logPrefix + "Skip refresh historical economy cache because of exception {}", exception);
@@ -478,7 +458,7 @@ public class EconomyCaches {
         logger.info(logPrefix + "Historical reservation cache update time : " + historicalCacheStartUpdateTime
                 .until(historicalCacheEndUpdateTime, ChronoUnit.SECONDS) + " seconds");
         economyCachePersistence.saveEconomyCache(historicalCachedEconomy, historicalCachedCommTypeMap, true);
-        return buyerPlacements;
+        return newResult;
     }
 
     /**

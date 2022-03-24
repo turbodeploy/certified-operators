@@ -1096,7 +1096,7 @@ public class EconomyCachesTest {
         spy.updateRealtimeCachedEconomy(simpleEconomy(), commTypeToSpecMap, new HashMap(),
                 new HashMap());
         Mockito.verify(spy).updateHistoricalCachedEconomy(Mockito.any(), Mockito.any(),
-                Mockito.any(), Mockito.any(), Mockito.any());
+                Mockito.any(), Mockito.any());
     }
 
     /**
