@@ -291,7 +291,10 @@ public class TargetsRpcService extends TargetsServiceImplBase {
                 case SearchableProperties.PROBE_TYPE:
                     predicates.add(new TargetsByTypePredicate(propertyFilter.getStringFilter()));
                     break;
-                case SearchableProperties.TARGET_VALIDATION_STATUS:
+                 case SearchableProperties.PROBE_CATEGORY:
+                    predicates.add(new TargetsByCategoryPredicate(propertyFilter.getStringFilter()));
+                    break;
+                 case SearchableProperties.TARGET_VALIDATION_STATUS:
                     predicates.add(new TargetsByValidationStatusPredicate(this::getValidationStatus,
                             propertyFilter.getStringFilter()));
                     break;
@@ -509,4 +512,30 @@ public class TargetsRpcService extends TargetsServiceImplBase {
     }
 
 
+    /**
+     * The predicate for filtering targets by probe category.
+     * It should always pass on getUiProbeCategory which would eventually map
+     * the category exposed by target.
+     */
+    private static class TargetsByCategoryPredicate implements Predicate<Target> {
+        private final StringFilter stringFilter;
+        private final Set<String> types;
+
+        TargetsByCategoryPredicate(@Nonnull StringFilter stringFilter) throws StatusException {
+            if (stringFilter.getOptionsCount() < 1) {
+                throw Status.INVALID_ARGUMENT.withDescription(
+                                                "Explicit options are expected for target by category filter: "
+                                                + stringFilter)
+                                .asException();
+            }
+            this.stringFilter = stringFilter;
+            this.types = new HashSet<>(stringFilter.getOptionsList());
+        }
+
+        @Override
+        public boolean test(Target target) {
+            return types.contains(target.getProbeInfo().getUiProbeCategory())
+                   ^ !stringFilter.getPositiveMatch();
+        }
+    }
 }

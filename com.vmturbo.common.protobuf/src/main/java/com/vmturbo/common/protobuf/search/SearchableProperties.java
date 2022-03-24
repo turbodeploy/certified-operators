@@ -168,6 +168,10 @@ public class SearchableProperties {
     public static final String PROBE_TYPE = "probeType";
 
     /**
+     * UI Category of the probe (e.g., Hypervisor).
+     */
+    public static final String PROBE_CATEGORY = "probeCategory";
+    /**
      * If the target is hidden.
      */
     public static final String IS_TARGET_HIDDEN = "isTargetHidden";

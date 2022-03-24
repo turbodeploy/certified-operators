@@ -317,6 +317,39 @@ public class TargetsRpcServiceTest {
     }
 
     /**
+     * Test filtering targets by probe category.
+     *
+     * @throws Exception If any.
+     */
+    @Test
+    public void testFilterTargetsByCategory() throws Exception {
+        final long probeId1 = createProbe("vCenter", "Hypervisor");
+        final long probeId2 = createProbe("VMM", "Private Cloud");
+        final Target t1 = createTargetSpy(probeId1);
+        final Target t2 = createTargetSpy(probeId2);
+        assertThat(clientStub.searchTargets(SearchTargetsRequest.newBuilder()
+                .addPropertyFilter(PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.PROBE_CATEGORY)
+                .setStringFilter(StringFilter.newBuilder()
+                    .addOptions("Hypervisor")))
+            .build()).getTargetsList(), containsInAnyOrder(t1.getId()));
+        assertThat(clientStub.searchTargets(SearchTargetsRequest.newBuilder()
+                .addPropertyFilter(PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.PROBE_CATEGORY)
+                .setStringFilter(StringFilter.newBuilder()
+                    .setPositiveMatch(false)
+                    .addOptions("Private Cloud")))
+            .build()).getTargetsList(), containsInAnyOrder(t1.getId()));
+        assertThat(clientStub.searchTargets(SearchTargetsRequest.newBuilder()
+                .addPropertyFilter(PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.PROBE_CATEGORY)
+                .setStringFilter(StringFilter.newBuilder()
+                    .addOptions("Private Cloud")))
+            .build()).getTargetsList(), containsInAnyOrder(t2.getId()));
+
+    }
+
+    /**
      * Test filtering targets by hidden status.
      *
      * @throws Exception If any.
