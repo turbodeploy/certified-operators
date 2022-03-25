@@ -35,7 +35,7 @@ class MySqlFamilyAdapter extends DbAdapter {
 
     @Override
     protected void createSchema() throws SQLException, UnsupportedDialectException {
-        try (Connection conn = getRootConnection(null)) {
+        try (Connection conn = getRootConnection()) {
             execute(conn, String.format("CREATE DATABASE IF NOT EXISTS %s",
                     config.getDatabaseName()));
         }
@@ -54,7 +54,7 @@ class MySqlFamilyAdapter extends DbAdapter {
     @Override
     protected void performNonRootGrants() throws SQLException, UnsupportedDialectException {
         String privileges = getPrivileges(config.getAccess());
-        try (Connection conn = getRootConnection()) {
+        try (Connection conn = getPrivilegedConnection()) {
             execute(conn, String.format("GRANT %s ON `%s`.* TO '%s'@'%%'",
                     privileges, config.getDatabaseName(), config.getUserName()));
             execute(conn, "FLUSH PRIVILEGES");
@@ -79,7 +79,7 @@ class MySqlFamilyAdapter extends DbAdapter {
      */
     private void createUserIfNotExists(String name, String password)
             throws UnsupportedDialectException, SQLException {
-        try (Connection conn = getRootConnection(null)) {
+        try (Connection conn = getRootConnection()) {
             try {
                 // we need to include password on CREATE USER operation in order work when
                 // MySQL password policies are active
@@ -127,12 +127,12 @@ class MySqlFamilyAdapter extends DbAdapter {
 
     @Override
     protected void tearDown() {
-        try (Connection conn = getRootConnection()) {
+        try (Connection conn = getPrivilegedConnection()) {
             execute(conn, String.format("DROP USER `%s`@`%%`", config.getUserName()));
         } catch (UnsupportedDialectException | SQLException e) {
             logger.error("Failed to drop user {}", config.getUserName(), e);
         }
-        try (Connection conn = getRootConnection()) {
+        try (Connection conn = getPrivilegedConnection()) {
             execute(conn, String.format("DROP DATABASE `%s`", config.getDatabaseName()));
         } catch (UnsupportedDialectException | SQLException e) {
             logger.error("Failed to drop database {}", config.getDatabaseName(), e);
