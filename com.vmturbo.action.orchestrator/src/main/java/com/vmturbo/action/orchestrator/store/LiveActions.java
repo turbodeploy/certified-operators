@@ -711,7 +711,11 @@ class LiveActions implements QueryableActionViews {
                 try {
                     if (entitiesRestriction != null  && !existsOrganizationalScopeRestriction) {
                         // include actions with ANY involved entities in the set.
-                        return ActionDTOUtil.getInvolvedEntityIds(view.getRecommendation()).stream()
+                        // Here we get and filter global actions, which need to be restricted for scoped users.
+                        // Tier entities should not be considered as entities involved in an action, as they are
+                        // abstractions shared between various user scopes.  We need to pull in actual workload
+                        // entities involved in the actions and check if they're in scope.
+                        return ActionDTOUtil.getNonTierInvolvedEntityIds(view.getRecommendation()).stream()
                                 .anyMatch(entitiesRestriction::contains);
                     } else if (entitiesRestriction != null  && existsOrganizationalScopeRestriction) {
                         // For supported organizational scopes, expand entitiesRestriction to allow relevant executed

@@ -309,6 +309,32 @@ public class ActionDTOUtilTest {
     }
 
     /**
+     * Verify that the involved entities for Delete Cloud Storage Action includes relevant
+     * non-tier involved entities.
+     *
+     * @throws UnsupportedActionException is not supposed to happen
+     */
+    @Test
+    public void testDeleteStorageNonTierInvolvedEntities()  throws UnsupportedActionException {
+        Set<Long> involvedEntities = ActionDTOUtil.getNonTierInvolvedEntityIds(
+                createSpecificTierCloudDeleteAction(EntityType.STORAGE_TIER_VALUE));
+        assertEquals(Sets.newHashSet(TARGET), involvedEntities);
+    }
+
+    /**
+     * Verify that the involved entities for Scale Cloud Action includes relevant
+     * non-tier involved entities.
+     *
+     * @throws UnsupportedActionException is not supposed to happen
+     */
+    @Test
+    public void testScaleNonTierInvolvedEntities()  throws UnsupportedActionException {
+        Set<Long> involvedEntities = ActionDTOUtil.getNonTierInvolvedEntityIds(
+                createSpecificTierCloudScaleAction(EntityType.COMPUTE_TIER_VALUE, EntityType.COMPUTE_TIER_VALUE));
+        assertEquals(Sets.newHashSet(TARGET), involvedEntities);
+    }
+
+    /**
      * Verify that the severity entity of a Move action is the source host, when one of the
      * changes involves a host, and the first source provider otherwise.
      *
@@ -921,4 +947,48 @@ public class ActionDTOUtilTest {
         return ReasonCommodity.newBuilder().setCommodityType((TopologyDTO.CommodityType.newBuilder()
                         .setType(baseType).build())).build();
     }
+
+    private Action createSpecificTierCloudScaleAction(final int srcType, final int destType) {
+        return Action.newBuilder()
+                .setId(1L)
+                .setDeprecatedImportance(1.0)
+                .setInfo(ActionInfo.newBuilder()
+                        .setScale(Scale.newBuilder()
+                                .setTarget(createActionEntity(TARGET))
+                                .addChanges(ChangeProvider.newBuilder()
+                                        .setSource(createActionEntity(SOURCE_1, srcType))
+                                        .setDestination(createActionEntity(DEST_1, destType))
+                                        .build())
+                                /*.addChanges(ChangeProvider.newBuilder()
+                                        .setSource(createActionEntity(SOURCE_2))
+                                        .setDestination(createActionEntity(DEST_2, destType))
+                                        .build())*/
+                                .build())
+                        .build())
+                .setExplanation(Explanation.newBuilder()
+                        .setScale(ScaleExplanation.newBuilder()
+                                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                        .setInitialPlacement(InitialPlacement.getDefaultInstance())
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+    }
+
+    private Action createSpecificTierCloudDeleteAction(final int type) {
+        return Action.newBuilder()
+                .setId(9L)
+                .setDeprecatedImportance(1.0)
+                .setInfo(ActionInfo.newBuilder()
+                        .setDelete(Delete.newBuilder()
+                                .setTarget(createActionEntity(TARGET))
+                                .setSource(createActionEntity(SOURCE_1, type))
+                                .build())
+                        .build())
+                .setExplanation(Explanation.newBuilder()
+                        .setDelete(DeleteExplanation.newBuilder().build())
+                        .build())
+                .build();
+    }
+
 }
