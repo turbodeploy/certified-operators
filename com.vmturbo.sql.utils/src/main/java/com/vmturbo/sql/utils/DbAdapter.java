@@ -10,6 +10,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 
+import javax.annotation.Nullable;
 import javax.sql.DataSource;
 
 import com.google.common.base.Strings;
@@ -325,7 +326,7 @@ public abstract class DbAdapter {
      * @throws UnsupportedOperationException if this endpoint is not configured for root access
      * @throws SQLException                  if the connection could not be created
      */
-    protected Connection getRootConnection()
+    protected Connection getPrivilegedConnection()
             throws UnsupportedDialectException, UnsupportedOperationException, SQLException {
         final Connection conn = getRootDataSource(config.getDatabaseName()).getConnection();
         setConnectionUser(conn, config.getRootUserName());
@@ -339,17 +340,32 @@ public abstract class DbAdapter {
      * <p>Passing `null` for `databaseName` means to create a connection without designating
      * a database, i.e. connect to the server's default database.</p>
      *
-     * @param databaseName name of database to connect to, or null for server default
+     * @param databaseName name of database to connect to
      * @return new connection, or null if this endpoint is not enabled for root access
      * @throws UnsupportedDialectException   for an unsupported dialect
      * @throws UnsupportedOperationException if this endpoint is not configured for root access
      * @throws SQLException                  if the connection could not be created
      */
-    protected Connection getRootConnection(String databaseName)
+    protected Connection getRootConnection(@Nullable String databaseName)
             throws UnsupportedDialectException, UnsupportedOperationException, SQLException {
         final Connection conn = getRootDataSource(databaseName).getConnection();
         setConnectionUser(conn, config.getRootUserName());
         return conn;
+    }
+
+    /**
+     * Create a {@link Connection} to the default root database using the root-user credentials,
+     * if this endpoint is configured to use root credentials.
+     *
+     * @return new connection, or null if this endpoint is not enabled for root access
+     * @throws UnsupportedDialectException for an unsupported dialect
+     * @throws UnsupportedOperationException if this endpoint is not configured for root
+     *         access
+     * @throws SQLException if the connection could not be created
+     */
+    protected Connection getRootConnection()
+            throws UnsupportedDialectException, UnsupportedOperationException, SQLException {
+        return getRootConnection(config.getRootDatabaseName());
     }
 
     /**
@@ -511,9 +527,9 @@ public abstract class DbAdapter {
      * @return connection URL
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      */
-    public static String getUrl(DbEndpointConfig config, String database) throws UnsupportedDialectException {
-        UriComponentsBuilder builder = getUrlBuilder(config)
-                .path(database != null ? "/" + database : "/");
+    public static String getUrl(DbEndpointConfig config, @Nullable String database) throws UnsupportedDialectException {
+        UriComponentsBuilder builder = getUrlBuilder(config).path(
+                String.format("/%s", Strings.nullToEmpty(database)));
         updateBuilderForSecureConnection(config, builder);
         return builder.build().toUriString();
     }

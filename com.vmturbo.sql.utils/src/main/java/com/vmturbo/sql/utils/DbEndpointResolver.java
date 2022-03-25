@@ -61,6 +61,8 @@ public class DbEndpointResolver {
     public static final String PORT_PROPERTY = "port";
     /** dbDatabaseName property. */
     public static final String DATABASE_NAME_PROPERTY = "databaseName";
+    /** dbRootDatabaseName property. */
+    public static final String ROOT_DATABASE_NAME_PROPERTY = "rootDatabaseName";
     /** dbSchemaName property. */
     public static final String SCHEMA_NAME_PROPERTY = "schemaName";
     /** dbUserName property. */
@@ -163,6 +165,7 @@ public class DbEndpointResolver {
         resolveHost();
         resolvePort();
         resolveDatabaseName();
+        resolveRootDatabaseName();
         resolveSchemaName();
         resolveUserName();
         resolvePassword();
@@ -221,6 +224,17 @@ public class DbEndpointResolver {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getDatabaseName);
         config.setDatabaseName(firstNonEmpty(configuredPropValue(DATABASE_NAME_PROPERTY),
                 config.getDatabaseName(), fromTemplate, getComponentName()));
+    }
+
+    /**
+     * Resolve the dbRootDatabaseName property for this endpoint.
+     *
+     * @throws UnsupportedDialectException if endpoint has bad dialect
+     */
+    public void resolveRootDatabaseName() throws UnsupportedDialectException {
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getRootDatabaseName);
+        config.setRootDatabaseName(firstNonEmpty(configuredPropValue(ROOT_DATABASE_NAME_PROPERTY),
+                config.getRootDatabaseName(), fromTemplate));
     }
 
     /**
