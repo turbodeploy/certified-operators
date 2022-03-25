@@ -23,6 +23,7 @@ import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.GroupField;
 import org.jooq.Record;
+import org.jooq.Result;
 import org.jooq.SelectFieldOrAsterisk;
 import org.jooq.impl.DSL;
 
@@ -149,8 +150,8 @@ public class SQLCloudCommitmentUtilizationStore implements CloudCommitmentUtiliz
 
         logger.debug("Streaming {} utilization stats filtered by {}", utilizationTable::granularity, filter::toString);
 
-        Stream<CloudCommitmentStatRecord>
-                        statRecordStream =
+        Result<Record>
+                        statRecords =
                         dslContext.select(generateSelectFromStatsFilter(utilizationTable, filter))
                                         .from(utilizationTable.wrappedTable())
                                         .where(generateConditionsFromFilter(utilizationTable,
@@ -159,13 +160,13 @@ public class SQLCloudCommitmentUtilizationStore implements CloudCommitmentUtiliz
                                         .orderBy(utilizationTable.sampleTimeField(),
                                                  utilizationTable.coverageTypeField(),
                                                  utilizationTable.coverageSubTypeField())
-                                        .stream()
-                                        .map(utilizationTable::createRecordAccessor)
-                                        .map(this::convertRecordToStat);
+                                .fetch();
 
-        logger.debug("Streaming {} {} utilization stat records", statRecordStream::count, utilizationTable::granularity);
+        logger.debug("Streaming {} {} utilization stat records", statRecords::size, utilizationTable::granularity);
 
-        return statRecordStream;
+        return statRecords.stream()
+                .map(utilizationTable::createRecordAccessor)
+                .map(this::convertRecordToStat);
     }
 
     private List<SelectFieldOrAsterisk> generateSelectFromStatsFilter(@Nonnull UtilizationTable<?, ?> utilizationTable,
