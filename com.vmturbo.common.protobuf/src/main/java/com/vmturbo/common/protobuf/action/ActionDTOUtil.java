@@ -469,6 +469,45 @@ public class ActionDTOUtil {
     }
 
     /**
+     * Get the non-tier entities that are involved in an action.
+     * Involved entities are any entities which the action directly
+     * affects. For example, in a move the involved entities are the
+     * target, source, and destination.
+     * It now defaults to include entities involved through action merge.
+     *
+     * @param action The action to consider.
+     * @return A set of IDs of involved entities.
+     * @throws UnsupportedActionException If the type of the action is not supported.
+     */
+    @Nonnull
+    public static Set<Long> getNonTierInvolvedEntityIds(@Nonnull final ActionDTO.Action action)
+            throws UnsupportedActionException {
+        return getNonTierInvolvedEntityIds(action, InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
+    }
+
+    /**
+     * Get the non-tier entities that are involved in an action.
+     * Involved entities are any entities which the action directly
+     * affects. For example, in a move the involved entities are the
+     * target, source, and destination.
+     *
+     * @param action The action to consider.
+     * @param involvedEntityCalculation How the involved entities must participate.
+     * @return A set of IDs of involved entities.
+     * @throws UnsupportedActionException If the type of the action is not supported.
+     */
+    @Nonnull
+    public static Set<Long> getNonTierInvolvedEntityIds(
+            @Nonnull final ActionDTO.Action action,
+            @Nonnull InvolvedEntityCalculation involvedEntityCalculation)
+            throws UnsupportedActionException {
+        return getInvolvedEntities(action, involvedEntityCalculation).stream()
+                .filter(actionEntity -> !TopologyDTOUtil.TIER_VALUES.contains(actionEntity.getType()))
+                .map(ActionEntity::getId)
+                .collect(Collectors.toSet());
+    }
+
+    /**
      * Get the entities that are involved in an action.
      * Involved entities are any entities which the action directly
      * affects. For example, in a move the involved entities are the
