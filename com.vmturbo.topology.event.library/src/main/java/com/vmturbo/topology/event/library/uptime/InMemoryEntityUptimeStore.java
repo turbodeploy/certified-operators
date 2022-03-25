@@ -1,13 +1,12 @@
 package com.vmturbo.topology.event.library.uptime;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Function;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -16,7 +15,6 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
-import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
 
 /**
@@ -89,13 +87,14 @@ public class InMemoryEntityUptimeStore implements EntityUptimeStore {
             // the filter, is dependent on entity uptime being calculated based on CCA data. This guarantees
             // if there is an entity uptime entry for an entity, it must also have an entry in
             // the cloud scope store.
-            try (Stream<EntityCloudScope> cloudScopeStream = cloudScopeStore.streamByFilter(filter)) {
-                return cloudScopeStream.map(EntityCloudScope::entityOid)
-                        .filter(entityUptimeMap::containsKey)
-                        .collect(ImmutableMap.toImmutableMap(
-                                Function.identity(),
-                                entityUptimeMap::get));
-            }
+            final Map<Long, EntityUptime> map = new HashMap<>();
+            cloudScopeStore.streamByFilter(filter, entityCloudScope -> {
+                long oid = entityCloudScope.entityOid();
+                if (entityUptimeMap.containsKey(oid)) {
+                    map.put(oid, entityUptimeMap.get(oid));
+                }
+            });
+            return ImmutableMap.copyOf(map);
         } finally {
             uptimeDataLock.readLock().unlock();
         }

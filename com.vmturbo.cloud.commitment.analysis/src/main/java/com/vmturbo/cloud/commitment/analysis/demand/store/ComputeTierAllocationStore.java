@@ -2,6 +2,7 @@ package com.vmturbo.cloud.commitment.analysis.demand.store;
 
 import java.util.Collection;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -51,7 +52,8 @@ public interface ComputeTierAllocationStore {
      * {@code filter} criteria.
      */
     @Nonnull
-    Stream<EntityComputeTierAllocation> streamAllocations(@Nonnull EntityComputeTierAllocationFilter filter);
+    void streamAllocations(@Nonnull EntityComputeTierAllocationFilter filter,
+            @Nonnull Consumer<EntityComputeTierAllocation> consumer);
 
     /**
      * Retrieves a set of {@link EntityComputeTierAllocation} instances that match {@code filter}. The

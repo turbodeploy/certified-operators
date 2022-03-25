@@ -1,6 +1,6 @@
 package com.vmturbo.cloud.commitment.analysis.persistence;
 
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
@@ -25,9 +25,10 @@ public interface CloudCommitmentDemandReader {
      *                        with respect to the selection window will be returned. This may mean
      *                        the returned records start before the selection window and/or end
      *                        after it.
-     * @return A {@link Stream} containing EntityCloudTierMapping entries from the requested demand.
+     * @param consumer consumer of the allocation demand.
      */
-    Stream<EntityCloudTierMapping> getAllocationDemand(@Nonnull CloudTierType cloudTierType,
-                                                       @Nonnull DemandScope demandScope,
-                                                       @Nonnull TimeInterval selectionWindow);
+    void getAllocationDemand(@Nonnull CloudTierType cloudTierType,
+                             @Nonnull DemandScope demandScope,
+                             @Nonnull TimeInterval selectionWindow,
+                             @Nonnull Consumer<EntityCloudTierMapping> consumer);
 }

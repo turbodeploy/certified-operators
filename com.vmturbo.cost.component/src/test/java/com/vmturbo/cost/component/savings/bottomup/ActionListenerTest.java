@@ -7,6 +7,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySet;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -23,6 +25,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -633,8 +636,7 @@ public class ActionListenerTest {
 
         // Setup
         // Remove entities with actions before restart for this test.
-        Answer<Stream> entitiesWithActionBeforeRestart = invocation -> Stream.empty();
-        when(entityStateStore.getAllEntityStates()).thenAnswer(entitiesWithActionBeforeRestart);
+        doNothing().when(entityStateStore).getAllEntityStates(any());
         LastRollupTimes lastRollupTimesZero = new LastRollupTimes(0, 0, 0, 0);
         when(entitySavingsRollupTimesStore.getLastRollupTimes()).thenReturn(lastRollupTimesZero);
         beforeEntityCostbyOid.clear();
@@ -671,7 +673,7 @@ public class ActionListenerTest {
 
         // Setup
         // Remove entities with actions before restart for this test.
-        when(entityStateStore.getAllEntityStates()).thenAnswer(entitiesWithActionBeforeRestart);
+        doNothing().when(entityStateStore).getAllEntityStates(any());
         when(entitySavingsRollupTimesStore.getLastRollupTimes()).thenReturn(lastRollupTimesZero);
         given(projectedEntityCostStore.getEntityCosts(any(EntityCostFilter.class)))
         .willReturn(afterEntityCostbyOid);
@@ -1184,11 +1186,13 @@ public class ActionListenerTest {
         Set<Long> entitiesWithActionAfterRestart = ImmutableSet.of(1L, 2L, 3L, 4L);
         long currentTimestamp = System.currentTimeMillis();
 
-        Answer<Stream> entitiesWithActionBeforeRestart = invocation -> Stream.of(
-                createEntityState(1L), createEntityState(2L), createEntityState(3L),
-                createEntityState(4L)
-        );
-        when(entityStateStore.getAllEntityStates()).thenAnswer(entitiesWithActionBeforeRestart);
+        Answer entitiesWithActionBeforeRestart = invocation -> {
+            Consumer<EntityState> consumer = invocation.getArgumentAt(0, Consumer.class);
+            Stream.of(createEntityState(1L), createEntityState(2L), createEntityState(3L),
+                    createEntityState(4L)).forEach(consumer);
+            return null;
+        };
+        doAnswer(entitiesWithActionBeforeRestart).when(entityStateStore).getAllEntityStates(any());
 
         actionListener.recoverMissedRecommendationRemovedEvents(entitiesWithActionAfterRestart,
                 currentTimestamp);
@@ -1198,8 +1202,12 @@ public class ActionListenerTest {
                 createEntityState(2L), createEntityState(3L),
                 createEntityState(4L), createEntityState(5L), createEntityState(6L));
 
-        entitiesWithActionBeforeRestart = invocation -> entityStatesBeforeRestart.stream();
-        when(entityStateStore.getAllEntityStates()).thenAnswer(entitiesWithActionBeforeRestart);
+        entitiesWithActionBeforeRestart = invocation -> {
+            Consumer<EntityState> consumer = invocation.getArgumentAt(0, Consumer.class);
+            entityStatesBeforeRestart.forEach(consumer);
+            return null;
+        };
+        doAnswer(entitiesWithActionBeforeRestart).when(entityStateStore).getAllEntityStates(any());
 
         Map<Long, EntityState> stateMap = entityStatesBeforeRestart.stream()
                 .filter(s -> !entitiesWithActionAfterRestart.contains(s.getEntityId()))

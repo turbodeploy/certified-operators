@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -139,7 +140,9 @@ public class SqlEntityStateStoreTest extends MultiDbTestBase {
         }
 
         // entity_cloud_scope table should be empty at the beginning.
-        List<EntityCloudScope> scopeEntries = cloudScopeStore.streamAll().collect(Collectors.toList());
+        List<EntityCloudScope> scopeEntries = new ArrayList<>();
+        cloudScopeStore.streamAll(scopeEntries::add);
+
         assertEquals(0, scopeEntries.size());
 
         TopologyEntityCloudTopology cloudTopology = getCloudTopology(1000L);
@@ -152,7 +155,8 @@ public class SqlEntityStateStoreTest extends MultiDbTestBase {
         assertEquals(3, stateMap.size());
 
         // Validate records inserted to entity_cloud_scope
-        scopeEntries = cloudScopeStore.streamAll().collect(Collectors.toList());
+        scopeEntries.clear();
+        cloudScopeStore.streamAll(scopeEntries::add);
         assertEquals(10, scopeEntries.size());
 
         // Delete 2 states.
@@ -166,7 +170,8 @@ public class SqlEntityStateStoreTest extends MultiDbTestBase {
         // Verify the corresponding scope records are removed after state is deleted and the cloud
         // scope table cleanup is executed.
         cloudScopeStore.cleanupCloudScopeRecords();
-        scopeEntries = cloudScopeStore.streamAll().collect(Collectors.toList());
+        scopeEntries.clear();
+        cloudScopeStore.streamAll(scopeEntries::add);
         assertEquals(8, scopeEntries.size());
         List<Long> idsInScopeTable = scopeEntries.stream().map(EntityCloudScope::entityOid).collect(Collectors.toList());
         idsInScopeTable.retainAll(entitiesToDelete);
@@ -191,7 +196,7 @@ public class SqlEntityStateStoreTest extends MultiDbTestBase {
 
         // get all states
         List<EntityState> stateList = new ArrayList<>();
-        store.getAllEntityStates().forEach(stateList::add);
+        store.getAllEntityStates(stateList::add);
         assertEquals(9, stateList.size());
 
         // Get all states with the updated flag = 1.
@@ -232,7 +237,9 @@ public class SqlEntityStateStoreTest extends MultiDbTestBase {
         Set<Long> entityIds = ImmutableSet.of(3L, 4L, 5L, 100L);
 
         // entity_cloud_scope table should be empty at the beginning.
-        List<EntityCloudScope> scopeEntries = cloudScopeStore.streamAll().collect(Collectors.toList());
+        List<EntityCloudScope> scopeEntries = new ArrayList<>();
+        cloudScopeStore.streamAll(scopeEntries::add);
+
         assertEquals(0, scopeEntries.size());
 
         TopologyEntityCloudTopology cloudTopology = getCloudTopology(1000L);
@@ -240,13 +247,14 @@ public class SqlEntityStateStoreTest extends MultiDbTestBase {
                         Function.identity())), cloudTopology, dsl, entityIds);
 
         // Get states by IDs.
-        Map<Long, EntityState> stateMap = store.getAllEntityStates()
-                .collect(Collectors.toMap(item -> item.getEntityId(), item -> item));
+        Map<Long, EntityState> stateMap = new HashMap<>();
+        store.getAllEntityStates(entityState -> stateMap.put(entityState.getEntityId(), entityState));
         assertEquals(3, stateMap.size());
 
         // Validate records inserted to entity_cloud_scope. Only the ones in the UUID list should
         // be present.
-        scopeEntries = cloudScopeStore.streamAll().collect(Collectors.toList());
+        scopeEntries.clear();
+        cloudScopeStore.streamAll(scopeEntries::add);
         assertEquals(3, scopeEntries.size());
     }
 
@@ -275,7 +283,8 @@ public class SqlEntityStateStoreTest extends MultiDbTestBase {
         store.updateEntityStates(stateSet.stream().collect(Collectors.toMap(EntityState::getEntityId, Function.identity())),
                 cloudTopology, dsl, uuids);
 
-        List<EntityState> states = store.getAllEntityStates().collect(Collectors.toList());
+        List<EntityState> states = new ArrayList<>();
+        store.getAllEntityStates(states::add);
         assertEquals(11, states.size());
     }
 

@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -186,9 +186,8 @@ public class InMemoryEntityEventsJournal implements EntityEventsJournal {
     }
 
     @Override
-    public Stream<SavingsEvent> getEventsBetween(long startTime, long endTime) {
+    public void getEventsBetween(long startTime, long endTime, Consumer<SavingsEvent> consumer) {
         // No op. Not used.
-        return Stream.empty();
     }
 
     @Override

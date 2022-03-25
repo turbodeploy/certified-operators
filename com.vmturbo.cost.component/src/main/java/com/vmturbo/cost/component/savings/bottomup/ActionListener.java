@@ -13,7 +13,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -846,12 +845,13 @@ public class ActionListener implements ActionsListener {
     @VisibleForTesting
     void recoverMissedRecommendationRemovedEvents(Set<Long> entitiesWithActionsAfterRestart,
             Long eventTime) {
-        try (Stream<EntityState> stateStream = entityStateStore.getAllEntityStates()) {
-            Set<Long> entitiesWithActionsBeforeRestart = stateStream
-                    .filter(s -> s.getCurrentRecommendation() != null
-                            && s.getCurrentRecommendation().active())
-                    .map(EntityState::getEntityId)
-                    .collect(Collectors.toSet());
+        try {
+            final Set<Long> entitiesWithActionsBeforeRestart = new HashSet<>();
+            entityStateStore.getAllEntityStates(s -> {
+                if (s.getCurrentRecommendation() != null && s.getCurrentRecommendation().active()) {
+                    entitiesWithActionsBeforeRestart.add(s.getEntityId());
+                }
+            });
             // Find entities that had an action before but no longer have an action by removing
             // entities of entities that currently have actions from the set of entity IDs of entities
             // that had actions before.

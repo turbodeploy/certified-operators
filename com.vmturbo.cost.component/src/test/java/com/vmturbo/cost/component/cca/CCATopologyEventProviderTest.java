@@ -5,13 +5,15 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
@@ -52,7 +54,7 @@ public class CCATopologyEventProviderTest {
     @Before
     public void setup() {
         topologyEventProvider = new CCATopologyEventProvider(computeTierAllocationStore, cloudScopeStore);
-        when(cloudScopeStore.streamByFilter(any())).thenReturn(Stream.empty());
+        doNothing().when(cloudScopeStore).streamByFilter(any(), any());
     }
 
     @Test
@@ -171,7 +173,11 @@ public class CCATopologyEventProviderTest {
                 .serviceProviderOid(firstAllocation.regionOid())
                 .creationTime(creationTime)
                 .build();
-        when(cloudScopeStore.streamByFilter(any())).thenReturn(Stream.of(entityCloudScope));
+        doAnswer(inv -> {
+            Consumer<EntityCloudScope> consumer = inv.getArgumentAt(1, Consumer.class);
+            consumer.accept(entityCloudScope);
+            return null;
+        }).when(cloudScopeStore).streamByFilter(any(), any());
 
         // Invoke SUT
         final TopologyEvents topologyEvents =

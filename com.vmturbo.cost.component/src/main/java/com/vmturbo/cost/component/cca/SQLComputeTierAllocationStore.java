@@ -19,6 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -222,22 +223,23 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
      * the {@code filter}.
      */
     @Override
-    public Stream<EntityComputeTierAllocation> streamAllocations(@Nonnull final EntityComputeTierAllocationFilter filter) {
-        final List<EntityComputeTierAllocation> allocations = new ArrayList<>();
+    public void streamAllocations(@Nonnull final EntityComputeTierAllocationFilter filter,
+            @Nonnull final Consumer<EntityComputeTierAllocation> consumer) {
         dslContext.connection(conn -> {
             conn.setAutoCommit(false);
             // Streaming allocations does not guarantee a lack of updates during the stream
-            DSL.using(conn, dslContext.settings()).select(DSL.asterisk())
+            try (Stream<EntityComputeTierAllocation> stream = DSL.using(conn, dslContext.settings())
+                    .select(DSL.asterisk())
                     .from(Tables.ENTITY_COMPUTE_TIER_ALLOCATION)
                     .join(Tables.ENTITY_CLOUD_SCOPE)
                     .onKey()
                     .where(generateConditionsFromFilter(filter))
                     .fetchSize(batchStreamSize)
                     .stream()
-                    .map(this::createAllocationFromRecord)
-                    .forEach(allocations::add);
+                    .map(this::createAllocationFromRecord)) {
+                stream.forEach(consumer);
+            }
         });
-        return allocations.stream();
     }
 
     @Nonnull
@@ -248,12 +250,8 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
         try {
             final EntityComputeTierAllocationSet.Builder allocationSet = EntityComputeTierAllocationSet.builder()
                     .latestTopologyInfo(Optional.ofNullable(latestProcessedTopologyInfo));
-
-            try (Stream<EntityComputeTierAllocation> allocationStream = streamAllocations(filter)) {
-                allocationStream.forEach(allocation ->
-                        allocationSet.putAllocation(allocation.entityOid(), allocation));
-            }
-
+            streamAllocations(filter, allocation ->
+                    allocationSet.putAllocation(allocation.entityOid(), allocation));
             return allocationSet.build();
         } finally {
             persistenceLock.readLock().unlock();

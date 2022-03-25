@@ -9,11 +9,11 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
@@ -49,14 +49,6 @@ public class ComputeTierDemandStatsStore implements
 
     private final DSLContext dslContext;
 
-    /*
-     * for Junit tests only
-     */
-    @VisibleForTesting
-    ComputeTierDemandStatsStore() {
-        dslContext = null;
-    }
-
     public ComputeTierDemandStatsStore(@Nonnull final DSLContext dslContext,
                                        int statsRecordsCommitBatchSize,
                                        int statsRecordsQueryBatchSize) {
@@ -74,19 +66,31 @@ public class ComputeTierDemandStatsStore implements
      * NOTE: This returns a resourceful stream. Resource should be closed
      * by the caller.
      */
-    public Stream<ComputeTierTypeHourlyByWeekRecord> getStats(byte hour, byte day)
+    public void getStats(byte hour, byte day, Consumer<ComputeTierTypeHourlyByWeekRecord> consumer)
             throws DataAccessException {
-        final List<ComputeTierTypeHourlyByWeekRecord> records = new ArrayList<>();
         dslContext.connection(conn -> {
             conn.setAutoCommit(false);
-            DSL.using(conn, dslContext.settings()).selectFrom(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
+            try (Stream<ComputeTierTypeHourlyByWeekRecord> stream = DSL.using(conn, dslContext.settings())
+                    .selectFrom(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
                     .where(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.HOUR.eq(hour)
                             .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.DAY.eq(day)))
-                    .fetchSize(statsRecordsQueryBatchSize)
-                    .stream()
-                    .forEach(records::add);
+                    .fetchSize(statsRecordsQueryBatchSize).stream()) {
+                stream.forEach(consumer);
+            }
         });
-        return records.stream();
+    }
+
+    /**
+     * Check if there is stats for given hour and day.
+     *
+     * @param hour hour for which the ComputeTier demand stats are requested
+     * @param day  day for which the ComputeTier demand stats are requested
+     * @return true if stats exist for given hour and day
+     */
+    public boolean hasStats(byte hour, byte day) {
+        return dslContext.fetchExists(dslContext.selectFrom(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
+                .where(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.HOUR.eq(hour)
+                        .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.DAY.eq(day))));
     }
 
     public void persistComputeTierDemandStats(

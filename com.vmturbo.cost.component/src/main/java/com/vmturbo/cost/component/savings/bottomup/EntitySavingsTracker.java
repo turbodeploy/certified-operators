@@ -133,8 +133,8 @@ public class EntitySavingsTracker {
 
                 // Remove events from entity event journal.
                 if (entityEventsJournal.persistEvents()) {
-                    events = entityEventsJournal.getEventsBetween(startTimeMillis,
-                            endTimeMillis, uuids).collect(Collectors.toList());
+                    events = new ArrayList<>();
+                    entityEventsJournal.getEventsBetween(startTimeMillis, endTimeMillis, uuids, events::add);
                 } else {
                     events = entityEventsJournal.removeEventsBetween(startTimeMillis,
                             endTimeMillis, uuids);
@@ -242,13 +242,9 @@ public class EntitySavingsTracker {
      */
     @VisibleForTesting
     void generateStats(long statTime, @Nonnull DSLContext dsl, Set<Long> uuids) throws EntitySavingsException {
-        Set<EntitySavingsStats> stats = new HashSet<>();
-        // Use try with resource here because the stream implementation uses an open cursor that
-        // need to be closed.
-        try (Stream<EntityState> stateStream = entityStateStore.getAllEntityStates(dsl)) {
-            stateStream
-                    .filter(state -> uuids.isEmpty() || uuids.contains(state.getEntityId()))
-                    .forEach(state -> {
+        final Set<EntitySavingsStats> stats = new HashSet<>();
+        entityStateStore.getAllEntityStates(dsl, state -> {
+            if (uuids.isEmpty() || uuids.contains(state.getEntityId())) {
                 stats.addAll(stateToStats(state, statTime));
                 if (stats.size() >= chunkSize) {
                     try {
@@ -259,11 +255,12 @@ public class EntitySavingsTracker {
                     }
                     stats.clear();
                 }
-            });
-            if (!stats.isEmpty()) {
-                // Flush partial chunk
-                entitySavingsStore.addHourlyStats(stats, dsl);
             }
+        });
+
+        if (!stats.isEmpty()) {
+            // Flush partial chunk
+            entitySavingsStore.addHourlyStats(stats, dsl);
         }
     }
 

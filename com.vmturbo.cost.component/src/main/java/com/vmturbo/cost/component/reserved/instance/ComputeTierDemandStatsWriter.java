@@ -17,7 +17,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -27,6 +26,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -34,7 +34,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -391,10 +390,7 @@ public class ComputeTierDemandStatsWriter {
         calendar.setTimeInMillis(topologyCreationTime);
         int hour = calendar.get(Calendar.HOUR_OF_DAY);
         int day = calendar.get(Calendar.DAY_OF_WEEK);
-        try (Stream<ComputeTierTypeHourlyByWeekRecord> riStatsRecordStream =
-                     computeTierDemandStatsStore.getStats((byte)hour, (byte)day)) {
-            return riStatsRecordStream.findAny().isPresent();
-        }
+        return computeTierDemandStatsStore.hasStats((byte)hour, (byte)day);
     }
 
     /**
@@ -410,24 +406,18 @@ public class ComputeTierDemandStatsWriter {
             throws DataAccessException {
 
         // map for storing the existing stats retrieved from the DB.
-        final Map<ComputeTierDemandStatsRecord, WeightedCounts> riDemandStatsMap
-                = new HashMap();
-
-        try (Stream<ComputeTierTypeHourlyByWeekRecord> riStatsRecordStream =
-                     computeTierDemandStatsStore.getStats(hour, day)) {
-            riStatsRecordStream.forEach(riStatRecord -> {
-                riDemandStatsMap.put(
-                        new ComputeTierDemandStatsRecord(riStatRecord.getAccountId(),
-                                riStatRecord.getComputeTierId(),
-                                riStatRecord.getRegionOrZoneId(),
-                                riStatRecord.getPlatform(),
-                                riStatRecord.getTenancy()),
-                        new WeightedCounts(
-                                riStatRecord.getCountFromSourceTopology(),
-                                riStatRecord.getCountFromProjectedTopology()));
-
-            });
-        }
+        final Map<ComputeTierDemandStatsRecord, WeightedCounts> riDemandStatsMap = new HashMap<>();
+        computeTierDemandStatsStore.getStats(hour, day, riStatRecord -> {
+            riDemandStatsMap.put(
+                    new ComputeTierDemandStatsRecord(riStatRecord.getAccountId(),
+                            riStatRecord.getComputeTierId(),
+                            riStatRecord.getRegionOrZoneId(),
+                            riStatRecord.getPlatform(),
+                            riStatRecord.getTenancy()),
+                    new WeightedCounts(
+                            riStatRecord.getCountFromSourceTopology(),
+                            riStatRecord.getCountFromProjectedTopology()));
+        });
         return riDemandStatsMap;
     }
 

@@ -1,8 +1,10 @@
 package com.vmturbo.cloud.common.entity.scope;
 
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
 
@@ -29,8 +31,7 @@ public interface CloudScopeStore {
      * database connections.
      * @return A {@link Stream} contain all {@link EntityCloudScope} records that currently exist.
      */
-    @Nonnull
-    Stream<EntityCloudScope> streamAll();
+    void streamAll(@Nonnull Consumer<EntityCloudScope> consumer);
 
     /**
      * Streams all {@link EntityCloudScope} passing {@code filter}.
@@ -40,5 +41,5 @@ public interface CloudScopeStore {
      * @param filter The {@link CloudScopeFilter}.
      * @return A {@link Stream} containing all {@link EntityCloudScope} records that pass the filter.
      */
-    Stream<EntityCloudScope> streamByFilter(@Nonnull CloudScopeFilter filter);
+    void streamByFilter(@Nullable CloudScopeFilter filter, @Nonnull Consumer<EntityCloudScope> consumer);
 }

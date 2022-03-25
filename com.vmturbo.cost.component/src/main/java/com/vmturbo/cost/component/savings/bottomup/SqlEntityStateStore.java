@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -278,25 +279,26 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
     }
 
     @Override
-    public Stream<EntityState> getAllEntityStates() {
-        return getAllEntityStates(dsl);
+    public void getAllEntityStates(Consumer<EntityState> consumer) {
+        getAllEntityStates(dsl, consumer);
     }
 
     @Override
-    public Stream<EntityState> getAllEntityStates(@Nonnull DSLContext transactionContext) {
+    public void getAllEntityStates(@Nonnull DSLContext transactionContext,
+            @Nonnull Consumer<EntityState> consumer) {
         // Use jooq lazy fetch to avoid load the whole table into memory.
         // https://www.jooq.org/doc/3.2/manual/sql-execution/fetching/lazy-fetching/
         // https://stackoverflow.com/questions/32209248/java-util-stream-with-resultset
-        final List<EntityState> entityStates = new ArrayList<>();
         transactionContext.connection(conn -> {
             conn.setAutoCommit(false);
-            DSL.using(conn, transactionContext.settings()).selectFrom(ENTITY_SAVINGS_STATE)
+            try (Stream<EntityState> stream = DSL.using(conn, transactionContext.settings())
+                    .selectFrom(ENTITY_SAVINGS_STATE)
                     .fetchSize(chunkSize)
                     .fetchStream()
-                    .map(record -> EntityState.fromJson(record.getEntityState()))
-                    .forEach(entityStates::add);
+                    .map(record -> EntityState.fromJson(record.getEntityState()))) {
+                stream.forEach(consumer);
+            }
         });
-        return entityStates.stream();
     }
 
     @Nullable

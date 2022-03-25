@@ -3,15 +3,15 @@ package com.vmturbo.topology.event.library.uptime;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -106,8 +106,12 @@ public class InMemoryEntityUptimeStoreTest {
                 .serviceProviderOid(4)
                 .creationTime(Instant.now())
                 .build();
-        when(cloudScopeStore.streamByFilter(any()))
-                .thenReturn(Stream.of(entityCloudScopeA, entityCloudScopeC));
+        doAnswer(inv -> {
+            Consumer<EntityCloudScope> consumer = inv.getArgumentAt(1, Consumer.class);
+            consumer.accept(entityCloudScopeA);
+            consumer.accept(entityCloudScopeC);
+            return null;
+        }).when(cloudScopeStore).streamByFilter(any(), any());
 
         // invoke SUT
         final Map<Long, EntityUptime> actualUptimeMap =

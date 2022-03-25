@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -149,10 +150,8 @@ public class SQLComputeTierAllocationStoreTest extends MultiDbTestBase {
     public void testCleanInsert() {
 
         // Records are inserted as part of the JUnit setup
-
-        final Set<EntityComputeTierAllocation> allocations = computeTierAllocationStore
-                .streamAllocations(EntityComputeTierAllocationFilter.ALL)
-                .collect(Collectors.toSet());
+        final Set<EntityComputeTierAllocation> allocations = new HashSet<>();
+        computeTierAllocationStore.streamAllocations(EntityComputeTierAllocationFilter.ALL, allocations::add);
 
         assertThat(allocations, hasSize(3));
 
@@ -195,10 +194,8 @@ public class SQLComputeTierAllocationStoreTest extends MultiDbTestBase {
         // Persist the allocation datapoints
         computeTierAllocationStore.persistAllocations(topologyInfo, allocationDatapoints);
 
-
-        final Set<EntityComputeTierAllocation> allocations = computeTierAllocationStore
-                .streamAllocations(EntityComputeTierAllocationFilter.ALL)
-                .collect(Collectors.toSet());
+        final Set<EntityComputeTierAllocation> allocations = new HashSet<>();
+        computeTierAllocationStore.streamAllocations(EntityComputeTierAllocationFilter.ALL, allocations::add);
 
         // A should have 1 record, B should have 2, C 1, and D 1 = 5
         assertThat(allocations, hasSize(5));
@@ -257,9 +254,8 @@ public class SQLComputeTierAllocationStoreTest extends MultiDbTestBase {
 
         computeTierAllocationStore.deleteAllocations(filter);
 
-        final Set<EntityComputeTierAllocation> allocations = computeTierAllocationStore
-                .streamAllocations(EntityComputeTierAllocationFilter.ALL)
-                .collect(Collectors.toSet());
+        final Set<EntityComputeTierAllocation> allocations = new HashSet<>();
+        computeTierAllocationStore.streamAllocations(EntityComputeTierAllocationFilter.ALL, allocations::add);
 
         // Only the new records should exist (A, new B, and D)
         assertThat(allocations, hasSize(3));
@@ -280,9 +276,8 @@ public class SQLComputeTierAllocationStoreTest extends MultiDbTestBase {
                 .addPlatforms(OSType.WINDOWS)
                 .build();
 
-        final Set<EntityComputeTierAllocation> allocations = computeTierAllocationStore
-                .streamAllocations(filter)
-                .collect(Collectors.toSet());
+        final Set<EntityComputeTierAllocation> allocations = new HashSet<>();
+        computeTierAllocationStore.streamAllocations(filter, allocations::add);
 
         // Datapoints B and C should be returned
         assertThat(allocations, hasSize(2));
@@ -301,9 +296,8 @@ public class SQLComputeTierAllocationStoreTest extends MultiDbTestBase {
                 .addTenancies(Tenancy.DEFAULT)
                 .build();
 
-        final Set<EntityComputeTierAllocation> allocations = computeTierAllocationStore
-                .streamAllocations(filter)
-                .collect(Collectors.toSet());
+        final Set<EntityComputeTierAllocation> allocations = new HashSet<>();
+        computeTierAllocationStore.streamAllocations(filter, allocations::add);
 
         // Datapoints A and C should be returned
         assertThat(allocations, hasSize(2));
@@ -322,9 +316,8 @@ public class SQLComputeTierAllocationStoreTest extends MultiDbTestBase {
                 .addComputeTierOids(12)
                 .build();
 
-        final Set<EntityComputeTierAllocation> allocations = computeTierAllocationStore
-                .streamAllocations(filter)
-                .collect(Collectors.toSet());
+        final Set<EntityComputeTierAllocation> allocations = new HashSet<>();
+        computeTierAllocationStore.streamAllocations(filter, allocations::add);
 
         // Datapoints A and C should be returned
         assertThat(allocations, hasSize(2));
