@@ -112,7 +112,7 @@ public class CloudCommitmentApplicator<ENTITY_CLASS> {
                     journal.recordCloudCommitmentDiscount(CostCategory.ON_DEMAND_COMPUTE, cloudCommitmentDataOpt.get().asTopologyCommitment(), coverageVector);
                 }
             } else {
-                logger.error("Unable to resolve cloud commitment data for entity " +
+                logger.debug("Unable to resolve cloud commitment data for entity " +
                         "(Entity OID={}, Cloud commitment OID={})", entityOid, cloudCommitmentId);
             }
         }
