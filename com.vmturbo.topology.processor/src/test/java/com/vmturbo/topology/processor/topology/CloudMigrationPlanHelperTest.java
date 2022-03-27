@@ -10,9 +10,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -26,14 +30,20 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
@@ -57,6 +67,7 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.Comm
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ConnectedEntityImpl;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -66,7 +77,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
-import com.vmturbo.topology.processor.group.GroupConfig;
+import com.vmturbo.topology.processor.group.GroupResolutionException;
+import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper.CloudMigrationSettingsPolicyEditor;
@@ -77,6 +89,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
  * Test coverage for cloud migration stage helper.
  */
 public class CloudMigrationPlanHelperTest {
+
     private static final String IRRELEVANT_SETTING_POLICY = "Irrelevant";
 
     /**
@@ -88,11 +101,19 @@ public class CloudMigrationPlanHelperTest {
      * Group service dependency.
      */
     private final GroupServiceBlockingStub groupServiceClient;
+    private final GroupResolver groupResolver;
+    private GroupServiceMole groupServiceBackend = spy(GroupServiceMole.class);
 
     /**
      * Stats History service dependency.
      */
     private final StatsHistoryServiceBlockingStub statsHistoryServiceBlockingStub;
+
+    /**
+     * Test server to mock out the gRPC dependency.
+     */
+    @Rule
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(groupServiceBackend);
 
     /**
      * On-prem source VM DTO data read from file.
@@ -157,8 +178,10 @@ public class CloudMigrationPlanHelperTest {
     /**
      * Creates new instance with dependencies.
      */
-    public CloudMigrationPlanHelperTest() {
-        groupServiceClient = mock(GroupConfig.class).groupServiceBlockingStub();
+    public CloudMigrationPlanHelperTest() throws IOException {
+        grpcTestServer.start();
+        groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+        groupResolver = mock(GroupResolver.class);
         statsHistoryServiceBlockingStub = mock(TopologyConfig.class).historyClient();
         cloudMigrationPlanHelper = new CloudMigrationPlanHelper(groupServiceClient, statsHistoryServiceBlockingStub);
     }
@@ -1329,6 +1352,30 @@ public class CloudMigrationPlanHelperTest {
                 .getStorageProviders(vmEntityWithDifferentSt.build());
 
         assertTrue(migrationMap.isEmpty());
+    }
+
+    /**
+     * Test the Group resolver.
+     * @throws GroupResolutionException exception thrown from the group resolver.
+     */
+    @Test
+    public void testResolveDynamicGroups() throws GroupResolutionException {
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.pojoGraphOf();
+        Grouping group = Grouping.newBuilder()
+                .setId(123L)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setDisplayName("grp")).build();
+        ResolvedGroup resolvedGroup = new ResolvedGroup(group,
+                Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE, EXISTING_CLOUD_VM_OIDS));
+        final Map<Long, ResolvedGroup> resolvedGroupMap = Maps.newHashMap();
+
+        when(groupServiceBackend.getGroups(any()))
+                .thenReturn(ImmutableList.of(group));
+        when(groupResolver.resolve(same(group), any())).thenReturn(resolvedGroup);
+
+        cloudMigrationPlanHelper.resolveDynamicGroups(graph, groupResolver, resolvedGroupMap);
+
+        assertEquals(1, resolvedGroupMap.size());
     }
 
     /**
