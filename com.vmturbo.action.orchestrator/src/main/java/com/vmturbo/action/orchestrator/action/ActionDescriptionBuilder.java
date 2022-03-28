@@ -8,6 +8,7 @@ import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.ENTITY_WITH_A
 
 import java.text.MessageFormat;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +51,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
+import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure.SettingChange;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -140,8 +142,7 @@ public class ActionDescriptionBuilder {
         STORAGE_ACCESS_IOPS("{0,number,integer} IOPS"),
         IO_THROUGHPUT_MBPS("{0,number,integer} MB/s"),
         SIMPLE("{0, number, integer}"),
-        ACTION_DESCRIPTION_ACCOUNT_NAME(" in {0}"),
-        ACTION_DESCRIPTION_RECONFIGURE_LABEL_COMMODITIES("Reconfigure nodeSelector for {0}");
+        ACTION_DESCRIPTION_ACCOUNT_NAME(" in {0}");
 
 
         private final ThreadLocal<MessageFormat> messageFormat;
@@ -410,12 +411,6 @@ public class ActionDescriptionBuilder {
                 if (!taintReasons.isEmpty()) {
                     return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_TAINT_COMMODITIES
                             .format(beautifyEntityTypeAndName(targetEntityDTO.get()));
-                }
-                final Set<String> labelReasons = ExplanationComposer.getLabelReasons(
-                    explanation.getReconfigureCommodityList());
-                if (!labelReasons.isEmpty()) {
-                    return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_LABEL_COMMODITIES.format(
-                        beautifyEntityTypeAndName(targetEntityDTO.get()));
                 }
                 return getDescriptionWithAccountName(entitiesSnapshot, entityId,
                         ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES.format(

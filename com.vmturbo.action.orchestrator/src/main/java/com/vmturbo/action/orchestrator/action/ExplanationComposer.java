@@ -32,10 +32,10 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Strings;
 
 import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -64,7 +64,6 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil.EntityField;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -75,6 +74,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.util.BaseGraphEntity;
+import org.apache.logging.log4j.util.Strings;
 
 /**
  * A utility with static methods that assist in composing explanations for actions.
@@ -84,8 +84,6 @@ public class ExplanationComposer {
 
     private static final String TAINT_MOVE_COMPLIANCE_EXPLANATION_FORMATION =
         "{0} cannot tolerate taints {1} on {2}";
-    private static final String LABEL_MOVE_COMPLIANCE_EXPLANATION_FORMAT =
-        "{0} cannot satisfy nodeSelector configuration";
     private static final String MOVE_COMPLIANCE_EXPLANATION_FORMAT =
         "{0} can not satisfy the request for resource(s) ";
     private static final String MOVE_EVACUATION_RECONFIGURE_EXPLANATION_FORMAT =
@@ -109,8 +107,6 @@ public class ExplanationComposer {
         "Configure supplier to update resource(s) ";
     private static final String RECONFIGURE_TAINT_COMMODITY_EXPLANATION =
         "The pod does not tolerate taint(s) on any node";
-    private static final String RECONFIGURE_LABEL_COMMODITY_EXPLANATION =
-        "Zero nodes match Pod's node affinity";
     private static final String REASON_SETTINGS_EXPLANATION =
         "{0} doesn''t comply with {1}";
     private static final String SINGLE_DELETED_POLICY_MSG = "a compliance policy that used to exist";
@@ -233,21 +229,6 @@ public class ExplanationComposer {
                         commodityType.getType())
                 .map(CommodityType::getKey)
                 .collect(Collectors.toSet());
-    }
-
-    /**
-     * Get a set of commodity keys for LABEL commodities from the given resource commodities.
-     *
-     * @param reasonCommodities the reason commodities
-     * @return the commodity keys
-     */
-    @Nonnull
-    static Set<String> getLabelReasons(@Nonnull final List<ReasonCommodity> reasonCommodities) {
-        return reasonCommodities.stream().map(ReasonCommodity::getCommodityType)
-            .filter(commodityType -> CommodityDTO.CommodityType.LABEL_VALUE ==
-                commodityType.getType())
-            .map(CommodityType::getKey)
-            .collect(Collectors.toSet());
     }
 
     /**
@@ -541,11 +522,6 @@ public class ExplanationComposer {
                                          buildEntityTypeAndName(target, topology),
                                          String.join(", ", taintReasons),
                                          providerName));
-        }
-        final Set<String> labelReasons = getLabelReasons(reasonCommodities);
-        if (!labelReasons.isEmpty()) {
-            return Collections.singleton(
-                MessageFormat.format(LABEL_MOVE_COMPLIANCE_EXPLANATION_FORMAT, providerName));
         }
         return Collections.singleton(MessageFormat.format(MOVE_COMPLIANCE_EXPLANATION_FORMAT, providerName)
             + reasonCommodities.stream()
@@ -1111,10 +1087,6 @@ public class ExplanationComposer {
         final Set<String> taintReasons = getTaintReasons(reasonCommodities);
         if (!taintReasons.isEmpty()) {
             return RECONFIGURE_TAINT_COMMODITY_EXPLANATION;
-        }
-        final Set<String> labelReasons = getLabelReasons(reasonCommodities);
-        if (!labelReasons.isEmpty()) {
-            return RECONFIGURE_LABEL_COMMODITY_EXPLANATION;
         }
         return RECONFIGURE_REASON_COMMODITY_EXPLANATION + reasonCommodities.stream()
                 .map(reason -> getCommodityDisplayName(reason.getCommodityType()))
