@@ -539,6 +539,7 @@ public class Analysis {
                 && (config.getSuspensionsThrottlingConfig() == SuspensionsThrottlingConfig.CLUSTER);
         final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory
                 .newCalculator(topologyInfo, originalCloudTopology);
+
         // Use the cloud cost data we use for cost calculations for the price table.
         final CloudRateExtractor marketCloudRateExtractor = marketPriceTableFactory.newPriceTable(
                 this.originalCloudTopology, topologyCostCalculator.getCloudCostData());
@@ -841,7 +842,8 @@ public class Analysis {
                             // savings
                             try (TracingScope ignored = Tracing.trace("calculate_projected_costs")) {
                                 projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology,
-                                        converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage());
+                                        converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
+                                        smaConverter.getProjectedVMToCommitmentMappings());
                             }
                         }
                     }
@@ -863,7 +865,8 @@ public class Analysis {
                     final CloudActionSavingsCalculator actionSavingsCalculator = actionSavingsCalculatorFactory.newCalculator(
                             topologyDTOs, originalCloudTopology, topologyCostCalculator,
                             projectedEntities, projectedEntityCosts,
-                            converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage());
+                            converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
+                            smaConverter.getProjectedVMToCommitmentMappings());
 
                     List<Action> actions;
                     try (TracingScope ignored = Tracing.trace("interpret_actions")) {

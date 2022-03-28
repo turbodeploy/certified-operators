@@ -3,6 +3,7 @@ package com.vmturbo.market.topology.conversions.cloud;
 import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES;
 import static com.vmturbo.trax.Trax.trax;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -31,10 +32,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverage;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -42,6 +46,9 @@ import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator.TraxSavingsDetails.TraxTierCostDetails;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CommittedCommoditiesBought;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CommittedCommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxCollectors;
@@ -62,11 +69,14 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
 
     private final TopologyCostCalculator sourceCostCalculator;
 
+    //TODO This will be deprecated wen RIs are also migrated to teh cloud commitment framework.
     private final Map<Long, EntityReservedInstanceCoverage> projectedRICoverage;
 
     private final Map<Long, ProjectedTopologyEntity> projectedTopologyMap;
 
     private final Map<Long, CostJournal<TopologyEntityDTO>> projectedJournalsMap;
+
+    private final Map<Long, Set<CloudCommitmentMapping>> projectedCommitmentCoverage;
 
     /**
      * Constructs a new {@link JournalActionSavingsCalculator} instance.
@@ -76,13 +86,15 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
      * @param projectedTopologyMap The projected topology map.
      * @param projectedJournalsMap The projected entity cost journals.
      * @param projectedRICoverage The projected RI coverage map.
+     * @param projectedCommitmentCoverage The projected cloud commitment coverage.
      */
     public JournalActionSavingsCalculator(@Nonnull Map<Long, TopologyEntityDTO> sourceTopologyMap,
                                           @Nonnull CloudTopology<TopologyEntityDTO> sourceCloudTopology,
                                           @Nonnull TopologyCostCalculator sourceCostCalculator,
                                           @Nonnull Map<Long, ProjectedTopologyEntity> projectedTopologyMap,
                                           @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedJournalsMap,
-                                          @Nonnull Map<Long, EntityReservedInstanceCoverage> projectedRICoverage) {
+                                          @Nonnull Map<Long, EntityReservedInstanceCoverage> projectedRICoverage,
+                                          @Nonnull Map<Long, Set<CloudCommitmentMapping>> projectedCommitmentCoverage) {
 
         this.sourceTopologyMap = ImmutableMap.copyOf(Objects.requireNonNull(sourceTopologyMap));
         this.sourceCloudTopology = Objects.requireNonNull(sourceCloudTopology);
@@ -90,6 +102,7 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
         this.projectedTopologyMap = ImmutableMap.copyOf(Objects.requireNonNull(projectedTopologyMap));
         this.projectedJournalsMap = ImmutableMap.copyOf(Objects.requireNonNull(projectedJournalsMap));
         this.projectedRICoverage = ImmutableMap.copyOf(Objects.requireNonNull(projectedRICoverage));
+        this.projectedCommitmentCoverage = ImmutableMap.copyOf(Objects.requireNonNull(projectedCommitmentCoverage));
     }
 
 
@@ -341,12 +354,15 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
                     entityMoving.getOid());
             final EntityReservedInstanceCoverage projectedCoverage = projectedRICoverage.get(
                     entityMoving.getOid());
+            final Set<CloudCommitmentMapping> commitmentMappings = projectedCommitmentCoverage.getOrDefault(entityMoving.getOid(),
+                    Collections.emptySet());
+
             final TraxTierCostDetails projectedTierCostDetails = buildTierCostDetails(
                     destCostJournal,
                     entityMoving,
                     destinationTier,
-                    Optional.ofNullable(projectedCoverage),
-                    includeBuyRICoverage);
+                    projectedCoverage != null ? Optional.ofNullable(projectedCoverage) : Optional.empty(),
+                    includeBuyRICoverage, commitmentMappings);
             cloudCostSavingsDetails.projectedTierCostDetails(projectedTierCostDetails);
 
             // TierCostDetails for source
@@ -356,13 +372,17 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
                         entityMoving);
                 final Optional<EntityReservedInstanceCoverage> originalCoverage = sourceCostCalculator.getCloudCostData()
                         .getFilteredRiCoverage(entityMoving.getOid());
+
+                Set sourceCommitmentMappings = sourceCostCalculator.getCloudCostData()
+                        .getCloudCommitmentMappingByEntityId()
+                        .get(entityMoving.getOid());
                 if (sourceCostJournal != null && sourceCostJournal.isPresent()) {
                     final TraxTierCostDetails sourceTierCostDetails = buildTierCostDetails(
                             sourceCostJournal.get(),
                             entityMoving,
                             sourceTier,
                             originalCoverage,
-                            includeBuyRICoverage);
+                            includeBuyRICoverage, sourceCommitmentMappings);
                     cloudCostSavingsDetails.sourceTierCostDetails(sourceTierCostDetails);
                 }
             }
@@ -405,7 +425,8 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
                                                      @Nonnull TopologyEntityDTO entityMoving,
                                                      @Nonnull TopologyEntityDTO cloudTier,
                                                      @Nonnull Optional<EntityReservedInstanceCoverage> reservedInstanceCoverage,
-                                                     boolean includeBuyRICoverage) {
+                                                     boolean includeBuyRICoverage,
+                                                     @Nonnull Set<CloudCommitmentMapping> commitmentMappings) {
         if (costJournal == null) {
             return TraxTierCostDetails.EMPTY_DETAILS;
         }
@@ -428,7 +449,10 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
                 .onDemandCost(onDemandCost)
                 .costJournal(costJournal);
 
-        if (reservedInstanceCoverage.isPresent()) {
+        // check on the commitment mappings first since source RI coverage has an entry of 0 coupons.
+        if (reservedInstanceCoverage.isPresent()
+                && (reservedInstanceCoverage.get().getCouponsCoveredByBuyRiCount() > 0
+                        || reservedInstanceCoverage.get().getCouponsCoveredByRiCount() > 0)) {
             final CloudCommitmentCoverage.Builder cloudCommitmentCoverage =
                     CloudCommitmentCoverage.newBuilder();
             double coverageUsed = sumCoverage(reservedInstanceCoverage.get(), includeBuyRICoverage);
@@ -436,9 +460,56 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
                     .setCapacity(CloudCommitmentAmount.newBuilder().setCoupons(reservedInstanceCoverage.get().getEntityCouponCapacity()))
                     .setUsed(CloudCommitmentAmount.newBuilder().setCoupons(coverageUsed));
             tierCostDetails.cloudCommitmentCoverage(cloudCommitmentCoverage.build());
-        }
+        } else if (!commitmentMappings.isEmpty()) {
+            final CloudCommitmentCoverage.Builder cloudCommitmentCoverage =
+                    CloudCommitmentCoverage.newBuilder();
+            // set based on costs - where the coverage is converted to a scalar value in the form of coupons.
+            // Actual coverages will be set once the action details supports multiple commodity coverages.
+            final CloudCommitmentAmount capacityInCoupons = CloudCommitmentAmount.newBuilder().setCoupons(1D).build();
+            // used = scalar(amount discounted) / scalar(template capacity)
+            // used as computed in SMA = ( net cost at 0 coverage - net cost at x coverage) / (net cost at 0 coverage - net cost at 100% coverage)
+            // net cost at 0 coverage = compute/rate + license/rate
+            // net cost at x coverage = compute/rate + license/rate + compute/CC discount + license/CC discount
+            // net cost at 100% coverage is the license value since we do not have CC discounts on License, but, applies to only compute.
+            TraxNumber onDemandCCDiscount =  costJournal.getFilteredCategoryCostsBySource(
+                    CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.EXCLUDE_UPTIME).getOrDefault(
+                    CostSource.CLOUD_COMMITMENT_DISCOUNT, Trax.trax(0D));
+            TraxNumber onDemandLicenseCCDiscount =  costJournal.getFilteredCategoryCostsBySource(
+                    CostCategory.ON_DEMAND_LICENSE, CostSourceFilter.EXCLUDE_UPTIME).getOrDefault(
+                    CostSource.CLOUD_COMMITMENT_DISCOUNT, Trax.trax(0D));
+            double netCostWithCoverage = Stream.of(onDemandRate, onDemandCCDiscount, onDemandLicenseCCDiscount)
+                    .collect(TraxCollectors.sum(entityMoving.getDisplayName() + "net cost with CUD coverage")).getValue();
+            double netCostWithFullCoverage = costJournal.getHourlyCostFilterEntries(
+                    CostCategory.ON_DEMAND_LICENSE, CostSourceFilter.ON_DEMAND_RATE).getValue();
+            double usedInCoupons = Math.abs(onDemandRate.getValue() - netCostWithCoverage) / (onDemandRate.getValue() - netCostWithFullCoverage);
+            final CloudCommitmentAmount used = CloudCommitmentAmount.newBuilder().setCoupons(usedInCoupons).build();
+            cloudCommitmentCoverage
+                    .setCapacity(capacityInCoupons)
+                    .setUsed(used);
+            tierCostDetails.cloudCommitmentCoverage(cloudCommitmentCoverage.build());
 
+        }
         return tierCostDetails.build();
+    }
+
+    @Nonnull
+    private  CloudCommitmentAmount getCommitmentAmountRequiredForTier(@Nonnull final TopologyEntityDTO tier) {
+        return CloudCommitmentAmount.newBuilder().setCommoditiesBought(
+                CommittedCommoditiesBought.newBuilder()
+                        .addCommodity(CommittedCommodityBought.newBuilder()
+                                .setCommodityType(CommodityType.NUM_VCORE)
+                                .setCapacity(tier.getTypeSpecificInfo()
+                                        .getComputeTier()
+                                        .getNumOfCores()))
+                        .addCommodity(CommittedCommodityBought.newBuilder()
+                                .setCommodityType(CommodityType.MEM_PROVISIONED)
+                                .setCapacity(tier.getCommoditySoldListList()
+                                        .stream()
+                                        .filter(c -> c.getCommodityType().getType()
+                                                == CommodityType.MEM_PROVISIONED_VALUE)
+                                        .findAny()
+                                        .map(CommoditySoldDTO::getCapacity)
+                                        .orElse(0D)))).build();
     }
 
     /**

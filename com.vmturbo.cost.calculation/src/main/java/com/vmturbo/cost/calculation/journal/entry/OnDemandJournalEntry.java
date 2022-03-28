@@ -91,7 +91,7 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
             @Nonnull final EntityInfoExtractor<E> infoExtractor,
             @Nonnull final DiscountApplicator<E> discountApplicator,
             @Nonnull final RateExtractor rateExtractor) {
-        logger.trace("Calculating hourly cost for purchase from entity {} of type {}",
+        logger.trace("Calculating hourly cost for purchase from enticom.vmturbo.cost.calculation/src/test/java/com/vmturbo/cost/calculation/journal/CostJournalTest.javaty {} of type {}",
                 infoExtractor.getId(payee), infoExtractor.getEntityType(payee));
         final TraxNumber unitPrice = Trax.trax(price.getPriceAmount().getAmount(),
                 infoExtractor.getName(payee) + " unit price");

@@ -1,19 +1,25 @@
 package com.vmturbo.cost.calculation.topology;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSetMultimap;
+import com.google.common.collect.ImmutableSetMultimap.Builder;
 import com.google.common.collect.Lists;
+import com.google.common.collect.SetMultimap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -21,6 +27,7 @@ import com.vmturbo.cost.calculation.CloudCommitmentApplicator;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.SimulatedCloudCostData;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
@@ -98,7 +105,24 @@ public class TopologyCostCalculator {
                                                                     final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage) {
         logger.info("Starting cost calculation on cloud topology of size: {}", cloudTopology.size());
         return calculateCostsInTopology(cloudTopology.getEntities().values(), cloudTopology,
-                    projectedRiCoverage);
+                    projectedRiCoverage, Collections.emptyMap());
+    }
+
+    /**
+     * Calculate the costs of the input {@link TopologyEntityDTO}s.
+     *
+     * @param cloudTopology The cloud entities in a topology.
+     * @param projectedRiCoverage the RI Coverage for the projected topology
+     * @param commitmentMappings the commitment mappings that need to be overridden in cloud cost data,
+     * @return A map of id -> {@link CostJournal} for the entity with that ID.
+     */
+    @Nonnull
+    public Map<Long, CostJournal<TopologyEntityDTO>> calculateCosts(final CloudTopology<TopologyEntityDTO> cloudTopology,
+            final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage,
+            Map<Long, Set<CloudCommitmentMapping>> commitmentMappings) {
+        logger.info("Starting cost calculation on cloud topology of size: {}", cloudTopology.size());
+        return calculateCostsInTopology(cloudTopology.getEntities().values(), cloudTopology,
+                projectedRiCoverage, commitmentMappings);
     }
 
     /**
@@ -118,7 +142,7 @@ public class TopologyCostCalculator {
         entities.addAll(cloudTopology.getAttachedVolumes(cloudEntity.getOid()));
         final Map<Long, CostJournal<TopologyEntityDTO>> costsForEntities =
                 calculateCostsInTopology(entities, cloudTopology,
-                        cloudCostData.getCurrentRiCoverage());
+                        cloudCostData.getCurrentRiCoverage(), Collections.emptyMap());
         return Optional.ofNullable(costsForEntities.get(cloudEntity.getOid()));
     }
 
@@ -136,11 +160,22 @@ public class TopologyCostCalculator {
     private Map<Long, CostJournal<TopologyEntityDTO>> calculateCostsInTopology(
             final Collection<TopologyEntityDTO> entities,
             final CloudTopology<TopologyEntityDTO> cloudTopology,
-            final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage) {
+            final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage,
+            final Map<Long, Set<CloudCommitmentMapping>> commitmentMappings) {
         final CloudCostCalculator<TopologyEntityDTO> costCalculator;
         final Map<Long, CostJournal<TopologyEntityDTO>> retCosts = new HashMap<>(cloudTopology.size());
         final DependentCostLookup<TopologyEntityDTO> dependentCostLookup = entity -> retCosts.get(entity.getOid());
-        costCalculator = cloudCostCalculatorFactory.newCalculator(cloudCostData,
+        CloudCostData costData = cloudCostData;
+        if (!commitmentMappings.isEmpty()) {
+            costData = new SimulatedCloudCostData(cloudCostData);
+            Builder<Object, Object> mappingMultiMapBuilder =
+                    ImmutableSetMultimap.builder();
+            commitmentMappings.entrySet().stream().forEach(e ->
+                e.getValue().stream().forEach(mapping ->
+                    mappingMultiMapBuilder.put(e.getKey(), mapping)));
+            ((SimulatedCloudCostData)costData).setCloudCommitmentMappingByEntityId(mappingMultiMapBuilder.build());
+        }
+        costCalculator = cloudCostCalculatorFactory.newCalculator(costData,
                 cloudTopology,
                 topologyEntityInfoExtractor,
                 riApplicatorFactory,
@@ -218,6 +253,7 @@ public class TopologyCostCalculator {
                         cloudCommitmentApplicatorFactory,
                         topoInfo, originalCloudTopology);
             }
+
         }
     }
 
