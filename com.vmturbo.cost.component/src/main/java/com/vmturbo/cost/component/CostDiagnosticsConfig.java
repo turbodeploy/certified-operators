@@ -101,11 +101,9 @@ public class CostDiagnosticsConfig {
     @Bean
     public DiagnosticsHandlerImportable diagsHandler() {
         try {
-            DSLContext dsl = dbAccessConfig.dsl();
-            if (dsl.dialect() == SQLDialect.POSTGRES) {
-                return new CostDiagnosticsHandler(recursiveZipReaderFactory(), getStoresToDump(),
+            // Pass an unpooled DSLContext, so that diags restoring does not generate leak warnings
+            return new CostDiagnosticsHandler(recursiveZipReaderFactory(), getStoresToDump(),
                         dbAccessConfig.unpooledDsl());
-            }
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -113,7 +111,6 @@ public class CostDiagnosticsConfig {
             throw new BeanCreationException("Failed to create DiagnosticsHandlerImportable bean",
                     e);
         }
-        return new DiagnosticsHandlerImportable(recursiveZipReaderFactory(), getStoresToDump());
     }
 
     @Bean

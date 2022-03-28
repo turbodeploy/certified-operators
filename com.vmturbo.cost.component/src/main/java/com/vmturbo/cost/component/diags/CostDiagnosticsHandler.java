@@ -3,8 +3,11 @@ package com.vmturbo.cost.component.diags;
 import java.io.InputStream;
 import java.util.Collection;
 
-import org.jetbrains.annotations.NotNull;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagnosticsHandler;
@@ -21,12 +24,12 @@ import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
  * </p>
  *
  * <p>If the operation to disable foreign keys fails, then no diags will be loaded.</p>
- *
- * @param <T> the type of context object.
  */
-public class CostDiagnosticsHandler<T> extends DiagnosticsHandlerImportable<T> {
+public class CostDiagnosticsHandler extends DiagnosticsHandlerImportable<DSLContext> {
 
     private final ForeignKeyHandler foreignKeyHandler;
+
+    private final DSLContext dslContext;
 
     /**
      * Constructs diagnostics handler.
@@ -35,20 +38,37 @@ public class CostDiagnosticsHandler<T> extends DiagnosticsHandlerImportable<T> {
      * @param collection diagnostics providers. If any of them are also importable, they
      * @param dsl the dsl context
      */
-    public CostDiagnosticsHandler(@NotNull DiagsZipReaderFactory zipReaderFactory,
-            @NotNull Collection collection, @NotNull DSLContext dsl) {
+    public CostDiagnosticsHandler(@Nonnull DiagsZipReaderFactory zipReaderFactory,
+            @Nonnull Collection collection, @Nonnull DSLContext dsl) {
         super(zipReaderFactory, collection);
+        this.dslContext = dsl;
         this.foreignKeyHandler = new ForeignKeyHandler(dsl,
                 ForeignConstraint.getForeignKeyConstraints(dsl));
     }
 
-    @NotNull
+    /**
+     * Restore Cost component's state from diagnostics.
+     *
+     * @param inputStream diagnostics streamed bytes
+     * @param context will be ignored, instead the context passed to the constructor will be used
+     * @return list of errors if faced
+     * @throws DiagnosticsException if diagnostics failed to restore
+     */
+    @Nonnull
     @Override
-    public String restore(@NotNull InputStream inputStream, @NotNull T context)
+    public String restore(@Nonnull InputStream inputStream, @Nullable DSLContext context)
             throws DiagnosticsException {
-        foreignKeyHandler.disableForeignKeys();
-        String result = super.restore(inputStream, context);
-        foreignKeyHandler.enableForeignKeys();
+        // This step is only necessary for Postgres
+        if (dslContext.dialect() == SQLDialect.POSTGRES) {
+            foreignKeyHandler.disableForeignKeys();
+        }
+        // Always pass the DSLContext injected through the constructor, which allows the
+        // configuration of things like using unpooled connections for restoring diags.
+        String result = super.restore(inputStream, dslContext);
+        // This step is only necessary for Postgres
+        if (dslContext.dialect() == SQLDialect.POSTGRES) {
+            foreignKeyHandler.enableForeignKeys();
+        }
         return result;
     }
 }
