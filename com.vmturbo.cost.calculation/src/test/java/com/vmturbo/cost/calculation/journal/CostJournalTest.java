@@ -341,10 +341,19 @@ public class CostJournalTest {
      * <p>VM consumes mem and cores, Cloud Commitment covers both partially
      * VM uses 2 units of MEM_PROVISIONED and 4 units of NUM_VCORE, both at total cost of 100
      * CC covers 1 unit of each, so 1/2 of MEM_PROVISIONED and 1/4 of NUM_VCORE are covered
+     * Uptime is 80%
      * </p>
      *
-     * <p>So we expect a discount of -50 for MEM_PROVISIONED and -25 for NUM_VCORE,
-     * for a total cost of 125 and a total discount of -75
+     * <p>So we expect discount of:
+     * uptime mem = 100*-.8 = -20
+     * uptime cpu = 100*-.8 = -20
+     * cc mem = 100*-.5 = -50
+     * cc cpu = 100*-.25 = -25
+     * cc_mem*uptime = -20*-.5 = +10
+     * cc_cpu*uptime = -20*-.25 = +5
+     * for a total cost of 100
+     * total discount of -100
+     * and a cc discount of -60
      * </p>
      */
     @Test
@@ -396,6 +405,7 @@ public class CostJournalTest {
                                                             computePrice,
                                                             Trax.trax(1),
                                                             Optional.of(NUM_VCORE))
+                                        .addUptimeDiscountToAllCategories(Trax.trax(0.2d))
                                         .recordCloudCommitmentDiscount(ON_DEMAND_COMPUTE,
                                                                        commitmentData,
                                                                        vmemCoverageVector)
@@ -411,8 +421,9 @@ public class CostJournalTest {
 
         System.out.println(journal);
 
-        assertThat(totalHourlyCost.getValue(), Matchers.is(125.0));
-        assertThat(cloudCommitmentDiscount.getValue(), Matchers.is(-75.0));
+        assertThat(totalHourlyCost.getValue(), Matchers.is(100.0));
+        // consider adding more assertions here, maybe for total discount, uptime discount etc.
+        assertThat(cloudCommitmentDiscount.getValue(), Matchers.is(-60.0));
     }
 
     /**

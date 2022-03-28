@@ -398,15 +398,12 @@ public class CostJournal<ENTITY_CLASS> {
                                 .stream()
                                 .allMatch(costSourceFilter::filter))
                 .filter(costEntry -> commodityTypeFilter.filter(costEntry.getKey().commodity().orElse(null)))
-                .collect(Collectors.groupingBy(
-                        costEntry -> costEntry.getKey().costSourceLink()))
-                .entrySet().stream()
-                .map(groupEntry -> {
-                    CostSourceLink costSourceLink = groupEntry.getKey();
-                    TraxNumber sum = groupEntry.getValue().stream().collect(Collectors.mapping(a -> a.getValue(), TraxCollectors.sum()));
+                .map(costEntry -> {
+                    Optional<CommodityType> commodity = costEntry.getKey().commodity();
                     return CostItem.builder()
-                        .costSourceLink(costSourceLink)
-                        .cost(sum)
+                        .cost(costEntry.getValue())
+                        .costSourceLink(costEntry.getKey().costSourceLink())
+                        .commodity(commodity)
                         .build();
                 })
                 .collect(ImmutableList.toImmutableList());
