@@ -26,4 +26,5 @@ public interface DbPlugin {
      * @return SQL to activate plugin
      */
     String getInstallSQL(String schemaName);
+
 }
