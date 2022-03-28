@@ -73,18 +73,19 @@ public class CommitmentAmountCalculator {
 
         validateTypeCompatibility(amountA, amountB);
 
+        if (amountB.getValueCase() == ValueCase.VALUE_NOT_SET) {
+            return amountA;
+        }
+
         switch (amountA.getValueCase()) {
 
             case AMOUNT:
-                return amountB.getValueCase() != ValueCase.VALUE_NOT_SET
-                        ? CloudCommitmentAmount.newBuilder()
+                return CloudCommitmentAmount.newBuilder()
                         .setAmount(opCurrencyAmount(amountA.getAmount(), amountB.getAmount(),
-                                Double::sum))
-                        .build() : amountA;
+                                Double::sum)).build();
             case COUPONS:
-                return amountB.getValueCase() != ValueCase.VALUE_NOT_SET
-                        ? CloudCommitmentAmount.newBuilder().setCoupons(
-                        amountA.getCoupons() + amountB.getCoupons()).build() : amountA;
+                return CloudCommitmentAmount.newBuilder().setCoupons(
+                        amountA.getCoupons() + amountB.getCoupons()).build();
             case COMMODITIES_BOUGHT:
                 final Map<CommodityType, Double> commodityMapA =
                         amountA.getCommoditiesBought().getCommodityList().stream().collect(
@@ -116,22 +117,6 @@ public class CommitmentAmountCalculator {
                         String.format("Cloud commitment amount case %s is not supported",
                                 amountA.getValueCase()));
         }
-    }
-
-    /**
-     * Subtracts {@code subtrahendAmount} from {@code minuendAmount}. The {@link CurrencyAmount}
-     * instances
-     * must be of the same currency.
-     *
-     * @param minuendAmount The minuend amount.
-     * @param subtrahendAmount The subtrahend amount.
-     * @return The result of subtracting {@code subtrahendAmount} from {@code minuendAmount}.
-     */
-    @Nonnull
-    public static CurrencyAmount subtractCurrencyAmount(@Nonnull CurrencyAmount minuendAmount,
-            @Nonnull CurrencyAmount subtrahendAmount) {
-
-        return opCurrencyAmount(minuendAmount, subtrahendAmount, (a, b) -> a - b);
     }
 
     /**
@@ -259,18 +244,20 @@ public class CommitmentAmountCalculator {
             double epsilon) {
         {
             validateTypeCompatibility(amountA, amountB);
+            if (amountB.getValueCase() == ValueCase.VALUE_NOT_SET) {
+                return isZero(amountA, epsilon);
+            }
             switch (amountA.getValueCase()) {
                 case AMOUNT:
-                    return amountB.getValueCase() != ValueCase.VALUE_NOT_SET ? Math.abs(
+                    return (Math.abs(
                             amountA.getAmount().getAmount() - amountB.getAmount().getAmount())
-                            < epsilon : false;
+                            < epsilon)
+                            && (amountA.getAmount().hasCurrency() == amountB.getAmount().hasCurrency() && (!amountA.getAmount().hasCurrency()
+                            || amountA.getAmount().getCurrency() == amountB.getAmount().getCurrency()));
                 case COUPONS:
-                    return amountB.getValueCase() != ValueCase.VALUE_NOT_SET ? Math.abs(
-                            amountA.getCoupons() - amountB.getCoupons()) < epsilon : false;
+                    return Math.abs(
+                            amountA.getCoupons() - amountB.getCoupons()) < epsilon;
                 case COMMODITIES_BOUGHT:
-                    if (amountB.getValueCase() == ValueCase.VALUE_NOT_SET) {
-                        return false;
-                    }
                     final Map<CommodityType, Double> commodityMapA =
                             amountA.getCommoditiesBought().getCommodityList().stream().collect(
                                     ImmutableMap.toImmutableMap(
@@ -301,7 +288,7 @@ public class CommitmentAmountCalculator {
                     }
                     return true;
                 case VALUE_NOT_SET:
-                    return amountB.getValueCase() == ValueCase.VALUE_NOT_SET;
+                    return isZero(amountB, epsilon);
                 default:
                     throw new UnsupportedOperationException(
                             String.format("Cloud commitment amount case %s is not supported",
@@ -334,23 +321,19 @@ public class CommitmentAmountCalculator {
     public static CloudCommitmentAmount min(CloudCommitmentAmount amountA,
             CloudCommitmentAmount amountB) {
         validateTypeCompatibility(amountA, amountB);
+        if (amountB.getValueCase() == ValueCase.VALUE_NOT_SET) {
+            return CommitmentAmountCalculator.ZERO_COVERAGE;
+        }
         switch (amountA.getValueCase()) {
 
             case AMOUNT:
-                return amountB.getValueCase() != ValueCase.VALUE_NOT_SET
-                        ? CloudCommitmentAmount.newBuilder().setAmount(CurrencyAmount.newBuilder()
+                return CloudCommitmentAmount.newBuilder().setAmount(CurrencyAmount.newBuilder()
                         .setAmount(Math.min(amountA.getAmount().getAmount(),
-                                amountB.getAmount().getAmount()))).build()
-                        : CommitmentAmountCalculator.ZERO_COVERAGE;
+                                amountB.getAmount().getAmount()))).build();
             case COUPONS:
-                return amountB.getValueCase() != ValueCase.VALUE_NOT_SET
-                        ? CloudCommitmentAmount.newBuilder().setCoupons(
-                        Math.min(amountA.getCoupons(), amountB.getCoupons())).build()
-                        : CommitmentAmountCalculator.ZERO_COVERAGE;
+                return CloudCommitmentAmount.newBuilder().setCoupons(
+                        Math.min(amountA.getCoupons(), amountB.getCoupons())).build();
             case COMMODITIES_BOUGHT:
-                if (amountB.getValueCase() == ValueCase.VALUE_NOT_SET) {
-                    return CommitmentAmountCalculator.ZERO_COVERAGE;
-                }
                 final Map<CommodityType, Double> commodityMapB =
                         amountB.getCommoditiesBought().getCommodityList().stream().collect(
                                 ImmutableMap.toImmutableMap(
