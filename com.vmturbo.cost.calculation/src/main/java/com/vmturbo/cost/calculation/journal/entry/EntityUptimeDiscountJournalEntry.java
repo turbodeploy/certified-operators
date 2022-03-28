@@ -70,6 +70,7 @@ public class EntityUptimeDiscountJournalEntry<E> implements  QualifiedJournalEnt
                                     CostSource.ENTITY_UPTIME_DISCOUNT,
                                     Optional.of(costItem.costSourceLink())))
                             .cost(discount)
+                            .commodity(costItem.commodity())
                             .build();
                 }).collect(ImmutableList.toImmutableList());
     }
