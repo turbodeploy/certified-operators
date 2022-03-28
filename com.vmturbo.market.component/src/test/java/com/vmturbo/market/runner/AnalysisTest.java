@@ -224,7 +224,7 @@ public class AnalysisTest {
 
         // setup default action savings
         final JournalActionSavingsCalculator savingsCalculator = mock(JournalActionSavingsCalculator.class);
-        when(actionSavingsCalculatorFactory.newCalculator(anyMap(), any(), any(), anyMap(), anyMap(), anyMap()))
+        when(actionSavingsCalculatorFactory.newCalculator(anyMap(), any(), any(), anyMap(), anyMap(), anyMap(), anyMap()))
                 .thenReturn(savingsCalculator);
         when(savingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.NO_SAVINGS_USD);
         InitialPlacementFinder placementFinder = mock(InitialPlacementFinder.class);

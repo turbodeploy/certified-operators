@@ -1,10 +1,12 @@
 package com.vmturbo.market.topology.conversions.cloud;
 
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -24,6 +26,7 @@ public class JournalActionSavingsCalculatorFactory {
      * @param projectedTopologyMap The projected topology map.
      * @param projectedJournalsMap The projected entity cost journals.
      * @param projectedRICoverage The projected RI coverage map.
+     * @param projectedCommitmentCoverage The projected commitment coverage details.
      * @return The newly constructed {@link JournalActionSavingsCalculator} instance.
      */
     @Nonnull
@@ -32,7 +35,8 @@ public class JournalActionSavingsCalculatorFactory {
                                                         @Nonnull TopologyCostCalculator sourceCostCalculator,
                                                         @Nonnull Map<Long, ProjectedTopologyEntity> projectedTopologyMap,
                                                         @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedJournalsMap,
-                                                        @Nonnull Map<Long, EntityReservedInstanceCoverage> projectedRICoverage) {
+                                                        @Nonnull Map<Long, EntityReservedInstanceCoverage> projectedRICoverage,
+                                                        @Nonnull Map<Long, Set<CloudCommitmentMapping>> projectedCommitmentCoverage) {
 
         return new JournalActionSavingsCalculator(
                 sourceTopologyMap,
@@ -40,6 +44,7 @@ public class JournalActionSavingsCalculatorFactory {
                 sourceCostCalculator,
                 projectedTopologyMap,
                 projectedJournalsMap,
-                projectedRICoverage);
+                projectedRICoverage,
+                projectedCommitmentCoverage);
     }
 }
