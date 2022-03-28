@@ -1,6 +1,8 @@
 package com.vmturbo.cloud.common.commitment;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -15,6 +17,91 @@ import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 public class CommitmentAmountCalculatorTest {
 
     private static final double TOLERANCE = 1.0e-6;
+
+    /**
+     * Tests {@link CommitmentAmountCalculator#min(CloudCommitmentAmount, CloudCommitmentAmount)} in which
+     * first amount is lower than second.
+     */
+    @Test
+    public void testMinFirstLower() {
+        final CloudCommitmentAmount amountA = CloudCommitmentAmount.newBuilder()
+                .setCoupons(2)
+                .build();
+
+        final CloudCommitmentAmount amountB = CloudCommitmentAmount.newBuilder()
+                .setCoupons(3)
+                .build();
+
+        // amountA should come first
+        assertThat(CommitmentAmountCalculator.min(amountA, amountB), equalTo(amountA));
+    }
+
+    /**
+     * Tests {@link CommitmentAmountCalculator#min(CloudCommitmentAmount, CloudCommitmentAmount)} in which
+     * first amount is higher than second.
+     */
+    @Test
+    public void testMinFirstHigher() {
+        final CloudCommitmentAmount amountA = CloudCommitmentAmount.newBuilder()
+                .setCoupons(5)
+                .build();
+
+        final CloudCommitmentAmount amountB = CloudCommitmentAmount.newBuilder()
+                .setCoupons(3)
+                .build();
+
+        // amountA should come first
+        assertThat(CommitmentAmountCalculator.min(amountA, amountB), equalTo(amountB));
+    }
+
+
+    /**
+     * Tests {@link CommitmentAmountCalculator#isPositive(CloudCommitmentAmount, double)} with an
+     * infinite spend amount.
+     */
+    @Test
+    public void testPositiveAmountSpendInfinite() {
+
+        final CloudCommitmentAmount commitmentAmount = CloudCommitmentAmount.newBuilder()
+                .setAmount(CurrencyAmount.newBuilder()
+                        .setAmount(Double.POSITIVE_INFINITY)
+                        .build())
+                .build();
+
+        assertTrue(CommitmentAmountCalculator.isPositive(commitmentAmount, TOLERANCE));
+    }
+
+    /**
+     * Tests {@link CommitmentAmountCalculator#isPositive(CloudCommitmentAmount, double)} with a
+     * positive spend amount.
+     */
+    @Test
+    public void testPositiveAmountSpendPositive() {
+
+        final CloudCommitmentAmount commitmentAmount = CloudCommitmentAmount.newBuilder()
+                .setAmount(CurrencyAmount.newBuilder()
+                        .setAmount(123.0)
+                        .build())
+                .build();
+
+        assertTrue(CommitmentAmountCalculator.isPositive(commitmentAmount, TOLERANCE));
+    }
+
+    /**
+     * Tests {@link CommitmentAmountCalculator#isPositive(CloudCommitmentAmount, double)} with a
+     * negative spend amount.
+     */
+    @Test
+    public void testPositiveAmountSpendNegative() {
+
+        final CloudCommitmentAmount commitmentAmount = CloudCommitmentAmount.newBuilder()
+                .setAmount(CurrencyAmount.newBuilder()
+                        .setAmount(-123.0)
+                        .build())
+                .build();
+
+        assertFalse(CommitmentAmountCalculator.isPositive(commitmentAmount, TOLERANCE));
+    }
 
     /**
      * Tests {@link CommitmentAmountCalculator#subtract(CloudCommitmentAmount, CloudCommitmentAmount)}

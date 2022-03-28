@@ -7,15 +7,12 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount.ValueCase;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
-import com.vmturbo.components.common.utils.FuzzyDoubleUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CommittedCommoditiesBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CommittedCommodityBought;
@@ -32,32 +29,6 @@ public class CommitmentAmountUtils {
     public static final CloudCommitmentAmount EMPTY_COMMITMENT_AMOUNT = CloudCommitmentAmount.getDefaultInstance();
 
     private CommitmentAmountUtils() {}
-
-    /**
-     * Checks whether {@code commitmentAmount} represents a positive finite amount (greater than 0), comparing
-     * against zero using {@code tolerance}.
-     * @param commitmentAmount The commitment amount.
-     * @param tolerance The tolerance in the comparison.
-     * @return True, if the commitment amount is a positive finite amount. False otherwise.
-     */
-    public static boolean isPositiveAmount(@Nonnull CloudCommitmentAmount commitmentAmount,
-                                           double tolerance) {
-
-        switch (commitmentAmount.getValueCase()) {
-
-            case AMOUNT:
-                return FuzzyDoubleUtils.isPositive(commitmentAmount.getAmount().getAmount(), tolerance)
-                        && Double.isFinite(commitmentAmount.getAmount().getAmount());
-            case COUPONS:
-                return FuzzyDoubleUtils.isPositive(commitmentAmount.getCoupons(), tolerance)
-                        && Double.isFinite(commitmentAmount.getCoupons());
-            case VALUE_NOT_SET:
-                return false;
-            default:
-                throw new UnsupportedOperationException(
-                        String.format("Cloud commitment amount case %s is not supported", commitmentAmount.getValueCase()));
-        }
-    }
 
     /**
      * Converts the coverage type information and amount to a {@link CloudCommitmentAmount}.
@@ -92,67 +63,6 @@ public class CommitmentAmountUtils {
         }
     }
 
-    /**
-     * Compares the two {@link CloudCommitmentAmount} instances. If either is an empty amount, it will
-     * be treated as a lower amount. If both amounts are set, they must be of the same coverage type.
-     * @param amountA The first commitment amount.
-     * @param amountB The second commitment amount.
-     * @return A negative value if {@code amountA} comes before {@code amountB}, zero, if the amounts
-     * are equal, and a positive amount, if {@code amountB} comes before {@code amountA}.
-     */
-    public static int compareAmounts(@Nonnull CloudCommitmentAmount amountA,
-                                     @Nonnull CloudCommitmentAmount amountB) {
-
-        final boolean valuesSet = amountA.getValueCase() != ValueCase.VALUE_NOT_SET
-                && amountB.getValueCase() != ValueCase.VALUE_NOT_SET;
-        Preconditions.checkArgument(!valuesSet || amountA.getValueCase() == amountB.getValueCase(),
-                "Commitment amounts must be of the same type");
-
-        switch (amountA.getValueCase()) {
-
-            case AMOUNT:
-
-                if (amountB.getValueCase() != ValueCase.VALUE_NOT_SET) {
-                    final CurrencyAmount currencyAmountA = amountA.getAmount();
-                    final CurrencyAmount currencyAmountB = amountB.getAmount();
-
-                    Preconditions.checkArgument(
-                            currencyAmountA.hasCurrency() == currencyAmountB.hasCurrency() && (!currencyAmountA.hasCurrency() || currencyAmountA.getCurrency()
-                                    == currencyAmountB.getCurrency()),
-                            "Currencies must match");
-
-                    return Double.compare(currencyAmountA.getAmount(), currencyAmountB.getAmount());
-                } else {
-                    return 1;
-                }
-            case COUPONS:
-                return amountB.getValueCase() != ValueCase.VALUE_NOT_SET
-                        ? Double.compare(amountA.getCoupons(), amountB.getCoupons())
-                        : 1;
-            case VALUE_NOT_SET:
-                return amountB.getValueCase() != ValueCase.VALUE_NOT_SET
-                        ? -1
-                        : 0;
-            default:
-                throw new UnsupportedOperationException(
-                        String.format("Cloud commitment amount case %s is not supported", amountA.getValueCase()));
-        }
-    }
-
-    /**
-     * Selects the minimum amount between {@code amountA} and {@code amountB}. Note that empty values
-     * will be treated as lower than any other value type. {@code amountA} and {@code amountB} must be
-     * of the same coverage type, if both are set.
-     * @param amountA The first commitment amount.
-     * @param amountB The second commitment amount.
-     * @return The lower amount between {@code amountA} and {@code amountB}.
-     */
-    @Nonnull
-    public static CloudCommitmentAmount min(@Nonnull CloudCommitmentAmount amountA,
-                                            @Nonnull CloudCommitmentAmount amountB) {
-
-        return compareAmounts(amountA, amountB) <= 0 ? amountA : amountB;
-    }
 
     /**
      * Groups the coverage contained with {@code amounts} by the {@link CloudCommitmentCoverageTypeInfo} and sums
