@@ -4,10 +4,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -284,7 +286,8 @@ public class RelatedActionsInjector {
         // blocking a controller resize action or each of the container pod suspension
         // causing a vm suspension action
         List<RelatedAction> updatedImpactingRelatedActions = impactingRelatedActions.stream()
-                .map(ra -> toImpactingRelatedAction(ra))
+                .map(this::toImpactingRelatedAction)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
         // Create the related action for each of the actions impacting the action above
@@ -323,14 +326,16 @@ public class RelatedActionsInjector {
      *
      * @return RelatedAction for the Impacting action containing the durable recommendation OID for that action
      */
-    @Nonnull
+    @Nullable
     private RelatedAction toImpactingRelatedAction(MarketRelatedAction marketRelatedAction) {
         Long actionId = marketRelatedAction.getActionId();
         // Impacting action using the action id from ra to get the recommendation OID
         // Example Action object of the Namespace action
         Optional<Action> impactingAction = getAction(actionId);  //get and save
         if (!impactingAction.isPresent()) {
-            throw new IllegalArgumentException("Need durable recommendation OID for action " + actionId);
+            logger.error("Failed to create impacting related action on entity {}. Need durable recommendation OID for action {}",
+                    marketRelatedAction.getActionEntity(), actionId);
+            return null;
         }
 
         RelatedAction.Builder relatedAction = RelatedAction.newBuilder()
@@ -426,7 +431,8 @@ public class RelatedActionsInjector {
         currentActionIDToRelatedActionMap.forEach((curActionID, relatedAction) -> {
             Optional<Action> actionOpt = getAction(curActionID);
             if (!actionOpt.isPresent()) {
-                throw new IllegalArgumentException("Action is not found in liveActionStore from action ID: " + curActionID);
+                logger.error("Action is not found in liveActionStore from action ID {} and entity {}", curActionID, relatedAction.getActionEntity());
+                return;
             }
             initActionIDToRelatedActionMap.put(actionOpt.get().getId(), relatedAction);
         });
