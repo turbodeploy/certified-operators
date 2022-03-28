@@ -126,7 +126,9 @@ public abstract class DbAdapter {
      * @throws DbEndpointException if initialization fails for any reason
      */
     void init() throws DbEndpointException {
+        boolean connectionPoolEnabled = config.getUseConnectionPool();
         try {
+            config.setUseConnectionPool(false);
             // perform provisioning where this endpoint has responsibility
             // database/schema and user first, since they may both be needed for plugins
             if (config.getShouldProvisionDatabase()) {
@@ -169,12 +171,13 @@ public abstract class DbAdapter {
             }
         } catch (Exception e) {
             throw new DbEndpointException(String.format("Endpoint %s failed initialization", config), e);
+        } finally {
+            config.setUseConnectionPool(connectionPoolEnabled);
         }
     }
 
     /**
      * Create a {@link DataSource} object for this endpoint, using non-root credentials.
-     *
      *
      * @param pooled true if the connection should be allocated from a pooled data source
      * @return new datasource object

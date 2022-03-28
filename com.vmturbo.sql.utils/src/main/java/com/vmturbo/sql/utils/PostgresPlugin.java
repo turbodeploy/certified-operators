@@ -21,4 +21,5 @@ public interface PostgresPlugin extends DbPlugin {
         return String.format("CREATE EXTENSION IF NOT EXISTS %s VERSION '%s' SCHEMA \"%s\"",
                 getName(), getVersion(), schemaName);
     }
+
 }

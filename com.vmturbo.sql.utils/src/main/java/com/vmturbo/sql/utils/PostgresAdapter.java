@@ -61,7 +61,8 @@ public class PostgresAdapter extends DbAdapter {
         // The flyway migrator (version 4.x) does not quote postgres schemas by default.
         // This means that multi-tenant schema names (which contain "-", an illegal character
         // in Postgres) do not get migrated properly. Add the quotes manually.
-        dataSource.setCurrentSchema("\"" + config.getSchemaName() + "\"");
+        // Also adding public so this is aligned with the search_path.
+        dataSource.setCurrentSchema("\"" + config.getSchemaName() + "\",\"public\"");
         return dataSource;
     }
 
@@ -70,8 +71,13 @@ public class PostgresAdapter extends DbAdapter {
         final String userName = config.getUserName();
         createRoleIfNotExists(userName, config.getPassword());
         try (Connection conn = getPrivilegedConnection()) {
-            execute(conn, String.format("ALTER USER \"%s\" SET search_path TO \"%s\"",
-                    userName, config.getSchemaName()));
+            execute(conn, String.format("GRANT USAGE, CREATE ON SCHEMA %s TO %s",
+                    config.getSchemaName(), userName));
+            execute(conn, String.format("GRANT ALL ON DATABASE %s TO %s",
+                    config.getDatabaseName(), userName));
+            execute(conn,
+                    String.format("ALTER ROLE \"%s\" IN DATABASE \"%s\" SET search_path = \"%s\",\"public\"",
+                    userName, config.getDatabaseName(), config.getSchemaName()));
         }
     }
 
@@ -156,10 +162,12 @@ public class PostgresAdapter extends DbAdapter {
     @Override
     protected void provisionForMigrations() throws SQLException, UnsupportedDialectException {
         try (Connection conn = getPrivilegedConnection()) {
-            execute(conn, String.format("ALTER DATABASE \"%s\" OWNER TO \"%s\"",
+            execute(conn, String.format("GRANT ALL ON ALL TABLES IN SCHEMA \"%s\" TO \"%s\"",
                     config.getDatabaseName(), config.getUserName()));
-            execute(conn, String.format(String.format("ALTER SCHEMA \"%s\" OWNER TO \"%s\"",
-                    config.getSchemaName(), config.getUserName())));
+            execute(conn, String.format("GRANT ALL ON ALL SEQUENCES IN SCHEMA \"%s\" TO \"%s\"",
+                    config.getDatabaseName(), config.getUserName()));
+            execute(conn, String.format("GRANT ALL ON ALL FUNCTIONS IN SCHEMA \"%s\" TO \"%s\"",
+                    config.getDatabaseName(), config.getUserName()));
         }
     }
 
@@ -198,7 +206,7 @@ public class PostgresAdapter extends DbAdapter {
         // we must perform this operation if this endpoint's non-root user is capable of creating
         // new tables, and we must do it while logged in as that user.
         if (config.getAccess().canCreateNewTable()) {
-            try (Connection conn = getNonRootConnection()) {
+            try (Connection conn = getNonRootConnection(false)) {
                 execute(conn, String.format("ALTER DEFAULT PRIVILEGES IN SCHEMA \"%s\" "
                                 + "GRANT SELECT ON TABLES TO \"%s\"",
                         config.getSchemaName(), getGroupName(READERS_GROUP_ROLE_PREFIX)));
@@ -218,10 +226,6 @@ public class PostgresAdapter extends DbAdapter {
     private void createSchema(String schemaName, boolean setOwner)
             throws SQLException, UnsupportedDialectException {
         try (Connection conn = getPrivilegedConnection()) {
-            // we don't really want a "public" schema here, but more importantly, when it's created
-            // during database creation, the timescaledb plugin is automatically installed in it,
-            // and that prevents it being installed in the endpoint schema, where we want it.
-            execute(conn, "DROP SCHEMA IF EXISTS public CASCADE");
             execute(conn, String.format("CREATE SCHEMA IF NOT EXISTS \"%s\"%s", schemaName,
                     setOwner ? " AUTHORIZATION \"" + config.getUserName() + "\"" : ""));
         }
@@ -301,6 +305,7 @@ public class PostgresAdapter extends DbAdapter {
                 try (Connection conn = getPrivilegedConnection()) {
                     String schemaName = pluginSchema.orElse(config.getSchemaName());
                     execute(conn, plugin.getInstallSQL(schemaName));
+
                     execute(conn,
                             String.format("GRANT ALL ON ALL TABLES IN SCHEMA \"%s\" TO \"%s\"",
                                     schemaName, config.getUserName()));
