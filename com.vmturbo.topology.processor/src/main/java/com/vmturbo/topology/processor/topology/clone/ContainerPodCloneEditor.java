@@ -1,16 +1,12 @@
 package com.vmturbo.topology.processor.topology.clone;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -25,7 +21,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.util.K8sTaintProcessingUtil;
+import com.vmturbo.topology.processor.util.K8sProcessingUtil;
 
 /**
  * The {@link ContainerPodCloneEditor} implements the clone function for the container pod and all
@@ -33,12 +29,12 @@ import com.vmturbo.topology.processor.util.K8sTaintProcessingUtil;
  */
 public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
 
-    private static final Logger logger = LogManager.getLogger();
     /**
-     * A collection of taints used to determine if an added pod should keep or drop its bought TAINT
+     * A map of node commodities used to determine if an added pod should keep or drop its
      * commodities.
      */
-    private final Set<String> taintCollection = new HashSet<>();
+    private final Map<CommodityType, Set<String>> nodeCommodities = new HashMap<>();
+
     /**
      * Editor-wise flag to indicate whether to apply constraints.  True only if the corresponding
      * feature flag is enabled and this is a container cluster plan.
@@ -54,7 +50,7 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
                 && topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().hasPlanType()
                 && StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN.equals(topologyInfo.getPlanInfo().getPlanType());
         if (shouldApplyConstraints) {
-            taintCollection.addAll(K8sTaintProcessingUtil.collectTaints(scope, topology));
+            nodeCommodities.putAll(K8sProcessingUtil.collectNodeCommodities(scope, topology));
         }
     }
 
@@ -137,7 +133,15 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
                 // For taint commodity, we only drop it when the taint does not exist in the cluster
                 // of the plan
                 case CommodityType.TAINT_VALUE:
-                    return taintCollection.contains(commodityBought.getCommodityType().getKey());
+                    return nodeCommodities.get(CommodityType.TAINT)
+                        .contains(commodityBought.getCommodityType()
+                            .getKey());
+                // For label commodity, we only drop it when the label does not exist in the cluster
+                // of the plan
+                case CommodityType.LABEL_VALUE:
+                    return nodeCommodities.get(CommodityType.LABEL)
+                        .contains(commodityBought.getCommodityType()
+                            .getKey());
                 // For all other commodities with key, keep them
                 default:
                     return true;
