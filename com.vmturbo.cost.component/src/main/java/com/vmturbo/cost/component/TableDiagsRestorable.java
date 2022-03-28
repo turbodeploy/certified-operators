@@ -77,7 +77,18 @@ public interface TableDiagsRestorable<T, S extends Record> extends DiagsRestorab
     default void restoreDiags(@Nonnull Stream<String> lines, T context) {
         final Field<?>[] fields = getTable().fields();
         final ObjectMapper mapper = constructObjectMapper();
-        getDSLContext().transaction(transactionContext -> {
+        final DSLContext dslContext;
+        // Allow diags to be loaded using a different context than a given store would normally use
+        // This allows for example to load diags using unpooled database connections
+        if (context != null && context instanceof DSLContext) {
+            dslContext = (DSLContext)context;
+        } else {
+            logger.warn("Cost component restorable {} was not passed a DSLContext for restoring "
+                    + "diags. Will fall back to using the DSLContext injected from Spring.",
+                    this.getClass().getSimpleName());
+            dslContext = getDSLContext();
+        }
+        dslContext.transaction(transactionContext -> {
             final DSLContext transaction = DSL.using(transactionContext);
 
             if (transaction.dialect() != SQLDialect.POSTGRES) {
