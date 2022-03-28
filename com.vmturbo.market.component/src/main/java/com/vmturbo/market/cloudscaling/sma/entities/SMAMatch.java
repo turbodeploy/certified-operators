@@ -74,7 +74,6 @@ public class SMAMatch {
      * return the reserved instance associated with a match.
      * @return the reserved instance associated with the match.
      */
-    @Nonnull
     public SMAReservedInstance getReservedInstance() {
         return reservedInstance;
     }

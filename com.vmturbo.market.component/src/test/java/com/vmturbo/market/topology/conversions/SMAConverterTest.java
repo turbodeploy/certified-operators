@@ -1,5 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -19,14 +20,19 @@ import com.google.common.collect.ImmutableSet;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
+import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.jsonprocessing.JsonToSMAInputTranslator;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
@@ -42,7 +48,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class SMAConverterTest {
 
-
+    private static final long VM_2_OID = 2000002L;
+    private static final long RI_ID = 1000001L;
     private TopologyConverter converter = mock(TopologyConverter.class);
     private SMAConverter smaConverter;
     private TopologyEntityDTO computeTier1;
@@ -70,6 +77,7 @@ public class SMAConverterTest {
         SMAOutput smaOutput = new SMAOutput(Collections.singletonList(new SMAOutputContext(
                 smaInput.getContexts().get(0).getContext(), expectedouput)));
         StableMarriageAlgorithm.postProcessing(smaOutput.getContexts().get(0), smaInput.getSmaCloudCostCalculator());
+        StableMarriageAlgorithm.splitCoupons(smaOutput.getContexts().get(0), smaInput.getContexts().get(0).getReservedInstances());
         smaConverter.setSmaOutput(smaOutput);
         computeTier1 = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.COMPUTE_TIER_VALUE)
@@ -82,7 +90,7 @@ public class SMAConverterTest {
                 .setOid(2000001L).build();
         vm2DTO = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setOid(2000002L).build();
+                .setOid(VM_2_OID).build();
         region = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.REGION_VALUE)
                 .setOid(31)
@@ -108,7 +116,7 @@ public class SMAConverterTest {
         unmodifiableEntityOidToDtoMap.put(100001L, computeTier1);
         unmodifiableEntityOidToDtoMap.put(100002L, computeTier2);
         unmodifiableEntityOidToDtoMap.put(2000001L, vm1DTO);
-        unmodifiableEntityOidToDtoMap.put(2000002L, vm2DTO);
+        unmodifiableEntityOidToDtoMap.put(VM_2_OID, vm2DTO);
         when(converter.getUnmodifiableEntityOidToDtoMap())
                 .thenReturn(unmodifiableEntityOidToDtoMap);
         when(converter.getUnmodifiableOidToOriginalTraderTOMap())
@@ -118,11 +126,11 @@ public class SMAConverterTest {
         when(cloudTC.getTraderTOOid(mst2)).thenReturn(14100002L);
         when(cloudTC.getIndexOfSlSuppliedByPrimaryTier(any())).thenReturn(0);
         when(cloudTC.getRegionOfCloudConsumer(any())).thenReturn(region);
-        when(cloudTC.getRiDataById(1000001L)).thenReturn(riData);
+        when(cloudTC.getRiDataById(RI_ID)).thenReturn(riData);
         when(cloudTC.getRIDiscountedMarketTierIDFromRIData(riData))
                 .thenReturn(15100002L);
         when(converter.createCouponCommodityBoughtForCloudEntity(
-                15100002L, 2000002L))
+                15100002L, VM_2_OID))
                 .thenReturn(coupon);
 
 
@@ -147,7 +155,7 @@ public class SMAConverterTest {
         ShoppingListTO sl2 = ShoppingListTO.newBuilder().setOid(70002L).build();
         TraderTO vm1 = TraderTO.newBuilder().setOid(2000001L)
                 .addShoppingLists(sl1).build();
-        TraderTO vm2 = TraderTO.newBuilder().setOid(2000002L)
+        TraderTO vm2 = TraderTO.newBuilder().setOid(VM_2_OID)
                 .addShoppingLists(sl2).build();
         projectedTraderDTOs.add(vm1);
         projectedTraderDTOs.add(vm2);
@@ -172,18 +180,29 @@ public class SMAConverterTest {
         // of coupon commodity. Also make sure the supplier and couponiD are
         // updated.
         assertTrue(smaConverter.getProjectedTraderDTOsWithSMA()
-                .stream().filter(a -> a.getOid() == 2000002L)
+                .stream().filter(a -> a.getOid() == VM_2_OID)
                 .findFirst().get().getShoppingListsList().get(0).hasCouponId());
         assert (15100002L == smaConverter.getProjectedTraderDTOsWithSMA()
-                .stream().filter(a -> a.getOid() == 2000002L)
+                .stream().filter(a -> a.getOid() == VM_2_OID)
                 .findFirst().get().getShoppingListsList().get(0).getCouponId());
         assert (14100002L == smaConverter.getProjectedTraderDTOsWithSMA()
-                .stream().filter(a -> a.getOid() == 2000002L)
+                .stream().filter(a -> a.getOid() == VM_2_OID)
                 .findFirst().get().getShoppingListsList().get(0).getSupplier());
         assert (3 == smaConverter.getProjectedTraderDTOsWithSMA()
-                .stream().filter(a -> a.getOid() == 2000002L)
+                .stream().filter(a -> a.getOid() == VM_2_OID)
                 .findFirst().get().getShoppingListsList().get(0)
                 .getCommoditiesBoughtList().get(0).getQuantity());
+
+        //verify that the VM -> RI mapping is created correctly.
+        final Map<Long, Set<CloudCommitmentMapping>> vmToRiMap = smaConverter.getProjectedVMToCommitmentMappings();
+        assertEquals(1, vmToRiMap.size());
+        assertEquals(VM_2_OID, vmToRiMap.keySet().iterator().next().longValue());
+        assertEquals(1, vmToRiMap.values().iterator().next().size());
+        final CloudCommitmentMapping mapping = vmToRiMap.values().iterator().next().iterator().next();
+        assertEquals(VM_2_OID, mapping.getEntityOid());
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, mapping.getEntityType());
+        assertEquals(RI_ID, mapping.getCloudCommitmentOid());
+        assertTrue(CommitmentAmountCalculator.isPositive(mapping.getCommitmentAmount(), SMAUtils.EPSILON));
 
         // verify the source and destination of the actions.
         assert (smaConverter.getSmaActions().stream()

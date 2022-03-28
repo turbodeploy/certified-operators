@@ -17,12 +17,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriagePerContext.SortByRIOID;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
@@ -34,6 +36,7 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachineGroup;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Stable Marriage Algorithm.
@@ -55,6 +58,10 @@ public class StableMarriageAlgorithm {
         long actionCount = 0;
         List<SMAOutputContext> outputContexts = new ArrayList<>();
         for (SMAInputContext inputContext : input.getContexts()) {
+            final List<SMAReservedInstance> originalCommitments =
+                    inputContext.getReservedInstances().stream()
+                            .map(SMAReservedInstance::copyFrom)
+                            .collect(Collectors.toList());
             /*
              * Map from the group name to the virtual machine groups (auto scaling group)
              */
@@ -66,6 +73,9 @@ public class StableMarriageAlgorithm {
             SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext,virtualMachineGroupMap,
                     input.getSmaCloudCostCalculator());
             postProcessing(outputContext, input.getSmaCloudCostCalculator());
+            splitCoupons(outputContext, originalCommitments);
+            inputContext.getReservedInstances().clear();
+            inputContext.getReservedInstances().addAll(originalCommitments);
             outputContexts.add(outputContext);
             for (SMAMatch match : outputContext.getMatches()) {
                 if ((match.getVirtualMachine().getCurrentTemplate().getOid() != match.getTemplate().getOid())
@@ -572,6 +582,83 @@ public class StableMarriageAlgorithm {
                 || sourceRI.getRiKeyOid() != projectedRI.getRiKeyOid() //a vm covered by another RI.
                 || ((CommitmentAmountCalculator.isPositive(CommitmentAmountCalculator.subtract(smaMatch.getDiscountedCoupons(),
                 virtualMachine.getCurrentRICoverage()), SMAUtils.EPSILON)))));//gained coverage from same RI.
+    }
+
+    /**
+     * Each context contains a collection of the original non-aggregated commitments within
+     * that context. These commitments must be matched with VM discounts to create a
+     * mapping of specific VMs to the commitments providing discounts.
+     *
+     * @param outputContext the output context of interest.
+     * @param originalCommitments the original non-aggregated commitments.
+     */
+    public static void splitCoupons(SMAOutputContext outputContext, List<SMAReservedInstance> originalCommitments) {
+        final List<SMAReservedInstance> copiedCommitments =
+                originalCommitments.stream()
+                        .map(SMAReservedInstance::copyFrom)
+                        .collect(Collectors.toList());
+
+
+        final Map<Long, List<SMAReservedInstance>> commitmentsByKey =
+                copiedCommitments.stream().filter(
+                        c -> !CommitmentAmountCalculator.isZero(c.getCommitmentAmount(),
+                                SMAUtils.EPSILON)).collect(
+                        Collectors.toMap(SMAReservedInstance::getRiKeyOid, Lists::newArrayList,
+                                (L1, L2) -> {
+                                    L1.addAll(L2);
+                                    return L1;
+                                }));
+        final Map<Long, List<SMAMatch>> matchesByRiKey = outputContext.getMatches()
+                .stream()
+                .filter(m -> null != m.getReservedInstance())
+                .collect(Collectors.toMap(m -> m.getReservedInstance().getRiKeyOid(),
+                        Lists::newArrayList, (L1, L2) -> {
+                            L1.addAll(L2);
+                            return L1;
+                        }));
+        logger.debug(
+                "Distributing {} original commitments (with {} keys) among {} SMAMatches (with {} RI keys) within context",
+                copiedCommitments.size(), commitmentsByKey.size(),
+                outputContext.getMatches().size(), matchesByRiKey.size());
+
+        for (Long riKey : matchesByRiKey.keySet()) {
+            final List<SMAReservedInstance> commitments = commitmentsByKey.getOrDefault(riKey,
+                    new ArrayList<>());
+            final List<SMAMatch> matches = matchesByRiKey.get(riKey);
+            for (SMAMatch match : matches) {
+                CloudCommitmentAmount discountedCoupons = match.getDiscountedCoupons();
+                for (SMAReservedInstance reservedInstance : commitments) {
+                    if (CommitmentAmountCalculator.isZero(discountedCoupons,
+                            SMAUtils.EPSILON)) {
+                        break;
+                    }
+                    CloudCommitmentAmount riCoupons = reservedInstance.getCommitmentAmount();
+                    CloudCommitmentAmount allocatedCoupons = CommitmentAmountCalculator.min(
+                            riCoupons, discountedCoupons);
+                    if (!CommitmentAmountCalculator.isZero(allocatedCoupons,
+                            SMAUtils.EPSILON)) {
+                        final CloudCommitmentMapping.Builder newMappingBuilder =
+                                CloudCommitmentMapping.newBuilder().setCloudCommitmentOid(
+                                        reservedInstance.getOid()).setEntityOid(
+                                        match.getVirtualMachine().getOid()).setEntityType(
+                                        EntityType.VIRTUAL_MACHINE_VALUE).setCommitmentAmount(
+                                        allocatedCoupons);
+                        outputContext.getProjectedVMToCommitmentMappings().computeIfAbsent(
+                                match.getVirtualMachine().getOid(), (oid) -> new HashSet<>())
+                                .add(newMappingBuilder.build());
+                    }
+                    reservedInstance.setCommitmentAmount(
+                            CommitmentAmountCalculator.subtract(riCoupons,
+                                    allocatedCoupons));
+                    discountedCoupons = CommitmentAmountCalculator.subtract(
+                            discountedCoupons, allocatedCoupons);
+                }
+                if (!CommitmentAmountCalculator.isZero(discountedCoupons, SMAUtils.EPSILON)) {
+                    logger.error("SMAOutput: Cannot allocate all commitments "
+                            + "allocated to the vm: {}", match.getVirtualMachine().getOid());
+                }
+            }
+        }
     }
 }
 

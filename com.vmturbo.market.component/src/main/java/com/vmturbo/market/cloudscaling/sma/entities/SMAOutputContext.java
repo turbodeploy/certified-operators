@@ -1,9 +1,14 @@
 package com.vmturbo.market.cloudscaling.sma.entities;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
+
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
 
 /**
  * The Stable Marriage algorithm output context.
@@ -18,7 +23,18 @@ public class SMAOutputContext {
     /**
      * This is the result of running SMA.
      */
-    private List<SMAMatch> matches;
+    private final List<SMAMatch> matches;
+
+    /**
+     * A mapping from vm to individual cloud commitments.
+     */
+    private final Map<Long, Set<CloudCommitmentMapping>>
+            projectedVMToCommitmentMappings = new HashMap<>();
+
+    public Map<Long, Set<CloudCommitmentMapping>> getProjectedVMToCommitmentMappings() {
+        return projectedVMToCommitmentMappings;
+    }
+
 
     /**
      * Constructor for output context.
