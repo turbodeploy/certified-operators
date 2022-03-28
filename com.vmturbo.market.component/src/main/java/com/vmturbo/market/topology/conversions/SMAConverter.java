@@ -2,17 +2,24 @@ package com.vmturbo.market.topology.conversions;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount.ValueCase;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
@@ -20,6 +27,7 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMACloudCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Compliance;
@@ -32,6 +40,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * This class has methods to convert the smaOutput to projectedTraderDTOs and "M2 like" ActionTOs.
@@ -72,7 +81,7 @@ public class SMAConverter {
         this.smaOutput = smaOutput;
     }
 
-    private List<TraderTO> projectedTraderDTOsWithSMA = new ArrayList<>();
+    private final List<TraderTO> projectedTraderDTOsWithSMA = new ArrayList<>();
 
     public List<TraderTO> getProjectedTraderDTOsWithSMA() {
         return projectedTraderDTOsWithSMA;
@@ -84,8 +93,14 @@ public class SMAConverter {
         return smaActions;
     }
 
+    private final Map<Long, Set<CloudCommitmentMapping>> projectedVMToCommitmentMappings = new HashMap<>();
+
+    public Map<Long, Set<CloudCommitmentMapping>> getProjectedVMToCommitmentMappings() {
+        return projectedVMToCommitmentMappings;
+    }
+
     // map from the oid of projected trader to the projected trader.
-    private Map<Long, TraderTO> oidToProjectedTraderMap = new HashMap<>();
+    private final Map<Long, TraderTO> oidToProjectedTraderMap = new HashMap<>();
 
     /**
      * Populate projectedTraderDTOsWithSMA and smaActions using smaOutput and projectedTraderDTOs.
@@ -102,6 +117,25 @@ public class SMAConverter {
         updateProjectedTraderWithSMA();
         // update smaActions.
         updateActionsWithSMA();
+        // update mapping of traders to cloud commitments
+        updateProjectedCommitmentMappings();
+    }
+
+    /**
+     * Each output context contains a collection of the original non-aggregated commitments within
+     * that context. These commitments must be matched with VM discounts to create a
+     * mapping of specific VMs to the commitments providing discounts.
+     */
+    private void updateProjectedCommitmentMappings() {
+        for (SMAOutputContext outputContext : getSmaOutput().getContexts()) {
+            projectedVMToCommitmentMappings.putAll(
+                    outputContext.getProjectedVMToCommitmentMappings());
+        }
+        if (logger.isDebugEnabled()) {
+            logger.debug("Mapped {} VMs to {} CloudCommitmentMappings.",
+                    projectedVMToCommitmentMappings.size(),
+                    projectedVMToCommitmentMappings.values().stream().mapToInt(Set::size).sum());
+        }
     }
 
     /**
