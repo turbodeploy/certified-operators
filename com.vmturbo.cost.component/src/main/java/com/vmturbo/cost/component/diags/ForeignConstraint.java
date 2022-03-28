@@ -47,6 +47,7 @@ class ForeignConstraint {
 
     @Nonnull
     static List<ForeignConstraint> getForeignKeyConstraints(@Nonnull DSLContext dsl) {
+        // Note that the below SQL is Postgres-specific; it cannot be used with MySQL/MariaDB
         String query =
                 "SELECT c.conrelid::regclass, c.conname, pg_get_constraintdef(c.oid)  FROM pg_constraint c, pg_namespace n "
                         + "WHERE c.connamespace=n.oid " + "AND n.nspname='cost' "
