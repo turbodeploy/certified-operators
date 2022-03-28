@@ -391,4 +391,15 @@ public class DbEndpointBuilder {
         config.setPoolMonitorIntervalSec(poolMonitorSecs);
         return this;
     }
+
+    /**
+     * Specify a rootDatabaseName property value for this endpoint.
+     *
+     * @param rootDatabaseName property value
+     * @return this endpoint
+     */
+    public DbEndpointBuilder withRootDatabaseName(String rootDatabaseName) {
+        config.setRootDatabaseName(rootDatabaseName);
+        return this;
+    }
 }

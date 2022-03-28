@@ -25,6 +25,7 @@ import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.GroupField;
 import org.jooq.Record;
+import org.jooq.Result;
 import org.jooq.SelectFieldOrAsterisk;
 import org.jooq.impl.DSL;
 
@@ -142,8 +143,8 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
 
         logger.debug("Streaming {} coverage stats filtered by {}", tableWrapper::granularity, coverageFilter::toString);
 
-        Stream<CloudCommitmentStatRecord>
-                        statRecordStream =
+        Result<Record>
+                        statRecords =
                         dslContext.select(
                                         generateSelectFromStatsFilter(tableWrapper, coverageFilter))
                                         .from(tableWrapper.coverageTable())
@@ -154,13 +155,13 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
                                         .orderBy(tableWrapper.sampleTimeField(),
                                                  tableWrapper.coverageTypeField(),
                                                  tableWrapper.coverageSubTypeField())
-                                        .stream()
-                                        .map(tableWrapper::createRecordAccessor)
-                                        .map(this::convertRecordToStat);
+                                .fetch();
 
-        logger.debug("Streaming {} {} coverage stat records", statRecordStream::count, tableWrapper::granularity);
+        logger.debug("Streaming {} {} coverage stat records", statRecords::size, tableWrapper::granularity);
 
-        return statRecordStream;
+        return statRecords.stream()
+                .map(tableWrapper::createRecordAccessor)
+                .map(this::convertRecordToStat);
     }
 
     /**

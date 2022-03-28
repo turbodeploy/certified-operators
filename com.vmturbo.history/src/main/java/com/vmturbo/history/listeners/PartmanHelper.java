@@ -192,6 +192,7 @@ public class PartmanHelper {
         createParent.setType(NATIVE_PARTITION_TYPE_NAME);
         createParent.setInterval(getPartitionInterval(table));
         createParent.setStartPartition(initialTimestamp.toString());
+        createParent.setTemplateTable(getTemplateTable(table));
         createParent.execute(dsl.configuration());
     }
 
@@ -215,6 +216,38 @@ public class PartmanHelper {
                     String.format("Table %s does not appear to be an entity stats table",
                             table.getName()));
         }
+    }
+
+    /**
+     * Supply the name of the template table that should be used when creating partitions for the
+     * given table. We have on template table for each entity-stats time frame, and we choose
+     * among them based on the table timeframe.
+     *
+     * <p>The template table is used to configure partition tables in ways that are not (yet)
+     * inheritable from the parent table.</p>
+     *
+     * @param table parent table
+     * @return corresponding template table name, qualified with schema name
+     */
+    private String getTemplateTable(Table<?> table) throws PartitionProcessingException {
+        Optional<TimeFrame> tableTimeFrame = EntityType.timeFrameOfTable(table);
+        if (tableTimeFrame.isPresent()) {
+            switch (tableTimeFrame.get()) {
+                case LATEST:
+                    return String.format("%s._latest_partition_template", getCurrentSchema(dsl));
+                case HOUR:
+                    return String.format("%s._by_hour_partition_template", getCurrentSchema(dsl));
+                case DAY:
+                    return String.format("%s._by_day_partition_template", getCurrentSchema(dsl));
+                case MONTH:
+                    return String.format("%s._by_month_partition_template", getCurrentSchema(dsl));
+                default:
+                    // fall through to throw exception
+            }
+        }
+        throw new PartitionProcessingException(
+                    String.format("Table %s does not appear to be an entity stats table",
+                            table.getName()));
     }
 
     /**
@@ -450,6 +483,9 @@ public class PartmanHelper {
         private static final Parameter<String> START_PARTITION_PARM = Internal.createParameter(
                 START_PARTITION_PARM_NAME, SQLDataType.CLOB(Integer.MAX_VALUE), true, false);
 
+        private static final String TEMPLATE_TABLE_TABLE_PARM_NAME = "p_template_table";
+        private static final Parameter<String> TEMPLATE_TABLE_PARM = Internal.createParameter(
+                TEMPLATE_TABLE_TABLE_PARM_NAME, SQLDataType.CLOB(Integer.MAX_VALUE), false, false);
 
         /**
          * Create a new instance.
@@ -462,6 +498,7 @@ public class PartmanHelper {
             addInParameter(TYPE_PARM);
             addInParameter(INTERVAL_PARM);
             addInParameter(START_PARTITION_PARM);
+            addInParameter(TEMPLATE_TABLE_PARM);
         }
 
         public void setParentTable(String parentTableName) {
@@ -482,6 +519,10 @@ public class PartmanHelper {
 
         public void setStartPartition(String startPartition) {
             setValue(START_PARTITION_PARM, startPartition);
+        }
+
+        public void setTemplateTable(String templateTable) {
+            setValue(TEMPLATE_TABLE_PARM, templateTable);
         }
     }
 

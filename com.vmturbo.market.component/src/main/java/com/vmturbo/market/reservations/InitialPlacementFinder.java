@@ -176,8 +176,8 @@ public class InitialPlacementFinder {
             // Update the providers with providers generated in headroom plan in historical economy
             // cache. Rerun all successfully placed reservations and update the providers in
             // buyerPlacements.
-            economyCaches.updateHistoricalCachedEconomy(clonedEconomy, commTypeToSpecMap,
-                    buyerPlacements, existingReservations, buyerPlacements);
+            buyerPlacements = economyCaches.updateHistoricalCachedEconomy(clonedEconomy, commTypeToSpecMap,
+                    buyerPlacements, existingReservations);
         }
     }
 

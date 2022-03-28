@@ -5,6 +5,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
+import javax.annotation.Nullable;
+
 import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.SQLDialect;
 
@@ -27,6 +29,7 @@ public class DbEndpointConfig {
     private String userName;
     private String password;
     private DbEndpointAccess access;
+    private String rootDatabaseName;
     private String rootUserName;
     private String rootPassword;
     private Boolean rootAccessEnabled;
@@ -330,6 +333,14 @@ public class DbEndpointConfig {
         return poolMonitorIntervalSec;
     }
 
+    @Nullable
+    public String getRootDatabaseName() {
+        return rootDatabaseName;
+    }
+
+    public void setRootDatabaseName(@Nullable String rootDatabaseName) {
+        this.rootDatabaseName = rootDatabaseName;
+    }
 
     @Override
     public String toString() {
