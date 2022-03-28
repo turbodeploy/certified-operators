@@ -3,7 +3,7 @@ package com.vmturbo.cost.component.savings.bottomup;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
@@ -89,7 +89,7 @@ public interface EntityStateStore<T> {
      * @return all entity states
      * @throws EntitySavingsException error during operation
      */
-    Stream<EntityState> getAllEntityStates() throws EntitySavingsException;
+    void getAllEntityStates(Consumer<EntityState> consumer) throws EntitySavingsException;
 
     /**
      * Get all entity states. Use this method to pass in a transaction object so this method will
@@ -102,5 +102,5 @@ public interface EntityStateStore<T> {
      * @return all entity states
      * @throws EntitySavingsException error during operation
      */
-    Stream<EntityState> getAllEntityStates(T transaction) throws EntitySavingsException;
+    void getAllEntityStates(T transaction, Consumer<EntityState> consumer) throws EntitySavingsException;
 }

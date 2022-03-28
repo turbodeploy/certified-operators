@@ -197,8 +197,8 @@ public class SQLCloudScopeStoreTest extends MultiDbTestBase {
 
 
         // Collect cloud scope records before deletion
-        final Set<EntityCloudScope> cloudScopeSetBeforeDeletion = cloudScopeStore.streamAll()
-                .collect(Collectors.toSet());
+        final Set<EntityCloudScope> cloudScopeSetBeforeDeletion = new HashSet<>();
+        cloudScopeStore.streamAll(cloudScopeSetBeforeDeletion::add);
 
         // delete datapoint A
         final EntityComputeTierAllocationFilter deleteFilter = EntityComputeTierAllocationFilter.builder()
@@ -209,8 +209,8 @@ public class SQLCloudScopeStoreTest extends MultiDbTestBase {
         // Cleanup cloud scope records
         long numCloudScopeRecordsRemoved = cloudScopeStore.cleanupCloudScopeRecords();
 
-        final Set<EntityCloudScope> cloudScopeSetAfterDeletion = cloudScopeStore.streamAll()
-                .collect(Collectors.toSet());
+        final Set<EntityCloudScope> cloudScopeSetAfterDeletion = new HashSet<>();
+        cloudScopeStore.streamAll(cloudScopeSetAfterDeletion::add);
 
 
         final EntityCloudScope entityCloudScopeA = EntityCloudScope.builder()
@@ -263,8 +263,8 @@ public class SQLCloudScopeStoreTest extends MultiDbTestBase {
         // Cleanup cloud scope records
         numCloudScopeRecordsRemoved = cloudScopeStore.cleanupCloudScopeRecords();
 
-        final Set<EntityCloudScope> cloudScopeSetAfterDeletion2ndTime = cloudScopeStore.streamAll()
-                .collect(Collectors.toSet());
+        final Set<EntityCloudScope> cloudScopeSetAfterDeletion2ndTime = new HashSet<>();
+        cloudScopeStore.streamAll(cloudScopeSetAfterDeletion2ndTime::add);
 
         assertThat(numCloudScopeRecordsRemoved, equalTo(0L));
         assertThat(cloudScopeSetAfterDeletion2ndTime, hasSize(2));

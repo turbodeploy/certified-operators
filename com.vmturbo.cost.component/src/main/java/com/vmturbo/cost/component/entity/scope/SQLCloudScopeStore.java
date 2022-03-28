@@ -3,13 +3,16 @@ package com.vmturbo.cost.component.entity.scope;
 import java.time.Duration;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
@@ -150,32 +153,23 @@ public class SQLCloudScopeStore implements CloudScopeStore,
      * {@inheritDoc}
      */
     @Override
-    public Stream<EntityCloudScope> streamAll() {
-        final List<EntityCloudScope> entityCloudScopes = new ArrayList<>();
-        dslContext.connection(conn -> {
-            conn.setAutoCommit(false);
-            DSL.using(conn, dslContext.settings()).selectFrom(Tables.ENTITY_CLOUD_SCOPE)
-                    .fetchSize(batchFetchSize)
-                    .stream()
-                    .map(this::convertRecordToImmutable)
-                    .forEach(entityCloudScopes::add);
-        });
-        return entityCloudScopes.stream();
+    public void streamAll(@Nonnull Consumer<EntityCloudScope> consumer) {
+        streamByFilter(null, consumer);
     }
 
     @Override
-    public Stream<EntityCloudScope> streamByFilter(@Nonnull final CloudScopeFilter filter) {
-        final List<EntityCloudScope> entityCloudScopes = new ArrayList<>();
+    public void streamByFilter(@Nullable final CloudScopeFilter filter,
+            @Nonnull Consumer<EntityCloudScope> consumer) {
         dslContext.connection(conn -> {
             conn.setAutoCommit(false);
-            DSL.using(conn, dslContext.settings()).selectFrom(Tables.ENTITY_CLOUD_SCOPE)
-                    .where(generateConditionsFromFilter(filter))
-                    .fetchSize(1000)
-                    .stream()
-                    .map(this::convertRecordToImmutable)
-                    .forEach(entityCloudScopes::add);
+            try (Stream<EntityCloudScopeRecord> stream = DSL.using(conn, dslContext.settings())
+                    .selectFrom(Tables.ENTITY_CLOUD_SCOPE)
+                    .where(filter == null ? Collections.emptySet() : generateConditionsFromFilter(filter))
+                    .fetchSize(batchFetchSize)
+                    .stream()) {
+                stream.map(this::convertRecordToImmutable).forEach(consumer);
+            }
         });
-        return entityCloudScopes.stream();
     }
 
     private Set<Condition> generateConditionsFromFilter(@Nonnull CloudScopeFilter filter) {

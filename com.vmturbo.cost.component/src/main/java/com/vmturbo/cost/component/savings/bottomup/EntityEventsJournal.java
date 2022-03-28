@@ -4,7 +4,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -37,9 +37,8 @@ public interface EntityEventsJournal {
      *
      * @param startTime Start time inclusive.
      * @param endTime End time exclusive.
-     * @return Stream of SavingsEvent instances.
      */
-    Stream<SavingsEvent> getEventsBetween(long startTime, long endTime);
+    void getEventsBetween(long startTime, long endTime, Consumer<SavingsEvent> consumer);
 
     /**
      * Gets events between start and end time, but if entityOids are specified, only gets the matching ones.
@@ -49,10 +48,13 @@ public interface EntityEventsJournal {
      * @param entityOids If non-empty, only events with entity oids that match this set will be returned.
      * @return Stream of SavingsEvent instances.
      */
-    @Nonnull
-    default Stream<SavingsEvent> getEventsBetween(long startTime, long endTime, @Nonnull final Set<Long> entityOids) {
-        return getEventsBetween(startTime, endTime)
-                .filter(event -> entityOids.isEmpty() || entityOids.contains(event.getEntityId()));
+    default void getEventsBetween(long startTime, long endTime,
+            @Nonnull final Set<Long> entityOids, Consumer<SavingsEvent> consumer) {
+        getEventsBetween(startTime, endTime, event -> {
+            if (entityOids.isEmpty() || entityOids.contains(event.getEntityId())) {
+                consumer.accept(event);
+            }
+        });
     }
 
     /**

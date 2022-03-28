@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -181,11 +182,13 @@ public class SqlEntityEventsJournalTest extends MultiDbTestBase {
         assertEquals(20, journalStore.size());
 
         // End time is exclusive
-        long count = journalStore.getEventsBetween(1001, 1011).count();
-        assertEquals(10, count);
+        AtomicInteger counter = new AtomicInteger();
+        journalStore.getEventsBetween(1001, 1011, event -> counter.incrementAndGet());
+        assertEquals(10, counter.get());
 
-        count = journalStore.getEventsBetween(2011, 2021).count();
-        assertEquals(10, count);
+        counter.set(0);
+        journalStore.getEventsBetween(2011, 2021, event -> counter.incrementAndGet());
+        assertEquals(10, counter.get());
     }
 
     /**
@@ -196,9 +199,10 @@ public class SqlEntityEventsJournalTest extends MultiDbTestBase {
         // This should normally give 20 records, but filter by entityId as well.
         assertEquals(20, journalStore.size());
 
-        long count = journalStore.getEventsBetween(1001, 2021,
-                ImmutableSet.of(5L, 7L, 15L, 17L)).count();
-        assertEquals(4, count);
+        AtomicInteger counter = new AtomicInteger();
+        journalStore.getEventsBetween(1001, 2021, ImmutableSet.of(5L, 7L, 15L, 17L),
+                event -> counter.incrementAndGet());
+        assertEquals(4, counter.get());
     }
 
     /**

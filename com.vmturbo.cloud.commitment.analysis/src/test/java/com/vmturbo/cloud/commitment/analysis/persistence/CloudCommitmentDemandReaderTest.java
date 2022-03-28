@@ -4,17 +4,18 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
 import org.junit.Test;
@@ -86,17 +87,24 @@ public class CloudCommitmentDemandReaderTest {
         // Setup demand store mocks
         final EntityComputeTierAllocation allocationA = mock(EntityComputeTierAllocation.class);
         final EntityComputeTierAllocation allocationB = mock(EntityComputeTierAllocation.class);
-        when(computeTierAllocationStore.streamAllocations(eq(allocationFilter)))
-                .thenAnswer((f) -> Stream.of(allocationA, allocationB));
+
+        final List<EntityCloudTierMapping> actualDemandList = new ArrayList<>();
+        Consumer<EntityCloudTierMapping> consumer = actualDemandList::add;
+
+        doAnswer(inv -> {
+            Consumer<EntityComputeTierAllocation> consumer1 = inv.getArgumentAt(1, Consumer.class);
+            consumer1.accept(allocationA);
+            consumer1.accept(allocationB);
+            return null;
+        }).when(computeTierAllocationStore).streamAllocations(eq(allocationFilter), any());
 
         // Invoke the reader
-        final List<EntityCloudTierMapping> actualDemandList =
-                cloudCommitmentDemandReader.getAllocationDemand(CloudTierType.COMPUTE_TIER, demandScope, selectionWindow)
-                        .collect(ImmutableList.toImmutableList());
+        cloudCommitmentDemandReader.getAllocationDemand(CloudTierType.COMPUTE_TIER, demandScope,
+                selectionWindow, consumer::accept);
 
         final ArgumentCaptor<EntityComputeTierAllocationFilter> filterCaptor =
                 ArgumentCaptor.forClass(EntityComputeTierAllocationFilter.class);
-        verify(computeTierAllocationStore).streamAllocations(filterCaptor.capture());
+        verify(computeTierAllocationStore).streamAllocations(filterCaptor.capture(), any());
         assertThat(filterCaptor.getValue(), equalTo(allocationFilter));
 
         assertThat(actualDemandList, hasSize(2));

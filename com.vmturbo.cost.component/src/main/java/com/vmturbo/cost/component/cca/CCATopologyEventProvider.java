@@ -4,18 +4,17 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -31,7 +30,6 @@ import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationS
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
-import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -254,22 +252,19 @@ public class CCATopologyEventProvider implements TopologyEventProvider, ComputeT
                         .build())
                 .build();
 
-        try (Stream<EntityCloudScope> cloudScopeStream = cloudScopeStore.streamByFilter(cloudScopeFilter)) {
-            final Map<Long, Instant> fetchedCreationTimeMap = cloudScopeStream.collect(
-                    ImmutableMap.toImmutableMap(
-                            EntityCloudScope::entityOid,
-                            EntityCloudScope::creationTime));
+        final Map<Long, Instant> fetchedCreationTimeMap = new HashMap<>();
+        cloudScopeStore.streamByFilter(cloudScopeFilter, entityCloudScope ->
+                fetchedCreationTimeMap.put(entityCloudScope.entityOid(), entityCloudScope.creationTime()));
 
-            final Set<Long> missingOids = Sets.difference(entityOids, fetchedCreationTimeMap.keySet());
-            if (!missingOids.isEmpty()) {
-                logger.warn("Missing creation time for {} entities", missingOids.size());
-                if (logger.isDebugEnabled()) {
-                    missingOids.forEach(missingOid -> logger.debug("Missing creation time for '{}'", missingOid));
-                }
+        final Set<Long> missingOids = Sets.difference(entityOids, fetchedCreationTimeMap.keySet());
+        if (!missingOids.isEmpty()) {
+            logger.warn("Missing creation time for {} entities", missingOids.size());
+            if (logger.isDebugEnabled()) {
+                missingOids.forEach(missingOid -> logger.debug("Missing creation time for '{}'", missingOid));
             }
-
-            creationTimeCache.putAll(fetchedCreationTimeMap);
         }
+
+        creationTimeCache.putAll(fetchedCreationTimeMap);
     }
 
     private EntityEvents addObservedCreationTime(@Nonnull EntityEvents entityEvents,

@@ -9,6 +9,7 @@ import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -193,13 +195,11 @@ public class EntitySavingsTrackerTest extends MultiDbTestBase {
                 createEntityState(vm2Id, null, null, null, 0d),
                 createEntityState(vm3Id, 1d, 2d, 3d, 4d),
                 createEntityState(vm4Id, 1d, null, null, null));
-        Answer<Stream> stateStream = new Answer<Stream>() {
-            @Override
-            public Stream answer(InvocationOnMock invocation) throws Throwable {
-                return stateSet.stream();
-            }
-        };
-        when(entityStateStore.getAllEntityStates(any(DSLContext.class))).thenAnswer(stateStream);
+        doAnswer(inv -> {
+            Consumer<EntityState> consumer = inv.getArgumentAt(1, Consumer.class);
+            stateSet.forEach(consumer);
+            return null;
+        }).when(entityStateStore).getAllEntityStates(any(DSLContext.class), any());
     }
 
     private void setupRepositoryClient() {
@@ -444,7 +444,7 @@ public class EntitySavingsTrackerTest extends MultiDbTestBase {
         tracker.generateStats(time1000amMillis, dsl, uuids);
 
         // Make sure we call the version of getAllEntityStates that accepts DSL context as parameter.
-        verify(entityStateStore).getAllEntityStates(dsl);
+        verify(entityStateStore).getAllEntityStates(eq(dsl), any());
 
         // addHourlyStats is called three times.
         // First 2 states will generate 2 stats records => 1 call
@@ -471,7 +471,7 @@ public class EntitySavingsTrackerTest extends MultiDbTestBase {
         tracker.generateStats(time1000amMillis, dsl, scopedUuids);
 
         // Make sure we call the version of getAllEntityStates that accepts DSL context as parameter.
-        verify(entityStateStore).getAllEntityStates(dsl);
+        verify(entityStateStore).getAllEntityStates(eq(dsl), any());
         verify(entitySavingsStore).addHourlyStats(statsCaptor.capture(), any(DSLContext.class));
         // Verify that EntitySavingsTracker.stateToStats is called only for UUIDs 201 and 401.
         assertEquals(1, statsCaptor.getAllValues().size());

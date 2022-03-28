@@ -3,15 +3,17 @@ package com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -20,6 +22,7 @@ import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReader;
+import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReaderImpl;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
@@ -46,7 +49,7 @@ public class DemandRetrievalStageTest {
 
     private final CloudCommitmentAnalysisContext analysisContext = mock(CloudCommitmentAnalysisContext.class);
 
-    private final CloudCommitmentDemandReader demandReader = mock(CloudCommitmentDemandReader.class);
+    private final CloudCommitmentDemandReader demandReader = mock(CloudCommitmentDemandReaderImpl.class);
 
     private final DemandRetrievalFactory demandRetrievalFactory = new DemandRetrievalFactory(demandReader);
 
@@ -136,10 +139,15 @@ public class DemandRetrievalStageTest {
                         .build())
                 .build();
 
-        when(demandReader.getAllocationDemand(
-                eq(CloudTierType.COMPUTE_TIER),
+        doAnswer(inv -> {
+            Consumer<EntityCloudTierMapping> consumer = inv.getArgumentAt(3, Consumer.class);
+            consumer.accept(entityCloudTierMappingA);
+            consumer.accept(entityCloudTierMappingB);
+            return null;
+        }).when(demandReader).getAllocationDemand(eq(CloudTierType.COMPUTE_TIER),
                 eq(allocatedSelection.getDemandSelection().getScope()),
-                eq(analysisWindow))).thenAnswer((invocation) -> Stream.of(entityCloudTierMappingA, entityCloudTierMappingB));
+                eq(analysisWindow),
+                any());
 
         // invoke the stage
         final AnalysisStage.StageResult<EntityCloudTierDemandSet> stageResult =

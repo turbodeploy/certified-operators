@@ -1,7 +1,7 @@
 package com.vmturbo.cloud.commitment.analysis.persistence;
 
 import java.util.Objects;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
@@ -35,9 +35,10 @@ public class CloudCommitmentDemandReaderImpl implements CloudCommitmentDemandRea
      * {@inheritDoc}
      */
     @Override
-    public Stream<EntityCloudTierMapping> getAllocationDemand(@Nonnull CloudTierType cloudTierType,
-                                                              @Nonnull DemandScope demandScope,
-                                                              @Nonnull TimeInterval selectionWindow) {
+    public void getAllocationDemand(@Nonnull CloudTierType cloudTierType,
+                                    @Nonnull DemandScope demandScope,
+                                    @Nonnull TimeInterval selectionWindow,
+                                    @Nonnull Consumer<EntityCloudTierMapping> consumer) {
 
         final EntityComputeTierAllocationFilter filter = EntityComputeTierAllocationFilter.builder()
                 .startTimeFilter(TimeFilter.builder()
@@ -65,7 +66,6 @@ public class CloudCommitmentDemandReaderImpl implements CloudCommitmentDemandRea
 
         // Right now only compute tier demand is supported. Therefore, we don't check
         // the cloudTierType.
-        return computeTierAllocationStore.streamAllocations(filter)
-                .map(EntityCloudTierMapping.class::cast);
+        computeTierAllocationStore.streamAllocations(filter, consumer::accept);
     }
 }
