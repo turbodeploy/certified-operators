@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.diags;
 
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.Collections;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -42,8 +43,9 @@ public class CostDiagnosticsHandler extends DiagnosticsHandlerImportable<DSLCont
             @Nonnull Collection collection, @Nonnull DSLContext dsl) {
         super(zipReaderFactory, collection);
         this.dslContext = dsl;
-        this.foreignKeyHandler = new ForeignKeyHandler(dsl,
-                ForeignConstraint.getForeignKeyConstraints(dsl));
+        this.foreignKeyHandler = (dslContext.dialect() == SQLDialect.POSTGRES)
+                ? new ForeignKeyHandler(dsl, ForeignConstraint.getForeignKeyConstraints(dsl))
+                : new ForeignKeyHandler(dsl, Collections.emptyList());
     }
 
     /**
