@@ -87,6 +87,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getPort(), is(5432));
         assertThat(config.getRootPassword(), is("pw"));
         assertThat(config.getRootUserName(), is("postgres"));
+        assertThat(config.getRootDatabaseName(), is("postgres"));
         assertThat(config.isRootAccessEnabled(), is(false));
         assertThat(config.getSchemaName(), is("xyzzy"));
         assertThat(config.getSecure(), is(false));
@@ -123,6 +124,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getPort(), is(3306));
         assertThat(config.getRootPassword(), is("pw"));
         assertThat(config.getRootUserName(), is("root"));
+        assertThat(config.getRootDatabaseName(), is(""));
         assertThat(config.isRootAccessEnabled(), is(false));
         assertThat(config.getSchemaName(), is("xyzzy"));
         assertThat(config.getSecure(), is(false));
@@ -159,6 +161,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getPort(), is(3306));
         assertThat(config.getRootPassword(), is("pw"));
         assertThat(config.getRootUserName(), is("root"));
+        assertThat(config.getRootDatabaseName(), is(""));
         assertThat(config.isRootAccessEnabled(), is(false));
         assertThat(config.getSchemaName(), is("xyzzy"));
         assertThat(config.getSecure(), is(false));
@@ -194,6 +197,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getPort(), is(12345));
         assertThat(config.getRootPassword(), is("root-pw"));
         assertThat(config.getRootUserName(), is("myroot"));
+        assertThat(config.getRootDatabaseName(), is("root-db"));
         assertThat(config.isRootAccessEnabled(), is(true));
         assertThat(config.getSchemaName(), is("s"));
         assertThat(config.getSecure(), is(true));
@@ -232,6 +236,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getPort(), is(12345));
         assertThat(config.getRootPassword(), is("root-pw"));
         assertThat(config.getRootUserName(), is("myroot"));
+        assertThat(config.getRootDatabaseName(), is("root-db"));
         assertThat(config.isRootAccessEnabled(), is(true));
         assertThat(config.getSchemaName(), is("s"));
         assertThat(config.getSecure(), is(true));
@@ -274,6 +279,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getPort(), is(12345));
         assertThat(config.getRootPassword(), is("root-pw"));
         assertThat(config.getRootUserName(), is("myroot"));
+        assertThat(config.getRootDatabaseName(), is("root-db"));
         assertThat(config.isRootAccessEnabled(), is(true));
         assertThat(config.getSchemaName(), is("s"));
         assertThat(config.getSecure(), is(true));
@@ -465,6 +471,7 @@ public class DbEndpointResolverTest {
         configMap.put(prefix + "port", "12345");
         configMap.put(prefix + "rootPassword", "root-pw");
         configMap.put(prefix + "rootUserName", "myroot");
+        configMap.put(prefix + "rootDatabaseName", "root-db");
         configMap.put(prefix + "rootAccessEnabled", "true");
         configMap.put(prefix + "schemaName", "s");
         configMap.put(prefix + "secure", "true");
@@ -494,6 +501,7 @@ public class DbEndpointResolverTest {
                 .withPort(12345)
                 .withRootPassword("root-pw")
                 .withRootUserName("myroot")
+                .withRootDatabaseName("root-db")
                 .withRootAccessEnabled(true)
                 .withSchemaName("s")
                 .withSecure(true)
