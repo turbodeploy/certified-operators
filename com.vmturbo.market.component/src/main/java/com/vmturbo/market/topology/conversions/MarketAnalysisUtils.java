@@ -460,12 +460,19 @@ public final class MarketAnalysisUtils {
         PriceFunctionTO.StandardWeighted.newBuilder().setWeight(LOW_PRICE_WEIGHT).build()).build();
 
     /**
+     * SQRP is used for image commodities, which is supposed to be the primary reason to drive a business user move action.
+     * Sometimes image commodities contradict with other commodities (pool commodities),
+     * we need to give image commodities a higher weight to make it the primary factor in the price calculation.
+     */
+    public static final float SQRP_PRICE_WEIGHT = 10f;
+
+    /**
      * Squared reciprocal price function used for VDI on-prem.
      * https://vmturbo.atlassian.net/wiki/spaces/Home/pages/876347519/Price+function+based+on+excess+capacity
      */
     private static final PriceFunctionTO SQRP = PriceFunctionTO.newBuilder()
                     .setSquaredReciprocalBought(
-                                    PriceFunctionTO.SquaredReciprocalBought.getDefaultInstance())
+                                    PriceFunctionTO.SquaredReciprocalBought.newBuilder().setWeight(SQRP_PRICE_WEIGHT))
                     .build();
 
     /**
