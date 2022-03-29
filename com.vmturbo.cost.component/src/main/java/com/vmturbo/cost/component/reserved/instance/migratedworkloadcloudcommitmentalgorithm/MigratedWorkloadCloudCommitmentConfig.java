@@ -1,5 +1,8 @@
 package com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm;
 
+import java.sql.SQLException;
+
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -15,11 +18,15 @@ import com.vmturbo.cost.component.plan.PlanService;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSenderConfig;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanActionContextRiBuyStore;
+import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanActionContextRiBuyStoreImpl;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanBuyReservedInstanceStore;
-import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanProjectedEntityToReservedInstanceMappingStore;
-import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanReservedInstanceBoughtStore;
+import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanBuyReservedInstanceStoreImpl;
+import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanProjectedEntityToReservedInstanceMappingStoreImpl;
+import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanReservedInstanceBoughtStoreImpl;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanReservedInstanceSpecStore;
+import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanReservedInstanceSpecStoreImpl;
 import com.vmturbo.cost.component.rpc.MigratedWorkloadCloudCommitmentAnalysisService;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Spring configuration class for the migrated workload cloud commitment resources.
@@ -55,37 +62,6 @@ public class MigratedWorkloadCloudCommitmentConfig {
     private ReservedInstanceActionsSenderConfig reservedInstanceActionsSenderConfig;
 
     /**
-     * Repository used to insert BuyReservedInstance objects into the buy_reserved_instance cost database table.
-     */
-    @Autowired
-    private PlanBuyReservedInstanceStore planBuyReservedInstanceStore;
-
-    /**
-     * Repository used to query the reserved_instance_spec table to match a region, compute tier, and migration
-     * profile to its reserved instance spec.
-     */
-    @Autowired
-    private PlanReservedInstanceSpecStore planReservedInstanceSpecStore;
-
-    /**
-     * Repository used to insert records into the action_context_ri_buy table.
-     */
-    @Autowired
-    private PlanActionContextRiBuyStore planActionContextRiBuyStore;
-
-    /**
-     * Repository use to insert records into the plan_projected_entity_to_reserved_instance_mapping table.
-     */
-    @Autowired
-    private PlanProjectedEntityToReservedInstanceMappingStore planProjectedEntityToReservedInstanceMappingStore;
-
-    /**
-     * Repository use to insert records into the plan_reserved_instance_bought table.
-     */
-    @Autowired
-    private PlanReservedInstanceBoughtStore planReservedInstanceBoughtStore;
-
-    /**
      * The plan service, which is needed by the MigratedWorkloadCloudCommitmentAnalysisService to retrieve PlanInstances.
      */
     @Autowired
@@ -109,6 +85,91 @@ public class MigratedWorkloadCloudCommitmentConfig {
     }
 
     /**
+     * Instantiate planBuyReservedInstanceStoreImpl bean.
+     *
+     * @return the planBuyReservedInstanceStoreImpl bean.
+     */
+    @Bean
+    public PlanBuyReservedInstanceStore planBuyReservedInstanceStoreImpl() {
+        try {
+            return new PlanBuyReservedInstanceStoreImpl(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create PlanBuyReservedInstanceStoreImpl bean", e);
+        }
+    }
+
+    /**
+     * Instantiate planReservedInstanceSpecStoreImpl bean.
+     *
+     * @return the planReservedInstanceSpecStoreImpl bean.
+     */
+    @Bean
+    public PlanReservedInstanceSpecStore planReservedInstanceSpecStoreImpl() {
+        try {
+            return new PlanReservedInstanceSpecStoreImpl(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create planReservedInstanceSpecStoreImpl bean", e);
+        }
+    }
+
+    /**
+     * Instantiate planActionContextRiBuyStoreImpl bean.
+     *
+     * @return the planActionContextRiBuyStoreImpl bean.
+     */
+    @Bean
+    public PlanActionContextRiBuyStore planActionContextRiBuyStoreImpl() {
+        try {
+            return new PlanActionContextRiBuyStoreImpl(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create planActionContextRiBuyStoreImpl bean", e);
+        }
+    }
+
+    /**
+     * Instantiate planProjectedEntityToReservedInstanceMappingStoreImpl bean.
+     *
+     * @return the planProjectedEntityToReservedInstanceMappingStoreImpl bean.
+     */
+    @Bean
+    public PlanProjectedEntityToReservedInstanceMappingStoreImpl planProjectedEntityToReservedInstanceMappingStoreImpl() {
+        try {
+            return new PlanProjectedEntityToReservedInstanceMappingStoreImpl(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create planProjectedEntityToReservedInstanceMappingStoreImpl bean", e);
+        }
+    }
+
+    /**
+     * Instantiate planReservedInstanceBoughtStoreImpl bean.
+     *
+     * @return the planReservedInstanceBoughtStoreImpl bean.
+     */
+    @Bean
+    public PlanReservedInstanceBoughtStoreImpl planReservedInstanceBoughtStoreImpl() {
+        try {
+            return new PlanReservedInstanceBoughtStoreImpl(dbAccessConfig.dsl());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create PlanReservedInstanceBoughtStoreImpl bean", e);
+        }
+    }
+
+    /**
      * The migrated workload cloud commitment (Buy RI) algorithm implementation. This bean will be autowired into the
      * MigratedWorkloadCloudCommitmentAnalysisService and used to analyze a plan topology for recommended cloud
      * commitment purchases.
@@ -120,10 +181,10 @@ public class MigratedWorkloadCloudCommitmentConfig {
     public MigratedWorkloadCloudCommitmentAlgorithmStrategy migratedWorkloadCloudCommitmentAlgorithmStrategy(HistoricalStatsService historicalStatsService) {
         return new ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy(pricingConfig.priceTableStore(),
                 pricingConfig.businessAccountPriceTableKeyStore(),
-                planBuyReservedInstanceStore,
-                planReservedInstanceSpecStore,
-                planActionContextRiBuyStore,
-                planProjectedEntityToReservedInstanceMappingStore,
-                planReservedInstanceBoughtStore);
+                planBuyReservedInstanceStoreImpl(),
+                planReservedInstanceSpecStoreImpl(),
+                planActionContextRiBuyStoreImpl(),
+                planProjectedEntityToReservedInstanceMappingStoreImpl(),
+                planReservedInstanceBoughtStoreImpl());
     }
 }

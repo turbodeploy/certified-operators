@@ -8,17 +8,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.jooq.DSLContext;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Repository;
 
 import com.vmturbo.cost.component.db.tables.pojos.ActionContextRiBuy;
 import com.vmturbo.cost.component.db.tables.records.ActionContextRiBuyRecord;
 import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 
 /**
- * Spring Repository implementation used to interact with the action_context_ri_buy cost database table.
+ * PlanActionContextRiBuyStoreImpl.
  */
-@Repository
 public class PlanActionContextRiBuyStoreImpl implements PlanActionContextRiBuyStore {
 
     private static final int NUM_HOURS_IN_A_WEEK = 168;
@@ -26,8 +23,15 @@ public class PlanActionContextRiBuyStoreImpl implements PlanActionContextRiBuySt
     /**
      * JOOQ DSL Context.
      */
-    @Autowired
-    private DSLContext context;
+    private final DSLContext dsl;
+
+    /**
+     * PlanActionContextRiBuyStoreImpl constructor.
+     * @param dslContext the DSLContext.
+     */
+    public PlanActionContextRiBuyStoreImpl(DSLContext dslContext) {
+        dsl = dslContext;
+    }
 
     /**
      * Inserts a new action context RI buy record into the database.
@@ -38,7 +42,7 @@ public class PlanActionContextRiBuyStoreImpl implements PlanActionContextRiBuySt
     @Override
     public ActionContextRiBuyRecord save(ActionContextRiBuy actionContextRiBuy) {
         // Build and configure a new ActionContextRiBuyRecord
-        final ActionContextRiBuyRecord actionContextRiBuyRecord = context.newRecord(ACTION_CONTEXT_RI_BUY);
+        final ActionContextRiBuyRecord actionContextRiBuyRecord = dsl.newRecord(ACTION_CONTEXT_RI_BUY);
         actionContextRiBuyRecord.setActionId(actionContextRiBuy.getActionId());
         actionContextRiBuyRecord.setPlanId(actionContextRiBuy.getPlanId());
         actionContextRiBuyRecord.setCreateTime(LocalDateTime.now());
@@ -59,7 +63,7 @@ public class PlanActionContextRiBuyStoreImpl implements PlanActionContextRiBuySt
         actionContextRiBuyRecord.setData(demand.getBytes());
 
         // Insert the record into the database
-        context.batchInsert(actionContextRiBuyRecord).execute();
+        dsl.batchInsert(actionContextRiBuyRecord).execute();
 
         // Return the record back to the caller
         return actionContextRiBuyRecord;

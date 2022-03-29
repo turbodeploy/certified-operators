@@ -4,7 +4,7 @@ import com.vmturbo.cost.component.db.tables.pojos.PlanProjectedEntityToReservedI
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
 
 /**
- * Repository interface for interacting with the plan_projected_entity_to_reserved_instance_mapping cost database table.
+ * interface for interacting with the plan_projected_entity_to_reserved_instance_mapping cost database table.
  */
 public interface PlanProjectedEntityToReservedInstanceMappingStore {
     /**

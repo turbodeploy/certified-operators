@@ -8,7 +8,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.jooq.DSLContext;
-import org.springframework.stereotype.Repository;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -17,9 +16,8 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CommonCost;
 
 /**
- * Spring Repository implementation used to interact with the reserved_instance_spec cost database table.
+ * PlanReservedInstanceSpecStoreImpl.
  */
-@Repository
 public class PlanReservedInstanceSpecStoreImpl implements PlanReservedInstanceSpecStore {
     /**
      * JOOQ DSL Context.
