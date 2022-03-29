@@ -32,7 +32,7 @@ import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekR
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyDemandCluster;
 
 public class ComputeTierDemandStatsStore implements
-        TableDiagsRestorable<Void, ComputeTierTypeHourlyByWeekRecord> {
+        TableDiagsRestorable<Object, ComputeTierTypeHourlyByWeekRecord> {
 
     private static final String computeTierDemandFile = "computeTierDemand_dump";
 

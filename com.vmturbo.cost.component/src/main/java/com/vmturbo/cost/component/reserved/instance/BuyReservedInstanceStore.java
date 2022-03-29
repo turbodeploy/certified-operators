@@ -43,7 +43,7 @@ import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.Rese
  * This class is used to store the reserved instance to buy for plans or for real time
  */
 public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore,
-        TableDiagsRestorable<Void, BuyReservedInstanceRecord> {
+        TableDiagsRestorable<Object, BuyReservedInstanceRecord> {
 
     private static final String buyReservedInstanceFile = "buyReservedInstance_dump";
 

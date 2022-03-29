@@ -40,7 +40,7 @@ import com.vmturbo.cost.component.util.BusinessAccountHelper;
  * from Topology Processor.
  */
 public class PlanReservedInstanceStore extends AbstractReservedInstanceStore implements
-        TableDiagsRestorable<Void, PlanReservedInstanceBoughtRecord> {
+        TableDiagsRestorable<Object, PlanReservedInstanceBoughtRecord> {
 
     private static final String planReservedInstanceDumpFile = "planReservedInstance_dump";
 

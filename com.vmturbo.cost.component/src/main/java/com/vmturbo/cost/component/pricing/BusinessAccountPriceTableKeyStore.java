@@ -45,7 +45,7 @@ import com.vmturbo.sql.utils.DbException;
  * persisted in {@link Tables#BUSINESS_ACCOUNT_PRICE_TABLE_KEY}.
  */
 @ThreadSafe
-public class BusinessAccountPriceTableKeyStore implements DiagsRestorable<Void> {
+public class BusinessAccountPriceTableKeyStore implements DiagsRestorable<Object> {
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
     private static final Logger logger = LogManager.getLogger();
     private final DSLContext dsl;
@@ -83,7 +83,7 @@ public class BusinessAccountPriceTableKeyStore implements DiagsRestorable<Void> 
      */
     @Override
     public void restoreDiags(@Nonnull final List<String> collectedDiags,
-                             @Nullable Void restoreContext) throws DiagnosticsException {
+                             @Nullable Object restoreContext) throws DiagnosticsException {
         try {
             dsl.transaction(configuration -> {
                 DSLContext context = DSL.using(configuration);

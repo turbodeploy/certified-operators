@@ -71,7 +71,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * has a foreign key relationship with the {@link Tables#ENTITY_CLOUD_SCOPE} table.
  */
 public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implements ComputeTierAllocationStore,
-        TableDiagsRestorable<Void, EntityComputeTierAllocationRecord> {
+        TableDiagsRestorable<Object, EntityComputeTierAllocationRecord> {
 
     private static final ZoneId UTC_ZONE_ID = ZoneId.from(ZoneOffset.UTC);
 

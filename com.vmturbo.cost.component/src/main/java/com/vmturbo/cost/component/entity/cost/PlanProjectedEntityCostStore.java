@@ -37,7 +37,7 @@ import com.vmturbo.cost.component.util.EntityCostFilter;
  * Storage for plan projected per-entity costs.
  */
 public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostStore implements
-        TableDiagsRestorable<Void, PlanProjectedEntityCostRecord> {
+        TableDiagsRestorable<Object, PlanProjectedEntityCostRecord> {
 
     private static final String planEntityCostDumpFile = "planEntityCost_dump";
 

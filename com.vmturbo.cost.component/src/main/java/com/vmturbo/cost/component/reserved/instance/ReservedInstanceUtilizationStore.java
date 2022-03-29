@@ -365,7 +365,7 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
      * Helper class for dumping monthly RI utilization db records to exported topology.
      */
     private static final class ReservedInstanceUtilizationByMonthDiagsHelper implements
-            TableDiagsRestorable<Void, ReservedInstanceUtilizationByMonthRecord> {
+            TableDiagsRestorable<Object, ReservedInstanceUtilizationByMonthRecord> {
         private static final String reservedInstanceUtilizationByMonthDumpFile = "reservedInstanceUtilizationByMonth_dump";
 
         private final DSLContext dsl;
@@ -394,7 +394,7 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping daily RI utilization db records to exported topology.
      */
-    private static final class ReservedInstanceUtilizationByDayDiagsHelper implements TableDiagsRestorable<Void, ReservedInstanceUtilizationByDayRecord> {
+    private static final class ReservedInstanceUtilizationByDayDiagsHelper implements TableDiagsRestorable<Object, ReservedInstanceUtilizationByDayRecord> {
         private static final String reservedInstanceCoverageByDayDumpFile = "reservedInstanceUtilizationByDay_dump";
 
         private final DSLContext dsl;
@@ -423,7 +423,7 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping hourly RI utilization db records to exported topology.
      */
-    private static final class ReservedInstanceUtilizationByHourDiagsHelper implements TableDiagsRestorable<Void, ReservedInstanceUtilizationByHourRecord> {
+    private static final class ReservedInstanceUtilizationByHourDiagsHelper implements TableDiagsRestorable<Object, ReservedInstanceUtilizationByHourRecord> {
         private static final String reservedInstanceCoverageByHourDumpFile = "reservedInstanceUtilizationByHour_dump";
 
         private final DSLContext dsl;
@@ -453,7 +453,7 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping latest RI utilization db records to exported topology.
      */
-    private static final class LatestReservedInstanceUtilizationDiagsHelper implements TableDiagsRestorable<Void, ReservedInstanceUtilizationLatestRecord> {
+    private static final class LatestReservedInstanceUtilizationDiagsHelper implements TableDiagsRestorable<Object, ReservedInstanceUtilizationLatestRecord> {
         private static final String latestReservedInstanceUtilizationDumpFile = "latestReservedInstanceUtilization_dump";
 
         private final DSLContext dsl;

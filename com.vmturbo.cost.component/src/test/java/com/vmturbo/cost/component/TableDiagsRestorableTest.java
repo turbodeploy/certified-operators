@@ -78,7 +78,7 @@ public class TableDiagsRestorableTest extends MultiDbTestBase {
      */
     @Test
     public void testImportAndExport() {
-        final TableDiagsRestorable<Void, BuyReservedInstanceRecord> dumper = getDumper();
+        final TableDiagsRestorable<Object, BuyReservedInstanceRecord> dumper = getDumper();
 
         //insert ReservedInstanceSpecRecord to satisfy BUY_RESERVED_INSTANCE FK constraint
         final ReservedInstanceSpecRecord dummySpec = getDummySpecRecord();
@@ -113,8 +113,8 @@ public class TableDiagsRestorableTest extends MultiDbTestBase {
         Assert.assertEquals(rec2, result.get(0));
     }
 
-    private TableDiagsRestorable<Void, BuyReservedInstanceRecord> getDumper() {
-        return new TableDiagsRestorable<Void, BuyReservedInstanceRecord>() {
+    private TableDiagsRestorable<Object, BuyReservedInstanceRecord> getDumper() {
+        return new TableDiagsRestorable<Object, BuyReservedInstanceRecord>() {
             @Nonnull
             @Override
             public String getFileName() {
