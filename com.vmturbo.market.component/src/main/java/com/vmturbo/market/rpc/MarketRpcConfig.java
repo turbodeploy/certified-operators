@@ -46,7 +46,7 @@ public class MarketRpcConfig {
     @Value("${maxRequestReservationTimeoutInSeconds:6000}")
     private long maxRequestReservationTimeoutInSeconds;
 
-    @Value("${numPlacementDiagsToRetain:5}")
+    @Value("${numPlacementDiagsToRetain:0}")
     private int numPlacementDiagsToRetain;
 
     @Autowired
