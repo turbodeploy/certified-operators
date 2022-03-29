@@ -100,6 +100,7 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action activateRecommendation;
     private ActionDTO.Action reconfigureReasonCommoditiesRecommendation;
     private ActionDTO.Action reconfigureTaintCommoditiesRecommendation;
+    private ActionDTO.Action reconfigureLabelCommoditiesRecommendation;
     private ActionDTO.Action reconfigureReasonSettingsRecommendation;
     private ActionDTO.Action reconfigureWithoutSourceRecommendation;
     private ActionDTO.Action provisionBySupplyRecommendation;
@@ -138,6 +139,7 @@ public class ActionDescriptionBuilderTest {
     private static final ReasonCommodity BALLOONING = createReasonCommodity(CommodityDTO.CommodityType.BALLOONING_VALUE, null);
     private static final ReasonCommodity CPU_ALLOCATION = createReasonCommodity(CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE, null);
     private static final ReasonCommodity TAINT = createReasonCommodity(CommodityDTO.CommodityType.TAINT_VALUE, "key1=value1:NoSchedule");
+    private static final ReasonCommodity LABEL = createReasonCommodity(CommodityDTO.CommodityType.LABEL_VALUE, "key1=value1");
     private static final Long VM1_ID = 11L;
     private static final String VM1_DISPLAY_NAME = "vm1_test";
     private static final Long PM_SOURCE_ID = 22L;
@@ -410,6 +412,13 @@ public class ActionDescriptionBuilderTest {
         reconfigureTaintCommoditiesRecommendation = makeRec(
                 makeReconfigureInfo(CONTAINER_POD_ID, VM_SOURCE_ID), SupportLevel.SUPPORTED,
                 reconfigureExplanationTaint).build();
+
+        Explanation reconfigureExplanationLabel = Explanation.newBuilder()
+            .setReconfigure(makeReconfigureLabelCommoditiesExplanation())
+            .build();
+        reconfigureLabelCommoditiesRecommendation = makeRec(
+            makeReconfigureInfo(CONTAINER_POD_ID, VM_SOURCE_ID), SupportLevel.SUPPORTED,
+            reconfigureExplanationLabel).build();
 
         Explanation provisionExplanation1 = Explanation.newBuilder().setProvision(
                 makeProvisionBySupplyExplanation()).build();
@@ -989,6 +998,17 @@ public class ActionDescriptionBuilderTest {
     }
 
     /**
+     * Create a {@link ReconfigureExplanation} with label commodities
+     *
+     * @return {@link ReconfigureExplanation}
+     */
+    private ReconfigureExplanation makeReconfigureLabelCommoditiesExplanation() {
+        return ReconfigureExplanation.newBuilder()
+            .addReconfigureCommodity(LABEL)
+            .build();
+    }
+
+    /**
      * Create a {@link ReconfigureExplanation} with reason settings.
      *
      * @return {@link ReconfigureExplanation}
@@ -1531,6 +1551,25 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, reconfigureTaintCommoditiesRecommendation);
         assertEquals("Reconfigure Container Pod container_pod_test", description);
+    }
+
+    /**
+     * Test the description of reconfigure action with label commodities.
+     */
+    @Test
+    public void testBuildReconfigureActionLabelCommoditiesDescription()
+        throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(CONTAINER_POD_ID))).thenReturn(
+            (createEntity(CONTAINER_POD_ID, EntityType.CONTAINER_POD_VALUE,
+                CONTAINER_POD_DISPLAY_NAME, 0, 0)));
+        when(entitySettingsCache.getEntityFromOid(eq(VM_SOURCE_ID))).thenReturn(
+            (createEntity(VM_SOURCE_ID, EntityType.VIRTUAL_MACHINE_VALUE, VM_SOURCE_DISPLAY_NAME, 0,
+                0)));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(CONTAINER_POD_ID))).thenReturn(
+            Optional.empty());
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, reconfigureLabelCommoditiesRecommendation);
+        assertEquals("Reconfigure nodeSelector for Container Pod container_pod_test", description);
     }
 
     /**
