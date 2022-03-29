@@ -31,6 +31,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 
 import gnu.trove.iterator.TLongIterator;
 
@@ -162,6 +163,7 @@ public class EntitySettingsResolver {
      * @param consistentScalingManager consistenet scaling manager
      * @param settingPolicyEditors a list of SettingPolicyEditors to be applied before resolving
      *                             settings.
+     * @param resolvedGroups map of Groups already resolved with members
      * @return List of EntitySettings
      *
      */
@@ -171,7 +173,8 @@ public class EntitySettingsResolver {
             @Nonnull final SettingOverrides settingOverrides,
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final ConsistentScalingManager consistentScalingManager,
-            @Nullable final List<SettingPolicyEditor> settingPolicyEditors) {
+            @Nullable final List<SettingPolicyEditor> settingPolicyEditors,
+            @Nullable final Map<Long, ResolvedGroup> resolvedGroups) {
 
         // map from policy ID to settings policy
         final Map<Long, SettingPolicy> policyById =
@@ -189,7 +192,16 @@ public class EntitySettingsResolver {
         referencedGroups.addAll(settingOverrides.getInvolvedGroups());
 
         // Get and resolve groups.
-        final Map<Long, ResolvedGroup> groups = getAndResolveGroups(referencedGroups, groupResolver, topologyGraph);
+        Map<Long, ResolvedGroup> groups = Maps.newHashMap();
+        Set<Long> groupsToResolve = Sets.newHashSet();
+        referencedGroups.forEach(grpOid -> {
+            if (resolvedGroups != null && resolvedGroups.containsKey(grpOid)) {
+                groups.put(grpOid, resolvedGroups.get(grpOid));
+            } else {
+                groupsToResolve.add(grpOid);
+            }
+        });
+        groups.putAll(getAndResolveGroups(groupsToResolve, groupResolver, topologyGraph));
 
         // let the setting overrides handle any max utilization settings
         settingOverrides.resolveGroupOverrides(groups, scopeEvaluator);

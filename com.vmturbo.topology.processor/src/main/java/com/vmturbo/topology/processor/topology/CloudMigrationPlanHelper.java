@@ -50,7 +50,10 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter.StaticOrDynamicFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
@@ -97,6 +100,8 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.processor.entity.EntityNotFoundException;
+import com.vmturbo.topology.processor.group.GroupResolutionException;
+import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
@@ -293,7 +298,9 @@ public class CloudMigrationPlanHelper {
             @Nonnull final Set<Long> sourceEntities,
             @Nonnull final Set<Long> destinationEntities,
             @Nonnull final Set<Pair<Grouping, Grouping>> policyGroups,
-            @Nonnull final List<SettingPolicyEditor> settingPolicyEditors)
+            @Nonnull final List<SettingPolicyEditor> settingPolicyEditors,
+            @Nonnull final GroupResolver groupResolver,
+            @Nonnull final Map<Long, ResolvedGroup> resolvedGroupMap)
         throws PipelineStageException {
         final long planOid = context.getTopologyInfo().getTopologyContextId();
         if (!isApplicable(context, planScope)) {
@@ -317,6 +324,10 @@ public class CloudMigrationPlanHelper {
                 .map(ScenarioChange::getTopologyMigration)
                 .findFirst()
                 .orElseThrow(() -> new PipelineStageException("Missing cloud migration change"));
+
+        // Resolve Dynamic Groups, that could be not possible after preparing the entities
+        // for migration, since some on-prem commodities will be deleted
+        resolveDynamicGroups(inputGraph, groupResolver, resolvedGroupMap);
 
         // Set the migration destination.
         boolean isDestinationAws = isDestinationAws(destinationEntities, inputGraph);
@@ -1828,6 +1839,37 @@ public class CloudMigrationPlanHelper {
                 .map(entity -> entity.getEntityState() == EntityState.POWERED_ON)
                 .orElse(false))
             .collect(Collectors.toSet());
+    }
+
+    /**
+     * Get the Dynamic Groups in the scope and resolve their members.
+     * These are added to the resolved groups map.
+     *
+     * @param graph input topology.
+     * @param groupResolver class to get the members of dynamic groups.
+     * @param resolvedGroupMap resolved group to group oid map.
+     */
+    @VisibleForTesting
+    void resolveDynamicGroups(@Nonnull final TopologyGraph<TopologyEntity> graph,
+            @Nonnull final GroupResolver groupResolver,
+            @Nonnull final Map<Long, ResolvedGroup> resolvedGroupMap) {
+        groupServiceBlockingStub.getGroups(GetGroupsRequest.newBuilder()
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                .setStaticOrDynamic(StaticOrDynamicFilter.DYNAMIC)
+                                .build())
+                        .build())
+                .forEachRemaining(group -> {
+                    if (group.hasId()) {
+                        try {
+                            resolvedGroupMap.put(group.getId(), groupResolver.resolve(group, graph));
+                        } catch (GroupResolutionException e) {
+                            // Continue trying to resolve other groups.
+                            logger.error("Failed to resolve dynamic group " + group.getId(), e);
+                        }
+                    } else {
+                        logger.warn("Dynamic Group has no id. Skipping. {}", group);
+                    }
+                });
     }
 
     /**

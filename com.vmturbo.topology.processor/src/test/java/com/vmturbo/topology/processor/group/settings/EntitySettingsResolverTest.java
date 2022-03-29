@@ -391,7 +391,8 @@ public class EntitySettingsResolverTest {
             .thenReturn(Collections.singletonList(group));
 
         GraphWithSettings entitiesSettings = entitySettingsResolver.resolveSettings(groupResolver,
-                topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+                topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager,
+                null, null);
 
         verify(groupResolver).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -421,7 +422,7 @@ public class EntitySettingsResolverTest {
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(
                 groupResolver, topologyGraph, settingOverrides, rtTopologyInfo,
-                consistentScalingManager, null);
+                consistentScalingManager, null, null);
 
         verify(groupResolver, never()).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -448,7 +449,8 @@ public class EntitySettingsResolverTest {
 
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+                settingOverrides, rtTopologyInfo, consistentScalingManager,
+                    null, null);
 
         verify(groupResolver).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -476,7 +478,8 @@ public class EntitySettingsResolverTest {
 
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+                settingOverrides, rtTopologyInfo, consistentScalingManager,
+                    null, null);
 
         // settingPolicy2 doesn't have groups or ids. So it should't be in the final result
         assertTrue(entitiesSettings.getEntitySettings().stream()
@@ -499,7 +502,8 @@ public class EntitySettingsResolverTest {
 
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+                settingOverrides, rtTopologyInfo, consistentScalingManager,
+                    null, null);
 
         assertThat(entitiesSettings.getEntitySettings().size(), is(1));
         List<EntitySettings> settings = new ArrayList<>(entitiesSettings.getEntitySettings());
@@ -712,7 +716,8 @@ public class EntitySettingsResolverTest {
 
         final GraphWithSettings entitiesSettings =
                 entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                        settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+                        settingOverrides, rtTopologyInfo, consistentScalingManager,
+                        null, null);
 
         verify(groupResolver).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -757,7 +762,8 @@ public class EntitySettingsResolverTest {
 
         final GraphWithSettings entitiesSettings =
                 entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                        settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+                        settingOverrides, rtTopologyInfo, consistentScalingManager,
+                        null, null);
 
         verify(groupResolver).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -806,7 +812,8 @@ public class EntitySettingsResolverTest {
 
         final GraphWithSettings entitiesSettings =
                 entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                        settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+                        settingOverrides, rtTopologyInfo, consistentScalingManager,
+                        null, null);
 
         verify(groupResolver).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -856,7 +863,8 @@ public class EntitySettingsResolverTest {
 
         final GraphWithSettings entitiesSettings =
                 entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                        settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+                        settingOverrides, rtTopologyInfo, consistentScalingManager,
+                        null, null);
 
         verify(groupResolver).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -1722,7 +1730,8 @@ public class EntitySettingsResolverTest {
 
         final GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+                settingOverrides, rtTopologyInfo, consistentScalingManager,
+                    null, null);
 
         verify(groupResolver).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -1763,7 +1772,8 @@ public class EntitySettingsResolverTest {
 
         final GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+                settingOverrides, rtTopologyInfo, consistentScalingManager,
+                    null, null);
 
         verify(groupResolver).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -2015,7 +2025,7 @@ public class EntitySettingsResolverTest {
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(
                 groupResolver, topologyGraph, settingOverrides, rtTopologyInfo,
-                consistentScalingManager, Arrays.asList(editor1, editor2));
+                consistentScalingManager, Arrays.asList(editor1, editor2), null);
 
         // Proves the editors were invoked
         assertNotNull(editor1.incomingList);
@@ -2083,7 +2093,8 @@ public class EntitySettingsResolverTest {
         final SettingPolicy sp2 = addSchedule(settingPolicyDelete, ACTIVE);
         scheduleSetup(ImmutableList.of(sp1, sp2));
         GraphWithSettings entitiesSettings = entitySettingsResolver.resolveSettings(groupResolver,
-                topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+                topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager,
+                null, null);
         scheduleVerify(ImmutableList.of(), ImmutableList.of());
     }
 
@@ -2098,7 +2109,8 @@ public class EntitySettingsResolverTest {
         final SettingPolicy sp2 = addSchedule(settingPolicyDelete, EXPIRED_DELETE);
         scheduleSetup(ImmutableList.of(sp1, sp2));
         GraphWithSettings entitiesSettings = entitySettingsResolver.resolveSettings(groupResolver,
-                topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+                topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager,
+                null, null);
         scheduleVerify(ImmutableList.of(SPD_ID), ImmutableList.of(EXPIRED_DELETE_SCHEDULE_ID));
     }
 
@@ -2116,8 +2128,38 @@ public class EntitySettingsResolverTest {
         final SettingPolicy sp2 = addSchedule(settingPolicyDelete, EXPIRED_DELETE);
         scheduleSetup(ImmutableList.of(sp1, sp2));
         GraphWithSettings entitiesSettings = entitySettingsResolver.resolveSettings(groupResolver,
-                topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+                topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager,
+                null, null);
         scheduleVerify(ImmutableList.of(SPD_ID), ImmutableList.of());
+    }
+
+    /**
+     * Verify that we use first the already resolved groups if they are available.
+     */
+    @Test
+    public void testApplyUserSettingsWithResolvedGroups() {
+        ResolvedGroup resolvedGroup = resolvedGroup(group, entities);
+        // returns only entities 1 and 2 even though group contains 3 entities
+        when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
+        when(testSettingPolicyService.listSettingPolicies(any()))
+                .thenReturn(Arrays.asList(settingPolicy1, settingPolicy2));
+        when(testGroupService.getGroups(any()))
+                .thenReturn(Collections.singletonList(group));
+
+        Map<Long, ResolvedGroup> resolvedGroups = ImmutableMap.of(group.getId(), resolvedGroup);
+
+        GraphWithSettings entitiesSettings = entitySettingsResolver.resolveSettings(groupResolver,
+                topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager,
+                null, resolvedGroups);
+
+        verify(settingOverrides, times(2)).overrideSettings(any(), any());
+        assertEquals(entitiesSettings.getEntitySettings().size(), 2);
+        // Both entities expected to resolve to policy1 for both settings
+        verifyEntitySettingIsSame(entitiesSettings.getEntitySettings(),
+                createEntitySettings(entityOid1, Arrays.asList(setting2, setting1),
+                        Collections.singletonList(SP1_ID), Collections.singletonList(SP1_ID)),
+                createEntitySettings(entityOid2, Arrays.asList(setting2, setting1),
+                        Collections.singletonList(SP1_ID), Collections.singletonList(SP1_ID)));
     }
 
     private void scheduleSetup(List<SettingPolicy> settingPolicies) throws GroupResolutionException {

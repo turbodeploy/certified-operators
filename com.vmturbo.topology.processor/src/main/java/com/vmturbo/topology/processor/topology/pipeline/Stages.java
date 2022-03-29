@@ -97,6 +97,7 @@ import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.GroupResolverSearchFilterResolver;
+import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
@@ -1246,6 +1247,8 @@ public class Stages {
         private final ConsistentScalingConfig consistentScalingConfig;
         private FromContext<List<SettingPolicyEditor>> settingPolicyEditors =
             requiresFromContext(TopologyPipelineContextMembers.SETTING_POLICY_EDITORS);
+        private FromContext<Map<Long, ResolvedGroup>> resolvedGroups =
+                requiresFromContext(TopologyPipelineContextMembers.RESOLVED_GROUPS);
 
         private SettingsResolutionStage(@Nonnull final EntitySettingsResolver entitySettingsResolver,
                                         @Nonnull final List<ScenarioChange> scenarioChanges,
@@ -1275,7 +1278,7 @@ public class Stages {
             final GraphWithSettings graphWithSettings = entitySettingsResolver.resolveSettings(
                 groupResolver.get(), topologyGraph, settingOverrides, getContext().getTopologyInfo(),
                 new ConsistentScalingManager(consistentScalingConfig),
-                settingPolicyEditors.get());
+                settingPolicyEditors.get(), resolvedGroups.get());
             return StageResult.withResult(graphWithSettings)
                 // TODO (roman, Oct 23 2018): Provide some information about number of
                 // setting policies applied.
@@ -2016,6 +2019,10 @@ public class Stages {
             requiresFromContext(TopologyPipelineContextMembers.SETTING_POLICY_EDITORS);
         private FromContext<Set<String>> postStitchingOperationsToSkip =
             requiresFromContext(TopologyPipelineContextMembers.POST_STITCHING_OPERATIONS_TO_SKIP);
+        private FromContext<GroupResolver> groupResolverContext =
+                requiresFromContext(TopologyPipelineContextMembers.GROUP_RESOLVER);
+        private FromContext<Map<Long, ResolvedGroup>> resolvedGroups =
+                requiresFromContext(TopologyPipelineContextMembers.RESOLVED_GROUPS);
 
         /**
          * Creates new stage.
@@ -2048,7 +2055,7 @@ public class Stages {
             final TopologyGraph<TopologyEntity> outputGraph = cloudMigrationPlanHelper.executeStage(
                     getContext(), inputGraph, planScope, changes,
                 sourceEntities.get(), destinationEntities.get(), policyGroups.get(),
-                settingPolicyEditors.get());
+                settingPolicyEditors.get(), groupResolverContext.get(), resolvedGroups.get());
 
             if (cloudMigrationPlanHelper.isApplicable(getContext(), planScope)) {
                 // Skip the set movable to false operation when running cloud migration plans.

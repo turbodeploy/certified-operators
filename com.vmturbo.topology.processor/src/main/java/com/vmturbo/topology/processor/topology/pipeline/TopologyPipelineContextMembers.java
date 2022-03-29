@@ -1,8 +1,10 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import com.google.common.reflect.TypeToken;
@@ -11,6 +13,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.components.common.pipeline.PipelineContext.PipelineContextMemberDefinition;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.settings.SettingPolicyEditor;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
 
@@ -100,4 +103,16 @@ public class TopologyPipelineContextMembers {
             () -> "policyGroups",
             HashSet::new,
             set -> "size=" + set.size());
+
+    /**
+     * This context is storing Groups with their members, this is useful in case of Dynamic Group
+     * that use some criteria not available in later stages.
+     */
+    @SuppressWarnings("unchecked")
+    public static final PipelineContextMemberDefinition<Map<Long, ResolvedGroup>> RESOLVED_GROUPS =
+            PipelineContextMemberDefinition.memberWithDefault(
+                    (Class<Map<Long, ResolvedGroup>>)(new TypeToken<Map<Long, ResolvedGroup>>(){ }).getRawType(),
+                    () -> "resolvedGroups",
+                    HashMap::new,
+                    map -> "size=" + map.size());
 }
