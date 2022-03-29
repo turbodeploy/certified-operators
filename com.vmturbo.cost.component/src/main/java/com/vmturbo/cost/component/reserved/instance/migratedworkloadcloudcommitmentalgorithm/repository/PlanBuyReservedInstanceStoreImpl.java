@@ -3,21 +3,19 @@ package com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommit
 import static com.vmturbo.cost.component.db.Tables.BUY_RESERVED_INSTANCE;
 
 import org.jooq.DSLContext;
-import org.springframework.stereotype.Repository;
 
 import com.vmturbo.cost.component.db.tables.pojos.BuyReservedInstance;
 import com.vmturbo.cost.component.db.tables.records.BuyReservedInstanceRecord;
 
 /**
- * Spring Repository implementation used to interact with the buy_reserved_instance cost database table.
+ * PlanBuyReservedInstanceStoreImpl.
  */
-@Repository
 public class PlanBuyReservedInstanceStoreImpl implements PlanBuyReservedInstanceStore {
 
     /**
      * JOOQ DSL Context.
      */
-    private DSLContext context;
+    private final DSLContext context;
 
     /**
      * Creates a new PlanBuyReservedInstanceStoreImpl, passing it the Jooq DSLContext to use for its database queries.

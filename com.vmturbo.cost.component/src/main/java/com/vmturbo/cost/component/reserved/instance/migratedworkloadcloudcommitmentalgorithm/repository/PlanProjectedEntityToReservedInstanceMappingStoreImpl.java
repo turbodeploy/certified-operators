@@ -3,21 +3,19 @@ package com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommit
 import static com.vmturbo.cost.component.db.Tables.PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING;
 
 import org.jooq.DSLContext;
-import org.springframework.stereotype.Repository;
 
 import com.vmturbo.cost.component.db.tables.pojos.PlanProjectedEntityToReservedInstanceMapping;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
 
 /**
- * Repository implementation for interacting with the plan_projected_entity_to_reserved_instance_mapping cost database table.
+ * PlanProjectedEntityToReservedInstanceMappingStoreImpl.
  */
-@Repository
 public class PlanProjectedEntityToReservedInstanceMappingStoreImpl implements PlanProjectedEntityToReservedInstanceMappingStore {
 
     /**
      * JOOQ DSL Context.
      */
-    private DSLContext context;
+    private final DSLContext context;
 
     /**
      * Creates a new PlanProjectedEntityToReservedInstanceMappingStoreImpl, passing it the Jooq DSLContext to use for its database queries.

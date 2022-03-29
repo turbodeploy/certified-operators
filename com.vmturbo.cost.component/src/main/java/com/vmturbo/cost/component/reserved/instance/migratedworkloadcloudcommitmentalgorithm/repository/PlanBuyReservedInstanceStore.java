@@ -4,7 +4,7 @@ import com.vmturbo.cost.component.db.tables.pojos.BuyReservedInstance;
 import com.vmturbo.cost.component.db.tables.records.BuyReservedInstanceRecord;
 
 /**
- * Repository interface for interacting with the buy_reserved_instance cost database table.
+ * interface for interacting with the buy_reserved_instance cost database table.
  */
 public interface PlanBuyReservedInstanceStore {
 

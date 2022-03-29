@@ -121,12 +121,12 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
      * @param planReservedInstanceBoughtStore                   Used to add a record to the plan_reserved_instance_bought table
      */
     public ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy(PriceTableStore priceTableStore,
-                                                                   BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore,
-                                                                   PlanBuyReservedInstanceStore planBuyReservedInstanceStore,
-                                                                   PlanReservedInstanceSpecStore planReservedInstanceSpecStore,
-                                                                   PlanActionContextRiBuyStore planActionContextRiBuyStore,
-                                                                   PlanProjectedEntityToReservedInstanceMappingStore planProjectedEntityToReservedInstanceMappingStore,
-                                                                   PlanReservedInstanceBoughtStore planReservedInstanceBoughtStore) {
+            BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore,
+            PlanBuyReservedInstanceStore planBuyReservedInstanceStore,
+            PlanReservedInstanceSpecStore planReservedInstanceSpecStore,
+            PlanActionContextRiBuyStore planActionContextRiBuyStore,
+            PlanProjectedEntityToReservedInstanceMappingStore planProjectedEntityToReservedInstanceMappingStore,
+            PlanReservedInstanceBoughtStore planReservedInstanceBoughtStore) {
         this.priceTableStore = priceTableStore;
         this.planBuyReservedInstanceStore = planBuyReservedInstanceStore;
         this.businessAccountPriceTableKeyStore = businessAccountPriceTableKeyStore;

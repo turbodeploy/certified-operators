@@ -1,17 +1,20 @@
 package com.vmturbo.cost.component.cloud.commitment;
 
+import java.sql.SQLException;
+
 import javax.annotation.Nonnull;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.protobuf.AbstractMessage;
 
-import org.jooq.DSLContext;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Scope;
 
 import com.vmturbo.cloud.common.stat.CloudGranularityCalculator;
@@ -37,23 +40,26 @@ import com.vmturbo.cost.component.cloud.commitment.utilization.SQLCloudCommitmen
 import com.vmturbo.cost.component.cloud.commitment.utilization.TopologyCommitmentUtilizationFilter;
 import com.vmturbo.cost.component.cloud.commitment.utilization.TopologyUtilizationFilterApplicator;
 import com.vmturbo.cost.component.cloud.commitment.utilization.UtilizationInfo;
+import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.stores.DiagnosableDataStoreCollector;
 import com.vmturbo.cost.component.stores.InMemorySingleFieldDataStore;
 import com.vmturbo.cost.component.stores.InMemorySourceProjectedFieldsDataStore;
 import com.vmturbo.cost.component.stores.JsonDiagnosableDataStoreCollector;
 import com.vmturbo.cost.component.stores.SingleFieldDataStore;
 import com.vmturbo.cost.component.stores.SourceProjectedFieldsDataStore;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * A configuration file for cloud commitment statistics stores (coverage & utilization),
  * as well as the associated RPC classes.
  */
+@Import(DbAccessConfig.class)
 @Configuration
 public class CloudCommitmentStatsConfig {
 
     // Should be defined in CostDBConfig
     @Autowired
-    private DSLContext dslContext;
+    private DbAccessConfig dbAccessConfig;
 
     // Should be auto-wired from ReservedInstanceConfig
     @Autowired
@@ -69,7 +75,14 @@ public class CloudCommitmentStatsConfig {
     @Nonnull
     @Bean
     public CloudCommitmentUtilizationStore cloudCommitmentUtilizationStore() {
-        return new SQLCloudCommitmentUtilizationStore(dslContext, cloudGranularityCalculator());
+        try {
+            return new SQLCloudCommitmentUtilizationStore(dbAccessConfig.dsl(), cloudGranularityCalculator());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create cloudCommitmentUtilizationStore bean", e);
+        }
     }
 
     /**
@@ -88,7 +101,14 @@ public class CloudCommitmentStatsConfig {
     @Nonnull
     @Bean
     public CloudCommitmentCoverageStore cloudCommitmentCoverageStore() {
-        return new SQLCloudCommitmentCoverageStore(dslContext, cloudGranularityCalculator());
+        try {
+            return new SQLCloudCommitmentCoverageStore(dbAccessConfig.dsl(), cloudGranularityCalculator());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create cloudCommitmentCoverageStore bean", e);
+        }
     }
 
     /**

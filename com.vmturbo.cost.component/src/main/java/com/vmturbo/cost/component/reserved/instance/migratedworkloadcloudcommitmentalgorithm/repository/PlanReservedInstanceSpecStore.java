@@ -9,7 +9,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CommonCost;
 
 /**
- * Repository interface for interacting with the reserved_instance_spec cost database table.
+ * interface for interacting with the reserved_instance_spec cost database table.
  */
 public interface PlanReservedInstanceSpecStore {
     /**

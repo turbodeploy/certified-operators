@@ -4,7 +4,7 @@ import com.vmturbo.cost.component.db.tables.pojos.ActionContextRiBuy;
 import com.vmturbo.cost.component.db.tables.records.ActionContextRiBuyRecord;
 
 /**
- * Repository interface for interacting with the action_context_ri_buy cost database table.
+ * interface for interacting with the action_context_ri_buy cost database table.
  */
 public interface PlanActionContextRiBuyStore {
     /**
