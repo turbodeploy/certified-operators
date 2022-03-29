@@ -115,12 +115,6 @@ public class DbEndpointCompatConfig {
     @Value("${dbRootPassword:#{null}}")
     protected String dbRootPassword;
 
-    /**
-     * DB default root database.
-     */
-    @Value("${dbRootDatabaseName:#{null}}")
-    protected String dbRootDatabaseName;
-
     protected DbEndpointBuilder fixEndpointForMultiDb(DbEndpointBuilder builder) {
         if (dbSchemaName != null) {
             builder = builder.withSchemaName(dbSchemaName)
@@ -140,7 +134,6 @@ public class DbEndpointCompatConfig {
         builder = builder.withMinPoolSize(dbMinPoolSize);
         builder = builder.withMaxPoolSize(dbMaxPoolSize);
         builder = builder.withPoolMonitorIntervalSec(poolMonitorIntervalSec);
-        builder = builder.withRootDatabaseName(dbRootDatabaseName);
         if (dbHost != null) {
             builder = builder.withHost(dbHost);
         }

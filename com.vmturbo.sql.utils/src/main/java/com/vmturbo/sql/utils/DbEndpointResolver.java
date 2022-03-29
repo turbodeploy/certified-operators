@@ -121,10 +121,12 @@ public class DbEndpointResolver {
     public static final int DEFAULT_MIN_POOL_SIZE = 1;
     /** default value for connection pool maximum size. */
     public static final int DEFAULT_MAX_POOL_SIZE = 10;
-    /** default value for connection pool keep alive interval (in minutes).
+    /**
+     * default value for connection pool keep alive interval (in minutes).
      *
-     *  <p>This definition is redundant, but included for consistency with other settings in this
-     *  class and so that it is easy to find. </p>*/
+     * <p>This definition is redundant, but included for consistency with other settings in this
+     * class and so that it is easy to find. </p>
+     */
     public static final int DEFAULT_POOL_KEEP_ALIVE_INTERVAL_MINUTES =
             DbConnectionPoolConfig.DEFAULT_KEEPALIVE_TIME_MINUTES;
 
@@ -152,7 +154,8 @@ public class DbEndpointResolver {
      * @param dbPasswordUtil a {@link DBPasswordUtil} instance to obtain credential defaults
      */
     public DbEndpointResolver(
-            DbEndpointConfig config, UnaryOperator<String> resolver, DBPasswordUtil dbPasswordUtil) {
+            DbEndpointConfig config, UnaryOperator<String> resolver,
+            DBPasswordUtil dbPasswordUtil) {
         this.config = config;
         this.resolver = resolver;
         this.dbPasswordUtil = dbPasswordUtil;
@@ -165,13 +168,14 @@ public class DbEndpointResolver {
         resolveHost();
         resolvePort();
         resolveDatabaseName();
-        resolveRootDatabaseName();
         resolveSchemaName();
         resolveUserName();
         resolvePassword();
         resolveAccess();
         resolveRootUserName();
         resolveRootPassword();
+        // N.B. rootDatabaseName must resolve after rootUserName
+        resolveRootDatabaseName();
         resolveRootAccessEnabled();
         resolveDriverProperties();
         resolveUseConnectionPool();
@@ -229,12 +233,15 @@ public class DbEndpointResolver {
     /**
      * Resolve the dbRootDatabaseName property for this endpoint.
      *
+     * <p>Built-in default is the resolved `rootUserName` property, so that must be resolved
+     * first.</p>
+     *
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
     public void resolveRootDatabaseName() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getRootDatabaseName);
-        config.setRootDatabaseName(firstNonEmpty(configuredPropValue(ROOT_DATABASE_NAME_PROPERTY),
-                config.getRootDatabaseName(), fromTemplate));
+        config.setRootDatabaseName(firstNonNull(configuredPropValue(ROOT_DATABASE_NAME_PROPERTY),
+                config.getRootDatabaseName(), fromTemplate, getDefaultRootDatabaseName()));
     }
 
     /**
@@ -267,7 +274,8 @@ public class DbEndpointResolver {
     public void resolvePassword() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getPassword);
         config.setPassword(Optional.ofNullable(firstNonEmpty(configuredPropValue(PASSWORD_PROPERTY),
-                config.getPassword(), fromTemplate)).orElseGet(dbPasswordUtil::getSqlDbRootPassword));
+                        config.getPassword(), fromTemplate))
+                .orElseGet(dbPasswordUtil::getSqlDbRootPassword));
     }
 
     /**
@@ -290,8 +298,10 @@ public class DbEndpointResolver {
      */
     public void resolveRootUserName() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getRootUserName);
-        config.setRootUserName(Optional.ofNullable(firstNonEmpty(configuredPropValue(ROOT_USER_NAME_PROPERTY),
-                config.getRootUserName(), fromTemplate)).orElseGet(() -> dbPasswordUtil.getSqlDbRootUsername(dialect.toString())));
+        config.setRootUserName(
+                Optional.ofNullable(firstNonEmpty(configuredPropValue(ROOT_USER_NAME_PROPERTY),
+                                config.getRootUserName(), fromTemplate))
+                        .orElseGet(() -> dbPasswordUtil.getSqlDbRootUsername(dialect.toString())));
     }
 
     /**
@@ -301,7 +311,7 @@ public class DbEndpointResolver {
      */
     public void resolveRootAccessEnabled() throws UnsupportedDialectException {
         final String configuredValue = config.isRootAccessEnabled() != null
-                ? Boolean.toString(config.isRootAccessEnabled()) : null;
+                                       ? Boolean.toString(config.isRootAccessEnabled()) : null;
         final String fromTemplate = getFromTemplate(DbEndpointConfig::isRootAccessEnabled);
         config.setRootAccessEnabled(Boolean.parseBoolean(
                 firstNonEmpty(configuredPropValue(ROOT_ACCESS_ENABLED_PROPERTY),
@@ -315,9 +325,10 @@ public class DbEndpointResolver {
      */
     public void resolveRootPassword() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getRootPassword);
-        config.setRootPassword(Optional.ofNullable(firstNonEmpty(configuredPropValue(ROOT_PASSWORD_PROPERTY),
-                config.getRootPassword(), fromTemplate)).orElseGet(
-                dbPasswordUtil::getSqlDbRootPassword));
+        config.setRootPassword(
+                Optional.ofNullable(firstNonEmpty(configuredPropValue(ROOT_PASSWORD_PROPERTY),
+                        config.getRootPassword(), fromTemplate)).orElseGet(
+                        dbPasswordUtil::getSqlDbRootPassword));
     }
 
     /**
@@ -341,8 +352,8 @@ public class DbEndpointResolver {
         }
         final String injectedProperties = configuredPropValue(DRIVER_PROPERTIES_PROPERTY);
         if (injectedProperties != null) {
-            @SuppressWarnings("unchecked")
-            final Map<? extends String, ? extends String> injectedMap =
+            @SuppressWarnings("unchecked") final Map<? extends String, ? extends String>
+                    injectedMap =
                     (Map<? extends String, ? extends String>)spel.parseRaw(injectedProperties)
                             .getValue();
             base.putAll(injectedMap != null ? injectedMap : Collections.emptyMap());
@@ -357,7 +368,7 @@ public class DbEndpointResolver {
      */
     private void resolveUseConnectionPool() throws UnsupportedDialectException {
         final String currentValue = config.getUseConnectionPool() != null
-                ? config.getUseConnectionPool().toString() : null;
+                                    ? config.getUseConnectionPool().toString() : null;
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getUseConnectionPool);
         config.setUseConnectionPool(Boolean.parseBoolean(firstNonEmpty(
                 configuredPropValue(USE_CONNECTION_POOL),
@@ -372,7 +383,8 @@ public class DbEndpointResolver {
     private void resolveMinPoolSize() throws UnsupportedDialectException {
         String fromTemplate = getFromTemplate(DbEndpointConfig::getMinPoolSize);
         String fromDefault = Integer.toString(DEFAULT_MIN_POOL_SIZE);
-        String currentValue = config.getMinPoolSize() != null ? config.getMinPoolSize().toString() : null;
+        String currentValue =
+                config.getMinPoolSize() != null ? config.getMinPoolSize().toString() : null;
         String propValue = firstNonEmpty(configuredPropValue(MIN_POOL_SIZE_PROPERTY),
                 currentValue, fromTemplate, fromDefault);
         int minPoolSize = Integer.parseInt(propValue);
@@ -390,8 +402,8 @@ public class DbEndpointResolver {
         String fromTemplate = getFromTemplate(DbEndpointConfig::getMaxPoolSize);
         String fromDefault = Integer.toString(DEFAULT_MAX_POOL_SIZE);
         String currentValue = config.getMaxPoolSize() != null
-                ? config.getMaxPoolSize().toString()
-                : null;
+                              ? config.getMaxPoolSize().toString()
+                              : null;
         String propValue = firstNonEmpty(configuredPropValue(MAX_POOL_SIZE_PROPERTY),
                 currentValue, fromTemplate, fromDefault);
         int maxPoolSize = Integer.parseInt(propValue);
@@ -410,8 +422,8 @@ public class DbEndpointResolver {
         String fromTemplate = getFromTemplate(DbEndpointConfig::getKeepAliveIntervalMinutes);
         String fromDefault = Integer.toString(DEFAULT_POOL_KEEP_ALIVE_INTERVAL_MINUTES);
         String currentValue = config.getKeepAliveIntervalMinutes() != null
-                ? config.getKeepAliveIntervalMinutes().toString()
-                : null;
+                              ? config.getKeepAliveIntervalMinutes().toString()
+                              : null;
         String propValue = firstNonEmpty(configuredPropValue(POOL_KEEP_ALIVE_INTERVAL_MINUTES),
                 currentValue, fromTemplate, fromDefault);
         int keepAliveIntervalMinutes = Integer.parseInt(propValue);
@@ -424,10 +436,12 @@ public class DbEndpointResolver {
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
     public void resolveSecure() throws UnsupportedDialectException {
-        final String currentValue = config.getSecure() != null ? config.getSecure().toString() : null;
+        final String currentValue =
+                config.getSecure() != null ? config.getSecure().toString() : null;
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getSecure);
-        config.setSecure(Boolean.parseBoolean(firstNonEmpty(configuredPropValue(SECURE_PROPERTY_NAME),
-                currentValue, fromTemplate, DEFAULT_SECURE_VALUE.toString())));
+        config.setSecure(
+                Boolean.parseBoolean(firstNonEmpty(configuredPropValue(SECURE_PROPERTY_NAME),
+                        currentValue, fromTemplate, DEFAULT_SECURE_VALUE.toString())));
     }
 
     /**
@@ -464,13 +478,13 @@ public class DbEndpointResolver {
         // enablement is always set with a function, even when a boolean value is provided,
         // to make things less complicated here
         final String currentValue = config.getEndpointEnabledFn() != null
-                ? config.getEndpointEnabledFn().apply(resolver).toString() : null;
+                                    ? config.getEndpointEnabledFn().apply(resolver).toString()
+                                    : null;
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getEndpointEnabled);
         config.setEndpointEnabled(Boolean.parseBoolean(firstNonEmpty(
                 configuredPropValue(ENDPOINT_ENABLED_PROPERTY),
                 currentValue, fromTemplate, Boolean.TRUE.toString())));
     }
-
 
     /**
      * Resolve the dbShouldProvisionDatabase property.
@@ -479,7 +493,7 @@ public class DbEndpointResolver {
      */
     public void resolveShouldProvisionDatabase() throws UnsupportedDialectException {
         final String currentValue = config.getShouldProvisionDatabase() != null
-                ? config.getShouldProvisionDatabase().toString() : null;
+                                    ? config.getShouldProvisionDatabase().toString() : null;
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getShouldProvisionDatabase);
         config.setShouldProvisionDatabase(Boolean.parseBoolean(firstNonEmpty(
                 configuredPropValue(SHOULD_PROVISION_DATABASE_PROPERTY),
@@ -541,7 +555,8 @@ public class DbEndpointResolver {
     }
 
     @VisibleForTesting
-    static List<String> dialectPropertyPrefixes(SQLDialect dialect) throws UnsupportedDialectException {
+    static List<String> dialectPropertyPrefixes(SQLDialect dialect)
+            throws UnsupportedDialectException {
         switch (dialect) {
             case MYSQL:
                 return Arrays.asList("dbs.mysqlDefault", "dbs.mariadbDefault");
@@ -566,7 +581,8 @@ public class DbEndpointResolver {
         return getFromTemplate(getter, Object::toString);
     }
 
-    private <T> String getFromTemplate(Function<DbEndpointConfig, T> getter, Function<T, String> toString) {
+    private <T> String getFromTemplate(Function<DbEndpointConfig, T> getter,
+            Function<T, String> toString) {
         final T value = getFromTemplate(template, getter);
         return value != null ? toString.apply(value) : null;
     }
@@ -581,7 +597,6 @@ public class DbEndpointResolver {
         }
         return null;
     }
-
 
     /**
      * Get the name of this component from configuration.
@@ -614,13 +629,36 @@ public class DbEndpointResolver {
     }
 
     /**
+     * Get the default root database name, for admin connections used during provisioning.
+     *
+     * <p>For MARIADB dialect there is only one "database" in the sense used in SQL standard
+     * (and in Postgres), so the correct value is always empty string. For Postgres, the default
+     * should be identical to the resolved rootUserName value.</p>
+     *
+     * @return default value for rootDatabaseName property
+     * @throws UnsupportedDialectException if the configured dialect is bogus
+     */
+    public String getDefaultRootDatabaseName() throws UnsupportedDialectException {
+        switch (dialect) {
+            case MYSQL:
+            case MARIADB:
+                return "";
+            case POSTGRES:
+                return config.getRootUserName();
+            default:
+                throw new UnsupportedDialectException(dialect);
+        }
+    }
+
+    /**
      * Get the default driver properties for this endpoint, based on the database type.
      *
      * @param dialect database server type
      * @return default driver properties
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      */
-    public static Map<String, String> getDefaultDriverProperties(SQLDialect dialect) throws UnsupportedDialectException {
+    public static Map<String, String> getDefaultDriverProperties(SQLDialect dialect)
+            throws UnsupportedDialectException {
         switch (dialect) {
             case MYSQL:
                 return Collections.emptyMap();
