@@ -1129,7 +1129,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
                  // if shopping list is movable
                 .map(entry -> entry.getKey().isMovable()
                     // use the cliques of the market
-                    ? getActiveCliques(entry.getValue(), entry.getKey())
+                    ? getActiveCliquesForUnplacedShoppingList(entry.getValue(), entry.getKey())
                      // else if shopping list is placed
                     : (entry.getKey().getSupplier() != null
                              // use clique that contain supplier
@@ -1151,22 +1151,17 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * @param market the market of interest.
      * @return all cliques connected to active sellers available for placement.
      */
-    private Set<Long> getActiveCliques(Market market, ShoppingList shoppingList) {
-        Set<Long> activeCliques = new HashSet<>();
-        market.getActiveSellers().stream().filter(seller -> seller.getSettings().canAcceptNewCustomers())
-                .forEach(availableSeller -> activeCliques.addAll(availableSeller.getCliques()));
-        market.getInactiveSellers().stream().filter(seller -> seller.getSettings().canAcceptNewCustomers())
-                .forEach(availableSeller -> activeCliques.addAll(availableSeller.getCliques()));
-        // we look at all the sellers from the ActiveSellersAvailableForPlacement.
-        // we then grab all the cliques of each seller. But if current supplier is not part of
-        // ActiveSellersAvailableForPlacement then we will not add the current clique as part of
-        // the common clique.. We will then not get a quote from the current clique forcing
-        // all the current buyers out of that seller.
+    private Set<Long> getActiveCliquesForUnplacedShoppingList(Market market, ShoppingList shoppingList) {
         if (shoppingList.getSupplier() != null) {
-            activeCliques.addAll(shoppingList.getSupplier().getCliques());
+            return market.getCliques().keySet();
+        } else {
+            Set<Long> activeCliques = new HashSet<>();
+            market.getActiveSellers().stream().filter(seller -> seller.getSettings().canAcceptNewCustomers()).forEach(
+                    availableSeller -> activeCliques.addAll(availableSeller.getCliques()));
+            market.getInactiveSellers().stream().filter(seller -> seller.getSettings().canAcceptNewCustomers()).forEach(
+                    availableSeller -> activeCliques.addAll(availableSeller.getCliques()));
+            return activeCliques;
         }
-        activeCliques.retainAll(market.getCliques().keySet());
-        return activeCliques;
     }
 
     /**
