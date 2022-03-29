@@ -641,7 +641,7 @@ public class PlanProjectedRICoverageAndUtilStore implements MultiStoreDiagnosabl
      * Helper class for dumping Plan Projected Reserved Instance Utilization db records.
      */
     private static final class PlanProjectedReservedInstanceUtilizationDiagsHelper implements
-            TableDiagsRestorable<Void, PlanProjectedReservedInstanceUtilizationRecord> {
+            TableDiagsRestorable<Object, PlanProjectedReservedInstanceUtilizationRecord> {
         private static final String planProjectedReservedInstanceUtilizationDumpFile = "planProjectedReservedInstanceUtilization_dump";
 
         private final DSLContext dsl;
@@ -670,7 +670,7 @@ public class PlanProjectedRICoverageAndUtilStore implements MultiStoreDiagnosabl
     /**
      * Helper class for dumping Plan Projected Reserved Instance Coverage db records.
      */
-    private static final class PlanProjectedReservedInstanceCoverageDiagsHelper implements TableDiagsRestorable<Void, PlanProjectedReservedInstanceCoverageRecord> {
+    private static final class PlanProjectedReservedInstanceCoverageDiagsHelper implements TableDiagsRestorable<Object, PlanProjectedReservedInstanceCoverageRecord> {
         private static final String planProjectedReservedInstanceCoverageDumpFile = "planProjectedReservedInstanceCoverage_dump";
 
         private final DSLContext dsl;
@@ -699,7 +699,7 @@ public class PlanProjectedRICoverageAndUtilStore implements MultiStoreDiagnosabl
     /**
      * Helper class for dumping Plan Projected RI to Entity mapping db records.
      */
-    private static final class PlanProjectedRIToEntityMappingDiagsHelper implements TableDiagsRestorable<Void, PlanProjectedEntityToReservedInstanceMappingRecord> {
+    private static final class PlanProjectedRIToEntityMappingDiagsHelper implements TableDiagsRestorable<Object, PlanProjectedEntityToReservedInstanceMappingRecord> {
         private static final String planProjectedRIToEntityMappingDumpFile = "planProjectedRIToEntity_dump";
 
         private final DSLContext dsl;

@@ -23,7 +23,7 @@ import com.vmturbo.sql.utils.DbException;
  *
  */
 public interface ReservedInstanceBoughtStore extends ReservedInstanceCostStore,
-        TableDiagsRestorable<Void, ReservedInstanceBoughtRecord> {
+        TableDiagsRestorable<Object, ReservedInstanceBoughtRecord> {
 
     /**
      * Get all {@link ReservedInstanceBought} from reserved instance table.

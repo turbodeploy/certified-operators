@@ -338,7 +338,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
      * Helper class for dumping monthly RI coverage db records to exported topology.
      */
     private static final class ReservedInstancesCoverageByMonthDiagsHelper implements
-            TableDiagsRestorable<Void, ReservedInstanceCoverageByMonthRecord> {
+            TableDiagsRestorable<Object, ReservedInstanceCoverageByMonthRecord> {
         private static final String reservedInstanceCoverageByMonthDumpFile = "reservedInstanceCoverageByMonth_dump";
 
         private final DSLContext dsl;
@@ -367,7 +367,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping daily RI coverage db records to exported topology.
      */
-    private static final class ReservedInstancesCoverageByDayDiagsHelper implements TableDiagsRestorable<Void, ReservedInstanceCoverageByDayRecord> {
+    private static final class ReservedInstancesCoverageByDayDiagsHelper implements TableDiagsRestorable<Object, ReservedInstanceCoverageByDayRecord> {
         private static final String reservedInstanceCoverageByDayDumpFile = "reservedInstanceCoverageByDay_dump";
 
         private final DSLContext dsl;
@@ -396,7 +396,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping hourly RI coverage db records to exported topology.
      */
-    private static final class ReservedInstancesCoverageByHourDiagsHelper implements TableDiagsRestorable<Void, ReservedInstanceCoverageByHourRecord> {
+    private static final class ReservedInstancesCoverageByHourDiagsHelper implements TableDiagsRestorable<Object, ReservedInstanceCoverageByHourRecord> {
         private static final String reservedInstanceCoverageByHourDumpFile = "reservedInstanceCoverageByHour_dump";
 
         private final DSLContext dsl;
@@ -425,7 +425,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping latest RI coverage db records to exported topology.
      */
-    private static final class LatestReservedInstanceCoverageDiagsHelper implements TableDiagsRestorable<Void, ReservedInstanceCoverageLatestRecord> {
+    private static final class LatestReservedInstanceCoverageDiagsHelper implements TableDiagsRestorable<Object, ReservedInstanceCoverageLatestRecord> {
         private static final String latestReservedInstanceCoverageDumpFile = "latestReservedInstanceCoverage_dump";
 
         private final DSLContext dsl;

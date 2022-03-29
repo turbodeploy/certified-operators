@@ -886,7 +886,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
      * Helper class for dumping latest entity cost db records to exported topology.
      */
     private static final class LatestEntityCostsDiagsHelper implements
-            TableDiagsRestorable<Void, EntityCostRecord> {
+            TableDiagsRestorable<Object, EntityCostRecord> {
 
         private final DSLContext dsl;
 
@@ -914,7 +914,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     /**
      * Helper class for dumping daily entity cost db records to exported topology.
      */
-    private static final class EntityCostsByDayDiagsHelper implements TableDiagsRestorable<Void, EntityCostByDayRecord> {
+    private static final class EntityCostsByDayDiagsHelper implements TableDiagsRestorable<Object, EntityCostByDayRecord> {
         private static final String entityCostByDayDumpFile = "entityCostByDay_dump";
 
         private final DSLContext dsl;
@@ -943,7 +943,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     /**
      * Helper class for dumping hourly entity cost db records to exported topology.
      */
-    private static final class EntityCostsByHourDiagsHelper implements TableDiagsRestorable<Void, EntityCostByHourRecord> {
+    private static final class EntityCostsByHourDiagsHelper implements TableDiagsRestorable<Object, EntityCostByHourRecord> {
         private static final String entityCostByDayDumpFile = "entityCostByHour_dump";
 
         private final DSLContext dsl;
@@ -972,7 +972,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     /**
      * Helper class for dumping monthly entity cost db records to exported topology.
      */
-    private static final class EntityCostsByMonthDiagsHelper implements TableDiagsRestorable<Void, EntityCostByMonthRecord> {
+    private static final class EntityCostsByMonthDiagsHelper implements TableDiagsRestorable<Object, EntityCostByMonthRecord> {
         private static final String entityCostByDayDumpFile = "entityCostByMonth_dump";
 
         private final DSLContext dsl;

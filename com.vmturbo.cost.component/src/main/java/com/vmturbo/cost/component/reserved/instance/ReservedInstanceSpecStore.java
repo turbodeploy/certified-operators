@@ -36,7 +36,7 @@ import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
  * part comes from reserved instance bought, second part comes from reserved instance cost price table.
  */
 public class ReservedInstanceSpecStore implements
-        TableDiagsRestorable<Void, ReservedInstanceSpecRecord> {
+        TableDiagsRestorable<Object, ReservedInstanceSpecRecord> {
 
     private static final String reservedInstanceSpecDumpFile = "reservedInstanceSpec_dump";
 

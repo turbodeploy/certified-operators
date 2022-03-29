@@ -44,7 +44,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * An implementation of {@link CloudScopeStore}, backed by a SQL table.
  */
 public class SQLCloudScopeStore implements CloudScopeStore,
-        TableDiagsRestorable<Void, EntityCloudScopeRecord> {
+        TableDiagsRestorable<Object, EntityCloudScopeRecord> {
 
     /**
      * A summary metric collecting the total duration in cleaning up cloud scope records.

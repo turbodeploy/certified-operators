@@ -117,7 +117,7 @@ public class EmptyReservedInstanceBoughtStore implements ReservedInstanceBoughtS
     }
 
     @Override
-    public void restoreDiags(@Nonnull List<String> collectedDiags, Void context) {
+    public void restoreDiags(@Nonnull List<String> collectedDiags, Object context) {
         //do nothing
     }
 

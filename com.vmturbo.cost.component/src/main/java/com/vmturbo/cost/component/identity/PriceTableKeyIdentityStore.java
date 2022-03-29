@@ -47,7 +47,7 @@ import com.vmturbo.sql.utils.DbException;
 /**
  * Persistence for price table key oids for {@link Tables#PRICE_TABLE}.
  */
-public class PriceTableKeyIdentityStore implements DiagsRestorable<Void> {
+public class PriceTableKeyIdentityStore implements DiagsRestorable<Object> {
     private static final Logger logger = LogManager.getLogger();
     private final DSLContext dsl;
     private final IdentityProvider identityProvider;
@@ -243,7 +243,7 @@ public class PriceTableKeyIdentityStore implements DiagsRestorable<Void> {
      */
     @Override
     public void restoreDiags(@Nonnull final List<String> collectedDiags,
-                             @Nullable Void restoreContext) throws DiagnosticsException {
+                             @Nullable Object restoreContext) throws DiagnosticsException {
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         try {
             dsl.transaction(configuration -> {

@@ -55,7 +55,7 @@ import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanc
  * VM1 use RI1 10 coupons, VM1 use RI2 20 coupons, VM2 use RI3 5 coupons.
  */
 public class EntityReservedInstanceMappingStore implements
-        TableDiagsRestorable<Void, EntityToReservedInstanceMappingRecord> {
+        TableDiagsRestorable<Object, EntityToReservedInstanceMappingRecord> {
     private static final Logger logger = LogManager.getLogger();
     private static final String entityReservedInstanceMappingFile = "entityToReserved_dump";
 

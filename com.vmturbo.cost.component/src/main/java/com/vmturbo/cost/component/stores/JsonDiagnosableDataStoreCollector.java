@@ -83,7 +83,7 @@ public class JsonDiagnosableDataStoreCollector<T> implements DiagnosableDataStor
     }
 
     @Override
-    public void restoreDiags(@Nonnull final byte[] bytes, @Nullable final Void context)
+    public void restoreDiags(@Nonnull final byte[] bytes, @Nullable final Object context)
             throws DiagnosticsException {
         try (InputStream in = new ByteArrayInputStream(bytes);
              Reader reader = new InputStreamReader(in, this.charset)) {
