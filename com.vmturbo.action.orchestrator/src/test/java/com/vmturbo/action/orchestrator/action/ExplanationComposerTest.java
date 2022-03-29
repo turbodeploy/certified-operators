@@ -84,6 +84,8 @@ public class ExplanationComposerTest {
                     createReasonCommodity(CommodityDTO.CommodityType.SEGMENTATION_VALUE, "");
     private static final ReasonCommodity NETWORK =
                     createReasonCommodity(CommodityDTO.CommodityType.NETWORK_VALUE, "testNetwork1");
+    private static final ReasonCommodity LABEL =
+        createReasonCommodity(CommodityDTO.CommodityType.LABEL_VALUE, "foo=bar");
 
     // sometimes we are creating the key in a particular way: by having a prefix with the name of the
     // commodity type, a separation, and the name of the network itself
@@ -153,6 +155,40 @@ public class ExplanationComposerTest {
                 + "request for resource(s) Mem, CPU, Segmentation",
             ExplanationComposer.composeExplanation(action, Collections.emptyMap(),
                 Optional.of(graphCreator.build()), null, Collections.emptyList()));
+    }
+
+    /**
+     * Test move for compliance where the involved entities are missing the appropriate kubernetes
+     * label configured for nodeSelector.
+     */
+    @Test
+    public void testMoveComplianceReasonLabelCommodityExplanation() {
+        ActionDTO.Action action = ActionDTO.Action.newBuilder()
+            .setId(0)
+            .setInfo(ActionInfo.newBuilder()
+                .setMove(Move.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(2)
+                        .setType(EntityType.VIRTUAL_MACHINE.getNumber()))
+                    .addChanges(ChangeProvider.newBuilder()
+                        .setSource(ActionEntity.newBuilder()
+                            .setId(1)
+                            .setType(EntityType.VIRTUAL_MACHINE.getNumber())))))
+            .setDeprecatedImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setCompliance(Compliance.newBuilder()
+                            .addMissingCommodities(LABEL)))))
+            .build();
+
+        assertEquals(
+            "(^_^)~{entity:1:displayName:Virtual Machine} cannot satisfy "
+                + "nodeSelector configuration",
+            ExplanationComposer.composeExplanation(action, Collections.emptyList()));
+        assertEquals(
+            ImmutableSet.of("Kubernetes Label compliance"),
+            ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
     }
 
     /**
