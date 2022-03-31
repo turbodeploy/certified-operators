@@ -35,3 +35,6 @@ __pycache__
 *.pyc
 
 .cache
+
+# ignore flatten pom
+.flattened-pom.xml
