@@ -305,6 +305,14 @@ public class DiscoveredGroupUploader {
                             .build());
                         settings.add(setting.build());
                         break;
+                    case RESIZE_AUTOMATION_MODE:
+                        setting = Setting.newBuilder()
+                                .setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName())
+                                .setEnumSettingValue(SettingProto.EnumSettingValue.newBuilder()
+                                        .setValue(discoveredSetting.getStringSettingValueType().getValue())
+                                        .build());
+                        settings.add(setting.build());
+                        break;
                     default:
                         logger.error("The setting \"{}\" discovered from target \"{}\" is unknown.",
                                 discoveredSetting.getType(), targetName);
