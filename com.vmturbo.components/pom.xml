@@ -164,10 +164,6 @@
                                 <skip>${skipITs}</skip>
                                 <dockerHost>${fabricateDockerHost}</dockerHost>
                                 <showLogs>true</showLogs>
-     <authConfig>
-      <username>turbdev</username>
-      <password>f9b809c1-eb0c-49f1-bcb3-5263ef66f11f</password>
-    </authConfig>
                                 <images>
                                     <image>
                                         <name>${dockerRobotImage}</name>
@@ -196,6 +192,8 @@
                                                 <DOCKER_VERSION>${it.test.version}</DOCKER_VERSION>
                                                 <DBROOT>${it.db.password}</DBROOT>
                                                 <ROBOT_TAG>${it.tag}</ROBOT_TAG>
+                                                <DOCKER_USERNAME>${docker.pull.username}</DOCKER_USERNAME>
+                                                <DOCKER_PASSWORD>${docker.pull.password}</DOCKER_PASSWORD>
                                             </env>
                                             <wait>
                                                 <log>${it.suite.name}[ ]+\| PASS \|</log>
