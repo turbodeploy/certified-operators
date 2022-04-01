@@ -36,7 +36,7 @@
         <!-- Integration Test Phase properties -->
         <integration-test-phase></integration-test-phase>
         <pre-integration-test-phase></pre-integration-test-phase>
-        <dockerRobotImage>registry.turbonomic.com/turbonomic/robot-docker:1.0.6</dockerRobotImage>
+        <dockerRobotImage>registry.turbonomic.com/turbonomic/robot-docker:1.0.7</dockerRobotImage>
         <it.s6.kill.finish.maxtime>30000</it.s6.kill.finish.maxtime>
         <it.fabric8.kill>30000</it.fabric8.kill>
         <it.fabric8.wait>600000</it.fabric8.wait>
@@ -172,7 +172,7 @@
                                             pattern needs to start with "maven-" so jenkins builds
                                             will properly clean up leaked containers
                                             -->
-                                            <containerNamePattern>maven-group-%i
+                                            <containerNamePattern>maven-${project.artifactId}-%t
                                             </containerNamePattern>
                                             <volumes>
                                                 <bind>
