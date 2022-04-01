@@ -10,17 +10,17 @@ import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ServiceInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl.HotResizeInfoView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.ServiceInfoView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.WorkloadControllerInfoView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoView;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.KubernetesServiceData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
+import com.vmturbo.platform.common.dto.CommonPOJO.EntityImpl.KubernetesServiceDataView;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
@@ -33,43 +33,43 @@ import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
  */
 
 public class ThickSearchableProps implements SearchableProps {
-    protected final TopologyEntityDTOOrBuilder entityOrBldr;
+    protected final TopologyEntityView entity;
 
     private static final String UNKNOWN = "UNKNOWN";
 
-    private ThickSearchableProps(TopologyEntityDTOOrBuilder entityOrBldr) {
-        this.entityOrBldr = entityOrBldr;
+    private ThickSearchableProps(TopologyEntityView entity) {
+        this.entity = entity;
     }
 
     /**
      * Create a new instance.
      *
-     * @param entityOrBldr The {@link TopologyEntityDTOOrBuilder}.
+     * @param entity The {@link TopologyEntityView}.
      * @return The {@link SearchableProps} for the entity, backed by the entity itself.
      */
     @Nonnull
-    public static SearchableProps newProps(@Nonnull final TopologyEntityDTOOrBuilder entityOrBldr) {
-        switch (ApiEntityType.fromType(entityOrBldr.getEntityType())) {
+    public static SearchableProps newProps(@Nonnull final TopologyEntityView entity) {
+        switch (ApiEntityType.fromType(entity.getEntityType())) {
             case PHYSICAL_MACHINE:
-                return new ThickPmProps(entityOrBldr);
+                return new ThickPmProps(entity);
             case STORAGE:
-                return new ThickStorageProps(entityOrBldr);
+                return new ThickStorageProps(entity);
             case VIRTUAL_MACHINE:
-                return new ThickVmProps(entityOrBldr);
+                return new ThickVmProps(entity);
             case VIRTUAL_VOLUME:
-                return new ThickVolumeProps(entityOrBldr);
+                return new ThickVolumeProps(entity);
             case WORKLOAD_CONTROLLER:
-                return new ThickWorkloadControllerProps(entityOrBldr);
+                return new ThickWorkloadControllerProps(entity);
             case BUSINESS_ACCOUNT:
-                return new ThickBusinessAccountProps(entityOrBldr);
+                return new ThickBusinessAccountProps(entity);
             case DATABASE_SERVER:
-                return new ThickDatabaseServerProps(entityOrBldr);
+                return new ThickDatabaseServerProps(entity);
             case DATABASE:
-                return new ThickDatabaseProps(entityOrBldr);
+                return new ThickDatabaseProps(entity);
             case SERVICE:
-                return new ThickServiceProps(entityOrBldr);
+                return new ThickServiceProps(entity);
             default:
-                return new ThickSearchableProps(entityOrBldr);
+                return new ThickSearchableProps(entity);
         }
     }
 
@@ -79,13 +79,13 @@ public class ThickSearchableProps implements SearchableProps {
         // Note - this is a little bit heavyweight,
         // but we want to guard against tag changes during stitching,
         // so we return a "fresh" index every time.
-        return DefaultTagIndex.singleEntity(entityOrBldr.getOid(), entityOrBldr.getTags());
+        return DefaultTagIndex.singleEntity(entity.getOid(), entity.getTags());
     }
 
     @Override
     public boolean hasBoughtCommodity(@Nonnull CommodityType commodityType,
                     @Nullable EntityType providerType) {
-        return entityOrBldr.getCommoditiesBoughtFromProvidersOrBuilderList().stream().filter(cbfp ->
+        return entity.getCommoditiesBoughtFromProvidersList().stream().filter(cbfp ->
                                         providerType == null
                                                         || providerType.getNumber() == cbfp.getProviderEntityType())
                         .flatMap(cbfp -> cbfp.getCommodityBoughtList().stream()
@@ -96,38 +96,38 @@ public class ThickSearchableProps implements SearchableProps {
 
     @Override
     public float getCommodityCapacity(final int type) {
-        return (float)entityOrBldr.getCommoditySoldListList().stream()
+        return (float)entity.getCommoditySoldListList().stream()
             .filter(comm -> comm.getCommodityType().getType() == type)
-            .filter(CommoditySoldDTO::hasCapacity)
-            .mapToDouble(CommoditySoldDTO::getCapacity)
+            .filter(CommoditySoldView::hasCapacity)
+            .mapToDouble(CommoditySoldView::getCapacity)
             .findFirst().orElse(-1);
     }
 
     @Override
     public float getCommodityUsed(final int type) {
-        return (float)entityOrBldr.getCommoditySoldListList().stream()
+        return (float)entity.getCommoditySoldListList().stream()
             .filter(comm -> comm.getCommodityType().getType() == type)
-            .filter(CommoditySoldDTO::hasUsed)
-            .mapToDouble(CommoditySoldDTO::getUsed)
+            .filter(CommoditySoldView::hasUsed)
+            .mapToDouble(CommoditySoldView::getUsed)
             .findFirst().orElse(-1);
     }
 
     @Override
     public boolean isHotAddSupported(int commodityType) {
-        return isHotChangeSupported(commodityType, HotResizeInfo::getHotAddSupported);
+        return isHotChangeSupported(commodityType, HotResizeInfoView::getHotAddSupported);
     }
 
     @Override
     public boolean isHotRemoveSupported(int commodityType) {
-        return isHotChangeSupported(commodityType, HotResizeInfo::getHotRemoveSupported);
+        return isHotChangeSupported(commodityType, HotResizeInfoView::getHotRemoveSupported);
     }
 
-    private boolean isHotChangeSupported(int commodityType, Predicate<HotResizeInfo> predicate) {
-        return entityOrBldr.getCommoditySoldListList()
+    private boolean isHotChangeSupported(int commodityType, Predicate<HotResizeInfoView> predicate) {
+        return entity.getCommoditySoldListList()
                 .stream()
                 .filter(c -> c.getCommodityType().getType() == commodityType)
-                .filter(CommoditySoldDTO::hasHotResizeInfo)
-                .map(CommoditySoldDTO::getHotResizeInfo)
+                .filter(CommoditySoldView::hasHotResizeInfo)
+                .map(CommoditySoldView::getHotResizeInfo)
                 .anyMatch(predicate);
     }
 
@@ -135,37 +135,37 @@ public class ThickSearchableProps implements SearchableProps {
      * Physical machine properties.
      */
     public static class ThickPmProps extends ThickSearchableProps implements PmProps {
-        private ThickPmProps(TopologyEntityDTOOrBuilder entityOrBldr) {
-            super(entityOrBldr);
+        private ThickPmProps(TopologyEntityView entity) {
+            super(entity);
         }
 
         @Override
         public int getNumCpus() {
-            return entityOrBldr.getTypeSpecificInfo().getPhysicalMachine().getNumCpus();
+            return entity.getTypeSpecificInfo().getPhysicalMachine().getNumCpus();
         }
 
         @Override
         @Nonnull
         public String getVendor() {
-            return entityOrBldr.getTypeSpecificInfo().getPhysicalMachine().getVendor();
+            return entity.getTypeSpecificInfo().getPhysicalMachine().getVendor();
         }
 
         @Override
         @Nonnull
         public String getCpuModel() {
-            return entityOrBldr.getTypeSpecificInfo().getPhysicalMachine().getCpuModel();
+            return entity.getTypeSpecificInfo().getPhysicalMachine().getCpuModel();
         }
 
         @Override
         @Nonnull
         public String getModel() {
-            return entityOrBldr.getTypeSpecificInfo().getPhysicalMachine().getModel();
+            return entity.getTypeSpecificInfo().getPhysicalMachine().getModel();
         }
 
         @Override
         @Nonnull
         public String getTimezone() {
-            return entityOrBldr.getTypeSpecificInfo().getPhysicalMachine().getTimezone();
+            return entity.getTypeSpecificInfo().getPhysicalMachine().getTimezone();
         }
     }
 
@@ -173,13 +173,13 @@ public class ThickSearchableProps implements SearchableProps {
      * Storage properties.
      */
     public static class ThickStorageProps extends ThickSearchableProps implements StorageProps {
-        private ThickStorageProps(TopologyEntityDTOOrBuilder entityOrBldr) {
-            super(entityOrBldr);
+        private ThickStorageProps(TopologyEntityView entity) {
+            super(entity);
         }
 
         @Override
         public boolean isLocal() {
-            return entityOrBldr.getTypeSpecificInfo().getStorage().getIsLocal();
+            return entity.getTypeSpecificInfo().getStorage().getIsLocal();
         }
     }
 
@@ -187,35 +187,35 @@ public class ThickSearchableProps implements SearchableProps {
      * Virtual machine properties.
      */
     public static class ThickVmProps extends ThickSearchableProps implements VmProps {
-        private ThickVmProps(TopologyEntityDTOOrBuilder entityOrBldr) {
-            super(entityOrBldr);
+        private ThickVmProps(TopologyEntityView entity) {
+            super(entity);
         }
 
         @Override
         @Nonnull
         public Collection<String> getConnectedNetworkNames() {
-            return entityOrBldr.getTypeSpecificInfo().getVirtualMachine().getConnectedNetworksList();
+            return entity.getTypeSpecificInfo().getVirtualMachine().getConnectedNetworksList();
         }
 
         @Override
         @Nonnull
         public String getGuestOsName() {
-            return entityOrBldr.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsName();
+            return entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsName();
         }
 
         @Override
         public int getNumCpus() {
-            return entityOrBldr.getTypeSpecificInfo().getVirtualMachine().getNumCpus();
+            return entity.getTypeSpecificInfo().getVirtualMachine().getNumCpus();
         }
 
         @Override
         public int getCoresPerSocket() {
-            return entityOrBldr.getTypeSpecificInfo().getVirtualMachine().getCoresPerSocketRatio();
+            return entity.getTypeSpecificInfo().getVirtualMachine().getCoresPerSocketRatio();
         }
 
         @Override
         public String getVendorToolsVersion() {
-            final String vendorToolsVersion = entityOrBldr.getTypeSpecificInfo().getVirtualMachine().getVendorToolsVersion();
+            final String vendorToolsVersion = entity.getTypeSpecificInfo().getVirtualMachine().getVendorToolsVersion();
             if (!StringUtils.isEmpty(vendorToolsVersion)) {
                 return vendorToolsVersion;
             }
@@ -227,29 +227,29 @@ public class ThickSearchableProps implements SearchableProps {
      * Volume properties.
      */
     public static class ThickVolumeProps extends ThickSearchableProps implements VolumeProps {
-        private ThickVolumeProps(TopologyEntityDTOOrBuilder entityOrBldr) {
-            super(entityOrBldr);
+        private ThickVolumeProps(TopologyEntityView entity) {
+            super(entity);
         }
 
         @Override
         @Nonnull
         public AttachmentState attachmentState() {
-            return entityOrBldr.getTypeSpecificInfo().getVirtualVolume().getAttachmentState();
+            return entity.getTypeSpecificInfo().getVirtualVolume().getAttachmentState();
         }
 
         @Override
         public boolean isEncrypted() {
-            return entityOrBldr.getTypeSpecificInfo().getVirtualVolume().getEncryption();
+            return entity.getTypeSpecificInfo().getVirtualVolume().getEncryption();
         }
 
         @Override
         public boolean isEphemeral() {
-            return entityOrBldr.getTypeSpecificInfo().getVirtualVolume().getIsEphemeral();
+            return entity.getTypeSpecificInfo().getVirtualVolume().getIsEphemeral();
         }
 
         @Override
         public boolean isDeletable() {
-            return entityOrBldr.getAnalysisSettings().getDeletable();
+            return entity.getAnalysisSettings().getDeletable();
         }
     }
 
@@ -257,20 +257,20 @@ public class ThickSearchableProps implements SearchableProps {
      * Service properties.
      */
     public static class ThickServiceProps extends ThickSearchableProps implements ServiceProps {
-        private ThickServiceProps(TopologyEntityDTOOrBuilder entityDTOOrBuilder) {
-            super(entityDTOOrBuilder);
+        private ThickServiceProps(TopologyEntityView entity) {
+            super(entity);
         }
 
         @Override
         @Nullable
         public String getKubernetesServiceType() {
-            return Optional.of(entityOrBldr.getTypeSpecificInfo())
-                    .filter(TypeSpecificInfo::hasService)
-                    .map(TypeSpecificInfo::getService)
-                    .filter(ServiceInfo::hasKubernetesServiceData)
-                    .map(ServiceInfo::getKubernetesServiceData)
-                    .filter(KubernetesServiceData::hasServiceType)
-                    .map(KubernetesServiceData::getServiceType)
+            return Optional.of(entity.getTypeSpecificInfo())
+                    .filter(TypeSpecificInfoView::hasService)
+                    .map(TypeSpecificInfoView::getService)
+                    .filter(ServiceInfoView::hasKubernetesServiceData)
+                    .map(ServiceInfoView::getKubernetesServiceData)
+                    .filter(KubernetesServiceDataView::hasServiceType)
+                    .map(KubernetesServiceDataView::getServiceType)
                     .map(Enum::name)
                     .orElse(null);
         }
@@ -280,14 +280,14 @@ public class ThickSearchableProps implements SearchableProps {
      * Workload controller properties.
      */
     public static class ThickWorkloadControllerProps extends ThickSearchableProps implements WorkloadControllerProps {
-        private ThickWorkloadControllerProps(TopologyEntityDTOOrBuilder entityOrBldr) {
-            super(entityOrBldr);
+        private ThickWorkloadControllerProps(TopologyEntityView entity) {
+            super(entity);
         }
 
         @Override
         @Nonnull
         public String getControllerType() {
-            WorkloadControllerInfo wcInfo = entityOrBldr.getTypeSpecificInfo().getWorkloadController();
+            WorkloadControllerInfoView wcInfo = entity.getTypeSpecificInfo().getWorkloadController();
             if (wcInfo.hasCustomControllerInfo()) {
                 return wcInfo.getCustomControllerInfo().getCustomControllerType();
             } else {
@@ -297,7 +297,7 @@ public class ThickSearchableProps implements SearchableProps {
 
         @Override
         public boolean isCustom() {
-            return entityOrBldr.getTypeSpecificInfo().getWorkloadController().hasCustomControllerInfo();
+            return entity.getTypeSpecificInfo().getWorkloadController().hasCustomControllerInfo();
         }
     }
 
@@ -306,19 +306,19 @@ public class ThickSearchableProps implements SearchableProps {
      */
     public static class ThickBusinessAccountProps extends ThickSearchableProps implements BusinessAccountProps {
 
-        private ThickBusinessAccountProps(TopologyEntityDTOOrBuilder entityOrBldr) {
-            super(entityOrBldr);
+        private ThickBusinessAccountProps(TopologyEntityView entity) {
+            super(entity);
         }
 
         @Override
         public boolean hasAssociatedTargetId() {
-            return entityOrBldr.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId();
+            return entity.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId();
         }
 
         @Override
         @Nonnull
         public String getAccountId() {
-            return entityOrBldr.getTypeSpecificInfo().getBusinessAccount().getAccountId();
+            return entity.getTypeSpecificInfo().getBusinessAccount().getAccountId();
         }
     }
 
@@ -327,31 +327,31 @@ public class ThickSearchableProps implements SearchableProps {
      */
     public static class ThickDatabaseServerProps extends ThickSearchableProps implements DatabaseServerProps {
 
-        private ThickDatabaseServerProps(TopologyEntityDTOOrBuilder entityOrBldr) {
-            super(entityOrBldr);
+        private ThickDatabaseServerProps(TopologyEntityView entity) {
+            super(entity);
         }
 
         private boolean hasDatabaseEngine() {
-            return entityOrBldr.getTypeSpecificInfo().getDatabase().hasEngine();
+            return entity.getTypeSpecificInfo().getDatabase().hasEngine();
         }
 
         private boolean hasDatabaseEdition() {
-            return entityOrBldr.getTypeSpecificInfo().getDatabase().hasEdition();
+            return entity.getTypeSpecificInfo().getDatabase().hasEdition();
         }
 
         private boolean hasDatabaseRawEdition() {
-            return entityOrBldr.getTypeSpecificInfo().getDatabase().hasRawEdition();
+            return entity.getTypeSpecificInfo().getDatabase().hasRawEdition();
         }
 
         private boolean hasDatabaseVersion() {
-            return entityOrBldr.getTypeSpecificInfo().getDatabase().hasVersion();
+            return entity.getTypeSpecificInfo().getDatabase().hasVersion();
         }
 
         @Override
         @Nonnull
         public DatabaseEngine getDatabaseEngine() {
             if (hasDatabaseEngine()) {
-                return entityOrBldr.getTypeSpecificInfo().getDatabase().getEngine();
+                return entity.getTypeSpecificInfo().getDatabase().getEngine();
             }
             return DatabaseEngine.UNKNOWN;
         }
@@ -360,9 +360,9 @@ public class ThickSearchableProps implements SearchableProps {
         @Nonnull
         public String getDatabaseEdition() {
             if (hasDatabaseEdition()) {
-                return entityOrBldr.getTypeSpecificInfo().getDatabase().getEdition().name();
+                return entity.getTypeSpecificInfo().getDatabase().getEdition().name();
             } else if (hasDatabaseRawEdition()) {
-                return entityOrBldr.getTypeSpecificInfo().getDatabase().getRawEdition();
+                return entity.getTypeSpecificInfo().getDatabase().getRawEdition();
             }
             return DatabaseEdition.NONE.name();
         }
@@ -371,37 +371,37 @@ public class ThickSearchableProps implements SearchableProps {
         @Nonnull
         public String getDatabaseVersion() {
             if (hasDatabaseVersion()) {
-                return entityOrBldr.getTypeSpecificInfo().getDatabase().getVersion();
+                return entity.getTypeSpecificInfo().getDatabase().getVersion();
             }
             return UNKNOWN;
         }
 
         @Override
         public String getStorageEncryption() {
-            return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.STORAGE_ENCRYPTION,
+            return entity.getEntityPropertyMapOrDefault(StringConstants.STORAGE_ENCRYPTION,
                     null);
         }
 
         @Override
         public String getStorageAutoscaling() {
-            return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.STORAGE_AUTOSCALING,
+            return entity.getEntityPropertyMapOrDefault(StringConstants.STORAGE_AUTOSCALING,
                     null);
         }
 
         @Override
         public String getPerformanceInsights() {
-            return entityOrBldr.getEntityPropertyMapOrDefault(
+            return entity.getEntityPropertyMapOrDefault(
                     StringConstants.AWS_PERFORMANCE_INSIGHTS, null);
         }
 
         @Override
         public String getClusterRole() {
-            return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.CLUSTER_ROLE, null);
+            return entity.getEntityPropertyMapOrDefault(StringConstants.CLUSTER_ROLE, null);
         }
 
         @Override
         public String getStorageTier() {
-            return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.DBS_STORAGE_TIER, null);
+            return entity.getEntityPropertyMapOrDefault(StringConstants.DBS_STORAGE_TIER, null);
         }
     }
 
@@ -410,23 +410,23 @@ public class ThickSearchableProps implements SearchableProps {
      */
     public static class ThickDatabaseProps extends ThickSearchableProps implements DatabaseProps {
 
-        private ThickDatabaseProps(@Nonnull final TopologyEntityDTOOrBuilder entityOrBldr) {
-            super(entityOrBldr);
+        private ThickDatabaseProps(@Nonnull final TopologyEntityView entity) {
+            super(entity);
         }
 
         @Override
         public String getReplicationRole() {
-            return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.DB_REPLICATION_ROLE, null);
+            return entity.getEntityPropertyMapOrDefault(StringConstants.DB_REPLICATION_ROLE, null);
         }
 
         @Override
         public String getPricingModel() {
-            return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.DB_PRICING_MODEL, null);
+            return entity.getEntityPropertyMapOrDefault(StringConstants.DB_PRICING_MODEL, null);
         }
 
         @Override
         public String getServiceTier() {
-            return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.DB_SERVICE_TIER, null);
+            return entity.getEntityPropertyMapOrDefault(StringConstants.DB_SERVICE_TIER, null);
         }
     }
 
