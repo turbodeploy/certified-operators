@@ -199,7 +199,7 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
 
     @Nonnull
     public SearchableProps getSearchableProps() {
-        return ThickSearchableProps.newProps(entityImpl);
+        return ThickSearchableProps.newProps(entityImpl.toProtoBuilder());
     }
 
     @Nonnull

@@ -25,7 +25,6 @@ import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.common.protobuf.tag.TagPOJO.TagsView;
 
 /**
  * An index to support tag searches.
@@ -110,42 +109,12 @@ public interface TagIndex {
         }
 
         /**
-         * Create a tag index for a single entity. Utility method.
-         *
-         * @param entityId The id of the entity.
-         * @param tags The tags for the entity.
-         * @return A {@link TagIndex}.
-         */
-        @Nonnull
-        public static DefaultTagIndex singleEntity(long entityId, @Nonnull final TagsView tags) {
-            DefaultTagIndex tagIndex = new DefaultTagIndex();
-            tagIndex.addTags(entityId, tags);
-            tagIndex.finish();
-            return tagIndex;
-        }
-
-        /**
          * Record the tags on a specific entity.
          *
          * @param entityId The oid of the entity.
          * @param tags     The tags on the entity.
          */
         public void addTags(final long entityId, @Nonnull final Tags tags) {
-            tags.getTagsMap().forEach((key, vals) -> {
-                final Map<String, LongSet> valuesMap = this.tags.computeIfAbsent(key, k -> new HashMap<>());
-                vals.getValuesList().forEach(val -> {
-                    valuesMap.computeIfAbsent(val, v -> new LongOpenHashSet()).add(entityId);
-                });
-            });
-        }
-
-        /**
-         * Record the tags on a specific entity.
-         *
-         * @param entityId The oid of the entity.
-         * @param tags     The tags on the entity.
-         */
-        public void addTags(final long entityId, @Nonnull final TagsView tags) {
             tags.getTagsMap().forEach((key, vals) -> {
                 final Map<String, LongSet> valuesMap = this.tags.computeIfAbsent(key, k -> new HashMap<>());
                 vals.getValuesList().forEach(val -> {

@@ -6,28 +6,21 @@ import static org.junit.Assert.assertThat;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.OSImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.BusinessAccountInfoImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.BusinessAccountInfoView;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.CronJobInfoImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.CustomControllerInfoImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.DatabaseInfoImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.DatabaseInfoView;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.PhysicalMachineInfoImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.PhysicalMachineInfoView;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.StorageInfoImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.StorageInfoView;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualMachineInfoImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualMachineInfoView;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualVolumeInfoImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualVolumeInfoView;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.WorkloadControllerInfoImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.WorkloadControllerInfoView;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CronJobInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CustomControllerInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
@@ -49,16 +42,17 @@ public class ThickSearchablePropsTest {
      */
     @Test
     public void testPm() {
-        PhysicalMachineInfoView pmInfo = new PhysicalMachineInfoImpl()
+        PhysicalMachineInfo pmInfo = PhysicalMachineInfo.newBuilder()
                 .setNumCpus(1)
                 .setCpuModel("foo")
                 .setVendor("vendor")
                 .setModel("some model")
-                .setTimezone("DMZ");
+                .setTimezone("DMZ")
+                .build();
 
-        final PmProps pm = (PmProps)ThickSearchableProps.newProps(new TopologyEntityImpl()
+        final PmProps pm = (PmProps)ThickSearchableProps.newProps(TopologyEntityDTO.newBuilder()
             .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
-            .setTypeSpecificInfo(new TypeSpecificInfoImpl().setPhysicalMachine(pmInfo)));
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(pmInfo)));
         assertThat(pm.getCpuModel(), is(pmInfo.getCpuModel()));
         assertThat(pm.getNumCpus(), is(pmInfo.getNumCpus()));
         assertThat(pm.getVendor(), is(pmInfo.getVendor()));
@@ -71,11 +65,12 @@ public class ThickSearchablePropsTest {
      */
     @Test
     public void testStorage() {
-        StorageInfoView storageInfo = new StorageInfoImpl()
-                .setIsLocal(true);
-        final StorageProps storage = (StorageProps)ThickSearchableProps.newProps(new TopologyEntityImpl()
+        StorageInfo storageInfo = StorageInfo.newBuilder()
+                .setIsLocal(true)
+                .build();
+        final StorageProps storage = (StorageProps)ThickSearchableProps.newProps(TopologyEntityDTO.newBuilder()
                 .setEntityType(ApiEntityType.STORAGE.typeNumber())
-                .setTypeSpecificInfo(new TypeSpecificInfoImpl().setStorage(storageInfo)));
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setStorage(storageInfo)));
         assertThat(storage.isLocal(), is(storageInfo.getIsLocal()));
     }
 
@@ -84,15 +79,16 @@ public class ThickSearchablePropsTest {
      */
     @Test
     public void testVolume() {
-        VirtualVolumeInfoView volumeInfo = new VirtualVolumeInfoImpl()
+        VirtualVolumeInfo volumeInfo = VirtualVolumeInfo.newBuilder()
                 .setAttachmentState(AttachmentState.ATTACHED)
                 .setEncryption(true)
-                .setIsEphemeral(true);
-        final VolumeProps volume = (VolumeProps)ThickSearchableProps.newProps(new TopologyEntityImpl()
+                .setIsEphemeral(true)
+                .build();
+        final VolumeProps volume = (VolumeProps)ThickSearchableProps.newProps(TopologyEntityDTO.newBuilder()
                 .setEntityType(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
-                .setAnalysisSettings(new AnalysisSettingsImpl()
+                .setAnalysisSettings(AnalysisSettings.newBuilder()
                         .setDeletable(true))
-                .setTypeSpecificInfo(new TypeSpecificInfoImpl()
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                         .setVirtualVolume(volumeInfo)));
         assertThat(volume.attachmentState(), is(volumeInfo.getAttachmentState()));
         assertThat(volume.isEncrypted(), is(volumeInfo.getEncryption()));
@@ -105,15 +101,16 @@ public class ThickSearchablePropsTest {
      */
     @Test
     public void testVm() {
-        VirtualMachineInfoView vmInfo = new VirtualMachineInfoImpl()
+        VirtualMachineInfo vmInfo = VirtualMachineInfo.newBuilder()
                 .addConnectedNetworks("foo")
                 .addConnectedNetworks("bar")
-                .setGuestOsInfo(new OSImpl()
+                .setGuestOsInfo(OS.newBuilder()
                         .setGuestOsName("Losedows"))
-                .setNumCpus(123);
-        final VmProps vm = (VmProps)ThickSearchableProps.newProps(new TopologyEntityImpl()
+                .setNumCpus(123)
+                .build();
+        final VmProps vm = (VmProps)ThickSearchableProps.newProps(TopologyEntityDTO.newBuilder()
                 .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-                .setTypeSpecificInfo(new TypeSpecificInfoImpl().setVirtualMachine(vmInfo)));
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualMachine(vmInfo)));
         assertThat(vm.getConnectedNetworkNames(), is(vmInfo.getConnectedNetworksList()));
         assertThat(vm.getNumCpus(), is(vmInfo.getNumCpus()));
         assertThat(vm.getGuestOsName(), is(vmInfo.getGuestOsInfo().getGuestOsName()));
@@ -124,20 +121,22 @@ public class ThickSearchablePropsTest {
      */
     @Test
     public void testWorkloadController() {
-        WorkloadControllerInfoView customControllerInfo = new WorkloadControllerInfoImpl()
-                .setCustomControllerInfo(new CustomControllerInfoImpl()
-                    .setCustomControllerType("foo"));
-        final WorkloadControllerProps controller = (WorkloadControllerProps)ThickSearchableProps.newProps(new TopologyEntityImpl()
+        WorkloadControllerInfo customControllerInfo = WorkloadControllerInfo.newBuilder()
+                .setCustomControllerInfo(CustomControllerInfo.newBuilder()
+                    .setCustomControllerType("foo"))
+                .build();
+        final WorkloadControllerProps controller = (WorkloadControllerProps)ThickSearchableProps.newProps(TopologyEntityDTO.newBuilder()
                 .setEntityType(ApiEntityType.WORKLOAD_CONTROLLER.typeNumber())
-                .setTypeSpecificInfo(new TypeSpecificInfoImpl().setWorkloadController(customControllerInfo)));
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setWorkloadController(customControllerInfo)));
         assertThat(controller.getControllerType(), is("foo"));
         assertThat(controller.isCustom(), is(true));
 
-        WorkloadControllerInfoView regularControllerInfo = new WorkloadControllerInfoImpl()
-                .setCronJobInfo(new CronJobInfoImpl());
-        final WorkloadControllerProps regularController = (WorkloadControllerProps)ThickSearchableProps.newProps(new TopologyEntityImpl()
+        WorkloadControllerInfo regularControllerInfo = WorkloadControllerInfo.newBuilder()
+                .setCronJobInfo(CronJobInfo.getDefaultInstance())
+                .build();
+        final WorkloadControllerProps regularController = (WorkloadControllerProps)ThickSearchableProps.newProps(TopologyEntityDTO.newBuilder()
                 .setEntityType(ApiEntityType.WORKLOAD_CONTROLLER.typeNumber())
-                .setTypeSpecificInfo(new TypeSpecificInfoImpl().setWorkloadController(regularControllerInfo)));
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setWorkloadController(regularControllerInfo)));
         assertThat(regularController.getControllerType(), is("CRON_JOB_INFO"));
         assertThat(regularController.isCustom(), is(false));
     }
@@ -147,12 +146,13 @@ public class ThickSearchablePropsTest {
      */
     @Test
     public void testBusinessAccount() {
-        BusinessAccountInfoView baInfo = new BusinessAccountInfoImpl()
+        BusinessAccountInfo baInfo = BusinessAccountInfo.newBuilder()
                 .setAssociatedTargetId(123)
-                .setAccountId("foo");
-        final BusinessAccountProps baProps = (BusinessAccountProps)ThickSearchableProps.newProps(new TopologyEntityImpl()
+                .setAccountId("foo")
+                .build();
+        final BusinessAccountProps baProps = (BusinessAccountProps)ThickSearchableProps.newProps(TopologyEntityDTO.newBuilder()
                 .setEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
-                .setTypeSpecificInfo(new TypeSpecificInfoImpl().setBusinessAccount(baInfo)));
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(baInfo)));
         assertThat(baProps.getAccountId(), is(baInfo.getAccountId()));
         assertThat(baProps.hasAssociatedTargetId(), is(true));
 
@@ -163,13 +163,14 @@ public class ThickSearchablePropsTest {
      */
     @Test
     public void testDBServer() {
-        DatabaseInfoView dbInfo = new DatabaseInfoImpl()
+        DatabaseInfo dbInfo = DatabaseInfo.newBuilder()
                 .setEngine(DatabaseEngine.MARIADB)
                 .setEdition(DatabaseEdition.EXPRESS)
-                .setVersion("1.0.1");
-        final DatabaseServerProps dbProps = (DatabaseServerProps)ThickSearchableProps.newProps(new TopologyEntityImpl()
+                .setVersion("1.0.1")
+                .build();
+        final DatabaseServerProps dbProps = (DatabaseServerProps)ThickSearchableProps.newProps(TopologyEntityDTO.newBuilder()
                 .setEntityType(ApiEntityType.DATABASE_SERVER.typeNumber())
-                .setTypeSpecificInfo(new TypeSpecificInfoImpl().setDatabase(dbInfo)));
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setDatabase(dbInfo)));
         assertThat(dbProps.getDatabaseEngine(), is(dbInfo.getEngine()));
         assertThat(dbProps.getDatabaseEdition(), is(dbInfo.getEdition().name()));
         assertThat(dbProps.getDatabaseVersion(), is(dbInfo.getVersion()));
@@ -181,13 +182,14 @@ public class ThickSearchablePropsTest {
      */
     @Test
     public void testDBServerRawEdition() {
-        DatabaseInfoView dbInfo = new DatabaseInfoImpl()
+        DatabaseInfo dbInfo = DatabaseInfo.newBuilder()
                 .setEngine(DatabaseEngine.MARIADB)
                 .setRawEdition("Express")
-                .setVersion("1.0.1");
-        final DatabaseServerProps dbProps = (DatabaseServerProps)ThickSearchableProps.newProps(new TopologyEntityImpl()
+                .setVersion("1.0.1")
+                .build();
+        final DatabaseServerProps dbProps = (DatabaseServerProps)ThickSearchableProps.newProps(TopologyEntityDTO.newBuilder()
                 .setEntityType(ApiEntityType.DATABASE_SERVER.typeNumber())
-                .setTypeSpecificInfo(new TypeSpecificInfoImpl().setDatabase(dbInfo)));
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setDatabase(dbInfo)));
         assertThat(dbProps.getDatabaseEngine(), is(dbInfo.getEngine()));
         assertThat(dbProps.getDatabaseEdition(), is(dbInfo.getRawEdition()));
         assertThat(dbProps.getDatabaseVersion(), is(dbInfo.getVersion()));
@@ -198,11 +200,12 @@ public class ThickSearchablePropsTest {
      */
     @Test
     public void testOther() {
-        final SearchableProps props = ThickSearchableProps.newProps(new TopologyEntityImpl()
-                .addCommoditySoldList(new CommoditySoldImpl()
-                        .setCommodityType(new CommodityTypeImpl()
+        final SearchableProps props = ThickSearchableProps.newProps(TopologyEntityDTO.newBuilder()
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
                             .setType(1))
-                        .setCapacity(123))
+                        .setCapacity(123)
+                        .build())
                 .setEntityType(ApiEntityType.APPLICATION.typeNumber()));
         assertThat(props.getCommodityCapacity(1), is(123.0f));
     }
