@@ -197,7 +197,7 @@ public class PlanExportRpcService extends PlanExportServiceImplBase
                             PlanDestination planDestination = entry.getValue();
                             if (!PlanExportState.IN_PROGRESS.equals(planDestination.getStatus().getState())) {
                                 int result = planDestinationDao.deletePlanDestination(entry.getValue().getOid());
-                                if (result == 1) {
+                                if (result == 0) {
                                     logger.error("Unable to remove plan destination {} from DB during cleanup.", planDestination.getExternalId());
                                 }
                             }
