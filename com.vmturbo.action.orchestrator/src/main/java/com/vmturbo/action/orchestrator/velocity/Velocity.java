@@ -17,7 +17,8 @@ public class Velocity {
     private Velocity() {}
 
     private static final RuntimeServices runtimeServices;
-    private static final EscapeToolWithJson escapeTool;
+    private static final EscapeToolWithJson escapeTool = new EscapeToolWithJson();
+    private static final VelocityConverters converter = new VelocityConverters();
 
     static {
         // utility obj to be used with velocity template engine
@@ -27,7 +28,6 @@ public class Velocity {
         // is made to call a non-existing property on an object or if the object is null.
         // More properties can be found at https://velocity.apache.org/engine/2.0/configuration.html
         runtimeServices.setProperty("runtime.strict_mode.enable", "true");
-        escapeTool = new EscapeToolWithJson();
     }
 
     /**
@@ -51,6 +51,7 @@ public class Velocity {
         VelocityContext context = new VelocityContext();
         context.put("action", data);
         context.put("esc", escapeTool);
+        context.put("converter", converter);
 
         try (StringWriter writer = new StringWriter()) {
             template.merge(context, writer);
