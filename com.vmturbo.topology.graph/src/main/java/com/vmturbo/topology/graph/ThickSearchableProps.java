@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl.HotRe
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.ServiceInfoView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualMachineInfoView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.WorkloadControllerInfoView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoView;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -220,6 +221,12 @@ public class ThickSearchableProps implements SearchableProps {
                 return vendorToolsVersion;
             }
             return null;
+        }
+
+        @Override
+        public boolean isVdi() {
+            final VirtualMachineInfoView vmInfo = entity.getTypeSpecificInfo().getVirtualMachine();
+            return vmInfo.hasIsVdi() && vmInfo.getIsVdi();
         }
     }
 

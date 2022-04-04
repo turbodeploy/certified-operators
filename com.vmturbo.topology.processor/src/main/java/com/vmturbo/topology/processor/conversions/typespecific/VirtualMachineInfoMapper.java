@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.VirtualMachineProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -155,6 +156,11 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
         vmInfo.putAllPartitions(parsePartitions(entity));
         if (vmData.getAgentSoftwareProperties().hasVersion()) {
             vmInfo.setVendorToolsVersion(vmData.getAgentSoftwareProperties().getVersion());
+        }
+        // set VM is a part of an Azure VDI instance or not.
+        final String isVdi = entityPropertyMap.get(SearchableProperties.IS_VDI);
+        if (StringUtils.isNotEmpty(isVdi)) {
+            vmInfo.setIsVdi(Boolean.parseBoolean(isVdi));
         }
         return TypeSpecificInfo.newBuilder().setVirtualMachine(vmInfo.build()).build();
     }

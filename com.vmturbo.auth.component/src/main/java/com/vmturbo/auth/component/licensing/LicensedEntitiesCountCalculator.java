@@ -92,6 +92,8 @@ public class LicensedEntitiesCountCalculator {
         switch (countedEntity) {
             case VM:
                 logger.debug("Counting active VMs");
+                //Adding isVdi property value as false to avoid counting
+                //azure vdi instances while calculating workload count.
                 entityCountRequestBuilder.setSearch(SearchQuery.newBuilder()
                         .addSearchParameters(SearchParameters.newBuilder()
                                 .setStartingFilter(PropertyFilter.newBuilder()
@@ -105,6 +107,11 @@ public class LicensedEntitiesCountCalculator {
                                                 .setPropertyName("state")
                                                 .setStringFilter(StringFilter.newBuilder()
                                                         .setStringPropertyRegex("ACTIVE"))))
+                                .addSearchFilter(SearchFilter.newBuilder()
+                                        .setPropertyFilter(PropertyFilter.newBuilder()
+                                                .setPropertyName("isVdi")
+                                                .setStringFilter(StringFilter.newBuilder()
+                                                        .setStringPropertyRegex("false"))))
                                 .build()));
                 break;
             case SOCKET:

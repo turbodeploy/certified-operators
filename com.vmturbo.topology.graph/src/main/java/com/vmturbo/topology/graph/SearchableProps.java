@@ -203,6 +203,13 @@ public interface SearchableProps {
          */
         String getVendorToolsVersion();
 
+        /**
+         * Get the value for isVDI (Used to identify whether the VM is a part of a VDI instance or not.
+         *
+         * @return Returns true if the VM is a part of VDI instance, otherwise false.
+         */
+        boolean isVdi();
+
     }
 
     /**

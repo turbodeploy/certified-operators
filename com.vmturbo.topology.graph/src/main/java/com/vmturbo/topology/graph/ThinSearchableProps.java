@@ -248,6 +248,7 @@ public class ThinSearchableProps implements SearchableProps {
         private final int numCpus;
         private final int coresPerSocket;
         private final String vendorToolsVersion;
+        private final boolean isVdi;
 
         private ThinVmProps(@Nonnull final TagIndex tagIndex,
                 @Nonnull final CommodityValueFetcher commodities,
@@ -259,6 +260,8 @@ public class ThinSearchableProps implements SearchableProps {
             numCpus = vmInfo.getNumCpus();
             coresPerSocket = vmInfo.getCoresPerSocketRatio();
             vendorToolsVersion = vmInfo.getVendorToolsVersion();
+            isVdi = vmInfo.hasIsVdi() && vmInfo.getIsVdi();
+
         }
 
         @Nonnull
@@ -289,6 +292,11 @@ public class ThinSearchableProps implements SearchableProps {
                 return vendorToolsVersion;
             }
             return null;
+        }
+
+        @Override
+        public boolean isVdi() {
+            return isVdi;
         }
     }
 

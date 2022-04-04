@@ -2037,4 +2037,34 @@ public class TopologyFilterFactoryTest {
                                                 .setNumericFilter(numericFilter)))
                         .build());
     }
+
+    /**
+     *  Tests the filter for the isVdi indicator for virtual machines.
+     */
+    @Test
+    public void testSearchFilterForVMIsVdiMatch() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.IS_VDI)
+                        .setStringFilter(StringFilter.newBuilder().setStringPropertyRegex("false")))
+                .build();
+        final PropertyFilter<TestGraphEntity> filter = (PropertyFilter)filterFactory.filterFor(
+                searchCriteria);
+        final TestGraphEntity vm1 = makeVmWithVdiStatus(1, true);
+        final TestGraphEntity vm2 = makeVmWithVdiStatus(2, false);
+        assertTrue(filter.test(vm2, graph));
+        assertFalse(filter.test(vm1, graph));
+    }
+
+    /**
+     * Used to obtain a TestGraphEntity with a VM having VDI status set.
+     * @param id  vm id.
+     * @param status VM VDI status.
+     * @return TestGraphEntity.
+     */
+    private TestGraphEntity makeVmWithVdiStatus(long id, boolean status) {
+        final VirtualMachineInfo vmInfo = VirtualMachineInfo.newBuilder().setIsVdi(status).build();
+        return TestGraphEntity.newBuilder(id, ApiEntityType.VIRTUAL_MACHINE).setTypeSpecificInfo(
+                TypeSpecificInfo.newBuilder().setVirtualMachine(vmInfo).build()).build();
+    }
 }
