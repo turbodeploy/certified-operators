@@ -23,6 +23,8 @@ import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsStore;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
+import com.vmturbo.action.orchestrator.action.ExecutedActionsChangeWindowDao;
+import com.vmturbo.action.orchestrator.action.ExecutedActionsChangeWindowDaoImpl;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.LoggingActionEventListener;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
@@ -479,6 +481,19 @@ public class ActionStoreConfig {
                 Thread.currentThread().interrupt();
             }
             throw new BeanCreationException("Failed to create actionHistory", e);
+        }
+    }
+
+    @Bean
+    public ExecutedActionsChangeWindowDao executedActionsChangeWindowDao() {
+        try {
+            return new ExecutedActionsChangeWindowDaoImpl(dbAccessConfig.dsl(),
+                    actionOrchestratorGlobalConfig.actionOrchestratorClock());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create executedActionsChangeWindow", e);
         }
     }
 

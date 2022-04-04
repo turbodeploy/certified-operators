@@ -45,6 +45,7 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
+import com.vmturbo.action.orchestrator.action.ExecutedActionsChangeWindowDao;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
@@ -183,6 +184,10 @@ public class ActionExecutionSecureRpcTest {
 
     private LiveActionPipelineFactory pipelineFactory;
 
+    private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
+
+    private final ExecutedActionsChangeWindowDao executedActionsChangeWindowDao = mock(ExecutedActionsChangeWindowDao.class);
+
     private final ActionsRpcService actionsRpcService = new ActionsRpcService(
         clock,
         actionStorehouse,
@@ -199,11 +204,12 @@ public class ActionExecutionSecureRpcTest {
         actionExecutionStore,
         actionCombiner,
         actionAutomationManager,
-        500,
+        actionHistoryDao,
+        executedActionsChangeWindowDao,
+            500,
         777777L);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;
-    private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
     private final SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
     private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
     private IdentityServiceImpl actionIdentityService;

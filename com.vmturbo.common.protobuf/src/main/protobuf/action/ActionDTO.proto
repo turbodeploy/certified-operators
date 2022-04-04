@@ -2435,6 +2435,43 @@ message ActionStat {
     optional Value investments = 26;
 }
 
+// The window of time the change of an executed action is in effect.
+message ExecutedActionsChangeWindow {
+    // Action ID
+    required int64 action_oid = 1;
+
+    // Information and state of an action
+    optional ActionSpec action_spec = 2;
+
+    // Entity OID
+    required int64 entity_oid = 3;
+
+    // The time the action starts to have an impact on the entity
+    required int64 start_time = 4;
+
+    // The time when the change window ends
+    optional int64 end_time = 5;
+
+    // The reason for the change window to end
+    optional TerminationReason termination_reason = 6;
+
+    enum TerminationReason {
+        // Another action was executed for this entity.
+        SUPERSEDED = 1;
+        // The provider of the entity was changed back to the original one.
+        REVERTED = 2;
+    }
+}
+
+// The sequence of actions executed on an entity
+message ActionChain {
+    // Entity OID
+    required int64 entity_oid = 1;
+
+    // A list of action executed on the entity ordered by execution time.
+    repeated ExecutedActionsChangeWindow executed_actions_change_window = 2;
+}
+
 message GetHistoricalActionStatsRequest {
 
     // A batch of queries.
@@ -2544,6 +2581,10 @@ message GetInstanceIdsForRecommendationIdsResponse {
     map<int64, int64> recommendation_id_to_instance_id = 2;
 }
 
+message GetActionChainsRequest {
+    // Entity OIDs
+    repeated int64 entity_oid = 1;
+}
 
 // A service responsible for getting information about accepting actions and getting action information.
 service ActionsService {
@@ -2631,4 +2672,7 @@ service ActionsService {
 
     // The the instance ID provided stable ID of the actions
     rpc GetInstanceIdsForRecommendationIds (GetInstanceIdsForRecommendationIdsRequest) returns (GetInstanceIdsForRecommendationIdsResponse);
+
+    // Get action chains.
+    rpc GetActionChains (GetActionChainsRequest) returns (stream ActionChain);
 }

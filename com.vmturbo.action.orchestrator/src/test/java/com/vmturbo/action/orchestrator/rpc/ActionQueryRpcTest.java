@@ -48,6 +48,7 @@ import org.mockito.Mockito;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
@@ -55,6 +56,7 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPagin
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
+import com.vmturbo.action.orchestrator.action.ExecutedActionsChangeWindowDao;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
@@ -145,6 +147,8 @@ public class ActionQueryRpcTest {
     private final Clock clock = new MutableFixedClock(1_000_000);
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
     private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
+    private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
+    private final ExecutedActionsChangeWindowDao executedActionsChangeWindowDao = mock(ExecutedActionsChangeWindowDao.class);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -176,6 +180,8 @@ public class ActionQueryRpcTest {
                 actionExecutionStore,
                 actionCombiner,
                 actionAutomationManager,
+                actionHistoryDao,
+                executedActionsChangeWindowDao,
                 500,
                 777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
@@ -197,6 +203,8 @@ public class ActionQueryRpcTest {
                 actionExecutionStore,
                 actionCombiner,
                 actionAutomationManager,
+                actionHistoryDao,
+                executedActionsChangeWindowDao,
                 500,
                 777777L);
         IdentityGenerator.initPrefix(0);

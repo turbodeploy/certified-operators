@@ -17,8 +17,10 @@ import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
+import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
+import com.vmturbo.action.orchestrator.action.ExecutedActionsChangeWindowDao;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
@@ -61,6 +63,10 @@ public class ActionDeletionRpcTest {
 
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
+    private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
+
+    private final ExecutedActionsChangeWindowDao executedActionsChangeWindowDao = mock(ExecutedActionsChangeWindowDao.class);
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -94,6 +100,8 @@ public class ActionDeletionRpcTest {
                 actionExecutionStore,
                 actionCombiner,
                 actionAutomationManager,
+                actionHistoryDao,
+                executedActionsChangeWindowDao,
                 500,
                 777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);

@@ -39,6 +39,7 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
+import com.vmturbo.action.orchestrator.action.ExecutedActionsChangeWindowDao;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
@@ -123,6 +124,7 @@ public class ActionExecutionRpcTest {
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
+    private final ExecutedActionsChangeWindowDao executedActionsChangeWindowDao = mock(ExecutedActionsChangeWindowDao.class);
     private final ActionExecutionListener actionExecutionListener =
         Mockito.mock(ActionExecutionListener.class);
     private final ActionAuditSender actionAuditSender = mock(ActionAuditSender.class);
@@ -207,6 +209,8 @@ public class ActionExecutionRpcTest {
             actionExecutionStore,
             actionCombiner,
             actionAutomationManager,
+            actionHistoryDao,
+            executedActionsChangeWindowDao,
             500,
             777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService, settingPolicyServiceMole,
@@ -541,6 +545,8 @@ public class ActionExecutionRpcTest {
                     actionExecutionStore,
                     actionCombiner,
                     actionAutomationManager,
+                    actionHistoryDao,
+                    executedActionsChangeWindowDao,
                     500,
                     777777L);
         final GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService,

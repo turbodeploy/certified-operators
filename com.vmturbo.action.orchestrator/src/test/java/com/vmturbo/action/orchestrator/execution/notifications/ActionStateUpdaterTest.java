@@ -38,6 +38,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
+import com.vmturbo.action.orchestrator.action.ExecutedActionsChangeWindowDao;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
@@ -86,6 +87,7 @@ public class ActionStateUpdaterTest {
     private final ActionExecutionStore actionExecutionStore = mock(ActionExecutionStore.class);
     private final WorkflowStore workflowStoreMock = mock(WorkflowStore.class);
     private final ActionTranslator actionTranslator = mock(ActionTranslator.class);
+    private final ExecutedActionsChangeWindowDao executedActionsChangeWindowDao = mock(ExecutedActionsChangeWindowDao.class);
     private final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor = mock(FailedCloudVMGroupProcessor.class);
     private final long realtimeTopologyContextId = 0;
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();

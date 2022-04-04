@@ -171,4 +171,14 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
             actionHistory.getActionDetailData(),
             actionHistory.getRecommendationOid()), actionModeCalculator);
     }
+
+    @Nonnull
+    @Override
+    public List<ActionView> getActionHistoryByIds(@Nonnull List<Long> actionIds) {
+        return dsl.selectFrom(ACTION_HISTORY)
+                .where(ACTION_HISTORY.ID.in(actionIds))
+                .stream()
+                .map(this::mapDbActionHistoryToAction)
+                .collect(Collectors.toList());
+    }
 }
