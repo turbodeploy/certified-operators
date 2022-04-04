@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.cost.component.savings.bottomup.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.bottomup.Algorithm.Delta;
 import com.vmturbo.cost.component.savings.bottomup.Algorithm.SavingsInvestments;
@@ -521,7 +522,7 @@ class SavingsCalculator {
             return null;
         }
         @Nonnull EntityPriceChange currentRecommendation = algorithmState.getCurrentRecommendation();
-        if (SavingsUtil.EMPTY_PRICE_CHANGE.equals(currentRecommendation)) {
+        if (EntityPriceChange.EMPTY.equals(currentRecommendation)) {
             // No active resize action, so ignore this.
             logger.warn("Not processing resize for {} - no matching recommendation", entityId);
             return null;

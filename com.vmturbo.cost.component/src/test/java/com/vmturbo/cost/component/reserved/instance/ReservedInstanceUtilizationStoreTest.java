@@ -64,7 +64,7 @@ import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
-import com.vmturbo.cost.component.savings.bottomup.EntitySavingsException;
+import com.vmturbo.cost.component.savings.EntitySavingsException;
 import com.vmturbo.cost.component.topology.IngestedTopologyStore;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;

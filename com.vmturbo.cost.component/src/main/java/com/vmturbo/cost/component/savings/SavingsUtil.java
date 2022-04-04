@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.savings.bottomup;
+package com.vmturbo.cost.component.savings;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -14,18 +14,6 @@ import com.vmturbo.components.api.TimeUtil;
  * General entity savings related utility methods.
  */
 public class SavingsUtil {
-    /**
-     * Dummy price change used to populate the current recommendation field in the entity state for
-     * entities that existed before action revert was implemented.  We now require that all entity
-     * state instances contain a valid recommendation.
-     */
-    public static final EntityPriceChange EMPTY_PRICE_CHANGE = new EntityPriceChange.Builder()
-            .active(false)
-            .sourceOid(0L).destinationOid(0L)
-            .sourceCost(0D).destinationCost(0D)
-            .build();
-
-
     /**
      * Inner instance, not meant to be called.
      */
@@ -78,5 +66,16 @@ public class SavingsUtil {
         Instant eachInstant = Instant.ofEpochMilli(timeMillis);
         LocalDateTime eachDateUtc = eachInstant.atZone(clock.getZone()).toLocalDateTime();
         return eachDateUtc.toLocalDate().atStartOfDay();
+    }
+
+    /**
+     * Gets current date.
+     *
+     * @param clock Clock to use.
+     * @return Current date.
+     */
+    @Nonnull
+    public static LocalDateTime getCurrentDateTime(final Clock clock) {
+        return LocalDateTime.now(clock);
     }
 }

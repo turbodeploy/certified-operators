@@ -26,9 +26,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
-import com.vmturbo.cost.component.db.tables.records.BilledCostDailyRecord;
+import com.vmturbo.cost.component.savings.BillingChangeRecord;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
+import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingDataPoint.CostCategory;
 
 /**
  * Test cases for bill-based savings calculator.
@@ -49,7 +51,7 @@ public class CalculatorTest {
     @Test
     public void investmentsOnDayOfAction() {
         final long targetProviderId = 2323232323L;
-        Set<BilledCostDailyRecord> records = new HashSet<>();
+        Set<BillingChangeRecord> records = new HashSet<>();
         records.add(createVMBillRecord(date(2022, 3, 25), 18, 36, targetProviderId));
         NavigableSet<ActionSpec> actionSpecs =
                 new TreeSet<>(Comparator.comparing(a -> a.getExecutionStep().getCompletionTime()));
@@ -72,7 +74,7 @@ public class CalculatorTest {
     @Test
     public void savingsOnDayOfAction() {
         final long targetProviderId = 2323232323L;
-        Set<BilledCostDailyRecord> records = new HashSet<>();
+        Set<BillingChangeRecord> records = new HashSet<>();
         records.add(createVMBillRecord(date(2022, 3, 25), 18, 36, targetProviderId));
         NavigableSet<ActionSpec> actionSpecs =
                 new TreeSet<>(Comparator.comparing(a -> a.getExecutionStep().getCompletionTime()));
@@ -95,7 +97,7 @@ public class CalculatorTest {
     @Test
     public void savingsOnDayAfterAction() {
         final long targetProviderId = 2323232323L;
-        Set<BilledCostDailyRecord> records = new HashSet<>();
+        Set<BillingChangeRecord> records = new HashSet<>();
         records.add(createVMBillRecord(date(2022, 3, 26), 24, 48, targetProviderId));
         NavigableSet<ActionSpec> actionSpecs =
                 new TreeSet<>(Comparator.comparing(a -> a.getExecutionStep().getCompletionTime()));
@@ -118,7 +120,7 @@ public class CalculatorTest {
     @Test
     public void savingsOnDayPartialUptime() {
         final long targetProviderId = 2323232323L;
-        Set<BilledCostDailyRecord> records = new HashSet<>();
+        Set<BillingChangeRecord> records = new HashSet<>();
         records.add(createVMBillRecord(date(2022, 3, 26), 12, 24, targetProviderId));
         NavigableSet<ActionSpec> actionSpecs =
                 new TreeSet<>(Comparator.comparing(a -> a.getExecutionStep().getCompletionTime()));
@@ -143,7 +145,7 @@ public class CalculatorTest {
     @Test
     public void savingsTwoDays() {
         final long targetProviderId = 2323232323L;
-        Set<BilledCostDailyRecord> records = new HashSet<>();
+        Set<BillingChangeRecord> records = new HashSet<>();
         records.add(createVMBillRecord(date(2022, 3, 25), 18, 36, targetProviderId));
         records.add(createVMBillRecord(date(2022, 3, 26), 12, 24, targetProviderId));
         NavigableSet<ActionSpec> actionSpecs =
@@ -174,7 +176,7 @@ public class CalculatorTest {
     public void twoSegmentsInADayInvestments() {
         final long targetProviderId1 = 2323232323L;
         final long targetProviderId2 = 3434343434L;
-        Set<BilledCostDailyRecord> records = new HashSet<>();
+        Set<BillingChangeRecord> records = new HashSet<>();
         records.add(createVMBillRecord(date(2022, 3, 25), 6, 12, targetProviderId1));
         records.add(createVMBillRecord(date(2022, 3, 25), 18, 54, targetProviderId2));
         NavigableSet<ActionSpec> actionSpecs =
@@ -204,7 +206,7 @@ public class CalculatorTest {
     public void twoSegmentsInADaySavings() {
         final long targetProviderId1 = 2323232323L;
         final long targetProviderId2 = 3434343434L;
-        Set<BilledCostDailyRecord> records = new HashSet<>();
+        Set<BillingChangeRecord> records = new HashSet<>();
         records.add(createVMBillRecord(date(2022, 3, 25), 6, 12, targetProviderId1));
         records.add(createVMBillRecord(date(2022, 3, 25), 18, 18, targetProviderId2));
         NavigableSet<ActionSpec> actionSpecs =
@@ -239,7 +241,7 @@ public class CalculatorTest {
     public void scaleBackToOriginalTierOnSameDay() {
         final long targetProviderTierB = 2323232323L;
         final long targetProviderTierC = 3434343434L;
-        Set<BilledCostDailyRecord> records = new HashSet<>();
+        Set<BillingChangeRecord> records = new HashSet<>();
         records.add(createVMBillRecord(date(2022, 3, 25), 9, 27, targetProviderTierC));
         records.add(createVMBillRecord(date(2022, 3, 25), 15, 30, targetProviderTierB));
         NavigableSet<ActionSpec> actionSpecs =
@@ -349,30 +351,19 @@ public class CalculatorTest {
         return localDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
     }
 
-    private BilledCostDailyRecord createVMBillRecord(LocalDateTime dateTime, double usageAmount,
+    private BillingChangeRecord createVMBillRecord(LocalDateTime dateTime, double usageAmount,
             double cost, long providerId) {
-        BilledCostDailyRecord record = new BilledCostDailyRecord();
-        record.setSampleTime(dateTime);
-        record.setUsageAmount(usageAmount);
-        record.setCost(cost);
-        record.setProviderId(providerId);
+        return new BillingChangeRecord.Builder()
+                .sampleTime(dateTime)
+                .usageAmount(usageAmount)
+                .cost(cost)
+                .providerId(providerId)
+                .entityId(vmOid)
+                .entityType(EntityType.VIRTUAL_MACHINE.getValue())
+                .costCategory(CostCategory.COMPUTE)
+                .priceModel(PriceModel.ON_DEMAND)
 
-        record.setLineItemId(recordId.getAndIncrement());
-        record.setEntityId(vmOid);
-        record.setEntityType((short)EntityType.VIRTUAL_MACHINE.getValue());
-        record.setAccountId(74210643268490L);
-        record.setRegionId(74210639340452L);
-        record.setCloudServiceId(74210639341123L);
-        record.setServiceProviderId(0L);
-        record.setTagGroupId(0L);
-        record.setPriceModel((short)1);
-        record.setCostCategory((short)6);
-        record.setProviderType((short)56);
-        record.setCommodityType((short)2047);
-        record.setUnit((short)0);
-        record.setCurrency((short)840);
-
-        return record;
+                .build();
     }
 
     private ActionSpec createActionSpec(LocalDateTime actionTime, double sourceOnDemandRate, long destProviderId) {

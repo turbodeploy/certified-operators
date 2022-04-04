@@ -8,6 +8,8 @@ import java.util.function.Consumer;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cost.component.savings.EntitySavingsException;
+import com.vmturbo.cost.component.savings.EntityState;
 
 /**
  * Interface for read/write of entity states.
@@ -24,7 +26,8 @@ public interface EntityStateStore<T> {
      * @throws EntitySavingsException error during operation
      */
     @Nonnull
-    Map<Long, EntityState> getEntityStates(@Nonnull Set<Long> entityIds) throws EntitySavingsException;
+    Map<Long, EntityState> getEntityStates(@Nonnull Set<Long> entityIds) throws
+            EntitySavingsException;
 
     /**
      * Get a map of entity states that need to be processed even without driving events.  This

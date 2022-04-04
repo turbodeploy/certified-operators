@@ -56,10 +56,10 @@ import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
-import com.vmturbo.cost.component.savings.bottomup.EntitySavingsException;
-import com.vmturbo.cost.component.savings.bottomup.EntityState;
+import com.vmturbo.cost.component.savings.EntitySavingsException;
+import com.vmturbo.cost.component.savings.EntityState;
+import com.vmturbo.cost.component.savings.bottomup.EntityPriceChange;
 import com.vmturbo.cost.component.savings.bottomup.EntityStateStore;
-import com.vmturbo.cost.component.savings.bottomup.SavingsUtil;
 import com.vmturbo.cost.component.savings.bottomup.SqlEntityStateStore;
 import com.vmturbo.cost.component.savings.bottomup.SqlEntityStateStoreTest;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
@@ -250,8 +250,7 @@ public class SQLCloudScopeStoreTest extends MultiDbTestBase {
         // Add an entity state for the same entity for datapointA.
         // The record that correspond to entityOid1 in the cloud scope table will be referenced by
         // two tables.
-        Set<EntityState> stateSet = ImmutableSet.of(new EntityState(entityOid1,
-                SavingsUtil.EMPTY_PRICE_CHANGE));
+        Set<EntityState> stateSet = ImmutableSet.of(new EntityState(entityOid1, EntityPriceChange.EMPTY));
         TopologyEntityCloudTopology cloudTopology = SqlEntityStateStoreTest.getCloudTopology(1000L);
         entityStateStore.updateEntityStates(stateSet.stream().collect(
                 Collectors.toMap(EntityState::getEntityId, Function.identity())), cloudTopology, dsl,

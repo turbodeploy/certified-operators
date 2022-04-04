@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.savings.bottomup;
+package com.vmturbo.cost.component.savings;
 
 import javax.annotation.Nonnull;
 

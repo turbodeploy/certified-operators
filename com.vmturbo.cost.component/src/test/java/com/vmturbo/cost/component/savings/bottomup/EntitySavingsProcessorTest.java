@@ -21,6 +21,8 @@ import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.notification.CostNotificationSender;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
+import com.vmturbo.cost.component.savings.DataRetentionProcessor;
+import com.vmturbo.cost.component.savings.RollupSavingsProcessor;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**

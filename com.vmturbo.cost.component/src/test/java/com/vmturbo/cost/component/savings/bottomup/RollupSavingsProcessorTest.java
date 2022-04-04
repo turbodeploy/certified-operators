@@ -17,6 +17,7 @@ import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
 import com.vmturbo.cost.component.rollup.RollupTimeInfo;
+import com.vmturbo.cost.component.savings.RollupSavingsProcessor;
 
 /**
  * Testing rollups.

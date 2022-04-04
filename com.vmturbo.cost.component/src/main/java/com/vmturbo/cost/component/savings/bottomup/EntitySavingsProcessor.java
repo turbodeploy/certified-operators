@@ -23,6 +23,9 @@ import com.vmturbo.cost.component.notification.CostNotificationSender;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
+import com.vmturbo.cost.component.savings.DataRetentionProcessor;
+import com.vmturbo.cost.component.savings.RollupSavingsProcessor;
+import com.vmturbo.cost.component.savings.SavingsUtil;
 
 /**
  * This class implements the task that is executed periodically (once an hour) to process entity

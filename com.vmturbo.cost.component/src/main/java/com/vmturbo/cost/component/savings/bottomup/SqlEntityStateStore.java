@@ -21,6 +21,8 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -35,13 +37,17 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsStateRecord;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopedStore;
+import com.vmturbo.cost.component.savings.EntitySavingsException;
+import com.vmturbo.cost.component.savings.EntityState;
+import com.vmturbo.cost.component.savings.StateStore;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Implementation of EntityStateStore that persists data in entity_savings_state table.
  */
-public class SqlEntityStateStore extends SQLCloudScopedStore implements EntityStateStore<DSLContext> {
+public class SqlEntityStateStore extends SQLCloudScopedStore implements EntityStateStore<DSLContext>,
+        StateStore {
 
     private final Logger logger = LogManager.getLogger();
 
@@ -65,6 +71,16 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
         super(dsl, chunkSize);
         this.dsl = dsl;
         this.chunkSize = chunkSize;
+    }
+
+    @Override
+    public EntityState getEntityState(long entityId) throws EntitySavingsException {
+        return getEntityStates(ImmutableSet.of(entityId)).get(entityId);
+    }
+
+    @Override
+    public void getEntityStates(Consumer<EntityState> consumer) {
+        getAllEntityStates(dsl, consumer);
     }
 
     @Nonnull
@@ -279,7 +295,7 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
     }
 
     @Override
-    public void getAllEntityStates(Consumer<EntityState> consumer) {
+    public void getAllEntityStates(@Nonnull Consumer<EntityState> consumer) {
         getAllEntityStates(dsl, consumer);
     }
 

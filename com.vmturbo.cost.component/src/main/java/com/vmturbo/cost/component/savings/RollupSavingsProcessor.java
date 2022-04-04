@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.savings.bottomup;
+package com.vmturbo.cost.component.savings;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -21,6 +21,7 @@ import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
 import com.vmturbo.cost.component.rollup.RollupTimeInfo;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
+import com.vmturbo.cost.component.savings.bottomup.EntitySavingsStore;
 
 /**
  * Responsible for rolling hourly savings data into daily and monthly tables. This gets called
@@ -70,7 +71,7 @@ public class RollupSavingsProcessor {
      *          If Daily, then data is rolled up to monthly table.
      * @param statsTimes Hourly stats data written to DB in this cycle.
      */
-    void process(RollupDurationType durationType, @Nonnull final List<Long> statsTimes) {
+    public void process(RollupDurationType durationType, @Nonnull final List<Long> statsTimes) {
         if (statsTimes.isEmpty()) {
             logger.info("Entity Savings rollup: Nothing to rollup.");
             return;
@@ -133,7 +134,7 @@ public class RollupSavingsProcessor {
      */
     @Nonnull
     @VisibleForTesting
-    static List<RollupTimeInfo> checkRollupRequired(RollupDurationType durationType,
+    public static List<RollupTimeInfo> checkRollupRequired(RollupDurationType durationType,
             @Nonnull final List<Long> statsTimes, @Nonnull final LastRollupTimes rollupTimes,
             @Nonnull final Clock clock) {
         boolean isHourly = durationType == RollupDurationType.HOURLY;

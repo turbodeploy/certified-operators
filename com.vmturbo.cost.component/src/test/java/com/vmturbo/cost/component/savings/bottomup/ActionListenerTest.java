@@ -94,6 +94,8 @@ import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
 import com.vmturbo.cost.component.savings.EntitySavingsConfig;
+import com.vmturbo.cost.component.savings.EntitySavingsException;
+import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.cost.component.savings.bottomup.ActionListener.EntityActionInfo;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -1235,7 +1237,7 @@ public class ActionListenerTest {
     }
 
     private EntityState createEntityState(long entityOid) {
-        EntityState state = new EntityState(entityOid, SavingsUtil.EMPTY_PRICE_CHANGE);
+        EntityState state = new EntityState(entityOid, EntityPriceChange.EMPTY);
         state.setCurrentRecommendation(new EntityPriceChange.Builder()
                 .sourceCost(0)
                 .destinationCost(0)

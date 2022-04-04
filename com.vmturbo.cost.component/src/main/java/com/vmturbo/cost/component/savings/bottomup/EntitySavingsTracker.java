@@ -29,6 +29,8 @@ import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.cost.component.savings.EntitySavingsException;
+import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 
@@ -241,7 +243,8 @@ public class EntitySavingsTracker {
      * @throws EntitySavingsException Error occurred when inserting the DB records.
      */
     @VisibleForTesting
-    void generateStats(long statTime, @Nonnull DSLContext dsl, Set<Long> uuids) throws EntitySavingsException {
+    void generateStats(long statTime, @Nonnull DSLContext dsl, Set<Long> uuids) throws
+            EntitySavingsException {
         final Set<EntitySavingsStats> stats = new HashSet<>();
         entityStateStore.getAllEntityStates(dsl, state -> {
             if (uuids.isEmpty() || uuids.contains(state.getEntityId())) {

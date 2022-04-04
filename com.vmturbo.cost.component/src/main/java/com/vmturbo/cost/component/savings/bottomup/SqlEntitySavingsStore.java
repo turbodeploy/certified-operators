@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,13 +50,17 @@ import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.db.tables.EntitySavingsByHour;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsByHourRecord;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
+import com.vmturbo.cost.component.savings.EntitySavingsException;
+import com.vmturbo.cost.component.savings.SavingsUtil;
+import com.vmturbo.cost.component.savings.StatsWriter;
+import com.vmturbo.cost.component.savings.calculator.SavingsValues;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.jooq.JooqUtil;
 
 /**
  * Implementation of store that accesses savings hourly/daily/monthly DB tables.
  */
-public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
+public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, StatsWriter {
     /**
      * Minimal info logging.
      */
@@ -532,5 +537,24 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
                 .setName(statsType.name())
                 .setValue(dbRecord.getStatsValue().floatValue()));
         return builder.build();
+    }
+
+    @Override
+    public Set<Long> writeDailyStats(@Nonnull final List<SavingsValues> values)
+            throws EntitySavingsException {
+        final Set<EntitySavingsStats> dailyStats = new HashSet<>();
+        final Set<Long> uniqueDailyTimestamps = new HashSet<>();
+        values.forEach(value -> {
+            long timestamp = TimeUtil.localDateTimeToMilli(value.getTimestamp(), clock);
+            uniqueDailyTimestamps.add(timestamp);
+
+            dailyStats.add(new EntitySavingsStats(value.getEntityOid(),
+                    timestamp, EntitySavingsStatsType.REALIZED_SAVINGS, value.getSavings()));
+
+            dailyStats.add(new EntitySavingsStats(value.getEntityOid(),
+                    timestamp, EntitySavingsStatsType.REALIZED_INVESTMENTS, value.getInvestments()));
+        });
+        addDailyStats(dailyStats, this.dsl);
+        return uniqueDailyTimestamps;
     }
 }

@@ -15,7 +15,7 @@ import org.immutables.value.Value.Style.ImplementationVisibility;
 @Style(visibility = ImplementationVisibility.PACKAGE, overshadowImplementation = true)
 @Gson.TypeAdapters
 @Immutable(lazyhash = true)
-interface ActionEntry {
+public interface ActionEntry {
     /**
      * Event type.
      *
