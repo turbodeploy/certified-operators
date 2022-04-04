@@ -151,7 +151,8 @@ class PrerequisiteCalculator {
         // Check if the category of the probe which discovers the target is CLOUD_MANAGEMENT and this
         // action is a Delete action and the target of the action has volume type specific info.
         if (probeCategory == ProbeCategory.CLOUD_MANAGEMENT
-            && action.getInfo().getActionTypeCase() == ActionTypeCase.DELETE
+            && (action.getInfo().getActionTypeCase() == ActionTypeCase.DELETE
+            ||  action.getInfo().getActionTypeCase() == ActionTypeCase.SCALE)
             && target.getTypeSpecificInfo().hasVolume()) {
             return generalPrerequisiteCalculators.stream()
                     .map(calculator -> calculator.calculate(
