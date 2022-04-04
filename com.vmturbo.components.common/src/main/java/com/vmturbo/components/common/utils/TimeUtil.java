@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -52,5 +53,15 @@ public class TimeUtil {
         } else {
             return localTime.atZone(clock.getZone()).toInstant().toEpochMilli();
         }
+    }
+
+    /**
+     * Convert epoch milliseconds to {@link LocalDateTime} according to UTC time.
+     *
+     * @param epochMillis the timestamp in epoch milliseconds.
+     * @return the UTC date and time matching the timestamp.
+     */
+    public static LocalDateTime millisToLocalDateTime(long epochMillis, @Nonnull final Clock clock) {
+        return Instant.ofEpochMilli(epochMillis).atZone(clock.getZone()).toLocalDateTime();
     }
 }

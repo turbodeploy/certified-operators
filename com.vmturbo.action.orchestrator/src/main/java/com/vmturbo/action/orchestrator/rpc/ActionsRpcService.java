@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -39,12 +40,14 @@ import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionPaginator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.AuditedActionInfo;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
+import com.vmturbo.action.orchestrator.action.ExecutedActionsChangeWindowDao;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
@@ -66,6 +69,7 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionChain;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution.SkippedAction;
@@ -83,12 +87,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.ActionChunk;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionChainsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.ActionCountsByDateEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.Builder;
@@ -170,6 +176,10 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private final ActionAutomationManager actionAutomationManager;
 
+    private final ActionHistoryDao actionHistoryDao;
+
+    private final ExecutedActionsChangeWindowDao executedActionsChangeWindowDao;
+
     private final int actionPaginationMaxLimit;
 
     private final long realtimeTopologyContextId;
@@ -209,6 +219,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             @Nonnull final ActionExecutionStore actionExecutionStore,
             @Nonnull final ActionCombiner actionCombiner,
             @Nonnull final ActionAutomationManager actionAutomationManager,
+            @Nonnull final ActionHistoryDao actionHistoryDao,
+            @Nonnull final ExecutedActionsChangeWindowDao executedActionsChangeWindowDao,
             final int actionPaginationMaxLimit,
             final long realtimeTopologyContextId) {
         this.clock = clock;
@@ -226,6 +238,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         this.actionExecutionStore = Objects.requireNonNull(actionExecutionStore);
         this.actionCombiner = Objects.requireNonNull(actionCombiner);
         this.actionAutomationManager = Objects.requireNonNull(actionAutomationManager);
+        this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
+        this.executedActionsChangeWindowDao = Objects.requireNonNull(executedActionsChangeWindowDao);
         this.actionPaginationMaxLimit = actionPaginationMaxLimit;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
@@ -991,6 +1005,35 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                 .setActionId(spec.getRecommendation().getId())
                 .setActionSpec(spec)
                 .build();
+    }
+
+    @Override
+    public void getActionChains(GetActionChainsRequest request,
+            StreamObserver<ActionChain> responseObserver) {
+        // Get all executedActionsChangeWindow records for the specified entities.
+        Map<Long, List<ExecutedActionsChangeWindow>> recordsByEntity =
+                executedActionsChangeWindowDao.getExecutedActionsChangeWindowMap(request.getEntityOidList());
+
+        // Get all action OIDs for all actions referenced by the executedActionsChangeWindowDao records.
+        List<Long> actionIds = recordsByEntity.values().stream()
+                .flatMap(Collection::stream)
+                .map(ExecutedActionsChangeWindow::getActionOid)
+                .collect(Collectors.toList());
+
+        // Create a map of action IDs to ActionSpec objects
+        final Map<Long, ActionSpec> actionSpecMap = actionHistoryDao.getActionHistoryByIds(actionIds)
+                .stream()
+                .collect(Collectors.toMap(ActionView::getId, actionTranslator::translateToSpec));
+
+        // Build ActionChain objects for the gRPC response.
+        for (Entry<Long, List<ExecutedActionsChangeWindow>> entry : recordsByEntity.entrySet()) {
+            ActionChain.Builder actionChain = ActionChain.newBuilder().setEntityOid(entry.getKey());
+            entry.getValue().forEach(a -> actionChain.addExecutedActionsChangeWindow(
+                    a.toBuilder().setActionSpec(actionSpecMap.get(a.getActionOid()))
+                            .build()));
+            responseObserver.onNext(actionChain.build());
+        }
+        responseObserver.onCompleted();
     }
 
     /**

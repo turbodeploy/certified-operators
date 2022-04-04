@@ -58,4 +58,13 @@ public interface ActionHistoryDao {
      */
     @Nonnull
     List<ActionView> getActionHistoryByFilter(@Nonnull ActionQueryFilter actionQueryFilter);
+
+    /**
+     * Get historical actions by a list of action IDs.
+     *
+     * @param actionIds list of action IDs
+     * @return List of {@link Action}
+     */
+    @Nonnull
+    List<ActionView> getActionHistoryByIds(@Nonnull List<Long> actionIds);
 }

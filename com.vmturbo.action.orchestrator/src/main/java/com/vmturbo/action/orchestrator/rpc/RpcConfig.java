@@ -119,6 +119,8 @@ public class RpcConfig {
             actionExecutionConfig.actionExecutionStore(),
             actionStoreConfig.actionCombiner(),
             actionStoreConfig.automationManager(),
+            actionStoreConfig.actionHistory(),
+            actionStoreConfig.executedActionsChangeWindowDao(),
             actionPaginationMaxLimit,
             topologyProcessorConfig.realtimeTopologyContextId());
     }
