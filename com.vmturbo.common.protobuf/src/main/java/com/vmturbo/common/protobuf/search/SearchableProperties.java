@@ -241,5 +241,10 @@ public class SearchableProperties {
      */
     public static final String DB_SERVICE_TIER = "dbServiceTier";
 
+    /**
+     * Info about a VM, Whether it belongs to an azure VDI instance or not.
+     */
+    public static final String IS_VDI = "isVdi";
+
     private SearchableProperties() {}
 }

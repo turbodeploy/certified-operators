@@ -409,6 +409,15 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                 return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getServiceTier()),
                         DatabaseProps.class);
             }
+            case SearchableProperties.IS_VDI: {
+                final boolean regex = !StringUtils.isEmpty(stringCriteria.getStringPropertyRegex());
+                if (regex) {
+                    final boolean vdiState = Boolean.parseBoolean(SearchProtoUtil.stripFullRegex(
+                            stringCriteria.getStringPropertyRegex()));
+                    return PropertyFilter.typeSpecificFilter(v -> v.isVdi() == vdiState,
+                            VmProps.class);
+                }
+            }
 
             default:
                 throw new IllegalArgumentException("Unknown string property: " + propertyName

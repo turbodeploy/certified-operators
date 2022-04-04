@@ -133,6 +133,9 @@ message TypeSpecificInfo {
         }
         // The vendor tool version for this virtual machine
         optional string vendorToolsVersion = 18;
+
+        // The mark that shows whether the VM belongs to an Azure VDI instance or not.
+        optional bool is_vdi = 19 [default = false];
     }
 
     // Properties unique to a PhysicalMachine in the model
