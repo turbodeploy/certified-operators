@@ -353,6 +353,16 @@ public class PrerequisiteCalculatorTest {
                         .setPrerequisiteType(PrerequisiteType.LOCKS)
                         .setLocks(LOCK_MESSAGE_VOLUME)
                         .build())));
+
+        final Action scaleAaction = buildScaleAction(2, destinationId);
+        final ActionPartialEntity scaleTarget = buildGeneralVolumeActionPartialEntity(PrerequisiteType.LOCKS);
+
+        assertThat(PrerequisiteCalculator.calculateGeneralPrerequisites(
+                scaleAaction, scaleTarget, snapshot, ProbeCategory.CLOUD_MANAGEMENT),
+                is(Collections.singleton(Prerequisite.newBuilder()
+                        .setPrerequisiteType(PrerequisiteType.LOCKS)
+                        .setLocks(LOCK_MESSAGE_VOLUME)
+                        .build())));
     }
 
     /**
