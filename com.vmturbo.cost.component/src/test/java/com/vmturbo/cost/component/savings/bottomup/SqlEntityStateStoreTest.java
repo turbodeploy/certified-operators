@@ -53,6 +53,7 @@ import com.vmturbo.cost.component.db.tables.EntitySavingsByDay;
 import com.vmturbo.cost.component.db.tables.EntitySavingsByMonth;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
+import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -295,7 +296,7 @@ public class SqlEntityStateStoreTest extends MultiDbTestBase {
      * @return entity state
      */
     private EntityState createState(Long entityId) {
-        EntityState state = new EntityState(entityId, SavingsUtil.EMPTY_PRICE_CHANGE);
+        EntityState state = new EntityState(entityId, EntityPriceChange.EMPTY);
         state.setDeltaList(SavingsCalculatorTest.makeDeltaList(1d, 2d, 3d));
         return state;
     }

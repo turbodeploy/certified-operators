@@ -1,6 +1,5 @@
 package com.vmturbo.cost.component.savings.bottomup;
 
-import static com.vmturbo.cost.component.savings.bottomup.SavingsUtil.EMPTY_PRICE_CHANGE;
 import static org.mockito.Mockito.mock;
 
 import java.io.FileNotFoundException;
@@ -43,6 +42,7 @@ import org.junit.runners.Parameterized.Parameters;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.cost.component.savings.bottomup.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.bottomup.Algorithm.Delta;
 import com.vmturbo.cost.component.savings.bottomup.EventInjector.ScriptEvent;
@@ -243,7 +243,7 @@ public class SavingsCalculatorTest {
         addTestEvents("src/test/resources/savings/alg2-test.json", eventsJournal);
 
         long entityUpdatedInLastPeriod = 5555555L;
-        EntityState stateFromLastPeriod = new EntityState(entityUpdatedInLastPeriod, EMPTY_PRICE_CHANGE);
+        EntityState stateFromLastPeriod = new EntityState(entityUpdatedInLastPeriod, EntityPriceChange.EMPTY);
         Map<Long, EntityState> entityStates = new HashMap<>();
         entityStates.put(entityUpdatedInLastPeriod, stateFromLastPeriod);
 
@@ -592,7 +592,7 @@ public class SavingsCalculatorTest {
         List<SavingsEvent> savingsEvents = ImmutableList.of(
                 createProviderChange(2L, 5d, null));
         // Run the scenario. Pre-populate with an entity without a valid provider
-        EntityState entityState = new EntityState(2116L, EMPTY_PRICE_CHANGE);
+        EntityState entityState = new EntityState(2116L, EntityPriceChange.EMPTY);
         entityState.setLastExecutedAction(Optional.of(
                 new ActionEntry.Builder()
                         .eventType(ActionEventType.SCALE_EXECUTION_SUCCESS)

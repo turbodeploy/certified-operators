@@ -139,7 +139,7 @@ public class EntitySavingsRetentionConfig {
      * @return DataRetentionHourlySettings with hourly settings values. Null if fetch error.
      */
     @Nullable
-    DataRetentionSettings fetchDataRetentionSettings() {
+    public DataRetentionSettings fetchDataRetentionSettings() {
         final SettingProto.GetMultipleGlobalSettingsRequest.Builder builder =
                 SettingProto.GetMultipleGlobalSettingsRequest.newBuilder();
         DataRetentionSettings.getSettingNames().forEach(builder::addSettingSpecName);
@@ -157,7 +157,7 @@ public class EntitySavingsRetentionConfig {
      * Used to store hourly settings values for stats and audit retention. Values are read from
      * SettingsManager and stored here in this POJO for convenience.
      */
-    static class DataRetentionSettings {
+    public static class DataRetentionSettings {
         private final long auditLogRetentionInHours;
         private final long hourlyStatsRetentionInHours;
         private final long dailyStatsRetentionInHours;

@@ -11,6 +11,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
+import com.vmturbo.cost.component.savings.EntitySavingsException;
 
 /**
  * Interface for read/write of entity savings/investments related hourly/daily/monthly statistics.

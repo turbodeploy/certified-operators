@@ -8,6 +8,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.cost.component.savings.tem.ProviderInfo;
 import com.vmturbo.cost.component.savings.tem.ProviderInfoFactory;
 
@@ -313,7 +314,7 @@ public class Algorithm2 implements Algorithm {
         if (currentRecommendation == null) {
             // For backward compatibility, where the current recommendation was nullable, we need to
             // add a dummy inactive recommendation to the entity state if one is not present.
-            currentRecommendation = SavingsUtil.EMPTY_PRICE_CHANGE;
+            currentRecommendation = EntityPriceChange.EMPTY;
         }
         powerFactor = entityState.getPowerFactor();
 

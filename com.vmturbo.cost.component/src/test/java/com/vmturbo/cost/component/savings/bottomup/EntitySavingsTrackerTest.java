@@ -65,6 +65,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
+import com.vmturbo.cost.component.savings.EntitySavingsException;
+import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.cost.component.savings.bottomup.ActionEvent.ActionEventType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO;
@@ -484,7 +486,7 @@ public class EntitySavingsTrackerTest extends MultiDbTestBase {
 
     private EntityState createEntityState(long entityId, Double realizedSavings, Double realizedInvestments,
                                           Double missedSavings, Double missedInvestments) {
-        EntityState state = new EntityState(entityId, SavingsUtil.EMPTY_PRICE_CHANGE);
+        EntityState state = new EntityState(entityId, EntityPriceChange.EMPTY);
         if (realizedSavings != null) {
             state.setRealizedSavings(realizedSavings);
         }

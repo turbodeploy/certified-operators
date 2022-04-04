@@ -30,6 +30,7 @@ import org.jooq.impl.DSL;
 import org.jooq.tools.StringUtils;
 
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsAuditEventsRecord;
+import com.vmturbo.cost.component.savings.SavingsUtil;
 import com.vmturbo.cost.component.savings.bottomup.TopologyEvent.EventType;
 
 /**

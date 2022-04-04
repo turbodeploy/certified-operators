@@ -6,6 +6,7 @@ import java.util.Deque;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.cost.component.savings.bottomup.Algorithm.Delta;
 import com.vmturbo.cost.component.savings.tem.ProviderInfo;
 import com.vmturbo.cost.component.savings.tem.VirtualMachineProviderInfo;
@@ -21,7 +22,7 @@ public class EntityStateTest {
     @Test
     public void validateDeserializedEntityStateObject() {
         final long powerFactor = 1L;
-        EntityState state = new EntityState(100L, SavingsUtil.EMPTY_PRICE_CHANGE);
+        EntityState state = new EntityState(100L, EntityPriceChange.EMPTY);
         state.setDeletePending(true);
         state.setPowerFactor(powerFactor);
         EntityPriceChange recommendation = new EntityPriceChange.Builder()

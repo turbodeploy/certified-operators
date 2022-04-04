@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.savings.bottomup;
+package com.vmturbo.cost.component.savings;
 
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
@@ -13,7 +13,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.cost.component.savings.bottomup.AuditLogWriter;
+import com.vmturbo.cost.component.savings.bottomup.EntityEventsJournal;
+import com.vmturbo.cost.component.savings.bottomup.EntitySavingsRetentionConfig;
 import com.vmturbo.cost.component.savings.bottomup.EntitySavingsRetentionConfig.DataRetentionSettings;
+import com.vmturbo.cost.component.savings.bottomup.EntitySavingsStore;
 
 /**
  * Responsible for cleanup of old savings data from DB. Any data older than configured retention

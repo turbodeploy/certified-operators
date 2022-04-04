@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.savings;
 
 import java.sql.SQLException;
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -42,7 +43,6 @@ import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.rollup.RollupConfig;
 import com.vmturbo.cost.component.savings.bottomup.ActionListener;
 import com.vmturbo.cost.component.savings.bottomup.AuditLogWriter;
-import com.vmturbo.cost.component.savings.bottomup.DataRetentionProcessor;
 import com.vmturbo.cost.component.savings.bottomup.EntityEventsJournal;
 import com.vmturbo.cost.component.savings.bottomup.EntitySavingsProcessor;
 import com.vmturbo.cost.component.savings.bottomup.EntitySavingsRetentionConfig;
@@ -51,7 +51,6 @@ import com.vmturbo.cost.component.savings.bottomup.EntitySavingsTracker;
 import com.vmturbo.cost.component.savings.bottomup.EntityStateStore;
 import com.vmturbo.cost.component.savings.bottomup.EventInjector;
 import com.vmturbo.cost.component.savings.bottomup.InMemoryEntityEventsJournal;
-import com.vmturbo.cost.component.savings.bottomup.RollupSavingsProcessor;
 import com.vmturbo.cost.component.savings.bottomup.SqlAuditLogWriter;
 import com.vmturbo.cost.component.savings.bottomup.SqlEntityEventsJournal;
 import com.vmturbo.cost.component.savings.bottomup.SqlEntitySavingsStore;
@@ -154,6 +153,12 @@ public class EntitySavingsConfig {
     @Value("${entitySavingsRetentionProcessorFrequencyHours:6}")
     private Long retentionProcessorFrequencyHours;
 
+    /**
+     * How often to run the bill based savings processor, default 24 hours.
+     */
+    @Value("${billSavingsProcessorFrequencyHours:24}")
+    private Integer billSavingsProcessorFrequencyHours;
+
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
 
@@ -167,6 +172,12 @@ public class EntitySavingsConfig {
     private SearchServiceBlockingStub searchServiceBlockingStub;
 
     /**
+     * Chunk size for savings data processing. This many entities are processed at a time.
+     */
+    @Value("${savingsDataProcessingChunkSize:100}")
+    private int savingsDataProcessingChunkSize;
+
+    /**
      * Default 45 day (1080 hours) retention for savings events in DB.
      */
     private static final long EVENT_RETENTION_DEFAULT_HOURS = 1080;
@@ -178,9 +189,11 @@ public class EntitySavingsConfig {
     private Long entitySavingsEventsRetentionHours;
 
     /**
-     * How long (minutes) after the hour mark to run the periodic hourly processor task.
+     * How long (minutes) after the hour/day mark to run the periodic hourly processor task.
+     * Made configurable for testing only, would not need to be configurable otherwise.
      */
-    private static final int startMinuteMark = 15;
+    @Value("${entitySavingsStartMinuteMark:15}")
+    private int entitySavingsStartMinuteMark;
 
     /**
      * Entity types (cloud only) for which Savings feature is currently supported.
@@ -200,7 +213,15 @@ public class EntitySavingsConfig {
      * @return True if entity savings tracking is enabled.
      */
     public boolean isEnabled() {
-        return this.enableEntitySavings;
+        return this.enableEntitySavings && !isBillSavingsEnabled();
+    }
+
+    /**
+     * Whether bill based (newer) or bottom-up based (older) savings type is enabled.
+     * @return True if bill based is enabled.
+     */
+    public boolean isBillSavingsEnabled() {
+        return FeatureFlags.ENABLE_BILLING_BASED_SAVINGS.isEnabled();
     }
 
     /**
@@ -337,7 +358,7 @@ public class EntitySavingsConfig {
                         entityDeletionPeriodHours);
             }
             logger.info("EntitySavingsProcessor is enabled, will run at hour+{} min, after {} mins. TEM is {}.",
-                    startMinuteMark, initialDelayMinutes, temConfigInfo);
+                    entitySavingsStartMinuteMark, initialDelayMinutes, temConfigInfo);
         } else {
             logger.info("EntitySavingsProcessor is disabled.");
         }
@@ -369,9 +390,9 @@ public class EntitySavingsConfig {
     int getInitialStartDelayMinutes() {
         final LocalTime now = LocalTime.now();
         int currentMinute = now.getMinute();
-        return currentMinute <= startMinuteMark
-                ? (startMinuteMark - currentMinute)
-                : (60 - currentMinute + startMinuteMark);
+        return currentMinute <= entitySavingsStartMinuteMark
+                ? (entitySavingsStartMinuteMark - currentMinute)
+                : (60 - currentMinute + entitySavingsStartMinuteMark);
     }
 
     /**
@@ -455,7 +476,7 @@ public class EntitySavingsConfig {
     public AuditLogWriter auditLogWriter() {
         try {
             return new SqlAuditLogWriter(dbAccessConfig.dsl(), getClock(),
-                    persistEntityCostChunkSize, entitySavingsAuditLogEnabled);
+                    persistEntityCostChunkSize, isEnabled() && entitySavingsAuditLogEnabled);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -511,5 +532,70 @@ public class EntitySavingsConfig {
     @Bean
     public TopologyEventsMonitor topologyEventsMonitor() {
         return new TopologyEventsMonitor();
+    }
+
+    /**
+     * Creates tracker for bill based savings.
+     *
+     * @return Bill based savings tracker.
+     */
+    @Bean
+    public SavingsTracker savingsTracker() {
+        try {
+            return new SavingsTracker(new SqlBillingRecordStore(dbAccessConfig.dsl()),
+                    new GrpcActionChainStore(),
+                    (StatsWriter)entitySavingsStore());
+        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BeanCreationException("Failed to create billing SavingsTracker bean", e);
+        }
+    }
+
+    /**
+     * Creates bill based savings processor.
+     *
+     * @return Bill based savings processor.
+     */
+    @Bean
+    public SavingsProcessor savingsProcessor() {
+        SavingsProcessor savingsProcessor =
+                new SavingsProcessor(getClock(), savingsDataProcessingChunkSize,
+                        rollupConfig.entitySavingsRollupTimesStore(), rollupSavingsProcessor(),
+                        (StateStore)entityStateStore(), savingsTracker(),
+                        dataRetentionProcessor());
+        if (isBillSavingsEnabled()) {
+            int durationMinutes = 60 * billSavingsProcessorFrequencyHours;
+            final LocalDateTime now = LocalDateTime.now();
+            int totalMinutes = now.getHour() * 60 + now.getMinute();
+            int waitMinutes = durationMinutes - (totalMinutes % durationMinutes)
+                    + entitySavingsStartMinuteMark;
+            Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(
+                    savingsProcessor::execute, waitMinutes, durationMinutes, TimeUnit.MINUTES);
+            logger.info("BillSavingsProcessor will run every {}h (+ {}m), next after {}m.",
+                    billSavingsProcessorFrequencyHours, entitySavingsStartMinuteMark, waitMinutes);
+        } else {
+            logger.info("BillSavingsProcessor is disabled.");
+        }
+        return savingsProcessor;
+    }
+
+    /**
+     * Creates executed actions listener.
+     *
+     * @return Executed actions listener.
+     */
+    @Bean
+    public ExecutedActionsListener executedActionsListener() {
+        final ExecutedActionsListener listener = new ExecutedActionsListener(
+                (StateStore)entityStateStore(), supportedEntityTypes);
+        if (isBillSavingsEnabled()) {
+            logger.info("Registered BillExecutedActionsListener for executed actions.");
+            aoClientConfig.actionOrchestratorClient().addListener(listener);
+        } else {
+            logger.info("BillExecutedActionsListener is disabled.");
+        }
+        return listener;
     }
 }

@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.savings.bottomup;
+package com.vmturbo.cost.component.savings;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -18,7 +18,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.cost.component.savings.bottomup.ActionEntry;
 import com.vmturbo.cost.component.savings.bottomup.Algorithm.Delta;
+import com.vmturbo.cost.component.savings.bottomup.EntityEventsJournal;
+import com.vmturbo.cost.component.savings.bottomup.EntityPriceChange;
+import com.vmturbo.cost.component.savings.bottomup.EntityStateStore;
+import com.vmturbo.cost.component.savings.bottomup.GsonAdaptersActionEntry;
+import com.vmturbo.cost.component.savings.bottomup.GsonAdaptersEntityPriceChange;
+import com.vmturbo.cost.component.savings.bottomup.MonitoredEntity;
 import com.vmturbo.cost.component.savings.tem.ProviderInfo;
 import com.vmturbo.cost.component.savings.tem.ProviderInfoFactory;
 import com.vmturbo.cost.component.savings.tem.ProviderInfoSerializer;

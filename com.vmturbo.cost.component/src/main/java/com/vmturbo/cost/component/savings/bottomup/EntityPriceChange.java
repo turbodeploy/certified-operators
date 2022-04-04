@@ -13,7 +13,7 @@ import org.immutables.value.Value.Style.ImplementationVisibility;
 @Style(visibility = ImplementationVisibility.PACKAGE, overshadowImplementation = true)
 @Gson.TypeAdapters
 @Immutable(lazyhash = true)
-interface EntityPriceChange {
+public interface EntityPriceChange {
     /**
      * Pre-action cost. E.g on-demand compute cost for VM.
      *
@@ -72,4 +72,15 @@ interface EntityPriceChange {
      * Creates a new builder.
      */
     class Builder extends ImmutableEntityPriceChange.Builder {}
+
+    /**
+     * Dummy price change used to populate the current recommendation field in the entity state for
+     * entities that existed before action revert was implemented.  We now require that all entity
+     * state instances contain a valid recommendation.
+     */
+    EntityPriceChange EMPTY = new EntityPriceChange.Builder()
+            .active(false)
+            .sourceOid(0L).destinationOid(0L)
+            .sourceCost(0D).destinationCost(0D)
+            .build();
 }

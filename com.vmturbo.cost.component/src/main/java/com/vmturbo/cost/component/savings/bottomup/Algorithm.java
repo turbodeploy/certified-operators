@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 import com.google.common.math.DoubleMath;
 import com.google.gson.annotations.SerializedName;
 
+import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.cost.component.savings.tem.ProviderInfo;
 
 /**
@@ -179,7 +180,7 @@ public interface Algorithm {
     @Nullable
     default Long getCurrentProvider() {
         EntityPriceChange currentRecommendation = getCurrentRecommendation();
-        if (currentRecommendation == SavingsUtil.EMPTY_PRICE_CHANGE) {
+        if (currentRecommendation == EntityPriceChange.EMPTY) {
             return null;
         }
         if (currentRecommendation.active()) {
@@ -264,7 +265,7 @@ public interface Algorithm {
          * @param delta cost difference
          * @param expiration timestamp that the delta will expire
          */
-        Delta(long timestamp, double delta, long expiration) {
+        public Delta(long timestamp, double delta, long expiration) {
             this.timestamp = timestamp;
             this.delta = delta;
             this.expiration = expiration;
