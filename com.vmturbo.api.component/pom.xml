@@ -605,7 +605,20 @@
                     <groupId>org.apache.velocity</groupId>
                     <artifactId>velocity</artifactId>
                 </exclusion>
+                <!-- Excluding org.apache.santuario 2.0.10 which is transitively introduced by
+                     org.springframework.security:spring-security-saml2-service-provider:jar:5.5.1:compile.
+                     Add direct dependency for org.apache.santuario:xmlsec:2.2.3 to address
+                     vulnerabilities.
+                -->
+                <exclusion>
+                    <groupId>org.apache.santuario</groupId>
+                    <artifactId>xmlsec</artifactId>
+                </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.santuario</groupId>
+            <artifactId>xmlsec</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.security</groupId>
