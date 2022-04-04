@@ -301,6 +301,7 @@ public class Reconfigure {
                         allActions.addAll(tryCommodityRemoval(t, economy, ledger, cs));
                     }
                 }
+                Suspension.adjustUtilThreshold(economy, false);
                 round++;
             }
         } catch (Exception e) {

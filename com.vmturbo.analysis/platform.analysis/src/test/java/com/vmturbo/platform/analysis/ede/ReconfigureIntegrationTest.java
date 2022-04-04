@@ -6,6 +6,8 @@ import static org.junit.Assert.assertTrue;
 import java.util.List;
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -175,6 +177,9 @@ public class ReconfigureIntegrationTest {
         assertTrue(pm3.getCommoditySold(TestUtils.SOFTWARE_LICENSE_COMMODITY) == null);
         assertTrue(sl3.getSupplier() == pm2);
         assertEquals(pm3.getReconfigurableCommodityCount(), 0);
+        for (Trader pm : ImmutableSet.of(pm1, pm2, pm3)) {
+            assertEquals(1, pm.getCommoditySold(TestUtils.CPU).getSettings().getUtilizationUpperBound(), 0.01);
+        }
 
         // Covert the Move action after license removal.
         ActionTO actionto = AnalysisToProtobuf.actionTO(actions.get(1), topology.getShoppingListOids(), topology);
