@@ -113,6 +113,11 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.mediation.client</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.mediation.webhook.component</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <!-- This is necessary to avoid version conflict between ClusterMgr and Azure probe -->
         <dependency>

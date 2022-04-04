@@ -39,6 +39,7 @@ import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.market.MarketComponent;
 import com.vmturbo.market.component.db.Market;
 import com.vmturbo.mediation.client.MediationComponentMain;
+import com.vmturbo.mediation.webhook.component.WebhookComponent;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorComponent;
 import com.vmturbo.plan.orchestrator.db.Plan;
 import com.vmturbo.repository.RepositoryComponent;
@@ -476,7 +477,7 @@ public enum Component {
     /**
      * Webhook.
      */
-    MEDIATION_WEBHOOK("webhook", "com.vmturbo.mediation.webhook.component"),
+    MEDIATION_WEBHOOK("webhook", "com.vmturbo.mediation.webhook.component", WebhookComponent.class),
 
     /**
      * XTremio.
@@ -499,18 +500,33 @@ public enum Component {
     private final Map<String, Object> customProps;
     private final Optional<Schema> componentDbSchema;
 
-    Component(final String probeShortName, final String probeTopFolder) {
+    Component(
+            final String probeShortName,
+            final String probeTopFolder,
+            Class<?> configClass
+    ) {
         this(probeShortName, probeTopFolder,
-            MediationComponentMain.class,
-            Optional.empty(),
-            ImmutableMap.of("probe-directory",
-                    Voltron.getAbsolutePath(probeTopFolder + "/target/probe-jars")));
+                configClass,
+                Optional.empty(),
+                ImmutableMap.of("probe-directory",
+                        Voltron.getAbsolutePath(probeTopFolder + "/target/probe-jars")));
     }
 
-    Component(final String shortName,
-            final String topLevelFolder, Class<?> configClass,
+    Component(
+            final String probeShortName,
+            final String probeTopFolder
+    ) {
+        this(probeShortName, probeTopFolder,
+            MediationComponentMain.class);
+    }
+
+    Component(
+            final String shortName,
+            final String topLevelFolder,
+            Class<?> configClass,
             Optional<Schema> componentDbSchema,
-            final Map<String, Object> extraProps) {
+            final Map<String, Object> extraProps
+    ) {
         this.shortName = shortName;
         this.topLevelFolder = topLevelFolder;
         this.customProps = extraProps;
@@ -518,10 +534,12 @@ public enum Component {
         this.configClass = configClass;
     }
 
-    Component(final String shortName,
+    Component(
+            final String shortName,
             final String topLevelFolder,
             Class<?> configClass,
-            Optional<Schema> componentDbSchema) {
+            Optional<Schema> componentDbSchema
+    ) {
         this(shortName, topLevelFolder, configClass, componentDbSchema, Collections
                 .emptyMap());
     }
