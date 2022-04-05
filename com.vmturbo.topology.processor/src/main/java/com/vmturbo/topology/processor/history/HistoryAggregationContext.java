@@ -36,6 +36,7 @@ public class HistoryAggregationContext {
     private final ICommodityFieldAccessor accessor;
     private final EntitySettingsCollection entitySettings;
     private final boolean isPlan;
+    private final boolean isMigrationPlan;
     private final Map<Pair<Long, EntitySettingSpecs>, Number> oidSettingToValue =
                     new ConcurrentHashMap<>();
 
@@ -44,15 +45,32 @@ public class HistoryAggregationContext {
      *
      * @param topologyInfo information about currently processing topology snapshot.
      * @param graphWithSettings topology graph
-     * @param isPlan whether the pipeline is for plan
+     * @param isPlan whether the pipeline is for a plan
+     * @param isMigrationPlan whether the pipeline is for a migration plan
      */
     public HistoryAggregationContext(@Nonnull TopologyInfo topologyInfo,
-                                     @Nonnull GraphWithSettings graphWithSettings, boolean isPlan) {
+                                     @Nonnull GraphWithSettings graphWithSettings,
+                                     boolean isPlan,
+                                     boolean isMigrationPlan) {
         this.topologyInfo = topologyInfo;
         this.graph = graphWithSettings.getTopologyGraph();
         this.accessor = new CommodityFieldAccessor(graph);
         this.isPlan = isPlan;
+        this.isMigrationPlan = isMigrationPlan;
         this.entitySettings = graphWithSettings.constructEntitySettingsCollection();
+    }
+
+    /**
+     * Construct the context.
+     *
+     * @param topologyInfo information about currently processing topology snapshot.
+     * @param graphWithSettings topology graph
+     * @param isPlan whether the pipeline is for a plan
+     */
+    public HistoryAggregationContext(@Nonnull TopologyInfo topologyInfo,
+                                     @Nonnull GraphWithSettings graphWithSettings,
+                                     boolean isPlan) {
+        this(topologyInfo, graphWithSettings, isPlan, false);
     }
 
     /**
@@ -142,6 +160,10 @@ public class HistoryAggregationContext {
 
     public boolean isPlan() {
         return isPlan;
+    }
+
+    public boolean isMigrationPlan() {
+        return isMigrationPlan;
     }
 
     /**

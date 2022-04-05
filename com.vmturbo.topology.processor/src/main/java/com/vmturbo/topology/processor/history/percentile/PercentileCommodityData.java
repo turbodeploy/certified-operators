@@ -128,9 +128,13 @@ public class PercentileCommodityData
                         logger.trace("Calculated percentile score for {} for rank {}: {}",
                             utilizationCounts, aggressiveness, percentile);
                     }
-                    commodityFieldsAccessor.updateHistoryValue(field,
-                        hv -> hv.setPercentile(percentile / 100d),
-                        PercentileEditor.class.getSimpleName());
+                    // For migration plans, do not set percentile if it is 1, and fall back to
+                    // historical data if possible. Since very low utilization rounds up to 1%, it
+                    // incorrectly inflates usage and causes incorrect migration optimization.
+                    if (percentile != 1 || !context.isMigrationPlan()) {
+                        commodityFieldsAccessor.updateHistoryValue(field, hv -> hv.setPercentile(percentile / 100d),
+                                PercentileEditor.class.getSimpleName());
+                    }
                 } else {
                     logger.trace("No utilization counts recorded for {}", () -> field);
                 }
