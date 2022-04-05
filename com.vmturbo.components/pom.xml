@@ -31,7 +31,7 @@
              writing (November 2016) so this is ok. -->
         <aggregate.adoc.dir>../com.vmturbo.components.common/src/main/resources</aggregate.adoc.dir>
         <!-- END properties for static swagger documentation generation -->
-        <jackson.version>2.13.2</jackson.version>
+        <jackson.version>2.11.4</jackson.version>
 
         <!-- Integration Test Phase properties -->
         <integration-test-phase></integration-test-phase>
