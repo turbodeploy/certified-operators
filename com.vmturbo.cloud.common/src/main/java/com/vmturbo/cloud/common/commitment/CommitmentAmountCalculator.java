@@ -398,6 +398,44 @@ public class CommitmentAmountCalculator {
     }
 
     /**
+     * Find all non zero entry in the amount.
+     *
+     * @param amountA the cloud commitment amount of interest.
+     * @param epsilon the epsilon used for floating point comparison.
+     * @return  all non zero entry in the amount.
+     */
+    public static List<Double> findNonZero(CloudCommitmentAmount amountA, double epsilon) {
+        List<Double> returnList = new ArrayList<>();
+        switch (amountA.getValueCase()) {
+            case AMOUNT:
+                if (Math.abs(amountA.getAmount().getAmount()) > epsilon) {
+                    returnList.add(amountA.getAmount().getAmount());
+                }
+                break;
+            case COUPONS:
+                if (Math.abs(amountA.getCoupons()) > epsilon) {
+                    returnList.add(amountA.getCoupons());
+                }
+                break;
+            case COMMODITIES_BOUGHT:
+                for (CommittedCommodityBought commInFirst : amountA.getCommoditiesBought()
+                        .getCommodityList()) {
+                    if (Math.abs(commInFirst.getCapacity()) > epsilon) {
+                        returnList.add(commInFirst.getCapacity());
+                    }
+                }
+                break;
+            case VALUE_NOT_SET:
+                break;
+            default:
+                throw new UnsupportedOperationException(
+                        String.format("Cloud commitment amount case %s is not supported",
+                                amountA.getValueCase()));
+        }
+        return returnList;
+    }
+
+    /**
      * Find the hash value for the cloud commitment amount.
      * @param amountA the CloudCommitmentAmount of interest.
      * @return the hash value for the CloudCommitmentAmount.
