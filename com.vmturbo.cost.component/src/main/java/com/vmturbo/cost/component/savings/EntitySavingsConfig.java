@@ -203,6 +203,15 @@ public class EntitySavingsConfig {
             Stream.of(EntityType.VIRTUAL_VOLUME)).collect(Collectors.toSet());
 
     /**
+     * Provider types we care about for bill based savings.
+     */
+    private static final Set<Integer> supportedProviderTypes = ImmutableSet.of(
+            EntityType.COMPUTE_TIER.getNumber(),
+            EntityType.STORAGE_TIER.getNumber(),
+            EntityType.DATABASE_TIER.getNumber(),
+            EntityType.DATABASE_SERVER_TIER.getNumber());
+
+    /**
      * Types of actions we currently support Savings feature for.
      */
     private static final Set<ActionType> supportedActionTypes =
@@ -221,7 +230,8 @@ public class EntitySavingsConfig {
      * @return True if bill based is enabled.
      */
     public boolean isBillSavingsEnabled() {
-        return FeatureFlags.ENABLE_BILLING_BASED_SAVINGS.isEnabled();
+        return FeatureFlags.ENABLE_BILLING_BASED_SAVINGS.isEnabled()
+                && FeatureFlags.EXECUTED_ACTIONS_CHANGE_WINDOW.isEnabled();
     }
 
     /**
@@ -543,8 +553,8 @@ public class EntitySavingsConfig {
     public SavingsTracker savingsTracker() {
         try {
             return new SavingsTracker(new SqlBillingRecordStore(dbAccessConfig.dsl()),
-                    new GrpcActionChainStore(),
-                    (StatsWriter)entitySavingsStore());
+                    new GrpcActionChainStore(actionsService()),
+                    (StatsWriter)entitySavingsStore(), supportedProviderTypes);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -571,6 +581,9 @@ public class EntitySavingsConfig {
             int totalMinutes = now.getHour() * 60 + now.getMinute();
             int waitMinutes = durationMinutes - (totalMinutes % durationMinutes)
                     + entitySavingsStartMinuteMark;
+            if (waitMinutes > durationMinutes) {
+                waitMinutes -= durationMinutes;
+            }
             Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(
                     savingsProcessor::execute, waitMinutes, durationMinutes, TimeUnit.MINUTES);
             logger.info("BillSavingsProcessor will run every {}h (+ {}m), next after {}m.",

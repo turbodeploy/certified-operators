@@ -8,7 +8,7 @@ import javax.annotation.Nonnull;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-import org.jooq.Record9;
+import org.jooq.Record10;
 
 import com.vmturbo.cost.component.db.tables.BilledCostDaily;
 import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
@@ -54,6 +54,7 @@ public class SqlBillingRecordStore implements BillingRecordStore {
                         t1.PRICE_MODEL,
                         t1.COST_CATEGORY,
                         t1.PROVIDER_ID,
+                        t1.PROVIDER_TYPE,
                         t1.USAGE_AMOUNT,
                         t1.COST,
                         t1.LAST_UPDATED)
@@ -73,7 +74,7 @@ public class SqlBillingRecordStore implements BillingRecordStore {
      */
     @Nonnull
     private BillingChangeRecord createChangeRecord(
-            Record9<LocalDateTime, Long, Short, Short, Short, Long, Double, Double, Long> dbRecord) {
+            Record10<LocalDateTime, Long, Short, Short, Short, Long, Short, Double, Double, Long> dbRecord) {
         return new BillingChangeRecord.Builder()
                 .sampleTime(dbRecord.get(0, LocalDateTime.class))
                 .entityId(dbRecord.get(1, Long.class))
@@ -81,8 +82,9 @@ public class SqlBillingRecordStore implements BillingRecordStore {
                 .priceModel(PriceModel.forNumber(dbRecord.get(3, Short.class)))
                 .costCategory(CostCategory.forNumber(dbRecord.get(4, Short.class)))
                 .providerId(dbRecord.get(5, Long.class))
-                .usageAmount(dbRecord.get(6, Double.class))
-                .cost(dbRecord.get(7, Double.class))
-                .lastUpdated(dbRecord.get(8, Long.class)).build();
+                .providerType(dbRecord.get(6, Short.class))
+                .usageAmount(dbRecord.get(7, Double.class))
+                .cost(dbRecord.get(8, Double.class))
+                .lastUpdated(dbRecord.get(9, Long.class)).build();
     }
 }

@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -43,18 +44,26 @@ public class SavingsTracker {
     private final StatsWriter statsWriter;
 
     /**
+     * Supported provider types.
+     */
+    private final Set<Integer> supportedProviderTypes;
+
+    /**
      * Creates a new tracker.
      *
      * @param billingRecordStore Store for billing records.
      * @param actionChainStore Action chain store.
      * @param statsWriter Writer for final stats.
+     * @param supportedProviderTypes Provider types wer are interested in.
      */
     public SavingsTracker(@Nonnull final BillingRecordStore billingRecordStore,
             @Nonnull ActionChainStore actionChainStore,
-            @Nonnull final StatsWriter statsWriter) {
+            @Nonnull final StatsWriter statsWriter,
+            @Nonnull final Set<Integer> supportedProviderTypes) {
         this.billingRecordStore = billingRecordStore;
         this.actionChainStore = actionChainStore;
         this.statsWriter = statsWriter;
+        this.supportedProviderTypes = supportedProviderTypes;
     }
 
     /**
@@ -74,8 +83,8 @@ public class SavingsTracker {
 
         long previousLastUpdated = savingsTimes.getPreviousLastUpdatedTime();
         long lastUpdatedEndTime = savingsTimes.getLastUpdatedEndTime();
-        logger.trace("{}: Processing chunk of states: {} with last updated >= {} && < {}...",
-                () -> chunkCounter, () -> entityStates, () -> previousLastUpdated,
+        logger.trace("{}: Processing chunk of {} states with last updated >= {} && < {}...",
+                () -> chunkCounter, entityStates::size, () -> previousLastUpdated,
                 () -> lastUpdatedEndTime);
 
         // Get billing records in this time range, mapped by entity id.
@@ -84,7 +93,7 @@ public class SavingsTracker {
         // For this set of billing records, see if we have any last_updated times that are newer.
         final AtomicLong newLastUpdated = new AtomicLong(savingsTimes.getCurrentLastUpdatedTime());
         billingRecordStore.getBillingChangeRecords(previousLastUpdated, lastUpdatedEndTime, entityIds)
-                .filter(BillingChangeRecord::isValid)
+                .filter(record -> record.isValid(supportedProviderTypes))
                 .forEach(record -> {
                     if (record.getLastUpdated() != null
                             && record.getLastUpdated() > newLastUpdated.get()) {

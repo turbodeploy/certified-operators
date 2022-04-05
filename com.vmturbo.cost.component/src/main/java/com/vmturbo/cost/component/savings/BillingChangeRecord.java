@@ -1,7 +1,9 @@
 package com.vmturbo.cost.component.savings;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.immutables.value.Value;
@@ -60,6 +62,13 @@ public interface BillingChangeRecord {
     long getProviderId();
 
     /**
+     * Type of provider (e.g compute tier or storage tier).
+     *
+     * @return Provider type.
+     */
+    int getProviderType();
+
+    /**
      * For VM usage, this is how many hours in the day that usage was billed for. Not applicable
      * for volumes.
      *
@@ -85,14 +94,17 @@ public interface BillingChangeRecord {
     /**
      * Both entityId and providerId are present, and if either cost or usage are non-0, then we
      * have a 'valid' billing record. If both cost and usage are 0, we skip those records.
+     * Check the provider type to make sure it matches valid provider types.
      *
+     * @param supportedProviderTypes Interested provider types, e.g. compute, storage, DB/DBS.
      * @return True if valid.
      */
     @Derived
-    default boolean isValid() {
+    default boolean isValid(@Nonnull final Set<Integer> supportedProviderTypes) {
         return getEntityId() != 0 && getProviderId() != 0
                 && (Double.compare(getCost(), 0d) != 0
-                || Double.compare(getUsageAmount(), 0d) != 0);
+                || Double.compare(getUsageAmount(), 0d) != 0)
+                && supportedProviderTypes.contains(getProviderType());
     }
 
     /**
