@@ -739,36 +739,6 @@ public enum EntitySettingSpecs {
             true),
 
     /**
-     * Connections capacity for Database servers.
-     */
-    ConnectionCapacity("ConnectionCapacity", "Connection capacity",
-            Collections.emptyList(),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DATABASE_SERVER),
-            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 2000.0f/*default*/),
-            true),
-
-    /**
-     * Connections used for Database servers.
-     */
-    Connection("Connection", "Connection",
-            Collections.emptyList(),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DATABASE_SERVER),
-            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 2000.0f/*default*/),
-            true),
-
-    /**
-     * Connections used for Database servers.
-     */
-    ConnectionEnabled("ConnectionEnabled", "ConnectionEnabled",
-            Collections.emptyList(),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DATABASE_SERVER),
-            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 2000.0f/*default*/),
-            true),
-
-    /**
      * SLA Capacity used by Application and Database.
      */
     @Deprecated
