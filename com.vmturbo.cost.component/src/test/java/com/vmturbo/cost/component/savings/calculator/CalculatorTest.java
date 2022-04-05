@@ -360,6 +360,7 @@ public class CalculatorTest {
                 .providerId(providerId)
                 .entityId(vmOid)
                 .entityType(EntityType.VIRTUAL_MACHINE.getValue())
+                .providerType(EntityType.COMPUTE_TIER.getValue())
                 .costCategory(CostCategory.COMPUTE)
                 .priceModel(PriceModel.ON_DEMAND)
 

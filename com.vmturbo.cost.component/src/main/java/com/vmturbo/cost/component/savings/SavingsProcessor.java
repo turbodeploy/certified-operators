@@ -118,7 +118,7 @@ public class SavingsProcessor {
                 }
             });
             // Process any leftover chunk items, if we are able to process the previous ones.
-            if (!stateChunk.isEmpty() && !successfullyProcessed.get()) {
+            if (!stateChunk.isEmpty() && successfullyProcessed.get()) {
                 if (!processStateChunk(stateChunk, savingsTimes, chunkCounter)) {
                     successfullyProcessed.set(false);
                 }
