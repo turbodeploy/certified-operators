@@ -653,9 +653,12 @@ public class StableMarriageAlgorithm {
                     discountedCoupons = CommitmentAmountCalculator.subtract(
                             discountedCoupons, allocatedCoupons);
                 }
-                if (!CommitmentAmountCalculator.isZero(discountedCoupons, SMAUtils.EPSILON)) {
+                if (!CommitmentAmountCalculator.isZero(discountedCoupons, SMAUtils.BIG_EPSILON)) {
+                    // This should never happen. SMA will never allocate coupons more than
+                    // available in the SMAReservedInstances.
                     logger.error("SMAOutput: Cannot allocate all commitments "
-                            + "allocated to the vm: {}", match.getVirtualMachine().getOid());
+                            + "allocated to the vm: {}. Left Over Coupons: {}", match.getVirtualMachine().getOid(),
+                            CommitmentAmountCalculator.findNonZero(discountedCoupons, SMAUtils.BIG_EPSILON));
                 }
             }
         }
