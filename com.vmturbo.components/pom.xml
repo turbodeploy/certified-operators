@@ -36,13 +36,12 @@
         <!-- Integration Test Phase properties -->
         <integration-test-phase></integration-test-phase>
         <pre-integration-test-phase></pre-integration-test-phase>
-        <dockerRobotImage>registry.turbonomic.com/turbonomic/robot-docker:1.0.7</dockerRobotImage>
+        <dockerRobotImage>registry.turbonomic.com/turbonomic/robot-docker:1.0.8</dockerRobotImage>
         <it.s6.kill.finish.maxtime>30000</it.s6.kill.finish.maxtime>
         <it.fabric8.kill>30000</it.fabric8.kill>
         <it.fabric8.wait>600000</it.fabric8.wait>
         <it.suite.name>${project.artifactId}</it.suite.name>
         <it.test.directory>/usr/src/project/it</it.test.directory>
-        <it.test.version>8.4.3</it.test.version>
         <it.docker.dir>/usr/src/project/it/docker</it.docker.dir>
         <it.db.password>${db.password}</it.db.password>
         <it.tag>Mandatory</it.tag>
@@ -189,14 +188,13 @@
                                                 <TEST_DIRECTORY>${it.test.directory}</TEST_DIRECTORY>
                                                 <TEST_IMAGE>${dockerRobotImage}</TEST_IMAGE>
                                                 <DOCKER_PROJECT_DIR>${it.docker.dir}</DOCKER_PROJECT_DIR>
-                                                <DOCKER_VERSION>${it.test.version}</DOCKER_VERSION>
                                                 <DBROOT>${it.db.password}</DBROOT>
                                                 <ROBOT_TAG>${it.tag}</ROBOT_TAG>
                                                 <DOCKER_USERNAME>${docker.pull.username}</DOCKER_USERNAME>
                                                 <DOCKER_PASSWORD>${docker.pull.password}</DOCKER_PASSWORD>
                                             </env>
                                             <wait>
-                                                <log>${it.suite.name}[ ]+\| PASS \|</log>
+                                                <log>(?:${it.suite.name}[ ]+\| PASS \||skipping integration testing)</log>
                                                 <kill>${it.fabric8.kill}</kill>
                                                 <time>${it.fabric8.wait}</time>
                                             </wait>
