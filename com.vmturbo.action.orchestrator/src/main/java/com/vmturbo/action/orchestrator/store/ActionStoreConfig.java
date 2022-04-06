@@ -292,7 +292,8 @@ public class ActionStoreConfig {
                 actionExecutionConfig.failedCloudVMGroupProcessor(),
                 auditCommunicationConfig.actionAuditSender(),
                 approvalCommunicationConfig.actionStateUpdatesSender(),
-                actionTranslationConfig.actionTranslator());
+                actionTranslationConfig.actionTranslator(),
+                executedActionsChangeWindowDao());
         tpConfig.topologyProcessor().addActionListener(executionListener);
         return executionListener;
     }
@@ -493,7 +494,7 @@ public class ActionStoreConfig {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            throw new BeanCreationException("Failed to create executedActionsChangeWindow", e);
+            throw new BeanCreationException("Failed to create executedActionsChangeWindowDao", e);
         }
     }
 

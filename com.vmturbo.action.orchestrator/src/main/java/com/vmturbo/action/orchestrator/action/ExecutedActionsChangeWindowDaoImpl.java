@@ -11,18 +11,20 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ExecutedActionsChangeWindowRecord;
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
-import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.components.common.utils.TimeUtil;
 
 /**
- * DAO backed by RDBMS to hold action history.
+ * DAO backed by RDBMS to hold executed actions' change window.
  */
 public class ExecutedActionsChangeWindowDaoImpl implements ExecutedActionsChangeWindowDao {
+
+    private final Logger logger = LogManager.getLogger();
 
     /**
      * Database access context.
@@ -32,7 +34,7 @@ public class ExecutedActionsChangeWindowDaoImpl implements ExecutedActionsChange
     private final Clock clock;
 
     /**
-     * Constructs action history DAO.
+     * Constructs executed actions change window DAO.
      * @param dsl database access context.
      */
     public ExecutedActionsChangeWindowDaoImpl(@Nonnull final DSLContext dsl, Clock clock) {
@@ -41,22 +43,22 @@ public class ExecutedActionsChangeWindowDaoImpl implements ExecutedActionsChange
     }
 
     /**
-     * Persist an executed action change window, based on Action {@link Action} and execution details.
-     * It's intended to persist action change window details of Succeeded actions. And it should be added to,
-     * and not updated.
+     * Persist an executed action change window record, based on Action {@link Action} and execution details.
+     *
+     * <p>It's intended to persist action change window details of Succeeded actions. It should be added to, and not updated.
+     * @param actionId the action id.
+     * @param entityId the entityId.
+     * @param completionTime the change window's satrt time is the time that the action completed successfully.
      */
     @Override
-    public void persistExecutedActionsChangeWindow(
-            final long actionId,
-            @Nonnull final ActionDTO.Action recommendation,
-            @Nonnull final ExecutionStep executionStep) {
-//        ExecutedActionsChangeWindow executedActionsChangeWindow = new
-//                ExecutedActionsChangeWindow(actionId,
-//                ActionDTOUtil.getPrimaryEntityId(recommendation),
-//                executionStep.completionTime,
-//                NULL, 0);
-//        dsl.newRecord(EXECUTED_ACTIONS_CHANGE_WINDOW, executedActionsChangeWindow).store();
-//        return executedActionsChangeWindow;
+    public void persistExecutedActionsChangeWindow(final long actionId, final long entityId,
+                                                   final long completionTime) {
+        final com.vmturbo.action.orchestrator.db.tables.pojos.ExecutedActionsChangeWindow
+                executedActionsChangeWindow = new com.vmturbo.action.orchestrator.db.tables.pojos.ExecutedActionsChangeWindow(actionId,
+                entityId,
+                TimeUtil.millisToLocalDateTime(completionTime, clock),
+                null, null);
+        dsl.newRecord(EXECUTED_ACTIONS_CHANGE_WINDOW, executedActionsChangeWindow).store();
     }
 
     @Nonnull
@@ -68,7 +70,7 @@ public class ExecutedActionsChangeWindowDaoImpl implements ExecutedActionsChange
                         .where(EXECUTED_ACTIONS_CHANGE_WINDOW.ENTITY_OID.in(entityOids))
                         .orderBy(EXECUTED_ACTIONS_CHANGE_WINDOW.START_TIME)
                         .fetch();
-        final Map<Long, List<ExecutedActionsChangeWindow>> result = new HashMap<>();
+        final Map<Long, List<com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow>> result = new HashMap<>();
         records.forEach(record ->
                 result.computeIfAbsent(record.getEntityOid(), r -> new ArrayList<>()).add(toProtobuf(record)));
         return result;

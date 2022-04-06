@@ -5,27 +5,25 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
-import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 
 /**
- * DAO for action history.
+ * DAO for executed actions change window.
  */
 public interface ExecutedActionsChangeWindowDao {
 
     /**
-     * Persist ExecutedActionsChangeWindow.
-     * TODO Reshma will update this method.
+     * Persist an executed action change window record, based on Action {@link Action} and execution details.
      *
-     * @param actionId Action ID
-     * @param recommendation recommendation
-     * @param executionStep execution step
+     * <p>It's intended to persist action change window details of Succeeded actions. It should be added to,
+     * and not updated.
+     *
+     * @param actionId the actionId.
+     * @param entityId the entityId.
+     * @param completionTime the change window's start time is the time that the action completed successfully.
+     * @return ExecutedActionsChangeWindow, if created.
      */
-    void persistExecutedActionsChangeWindow(
-            long actionId,
-            @Nonnull ActionDTO.Action recommendation,
-            @Nonnull ExecutionStep executionStep);
+     void persistExecutedActionsChangeWindow(long actionId, long entityId, long completionTime);
 
     /**
      * Get all ExecutedActionsChangeWindow records by entity OIDs.
