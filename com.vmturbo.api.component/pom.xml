@@ -126,7 +126,7 @@
                 <executions>
                     <execution>
                         <id>get-ux</id>
-                        <phase>prepare-package</phase>
+                        <phase>process-resources</phase>
                         <goals>
                             <goal>copy</goal>
                         </goals>
@@ -145,7 +145,7 @@
                     </execution>
                     <execution>
                         <id>get-swagger-resources</id>
-                        <phase>process-resources</phase>
+                        <phase>generate-resources</phase>
                         <goals>
                             <goal>copy</goal>
                         </goals>
@@ -169,7 +169,7 @@
                     </execution>
                     <execution>
                         <id>unpack-apidoc</id>
-                        <phase>package</phase>
+                        <phase>prepare-package</phase>
                         <goals>
                             <goal>unpack</goal>
                         </goals>
