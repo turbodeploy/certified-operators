@@ -24,10 +24,12 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
@@ -122,8 +124,14 @@ public class HistoryAggregator {
                             gatherEligibleCommodities(graph.getTopologyGraph(), editorsToRun, topologyInfo);
             // store reference to the current settings for policies access
             // set up commodity builders lazy/fast access
-            HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo, graph, !CollectionUtils
-                            .isEmpty(changes));
+            boolean isPlan = topologyInfo != null
+                    && topologyInfo.getTopologyType().equals(TopologyType.PLAN);
+            boolean isMigrationPlan = isPlan
+                    && topologyInfo.getPlanInfo().hasPlanProjectType()
+                    && topologyInfo.getPlanInfo().getPlanProjectType()
+                        .equals(PlanProjectType.CLOUD_MIGRATION);
+            HistoryAggregationContext context =
+                    new HistoryAggregationContext(topologyInfo, graph, isPlan, isMigrationPlan);
 
             // this may initiate background loading of certain data
             Set<IHistoricalEditor<?>> failedEditors = forEachEditor(editorsToRun,
