@@ -221,25 +221,27 @@ public class ActionAuditSender {
             ExecutionInitiationException {
         int auditedActionsCount = 0;
         for (ActionView action : actions) {
-            Optional<WorkflowDTO.Workflow> workflowOptional;
-            try {
-                workflowOptional = action.getWorkflow(workflowStore, action.getState());
-            } catch (WorkflowStoreException e) {
-                logger.warn("Failed to fetch workflow for action {}. Audit ON_GEN will be skipped.",
-                        action.getId());
-                workflowOptional = Optional.empty();
-            }
-            if (workflowOptional.isPresent()) {
-                boolean wasActionAudited =
-                        processWorkflow(action, workflowOptional.get(), auditedActionsUpdates,
-                                allowRepeatedAudit);
-                if (wasActionAudited) {
-                    auditedActionsCount++;
+            if (action.getState() == ActionState.READY) {
+                Optional<WorkflowDTO.Workflow> workflowOptional;
+                try {
+                    workflowOptional = action.getWorkflow(workflowStore, ActionState.READY);
+                } catch (WorkflowStoreException e) {
+                    logger.warn("Failed to fetch workflow for action {}. Audit ON_GEN will be skipped.",
+                            action.getId());
+                    workflowOptional = Optional.empty();
                 }
-            } else {
-                logger.trace(
-                        "Action {} does not have a currently associated workflow. Skip the audit",
-                        action::getId);
+                if (workflowOptional.isPresent()) {
+                    boolean wasActionAudited =
+                            processWorkflow(action, workflowOptional.get(), auditedActionsUpdates,
+                                    allowRepeatedAudit);
+                    if (wasActionAudited) {
+                        auditedActionsCount++;
+                    }
+                } else {
+                    logger.trace(
+                            "Action {} does not have a currently associated workflow. Skip the audit",
+                            action::getId);
+                }
             }
         }
         return auditedActionsCount;

@@ -280,25 +280,20 @@ public class ActionAuditSenderTest {
                         .setActionPhase(ActionPhase.REPLACE)
                         .setTargetId(KAFKA_TARGET_ID))
                 .build();
-        final Action action1 = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
-        final Action action2 = createAction(ACTION2_ID, SERVICENOW_ONGEN_WORKFLOW);
-        when(action2.getState()).thenReturn(ActionState.SUCCEEDED);
-        final Action action3 = createAction(ACTION3_ID, workflow3);
-        final Action action4 = createAction(ACTION4_ID, null);
+        final Action action1 = createAction(ACTION1_ID, null,
+                KAFKA_ONGEN_WORKFLOW, ActionState.READY);
+        final Action action2 = createAction(ACTION2_ID, null,
+                SERVICENOW_ONGEN_WORKFLOW, ActionState.SUCCEEDED);
+        final Action action3 = createAction(ACTION3_ID, null, workflow3, ActionState.READY);
+        final Action action4 = createAction(ACTION4_ID, null, null, ActionState.READY);
         actionAuditSender.sendOnGenerationEvents(Arrays.asList(action1, action2, action3, action4), entitiesAndSettingsSnapshot);
-        Mockito.verify(messageSender, Mockito.times(2)).sendMessage(sentActionEventMessageCaptor.capture());
+        Mockito.verify(messageSender, Mockito.times(1)).sendMessage(sentActionEventMessageCaptor.capture());
 
         final ActionEvent event1 = sentActionEventMessageCaptor.getAllValues().get(0);
         Assert.assertEquals(KAFKA_TARGET_ID, event1.getActionRequest().getTargetId());
         Assert.assertEquals(action1.getRecommendationOid(), event1.getActionRequest().getActionId());
         Assert.assertEquals(ActionResponseState.PENDING_ACCEPT, event1.getOldState());
         Assert.assertEquals(ActionResponseState.PENDING_ACCEPT, event1.getNewState());
-
-        final ActionEvent event2 = sentActionEventMessageCaptor.getAllValues().get(1);
-        Assert.assertEquals(SERVICENOW_TARGET_ID, event2.getActionRequest().getTargetId());
-        Assert.assertEquals(action2.getRecommendationOid(), event2.getActionRequest().getActionId());
-        Assert.assertEquals(ActionResponseState.PENDING_ACCEPT, event2.getOldState());
-        Assert.assertEquals(ActionResponseState.PENDING_ACCEPT, event2.getNewState());
     }
 
     /**
