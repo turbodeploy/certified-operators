@@ -14,6 +14,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -25,7 +27,12 @@ import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameter;
+import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
@@ -67,17 +74,38 @@ import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost.ActionIds;
 
 /**
  * Tests for the {@link ActionStateUpdater}.
  */
+@RunWith(Parameterized.class)
 public class ActionStateUpdaterTest {
+
+    /**
+     * Parameterized test data.
+     *
+     * @return whether to enable TEM.
+     */
+    @Parameters(name = "{index}: Test with enableExecActChgWindow = {0}")
+    public static Collection<Object[]> data() {
+        Object[][] data = new Object[][] {{true}, {false}};
+        return Arrays.asList(data);
+    }
+
+    /**
+     * Test parameter.
+     */
+    @Parameter(0)
+    public boolean
+            enableExecActChgWindow;
 
     private final ActionStorehouse actionStorehouse = mock(ActionStorehouse.class);
     private final ActionStore actionStore = mock(ActionStore.class);
@@ -117,6 +145,12 @@ public class ActionStateUpdaterTest {
     private Action manualWithWorkflowsAction;
 
     /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(FeatureFlags.EXECUTED_ACTIONS_CHANGE_WINDOW);
+
+    /**
      * Sets up the tests.
      *
      * @throws Exception on exceptions occurred
@@ -129,7 +163,8 @@ public class ActionStateUpdaterTest {
                 new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao,
                         acceptedActionsStore, actionExecutorMock, actionExecutionStore,
                         workflowStoreMock, realtimeTopologyContextId, failedCloudVMGroupProcessor,
-                        actionAuditSender, actionStateUpdatesSender, actionTranslator);
+                        actionAuditSender, actionStateUpdatesSender, actionTranslator,
+                        executedActionsChangeWindowDao);
         when(entitySettingsCache.getSettingsForEntity(eq(actionTargetId1))).thenReturn(
                 makeActionModeSetting(ActionMode.EXTERNAL_APPROVAL));
         when(entitySettingsCache.getSettingsForEntity(eq(actionTargetId2))).thenReturn(
@@ -247,10 +282,10 @@ public class ActionStateUpdaterTest {
     @Test
     public void testOnActionSuccess() throws Exception {
         ActionSuccess success = ActionSuccess.newBuilder()
-            .setActionId(externalApprovalId)
-            .setSuccessDescription("Success!")
-            .setActionSpec(externalApprovalSpec)
-            .build();
+                .setActionId(externalApprovalId)
+                .setSuccessDescription("Success!")
+                .setActionSpec(externalApprovalSpec)
+                .build();
 
         actionStateUpdater.onActionSuccess(success);
         assertEquals(ActionState.SUCCEEDED, externalApprovalAction.getState());
