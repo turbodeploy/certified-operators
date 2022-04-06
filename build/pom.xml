@@ -49,7 +49,7 @@
         <maven-enforcer-plugin.version>3.0.0</maven-enforcer-plugin.version>
         <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
         <os.maven.plugin.version>1.4.1.Final</os.maven.plugin.version>
-        <owasp.version>7.0.0</owasp.version>
+        <owasp.version>6.1.5</owasp.version>
         <prometheus.java.client.version>0.4.0</prometheus.java.client.version>
 
         <lz4.version>1.4</lz4.version>
@@ -211,6 +211,7 @@
 
         <!-- Owasp files downloaded from nexus -->
         <turbo-cveurl>http://build.vmturbo.com:8081/nexus/content/repositories/thirdparty/owasp-downloads/nvdcve/1.1</turbo-cveurl>
+        <turbo-cveyear>2021</turbo-cveyear>
     </properties>
 
     <profiles>
@@ -1488,18 +1489,8 @@
                              ${turbo-cveurl}/nvdcve-1.1-modified.json.gz
                           </cveUrlModified>
                           <cveUrlBase>
-                             ${turbo-cveurl}/nvdcve-1.1-%d.json.gz
+                             ${turbo-cveurl}/nvdcve-1.1-${turbo-cveyear}.json.gz
                           </cveUrlBase>
-                          <failBuildOnCVSS>7</failBuildOnCVSS>
-                          <suppressionFiles>
-                            <suppressionFile>${project.basedir}/target/dependency/owasp-suppression/false-positives.xml</suppressionFile>
-                          </suppressionFiles>
-                          <!-- Disable .Net contents -->
-                          <assemblyAnalyzerEnabled>false</assemblyAnalyzerEnabled>
-                          <nugetconfAnalyzerEnabled>false</nugetconfAnalyzerEnabled>
-                          <nuspecAnalyzerEnabled>false</nuspecAnalyzerEnabled>
-                          <!-- Disable javascript analyzer because it gives false postives that appear not to be able to be suppressed -->
-                          <!-- <retireJsAnalyzerEnabled>false</retireJsAnalyzerEnabled> -->
                         </configuration>
                         <executions>
                             <execution>
@@ -2179,31 +2170,6 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-              <groupId>org.apache.maven.plugins</groupId>
-              <artifactId>maven-dependency-plugin</artifactId>
-              <executions>
-                <execution>
-                  <id>owasp-suppression</id>
-                  <goals>
-                    <goal>unpack</goal>
-                  </goals>
-                  <inherited>false</inherited>
-                  <configuration>
-                    <artifactItems>
-                      <artifactItem>
-                        <groupId>${project.groupId}</groupId>
-                        <artifactId>owasp-suppression</artifactId>
-                        <version>${project.version}</version>
-                        <type>tar</type>
-                      </artifactItem>
-                    </artifactItems>
-                    <overWriteReleases>true</overWriteReleases>
-                    <overWriteSnapshots>true</overWriteSnapshots>
-                  </configuration>
-                </execution>
-              </executions>
             </plugin>
         </plugins>
     </build>
