@@ -1192,7 +1192,7 @@ public class CloudMigrationPlanHelperTest {
         // First check whether skip works for PM provider commodities.
         CommoditiesBoughtFromProviderView checkPmProvider = commoditiesByProvider.get(0);
         assertEquals(pmProviderId, checkPmProvider.getProviderId());
-        assertEquals(3, checkPmProvider.getCommodityBoughtCount());
+        assertEquals(5, checkPmProvider.getCommodityBoughtCount());
         final List<CommodityBoughtView> remainingBoughtPm = cloudMigrationPlanHelper
                 .getUpdatedCommBought(checkPmProvider, consumptionTopologyInfo,
                         entity, Collections.emptyMap(), true, true);
@@ -1400,6 +1400,20 @@ public class CloudMigrationPlanHelperTest {
                                                 new CommodityTypeImpl()
                                                         .setType(CommodityDTO.CommodityType
                                                                 .Q2_VCPU.getNumber())))
+                        .addCommodityBought(
+                                new CommodityBoughtImpl()
+                                        .setActive(true)
+                                        .setCommodityType(
+                                                new CommodityTypeImpl()
+                                                        .setType(CommodityType
+                                                                .CPU_READY.getNumber())))
+                        .addCommodityBought(
+                                new CommodityBoughtImpl()
+                                        .setActive(true)
+                                        .setCommodityType(
+                                                new CommodityTypeImpl()
+                                                        .setType(CommodityType
+                                                                .NUM_VCORE.getNumber())))
                         .addCommodityBought(
                                 new CommodityBoughtImpl()
                                         .setActive(true)
