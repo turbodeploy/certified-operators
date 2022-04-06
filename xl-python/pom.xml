@@ -43,7 +43,7 @@
                 <executions>
                     <execution>
                         <id>unpack</id>
-                        <phase>${generationPhase}</phase>
+                        <phase>process-resources</phase>
                         <goals>
                             <goal>unpack</goal>
                         </goals>
