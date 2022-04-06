@@ -224,7 +224,7 @@ public class BusinessAccountRetriever {
             // Use the default Order By method, we don't support other options for now
             SearchPaginationRequest supportedPaginationReq = new SearchPaginationRequest(
                     paginationReq.getCursor().isPresent() ? paginationReq.getCursor().get() : null,
-                    paginationReq.getLimit(), true, null);
+                    paginationReq.getLimit(), paginationReq.isAscending(), null);
             SearchQuery searchQuery = Search.SearchQuery.newBuilder()
                     .addAllSearchParameters(effectiveParameters)
                     .setLogicalOperator(Search.LogicalOperator.AND)
@@ -241,7 +241,7 @@ public class BusinessAccountRetriever {
                 repositoryApi.newSearchRequestMulti(effectiveParameters)
                         .getFullEntities()
                         .collect(Collectors.toList());
-        return new SearchPaginationRequest(null, null, true, null)
+        return new SearchPaginationRequest(null, null, (paginationReq != null) ? paginationReq.isAscending() : true, null)
                 .allResultsResponse(Lists.newArrayList(businessAccountMapper.convert(businessAccounts, allAccounts)));
     }
 
