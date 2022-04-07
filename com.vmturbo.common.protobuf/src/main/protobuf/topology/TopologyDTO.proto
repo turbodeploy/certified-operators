@@ -507,7 +507,6 @@ message TypeSpecificInfo {
             ReplicationControllerInfo replication_controller_info = 7;
             StatefulSetInfo stateful_set_info = 8;
         }
-        optional int32 replica_count = 9;
     }
 
     message CronJobInfo {

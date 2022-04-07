@@ -53,9 +53,6 @@ public class WorkloadControllerAspectMapper extends AbstractAspectMapper {
         if (wcInfo.hasCustomControllerInfo()) {
             aspect.setCustomControllerType(wcInfo.getCustomControllerInfo().getCustomControllerType());
         }
-        if (wcInfo.hasReplicaCount()) {
-            aspect.setControllerReplicaCount(wcInfo.getReplicaCount());
-        }
 
         return aspect;
     }

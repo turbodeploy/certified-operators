@@ -36,7 +36,6 @@ public class WorkloadControllerInfoMapper extends TypeSpecificInfoMapper {
         }
         WorkloadControllerData wcData = sdkEntity.getWorkloadControllerData();
         WorkloadControllerInfo.Builder infoBuilder = WorkloadControllerInfo.newBuilder();
-        infoBuilder.setReplicaCount(wcData.getReplicaCount());
         switch (wcData.getControllerTypeCase()) {
             case CRON_JOB_DATA:
                 infoBuilder.setCronJobInfo(CronJobInfo.newBuilder());

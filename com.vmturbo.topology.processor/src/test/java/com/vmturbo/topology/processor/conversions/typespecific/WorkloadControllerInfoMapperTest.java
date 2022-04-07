@@ -29,7 +29,6 @@ public class WorkloadControllerInfoMapperTest {
         .setEntityType(EntityType.WORKLOAD_CONTROLLER)
         .setId("foo");
     private final WorkloadControllerInfoMapper mapper = new WorkloadControllerInfoMapper();
-    private final int replicaCount = 2;
 
     /**
      * testCronJob.
@@ -60,11 +59,9 @@ public class WorkloadControllerInfoMapperTest {
     @Test
     public void testDaemonSet() {
         entity.setWorkloadControllerData(
-            data.setDaemonSetData(DaemonSetData.getDefaultInstance())
-                .setReplicaCount(replicaCount));
+            data.setDaemonSetData(DaemonSetData.getDefaultInstance()));
         final TypeSpecificInfo info = mapper.mapEntityDtoToTypeSpecificInfo(entity, Collections.emptyMap());
         assertEquals(ControllerTypeCase.DAEMON_SET_INFO, info.getWorkloadController().getControllerTypeCase());
-        assertEquals(replicaCount, info.getWorkloadController().getReplicaCount());
     }
 
     /**
@@ -73,11 +70,9 @@ public class WorkloadControllerInfoMapperTest {
     @Test
     public void testDeployment() {
         entity.setWorkloadControllerData(
-            data.setDeploymentData(DeploymentData.getDefaultInstance())
-                .setReplicaCount(replicaCount));
+            data.setDeploymentData(DeploymentData.getDefaultInstance()));
         final TypeSpecificInfo info = mapper.mapEntityDtoToTypeSpecificInfo(entity, Collections.emptyMap());
         assertEquals(ControllerTypeCase.DEPLOYMENT_INFO, info.getWorkloadController().getControllerTypeCase());
-        assertEquals(replicaCount, info.getWorkloadController().getReplicaCount());
     }
 
     /**
