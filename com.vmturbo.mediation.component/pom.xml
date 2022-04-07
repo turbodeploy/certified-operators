@@ -56,14 +56,6 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
-                                    <artifactId>com.vmturbo.mediation.cloudfoundry.sdk</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
-                                    <type>zip</type>
-                                    <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.cloudfoundry.sdk-${vmturbo.mt.branch.version}</outputDirectory>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>com.vmturbo</groupId>
                                     <artifactId>com.vmturbo.mediation.compellent</artifactId>
                                     <version>${vmturbo.mt.branch.version}</version>
                                     <type>zip</type>
@@ -149,14 +141,6 @@
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.oneview-${vmturbo.mt.branch.version}</outputDirectory>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>com.vmturbo</groupId>
-                                    <artifactId>com.vmturbo.mediation.pivotal.opsman</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
-                                    <type>zip</type>
-                                    <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.pivotal.opsman-${vmturbo.mt.branch.version}</outputDirectory>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
