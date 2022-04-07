@@ -12,6 +12,14 @@
 
     <artifactId>components-test-utilities</artifactId>
     <description>Utilities for testing components.</description>
+    <properties>
+        <!-- This project was used for integration test and is no longer active, consider removing -->
+        <!-- This library is vulnerable. See https://nvd.nist.gov/vuln/detail/CVE-2020-28491.
+         Upgrading to fixed version (1.8) will break unit tests. Since it's only using it for
+         integration test, keeping it for now -->
+        <docker.compose.rule.test.only.version>1.5.0</docker.compose.rule.test.only.version>
+    </properties>
+
 
     <build>
         <defaultGoal>install</defaultGoal>
@@ -80,6 +88,7 @@
         <dependency>
             <groupId>com.palantir.docker.compose</groupId>
             <artifactId>docker-compose-rule-junit4</artifactId>
+            <version>${docker.compose.rule.test.only.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework</groupId>
@@ -97,6 +106,7 @@
         <dependency>
             <groupId>com.palantir.docker.compose</groupId>
             <artifactId>docker-compose-rule-core</artifactId>
+            <version>${docker.compose.rule.test.only.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
