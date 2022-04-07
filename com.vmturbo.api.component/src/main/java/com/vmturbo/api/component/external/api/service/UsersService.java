@@ -59,6 +59,7 @@ import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
@@ -288,6 +289,32 @@ public class UsersService implements IUsersService {
         return list;
     }
 
+
+    /**
+     * Supposed to retrieve an user information.
+     *
+     * @param uuid The UUID.
+     * @return The user.
+     * @throws Exception in case of any error
+     */
+    @Override
+    public @Nonnull UserApiDTO getUser(String uuid) throws Exception {
+        final String request = baseRequest().path("/users/" + uuid).build().toUriString();
+        HttpHeaders headers = composeHttpHeaders();
+        HttpEntity<List> entity = new HttpEntity<>(headers);
+        ResponseEntity<Object> result = restTemplate_.exchange(request, HttpMethod.GET, entity,
+                Object.class);
+
+        // We do the conversion manually here from the result, as we can't specify the
+        // exact class for automatic JSON generation.
+        AuthUserDTO dto = parse(result.getBody(), AuthUserDTO.class);
+        // oid -> group map for looking up API Group objects by oid
+        Map<Long, GroupApiDTO> apiGroupsByOid = getApiGroupMap(new HashSet<>(dto.getScopeGroups()));
+        // final conversion between API and Auth user objects done manually from the result
+        UserApiDTO user = UserMapper.toUserApiDTO(dto, apiGroupsByOid);
+        return user;
+    }
+
     /**
      * Get JWT token from Spring context.
      *
@@ -350,18 +377,6 @@ public class UsersService implements IUsersService {
         } else {
             return null;
         }
-    }
-
-    /**
-     * Supposed to retrieve an user information.
-     *
-     * @param uuid The UUID.
-     * @return The user.
-     * @throws Exception Throws the {@link UnsupportedOperationException} always.
-     */
-    @Override
-    public UserApiDTO getUser(String uuid) throws Exception {
-        throw new UnsupportedOperationException("Doesn't appear to be invoked.");
     }
 
     /**

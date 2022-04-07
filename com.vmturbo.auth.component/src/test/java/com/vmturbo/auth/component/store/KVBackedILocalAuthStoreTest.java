@@ -7,6 +7,7 @@ import static com.vmturbo.auth.component.store.AuthProviderRoleTest.getAuthentic
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.argThat;
@@ -795,4 +796,90 @@ public class KVBackedILocalAuthStoreTest {
 
         Assert.assertNotNull(store.authenticate("user1", "password0", "10.10.10.1"));
     }
+
+    /**
+     * Test get all users. Admins should be able to retrieve local and ldap users.
+     */
+    @Test
+    public void testGetUsers() {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = getStore(keyValueStore);
+        List<Long> scope = ImmutableList.of(1L);
+
+        // add local user
+        String result = store.add(PROVIDER.LOCAL, "user0", "password0", ROLE_NAMES, scope);
+        Assert.assertFalse(result.isEmpty());
+
+        // add ldap user
+        result = store.add(PROVIDER.LDAP, "user1", "password1", ROLE_NAMES, scope);
+        Assert.assertFalse(result.isEmpty());
+
+        Authentication authentication = getAuthentication("ROLE_ADMINISTRATOR", "ADMINISTRATOR");
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        List<AuthUserDTO> users = store.list();
+        Assert.assertNotNull(users);
+        Assert.assertEquals(2, users.size());
+        Assert.assertTrue(users.stream().anyMatch(u -> u.getUser().equals("user0") &&
+                u.getRoles().equals(ROLE_NAMES) && u.getScopeGroups().equals(scope)));
+        Assert.assertTrue(users.stream().anyMatch(u -> u.getUser().equals("user1") &&
+                u.getRoles().equals(ROLE_NAMES) && u.getScopeGroups().equals(scope)));
+    }
+
+    /**
+     * Test get user by uuid. Admins should be able to retrieve local and ldap users.
+     */
+    @Test
+    public void testGetUserByUuid() {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = getStore(keyValueStore);
+
+        // add local user
+        String result = store.add(PROVIDER.LOCAL, "user0", "password0", ROLE_NAMES, ImmutableList.of(1L));
+        Assert.assertFalse(result.isEmpty());
+
+        Authentication authentication = getAuthentication("ROLE_ADMINISTRATOR", "ADMINISTRATOR");
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        Optional<AuthUserDTO> user = store.getUser(result);
+        Assert.assertNotNull(user.get());
+        Assert.assertEquals("user0", user.get().getUser());
+        Assert.assertEquals(ROLE_NAMES, user.get().getRoles());
+    }
+
+
+    /**
+     * Test get user by null uuid. Should not throw error, but will not return object.
+     */
+    @Test
+    public void testGetUserByNullUuid() throws Exception {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = getStore(keyValueStore);
+        Optional<AuthUserDTO> user = store.getUser(null);
+        assertFalse(user.isPresent());
+    }
+
+    /**
+     * Test get user by empty string as uuid. Should not throw error, but will not return object.
+     */
+    @Test
+    public void testGetUserByEmptyString() throws Exception {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = getStore(keyValueStore);
+        Optional<AuthUserDTO> user = store.getUser("");
+        assertFalse(user.isPresent());
+    }
+
+    /**
+     * Test get user by non-valid character string uuid. Should not throw error, but will not return
+     * object.
+     */
+    @Test
+    public void testGetUserByCharString() throws Exception {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = getStore(keyValueStore);
+        Optional<AuthUserDTO> user = store.getUser("abc");
+        assertFalse(user.isPresent());
+    }
+
 }

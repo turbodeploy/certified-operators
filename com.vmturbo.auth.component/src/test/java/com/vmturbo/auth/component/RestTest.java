@@ -60,6 +60,7 @@ import org.springframework.security.config.annotation.method.configuration.Globa
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.web.AnnotationConfigWebContextLoader;
@@ -1010,6 +1011,47 @@ public class RestTest {
         } finally {
             SecurityContextHolder.getContext().setAuthentication(null);
         }
+    }
+
+    /**
+     * Test get all users with admin role.
+     * @throws Exception if failed
+     */
+    @Test
+    @WithMockUser(roles = "ADMINISTRATOR")
+    public void testAdminGetUsers() throws Exception {
+        mockMvc.perform(get("/users")).andExpect(status().is(200));
+    }
+
+    /**
+     * Test get all users with non-admin role. Expect 403 forbidden error.
+     * @throws Exception if failed
+     */
+    @Test
+    @WithMockUser(roles = "OBSERVER")
+    public void testNonAdminGetUsers() throws Exception {
+        mockMvc.perform(get("/users")).andExpect(status().is(403));
+    }
+
+    /**
+     * Test get user by uuid with admin role. Expect 404 object not found. In this case, retrieving
+     * user was attempted successfully, but no user found with given uuid.
+     * @throws Exception
+     */
+    @Test
+    @WithMockUser(roles = "ADMINISTRATOR")
+    public void testAdminGetUserByUuid() throws Exception {
+        mockMvc.perform(get("/users/{uuid}", "123")).andExpect(status().is(404));
+    }
+
+    /**
+     * Test get user by uuid with non-admin role. Expect 403 forbidden error.
+     * @throws Exception
+     */
+    @Test
+    @WithMockUser(roles = "OBSERVER")
+    public void testNonAdminGetUserByUuid() throws Exception {
+        mockMvc.perform(get("/users/{uuid}", "123")).andExpect(status().is(403));
     }
 
     @ControllerAdvice

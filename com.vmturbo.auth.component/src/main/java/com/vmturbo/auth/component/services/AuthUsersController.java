@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
@@ -206,6 +207,29 @@ public class AuthUsersController {
     @ResponseBody
     public @Nonnull List<AuthUserDTO> list() throws Exception {
         return targetStore_.list();
+    }
+
+    /**
+     * Returns user
+     *
+     * @return user with matching uuid
+     *
+     */
+    @ApiOperation(value="Returns user")
+    @RequestMapping(path = "/{uuid}",
+                    method = RequestMethod.GET,
+                    produces = {MediaType.APPLICATION_JSON_VALUE})
+    @ResponseBody
+    public @Nonnull AuthUserDTO getUser(
+            @ApiParam(value = "The uuid", required = true)
+            @PathVariable("uuid") String uuid
+    ) throws Exception {
+        final Optional<AuthUserDTO> authUserDTO = targetStore_.getUser(uuid);
+        if (!authUserDTO.isPresent()) {
+            throw new UnknownObjectException("Unable to find user: " + uuid);
+        } else {
+            return authUserDTO.get();
+        }
     }
 
     /**
