@@ -122,7 +122,7 @@
         <memory-metrics.version>0.3.3</memory-metrics.version>
         <!-- END swagger properties -->
 
-        <docker.compose.rule.version>1.5.0</docker.compose.rule.version>
+        <docker.compose.rule.version>1.8.0</docker.compose.rule.version>
         <asciitable.version>0.3.2</asciitable.version>
         <zjsonpatch.version>0.3.6</zjsonpatch.version>
 
