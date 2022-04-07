@@ -99,6 +99,7 @@ message GetHistoricalCommitmentCoverageStatsRequest {
     optional cloud_common.RegionFilter region_filter = 5;
     optional cloud_common.AccountFilter account_filter = 6;
     optional cloud_common.ServiceProviderFilter service_provider_filter = 7;
+    optional cloud_common.EntityFilter entity_filter = 10;
 
     // returned stats will always be grouped by the timestamp and coverage vector. If this
     // list is empty, all records with the same (timestamp, coverage vector) will be grouped

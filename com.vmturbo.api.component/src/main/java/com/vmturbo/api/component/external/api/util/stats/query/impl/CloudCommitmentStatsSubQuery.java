@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.TopologyType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc.CloudCommitmentStatsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudCommitmentFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.ServiceProviderFilter;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -55,6 +56,14 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
     private static final Set<String> SUPPORTED_STATS =
             ImmutableSet.of(StringConstants.CLOUD_COMMITMENT_UTILIZATION, StringConstants.CLOUD_COMMITMENT_COVERAGE);
 
+    private static final Set<ApiEntityType> SUPPORTED_SCOPE_TYPES = ImmutableSet.<ApiEntityType>builder()
+            .add(ApiEntityType.SERVICE_PROVIDER)
+            .add(ApiEntityType.REGION)
+            .add(ApiEntityType.BUSINESS_ACCOUNT)
+            .add(ApiEntityType.VIRTUAL_MACHINE)
+            .add(ApiEntityType.CLOUD_COMMITMENT)
+            .build();
+
     private final CloudCommitmentStatsServiceBlockingStub cloudCommitmentStatsServiceGrpc;
 
     /**
@@ -68,11 +77,12 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
 
     @Override
     public boolean applicableInContext(@Nonnull StatsQueryContext context) {
-        // do not support zonal scope cloud commitments
-        boolean isNotZoneScope = !(context.getInputScope().getScopeTypes().isPresent() && context.getInputScope().getScopeTypes().get().contains(ApiEntityType.AVAILABILITY_ZONE));
+
+        boolean supportedScope = !context.getInputScope().getScopeTypes().isPresent()
+                || context.getInputScope().getScopeTypes().get().stream().allMatch(SUPPORTED_SCOPE_TYPES::contains);
         // plans do not support cloud commitments at the moment
         boolean isNotPlan = !context.getInputScope().isPlan();
-        return isNotZoneScope && isNotPlan;
+        return supportedScope && isNotPlan;
     }
 
     @Override
@@ -278,6 +288,12 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
                                 .build());
                         break;
 
+                    case VIRTUAL_MACHINE:
+                        request.setEntityFilter(EntityFilter.newBuilder()
+                                .addAllEntityId(scopeEntitiesByType.get(currentType))
+                                .build());
+                        break;
+
                     default:
                         throw new OperationFailedException(
                                 String.format("Invalid scope for cloud commitment coverage query: %s", currentType));
@@ -314,6 +330,12 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
                     case SERVICE_PROVIDER:
                         reqBuilder.setServiceProviderFilter(ServiceProviderFilter.newBuilder()
                                 .addAllServiceProviderId(scopeEntitiesByType.get(ApiEntityType.SERVICE_PROVIDER))
+                                .build());
+                        break;
+
+                    case VIRTUAL_MACHINE:
+                        reqBuilder.setEntityFilter(EntityFilter.newBuilder()
+                                .addAllEntityId(scopeEntitiesByType.get(currentType))
                                 .build());
                         break;
 
