@@ -147,32 +147,33 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
 
             final int requestedStatsPerChunk = getRequestedChunkSize(request.getChunkSize());
 
-            // As an initial pass, the assumption is that the request will always be for account aggregated
-            // data. Once entity level granularity is supported, the request should be updated with a oneof
-            // for AccountData (empty) and EntityData (entity level filter).
-            final AccountCoverageStatsFilter statsFilter = AccountCoverageStatsFilter.builder()
-                    .startTime(request.hasStartTime()
-                            ? Optional.of(Instant.ofEpochMilli(request.getStartTime()))
-                            : Optional.empty())
-                    .endTime(request.hasEndTime()
-                            ? Optional.of(Instant.ofEpochMilli(request.getEndTime()))
-                            : Optional.empty())
-                    .granularity(request.hasGranularity()
-                            ? Optional.of(request.getGranularity())
-                            : Optional.empty())
-                    .regionFilter(request.getRegionFilter())
-                    .accountFilter(request.getAccountFilter())
-                    .serviceProviderFilter(request.getServiceProviderFilter())
-                    .groupByList(request.getGroupByList())
-                    .build();
+            // If this is a request for entity coverage, an empty response should be returned. Entity level coverage stats
+            // are currently not supported.
+            if (!request.hasEntityFilter()) {
+                final AccountCoverageStatsFilter statsFilter = AccountCoverageStatsFilter.builder()
+                        .startTime(request.hasStartTime()
+                                ? Optional.of(Instant.ofEpochMilli(request.getStartTime()))
+                                : Optional.empty())
+                        .endTime(request.hasEndTime()
+                                ? Optional.of(Instant.ofEpochMilli(request.getEndTime()))
+                                : Optional.empty())
+                        .granularity(request.hasGranularity()
+                                ? Optional.of(request.getGranularity())
+                                : Optional.empty())
+                        .regionFilter(request.getRegionFilter())
+                        .accountFilter(request.getAccountFilter())
+                        .serviceProviderFilter(request.getServiceProviderFilter())
+                        .groupByList(request.getGroupByList())
+                        .build();
 
-            try (Stream<CloudCommitmentStatRecord> statRecordStream = coverageStore.streamCoverageStats(statsFilter)) {
-                Iterators.partition(statRecordStream.iterator(), requestedStatsPerChunk)
-                        .forEachRemaining(statRecordChunk ->
-                                responseObserver.onNext(
-                                        GetHistoricalCommitmentCoverageStatsResponse.newBuilder()
-                                                .addAllCommitmentStatRecordChunk(statRecordChunk)
-                                                .build()));
+                try (Stream<CloudCommitmentStatRecord> statRecordStream = coverageStore.streamCoverageStats(statsFilter)) {
+                    Iterators.partition(statRecordStream.iterator(), requestedStatsPerChunk)
+                            .forEachRemaining(statRecordChunk ->
+                                    responseObserver.onNext(
+                                            GetHistoricalCommitmentCoverageStatsResponse.newBuilder()
+                                                    .addAllCommitmentStatRecordChunk(statRecordChunk)
+                                                    .build()));
+                }
             }
 
             responseObserver.onCompleted();
