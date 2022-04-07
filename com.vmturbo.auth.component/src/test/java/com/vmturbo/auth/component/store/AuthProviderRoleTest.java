@@ -32,6 +32,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -140,6 +141,17 @@ public class AuthProviderRoleTest {
         // act
         authProviderUnderTest.list();
         // assert
+        verify(mockKeystore).getByPrefix(PREFIX_EXTERNAL_USERS);
+    }
+
+    /**
+     * Verifies that when admin enacts getUser, it calls getByPrefix
+     */
+    @WithMockUser(roles = "SITE_ADMIN")
+    @Test
+    public void testGetUserAsAdmin() {
+        when(mockKeystore.get(anyString())).thenReturn(Optional.empty());
+        authProviderUnderTest.getUser("");
         verify(mockKeystore).getByPrefix(PREFIX_EXTERNAL_USERS);
     }
 

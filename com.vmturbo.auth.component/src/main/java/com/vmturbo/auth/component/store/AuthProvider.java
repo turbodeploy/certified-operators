@@ -763,7 +763,7 @@ public class AuthProvider extends AuthProviderBase {
     }
 
     /**
-     * Lists all defined users.
+     * Lists all defined users. Will return the set of both local and ldap users, but not ldap groups.
      *
      * @return The list of all users.
      * @throws SecurityException In case of an error listing users.
@@ -781,6 +781,28 @@ public class AuthProvider extends AuthProviderBase {
             })
             .filter(authUserDTO -> mayAlterUserWithRoles(authUserDTO.getRoles()))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns user for the given uuid. Filters set of local users and ldap users (NOT ldap groups)
+     * for matching uuid.
+     *
+     * @param uuid uuid of the user to look for
+     * @return optional user if it exists, or empty
+     */
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
+    public Optional<AuthUserDTO> getUser(String uuid) throws SecurityException {
+        // gets all users, including local and ldap
+        Map<String, String> users = getKVByPrefix(PREFIX_EXTERNAL_USERS);
+        // ensure role are upper case for any I/O operations, here is retrieving from Consul.
+        return users.values().stream()
+                .map(jsonData -> GSON.fromJson(jsonData, UserInfo.class))
+                .filter(userInfo -> StringUtils.equals(userInfo.uuid, uuid))
+                .map(info -> new AuthUserDTO(info.provider, info.userName, null, null,
+                        info.uuid, null, info.roles.stream().map(String::toUpperCase)
+                        .collect(Collectors.toList()), info.scopeGroups))
+                .filter(authUserDTO -> mayAlterUserWithRoles(authUserDTO.getRoles()))
+                .findFirst();
     }
 
     /**

@@ -1,13 +1,17 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.service.UsersService.HTTP_ACCEPT;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADVISOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.AUTH_HEADER_NAME;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SITE_ADMIN;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -25,6 +29,7 @@ import java.util.function.Function;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
+import com.google.rpc.context.AttributeContext.Auth;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -42,6 +47,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -61,10 +67,13 @@ import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
 import com.vmturbo.api.dto.user.RoleApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
+import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 
 /**
@@ -1596,6 +1605,221 @@ public class UserServiceTest {
         final UserApiDTO dto = objectMapper.readValue(newUserJson, UserApiDTO.class);
         final UserApiDTO responseDto = usersService.populateResultUserApiDTOFromInput(dto);
         assertEquals("site_admin", responseDto.getRoleName());
+    }
+
+    /**
+     * Verify getUsers() can transform AuthUserDTOs into UserApiDTO, with or without scopes.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetUsersSuccess() throws Exception {
+        final String local = "Local"; // normally mapped in LoginProviderMapper
+        final String userName1 = "test1";
+        final String userName2 = "test2";
+        final String userName3 = "test3";
+        final String userName4 = "test4";
+        final String userName5 = "test5";
+        final String userName6 = "test6";
+        final Long scopeValue = 123L;
+        final List<Long> scope = Collections.singletonList(scopeValue);
+
+        logon("admin");
+        AuthUserDTO authUserDTO1 = new AuthUserDTO(PROVIDER.LOCAL, userName1, null, null, "1", null,
+                Collections.singletonList(ADMINISTRATOR), null);
+        AuthUserDTO authUserDTO2 = new AuthUserDTO(PROVIDER.LOCAL, userName2, null, null, "2", null,
+                Collections.singletonList(SHARED_OBSERVER), scope);
+        AuthUserDTO authUserDTO3 = new AuthUserDTO(PROVIDER.LOCAL, userName3, null, null, "3", null,
+                Collections.singletonList(ADVISOR), null);
+        AuthUserDTO authUserDTO4 = new AuthUserDTO(PROVIDER.LDAP, userName4, null, null, "4", null,
+                Collections.singletonList(SITE_ADMIN), null);
+        AuthUserDTO authUserDTO5 = new AuthUserDTO(PROVIDER.LDAP, userName5, null, null, "5", null,
+                Collections.singletonList(SHARED_ADVISOR), scope);
+        AuthUserDTO authUserDTO6 = new AuthUserDTO(PROVIDER.LDAP, userName6, null, null, "6", null,
+                Collections.singletonList(OBSERVER), scope);
+
+        List<AuthUserDTO> users = new ArrayList<>();
+        users.add(authUserDTO1);
+        users.add(authUserDTO2);
+        users.add(authUserDTO3);
+        users.add(authUserDTO4);
+        users.add(authUserDTO5);
+        users.add(authUserDTO6);
+
+        final ResponseEntity<List> responseEntity = new ResponseEntity<>(users, HttpStatus.OK);
+        when(restTemplate.exchange(eq("http://:0/users"), any(), any(), eq(List.class)))
+                .thenReturn(responseEntity);
+
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        groupApiDTO.setUuid(String.valueOf(scopeValue));
+        final List<GroupApiDTO> groupApiDTOS = new ArrayList<>();
+        groupApiDTOS.add(groupApiDTO);
+        when(groupsService.getGroupApiDTOS(anyObject(), eq(false))).thenReturn(groupApiDTOS);
+
+        List<UserApiDTO> resultUsers = usersService.getUsers();
+
+        // confirm login provider, scope, and role for each
+        assertEquals(resultUsers.size(), 6);
+        assertTrue(resultUsers.stream().anyMatch(u -> u.getLoginProvider().equals(local)
+                && u.getUsername().equals(userName1) && u.getRoles().get(0).getName().equals(ADMINISTRATOR)));
+        assertTrue(resultUsers.stream().anyMatch(u -> u.getLoginProvider().equals(local)
+                && u.getUsername().equals(userName2) && u.getRoles().get(0).getName().equals(SHARED_OBSERVER)
+                && u.getScope().get(0).getUuid().equals(String.valueOf(scopeValue))));
+        assertTrue(resultUsers.stream().anyMatch(u -> u.getLoginProvider().equals(local)
+                && u.getUsername().equals(userName3) && u.getRoles().get(0).getName().equals(ADVISOR)));
+        assertTrue(resultUsers.stream().anyMatch(u -> u.getLoginProvider().equals(PROVIDER.LDAP.name())
+                && u.getUsername().equals(userName4) && u.getRoles().get(0).getName().equals(SITE_ADMIN)));
+        assertTrue(resultUsers.stream().anyMatch(u -> u.getLoginProvider().equals(PROVIDER.LDAP.name())
+                && u.getUsername().equals(userName5) && u.getRoles().get(0).getName().equals(SHARED_ADVISOR)
+                && u.getScope().get(0).getUuid().equals(String.valueOf(scopeValue))));
+        assertTrue(resultUsers.stream().anyMatch(u -> u.getLoginProvider().equals(PROVIDER.LDAP.name())
+                && u.getUsername().equals(userName6) && u.getRoles().get(0).getName().equals(OBSERVER)
+                && u.getScope().get(0).getUuid().equals(String.valueOf(scopeValue))));
+
+    }
+
+    /**
+     * Handle error response by rethrowing. Expect AccessDeniedException from non-admin users.
+     *
+     * @throws Exception
+     */
+    @Test(expected = AccessDeniedException.class)
+    public void testGetUsersFailure() throws Exception {
+        logon("observer");
+        when(restTemplate.exchange(eq("http://:0/users"), any(), any(), eq(List.class)))
+                .thenThrow(AccessDeniedException.class);
+        usersService.getUsers();
+    }
+
+    /**
+     * Verify can get user by uuid when user is local and scoped
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetLocalScopedUserByUuidSuccess() throws Exception {
+        final String userName = "test1";
+        final String uuid = "111";
+        final String role = "OBSERVER";
+        final Long scope = 123L;
+
+        logon("admin");
+        AuthUserDTO authUserDTO = new AuthUserDTO(PROVIDER.LOCAL, userName, null, null, uuid, null,
+                Collections.singletonList(SecurityConstant.OBSERVER), Collections.singletonList(scope));
+
+        final ResponseEntity<Object> responseEntity = new ResponseEntity<>(authUserDTO, HttpStatus.OK);
+        when(restTemplate.exchange(Matchers.startsWith("http://:0/users/"), any(), any(), eq(Object.class)))
+                .thenReturn(responseEntity);
+        UserApiDTO user = usersService.getUser(uuid);
+
+        assertEquals(user.getUsername(), userName);
+        assertEquals(user.getUuid(), uuid);
+        assertFalse(user.getRoles().isEmpty());
+        assertEquals(user.getRoles().get(0).getName(), role);
+        assertEquals(user.getLoginProvider(), "Local");
+        assertEquals(user.getScope().size(), 1);
+        assertEquals(user.getScope().get(0).getUuid(), String.valueOf(scope));
+    }
+
+    /**
+     * Verify can get user by uuid when user is local and un-scoped
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetLocalUnscopedUserByUuidSuccess() throws Exception {
+        final String userName = "test1";
+        final String uuid = "111";
+        final String role = "ADMINISTRATOR";
+        final Long scope = 123L;
+
+        logon("admin");
+        AuthUserDTO authUserDTO = new AuthUserDTO(PROVIDER.LOCAL, userName, null, null, uuid, null,
+                Collections.singletonList(ADMINISTRATOR), null);
+
+        final ResponseEntity<Object> responseEntity = new ResponseEntity<>(authUserDTO, HttpStatus.OK);
+        when(restTemplate.exchange(Matchers.startsWith("http://:0/users/"), any(), any(), eq(Object.class)))
+                .thenReturn(responseEntity);
+        UserApiDTO user = usersService.getUser(uuid);
+
+        assertEquals(user.getUsername(), userName);
+        assertEquals(user.getUuid(), uuid);
+        assertFalse(user.getRoles().isEmpty());
+        assertEquals(user.getRoles().get(0).getName(), role);
+        assertEquals(user.getLoginProvider(), "Local");
+        assertEquals(user.getScope().size(), 0);
+    }
+
+    /**
+     * Verify can get user by uuid when user is ldap and scoped
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetLdapScopedUserByUuidSuccess() throws Exception {
+        final String userName = "test1";
+        final String uuid = "111";
+        final String role = "SHARED_ADVISOR";
+        final Long scope = 123L;
+
+        logon("admin");
+        AuthUserDTO authUserDTO = new AuthUserDTO(PROVIDER.LDAP, userName, null, null, uuid, null,
+                Collections.singletonList(SHARED_ADVISOR), Collections.singletonList(scope));
+
+        final ResponseEntity<Object> responseEntity = new ResponseEntity<>(authUserDTO, HttpStatus.OK);
+        when(restTemplate.exchange(Matchers.startsWith("http://:0/users/"), any(), any(), eq(Object.class)))
+                .thenReturn(responseEntity);
+        UserApiDTO user = usersService.getUser(uuid);
+
+        assertEquals(user.getUsername(), userName);
+        assertEquals(user.getUuid(), uuid);
+        assertFalse(user.getRoles().isEmpty());
+        assertEquals(user.getRoles().get(0).getName(), role);
+        assertEquals(user.getLoginProvider(), "LDAP");
+        assertEquals(user.getScope().size(), 1);
+        assertEquals(user.getScope().get(0).getUuid(), String.valueOf(scope));
+    }
+
+    /**
+     * Verify can get user by uuid when user is local and scoped
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetLdapUnscopedUserByUuidSuccess() throws Exception {
+        final String userName = "test1";
+        final String uuid = "111";
+        final String role = "SITE_ADMIN";
+        final Long scope = 123L;
+
+        logon("admin");
+        AuthUserDTO authUserDTO = new AuthUserDTO(PROVIDER.LDAP, userName, null, null, uuid, null,
+                Collections.singletonList(SITE_ADMIN), null);
+
+        final ResponseEntity<Object> responseEntity = new ResponseEntity<>(authUserDTO, HttpStatus.OK);
+        when(restTemplate.exchange(Matchers.startsWith("http://:0/users/"), any(), any(), eq(Object.class)))
+                .thenReturn(responseEntity);
+        UserApiDTO user = usersService.getUser(uuid);
+
+        assertEquals(user.getUsername(), userName);
+        assertEquals(user.getUuid(), uuid);
+        assertFalse(user.getRoles().isEmpty());
+        assertEquals(user.getRoles().get(0).getName(), role);
+        assertEquals(user.getLoginProvider(), "LDAP");
+        assertEquals(user.getScope().size(), 0);
+    }
+
+    /**
+     * Handle error response by rethrowing. Expect AccessDeniedException from non-admin users.
+     *
+     * @throws Exception
+     */
+    @Test(expected = UnknownObjectException.class)
+    public void testGetUserByUuidFailure() throws Exception {
+        logon("observer");
+        when(restTemplate.exchange(Matchers.startsWith("http://:0/users/"), any(), any(), eq(Object.class)))
+                .thenThrow(UnknownObjectException.class);
+        usersService.getUser("123");
     }
 
     private void logout() {
