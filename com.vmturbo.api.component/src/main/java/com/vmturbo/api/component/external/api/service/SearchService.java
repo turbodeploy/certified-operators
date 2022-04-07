@@ -63,6 +63,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ValidationUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
@@ -505,6 +506,18 @@ public class SearchService implements ISearchService {
         if (types == null && CollectionUtils.isEmpty(groupTypes)) {
             throw new IllegalArgumentException("Type or groupType must be set for search result.");
         }
+
+        try {
+            // group type refers to the members of a group
+            // validate group_types includes valid entity or group types
+            ValidationUtils.validateGroupEntityTypes(groupTypes);
+            // validate types includes valid entity or group types or "target" or "market"
+            ValidationUtils.validateSearchableObjTypes(types);
+        } catch (IllegalArgumentException e) {
+            // TODO - don't catch exception once feature is fully enabled
+            logger.error("Validation failed: {}", e.getMessage());
+        }
+
         // Determine which of many (many) types of searches is requested. G
         // NB: this method is heavily overloaded.  The REST endpoint to be redefined
         // TODO most of the cases below only handle one type of scope.  We need to generalize scope
@@ -792,6 +805,19 @@ public class SearchService implements ISearchService {
         //since the criteriaList field of inputDTO which holds the filters does not contain enums about filters but string
         //we ave to check and validate the input filters.
         EntityFilterMapper.checkInputDTOParameters(inputDTO);
+        try {
+            // group type refers to the members of a group
+            // validate group_types includes valid entity or group types
+            ValidationUtils.validateGroupEntityTypes(inputDTO.getGroupType() == null ?
+                    Collections.emptyList() : Collections.singleton(inputDTO.getGroupType()));
+            // validate types includes valid entity or group types
+            // (getSearchResults allows "market" / "target" but not currently supported here)
+            ValidationUtils.validateGroupEntityTypes(inputDTO.getClassName() == null ?
+                    Collections.emptyList() : Collections.singleton(inputDTO.getClassName()));
+        } catch (IllegalArgumentException e) {
+            // TODO - don't catch exception once feature is fully enabled
+            logger.error("Validation failed: {}", e.getMessage());
+        }
 
         // the query input is called a GroupApiDTO even though this search can apply to any type
         // if this is a group search, we need to know the right "name filter type" that can be used

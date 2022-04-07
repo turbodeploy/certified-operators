@@ -138,7 +138,7 @@ public class SupplyChainsService implements ISupplyChainsService {
             ValidationUtils.validateExternalEntityTypes(entityTypes);
         } catch (IllegalArgumentException e) {
             // TODO - don't catch exception once feature is fully enabled
-            logger.error("Validation failed", e);
+            logger.error("Validation failed: {}", e.getMessage());
         }
         if (uuids.isEmpty()) {
             throw new RuntimeException("UUIDs list is empty");
