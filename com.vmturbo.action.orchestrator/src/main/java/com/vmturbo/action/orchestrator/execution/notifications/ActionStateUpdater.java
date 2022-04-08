@@ -2,6 +2,8 @@ package com.vmturbo.action.orchestrator.execution.notifications;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -54,6 +56,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
@@ -93,6 +96,10 @@ public class ActionStateUpdater implements ActionExecutionListener {
     private final ExecutedActionsChangeWindowDao executedActionsChangeWindowDao;
 
     private final AcceptedActionsDAO acceptedActionsStore;
+
+    private static final Set<Integer> WORKLOAD_TYPE_VALUES = TopologyDTOUtil.WORKLOAD_TYPES
+            .stream().map(EntityType::getNumber)
+            .collect(Collectors.toSet());
 
     /**
      * Used to execute actions (by sending them to Topology Processor).
@@ -575,11 +582,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
             actionEntity = ActionDTOUtil.getPrimaryEntity(action.getRecommendation());
             entityId = actionEntity.getId();
         } catch (UnsupportedActionException uae) {
-            if (entityId != 0) {
-                logger.error("Unsupported action type for action {}, entity {}", actionId, entityId, uae);
-            } else {
-                logger.error("Unsupported action type for action {}", actionId, uae);
-            }
+            logger.error("Unsupported action type for action {}, entity id could not be retrieved", actionId, uae);
             return false;
         }
 
@@ -588,7 +591,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
             if (actionEntity.getEnvironmentType() != EnvironmentTypeEnum.EnvironmentType.CLOUD) {
                 return false;
             }
-            if (!TopologyDTOUtil.WORKLOAD_TYPES.contains(actionEntity.getType())) {
+            if (!WORKLOAD_TYPE_VALUES.contains(actionEntity.getType())) {
                 return false;
             }
             executedActionsChangeWindowDao.persistExecutedActionsChangeWindow(
