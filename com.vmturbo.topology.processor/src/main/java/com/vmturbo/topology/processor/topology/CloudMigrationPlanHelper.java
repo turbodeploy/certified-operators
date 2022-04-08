@@ -184,6 +184,7 @@ public class CloudMigrationPlanHelper {
             CommodityType.Q32_VCPU,
             CommodityType.Q64_VCPU,
             CommodityType.QN_VCPU,
+            CommodityType.CPU_READY,
             CommodityType.SWAPPING,
             CommodityType.BALLOONING,
             CommodityType.FLOW,
@@ -193,7 +194,8 @@ public class CloudMigrationPlanHelper {
             CommodityType.INSTANCE_DISK_SIZE,
             CommodityType.INSTANCE_DISK_TYPE,
             CommodityType.INSTANCE_DISK_COUNT,
-            CommodityType.HOST_LUN_ACCESS
+            CommodityType.HOST_LUN_ACCESS,
+            CommodityType.NUM_VCORE
     );
 
     /**
