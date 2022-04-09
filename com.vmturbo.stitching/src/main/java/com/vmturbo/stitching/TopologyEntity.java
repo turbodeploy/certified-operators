@@ -633,9 +633,23 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
             return consumers;
         }
 
+        /**
+         * Get the list of providers.
+         *
+         * @return the list of providers
+         */
+        public List<TopologyEntity> getProviders() {
+            return providers;
+        }
+
         @Nonnull
         public List<TopologyEntity> getAggregatedEntities() {
             return aggregatedEntities;
+        }
+
+        @Nonnull
+        public List<TopologyEntity> getOwnedEntities() {
+            return ownedEntities;
         }
 
         /**

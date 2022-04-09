@@ -235,6 +235,8 @@ message ScenarioChange {
         repeated int32 change_application_days = 1;
 
         // The number of times the entity will be cloned. Should be a positive number.
+        // If the entity is a type of controller (e.g., workload controller), the addition_count
+        // represents the number of replicas of the controller.
         optional int32 addition_count = 2;
 
         // EntityType to add from addition_type group

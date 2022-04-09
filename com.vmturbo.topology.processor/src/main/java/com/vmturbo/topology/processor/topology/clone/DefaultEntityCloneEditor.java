@@ -1,6 +1,6 @@
 package com.vmturbo.topology.processor.topology.clone;
 
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -10,8 +10,6 @@ import javax.annotation.Nullable;
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
 
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
@@ -27,50 +25,51 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
-import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 /**
  * A class for the topology entity clone function.
  */
 public class DefaultEntityCloneEditor {
 
-    final TopologyInfo topologyInfo;
-    final IdentityProvider identityProvider;
-    final Map<Long, TopologyEntity.Builder> topology;
-    final PlanScope scope;
-
-    DefaultEntityCloneEditor(@Nonnull final TopologyInfo topologyInfo,
-                             @Nonnull final IdentityProvider identityProvider,
-                             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-                             @Nullable final PlanScope scope) {
-        this.topologyInfo = topologyInfo;
-        this.identityProvider = identityProvider;
-        this.topology = topology;
-        this.scope = scope;
+    /**
+     * Enum that defines relations of related entities.
+     */
+    enum Relation {
+        Provider,
+        Consumer,
+        Owned
     }
 
     /**
      * The function to clone a topology entity.
      *
      * @param entityImpl the builder of the source topology entity
-     * @param cloneCounter counter of the entity to be cloned for display
+     * @param cloneContext the clone context
+     * @param cloneInfo the clone info related to this clone
      * @return the builder of the cloned topology entity
      */
-    public TopologyEntity.Builder clone(@Nonnull TopologyEntityImpl entityImpl,
-                                        long cloneCounter) {
+    public TopologyEntity.Builder clone(@Nonnull final TopologyEntityImpl entityImpl,
+                                        @Nonnull final CloneContext cloneContext,
+                                        @Nonnull final CloneInfo cloneInfo) {
+        final long cloneCounter = cloneInfo.getCloneCounter();
+        if (cloneContext.isEntityCloned(cloneCounter, entityImpl.getOid())) {
+            return cloneContext.getTopology().get(
+                    cloneContext.getClonedEntityId(cloneCounter, entityImpl.getOid()));
+        }
         // Create the new entity being added, but set the plan origin so these added
         // entities aren't counted in plan "current" stats
         // entities added in this stage will heave a plan origin pointed to the context id of this topology
         final TopologyEntityImpl clonedEntityImpl =
-                internalClone(entityImpl, cloneCounter, topology, new HashMap<>());
+                internalClone(entityImpl, cloneContext, cloneInfo);
         final OriginView entityOrigin = new OriginImpl().setPlanScenarioOrigin(
                 new PlanScenarioOriginImpl()
-                        .setPlanId(topologyInfo.getTopologyContextId())
+                        .setPlanId(cloneContext.getPlanId())
                         .setOriginalEntityId(entityImpl.getOid()));
         final TopologyEntity.Builder entityBuilder = TopologyEntity
                 .newBuilder(clonedEntityImpl.setOrigin(entityOrigin))
                 .setClonedFromEntity(entityImpl);
-        topology.put(entityBuilder.getOid(), entityBuilder);
+        cloneContext.getTopology().put(entityBuilder.getOid(), entityBuilder);
+        cloneContext.cacheClonedEntityId(cloneCounter, entityImpl.getOid(), clonedEntityImpl.getOid());
         return entityBuilder;
     }
 
@@ -79,26 +78,23 @@ public class DefaultEntityCloneEditor {
      * remove the shopping lists.
      *
      * @param entityImpl                Source topology entity.
-     * @param cloneCounter              Counter of the entity to be cloned to be used in the display name.
-     * @param topology                  The entities in the topology, arranged by ID.
-     * @param origToClonedProviderIdMap Map of original provider ID to cloned provider ID.
+     * @param cloneContext              The clone context
      * @return the cloned entity,
      */
-     TopologyEntityImpl internalClone(
-            @Nonnull final TopologyEntityImpl entityImpl,
-            final long cloneCounter,
-            @Nonnull final Map<Long, Builder> topology,
-            @Nonnull final Map<Long, Long> origToClonedProviderIdMap) {
-        final TopologyEntityImpl clonedEntityImpl = entityImpl.copy()
-                .clearCommoditiesBoughtFromProviders();
+    TopologyEntityImpl internalClone(@Nonnull final TopologyEntityImpl entityImpl,
+                                     @Nonnull final CloneContext cloneContext,
+                                     @Nonnull final CloneInfo cloneInfo) {
+        final long cloneCounter = cloneInfo.getCloneCounter();
+        final TopologyEntityImpl clonedEntityImpl =
+                entityImpl.copy().clearCommoditiesBoughtFromProviders();
         // unplace all commodities bought, so that the market creates a Placement action for them.
         Map<Long, Long> oldProvidersMap = Maps.newHashMap();
         long noProvider = 0;
         for (CommoditiesBoughtFromProviderView bought : entityImpl.getCommoditiesBoughtFromProvidersList()) {
-            if (shouldSkipProvider(bought)) {
+            if (shouldSkipProvider(bought, cloneContext)) {
                 continue;
             }
-            long oldProvider = bought.getProviderId();
+            long origProviderId = bought.getProviderId();
             // If oldProvider is found in origToClonedProviderIdMap, corresponding provider of given
             // entity is also cloned. Set cloned provider id to CommoditiesBoughtFromProvider and
             // movable to false to make sure cloned provider won't be suspended and cloned consumer
@@ -106,7 +102,7 @@ public class DefaultEntityCloneEditor {
             // A given entity could have multiple providers, if oldProvider ID is not found in
             // origToClonedProviderIdMap, then corresponding oldProvider is not cloned, so set
             // providerId as "noProvider" to cloned CommoditiesBoughtFromProvider in this case.
-            Long providerId = origToClonedProviderIdMap.get(oldProvider);
+            Long providerId = getProviderId(cloneContext, cloneInfo, origProviderId);
             boolean movable = false;
             if (providerId == null) {
                 providerId = --noProvider;
@@ -118,7 +114,7 @@ public class DefaultEntityCloneEditor {
                             .setMovable(movable)
                             .setProviderEntityType(bought.getProviderEntityType());
             bought.getCommodityBoughtList().forEach(commodityBought -> {
-                if (shouldCopyBoughtCommodity(commodityBought)) {
+                if (shouldCopyBoughtCommodity(commodityBought, cloneContext)) {
                     final CommodityTypeView commodityType = commodityBought.getCommodityType();
                     if (shouldReplaceBoughtKey(commodityType, bought.getProviderEntityType())) {
                         final CommodityTypeView newType = newCommodityTypeWithClonedKey(commodityType, cloneCounter);
@@ -133,17 +129,17 @@ public class DefaultEntityCloneEditor {
             // Create the Comm bought grouping if it will have at least one commodity bought
             if (!clonedBoughtFromProvider.getCommodityBoughtList().isEmpty()) {
                 clonedEntityImpl.addCommoditiesBoughtFromProviders(clonedBoughtFromProvider);
-                oldProvidersMap.put(providerId, oldProvider);
+                oldProvidersMap.put(providerId, origProviderId);
             }
         }
 
-        long cloneId = identityProvider.getCloneId(entityImpl);
+        long cloneId = cloneContext.getIdProvider().getCloneId(entityImpl);
         for (final CommoditySoldImpl commSold : clonedEntityImpl.getCommoditySoldListImplList()) {
             if (AnalysisUtil.DSPM_OR_DATASTORE.contains(commSold.getCommodityType().getType())) {
                 // Set commodity sold for storage/host in case of a DSPM/DATASTORE commodity.
                 // This will make sure we have an edge for biclique creation between newly cloned host
                 // to original storages or newly cloned storage to original hosts.
-                TopologyEntity.Builder connectedEntity = topology.get(commSold.getAccesses());
+                TopologyEntity.Builder connectedEntity = cloneContext.getTopology().get(commSold.getAccesses());
                 if (connectedEntity != null) {
                     int commType =
                             commSold.getCommodityType().getType() == CommodityType.DSPM_ACCESS_VALUE
@@ -171,7 +167,7 @@ public class DefaultEntityCloneEditor {
             entityProperties.put(TopologyDTOUtil.OLD_PROVIDERS, new Gson().toJson(oldProvidersMap));
         }
         return clonedEntityImpl
-                .setDisplayName(entityImpl.getDisplayName() + cloneSuffix(cloneCounter))
+                .setDisplayName(getCloneDisplayName(entityImpl, cloneInfo))
                 .setOid(cloneId)
                 .putAllEntityPropertyMap(entityProperties);
     }
@@ -181,10 +177,12 @@ public class DefaultEntityCloneEditor {
      * Default is false, not to skip.
      *
      * @param boughtFromProvider the commodities bought from the provider
+     * @param cloneContext the clone context
      * @return true if we should skip this provider, or otherwise false
      */
     protected boolean shouldSkipProvider(
-            @Nonnull final CommoditiesBoughtFromProviderView boughtFromProvider) {
+            @Nonnull final CommoditiesBoughtFromProviderView boughtFromProvider,
+            @Nonnull final CloneContext cloneContext) {
         return false;
     }
 
@@ -196,10 +194,12 @@ public class DefaultEntityCloneEditor {
      * <p>Subclasses such as {@link ContainerPodCloneEditor} could override this.
      *
      * @param commodityBought the commodity bought DTO
+     * @param cloneContext the clone context
      * @return true if we should copy the bought commodity; otherwise, return false.
      */
     protected boolean shouldCopyBoughtCommodity(
-            @Nonnull final CommodityBoughtView commodityBought) {
+            @Nonnull final CommodityBoughtView commodityBought,
+            @Nonnull final CloneContext cloneContext) {
          return !Objects.requireNonNull(commodityBought).getCommodityType().hasKey();
     }
 
@@ -230,6 +230,21 @@ public class DefaultEntityCloneEditor {
     }
 
     /**
+     * Get the provider ID of the cloned entity.
+     *
+     * @param cloneContext the clone context
+     * @param cloneInfo the clone change info
+     * @param origProviderId the original provider ID
+     * @return the provider ID of the cloned entity
+     */
+    @Nullable
+    protected Long getProviderId(@Nonnull final CloneContext cloneContext,
+                                 @Nonnull final CloneInfo cloneInfo,
+                                 final long origProviderId) {
+        return cloneContext.getClonedEntityId(cloneInfo.getCloneCounter(), origProviderId);
+    }
+
+    /**
      * Return a new {@link CommodityTypeView} same as the input one except replacing the key
      * by adding a suffix indicating the clone counter.
      *
@@ -252,5 +267,80 @@ public class DefaultEntityCloneEditor {
      */
     public static String cloneSuffix(long cloneCounter) {
         return " - Clone #" + cloneCounter;
+    }
+
+    /**
+     * Get the display name of the cloned entity.
+     *
+     * @param entityImpl the entity to clone
+     * @param cloneInfo the clone change info
+     * @return the display name of the cloned entity
+     */
+    private String getCloneDisplayName(@Nonnull final TopologyEntityImpl entityImpl,
+                                       @Nonnull final CloneInfo cloneInfo) {
+        return cloneInfo.getSourceCluster()
+                .map(TopologyEntity.Builder::getDisplayName)
+                .map(clonedFrom -> String.format("%s - Clone from %s", entityImpl.getDisplayName(), clonedFrom))
+                .orElse(entityImpl.getDisplayName() + cloneSuffix(cloneInfo.getCloneCounter()));
+    }
+
+    /**
+     * Clone entities related to the given entity.
+     *
+     * @param origEntity the original entity
+     * @param cloneContext the clone context
+     * @param cloneInfo the clone change info
+     * @param relation the relation to the original entity
+     * @param entityType the entity type to clone
+     */
+    protected void cloneRelatedEntities(@Nonnull final Builder origEntity,
+                                        @Nonnull final CloneContext cloneContext,
+                                        @Nonnull final CloneInfo cloneInfo,
+                                        @Nonnull final Relation relation,
+                                        final int entityType) {
+        final DefaultEntityCloneEditor entityCloneEditor = EntityCloneEditorFactory.createEntityCloneFunction(entityType);
+        final List<TopologyEntity> sourceEntities;
+        switch (relation) {
+            case Provider:
+                sourceEntities = origEntity.getProviders();
+                break;
+            case Consumer:
+                sourceEntities = origEntity.getConsumers();
+                break;
+            case Owned:
+                sourceEntities = origEntity.getOwnedEntities();
+                break;
+            default:
+                return;
+        }
+        sourceEntities.stream()
+                .map(TopologyEntity::getTopologyEntityImpl)
+                .filter(entity -> entity.getEntityType() == entityType)
+                .forEach(entity -> entityCloneEditor.clone(entity, cloneContext, cloneInfo));
+    }
+
+    /**
+     * Replace connected entities for a given entity.
+     *
+     * @param entity the given entity
+     * @param cloneContext the clone context
+     * @param cloneInfo the clone change info
+     * @param connectionType the connection type to replace
+     */
+    protected void replaceConnectedEntities(@Nonnull final TopologyEntity.Builder entity,
+                                            @Nonnull final CloneContext cloneContext,
+                                            @Nonnull final CloneInfo cloneInfo,
+                                            final int connectionType) {
+        entity.getTopologyEntityImpl().getConnectedEntityListImplList()
+                .forEach(connectedEntityImpl -> {
+                    if (connectedEntityImpl.getConnectionType().getNumber() == connectionType) {
+                        final Long clonedEntityId = cloneContext.getClonedEntityId(
+                                cloneInfo.getCloneCounter(), connectedEntityImpl.getConnectedEntityId());
+                        if (clonedEntityId == null) {
+                            return;
+                        }
+                        connectedEntityImpl.setConnectedEntityId(clonedEntityId);
+                    }
+                });
     }
 }

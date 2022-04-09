@@ -3,29 +3,19 @@ package com.vmturbo.topology.processor.util;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 
 /**
  * A utility class to process commodities in a k8s cluster.
  */
-public class K8sProcessingUtil {
-
-    private static final Logger logger = LogManager.getLogger();
+public final class K8sProcessingUtil {
 
     private static final String TAINT_PREFIX = "[k8s taint]";
     private static final String LABEL_PREFIX = "[k8s label]";
@@ -107,36 +97,13 @@ public class K8sProcessingUtil {
      *
      * <p>Result: (key1=value1)
      *
-     * @param scope The plan scope that includes the seed id of a container cluster
-     * @param topology The topology map
+     * @param containerCluster The container cluster of this plan
      * @return The resulting taint collection
      */
     @Nonnull
     public static Map<CommodityType, Set<String>> collectNodeCommodities(
-        @Nullable PlanScope scope,
-        @Nonnull final Map<Long, Builder> topology) {
-        final Map<CommodityType, Set<String>> nodeCommodities =
-            new HashMap<CommodityType, Set<String>>() {{
-                put(CommodityType.LABEL, new HashSet<>());
-                put(CommodityType.TAINT, new HashSet<>());
-            }};
-
-        // Locate the container cluster
-        final TopologyEntity.Builder containerCluster = Optional.ofNullable(scope)
-            .map(PlanScope::getScopeEntriesList)
-            .flatMap(scopeEntries -> scopeEntries.stream()
-                .filter(scopeEntry -> scopeEntry.getClassName()
-                    .equals(ApiEntityType.CONTAINER_PLATFORM_CLUSTER.apiStr()))
-                .findAny())
-            .map(PlanScopeEntry::getScopeObjectOid)
-            .map(topology::get)
-            .orElse(null);
-
-        if (containerCluster == null) {
-            logger.warn("Failed to locate the container cluster to collect commodities");
-            return nodeCommodities;
-        }
-
+        @Nonnull TopologyEntity.Builder containerCluster) {
+        final Map<CommodityType, Set<String>> nodeCommodities = new HashMap<>();
         // Iterate through all nodes in the cluster, and collect commodities from these nodes
         containerCluster.getAggregatedEntities()
             .stream()
@@ -149,19 +116,17 @@ public class K8sProcessingUtil {
                     if (prefix == null) {
                         return;
                     }
-
-                    final CommodityType commodityType = prefixMap.getOrDefault(
-                        prefix, CommodityType.UNKNOWN);
-                    if (commodityType == CommodityType.UNKNOWN) {
+                    if (!prefixMap.containsKey(prefix)) {
                         return;
                     }
-
+                    final CommodityType commodityType = prefixMap.get(prefix);
                     final String commodityKey = key.replace(prefix, "").trim();
                     valueList.getValuesList().forEach(value -> {
                         final String nodeCommodity = generateNodeCommodity(
                             commodityType, commodityKey, value);
                         if (nodeCommodity != null) {
-                            nodeCommodities.get(commodityType).add(nodeCommodity);
+                            nodeCommodities.computeIfAbsent(commodityType, k -> new HashSet<>())
+                                    .add(nodeCommodity);
                         }
                     });
                 }));
