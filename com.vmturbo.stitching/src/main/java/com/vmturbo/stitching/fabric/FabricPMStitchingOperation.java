@@ -16,6 +16,7 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingPoint;
@@ -50,10 +51,16 @@ public class FabricPMStitchingOperation extends FabricStitchingOperation {
     private final boolean keepDCsAfterFabricStitching;
 
     /**
+     * The following constants represent the key name of the serial entity property that is sent
+     * out by fabric probes (internal) and hypervisor (external).
+     */
+    private static final String SERIAL = "ServiceTag";
+
+    /**
      * Creates {@link FabricPMStitchingOperation} instance that is going to stitch PMs collected by
      * Fabric probe with PMs collected by hypervisor probe.
      *
-     * @param keepDCsAfterFabricStitching flag which is shown whether we going to
+     * @param keepDCsAfterFabricStitching flag which is shown whether we are going to
      *                 keep hypervisor DCs as providers for hypervisor hosts, by default it is
      *                 {@code false} and DCs are going to be replaced with chassis.
      */
@@ -71,9 +78,11 @@ public class FabricPMStitchingOperation extends FabricStitchingOperation {
                           @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         // The PM discovered by the fabric probe
         final StitchingEntity fabricPM = stitchingPoint.getInternalEntity();
+        final String fabricSerial = getSerial(fabricPM);
 
-        // The PM discovered by the hypervisor probe
-        final StitchingEntity hypervisorPM = stitchingPoint.getExternalMatches().iterator().next();
+        // The best hypervisor pm candidate for stitching
+        final List<StitchingEntity> hypervisorPMs = new ArrayList<>(stitchingPoint.getExternalMatches());
+        final StitchingEntity hypervisorPM = findBestStitchingCandidate(hypervisorPMs, fabricSerial);
 
         // We need to handle both UCS-B and UCS-C cases.  In UCS-B case the fabric PM will be
         // hosted by a Chassis, but in UCS-C it will be hosted by a fake Datacenter.  In that case
@@ -145,8 +154,53 @@ public class FabricPMStitchingOperation extends FabricStitchingOperation {
         return result;
     }
 
-    private void clearDcCommoditiesBoughtFromChassis(StitchingEntity toUpdate,
-                    StitchingEntity provider, Collection<CommoditiesBought> boughtFromChassis) {
+    private String getSerial(@Nonnull StitchingEntity entity) {
+        Optional<EntityProperty> serial = entity.getEntityBuilder()
+                .getEntityPropertiesList()
+                .stream().filter(prop -> prop.getName().equals(SERIAL))
+                .findFirst();
+
+        return serial.map(EntityProperty::getValue).orElse("");
+    }
+
+    /**
+     * The external pm that has its serial matching takes priority over the one with the higher
+     * oid because the serial check is more accurate.
+     * NOTE: This has a side effect. Suppose there are 2 fabric PMs (fA and fB) from targets
+     * A and B with the same signature x and different serial numbers (sA and sB), and 1
+     * hypervisor PM (hC) with the signature x and serial number sB. Now, let's say target A gets
+     * processed first, then we will find no serial matching hypervisor pm for fA, so we will resort
+     * to stitching fA with hC even though hC is meant to be stitched with fB. But,
+     * at least, this prevents the topology from flapping as we do not allow proxies to stitch to
+     * multiple hypervisor pms. A better solution would be to create a signature based on
+     * PM_UUID + serial number, but this is not supported by all hypervisors currently.
+     * TODO: Include serial number information in all Hypervisors probes.
+     */
+    private StitchingEntity findBestStitchingCandidate(@Nonnull List<StitchingEntity> hypervisorPms,
+            @Nonnull String fabricSerial) {
+        int minOidPmIndex = 0;
+        long minOid = hypervisorPms.get(0).getOid();
+        for (int i = 0; i < hypervisorPms.size(); i++) {
+            StitchingEntity externalPm = hypervisorPms.get(i);
+            long oid = externalPm.getOid();
+
+            // The two best candidates, in order, are the hypervisor Pm with a matching serial
+            // number, and the hypervisor Pm with the min Oid
+            String externalPmSerial = getSerial(externalPm);
+            if (!externalPmSerial.isEmpty() && externalPmSerial.equals(fabricSerial)) {
+                return externalPm;
+            }
+            if (minOid > oid) {
+                minOidPmIndex = i;
+                minOid = oid;
+            }
+        }
+
+        return hypervisorPms.get(minOidPmIndex);
+    }
+
+    private void clearDcCommoditiesBoughtFromChassis(@Nonnull StitchingEntity toUpdate,
+                    @Nonnull StitchingEntity provider, Collection<CommoditiesBought> boughtFromChassis) {
         if (provider.getEntityType() != EntityType.CHASSIS) {
             return;
         }

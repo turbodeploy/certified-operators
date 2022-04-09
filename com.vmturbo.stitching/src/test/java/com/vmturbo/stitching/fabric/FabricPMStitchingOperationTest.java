@@ -1,6 +1,7 @@
 package com.vmturbo.stitching.fabric;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -23,9 +24,11 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.builders.CommodityBuilders;
+import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingPoint;
@@ -39,6 +42,7 @@ public class FabricPMStitchingOperationTest {
     private static final String FABRIC_DC_ID = "fabricDcId";
     private static final String HYPERVISOR_DC_ID = "hypervisorDcId";
     private static final String CHASSIS_ID = "chassisId";
+    private static final String SERIAL = "ServiceTag";
 
     /**
      * Checks that in case there is no chassis then hypervisor host should keep commodities bought
@@ -95,6 +99,42 @@ public class FabricPMStitchingOperationTest {
                         Collections.singleton(hypervisorDcSe));
     }
 
+    /**
+     * If there is no match in the serial numbers, we should fall back to stitching to the hypervisor
+     * pm with the smallest OID.
+     */
+    @Test
+    public void checkMultipleExternalEntitiesStitchingWithLargestOid() {
+        final StitchingEntity fabricPm = createFabricPm("a");
+        final StitchingEntity hypervisorA = createHypervisorPm("y");
+        final StitchingEntity hypervisorB = createHypervisorPm("z");
+        Mockito.doReturn((long)2).when(hypervisorA).getOid();
+        Mockito.doReturn((long)1).when(hypervisorB).getOid();
+
+        stitch(new StitchingPoint(fabricPm, Arrays.asList(hypervisorA, hypervisorB)));
+
+        // Make sure that the pm with the smallest oid gets chosen when we don't have a matching
+        // serial number.
+        Mockito.verify(hypervisorA, Mockito.times(0)).getProviders();
+        Mockito.verify(hypervisorB, Mockito.times(1)).getProviders();
+    }
+
+    /**
+     * Internal entity should be stitched to the external entity having the same serial number.
+     */
+    @Test
+    public void checkMultipleExternalEntitiesStitchingWithMatchingSerial() {
+        final StitchingEntity fabricPm = createFabricPm("x");
+        final StitchingEntity hypervisorA = createHypervisorPm("x");
+        final StitchingEntity hypervisorB = createHypervisorPm("y");
+
+        stitch(new StitchingPoint(fabricPm, Arrays.asList(hypervisorA, hypervisorB)));
+
+        // Make sure that the pm with the matching serial is processed
+        Mockito.verify(hypervisorA, Mockito.times(1)).getProviders();
+        Mockito.verify(hypervisorB, Mockito.times(0)).getProviders();
+    }
+
     private static void checkFabricPmStitching(StitchingEntity fabricDcSe, StitchingEntity hypervisorDcSe,
                     @Nullable StitchingEntity chassis, Collection<CommodityType> commodityTypesFromDc,
                     boolean keepDCsAfterFabricStitching) {
@@ -102,8 +142,8 @@ public class FabricPMStitchingOperationTest {
         final FabricPMStitchingOperation stitchingOperation =
                         new FabricPMStitchingOperation(keepDCsAfterFabricStitching);
         final StitchingChangesBuilder<StitchingEntity> changesBuilder = mockChangesBuilder();
-        final StitchingEntity fabricPmSe = Mockito.mock(StitchingEntity.class);
-        final StitchingEntity hypervisorPmSe = Mockito.mock(StitchingEntity.class);
+        final StitchingEntity fabricPmSe = mockPmWithSerial(null);
+        final StitchingEntity hypervisorPmSe = mockPmWithSerial(null);
         final List<CommodityDTO.Builder> boughtFromChassis = createBoughtCommodities(chassis, 70D);
         final Collection<StitchingEntity> fabricPmProviders;
         if (chassis != null) {
@@ -191,5 +231,46 @@ public class FabricPMStitchingOperationTest {
         Mockito.doReturn(localId).when(result).getLocalId();
         Mockito.doReturn(entityType).when(result).getEntityType();
         return result;
+    }
+
+    private static void addSerial(StitchingEntity entity, @Nonnull String serial) {
+        EntityDTO.Builder pmBuilder = EntityDTO.newBuilder()
+                .addEntityProperties(EntityBuilders.entityProperty().named(SERIAL).withValue(serial).build());
+        Mockito.when(entity.getEntityBuilder()).thenReturn(pmBuilder);
+    }
+
+    private static StitchingEntity mockPmWithSerial(@Nullable String serial) {
+        StitchingEntity pm = Mockito.mock(StitchingEntity.class);
+        addSerial(pm, serial != null ? serial : "hellothere");
+        return pm;
+    }
+
+    private static StitchingEntity createFabricPm(@Nullable String serial) {
+        final StitchingEntity fabricPm = mockPmWithSerial(serial);
+        final StitchingEntity fabricDcSe = mockEntity(EntityType.DATACENTER, FABRIC_DC_ID);
+        final StitchingEntity chassis = mockEntity(EntityType.CHASSIS, CHASSIS_ID);
+
+        Mockito.doReturn(ImmutableSet.of(fabricDcSe, chassis)).when(fabricPm).getProviders();
+
+        return fabricPm;
+    }
+
+    private static StitchingEntity createHypervisorPm(@Nullable String serial) {
+        final StitchingEntity hypervisorPm = mockPmWithSerial(serial);
+        final StitchingEntity hypervisorDcSe = mockEntity(EntityType.DATACENTER, HYPERVISOR_DC_ID);
+
+        // Mock providers
+        Mockito.doReturn(Collections.singleton(hypervisorDcSe)).when(hypervisorPm).getProviders();
+        Mockito.doReturn(new HashMap<>()).when(hypervisorPm)
+                .getCommodityBoughtListByProvider();
+
+        return hypervisorPm;
+    }
+
+    private static void stitch(@Nonnull StitchingPoint stitchingPoint) {
+        final FabricPMStitchingOperation stitchingOperation =
+                new FabricPMStitchingOperation(true);
+        final StitchingChangesBuilder<StitchingEntity> changesBuilder = mockChangesBuilder();
+        stitchingOperation.stitch(stitchingPoint, changesBuilder);
     }
 }
