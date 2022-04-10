@@ -264,7 +264,12 @@ public class PostStitchingOperationLibrary {
                 EntitySettingSpecs.TransactionSLO.getSettingName(),
                 (Float)EntitySettingSpecs.TransactionSLO.getDataStructure().getDefault(EntityType.DATABASE_SERVER),
                 EntitySettingSpecs.TransactionSLOEnabled.getSettingName(), maxCapacityCache),
-
+            new SetAutoSetCommodityCapacityPostStitchingOperation(EntityType.DATABASE_SERVER,
+                    ProbeCategory.GUEST_OS_PROCESSES,
+                    CommodityType.CONNECTION,
+                    EntitySettingSpecs.Connection.getSettingName(),
+                    (Float)EntitySettingSpecs.Connection.getDataStructure().getDefault(EntityType.DATABASE_SERVER),
+                    EntitySettingSpecs.ConnectionEnabled.getSettingName(), maxCapacityCache),
             // Set capacity from settings for entities coming from Turbo APM or 3rd party APM
             new SetAutoSetCommodityCapacityPostStitchingOperation(EntityType.BUSINESS_APPLICATION,
                 ProbeCategory.GUEST_OS_PROCESSES,

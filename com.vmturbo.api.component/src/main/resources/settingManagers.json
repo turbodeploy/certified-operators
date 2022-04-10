@@ -243,7 +243,10 @@
         "allowUnlimitedHostOverprovisioning",
         "onPremVolumeAnalysis",
         "minReplicas",
-        "maxReplicas"
+        "maxReplicas",
+        "ConnectionCapacity",
+        "Connection",
+        "ConnectionEnabled"
       ]
     },
     "storagesettingsmanager": {
