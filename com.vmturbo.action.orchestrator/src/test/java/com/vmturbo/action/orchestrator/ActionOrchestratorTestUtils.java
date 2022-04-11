@@ -57,6 +57,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Active;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
@@ -346,6 +347,21 @@ public class ActionOrchestratorTestUtils {
     }
 
     /**
+     * Make Action Mode Setting.
+     *
+     * @param mode The Action Mode.
+     * @param actionTypeDesc Decription of Action Type.
+     * @return Map of actionTypeDesc to Setting for the action.
+     */
+    public static Map<String, Setting> makeGeneralActionModeSetting(ActionMode mode, final String actionTypeDesc) {
+        return ImmutableMap.of(actionTypeDesc, Setting.newBuilder()
+                .setSettingSpecName(actionTypeDesc)
+                .setEnumSettingValue(EnumSettingValue.newBuilder()
+                        .setValue(mode.toString()).build())
+                .build());
+    }
+
+    /**
      * Creates action mode with related workflow (i.g. PRE) settings.
      *
      * @param actionSettings action mode setting
@@ -415,7 +431,12 @@ public class ActionOrchestratorTestUtils {
 
     public static void setEntityAndSourceAndDestination(EntitiesAndSettingsSnapshot entityCacheSnapshot,
                                                         Action action) {
-        Long action1EntityId = action.getRecommendation().getInfo().getMove().getTarget().getId();
+        Long action1EntityId = 0L;
+        if (action.getRecommendation().getInfo().hasMove()) {
+            action1EntityId = action.getRecommendation().getInfo().getMove().getTarget().getId();
+        } else if (action.getRecommendation().getInfo().hasScale()) {
+            action1EntityId = action.getRecommendation().getInfo().getScale().getTarget().getId();
+        }
         ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(
                 action.getRecommendation()).get();
         Long actionSourceId = primaryChange.getSource().getId();
@@ -459,13 +480,28 @@ public class ActionOrchestratorTestUtils {
      * Create an action entity.
      *
      * @param id the ID of the action
-     * @param entityType the entity type of the action
+     * @param entityType the entity type value of the action
      * @return the action entity
      */
     public static ActionEntity createActionEntity(long id, int entityType) {
         return ActionEntity.newBuilder()
                 .setId(id)
                 .setType(entityType)
+                .build();
+    }
+
+    /**
+     * Create a cloud scale action entity.
+     *
+     * @param id the ID of the action
+     * @param entityType the entity type value of the action
+     * @return the cloud scale action entity
+     */
+    public static ActionEntity createCloudScaleActionEntity(long id, int entityType) {
+        return ActionEntity.newBuilder()
+                .setId(id)
+                .setType(entityType)
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
                 .build();
     }
 

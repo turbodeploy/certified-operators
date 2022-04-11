@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.execution.notifications;
 
 import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.makeActionModeAndWorkflowSettings;
 import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.makeActionModeSetting;
+import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.makeGeneralActionModeSetting;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Matchers.any;
@@ -123,16 +124,20 @@ public class ActionStateUpdaterTest {
     private final long externalApprovalId = 123456;
     private final long manualId = 12345667;
     private final long manualWithWorkflowsId = 18234566;
+    private final long cloudScaleId = 7777777;
     private final long notFoundId = 99999;
     private final long actionTargetId1 = 11;
     private final long actionTargetId2 = 22;
     private final long actionTargetId3 = 33;
+    private final long actionTargetId4 = 44;
     private final ActionDTO.ActionSpec externalApprovalSpec =
             createActionSpec(externalApprovalId, actionTargetId1);
     private final ActionDTO.ActionSpec manualSpec =
             createActionSpec(manualId, actionTargetId2);
     private final ActionDTO.ActionSpec manualWithWorkflowsSpec =
             createActionSpec(manualWithWorkflowsId, actionTargetId3);
+    private final ActionDTO.ActionSpec cloudScaleSpec =
+            createScaleActionSpec(cloudScaleId, actionTargetId4);
 
     private final EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
     private ActionAuditSender actionAuditSender;
@@ -143,6 +148,7 @@ public class ActionStateUpdaterTest {
     private Action externalApprovalAction;
     private Action manualAction;
     private Action manualWithWorkflowsAction;
+    private Action cloudScaleAction;
 
     /**
      * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
@@ -157,6 +163,11 @@ public class ActionStateUpdaterTest {
      */
     @Before
     public void setup() throws Exception {
+        if (enableExecActChgWindow) {
+            featureFlagTestRule.enable(FeatureFlags.EXECUTED_ACTIONS_CHANGE_WINDOW);
+        } else {
+            featureFlagTestRule.disable(FeatureFlags.EXECUTED_ACTIONS_CHANGE_WINDOW);
+        }
         actionAuditSender = Mockito.mock(ActionAuditSender.class);
         actionStateUpdatesSender = Mockito.mock(IMessageSender.class);
         actionStateUpdater =
@@ -172,6 +183,8 @@ public class ActionStateUpdaterTest {
         when(entitySettingsCache.getSettingsForEntity(eq(actionTargetId3))).thenReturn(
                 makeActionModeAndWorkflowSettings(ConfigurableActionSettings.Move,
                         ActionMode.MANUAL, ActionSettingType.POST, 1L));
+        when(entitySettingsCache.getSettingsForEntity(eq(actionTargetId4))).thenReturn(
+                makeGeneralActionModeSetting(ActionMode.MANUAL, "scale"));
         when(workflowStoreMock.fetchWorkflow(1L)).thenReturn(Optional.of(Workflow.getDefaultInstance()));
         when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(entitySettingsCache.getResourceGroupForEntity(anyLong())).thenReturn(Optional.empty());
@@ -182,6 +195,7 @@ public class ActionStateUpdaterTest {
         externalApprovalAction = makeTestAction(externalApprovalId, externalApprovalSpec);
         manualAction = makeTestAction(manualId, manualSpec);
         manualWithWorkflowsAction = makeTestAction(manualWithWorkflowsId, manualWithWorkflowsSpec);
+        cloudScaleAction = makeTestAction(cloudScaleId, cloudScaleSpec);
     }
 
     private Action makeTestAction(final long actionId, ActionDTO.ActionSpec actionSpec,
@@ -313,6 +327,49 @@ public class ActionStateUpdaterTest {
                 .setActionOid(externalApprovalAction.getRecommendationOid())
                 .setActionResponseState(ActionResponseState.SUCCEEDED)
                 .build());
+    }
+
+    /**
+     * Tests action success reported for cloud scale action.
+     *
+     * @throws Exception on exceptions occurred.
+     */
+    @Test
+    public void testCloudScaleOnActionSuccess() throws Exception {
+        ActionSuccess success = ActionSuccess.newBuilder()
+                .setActionId(cloudScaleId)
+                .setSuccessDescription("Success!")
+                .setActionSpec(cloudScaleSpec)
+                .build();
+
+        actionStateUpdater.onActionSuccess(success);
+        assertEquals(ActionState.SUCCEEDED, cloudScaleAction.getState());
+        assertEquals(Status.SUCCESS, cloudScaleAction.getCurrentExecutableStep().get().getStatus());
+        verify(notificationSender).notifyActionSuccess(success);
+        SerializationState serializedAction = new SerializationState(cloudScaleAction);
+
+        verify(actionHistoryDao).persistActionHistory(cloudScaleSpec.getRecommendation().getId(),
+                cloudScaleSpec.getRecommendation(),
+                realtimeTopologyContextId,
+                serializedAction.getRecommendationTime(),
+                serializedAction.getActionDecision(),
+                serializedAction.getExecutionStep(),
+                serializedAction.getCurrentState().getNumber(),
+                serializedAction.getActionDetailData(),
+                serializedAction.getAssociatedAccountId(),
+                serializedAction.getAssociatedResourceGroupId(),
+                2244L);
+        verify(acceptedActionsStore, Mockito.never()).deleteAcceptedAction(
+                cloudScaleAction.getRecommendationOid());
+        Mockito.verify(actionAuditSender).sendAfterExecutionEvents(cloudScaleAction);
+
+        if (enableExecActChgWindow) {
+            verify(executedActionsChangeWindowDao).persistExecutedActionsChangeWindow(cloudScaleSpec.getRecommendation().getId(),
+                    actionTargetId4,
+                    serializedAction.getExecutionStep().getCompletionTime());
+        } else {
+            verifyZeroInteractions(executedActionsChangeWindowDao);
+        }
     }
 
     /**
@@ -866,5 +923,18 @@ public class ActionStateUpdaterTest {
                 .setInfo(TestActionBuilder.makeMoveInfo(actionTargetId, 2, 1, 1, 1))
                 .setExplanation(Explanation.newBuilder().build()))
             .build();
+    }
+
+    @Nonnull
+    private ActionDTO.ActionSpec createScaleActionSpec(long actionId1, long actionTargetId) {
+        return ActionSpec.newBuilder()
+                .setRecommendation(ActionDTO.Action.newBuilder()
+                        .setExecutable(true)
+                        .setId(actionId1)
+                        .setDeprecatedImportance(0)
+                        .setSupportingLevel(SupportLevel.SUPPORTED)
+                        .setInfo(TestActionBuilder.makeScaleInfo(actionTargetId, 2, 1, 1, 1, null))
+                        .setExplanation(Explanation.newBuilder().build()))
+                .build();
     }
 }

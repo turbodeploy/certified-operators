@@ -21,9 +21,8 @@ public interface ExecutedActionsChangeWindowDao {
      * @param actionId the actionId.
      * @param entityId the entityId.
      * @param completionTime the change window's start time is the time that the action completed successfully.
-     * @return ExecutedActionsChangeWindow, if created.
      */
-     void persistExecutedActionsChangeWindow(long actionId, long entityId, long completionTime);
+      void persistExecutedActionsChangeWindow(long actionId, long entityId, long completionTime);
 
     /**
      * Get all ExecutedActionsChangeWindow records by entity OIDs.

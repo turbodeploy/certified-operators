@@ -97,8 +97,9 @@ public class ActionStateUpdater implements ActionExecutionListener {
 
     private final AcceptedActionsDAO acceptedActionsStore;
 
-    private static final Set<Integer> WORKLOAD_TYPE_VALUES = TopologyDTOUtil.WORKLOAD_TYPES
-            .stream().map(EntityType::getNumber)
+    private static final Set<Integer> WORKLOAD_TYPE_VALUES = Stream.concat(
+                    TopologyDTOUtil.WORKLOAD_TYPES.stream(),
+                    Stream.of(EntityType.VIRTUAL_VOLUME)).map(EntityType::getNumber)
             .collect(Collectors.toSet());
 
     /**
@@ -587,13 +588,13 @@ public class ActionStateUpdater implements ActionExecutionListener {
         }
 
         try {
-            SerializationState serializedAction = new SerializationState(action);
             if (actionEntity.getEnvironmentType() != EnvironmentTypeEnum.EnvironmentType.CLOUD) {
                 return false;
             }
             if (!WORKLOAD_TYPE_VALUES.contains(actionEntity.getType())) {
                 return false;
             }
+            SerializationState serializedAction = new SerializationState(action);
             executedActionsChangeWindowDao.persistExecutedActionsChangeWindow(
                     actionId,
                     entityId,

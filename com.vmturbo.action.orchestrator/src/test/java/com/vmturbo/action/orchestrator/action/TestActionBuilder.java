@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.action;
 
 import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.createActionEntity;
+import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.createCloudScaleActionEntity;
 
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicLong;
@@ -23,6 +24,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfoOrBuilder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class TestActionBuilder {
@@ -157,11 +159,10 @@ public class TestActionBuilder {
                 .build();
     }
 
-    private static ActionInfo.Builder makeScaleInfo(long targetId, long sourceId, int sourceType,
+    public static ActionInfo.Builder makeScaleInfo(long targetId, long sourceId, int sourceType,
                                                     long destinationId, int destinationType, @Nullable String scalingGroupId) {
-
         Scale.Builder scaleBuilder = Scale.newBuilder()
-                .setTarget(createActionEntity(targetId, EntityType.VIRTUAL_VOLUME_VALUE))
+                .setTarget(createCloudScaleActionEntity(targetId, EntityType.VIRTUAL_VOLUME_VALUE))
                 .addChanges(ChangeProvider.newBuilder()
                         .setSource(ActionEntity.newBuilder()
                                 .setId(sourceId)
@@ -176,5 +177,20 @@ public class TestActionBuilder {
             scaleBuilder.setScalingGroupId(scalingGroupId);
         }
         return ActionInfo.newBuilder().setScale(scaleBuilder.build());
+    }
+
+    /**
+     * Create a cloud scale action entity.
+     *
+     * @param id the ID of the action
+     * @param entityType the entity type value of the action
+     * @return the cloud scale action entity
+     */
+    private static ActionEntity createCloudScaleActionEntity(long id, int entityType) {
+        return ActionEntity.newBuilder()
+                .setId(id)
+                .setType(entityType)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
     }
 }
