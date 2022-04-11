@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
+import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -35,7 +36,8 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
         GroupClientConfig.class,
         LicenseCheckClientConfig.class,
         RepositoryClientConfig.class,
-        WorkflowConfig.class})
+        WorkflowConfig.class,
+        ActionTranslationConfig.class})
 public class ActionExecutionConfig {
 
     @Autowired
@@ -55,6 +57,9 @@ public class ActionExecutionConfig {
 
     @Autowired
     private WorkflowConfig workflowConfig;
+
+    @Autowired
+    private ActionTranslationConfig actionTranslationConfig;
 
     @Value("${failedGroupUpdateDelaySeconds:10}")
     private int groupUpdateDelaySeconds;
@@ -110,12 +115,11 @@ public class ActionExecutionConfig {
         final ActionExecutor executor = new ActionExecutor(
                 tpConfig.topologyProcessorChannel(),
                 actionExecutionStore(),
-                globalConfig.actionOrchestratorClock(),
                 actionExecutionTimeoutMins, TimeUnit.MINUTES,
-                licenseCheckClientConfig.licenseCheckClient(), workflowConfig.actionTemplateApplicator());
-
-        tpConfig.topologyProcessor().addActionListener(executor);
-
+                licenseCheckClientConfig.licenseCheckClient(),
+                workflowConfig.actionTemplateApplicator(),
+                workflowConfig.workflowStore(),
+                actionTranslationConfig.actionTranslator());
         return executor;
     }
 

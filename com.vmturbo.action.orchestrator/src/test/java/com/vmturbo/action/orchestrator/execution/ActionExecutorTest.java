@@ -1,25 +1,22 @@
 package com.vmturbo.action.orchestrator.execution;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -27,29 +24,28 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionTranslation;
+import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
-import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
-import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionState;
-import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionStateFactory;
-import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionStateFactory.DefaultSynchronousExecutionStateFactory;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.action.orchestrator.workflow.webhook.ActionTemplateApplicator;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
-import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
-import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.common.protobuf.topology.ActionExecution;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
-import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionResponse;
 import com.vmturbo.common.protobuf.topology.ActionExecutionMoles.ActionExecutionServiceMole;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost.ActionIds;
+import com.vmturbo.topology.processor.api.ActionExecutionListener;
 
 /**
  * Unit tests for the {@link ActionExecutor} class.
@@ -66,14 +62,23 @@ public class ActionExecutorTest {
     private final ActionExecutionServiceMole actionExecutionBackend =
             Mockito.spy(new ActionExecutionServiceMole());
 
-    private final SynchronousExecutionStateFactory executionStateFactory =
-            mock(SynchronousExecutionStateFactory.class);
-
     // A test helper class for building move actions
     TestActionBuilder testActionBuilder = new TestActionBuilder();
 
     @Captor
     private ArgumentCaptor<ExecuteActionRequest> actionSpecCaptor;
+
+    @Mock
+    private WorkflowStore workflowStore;
+
+    @Mock
+    private ActionTranslator actionTranslator;
+
+    @Mock
+    private ActionExecutionListener actionExecutionListener;
+
+    @Mock
+    private ActionExecutionStore actionExecutionStore;
 
     @Rule
     public final GrpcTestServer server =
@@ -83,7 +88,6 @@ public class ActionExecutorTest {
 
     private Optional<WorkflowDTO.Workflow> workflowOpt = Optional.empty();
 
-    private final Clock clock = new MutableFixedClock(1_000_000);
 
     private final long targetEntityId = 1L;
 
@@ -92,6 +96,9 @@ public class ActionExecutorTest {
             testActionBuilder
                 .buildMoveAction(targetEntityId, 2L, 1, 3L, 1))
         .build();
+
+    @Mock
+    private Action testActionObj;
 
     private final List<ActionWithWorkflow> actionList = Collections.singletonList(
             new ActionWithWorkflow(testAction, workflowOpt));
@@ -102,72 +109,16 @@ public class ActionExecutorTest {
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
+        when(testActionObj.getId()).thenReturn(testAction.getRecommendation().getId());
+        when(testActionObj.getRecommendation()).thenReturn(testAction.getRecommendation());
+        when(testActionObj.getRecommendationOid()).thenReturn(2001L);
         // license check client by default will act as if a valid license is installed.
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
-        final ActionExecutionStore actionExecutionStore = Mockito.mock(ActionExecutionStore.class);
+        actionExecutionStore = Mockito.mock(ActionExecutionStore.class);
         // The class under test
         actionExecutor = new ActionExecutor(server.getChannel(), actionExecutionStore,
-                executionStateFactory, 1, TimeUnit.HOURS, licenseCheckClient,
-                actionTemplateApplicator);
-    }
-
-    /**
-     * Test completing with error.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test
-    public void testExecutionStateError() throws Exception {
-        final String message = "foo";
-        final SynchronousExecutionState state = new DefaultSynchronousExecutionStateFactory(clock).newState();
-        state.complete(new SynchronousExecutionException(message));
-
-        try {
-            state.waitForActionCompletion(1, TimeUnit.MILLISECONDS);
-            Assert.fail("Expected exception.");
-        } catch (SynchronousExecutionException e) {
-            assertThat(e.getMessage(), is(message));
-        }
-    }
-
-    /**
-     * Test completing with timeout.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test
-    public void testExecutionStateTimeout() throws Exception {
-        final SynchronousExecutionState state = new DefaultSynchronousExecutionStateFactory(clock).newState();
-
-        expectedException.expect(TimeoutException.class);
-        state.waitForActionCompletion(1, TimeUnit.MILLISECONDS);
-    }
-
-    /**
-     * Test completing successfully.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test
-    public void testExecutionStateComplete() throws Exception {
-        final SynchronousExecutionState state = new DefaultSynchronousExecutionStateFactory(clock).newState();
-        state.complete(null);
-
-        state.waitForActionCompletion(1, TimeUnit.MILLISECONDS);
-    }
-
-    /**
-     * Test "started before" method to make sure it compares things properly.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test
-    public void testExecutionStateStartedBefore() throws Exception {
-        final SynchronousExecutionState state = new DefaultSynchronousExecutionStateFactory(clock).newState();
-
-        assertTrue(state.startedBefore(clock.millis() + 1));
-        assertFalse(state.startedBefore(clock.millis()));
-        assertFalse(state.startedBefore(clock.millis() - 1));
+                10, TimeUnit.SECONDS, licenseCheckClient,
+                actionTemplateApplicator, workflowStore, actionTranslator);
     }
 
     /**
@@ -176,17 +127,41 @@ public class ActionExecutorTest {
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testMove() {
+    public void testMove() throws Exception {
+        final CountDownLatch executionCompletionLatch = new CountDownLatch(1);
+        final CountDownLatch executionStartLatch = new CountDownLatch(1);
 
-        try {
-            actionExecutor.execute(TARGET_ID, testAction, workflowOpt);
-        } catch (ExecutionStartException e) {
-            // We expect this to happen, since the backend implementation
-            // is not implemented.
+        when(actionExecutionBackend.executeAction(any())).thenAnswer(invocationOnMock -> {
+            executionStartLatch.countDown();
+            return ActionExecution.ExecuteActionResponse.getDefaultInstance();
+        });
+
+        Runnable runnable = () -> {
+            try {
+                actionExecutor.executeSynchronously(TARGET_ID, actionList, actionExecutionListener);
+            } catch (Exception exception) {
+                fail("Failed with exception. " + exception.getMessage());
+            } finally {
+                executionCompletionLatch.countDown();
+            }
+        };
+        new Thread(runnable).start();
+
+        // wait a bit so the execution get started before sending update for the action
+        executionStartLatch.await();
+
+        actionExecutor.onActionUpdate(testActionObj, ActionDTO.ActionState.SUCCEEDED);
+
+        boolean successful = executionCompletionLatch.await(5, TimeUnit.SECONDS);
+
+        if (!successful) {
+            fail("The execution for the action did not finish.");
         }
 
-        // However, the backend should have been called, and we can capture
-        // and examine the arguments.
+        verify(actionExecutionListener, never()).onActionFailure(any());
+        verify(actionExecutionStore, times(1))
+                .removeCompletedAction(testActionObj.getId());
+
         verify(actionExecutionBackend).executeAction(actionSpecCaptor.capture(), any());
         final ExecuteActionRequest sentSpec = actionSpecCaptor.getValue();
         ActionDTO.ActionInfo info = sentSpec.getActionSpec().getRecommendation().getInfo();
@@ -207,19 +182,29 @@ public class ActionExecutorTest {
      */
     @Test
     public void testSynchronousMoveTimeout() throws Exception {
-        doReturn(ExecuteActionResponse.getDefaultInstance())
-            .when(actionExecutionBackend).executeAction(any());
+        final CountDownLatch executionCompletionLatch = new CountDownLatch(1);
 
-        SynchronousExecutionState state = mock(SynchronousExecutionState.class);
-        doThrow(new TimeoutException("Action timed out")).when(state).waitForActionCompletion(anyLong(), any());
-        when(executionStateFactory.newState()).thenReturn(state);
+        Runnable runnable = () -> {
+            try {
+                actionExecutor.executeSynchronously(TARGET_ID, actionList, actionExecutionListener);
+            } catch (Exception exception) {
+                fail("Failed with exception. " + exception.getMessage());
+            } finally {
+                executionCompletionLatch.countDown();
+            }
+        };
+        new Thread(runnable).start();
 
-        try {
-            actionExecutor.executeSynchronously(TARGET_ID, actionList);
-            Assert.fail("Expected synchronous execution exception.");
-        } catch (TimeoutException e) {
-            assertTrue(e.getMessage().contains("Action timed out"));
+        boolean successful = executionCompletionLatch.await(20, TimeUnit.SECONDS);
+
+        if (!successful) {
+            fail("The execution for the action did not finish.");
         }
+
+        verify(actionExecutionListener, times(1)).onActionFailure(any());
+        verify(actionExecutionBackend, times(1)).executeAction(any());
+        verify(actionExecutionStore, times(1))
+                .removeCompletedAction(testActionObj.getId());
     }
 
     /**
@@ -229,18 +214,40 @@ public class ActionExecutorTest {
      */
     @Test
     public void testSynchronousMoveSucceed() throws Exception {
-        SynchronousExecutionState state = mock(SynchronousExecutionState.class);
-        when(executionStateFactory.newState()).thenReturn(state);
+        final CountDownLatch executionCompletionLatch = new CountDownLatch(1);
+        final CountDownLatch executionStartLatch = new CountDownLatch(1);
 
-        // This should return, because the mock SynchronousExecutionState is not blocking.
-        actionExecutor.executeSynchronously(TARGET_ID, actionList);
+        when(actionExecutionBackend.executeAction(any())).thenAnswer(invocationOnMock -> {
+            executionStartLatch.countDown();
+            return ActionExecution.ExecuteActionResponse.getDefaultInstance();
+        });
 
-        actionExecutor.onActionSuccess(ActionSuccess.newBuilder()
-            .setActionId(testAction.getRecommendation().getId())
-            .build());
+        Runnable runnable = () -> {
+            try {
+                actionExecutor.executeSynchronously(TARGET_ID, actionList, actionExecutionListener);
+            } catch (Exception exception) {
+                fail("Failed with exception. " + exception.getMessage());
+            } finally {
+                executionCompletionLatch.countDown();
+            }
+        };
+        new Thread(runnable).start();
 
-        // We should find the state, and complete it.
-        verify(state).complete(null);
+        // wait a bit so the execution get started before sending update for the action
+        executionStartLatch.await();
+
+        actionExecutor.onActionUpdate(testActionObj, ActionDTO.ActionState.SUCCEEDED);
+
+        boolean successful = executionCompletionLatch.await(5, TimeUnit.SECONDS);
+
+        if (!successful) {
+            fail("The execution for the action did not finish.");
+        }
+
+        verify(actionExecutionListener, never()).onActionFailure(any());
+        verify(actionExecutionBackend, times(1)).executeAction(any());
+        verify(actionExecutionStore, times(1))
+                .removeCompletedAction(testActionObj.getId());
     }
 
     /**
@@ -250,104 +257,334 @@ public class ActionExecutorTest {
      */
     @Test
     public void testSynchronousMoveFailed() throws Exception {
-        SynchronousExecutionState state = mock(SynchronousExecutionState.class);
-        when(executionStateFactory.newState()).thenReturn(state);
+        final CountDownLatch executionCompletionLatch = new CountDownLatch(1);
+        final CountDownLatch executionStartLatch = new CountDownLatch(1);
 
-        // This should return, because the mock SynchronousExecutionState is not blocking.
-        actionExecutor.executeSynchronously(TARGET_ID, actionList);
+        when(actionExecutionBackend.executeAction(any())).thenAnswer(invocationOnMock -> {
+            executionStartLatch.countDown();
+            return ActionExecution.ExecuteActionResponse.getDefaultInstance();
+        });
 
-        // Notify about the failure.
-        ActionFailure failure = ActionFailure.newBuilder()
-            .setActionId(testAction.getRecommendation().getId())
-            .setErrorDescription("boo")
-            .build();
-        actionExecutor.onActionFailure(failure);
+        Runnable runnable = () -> {
+            try {
+                actionExecutor.executeSynchronously(TARGET_ID, actionList, actionExecutionListener);
+            } catch (Exception exception) {
+                fail("Failed with exception. " + exception.getMessage());
+            } finally {
+                executionCompletionLatch.countDown();
+            }
+        };
+        new Thread(runnable).start();
 
-        // We should find the state, and complete it.
-        ArgumentCaptor<SynchronousExecutionException> exceptionCaptor = ArgumentCaptor.forClass(SynchronousExecutionException.class);
-        verify(state).complete(exceptionCaptor.capture());
+        executionStartLatch.await();
 
-        assertThat(exceptionCaptor.getValue().getMessage(), is("boo"));
+        actionExecutor.onActionUpdate(testActionObj, ActionDTO.ActionState.FAILED);
+
+        boolean successful = executionCompletionLatch.await(5, TimeUnit.SECONDS);
+
+        if (!successful) {
+            fail("The execution for the action did not finish.");
+        }
+
+        verify(actionExecutionListener, never()).onActionFailure(any());
+        verify(actionExecutionBackend, times(1)).executeAction(any());
+        verify(actionExecutionStore, times(1))
+                .removeCompletedAction(testActionObj.getId());
     }
 
     /**
-     * Test losing state of specific actions.
+     * Test execution of an action that has multiple steps.
      *
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testSynchronousMoveLostSpecific() throws Exception {
-        SynchronousExecutionState state1 = mock(SynchronousExecutionState.class);
-        SynchronousExecutionState state2 = mock(SynchronousExecutionState.class);
-        when(executionStateFactory.newState()).thenReturn(state1, state2);
+    public void testMultiStepExecution() throws Exception {
+        final CountDownLatch executionCompletionLatch = new CountDownLatch(1);
+        final CountDownLatch executionFirstLatch = new CountDownLatch(1);
+        final CountDownLatch executionSecondLatch = new CountDownLatch(1);
+        final MutableInt executionCounter = new MutableInt(0);
 
-        // This should return, because the mock SynchronousExecutionState is not blocking.
-        actionExecutor.executeSynchronously(TARGET_ID, actionList);
-        // Fake-execute another action. We want to make sure this one DOESN'T get lost.
-        ActionDTO.ActionSpec modifiedSpec = ActionDTO.ActionSpec.newBuilder()
-            .setRecommendation(testAction.getRecommendation().toBuilder().setId(
-                testAction.getRecommendation().getId() + 1))
-            .build();
-        final List<ActionWithWorkflow> modifiedActionList = Collections.singletonList(
-                new ActionWithWorkflow(modifiedSpec, workflowOpt));
-        actionExecutor.executeSynchronously(TARGET_ID, modifiedActionList);
+        when(actionExecutionBackend.executeAction(any())).thenAnswer(invocationOnMock -> {
+            if (executionCounter.intValue() == 0) {
+                executionFirstLatch.countDown();
+            } else {
+                executionSecondLatch.countDown();
+            }
+            executionCounter.increment();
+            return ActionExecution.ExecuteActionResponse.getDefaultInstance();
+        });
 
-        final ActionsLost lost = ActionsLost.newBuilder()
-            .setLostActionId(ActionIds.newBuilder()
-                .addActionIds(testAction.getRecommendation().getId()))
-            .build();
-        actionExecutor.onActionsLost(lost);
+        ActionTranslation actionTranslation = Mockito.mock(ActionTranslation.class);
+        when(testActionObj.getActionTranslation()).thenReturn(actionTranslation);
+        when(actionTranslation.getTranslatedRecommendation())
+                .thenReturn(Optional.of(testAction.getRecommendation()));
+        ExecutableStep executableStep = Mockito.mock(ExecutableStep.class);
+        when(testActionObj.getCurrentExecutableStep()).thenReturn(Optional.of(executableStep));
+        when(executableStep.getTargetId()).thenReturn(TARGET_ID);
+        when(actionTranslator.translateToSpec(any())).thenReturn(testAction);
+        when(testActionObj.getWorkflow(any(), any())).thenReturn(Optional.empty());
 
-        // We should find the state, and complete it.
-        ArgumentCaptor<SynchronousExecutionException> exceptionCaptor = ArgumentCaptor.forClass(SynchronousExecutionException.class);
-        verify(state1).complete(exceptionCaptor.capture());
+        Runnable runnable = () -> {
+            try {
+                actionExecutor.executeSynchronously(TARGET_ID, actionList, actionExecutionListener);
+            } catch (Exception exception) {
+                fail("Failed with exception. " + exception.getMessage());
+            } finally {
+                executionCompletionLatch.countDown();
+            }
+        };
+        new Thread(runnable).start();
 
-        assertThat(exceptionCaptor.getValue().getMessage(), is("Topology Processor lost action state."));
+        executionFirstLatch.await();
+        actionExecutor.onActionUpdate(testActionObj, ActionDTO.ActionState.POST_IN_PROGRESS);
+        executionSecondLatch.await();
+        actionExecutor.onActionUpdate(testActionObj, ActionDTO.ActionState.SUCCEEDED);
 
-        // The other action shouldn't have completed.
-        verify(state2, never()).complete(any());
+        boolean successful = executionCompletionLatch.await(5, TimeUnit.SECONDS);
+
+        if (!successful) {
+            fail("The execution for the action did not finish.");
+        }
+
+        verify(actionExecutionListener, never()).onActionFailure(any());
+        verify(actionExecutionBackend, times(2)).executeAction(any());
+        verify(actionExecutionStore, times(1))
+                .removeCompletedAction(testActionObj.getId());
     }
 
     /**
-     * Test losing state of all actions before a timestamp.
+     * Test execution of an action that has multiple steps and second step fails because of
+     * workflow store exceptions.
      *
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testSynchronousMoveLostAllBeforeTime() throws Exception {
-        final ActionsLost lost = ActionsLost.newBuilder()
-            .setBeforeTime(1_000)
-            .build();
-        // The first action started before the "before time."
-        SynchronousExecutionState state1 = mock(SynchronousExecutionState.class);
-        when(state1.startedBefore(lost.getBeforeTime())).thenReturn(true);
-        // The second action started after the "before time."
-        SynchronousExecutionState state2 = mock(SynchronousExecutionState.class);
-        when(state2.startedBefore(lost.getBeforeTime())).thenReturn(false);
-        when(executionStateFactory.newState()).thenReturn(state1, state2);
+    public void testMultiStepExecutionSecondStepFailsBecauseOfWorkflowStore() throws Exception {
+        final CountDownLatch executionCompletionLatch = new CountDownLatch(1);
+        final CountDownLatch executionFirstLatch = new CountDownLatch(1);
 
-        // This should return, because the mock SynchronousExecutionState is not blocking.
-        actionExecutor.executeSynchronously(TARGET_ID, actionList);
-        // Fake-execute another action. We want to make sure this one DOESN'T get lost.
-        ActionDTO.ActionSpec modifiedSpec = ActionDTO.ActionSpec.newBuilder()
-            .setRecommendation(testAction.getRecommendation().toBuilder().setId(
-                testAction.getRecommendation().getId() + 1))
-            .build();
-        final List<ActionWithWorkflow> modifiedActionList = Collections.singletonList(
-                new ActionWithWorkflow(modifiedSpec, workflowOpt));
-        actionExecutor.executeSynchronously(TARGET_ID, modifiedActionList);
-        actionExecutor.onActionsLost(lost);
+        when(actionExecutionBackend.executeAction(any())).thenAnswer(invocationOnMock -> {
+            executionFirstLatch.countDown();
+            return ActionExecution.ExecuteActionResponse.getDefaultInstance();
+        });
 
-        // We should find the state for the action that started before the time, and complete it.
-        final ArgumentCaptor<SynchronousExecutionException> exceptionCaptor =
-            ArgumentCaptor.forClass(SynchronousExecutionException.class);
-        verify(state1).complete(exceptionCaptor.capture());
+        Mockito.doAnswer(invocationOnMock -> {
+            actionExecutor.onActionUpdate(testActionObj, ActionDTO.ActionState.FAILED);
+            return null;
+        }).when(actionExecutionListener)
+        .onActionFailure(any());
 
-        assertThat(exceptionCaptor.getValue().getMessage(), is("Topology Processor lost action state."));
+        ActionTranslation actionTranslation = Mockito.mock(ActionTranslation.class);
+        when(testActionObj.getActionTranslation()).thenReturn(actionTranslation);
+        when(actionTranslation.getTranslatedRecommendation())
+                .thenReturn(Optional.of(testAction.getRecommendation()));
+        ExecutableStep executableStep = Mockito.mock(ExecutableStep.class);
+        when(testActionObj.getCurrentExecutableStep()).thenReturn(Optional.of(executableStep));
+        when(executableStep.getTargetId()).thenReturn(TARGET_ID);
+        when(actionTranslator.translateToSpec(any())).thenReturn(testAction);
+        when(testActionObj.getWorkflow(any(), any())).thenThrow(new WorkflowStoreException("Failed"));
 
-        // The other action shouldn't have completed.
-        verify(state2, never()).complete(any());
+        Runnable runnable = () -> {
+            try {
+                actionExecutor.executeSynchronously(TARGET_ID, actionList, actionExecutionListener);
+            } catch (Exception exception) {
+                fail("Failed with exception. " + exception.getMessage());
+            } finally {
+                executionCompletionLatch.countDown();
+            }
+        };
+        new Thread(runnable).start();
+
+        executionFirstLatch.await();
+        actionExecutor.onActionUpdate(testActionObj, ActionDTO.ActionState.POST_IN_PROGRESS);
+
+        boolean successful = executionCompletionLatch.await(5, TimeUnit.SECONDS);
+
+        if (!successful) {
+            fail("The execution for the action did not finish.");
+        }
+
+        verify(actionExecutionListener, times(1)).onActionFailure(any());
+        verify(actionExecutionBackend, times(1)).executeAction(any());
+        verify(actionExecutionStore, times(1))
+                .removeCompletedAction(testActionObj.getId());
     }
+
+    /**
+     * Test execution of an action that has multiple steps and second step fails because of
+     * action translation is not available.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testMultiStepExecutionSecondStepFailsTranslationIsNotAvailable() throws Exception {
+        final CountDownLatch executionCompletionLatch = new CountDownLatch(1);
+        final CountDownLatch executionFirstLatch = new CountDownLatch(1);
+
+        when(actionExecutionBackend.executeAction(any())).thenAnswer(invocationOnMock -> {
+            executionFirstLatch.countDown();
+            return ActionExecution.ExecuteActionResponse.getDefaultInstance();
+        });
+
+        Mockito.doAnswer(invocationOnMock -> {
+                    actionExecutor.onActionUpdate(testActionObj, ActionDTO.ActionState.FAILED);
+                    return null;
+                }).when(actionExecutionListener)
+                .onActionFailure(any());
+
+        ActionTranslation actionTranslation = Mockito.mock(ActionTranslation.class);
+        when(testActionObj.getActionTranslation()).thenReturn(actionTranslation);
+        when(actionTranslation.getTranslatedRecommendation())
+                .thenReturn(Optional.empty());
+        ExecutableStep executableStep = Mockito.mock(ExecutableStep.class);
+        when(testActionObj.getCurrentExecutableStep()).thenReturn(Optional.of(executableStep));
+        when(executableStep.getTargetId()).thenReturn(TARGET_ID);
+        when(actionTranslator.translateToSpec(any())).thenReturn(testAction);
+        when(testActionObj.getWorkflow(any(), any())).thenReturn(Optional.empty());
+
+        Runnable runnable = () -> {
+            try {
+                actionExecutor.executeSynchronously(TARGET_ID, actionList, actionExecutionListener);
+            } catch (Exception exception) {
+                fail("Failed with exception. " + exception.getMessage());
+            } finally {
+                executionCompletionLatch.countDown();
+            }
+        };
+        new Thread(runnable).start();
+
+        executionFirstLatch.await();
+        actionExecutor.onActionUpdate(testActionObj, ActionDTO.ActionState.POST_IN_PROGRESS);
+
+        boolean successful = executionCompletionLatch.await(5, TimeUnit.SECONDS);
+
+        if (!successful) {
+            fail("The execution for the action did not finish.");
+        }
+
+        verify(actionExecutionListener, times(1)).onActionFailure(any());
+        verify(actionExecutionBackend, times(1)).executeAction(any());
+        verify(actionExecutionStore, times(1))
+                .removeCompletedAction(testActionObj.getId());
+    }
+
+    /**
+     * Test execution of an action that has multiple steps and second step fails because of
+     * next execution step is not available.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testMultiStepExecutionSecondStepFailsNoNextExecutionStep() throws Exception {
+        final CountDownLatch executionCompletionLatch = new CountDownLatch(1);
+        final CountDownLatch executionFirstLatch = new CountDownLatch(1);
+
+        when(actionExecutionBackend.executeAction(any())).thenAnswer(invocationOnMock -> {
+            executionFirstLatch.countDown();
+            return ActionExecution.ExecuteActionResponse.getDefaultInstance();
+        });
+
+        Mockito.doAnswer(invocationOnMock -> {
+                    actionExecutor.onActionUpdate(testActionObj, ActionDTO.ActionState.FAILED);
+                    return null;
+                }).when(actionExecutionListener)
+                .onActionFailure(any());
+
+        ActionTranslation actionTranslation = Mockito.mock(ActionTranslation.class);
+        when(testActionObj.getActionTranslation()).thenReturn(actionTranslation);
+        when(actionTranslation.getTranslatedRecommendation())
+                .thenReturn(Optional.of(testAction.getRecommendation()));
+        ExecutableStep executableStep = Mockito.mock(ExecutableStep.class);
+        when(testActionObj.getCurrentExecutableStep()).thenReturn(Optional.empty());
+        when(executableStep.getTargetId()).thenReturn(TARGET_ID);
+        when(actionTranslator.translateToSpec(any())).thenReturn(testAction);
+        when(testActionObj.getWorkflow(any(), any())).thenReturn(Optional.empty());
+
+        Runnable runnable = () -> {
+            try {
+                actionExecutor.executeSynchronously(TARGET_ID, actionList, actionExecutionListener);
+            } catch (Exception exception) {
+                fail("Failed with exception. " + exception.getMessage());
+            } finally {
+                executionCompletionLatch.countDown();
+            }
+        };
+        new Thread(runnable).start();
+
+        executionFirstLatch.await();
+        actionExecutor.onActionUpdate(testActionObj, ActionDTO.ActionState.POST_IN_PROGRESS);
+
+        boolean successful = executionCompletionLatch.await(5, TimeUnit.SECONDS);
+
+        if (!successful) {
+            fail("The execution for the action did not finish.");
+        }
+
+        verify(actionExecutionListener, times(1)).onActionFailure(any());
+        verify(actionExecutionBackend, times(1)).executeAction(any());
+        verify(actionExecutionStore, times(1))
+                .removeCompletedAction(testActionObj.getId());
+    }
+
+    /**
+     * Test execution of multiple actions together.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testMultipleActionExecution() throws Exception {
+        final ActionDTO.ActionSpec testAction2 = ActionDTO.ActionSpec.newBuilder()
+            .setRecommendation(
+                testActionBuilder
+                        .buildMoveAction(targetEntityId, 4L, 1, 5L, 1))
+            .build();
+
+        Action testActionObj2 = mock(Action.class);
+        when(testActionObj2.getId()).thenReturn(testAction2.getRecommendation().getId());
+        when(testActionObj2.getRecommendation()).thenReturn(testAction2.getRecommendation());
+        when(testActionObj2.getRecommendationOid()).thenReturn(2002L);
+
+        final CountDownLatch executionCompletionLatch = new CountDownLatch(1);
+        final CountDownLatch executionStartLatch = new CountDownLatch(1);
+
+        when(actionExecutionBackend.executeActionList(any())).thenAnswer(invocationOnMock -> {
+            executionStartLatch.countDown();
+            return ActionExecution.ExecuteActionResponse.getDefaultInstance();
+        });
+
+        Runnable runnable = () -> {
+            try {
+                actionExecutor.executeSynchronously(TARGET_ID, Arrays.asList(
+                    new ActionWithWorkflow(testAction, workflowOpt),
+                    new ActionWithWorkflow(testAction2, workflowOpt)), actionExecutionListener);
+            } catch (Exception exception) {
+                fail("Failed with exception. " + exception.getMessage());
+            } finally {
+                executionCompletionLatch.countDown();
+            }
+        };
+        new Thread(runnable).start();
+
+        // wait a bit so the execution get started before sending update for the action
+        executionStartLatch.await();
+
+        actionExecutor.onActionUpdate(testActionObj, ActionDTO.ActionState.SUCCEEDED);
+        actionExecutor.onActionUpdate(testActionObj2, ActionDTO.ActionState.SUCCEEDED);
+
+        boolean successful = executionCompletionLatch.await(5, TimeUnit.SECONDS);
+
+        if (!successful) {
+            fail("The execution for the action did not finish.");
+        }
+
+        verify(actionExecutionListener, never()).onActionFailure(any());
+        verify(actionExecutionBackend, times(1)).executeActionList(any());
+        verify(actionExecutionStore, times(1))
+                .removeCompletedAction(testActionObj.getId());
+        verify(actionExecutionStore, times(1))
+                .removeCompletedAction(testActionObj2.getId());
+    }
+
 
     /**
      * Verify that an action can't be completed when the license is invalid.

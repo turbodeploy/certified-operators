@@ -2,7 +2,6 @@ package com.vmturbo.action.orchestrator.approval;
 
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -11,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 
 import javax.annotation.Nonnull;
 
@@ -87,6 +87,9 @@ public class ActionApprovalManagerTest {
     @Mock
     private ActionExecutionListener actionExecutionListener;
 
+    @Mock
+    private Executor executorPool;
+
     /**
      * Setup all the mocks.
      */
@@ -110,7 +113,7 @@ public class ActionApprovalManagerTest {
             actionTargetSelector,
             entitiesAndSettingsSnapshotFactory,
             actionTranslator,
-            workflowStore, acceptedActionsDAO, actionExecutionListener);
+            workflowStore, acceptedActionsDAO, actionExecutionListener, executorPool);
     }
 
     /**
@@ -130,7 +133,7 @@ public class ActionApprovalManagerTest {
             ActionDTO.Action.newBuilder().buildPartial());
         actionApprovalManager.attemptAcceptAndExecute(actionStore, EXTERNAL_USER_ID, action);
         // after accepting, the action should have transitioned from READY to IN_PROGRESS
-        Assert.assertEquals(ActionState.IN_PROGRESS, action.getState());
+        Assert.assertEquals(ActionState.QUEUED, action.getState());
     }
 
     /**
@@ -147,14 +150,14 @@ public class ActionApprovalManagerTest {
                 .setTranslationSuccess(ActionDTO.Action.newBuilder().buildPartial());
         when(actionStore.getAction(ACTION_ID)).thenReturn(Optional.of(action));
         actionApprovalManager.attemptAcceptAndExecute(actionStore, EXTERNAL_USER_ID, action);
-        Assert.assertEquals(ActionState.IN_PROGRESS, action.getState());
+        Assert.assertEquals(ActionState.QUEUED, action.getState());
 
         try {
             actionApprovalManager.attemptAcceptAndExecute(actionStore, EXTERNAL_USER_ID, action);
         } catch (ExecutionInitiationException ex) {
             Assert.assertThat(ex.getMessage(), Matchers.containsString(
                 "Only action with READY state can be accepted. Action " + ACTION_ID + " has "
-                    + ActionState.IN_PROGRESS + " state."));
+                    + ActionState.QUEUED + " state."));
             return;
         }
         fail("The call show have thrown an exception");
@@ -209,7 +212,7 @@ public class ActionApprovalManagerTest {
             ActionDTO.Action.newBuilder().buildPartial());
         when(action.getState()).thenReturn(ActionState.READY);
         actionApprovalManager.attemptAcceptAndExecute(actionStore, EXTERNAL_USER_ID, action);
-        verify(actionExecutor, times(1)).execute(anyLong(), any());
+        verify(executorPool, times(1)).execute(any());
     }
 
     /**

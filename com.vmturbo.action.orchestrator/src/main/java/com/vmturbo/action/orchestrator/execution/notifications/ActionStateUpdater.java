@@ -28,17 +28,14 @@ import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
-import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.execution.FailedCloudVMGroupProcessor;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
-import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -427,6 +424,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
     private void processActionState(@Nonnull final Action action,
             @Nonnull final TransitionResult<ActionState> transitionResult, boolean isSuccessful) {
         if (action.isFinished()) {
+            actionExecutor.onActionUpdate(action, transitionResult.getAfterState());
             boolean actionSaved = saveToDb(action);
             if (actionSaved  && transitionResult.getAfterState() == ActionState.SUCCEEDED
                 && FeatureFlags.EXECUTED_ACTIONS_CHANGE_WINDOW.isEnabled()) {
@@ -438,7 +436,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
                     action::getId, () -> stateCompleteResult, transitionResult::getBeforeState,
                     action::getState);
             if (action.hasPendingExecution()) {
-                continueActionExecution(action);
+                actionExecutor.onActionUpdate(action, transitionResult.getAfterState());
             }
         }
     }
@@ -605,32 +603,6 @@ public class ActionStateUpdater implements ActionExecutionListener {
             logger.error("Error saving executed action's change window to db for action {}, entity {} ",
                     actionId, entityId, e);
             return false;
-        }
-    }
-
-    /**
-     * For actions with multiple steps (e.g. PRE and POST), kick off the next stage of execution.
-     *
-     * @param action to continue executing
-     */
-    private void continueActionExecution(final Action action) {
-        final Optional<ActionDTO.Action> translatedRecommendation =
-            action.getActionTranslation().getTranslatedRecommendation();
-        if (translatedRecommendation.isPresent() && action.getCurrentExecutableStep().isPresent()) {
-            long targetId = action.getCurrentExecutableStep().get().getTargetId();
-            // execute the action, passing the workflow override (if any)
-            try {
-                actionExecutor.execute(targetId, actionTranslator.translateToSpec(action),
-                    action.getWorkflow(workflowStore, action.getState()));
-            } catch (ExecutionStartException | WorkflowStoreException e) {
-                logger.error("Failed to start next executable step of action " + action.getId()
-                    + " due to error: " + e.getMessage(), e);
-                action.receive(new FailureEvent(e.getMessage()));
-            }
-        } else {
-            logger.error("Failed to start next executable step of action {}.",
-                action.getId());
-            action.receive(new FailureEvent("Failed to start next execution step of action."));
         }
     }
 

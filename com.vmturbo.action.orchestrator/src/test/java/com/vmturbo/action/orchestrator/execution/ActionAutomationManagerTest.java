@@ -21,9 +21,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
-import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.AutomatedActionTask;
 import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.ConditionalFuture;
-import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.ConditionalTask;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 
@@ -122,7 +120,7 @@ public class ActionAutomationManagerTest {
      */
     private static class FutureMock extends ConditionalFuture {
 
-        FutureMock(Callable<ConditionalTask> task) {
+        FutureMock(Callable<ConditionalSubmitter.ConditionalTask> task) {
             super(task);
         }
 

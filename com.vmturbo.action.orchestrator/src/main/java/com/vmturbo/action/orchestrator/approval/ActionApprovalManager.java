@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -20,8 +22,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
@@ -30,16 +30,14 @@ import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
-import com.vmturbo.action.orchestrator.execution.ActionWithWorkflow;
-import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
+import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter;
+import com.vmturbo.action.orchestrator.execution.ManuallyOrExternallyApprovedActionTask;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
-import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -85,6 +83,8 @@ public class ActionApprovalManager {
 
     private final ActionExecutionListener executionListener;
 
+    private final Executor executionPool;
+
     /**
      * Constructs action approval manager.
      *
@@ -97,11 +97,12 @@ public class ActionApprovalManager {
      * @param executionListener the listener for action updates.
      */
     public ActionApprovalManager(@Nonnull ActionExecutor actionExecutor,
-                                 @Nonnull ActionTargetSelector actionTargetSelector,
-                                 @Nonnull EntitiesAndSettingsSnapshotFactory entitySettingsCache,
-                                 @Nonnull ActionTranslator actionTranslator, @Nonnull WorkflowStore workflowStore,
-                                 @Nonnull AcceptedActionsDAO acceptedActionsStore,
-                                 @Nonnull ActionExecutionListener executionListener) {
+             @Nonnull ActionTargetSelector actionTargetSelector,
+             @Nonnull EntitiesAndSettingsSnapshotFactory entitySettingsCache,
+             @Nonnull ActionTranslator actionTranslator, @Nonnull WorkflowStore workflowStore,
+             @Nonnull AcceptedActionsDAO acceptedActionsStore,
+             @Nonnull ActionExecutionListener executionListener,
+             @Nonnull final Executor executionPool) {
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
@@ -109,6 +110,7 @@ public class ActionApprovalManager {
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.acceptedActionsStore = Objects.requireNonNull(acceptedActionsStore);
         this.executionListener = Objects.requireNonNull(executionListener);
+        this.executionPool = Objects.requireNonNull(executionPool);
     }
 
     /**
@@ -263,36 +265,16 @@ public class ActionApprovalManager {
             @Nonnull final List<Action> actionList,
             final long targetId) throws ExecutionInitiationException {
         try {
-            // Start action list execution
-            actionList.forEach(action -> action.receive(new BeginExecutionEvent()));
-            final List<ActionWithWorkflow> actionWithWorkflowList = new ArrayList<>(
-                    actionList.size());
-            for (final Action action : actionList) {
-                final Optional<ActionDTO.Action> translatedRecommendation =
-                        action.getActionTranslation()
-                                .getTranslatedRecommendation();
-                if (translatedRecommendation.isPresent()) {
-                    actionWithWorkflowList.add(new ActionWithWorkflow(
-                            actionTranslator.translateToSpec(action),
-                            action.getWorkflow(workflowStore, action.getState())));
-                } else {
-                    final String errorMsg = String.format(
-                            "Failed to translate action %d for execution.", action.getId());
-                    logger.error(errorMsg);
-                    // Fail all actions in the list
-                    actionList.forEach(a -> a.receive(new FailureEvent(errorMsg)));
-                    throw new ExecutionInitiationException(errorMsg, Status.Code.INTERNAL);
-                }
-            }
-            if (!actionWithWorkflowList.isEmpty()) {
-                actionExecutor.execute(targetId, actionWithWorkflowList);
-            }
-        } catch (ExecutionStartException | WorkflowStoreException e) {
+            ManuallyOrExternallyApprovedActionTask task = new ManuallyOrExternallyApprovedActionTask(
+                targetId, actionList, workflowStore, actionTranslator, actionExecutor, executionListener);
+            ConditionalSubmitter.ConditionalFuture future = new ConditionalSubmitter.ConditionalFuture(task);
+            executionPool.execute(future);
+        } catch (RejectedExecutionException e) {
             final String actionIdsString = actionList.stream()
                     .map(Action::getId)
                     .map(String::valueOf)
                     .collect(Collectors.joining(", "));
-            logger.error("Failed to start actions {} due to an error.", actionIdsString, e);
+            logger.error("Failed to submit actions {} to executor.", actionIdsString, e);
             // Report action failure for all actions in the list
             actionList.stream()
                     .map(Action::getId)
@@ -302,7 +284,8 @@ public class ActionApprovalManager {
                                     .setActionId(actionId)
                                     .setErrorDescription(e.getMessage())
                                     .build()));
-            throw new ExecutionInitiationException(e.toString(), e, Status.Code.INTERNAL);
+            throw new ExecutionInitiationException("Executor rejected to execute the action", e,
+                    Code.INTERNAL);
         }
     }
 
