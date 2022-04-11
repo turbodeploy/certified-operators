@@ -129,6 +129,13 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-core</artifactId>
+            <exclusions>
+                <exclusion>
+                    <!-- use the spring-expression from spring-core to avoid vulnerable version -->
+                    <groupId>org.springframework</groupId>
+                    <artifactId>spring-expression</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!-- Required for testing, because ProtobufHttpMessageConverter has a
              dependency on protobuf-java-format -->
