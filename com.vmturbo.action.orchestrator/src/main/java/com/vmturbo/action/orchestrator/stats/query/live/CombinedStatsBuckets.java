@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 
 /**
  * Represents a set of "buckets", where each bucket contains stats for action groups that
@@ -531,6 +532,10 @@ class CombinedStatsBuckets {
             // the following two lines can be moved to a separate method if we support
             // different action types in the future
             Resize resize = action.getInfo().getResize();
+            //We only count for capacity. removing a limit doesn't mean reclaim the resource.
+            if (resize.hasCommodityAttribute() && resize.getCommodityAttribute() != CommodityAttribute.CAPACITY) {
+                return;
+            }
             double newValue = resize.getNewCapacity() - resize.getOldCapacity();
 
             ResourceImpact impact;

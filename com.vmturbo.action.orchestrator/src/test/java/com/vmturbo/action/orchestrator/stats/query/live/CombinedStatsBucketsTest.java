@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -703,6 +704,21 @@ public class CombinedStatsBucketsTest {
                 view -> {},
                 Sets.newHashSet(vmEntity3));
 
+        //This is a LIMIT remove action, the change should not be counted into resourceImpacts.
+        final SingleActionInfo vmTarget5 = actionInfo(
+                bldr -> {
+                    bldr.setInfo(ActionInfo.newBuilder()
+                            .setResize(Resize.newBuilder()
+                                    .setTarget(vmEntity3)
+                                    .setNewCapacity(0)
+                                    .setOldCapacity(5200)
+                                    .setCommodityAttribute(CommodityAttribute.LIMIT)
+                                    .setCommodityType(CommodityType.newBuilder()
+                                            .setType(26)))); // VCPU
+                },
+                view -> {},
+                Sets.newHashSet(vmEntity3));
+
         final ActionEntity vmEntity4 = ActionEntity.newBuilder()
                 .setId(114)
                 .setType(VM)
@@ -731,6 +747,7 @@ public class CombinedStatsBucketsTest {
         buckets.addActionInfo(vmTarget);
         buckets.addActionInfo(vmTarget2);
         buckets.addActionInfo(vmTarget3);
+        buckets.addActionInfo(vmTarget5);
         buckets.addActionInfo(vmTarget4);
         buckets.addActionInfo(pmTarget);
 
@@ -740,7 +757,7 @@ public class CombinedStatsBucketsTest {
                         .setStatGroup(StatGroup.newBuilder()
                                 .setTargetEntityType(VM)
                                 .setActionType(ActionType.RESIZE))
-                        .setActionCount(3)
+                        .setActionCount(4)
                         .setEntityCount(3)
                         .setSavings(0.0)
                         .setInvestments(0.0)
