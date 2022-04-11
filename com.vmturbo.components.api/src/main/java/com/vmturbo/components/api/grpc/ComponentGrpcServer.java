@@ -113,7 +113,7 @@ public class ComponentGrpcServer implements ServerStartedListener {
      * reason for a low default limit is to encourage streaming and prevent lots of consumers from
      * causing the server to crash with OOM.  
      */
-    private static final int DEFAULT_GRPC_MAX_MESSAGE_BYTES = 104_857_600; // 100 * 1024 * 1024
+    private static final int DEFAULT_GRPC_MAX_MESSAGE_BYTES = 1_048_576_000; // 1000 * 1024 * 1024
 
     /**
      * The singleton instance.

@@ -235,11 +235,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Value("${connRetryIntervalSeconds:10}")
     private String connRetryIntervalSeconds;
 
-    // the max message size (in bytes) that the GRPC server for this component will accept. Default
-    // value is 4194304 bytes (or 4 MB) which is the GRPC default behavior.
-    @Value("${server.grpcMaxMessageBytes:12000000}")
-    private int grpcMaxMessageBytes;
-
     @Value("${enableMemoryMonitor:true}")
     private boolean enableMemoryMonitor;
 
