@@ -146,7 +146,8 @@ public class RpcConfig {
                 actionExecutionConfig.actionTargetSelector(),
                 actionStoreConfig.entitySettingsCache(), actionTranslator,
                 workflowConfig.workflowStore(), actionStoreConfig.acceptedActionsStore(),
-            actionStoreConfig.actionExecutionListener());
+                actionStoreConfig.actionExecutionListener(),
+                actionStoreConfig.automatedActionSubmitter());
     }
 
     /**

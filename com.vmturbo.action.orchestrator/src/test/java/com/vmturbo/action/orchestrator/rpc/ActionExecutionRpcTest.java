@@ -18,6 +18,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -131,6 +133,7 @@ public class ActionExecutionRpcTest {
     private final AuditedActionsManager auditedActionsManager = mock(AuditedActionsManager.class);
 
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
+    private final Executor executorPool = mock(Executor.class);
     private final ActionExecutionStore actionExecutionStore = new ActionExecutionStore();
     private final ActionCombiner actionCombiner = new ActionCombiner(mock(ActionTopologyStore.class));
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
@@ -189,7 +192,7 @@ public class ActionExecutionRpcTest {
         IdentityGenerator.initPrefix(0);
         actionApprovalManager = new ActionApprovalManager(actionExecutor, actionTargetSelector,
                 entitySettingsCache, actionTranslator, Mockito.mock(WorkflowStore.class),
-                acceptedActionsStore, actionExecutionListener);
+                acceptedActionsStore, actionExecutionListener, executorPool);
         actionIdentityService = Mockito.mock(IdentityServiceImpl.class);
         Mockito.when(actionIdentityService.getOidsForObjects(Mockito.any()))
                 .thenReturn(Arrays.asList(RECOMMENDATION_OID, 2L, 3L, 4L, 5L, 6L, 7L));
@@ -497,90 +500,8 @@ public class ActionExecutionRpcTest {
                 .supportingLevel(SupportLevel.SUPPORTED)
                 .targetId(targetId)
                 .build());
-        doThrow(new ExecutionStartException("ERROR!"))
-            .when(actionExecutor).execute(eq(targetId), any());
-
-        final ActionExecution result = actionOrchestratorServiceClient.acceptActions(
-                createActionRequest());
-        assertEquals(0, result.getActionIdCount());
-        assertEquals(1, result.getSkippedActionCount());
-        assertEquals(RECOMMENDATION_OID, result.getSkippedAction(0).getActionId());
-    }
-
-    /**
-     * Test that execution will be failed for accepted action if it don't have successful
-     * translation.
-     *
-     * @throws Exception if something goes wrong
-     */
-    @Test
-    public void testTranslationError() throws Exception {
-        final long targetId = 7777;
-        final ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
-        final ActionPlan plan = actionPlan(recommendation);
-
-        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
-        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
-
-        final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
-        final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-                actionStoreLoader);
-        // We use actionTranslator which can successfully translate action in order to calculate
-        // appropriate action mode (>= MANUAL). As a result action can be available for acceptance
-        // and possible execution.
-        final ActionsRpcService actionsRpcService =
-                new ActionsRpcService(
-                    clock,
-                    actionStorehouse,
-                    actionApprovalManager,
-                    actionTranslator,
-                    paginatorFactory,
-                    statReader,
-                    liveStatReader,
-                    userSessionContext,
-                    acceptedActionsStore,
-                    rejectedActionsStore,
-                    auditedActionsManager,
-                    actionAuditSender,
-                    actionExecutionStore,
-                    actionCombiner,
-                    actionAutomationManager,
-                    actionHistoryDao,
-                    executedActionsChangeWindowDao,
-                    500,
-                    777777L);
-        final GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService,
-                supplyChainServiceMole, repositoryServiceMole);
-        grpcServer.start();
-        final ActionsServiceBlockingStub actionOrchestratorServiceClient =
-                ActionsServiceGrpc.newBlockingStub(
-            grpcServer.getChannel());
-        final IActionFactory actionFactory = new ActionFactory(actionModeCalculator,
-                Collections.emptyList());
-        actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                actionTargetSelector, entitySettingsCache, actionHistoryDao,
-            actionTranslator, clock, userSessionContext,
-                licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
-                actionIdentityService, involvedEntitiesExpander,
-            entitySeverityCache, workflowStore));
-        when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
-
-        pipelineFactory = new LiveActionPipelineFactory(actionStorehouse, mock(ActionAutomationManager.class),
-            atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
-            actionHistoryDao, actionFactory, clock, 10,
-            actionIdentityService, actionTargetSelector, actionTranslator, statistician,
-            actionAuditSender, auditedActionsManager);
-
-        pipelineFactory.actionPipeline(plan).run(plan);
-        when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation), any(), any())).thenReturn(
-            ImmutableActionTargetInfo.builder()
-                .supportingLevel(SupportLevel.SUPPORTED)
-                .targetId(targetId)
-                .build());
-
-        // emulate failed translation for action
-        final Action action = actionStoreSpy.getAction(ACTION_ID).get();
-        action.getActionTranslation().setTranslationFailure();
+        doThrow(new RejectedExecutionException("ERROR!"))
+            .when(executorPool).execute(any());
 
         final ActionExecution result = actionOrchestratorServiceClient.acceptActions(
                 createActionRequest());

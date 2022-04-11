@@ -246,8 +246,9 @@ public class ActionAuditSenderTest {
 
         final ActionExecutor actionExecutor = Mockito.spy(
                 new ActionExecutor(Mockito.mock(Channel.class),
-                        Mockito.mock(ActionExecutionStore.class), clock, 1, TimeUnit.HOURS,
-                        Mockito.mock(LicenseCheckClient.class), actionTemplateApplicator));
+                        Mockito.mock(ActionExecutionStore.class), 1, TimeUnit.HOURS,
+                        Mockito.mock(LicenseCheckClient.class), actionTemplateApplicator,
+                        workflowStore, actionTranslator));
 
         actionAuditSender = new ActionAuditSender(
             workflowStore,

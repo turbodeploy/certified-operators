@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.approval;
 
-import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -98,9 +97,11 @@ public class ActionApprovalSenderTest {
                 .thenReturn(actionTargetInfo);
         final ActionExecutor actionExecutor = Mockito.spy(
                 new ActionExecutor(Mockito.mock(Channel.class),
-                        Mockito.mock(ActionExecutionStore.class), Clock.systemUTC(), 1,
+                        Mockito.mock(ActionExecutionStore.class), 1,
                         TimeUnit.HOURS, Mockito.mock(LicenseCheckClient.class),
-                        Mockito.mock(ActionTemplateApplicator.class)));
+                        Mockito.mock(ActionTemplateApplicator.class),
+                        Mockito.mock(WorkflowStore.class),
+                        Mockito.mock(ActionTranslator.class)));
         this.aas = new ActionApprovalSender(workflowStore, requestSender, actionTargetSelector,
             entitySettingsCache, actionTranslator, actionExecutor);
     }

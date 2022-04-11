@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -150,6 +151,7 @@ public class ActionExecutionSecureRpcTest {
     private final HistoricalActionStatReader statReader = mock(HistoricalActionStatReader.class);
     private final CurrentActionStatReader currentActionStatReader = mock(CurrentActionStatReader.class);
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
+    private final Executor executorPool = mock(Executor.class);
     private final ActionExecutionStore actionExecutionStore = new ActionExecutionStore();
     private final ActionCombiner actionCombiner = new ActionCombiner(mock(ActionTopologyStore.class));
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
@@ -177,7 +179,7 @@ public class ActionExecutionSecureRpcTest {
     private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
     private final ActionApprovalManager actionApprovalManager = new ActionApprovalManager(
             actionExecutor, actionTargetSelector, entitySettingsCache, actionTranslator,
-            workflowStore, acceptedActionsStore, actionExecutionListener);
+            workflowStore, acceptedActionsStore, actionExecutionListener, executorPool);
 
     private final InvolvedEntitiesExpander involvedEntitiesExpander =
         mock(InvolvedEntitiesExpander.class);

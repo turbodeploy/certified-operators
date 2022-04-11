@@ -1276,6 +1276,16 @@ public class Action implements ActionView {
     }
 
     /**
+     * Returns the user who authorized action execution.
+     *
+     * @return the user who authorized action execution.
+     */
+    @Nullable
+    public String getExecutionAuthorizerId() {
+        return executionAuthorizerId;
+    }
+
+    /**
      * Method to update the status of an {@link ExecutionStep}.
      */
     @FunctionalInterface

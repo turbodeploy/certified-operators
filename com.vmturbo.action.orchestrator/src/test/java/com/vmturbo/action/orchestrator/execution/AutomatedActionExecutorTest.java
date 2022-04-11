@@ -85,20 +85,20 @@ public class AutomatedActionExecutorTest {
 
     private final ActionExecutionStore actionExecutionStore = Mockito.mock(ActionExecutionStore.class);
     private final ActionTemplateApplicator actionTemplateApplicator = Mockito.mock(ActionTemplateApplicator.class);
+    private final WorkflowStore workflowStore = Mockito.mock(WorkflowStore.class);
+
+    private final ActionTranslator actionTranslator = Mockito.mock(ActionTranslator.class);
     private final int executionTimeout = 1;
     private final TimeUnit executionTimeoutUnit = TimeUnit.HOURS;
     private final ActionExecutor actionExecutor = Mockito.spy(
-            new ActionExecutor(channel, actionExecutionStore, clock, executionTimeout,
-                    executionTimeoutUnit, licenseCheckClient, actionTemplateApplicator));
+            new ActionExecutor(channel, actionExecutionStore, executionTimeout,
+                    executionTimeoutUnit, licenseCheckClient, actionTemplateApplicator,
+                    workflowStore, actionTranslator));
     private final ActionTargetSelector actionTargetSelector =
             Mockito.mock(ActionTargetSelector.class);
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache =
         Mockito.mock(EntitiesAndSettingsSnapshotFactory.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
-
-    private final WorkflowStore workflowStore = Mockito.mock(WorkflowStore.class);
-
-    private final ActionTranslator actionTranslator = Mockito.mock(ActionTranslator.class);
 
     private final ActionTopologyStore actionTopologyStore = Mockito.mock(ActionTopologyStore.class);
     private final ActionExecutionListener actionExecutionListener = Mockito.mock(ActionExecutionListener.class);
@@ -131,7 +131,7 @@ public class AutomatedActionExecutorTest {
         when(actionStore.getActions()).thenReturn(actionMap);
         when(actionTranslator.translateToSpec(any()))
             .thenReturn(ActionDTO.ActionSpec.getDefaultInstance());
-        Mockito.doNothing().when(actionExecutor).executeSynchronously(anyLong(), any());
+        Mockito.doNothing().when(actionExecutor).executeSynchronously(anyLong(), any(), any());
         when(actionStore.allowsExecution()).thenReturn(true);
     }
 
@@ -242,7 +242,8 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
         Mockito.verify(actionExecutor).executeSynchronously(targetId1,
-                Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
+                Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)),
+                actionExecutionListener);
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
@@ -278,7 +279,7 @@ public class AutomatedActionExecutorTest {
         final ArgumentCaptor<FailureEvent> failCaptor = ArgumentCaptor.forClass(FailureEvent.class);
         inOrder.verify(failedTranslationAction).receive(failCaptor.capture());
 
-        String expectedFailure = String.format(AutomatedActionExecutor.FAILED_TRANSFORM_MSG, 99);
+        String expectedFailure = String.format(AutomatedActionTask.FAILED_TRANSFORM_MSG, 99);
         Assert.assertEquals(failCaptor.getValue().getErrorDescription(), expectedFailure);
 
         Mockito.verifyZeroInteractions(channel);
@@ -382,7 +383,8 @@ public class AutomatedActionExecutorTest {
         when(actionTranslator.translateToSpec(failedExecuteAction)).thenReturn(actionSpec);
         Mockito.doThrow(new ExecutionStartException("EPIC FAIL!!!"))
                 .when(actionExecutor).executeSynchronously(targetId1,
-                        Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
+                        Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)),
+                        actionExecutionListener);
         executeAndWaitForCompletion(1);
 
         InOrder inOrder = Mockito.inOrder(failedExecuteAction);
@@ -393,7 +395,7 @@ public class AutomatedActionExecutorTest {
                 ArgumentCaptor.forClass(ActionFailure.class);
         Mockito.verify(actionExecutionListener).onActionFailure(actionFailure.capture());
         Assert.assertEquals(actionFailure.getValue().getErrorDescription(),
-                String.format(AutomatedActionExecutor.EXECUTION_START_MSG, 99));
+                String.format(AutomatedActionTask.EXECUTION_START_MSG, 99));
         Assert.assertEquals(actionFailure.getValue().getActionId(), 99);
 
         Mockito.verifyZeroInteractions(channel);
@@ -401,53 +403,9 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
         Mockito.verify(actionExecutor).executeSynchronously(targetId1,
-                Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
+                Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)),
+                actionExecutionListener);
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
-    }
-
-    @Test
-    public void testAutomatedExecutionTimedOut() throws Exception {
-        final Action failedExecuteAction = Mockito.mock(Action.class);
-        final ActionDTO.Action rec =
-                makeActionRec(99L,
-                        makeMoveInfo(entityId1, pmType, entityId2, pmType, entityId3));
-
-        final ActionTranslation translation = new ActionTranslation(rec);
-        translation.setPassthroughTranslationSuccess();
-        setUpMocksForAutomaticAction(failedExecuteAction, 99L, rec);
-        // Map this action to target #1
-        when(actionTargetSelector.getTargetsForActions(any(), any(), any()))
-                .thenReturn(Collections.singletonMap(99L, actionTargetInfo(targetId1)));
-        when(failedExecuteAction.getActionTranslation()).thenReturn(translation);
-        when(failedExecuteAction.getWorkflow(workflowStore,
-                failedExecuteAction.getState())).thenReturn(Optional.empty());
-        when(failedExecuteAction.getWorkflowExecutionTarget(workflowStore)).thenReturn(Optional.empty());
-        ActionDTO.ActionSpec actionSpec =
-                ActionDTO.ActionSpec.newBuilder().setRecommendation(rec).build();
-        when(actionTranslator.translateToSpec(failedExecuteAction)).thenReturn(actionSpec);
-        Mockito.doThrow(new TimeoutException("Action timed out!!!"))
-                .when(actionExecutor).executeSynchronously(targetId1,
-                        Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
-        executeAndWaitForCompletion(1);
-
-        InOrder inOrder = Mockito.inOrder(failedExecuteAction);
-
-        inOrder.verify(failedExecuteAction).receive(isA(AutomaticAcceptanceEvent.class));
-        inOrder.verify(failedExecuteAction).receive(isA(BeginExecutionEvent.class));
-        final ArgumentCaptor<ActionFailure> actionFailure =
-                ArgumentCaptor.forClass(ActionFailure.class);
-        Mockito.verify(actionExecutionListener).onActionFailure(actionFailure.capture());
-        Assert.assertEquals(actionFailure.getValue().getErrorDescription(),
-                String.format(AutomatedActionExecutor.TIMED_OUT_ACTION_EXECUTION_MSG, 99, executionTimeout, executionTimeoutUnit.toString().toLowerCase()));
-        Assert.assertEquals(actionFailure.getValue().getActionId(), 99);
-
-        Mockito.verifyZeroInteractions(channel);
-        Mockito.verify(actionStore).getActions();
-        Mockito.verify(actionStore).allowsExecution();
-        Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
-        Mockito.verify(actionExecutor).executeSynchronously(targetId1,
-                Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
-        Mockito.verifyNoMoreInteractions(actionStore, actionTargetSelector);
     }
 
     @Test
@@ -482,7 +440,8 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
         Mockito.verify(actionExecutor).executeSynchronously(targetId1,
-                Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
+                Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)),
+                actionExecutionListener);
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
@@ -542,7 +501,8 @@ public class AutomatedActionExecutorTest {
         when(failedExecuteAction.getActionTranslation()).thenReturn(execFailTrans);
         Mockito.doThrow(new ExecutionStartException("EPIC FAIL!!!!"))
                 .when(actionExecutor).executeSynchronously(targetId2,
-                        Collections.singletonList(new ActionWithWorkflow(execFailedActionSpec, workflowOpt)));
+                        Collections.singletonList(new ActionWithWorkflow(execFailedActionSpec, workflowOpt)),
+                        actionExecutionListener);
 
         final Action goodAction = Mockito.mock(Action.class);
         final long goodId = 1L;
@@ -590,7 +550,7 @@ public class AutomatedActionExecutorTest {
         noTransOrder.verify(failedTranslationAction).receive(isA(BeginExecutionEvent.class));
         noTransOrder.verify(failedTranslationAction).receive(failureCaptor.capture());
         Assert.assertEquals(failureCaptor.getValue().getErrorDescription(),
-                String.format(AutomatedActionExecutor.FAILED_TRANSFORM_MSG, noTransId));
+                String.format(AutomatedActionTask.FAILED_TRANSFORM_MSG, noTransId));
 
         InOrder failExecOrder = Mockito.inOrder(failedExecuteAction);
         failExecOrder.verify(failedExecuteAction).receive(isA(AutomaticAcceptanceEvent.class));
@@ -599,7 +559,7 @@ public class AutomatedActionExecutorTest {
                 ArgumentCaptor.forClass(ActionFailure.class);
         Mockito.verify(actionExecutionListener).onActionFailure(actionFailure.capture());
         Assert.assertEquals(actionFailure.getValue().getErrorDescription(),
-                String.format(AutomatedActionExecutor.EXECUTION_START_MSG, execFailId));
+                String.format(AutomatedActionTask.EXECUTION_START_MSG, execFailId));
         Assert.assertEquals(actionFailure.getValue().getActionId(), execFailId);
 
         InOrder goodOrder = Mockito.inOrder(goodAction);
@@ -612,9 +572,11 @@ public class AutomatedActionExecutorTest {
         // This mapping happens once, for all actions
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
         Mockito.verify(actionExecutor).executeSynchronously(targetId1,
-                Collections.singletonList(new ActionWithWorkflow(goodActionSpec, workflowOpt)));
+                Collections.singletonList(new ActionWithWorkflow(goodActionSpec, workflowOpt)),
+                actionExecutionListener);
         Mockito.verify(actionExecutor).executeSynchronously(targetId2,
-                Collections.singletonList(new ActionWithWorkflow(execFailedActionSpec, workflowOpt)));
+                Collections.singletonList(new ActionWithWorkflow(execFailedActionSpec, workflowOpt)),
+                actionExecutionListener);
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
@@ -704,7 +666,8 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
         Mockito.verify(actionExecutor).executeSynchronously(targetId1,
-                Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)));
+                Collections.singletonList(new ActionWithWorkflow(actionSpec, workflowOpt)),
+                actionExecutionListener);
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
