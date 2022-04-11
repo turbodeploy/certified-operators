@@ -72,11 +72,11 @@ public class EntitiesWriterTest {
         doAnswer((Answer<Map<Long, EntitiesRecord>>)invocation -> {
             List arg0 = invocation.getArgumentAt(0, List.class);
             @SuppressWarnings("unchecked")
-            final List<String> oidStrings = (List<String>)arg0;
-            final Object[] oidsForVarargs = oidStrings.stream().map(Long::valueOf).toArray();
+            final List<String> oids = (List<String>)arg0;
+            final Object[] oidsForVarargs = oids.toArray();
             return dbMock.getRecords(ENTITIES, oidsForVarargs).stream()
                 .collect(Collectors.toMap(EntitiesRecord::getId, Functions.identity()));
-        }).when(historydbIO).getEntities(anyListOf(String.class));
+        }).when(historydbIO).getEntities(anyListOf(Long.class));
 
         topologyInfo = TopologyInfo.newBuilder()
             .setCreationTime(System.currentTimeMillis())

@@ -16,6 +16,7 @@ import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.SQLDialect;
 import org.jooq.Select;
+import org.jooq.SelectConditionStep;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.springframework.util.CollectionUtils;
@@ -28,11 +29,12 @@ public class UpsertBuilder {
     private Table<?> source;
     private Table<?> target;
     private Field<?>[] insertFields;
-    private List<Field<?>> sourceGroupByFields = new ArrayList<>();
+    private final List<Field<?>> sourceGroupByFields = new ArrayList<>();
     private final List<Condition> conditions = new ArrayList<>();
     private final Map<Field<?>, Field<?>> insertValues = new HashMap<>();
     private final List<UpdateBinding<?>> updates = new ArrayList<>();
     private final List<Field<?>> conflictColumns = new ArrayList<>();
+    private boolean distinct = false;
 
     /**
      * Specify the table that is the target of the upsert operation, i.e. the table that will
@@ -162,6 +164,17 @@ public class UpsertBuilder {
     }
 
     /**
+     * Indicate whehter the SELECT embedded in the upsert statement should be SELECT DISTINCT.
+     *
+     * @param distinct true to use SELECT DISTINCT
+     * @return this builder
+     */
+    public UpsertBuilder withDistinctSelect(boolean distinct) {
+        this.distinct = distinct;
+        return this;
+    }
+
+    /**
      * Specify a field and a value for the UPDATE part of the upsert, for any record that results in
      * a collision. THe update value is in the form of an instance of the {@link UpsertValue}
      * functional interface, and can depend on the SQLDialect.
@@ -214,13 +227,12 @@ public class UpsertBuilder {
                 selectList[i] = getSourceField(field);
             }
         }
-        final Select select;
-        if (!CollectionUtils.isEmpty(sourceGroupByFields)) {
-            select = dsl.select(selectList).from(source).where(conditions).groupBy(
-                    sourceGroupByFields);
-        } else {
-            select = dsl.select(selectList).from(source).where(conditions);
-        }
+        SelectConditionStep<Record> select1 =
+                (distinct ? dsl.selectDistinct(selectList) : dsl.select(selectList))
+                        .from(source).where(conditions);
+        final Select<Record> select = CollectionUtils.isEmpty(sourceGroupByFields)
+                                      ? select1
+                                      : select1.groupBy(sourceGroupByFields);
         InsertOnDuplicateStep<?> insert = dsl.insertInto(target)
                 .columns(insertFields)
                 .select(select);
@@ -228,8 +240,8 @@ public class UpsertBuilder {
         for (UpdateBinding<?> update : updates) {
             update.addToMap(updateMap, dsl.dialect());
         }
-        InsertOnDuplicateSetStep<? extends Record> upsert
-                = conflictColumns.isEmpty()
+        InsertOnDuplicateSetStep<? extends Record> upsert =
+                conflictColumns.isEmpty()
                 ? insert.onDuplicateKeyUpdate()
                 : insert.onConflict(conflictColumns).doUpdate();
         upsert.set(updateMap);

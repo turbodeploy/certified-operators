@@ -162,10 +162,13 @@ class SnapshotStatus {
         return ingestions.get(flavor);
     }
 
-    Stream<Table<?>> getIngestionTables() {
+    Map<Table<?>, Long> getIngestionTableCounts() {
         return ingestions.values().stream()
-                .map(IngestionStatus::getActiveTables)
-                .flatMap(Collection::stream);
+                .map(IngestionStatus::getActiveTableCounts)
+                .map(Map::entrySet)
+                .flatMap(Collection::stream)
+                .collect(Collectors.groupingBy(Entry::getKey, Collectors.summingLong(Entry::getValue)));
+
     }
 
     String getIngestionSummary() {

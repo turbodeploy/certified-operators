@@ -28,13 +28,14 @@ import com.vmturbo.history.schema.abstraction.tables.Entities;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
 
 /**
- * This class is responsible for writing new or changed entities from a topology broadcast chunk
- * to the Entities table.
+ * This class is responsible for writing new or changed entities from a topology broadcast chunk to
+ * the Entities table.
  */
 public class EntitiesWriter extends TopologyWriterBase {
     private static Logger logger = LogManager.getLogger(EntitiesWriter.class);
 
-    static final int ENTITY_DISPLAY_NAME_MAX_LENGTH = Entities.ENTITIES.DISPLAY_NAME.getDataType().length();
+    static final int ENTITY_DISPLAY_NAME_MAX_LENGTH =
+            Entities.ENTITIES.DISPLAY_NAME.getDataType().length();
     private final TopologyInfo topologyInfo;
     private final HistorydbIO historydbIO;
     private final BulkLoader<EntitiesRecord> entitiesLoader;
@@ -44,11 +45,11 @@ public class EntitiesWriter extends TopologyWriterBase {
      *
      * @param topologyInfo metadata for the topology
      * @param historydbIO  access to common DB features
-     * @param state      bulk state
+     * @param state        bulk state
      */
     private EntitiesWriter(@Nonnull TopologyInfo topologyInfo,
-                           @Nonnull HistorydbIO historydbIO,
-                           @Nonnull IngesterState state) {
+            @Nonnull HistorydbIO historydbIO,
+            @Nonnull IngesterState state) {
         this.topologyInfo = topologyInfo;
         this.historydbIO = historydbIO;
         this.entitiesLoader = state.getLoaders().getLoader(Entities.ENTITIES);
@@ -56,13 +57,12 @@ public class EntitiesWriter extends TopologyWriterBase {
 
     @Override
     public ChunkDisposition processEntities(@Nonnull final Collection<TopologyEntityDTO> entities,
-                                            @Nonnull final String infoSummary)
-        throws InterruptedException {
+            @Nonnull final String infoSummary)
+            throws InterruptedException {
 
-        final List<String> entityOids = entities.stream()
-            .map(TopologyEntityDTO::getOid)
-            .map(String::valueOf)
-            .collect(Collectors.toList());
+        final List<Long> entityOids = entities.stream()
+                .map(TopologyEntityDTO::getOid)
+                .collect(Collectors.toList());
 
         // get current saved info for each of these entities
         final Map<Long, EntitiesRecord> knownChunkEntities;
@@ -80,10 +80,10 @@ public class EntitiesWriter extends TopologyWriterBase {
         // new records for the rest
         final long snapshotTime = topologyInfo.getCreationTime();
         final List<EntitiesRecord> entityRecordsToPersist = entities.stream().map(entity ->
-            createRecord(entity.getOid(), snapshotTime, entity, knownChunkEntities))
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .collect(Collectors.toList());
+                        createRecord(entity.getOid(), snapshotTime, entity, knownChunkEntities))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
 
         // persist this chunk's entities
         entitiesLoader.insertAll(entityRecordsToPersist);
@@ -93,7 +93,8 @@ public class EntitiesWriter extends TopologyWriterBase {
     /**
      * Creates db record, based on topology entity and potentially, on existing record from the DB.
      *
-     * <p>This method will return db record, if some operations (modification or insertion) is required
+     * <p>This method will return db record, if some operations (modification or insertion) is
+     * required
      * for the specified entity.</p>
      *
      * <p>A {@link TopologyEntityDTO} needs to be persisted if:</p>
@@ -107,24 +108,24 @@ public class EntitiesWriter extends TopologyWriterBase {
      * @param snapshotTime    time for this topology
      * @param entityDTO       the TopologyEntityDTO for the Service Entity to persist
      * @param existingRecords the map of known oid -> record in the DB
-     * @return an Optional containing an EntitiesRecord to be persisted - either a new
-     * record to be inserted or an updated copy of the prior record if modified; or Optional.empty()
-     * if this particular entity type is not to be persisted to the DB
+     * @return an Optional containing an EntitiesRecord to be persisted - either a new record to be
+     *         inserted or an updated copy of the prior record if modified; or Optional.empty() if
+     *         this particular entity type is not to be persisted to the DB
      */
     @Nonnull
     private Optional<EntitiesRecord> createRecord(
-        long oid,
-        long snapshotTime,
-        @Nonnull TopologyEntityDTO entityDTO,
-        @Nonnull Map<Long, EntitiesRecord> existingRecords) {
+            long oid,
+            long snapshotTime,
+            @Nonnull TopologyEntityDTO entityDTO,
+            @Nonnull Map<Long, EntitiesRecord> existingRecords) {
 
         final Optional<EntityType> entityDBInfo =
-            historydbIO.getEntityType(entityDTO.getEntityType());
+                historydbIO.getEntityType(entityDTO.getEntityType());
         if (entityDBInfo.map(EntityType::persistsEntity).orElse(false)) {
             // entity type was found, and it has persistEntity use case
 
-        final String entityType = entityDBInfo.get().getName();
-        final long entityOid = entityDTO.getOid();
+            final String entityType = entityDBInfo.get().getName();
+            final long entityOid = entityDTO.getOid();
 
             final String truncatedDisplayName =
                     Strings.truncate(entityDTO.getDisplayName(), ENTITY_DISPLAY_NAME_MAX_LENGTH);
@@ -132,32 +133,33 @@ public class EntitiesWriter extends TopologyWriterBase {
                 // log as [kept-portion]overflow
                 logger.warn("Truncated too-long entity display name for entity {} type {}: {}",
                         entityOid, entityType, "[" + truncatedDisplayName + "]"
-                                + entityDTO.getDisplayName().substring(ENTITY_DISPLAY_NAME_MAX_LENGTH));
+                                + entityDTO.getDisplayName()
+                                .substring(ENTITY_DISPLAY_NAME_MAX_LENGTH));
             }
-        final EntitiesRecord record;
-        EntitiesRecord existingRecord = existingRecords.get(oid);
-        if (existingRecord == null) {
-            record = new EntitiesRecord();
-            record.setId(entityOid);
-        } else {
-            if (existingRecord.getDisplayName().equals(truncatedDisplayName)
-                    && existingRecord.getCreationClass().equals(entityType)) {
-                return Optional.empty();
+            final EntitiesRecord record;
+            EntitiesRecord existingRecord = existingRecords.get(oid);
+            if (existingRecord == null) {
+                record = new EntitiesRecord();
+                record.setId(entityOid);
+            } else {
+                if (existingRecord.getDisplayName().equals(truncatedDisplayName)
+                        && existingRecord.getCreationClass().equals(entityType)) {
+                    return Optional.empty();
+                }
+                logger.warn("Name or type for existing entity with oid {} has been changed: "
+                                + "displayName >{}< -> >{}<"
+                                + " creationType >{}< -> >{}<; db updated.", entityDTO.getOid(),
+                        existingRecord.getDisplayName(), truncatedDisplayName,
+                        existingRecord.getCreationClass(), entityType);
+                record = existingRecord;
             }
-            logger.warn("Name or type for existing entity with oid {} has been changed: "
-                            + "displayName >{}< -> >{}<"
-                            + " creationType >{}< -> >{}<; db updated.", entityDTO.getOid(),
-                    existingRecord.getDisplayName(), truncatedDisplayName,
-                    existingRecord.getCreationClass(), entityType);
-            record = existingRecord;
-        }
             // the table has a `name` column that is not used by anything, so we no longer
             // populate it, and we will likely drop it from the schema at some point
             record.setDisplayName(truncatedDisplayName);
-        record.setUuid(Long.toString(entityOid));
-        record.setCreationClass(entityType);
-        record.setCreatedAt(new Timestamp(snapshotTime));
-        return Optional.of(record);
+            record.setUuid(Long.toString(entityOid));
+            record.setCreationClass(entityType);
+            record.setCreatedAt(new Timestamp(snapshotTime));
+            return Optional.of(record);
         } else {
             // entity type not found, or found but not persisted
             return Optional.empty();
@@ -183,7 +185,7 @@ public class EntitiesWriter extends TopologyWriterBase {
         @Override
         public Optional<IChunkProcessor<Topology.DataSegment>>
         getChunkProcessor(final TopologyInfo topologyInfo,
-                          final IngesterState state) {
+                final IngesterState state) {
             return Optional.of(new EntitiesWriter(topologyInfo, historydbIO, state));
         }
     }

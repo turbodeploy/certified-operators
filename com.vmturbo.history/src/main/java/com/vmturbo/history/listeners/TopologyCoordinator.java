@@ -6,13 +6,15 @@ import static com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor.P
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -543,16 +545,17 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
      */
     void runHourRollup(Instant snapshot) {
         processingStatus.startHourRollup(snapshot);
-        List<Table> tables = processingStatus.getIngestionTables(snapshot)
+        Map<Table<?>, Long> ingestionTableCounts = processingStatus.getIngestionTableCounts(snapshot);
+        Map<Table<?>, Long> tableCountss = ingestionTableCounts.keySet().stream()
                 .distinct()
-                .collect(Collectors.toList());
+                .collect(Collectors.toMap(Function.identity(), ingestionTableCounts::get));
         // nothing to do if there are no stats
-        if (!tables.isEmpty()) {
+        if (!tableCountss.isEmpty()) {
             // this can't execute while ingestions are in progress
             rollupLock.lock();
             logger.info("Running hourly rollups for snapshot time {}", snapshot);
             try {
-                rollupProcessor.performHourRollups(tables, snapshot);
+                rollupProcessor.performHourRollups(tableCountss, snapshot);
             } finally {
                 rollupLock.unlock();
             }
@@ -571,9 +574,11 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
      */
     void runDayMonthRollup(final Instant snapshot) {
         processingStatus.startDayMonthRollup(snapshot);
-        List<Table> tables = processingStatus.getIngestionTablesForHour(snapshot)
-                .distinct()
-                .collect(Collectors.toList());
+        Map<Table<?>, Long> ingestionTableCountsForHour =
+                processingStatus.getIngestionTablesForHour(snapshot);
+        Map<Table<?>, Long> tables = ingestionTableCountsForHour.entrySet().stream()
+                .filter(e -> e.getValue() > 0)
+                .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
         if (!tables.isEmpty()) {
             rollupLock.lock();
             logger.info("Running daily/monthly rollups and repartitioning for hour {}",

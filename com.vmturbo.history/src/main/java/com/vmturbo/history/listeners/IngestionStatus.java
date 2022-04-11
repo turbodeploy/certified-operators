@@ -14,8 +14,9 @@ import java.lang.reflect.InvocationTargetException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -23,6 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.gson.TypeAdapter;
@@ -31,6 +33,7 @@ import com.google.gson.stream.JsonWriter;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Named;
 import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -64,8 +67,8 @@ class IngestionStatus {
     private Duration processedDuration;
     // exception representing the cause of a failed exception, if any
     private Exception failureCause;
-    // tables that participated in a completed ingestion
-    private List<String> activeTables = new ArrayList<>();
+    // tables that participated in a completed ingestion, with record counts
+    private Map<String, Long> activeTableCounts = new HashMap<>();
     // a readable label for our topology
     private String topologyLabel;
     // whether we've changed since last dirty query
@@ -162,12 +165,13 @@ class IngestionStatus {
         return processedDuration;
     }
 
-    List<Table<?>> getActiveTables() {
-        return activeTables.stream()
+    Map<Table<?>, Long> getActiveTableCounts() {
+        return activeTableCounts.keySet().stream()
                 .map(Vmtdb.VMTDB::getTable)
                 // transient tables' names won't be known to the schema
                 .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+                .collect(Collectors.toMap(Function.identity(),
+                        t -> activeTableCounts.get(t.getName())));
     }
 
     Exception getFailureCause() {
@@ -205,8 +209,8 @@ class IngestionStatus {
     }
 
     /**
-     * Put this ingestion into Processed state, resolve its procesing duration, and capture
-     * its inserter stats.
+     * Put this ingestion into Processed state, resolve its procesing duration, and capture its
+     * inserter stats.
      *
      * @param stats inserter stats from the ingestion
      */
@@ -218,29 +222,29 @@ class IngestionStatus {
             this.processedDuration = Duration.between(ingestionStart, Instant.now());
         }
         this.state = Processed;
-        this.activeTables = getStatsActiveTables(stats);
+        this.activeTableCounts = getStatsActiveTableCounts(stats);
         setDirty();
     }
 
     /**
      * Put this ingestion into Failed state and record its failure cause.
      *
-     * @param partialStats inserter stats, if available, reflecting records inserted before
-     *                     this ingestion failed
-     * @param e exception describing the cause of the ingestion failure
+     * @param partialStats inserter stats, if available, reflecting records inserted before this
+     *                     ingestion failed
+     * @param e            exception describing the cause of the ingestion failure
      */
     void failIngestion(Optional<BulkInserterFactoryStats> partialStats, Exception e) {
         this.failureCause = e;
         partialStats.ifPresent(s -> {
-            this.activeTables = getStatsActiveTables(s);
+            this.activeTableCounts = getStatsActiveTableCounts(s);
         });
         setDirty();
     }
 
-    private List<String> getStatsActiveTables(BulkInserterFactoryStats stats) {
+    private Map<String, Long> getStatsActiveTableCounts(BulkInserterFactoryStats stats) {
         return stats.getOutTables().stream()
-                .map(Table::getName)
-                .collect(Collectors.toList());
+                .collect(Collectors.toMap(Named::getName,
+                        t -> stats.getByOutTable(t).getWritten()));
     }
 
     /**
@@ -254,13 +258,14 @@ class IngestionStatus {
     /**
      * Check whether it's OK to remove this ingestion status from the overall processing status.
      *
-     *<p>Current cases where we pin the entry are:</p>
+     * <p>Current cases where we pin the entry are:</p>
      * <ul>
      *     <li>Received state: dropping the entry will mean we can never go back and process the
      *     topology. (It will eventually be skipped when teh listener times out waiting for
      *     {@link ProcessingLoop} to decide what to do.)</li>
      *     <li>Processing state: In this case we run the risk of </li>
      * </ul>
+     *
      * @return true if it's OK to remove this ingestion status object
      */
     boolean canRemove() {
@@ -276,8 +281,8 @@ class IngestionStatus {
     }
 
     /**
-     * Check if this ingestion is in a resolved state, meaning a state from which it should
-     * not change.
+     * Check if this ingestion is in a resolved state, meaning a state from which it should not
+     * change.
      *
      * <p>Resolved states include Processed, Skipped, Missed, and Failed</p>
      *
@@ -385,8 +390,8 @@ class IngestionStatus {
          */
         Skipped('s'),
         /**
-         * A topology was expected, but it never materialized and a later topology was
-         * received. The expected topology is presumed lost.
+         * A topology was expected, but it never materialized and a later topology was received. The
+         * expected topology is presumed lost.
          */
         Missed('m'),
         /**
@@ -415,7 +420,7 @@ class IngestionStatus {
     static class IngestionStatusTypeAdapter extends TypeAdapter<IngestionStatus> {
 
         static final String STATE_NAME = "state";
-        static final String ACTIVE_TABLES_NAME = "activeTables";
+        static final String ACTIVE_TABLE_COUNTS_NAME = "activeTableCounts";
         static final String TOPOLOGY_LABEL_NAME = "topologyLabel";
         static final String FAILURE_CAUSE_NAME = "failureCause";
         static final String FAILURE_CAUSE_CLASS_NAME = "class";
@@ -429,13 +434,13 @@ class IngestionStatus {
             if (value.processedDuration != null) {
                 out.name(PROCESSING_DURATION_NAME).value(value.processedDuration.toMillis());
             }
-            if (value.activeTables != null) {
-                out.name(ACTIVE_TABLES_NAME);
-                out.beginArray();
-                for (String activeTable : value.activeTables) {
-                    out.value(activeTable);
+            if (value.activeTableCounts != null) {
+                out.name(ACTIVE_TABLE_COUNTS_NAME);
+                out.beginObject();
+                for (Entry<String, Long> activeTable : value.activeTableCounts.entrySet()) {
+                    out.name(activeTable.getKey()).value(activeTable.getValue());
                 }
-                out.endArray();
+                out.endObject();
             }
             if (value.topologyLabel != null) {
                 out.name(TOPOLOGY_LABEL_NAME).value(value.topologyLabel);
@@ -472,12 +477,12 @@ class IngestionStatus {
                     case PROCESSING_DURATION_NAME:
                         status.processedDuration = Duration.ofMillis(in.nextLong());
                         break;
-                    case ACTIVE_TABLES_NAME:
-                        in.beginArray();
+                    case ACTIVE_TABLE_COUNTS_NAME:
+                        in.beginObject();
                         while (in.hasNext()) {
-                            status.activeTables.add(in.nextString());
+                            status.activeTableCounts.put(in.nextName(), in.nextLong());
                         }
-                        in.endArray();
+                        in.endObject();
                         break;
                     case TOPOLOGY_LABEL_NAME:
                         status.topologyLabel = in.nextString();

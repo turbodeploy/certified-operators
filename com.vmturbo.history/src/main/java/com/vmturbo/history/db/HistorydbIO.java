@@ -963,29 +963,25 @@ public class HistorydbIO {
     }
 
     /**
-     * Get id, display name and creation class name of entities which IDs are given.
-     * Data is retrieved from the DB in chunks of 4000 (settable).
+     * Get id, display name and creation class name of entities which IDs are given. Data is
+     * retrieved from the DB in chunks of 4000 (settable).
      *
      * @param entityIds the list of entity IDs to get from the DB
      * @return a map from ID to entity record
      * @throws DataAccessException if there was an error accessing the database
      */
-    public Map<Long, EntitiesRecord> getEntities(List<String> entityIds)
+    public Map<Long, EntitiesRecord> getEntities(List<Long> entityIds)
             throws DataAccessException {
         logger.debug("get {} entities", entityIds.size());
         final Map<Long, EntitiesRecord> map = new HashMap<>();
-        for (List<String> idsChunk : Lists.partition(entityIds, entitiesChunkSize)) {
-            final List<EntitiesRecord> listRecords = dsl.fetch(Entities.ENTITIES,
-                    Entities.ENTITIES.UUID.in(idsChunk));
-            for (EntitiesRecord record : listRecords) {
-                map.put(record.getId(), record);
-            }
+        for (List<Long> idsChunk : Lists.partition(entityIds, entitiesChunkSize)) {
+            dsl.fetch(Entities.ENTITIES, Entities.ENTITIES.ID.in(idsChunk))
+                    .forEach(r -> map.put(r.getId(), r));
         }
         if (logger.isDebugEnabled()) {
             logger.debug("getEntities returning {} entities", map::size);
             // calculate the keys in the query that are not part of the result map
             Set<Long> missingKeys = entityIds.stream()
-                    .map(Long::valueOf)
                     .filter(oid -> !map.containsKey(oid))
                     .collect(Collectors.toSet());
             logger.debug("didn't find: {}", missingKeys);
