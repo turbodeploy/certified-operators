@@ -134,11 +134,6 @@ import com.vmturbo.notification.NotificationStore;
 import com.vmturbo.notification.api.impl.NotificationClientConfig;
 import com.vmturbo.plan.orchestrator.api.PlanOrchestrator;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
-import com.vmturbo.reporting.api.ReportListener;
-import com.vmturbo.reporting.api.ReportingClientConfig;
-import com.vmturbo.reporting.api.ReportingNotificationReceiver;
-import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
-import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -155,7 +150,7 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 @Import({TopologyProcessorClientConfig.class,
         ActionOrchestratorClientConfig.class, PlanOrchestratorClientConfig.class,
         GroupClientConfig.class, HistoryClientConfig.class, NotificationClientConfig.class,
-        RepositoryClientConfig.class, ReportingClientConfig.class, AuthClientConfig.class,
+        RepositoryClientConfig.class, AuthClientConfig.class,
         CostClientConfig.class, ApiComponentGlobalConfig.class, ClusterMgrClientConfig.class,
         UserSessionConfig.class, ApiWebsocketConfig.class, BaseKafkaConsumerConfig.class,
         ExtractorClientConfig.class,  MarketClientConfig.class})
@@ -175,8 +170,7 @@ public class CommunicationConfig {
     private NotificationClientConfig notificationClientConfig;
     @Autowired
     private RepositoryClientConfig repositoryClientConfig;
-    @Autowired
-    private ReportingClientConfig reportingClientConfig;
+
     @Autowired
     private AuthClientConfig authClientConfig;
     @Autowired
@@ -464,11 +458,6 @@ public class CommunicationConfig {
     }
 
     @Bean
-    public ReportingServiceBlockingStub reportingRpcService() {
-        return ReportingServiceGrpc.newBlockingStub(reportingClientConfig.reportingChannel());
-    }
-
-    @Bean
     public StatsHistoryServiceBlockingStub historyRpcService() {
         return StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel())
                 .withInterceptors(jwtClientInterceptor());
@@ -660,39 +649,6 @@ public class CommunicationConfig {
     @Bean
     public PriceIndexPopulator priceIndexPopulator() {
         return new PriceIndexPopulator(historyRpcService(), repositoryRpcService());
-    }
-
-    @Bean
-    public ReportingNotificationReceiver reportingNotificationReceiver() {
-        final ReportingNotificationReceiver receiver =
-                reportingClientConfig.reportingNotificationReceiver();
-        receiver.addListener(new ReportListener() {
-            @Override
-            public void onReportGenerated(long reportId) {
-                final String reportIdStr = Long.toString(reportId);
-                websocketConfig.websocketHandler()
-                        .broadcastReportNotification(ReportNotification.newBuilder()
-                                .setReportId(reportIdStr)
-                                .setReportStatusNotification(ReportStatusNotification.newBuilder()
-                                        .setDescription(reportIdStr)
-                                        .setStatus(ReportStatus.GENERATED))
-                                .build());
-            }
-
-            @Override
-            public void onReportFailed(long reportId, @Nonnull String failureDescription) {
-                // TODO add some specific websocket notifications
-                final String reportIdStr = Long.toString(reportId);
-                websocketConfig.websocketHandler()
-                        .broadcastReportNotification(ReportNotification.newBuilder()
-                                .setReportId(reportIdStr)
-                                .setReportStatusNotification(ReportStatusNotification.newBuilder()
-                                        .setDescription(reportIdStr)
-                                        .setStatus(ReportStatus.GENERATED))
-                                .build());
-            }
-        });
-        return receiver;
     }
 
     @Bean

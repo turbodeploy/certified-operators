@@ -13,7 +13,7 @@
     <artifactId>protoc-plugin-common</artifactId>
 
     <properties>
-        <google.java.format.version>1.1</google.java.format.version>
+        <google.java.format.version>1.7</google.java.format.version>
         <google.common.protos.version>1.9.0</google.common.protos.version>
     </properties>
 

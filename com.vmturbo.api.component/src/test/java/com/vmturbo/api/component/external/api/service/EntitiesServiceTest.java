@@ -111,7 +111,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformati
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.reporting.api.protobuf.ReportingMoles.ReportingServiceMole;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
@@ -142,7 +141,6 @@ public class EntitiesServiceTest {
     private final ActionsServiceMole actionsService = spy(new ActionsServiceMole());
     private final GroupServiceMole groupService = spy(new GroupServiceMole());
     private final StatsHistoryServiceMole historyService = spy(new StatsHistoryServiceMole());
-    private final ReportingServiceMole reportingService = spy(new ReportingServiceMole());
     private final RepositoryServiceMole repositoryService = spy(new RepositoryServiceMole());
     private final SupplyChainFetcherFactory supplyChainFetcherFactory =
             mock(SupplyChainFetcherFactory.class);
@@ -169,8 +167,7 @@ public class EntitiesServiceTest {
     // gRPC servers
     @Rule
     public final GrpcTestServer grpcServer =
-        GrpcTestServer.newServer(actionsService, groupService, historyService, reportingService,
-            repositoryService, policyService, entityCustomTagsService, costService);
+        GrpcTestServer.newServer(actionsService, groupService, historyService, repositoryService, policyService, entityCustomTagsService, costService);
     private final ThinTargetCache thinTargetCache = mock(ThinTargetCache.class);
 
     // a sample topology ST -> PM -> VM
