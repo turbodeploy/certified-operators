@@ -1,11 +1,14 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static org.junit.Assert.assertEquals;
+
 import java.sql.SQLException;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -116,6 +119,32 @@ public class ExecutedActionsChangeWindowDaoImplTest extends MultiDbTestBase {
                 createExecutedActionsChangeWindow(1001L, 102L,
                         LocalDateTime.of(2022, 3, 17, 10, 30)));
         Assert.assertEquals(expectedChangeWindows, changeWindows);
+    }
+
+    /**
+     * Tests persisting of succeeded cloud workload actions to the executed_actions_change_window table.
+     *
+     * @throws Exception if exception occurred
+     */
+    @Test
+    public void testPersistingSucceededActionChangeWindow() throws Exception {
+        executedActionsChangeWindowDao.persistExecutedActionsChangeWindow(1L,
+                2L,
+                TimeUtil.localTimeToMillis(LocalDateTime.of(2022, 4, 8, 10, 30), Clock.systemUTC()));
+        final List<Long> entityOids = new ArrayList<>();
+        entityOids.add(2L);
+        Map<Long, List<ExecutedActionsChangeWindow>> persistedRecords = executedActionsChangeWindowDao
+                .getExecutedActionsChangeWindowMap(entityOids);
+
+        final List<ExecutedActionsChangeWindow> persistedRecordList = persistedRecords.get(2L);
+        assertEquals(1, persistedRecordList.size());
+        Iterator<ExecutedActionsChangeWindow> persistedRecordListIterator = persistedRecordList.iterator();
+        while (persistedRecordListIterator.hasNext()) {
+            final ExecutedActionsChangeWindow executedActionsChangeWindow = persistedRecordListIterator.next();
+            assertEquals(1L, executedActionsChangeWindow.getActionOid());
+            assertEquals(2L, executedActionsChangeWindow.getEntityOid());
+            assertEquals(TimeUtil.localTimeToMillis(LocalDateTime.of(2022, 4, 8, 10, 30), Clock.systemUTC()), executedActionsChangeWindow.getStartTime());
+        }
     }
 
     private ExecutedActionsChangeWindowRecord createRecord(long actionOid, long entityOid,
