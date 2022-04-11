@@ -840,7 +840,17 @@ public class GroupMapper {
             .collect(Collectors.toList());
         groupApiDTO.setMemberUuidList(memberUuids);
         groupApiDTO.setMembersCount(memberUuids.size());
-        return groupApiDTO;
+        if(groupAndMembers.group().hasOrigin() && groupAndMembers.group().getOrigin().hasDiscovered()) {
+            String vendorId = groupAndMembers.group().getOrigin().getDiscovered().getSourceIdentifier();
+            Optional<ThinTargetInfo> targetIdInfo = groupAndMembers.group()
+                    .getOrigin().getDiscovered()
+                    .getDiscoveringTargetIdList().stream().findAny().flatMap(thinTargetCache::getTargetInfo);
+            if (targetIdInfo.isPresent() && !StringUtils.isEmpty(vendorId)) {
+                groupApiDTO.setVendorIds(
+                        ImmutableMap.of(targetIdInfo.get().displayName(), vendorId));
+            }
+        }
+        return groupApiDTO; 
     }
 
     private BillingFamilyApiDTO extractBillingFamilyInfo(GroupAndMembers groupAndMembers)
