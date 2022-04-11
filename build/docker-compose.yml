@@ -547,35 +547,6 @@ services:
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${PLAN_ORCHESTRATOR_MEM_LIMIT_BYTE}
 
-  reporting:
-    extends:
-      file: common-services.yml
-      service: dev-component
-    image: turbonomic/com.vmturbo.reports.component:${XL_VERSION}
-    ports:
-      - "${REPORTING_PORT}"
-      - "${REPORTING_DEBUG_PORT}"
-    depends_on:
-      - db
-      - clustermgr
-      - auth
-    volumes:
-      - reporting:/home/turbonomic/data
-    environment:
-      component_type: reporting
-      instance_id: reporting-1
-      report.files.output.dir: /home/turbonomic/data
-      kafkaServers: ${KAFKA_SERVERS}
-      JAVA_COMPONENT_OPTS: "${REPORTING_SYSTEM_PROPERTIES}"
-      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
-      JAVA_DEBUG: "${REPORTING_DEBUG}${DEBUG_ALL}"
-      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
-      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
-      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
-      JAVA_OPTS: "${ALL_JAVA_OPTS}"
-      JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${REPORTING_MEM_LIMIT_BYTE}
-
   cost:
     extends:
       file: common-services.yml
