@@ -3,7 +3,7 @@ package com.vmturbo.history.listeners;
 import static com.vmturbo.history.db.jooq.JooqUtils.getDoubleField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 import static com.vmturbo.history.schema.TimeFrame.HOUR;
-import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.core.Is.isA;
 import static org.junit.Assert.assertEquals;
@@ -127,7 +127,7 @@ public abstract class RollupTestBase extends MultiDbTestBase {
         loaders = new SimpleBulkLoaderFactory(dsl, config, partmanHelper,
                 () -> Executors.newSingleThreadExecutor());
         rollupProcessor = new RollupProcessor(dsl, dsl, partmanHelper,
-                () -> Executors.newFixedThreadPool(8));
+                () -> Executors.newFixedThreadPool(8), 100, 10_000, 10_000, 0);
         IdentityGenerator.initPrefix(1L);
         RetentionPolicy.init(dsl);
     }
@@ -341,11 +341,11 @@ public abstract class RollupTestBase extends MultiDbTestBase {
             for (int i = 0; i < n; i++) {
                 loader.insert(get());
                 loaders.flushAll();
-                rollupProcessor.performHourRollups(singletonList(table),
+                rollupProcessor.performHourRollups(singletonMap(table, 1L),
                         aggregators.get(HOUR).getLatestSnapshot());
             }
             if (lastInHour) {
-                rollupProcessor.performDayMonthRollups(singletonList(table),
+                rollupProcessor.performDayMonthRollups(singletonMap(table, 1L),
                         aggregators.get(HOUR).getLatestSnapshot(), false);
             }
         }

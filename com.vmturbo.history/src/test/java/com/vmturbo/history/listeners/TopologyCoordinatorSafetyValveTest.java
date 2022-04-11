@@ -10,7 +10,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyList;
+import static org.mockito.Matchers.anyMap;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
@@ -231,7 +231,7 @@ public class TopologyCoordinatorSafetyValveTest {
         // because of the safety valve, with the primary topology in Processed state and the
         // projected topology in Missed state.
         Thread.sleep(5000);
-        verify(rollupProcessor, times(1)).performHourRollups(anyList(), any(Instant.class));
+        verify(rollupProcessor, times(1)).performHourRollups(anyMap(), any(Instant.class));
         assertThat(procStatusSpy.getIngestion(Projected, info).getState(), is(Missed));
     }
 }

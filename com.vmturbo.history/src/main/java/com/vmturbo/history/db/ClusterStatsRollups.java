@@ -4,6 +4,7 @@ import java.sql.Timestamp;
 
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.Query;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 
@@ -52,7 +53,17 @@ public class ClusterStatsRollups {
      * @param dsl {@link DSLContext} with access to the database
      */
     public void execute(DSLContext dsl) {
-        new UpsertBuilder().withSourceTable(source).withTargetTable(rollup)
+        getQuery(dsl).execute();
+    }
+
+    /**
+     * Build an UPSERT statement and return the resulting jOOQ query object, ready to execute.
+     *
+     * @param dsl DSLContext to use when building (and ultimately executing) the upsert
+     * @return the jOOQ Query object representing the UPSERT
+     */
+    public Query getQuery(DSLContext dsl) {
+        return new UpsertBuilder().withSourceTable(source).withTargetTable(rollup)
                 .withInsertFields(fRecordedOn, fInternalName, fPropertyType, fPropertySubtype,
                         fValue, fSamples)
                 .withInsertValue(fRecordedOn, DSL.inline(rollupTime))
@@ -61,8 +72,7 @@ public class ClusterStatsRollups {
                         UpsertBuilder.getSameNamedField(fRecordedOn, source).eq(snapshotTime))
                 .withUpdateValue(fValue, UpsertBuilder.avg(fSamples))
                 .withUpdateValue(fSamples, UpsertBuilder::sum)
-                .getUpsert(dsl)
-                .execute();
+                .getUpsert(dsl);
     }
 
     private void createFields() {

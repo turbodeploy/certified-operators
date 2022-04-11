@@ -23,17 +23,17 @@ import org.apache.logging.log4j.Logger;
  * Timer utility for use in processing pipelines that are completed in chunks.
  *
  * <p>Stages are identified by names. Activating a stage opens a new timing segment for that stage,
- * and automatically closes whatever stage, if any, was active at that time. Thus, when processing
- * a chunk, one can activate stages as the processing progresses. Then the process is repeated on
- * the next chunk.</p>
+ * and automatically closes whatever stage, if any, was active at that time. Thus, when processing a
+ * chunk, one can activate stages as the processing progresses. Then the process is repeated on the
+ * next chunk.</p>
  *
  * <p>N.B. This class does not handle parallel chunk processing. That would probably be a very
  * useful enhancement.</p>
  *
- * <p>The timer is capable of logging a variety of timing reports. Most typically, the STAGE_SUMMARY
- * style is used at the end of pipeline processing. It sums the accumulated segments for each stage
- * and reports the total time spent for each stage (in the order the stages were initially
- * activated), as well as an overall processing duration.</p>
+ * <p>The timer is capable of logging a variety of timing reports. Most typically, the
+ * STAGE_SUMMARY style is used at the end of pipeline processing. It sums the accumulated segments
+ * for each stage and reports the total time spent for each stage (in the order the stages were
+ * initially activated), as well as an overall processing duration.</p>
  *
  * <p>All timings represent wall-clock time.</p>
  */
@@ -54,7 +54,7 @@ public class MultiStageTimer {
     // that maintains insertion order, unfortunately. We need to synchronize when iterating
     private final Map<String, StageTimer> timers = new LinkedHashMap<>();
     private StageTimer currentTimer = null;
-
+    private final Instant createdAt;
 
     /**
      * Create a new timer.
@@ -63,6 +63,7 @@ public class MultiStageTimer {
      */
     public MultiStageTimer(@Nullable Logger logger) {
         this.logger = logger;
+        this.createdAt = Instant.now();
     }
 
     /**
@@ -92,7 +93,6 @@ public class MultiStageTimer {
         currentTimer = timer;
         return this;
     }
-
 
     /**
      * Activate the current stage, if there is one and it's not already active.
@@ -160,9 +160,47 @@ public class MultiStageTimer {
     }
 
     /**
-     * Get the total elapsed time for all contained timers.
-     * If there are multiple timers running asynchronously, this will return the total elapsed
-     * time - which may be greater than the "real" elapsed time.
+     * Generate new stage with the given name, and create a segment on that stage representing the
+     * elapsed time since creation of this timer.
+     *
+     * <p>This is typically used when logging a final timer report, in order to include elapsed
+     * time in that report. The time reported on the top line can differ from elapsed time for a
+     * variety of reasons, including parallel execution of multiple threads (where top line duration
+     * may count a given real-time span multiple times), use of async timers, and pausing of the
+     * overall timer.</p>
+     *
+     * <p>In most cases, the stage will be new; if it is not, the elapsed time will simply add to
+     * whatever time has accumulated under that stage up to this point.</p>
+     *
+     * @param stage name for elapsed-time stage
+     * @return this timer
+     */
+    public MultiStageTimer withElapsedSegment(String stage) {
+        addSegment(stage, Duration.between(createdAt, Instant.now()));
+        return this;
+    }
+
+    /**
+     * Add a new segment to the given timer stage, creating the stage if needed.
+     *
+     * <p>The new segment will have a start time corresponding to current time, and a stop
+     * time offset from the start time by the given duration.</p>
+     *
+     * @param stage    name of stage to receive new segmenet
+     * @param duration duration of new segment
+     */
+    public void addSegment(String stage, Duration duration) {
+        final StageTimer timer = getTimer(stage);
+        Instant now = Instant.now();
+        Segment segment = new Segment(now);
+        segment.stop(now.plus(duration));
+        timer.addSegment(segment);
+    }
+
+    /**
+     * Get the total elapsed time for all contained timers. If there are multiple timers running
+     * asynchronously, this will return the total elapsed time - which may be greater than the
+     * "real" elapsed time.
      *
      * @param timeUnit The time unit.
      * @return The total elapsed time.
@@ -170,9 +208,9 @@ public class MultiStageTimer {
     public long totalElapsed(@Nonnull final TimeUnit timeUnit) {
         synchronized (timers) {
             return timeUnit.convert(timers.values().stream()
-                .map(StageTimer::getTotalDuration)
-                .mapToLong(Duration::toMillis)
-                .sum(), TimeUnit.MILLISECONDS);
+                    .map(StageTimer::getTotalDuration)
+                    .mapToLong(Duration::toMillis)
+                    .sum(), TimeUnit.MILLISECONDS);
         }
     }
 
@@ -180,8 +218,8 @@ public class MultiStageTimer {
      * Create a timer that will be asynchronously added as a segment to a given timer stage.
      *
      * <p>This is clumsier than it ought to be. It's used in cases where the activity to be
-     * timed is taking place in a separate thread, and the clumsiness comes in isolating it
-     * from starting and stopping of stages.</p>
+     * timed is taking place in a separate thread, and the clumsiness comes in isolating it from
+     * starting and stopping of stages.</p>
      *
      * <p>When the async timer is closed, the duration of its existance is added as a segment
      * for the indicated stage.</p>
@@ -274,7 +312,7 @@ public class MultiStageTimer {
      */
     @Nonnull
     public MultiStageTimer log(@Nonnull Level level, @Nonnull String message,
-                               @Nonnull Detail detail) {
+            @Nonnull Detail detail) {
         switch (detail) {
             case OVERALL_SUMMARY:
                 logTimerOverall(level, message);
@@ -302,7 +340,8 @@ public class MultiStageTimer {
      */
     public void visit(@Nonnull final TimerVisitor visitor) {
         timers.forEach((stageName, stageTimer) -> {
-            visitor.visitStage(stageName, stageTimer.state == TimerState.STOPPED, stageTimer.getTotalDuration().toMillis());
+            visitor.visitStage(stageName, stageTimer.state == TimerState.STOPPED,
+                    stageTimer.getTotalDuration().toMillis());
         });
     }
 
@@ -313,8 +352,8 @@ public class MultiStageTimer {
         /**
          * This method will be called for every stage in the timer.
          *
-         * @param stageName The name of the stage.
-         * @param stopped True if the timer for that stage is stopped.
+         * @param stageName       The name of the stage.
+         * @param stopped         True if the timer for that stage is stopped.
          * @param totalDurationMs The total duration for the stage.
          */
         void visitStage(@Nonnull String stageName, boolean stopped, long totalDurationMs);
@@ -330,7 +369,7 @@ public class MultiStageTimer {
      */
     @Nonnull
     private MultiStageTimer logStage(@Nonnull Level level, @Nonnull String message,
-                                     @Nonnull Detail detail) {
+            @Nonnull Detail detail) {
         if (currentTimer != null) {
             switch (detail) {
                 case OVERALL_SUMMARY:
@@ -371,12 +410,12 @@ public class MultiStageTimer {
     }
 
     private void logTimerStageDetails(@Nonnull Level level, @Nonnull String message,
-                                      @Nonnull StageTimer timer) {
+            @Nonnull StageTimer timer) {
         final String details = timer.formatSegmentDurations();
         if (logger != null) {
             logger.log(level,
-                message + " {} [{}]", timer.getName(),
-                formatDuration(timer.getTotalDuration()), details);
+                    message + " {} [{}]", timer.getName(),
+                    formatDuration(timer.getTotalDuration()), details);
         }
     }
 
@@ -391,29 +430,29 @@ public class MultiStageTimer {
     private void logTimerSegmentDetails(@Nonnull Level level, @Nonnull StageTimer timer) {
         if (logger != null) {
             logger.log(level, "  Stage {}: {}",
-                timer.getName(), formatDuration(timer.getTotalDuration()));
+                    timer.getName(), formatDuration(timer.getTotalDuration()));
         }
         logSegmentDetails(level, 4, timer.getSegments());
     }
 
     private void logStageOverall(@Nonnull Level level, @Nonnull String message,
-                                 @Nonnull StageTimer timer) {
+            @Nonnull StageTimer timer) {
         if (logger != null) {
             logger.log(level, message + " {}",
-                timer.getName(), formatDuration(timer.getTotalDuration()));
+                    timer.getName(), formatDuration(timer.getTotalDuration()));
         }
     }
 
     private void logStageDetails(@Nonnull Level level, @Nonnull String message,
-                                 @Nonnull StageTimer timer) {
+            @Nonnull StageTimer timer) {
         if (logger != null) {
             logger.log(level, "{}: {} [{}]}", message, timer.getTotalDuration(),
-                timer.formatSegmentDurations());
+                    timer.formatSegmentDurations());
         }
     }
 
     private void logSegmentDetails(@Nonnull Level level, int indent,
-                                   @Nonnull Collection<Segment> segments) {
+            @Nonnull Collection<Segment> segments) {
         for (Segment segment : segments) {
             logSegmentDetails(level, 4, segment);
         }
@@ -422,7 +461,7 @@ public class MultiStageTimer {
     private void logSegmentDetails(@Nonnull Level level, int indent, @Nonnull Segment segment) {
         if (logger != null) {
             logger.log(level, "{}- {} [{} => {}]", StringUtils.repeat(' ', indent),
-                formatDuration(segment.getDuration()), segment.getStart(), segment.getStop());
+                    formatDuration(segment.getDuration()), segment.getStart(), segment.getStop());
         }
     }
 
@@ -435,14 +474,14 @@ public class MultiStageTimer {
     @Nonnull
     private synchronized Duration getTotalTime() {
         return timers.values().stream()
-            .map(StageTimer::getTotalDuration)
-            .reduce(Duration.ZERO, Duration::plus);
+                .map(StageTimer::getTotalDuration)
+                .reduce(Duration.ZERO, Duration::plus);
     }
 
     @Nonnull
     private static String formatDuration(@Nonnull Duration duration) {
         long millis = TimeUnit.SECONDS.toMillis(duration.getSeconds())
-            + TimeUnit.NANOSECONDS.toMillis(duration.getNano());
+                + TimeUnit.NANOSECONDS.toMillis(duration.getNano());
         return DurationFormatUtils.formatDuration(millis, "H:mm:ss.SSS");
     }
 
@@ -528,10 +567,10 @@ public class MultiStageTimer {
         @Nonnull
         String formatSegmentDurations() {
             return segments.stream()
-                .map(Segment::getDuration)
-                .filter(Objects::nonNull) // skip open segments
-                .map(MultiStageTimer::formatDuration)
-                .collect(Collectors.joining(", "));
+                    .map(Segment::getDuration)
+                    .filter(Objects::nonNull) // skip open segments
+                    .map(MultiStageTimer::formatDuration)
+                    .collect(Collectors.joining(", "));
         }
     }
 

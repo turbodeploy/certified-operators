@@ -180,6 +180,26 @@ public class IngestersConfig {
     @Value("${latestRetentionMinutes:120}")
     private int latestRetentionMinutes;
 
+    @Value("${rollup.MaxBatchSize:25000}")
+    private int rollupMaxBatchSize;
+
+    /**
+     * This timeout value is scaled by the number of batches to arrive at an overall timeout for
+     * all batches in the rollup, which should make it more likely that a single default value will
+     * be sensible across a wide range of topology sizes. It is not a "per-batch" value in the
+     * sense of being applied to each batch individually; only the scaled value is used to time
+     * the overall rollup operation.
+     */
+    @Value("${rollup.TimeoutMsecForBatchSize:5000}")
+    private long rollupTimeoutMsecForBatchSize;
+
+
+    @Value("${rollup.minTimeoutMsec:60000}")
+    private long rollupMinTimeoutMsec;
+
+    @Value("${rollupMaxBatchRetry:2}")
+    private int rollupMaxBatchRetry;
+
     @Bean
     MarketClientConfig marketClientConfig() {
         return new MarketClientConfig();
@@ -444,7 +464,8 @@ public class IngestersConfig {
         try {
             return new RollupProcessor(
                     dbAccessConfig.dsl(), dbAccessConfig.unpooledDsl(), partmanHelper(),
-                    dbAccessConfig.bulkLoaderThreadPoolSupplier());
+                    dbAccessConfig.bulkLoaderThreadPoolSupplier(), rollupMaxBatchSize,
+                    rollupTimeoutMsecForBatchSize, rollupMinTimeoutMsec, rollupMaxBatchRetry);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();

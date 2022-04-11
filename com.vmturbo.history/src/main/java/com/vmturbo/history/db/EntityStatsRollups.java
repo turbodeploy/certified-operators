@@ -5,11 +5,14 @@ import java.util.Optional;
 
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.Query;
+import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.jooq.JooqUtils;
+import com.vmturbo.history.listeners.RollupProcessor.RollupType;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.sql.utils.jooq.UpsertBuilder;
 
@@ -28,6 +31,7 @@ public class EntityStatsRollups {
     private final Timestamp rollupTime;
     private final String low;
     private final String high;
+    private final RollupType rollupType;
     private Field<Timestamp> fSnapshotTime;
     private Field<String> fUuid;
     private Field<String> fProducerUuid;
@@ -52,15 +56,17 @@ public class EntityStatsRollups {
      * @param rollup       table into which rollup data will be written
      * @param snapshotTime timestamp of source records to participate
      * @param rollupTime   timestamp of rollup records
+     * @param rollupType   type of rollup (hourly, daily, monthly)
      * @param low          lower bound for source rollup keys to participate in this operation
      * @param high         upper bound for source rollup keys to participate in this operation
      */
     public EntityStatsRollups(Table<?> source, Table<?> rollup, Timestamp snapshotTime,
-            Timestamp rollupTime, String low, String high) {
+            Timestamp rollupTime, RollupType rollupType, String low, String high) {
         this.source = source;
         this.rollup = rollup;
         this.snapshotTime = snapshotTime;
         this.rollupTime = rollupTime;
+        this.rollupType = rollupType;
         this.low = low;
         this.high = high;
         computeFields();
@@ -72,7 +78,17 @@ public class EntityStatsRollups {
      * @param dsl {@link DSLContext} with access to the database
      */
     public void execute(DSLContext dsl) {
-        new UpsertBuilder().withSourceTable(source).withTargetTable(rollup)
+        getUpsert(dsl).execute();
+    }
+
+    /**
+     * Build an UPSERT statement and return the resulting jOOQ query object, ready to execute.
+     *
+     * @param dsl DSLContext to use when building (and ultimately executing) the upsert
+     * @return the jOOQ Query object representing the UPSERT
+     */
+    public Query getUpsert(DSLContext dsl) {
+        return new UpsertBuilder().withSourceTable(source).withTargetTable(rollup)
                 .withInsertFields(fSnapshotTime, fUuid, fProducerUuid,
                         fPropertyType, fPropertySubtype, fRelation, fCommodityKey,
                         fCapacity, fEffectiveCapacity, fMaxValue, fMinValue, fAvgValue,
@@ -80,18 +96,32 @@ public class EntityStatsRollups {
                 .withInsertValue(fSnapshotTime, DSL.inline(rollupTime))
                 .withInsertValue(fSamples, fSourceSamples)
                 .withInsertValue(fRollupKey, fSourceKey)
+                // for hourly rollups we need to guard against the possibilities of duplicates
+                // hte latest table, which can happen if an ingestion is restarted after a crash
+                .withDistinctSelect(rollupType == RollupType.BY_HOUR)
                 .withSourceCondition(
                         UpsertBuilder.getSameNamedField(fSnapshotTime, source).eq(snapshotTime))
                 .withSourceCondition(low != null ? fSourceKey.ge(low) : DSL.trueCondition())
                 .withSourceCondition(high != null ? fSourceKey.le(high) : DSL.trueCondition())
+                // we have an index on the first 8 chars of the hour_key, which is in the form of
+                // a MariaDB "partial index" or a Postgres "expression index". For MariaDB, that
+                // index will be used based on the above conditions. But for Postgres we must use
+                // a matching expression in our query to enable use of the expression index. The
+                // following conditions do that but do not affect row selection since their truth
+                // is implied by truth of the conditions above.
+                .withSourceCondition(dsl.dialect() == SQLDialect.POSTGRES && low != null
+                                     ? DSL.left(fSourceKey, 8).ge(low.substring(0, 8))
+                                     : DSL.trueCondition())
+                .withSourceCondition(dsl.dialect() == SQLDialect.POSTGRES && high != null
+                                     ? DSL.left(fSourceKey, 8).le(high.substring(0, 8))
+                                     : DSL.trueCondition())
                 .withUpdateValue(fCapacity, UpsertBuilder::max)
                 .withUpdateValue(fEffectiveCapacity, UpsertBuilder::max)
                 .withUpdateValue(fMaxValue, UpsertBuilder::max)
                 .withUpdateValue(fMinValue, UpsertBuilder::min)
                 .withUpdateValue(fAvgValue, UpsertBuilder.avg(fSamples))
                 .withUpdateValue(fSamples, UpsertBuilder::sum)
-                .getUpsert(dsl)
-                .execute();
+                .getUpsert(dsl);
     }
 
     private void computeFields() {

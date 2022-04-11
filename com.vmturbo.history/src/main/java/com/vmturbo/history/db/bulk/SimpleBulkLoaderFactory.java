@@ -85,15 +85,17 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
 
     /**
      * Create a new instance.
-     *  @param dsl           base db utilities
-     * @param defaultConfig config to be used by default when creating inserters
-     * @param partmanHelper for integration with pg_partman postgres extension if needed
-     * @param executorServiceSupplier      executor service to manage concurrent statement executions
+     *
+     * @param dsl                     base db utilities
+     * @param defaultConfig           config to be used by default when creating inserters
+     * @param partmanHelper           for integration with pg_partman postgres extension if needed
+     * @param executorServiceSupplier executor service to manage concurrent statement executions
      */
     public SimpleBulkLoaderFactory(final @Nonnull DSLContext dsl,
             final @Nonnull BulkInserterConfig defaultConfig, PartmanHelper partmanHelper,
             final @Nonnull Supplier<ExecutorService> executorServiceSupplier) {
-        this(dsl, new BulkInserterFactory(dsl, defaultConfig, executorServiceSupplier), partmanHelper);
+        this(dsl, new BulkInserterFactory(dsl, defaultConfig, executorServiceSupplier),
+                partmanHelper);
     }
 
     /**
@@ -295,25 +297,16 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
                 final Table<R> outTable) {
             Builder<String, Object> rollupKeyMap = ImmutableMap.builder();
 
-            if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-                if (inTable.equals(MARKET_STATS_LATEST)) {
+            if (inTable.equals(MARKET_STATS_LATEST)) {
+                if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
                     // market-stats gets a key in non-legacy scenarios
                     String key = getMarketStatsKey(record);
                     rollupKeyMap.put(MARKET_STATS_LATEST.TIME_SERIES_KEY.getName(), key);
-                } else {
-                    // and entity-stats tables only get a single key stored in latest.hour_key
-                    String key = getEntityStatsKey(record, inTable, null);
-                    rollupKeyMap.put(HOUR_KEY_FIELD_NAME, key);
                 }
-            } else if (inTable != MARKET_STATS_LATEST) {
-                // entity stats tables get hour_key, day_key, and month_key that include
-                // a timestamp
-                rollupKeyMap.put(HOUR_KEY_FIELD_NAME,
-                        getEntityStatsKey(record, inTable, HOUR_KEY_FIELD_NAME));
-                rollupKeyMap.put(DAY_KEY_FIELD_NAME,
-                        getEntityStatsKey(record, inTable, DAY_KEY_FIELD_NAME));
-                rollupKeyMap.put(MONTH_KEY_FIELD_NAME,
-                        getEntityStatsKey(record, inTable, MONTH_KEY_FIELD_NAME));
+            } else {
+                // and entity-stats tables only get a single key stored in latest.hour_key
+                String key = getEntityStatsKey(record, inTable, null);
+                rollupKeyMap.put(HOUR_KEY_FIELD_NAME, key);
             }
             record.fromMap(rollupKeyMap.build());
             return Optional.of(record);

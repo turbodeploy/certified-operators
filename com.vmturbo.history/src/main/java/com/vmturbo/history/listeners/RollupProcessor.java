@@ -19,8 +19,8 @@ import static org.jooq.impl.DSL.max;
 import static org.jooq.impl.DSL.select;
 import static org.jooq.impl.DSL.selectFrom;
 
-import java.sql.Connection;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -29,35 +29,50 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Functions;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.DatePart;
+import org.jooq.Field;
+import org.jooq.InsertReturningStep;
+import org.jooq.Query;
+import org.jooq.Record;
+import org.jooq.ResultQuery;
 import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.MultiStageTimer;
-import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
 import com.vmturbo.history.db.ClusterStatsRollups;
 import com.vmturbo.history.db.EntityStatsRollups;
@@ -68,7 +83,6 @@ import com.vmturbo.history.listeners.PartmanHelper.PartitionProcessingException;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.RetentionUtil;
 import com.vmturbo.history.schema.abstraction.Routines;
-import com.vmturbo.history.schema.abstraction.routines.EntityStatsRollup;
 import com.vmturbo.history.schema.abstraction.routines.MarketAggregate;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsByDay;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsByHour;
@@ -83,19 +97,12 @@ import com.vmturbo.sql.utils.jooq.PurgeProcedure;
 public class RollupProcessor {
     private static final Logger logger = LogManager.getLogger(RollupProcessor.class);
 
-    // maximum time we'll wait for a rollup task (for a single entity-type shard) to complete
-    private static final long ROLLUP_TIMEOUT_MINS = 20;
     // maximum time we'll wait for a repartitioning task (for a single table) to complete
     private static final long REPARTITION_TIMEOUT_SECS = 60;
-    // per-table parallelism for entity-stats rollups
-    private static final int TASKS_PER_ENTITY_STATS_ROLLUP = 8;
 
     // various strings related to stats related tables and stored procs
     private static final String MARKET_TABLE_PREFIX = "market";
     private static final String MARKET_ROLLUP_PROC = new MarketAggregate().getName();
-    private static final String ENTITY_ROLLUP_PROC = new EntityStatsRollup().getName();
-    private static final String CLUSTER_STATS_ROLLUP_PROC = "cluster_stats_rollup";
-    private static final String CLUSTER_TABLE_PREFIX = "cluster";
     /**
      * If the most recent last_discovered_date column value for a Volume OID is older than (current
      * date - VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD), then all records related to this Volume OID
@@ -104,46 +111,67 @@ public class RollupProcessor {
      * have been deleted from the environment.
      */
     public static final int VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD = 14;
+    private static final int MISSING_RECORD_COUNT = 1_000_000;
 
     private final ExecutorService executorService;
     private final DSLContext dsl;
     private final DSLContext unpooledDsl;
     private final PartmanHelper partmanHelper;
+    private final int maxBatchSize;
+    private final long timeoutMsecForBatchSize;
+    private final long minTimeoutMsec;
+    private final int maxBatchRetry;
 
     /**
      * Create a new instance.
-     *  @param dsl             DB access for general use
-     * @param unpooledDsl     DB access for long-running operations
-     * @param partmanHelper   for integration with the pg_partman extension if needed
+     *
+     * @param dsl                     DB access for general use
+     * @param unpooledDsl             DB access for long-running operations
+     * @param partmanHelper           for integration with the pg_partman extension if needed
      * @param executorServiceSupplier thread pool to run individual tasks
+     * @param maxBatchSize            maximum # of records in a single batch
+     * @param timeoutMsecForBatchSize a timeout duration that will be multiplied by the # of batches
+     *                                to provide a time limit for the overall rollup operation
+     * @param minTimeoutMsec          minimum timeout for overall rollup, so small topologies don't
+     *                                end up with an insufficient time to complete reliably
+     * @param maxBatchRetry           number of times a failed batch should be retried. Retries do
      */
-    public RollupProcessor(DSLContext dsl, DSLContext unpooledDsl,
-            PartmanHelper partmanHelper, Supplier<ExecutorService> executorServiceSupplier) {
+    public RollupProcessor(DSLContext dsl, DSLContext unpooledDsl, PartmanHelper partmanHelper,
+            Supplier<ExecutorService> executorServiceSupplier, int maxBatchSize,
+            long timeoutMsecForBatchSize, long minTimeoutMsec, int maxBatchRetry) {
         this.dsl = dsl;
         this.unpooledDsl = unpooledDsl;
         this.partmanHelper = partmanHelper;
         this.executorService = executorServiceSupplier.get();
+        this.maxBatchSize = maxBatchSize;
+        this.timeoutMsecForBatchSize = timeoutMsecForBatchSize;
+        this.minTimeoutMsec = minTimeoutMsec;
+        this.maxBatchRetry = maxBatchRetry;
     }
 
     /**
      * Perform hourly rollup processing for all tables that were active in ingestions that were
      * performed for the given snapshot time.
      *
-     * @param tables       tables that were populated by ingestions for the given snapshot
+     * @param tableCountss tables that were populated by ingestions for the given snapshot, with
+     *                     record counts
      * @param msecSnapshot snapshot time of contributing ingestions
      */
 
-    void performHourRollups(@Nonnull List<Table> tables, @Nonnull Instant msecSnapshot) {
+    void performHourRollups(@Nonnull Map<Table<?>, Long> tableCountss,
+            @Nonnull Instant msecSnapshot) {
         Timestamp snapshot = dsl.dialect() == SQLDialect.POSTGRES
-                             // postgres schmea has msec-granularity timestamps
+                             // postgres schema has msec-granularity timestamps
                              ? Timestamp.from(msecSnapshot)
                              : Timestamp.from(msecSnapshot.truncatedTo(ChronoUnit.SECONDS));
         MultiStageTimer timer = new MultiStageTimer(logger);
-        performRollups(tables, snapshot, RollupType.BY_HOUR, timer);
+        boolean complete = performRollups(tableCountss, snapshot, RollupType.BY_HOUR, timer);
         addAvailableTimestamps(snapshot, RollupType.BY_HOUR, HistoryVariety.ENTITY_STATS,
                 HistoryVariety.PRICE_DATA);
-        timer.stopAll().info(
-                String.format("Rollup Processing for %s", snapshot), Detail.STAGE_SUMMARY);
+        String incomplete = complete ? "" : "[INCOMPLETE]";
+        timer.stopAll().withElapsedSegment("Total Elapsed").info(
+                String.format("Hourly Rollup Processing for %s%s", snapshot, incomplete),
+                Detail.STAGE_SUMMARY);
     }
 
     /**
@@ -152,11 +180,12 @@ public class RollupProcessor {
      *
      * <p>This should be done after ingestions for the hour have all completed.</p>
      *
-     * @param tables       tables that participate in ingestions during the hour
+     * @param tableCounts  tables that participate in ingestions during the hour, with record
+     *                     counts
      * @param msecSnapshot instant from within the hour to roll up
      */
-    void performDayMonthRollups(final List<Table> tables, final Instant msecSnapshot) {
-        performDayMonthRollups(tables, msecSnapshot, true);
+    void performDayMonthRollups(final Map<Table<?>, Long> tableCounts, final Instant msecSnapshot) {
+        performDayMonthRollups(tableCounts, msecSnapshot, true);
     }
 
     /**
@@ -165,31 +194,39 @@ public class RollupProcessor {
      *
      * <p>This should be done after ingestions for the hour have all completed.</p>
      *
-     * @param tables       tables that participate in ingestions during the hour
+     * @param tableCounts  tables that participate in ingestions during the hour, with record
+     *                     counts
      * @param msecSnapshot instant from within the hour to roll up
      * @param doRetention  true to do retention processing after rollups
      */
-    void performDayMonthRollups(final List<Table> tables, final Instant msecSnapshot, boolean doRetention) {
+    void performDayMonthRollups(final Map<Table<?>, Long> tableCounts, final Instant msecSnapshot,
+            boolean doRetention) {
         Timestamp snapshot = Timestamp.from(msecSnapshot.truncatedTo(ChronoUnit.HOURS));
         MultiStageTimer timer = new MultiStageTimer(logger);
-        performRollups(tables, snapshot, RollupType.BY_DAY, timer);
-        addAvailableTimestamps(snapshot, RollupType.BY_DAY, HistoryVariety.ENTITY_STATS, HistoryVariety.PRICE_DATA);
-        performRollups(tables, snapshot, RollupType.BY_MONTH, timer);
-        addAvailableTimestamps(snapshot, RollupType.BY_MONTH, HistoryVariety.ENTITY_STATS, HistoryVariety.PRICE_DATA);
+        boolean complete = performRollups(tableCounts, snapshot, RollupType.BY_DAY, timer);
+        addAvailableTimestamps(snapshot, RollupType.BY_DAY, HistoryVariety.ENTITY_STATS,
+                HistoryVariety.PRICE_DATA);
+        complete = complete && performRollups(tableCounts, snapshot, RollupType.BY_MONTH, timer);
+        addAvailableTimestamps(snapshot, RollupType.BY_MONTH, HistoryVariety.ENTITY_STATS,
+                HistoryVariety.PRICE_DATA);
         if (doRetention) {
             performRetentionProcessing(timer);
         }
-        timer.stopAll().info(
-                String.format("Rollup Processing for %s", snapshot), Detail.STAGE_SUMMARY);
+        String incomplete = complete ? "" : "[INCOMPLETE]";
+        timer.stopAll().withElapsedSegment("Total Elapsed").info(
+                String.format("Daily/Monthly Rollup Processing for %s%s", snapshot, incomplete),
+                Detail.STAGE_SUMMARY);
     }
 
-    private void addAvailableTimestamps(Timestamp snapshot, RollupType rollupType, HistoryVariety... historyVarieties) {
+    private void addAvailableTimestamps(Timestamp snapshot, RollupType rollupType,
+            HistoryVariety... historyVarieties) {
         for (HistoryVariety historyVariety : historyVarieties) {
             addAvailableTimestamp(snapshot, rollupType, historyVariety);
         }
     }
 
-    private void addAvailableTimestamp(Timestamp snapshot, RollupType rollupType, HistoryVariety historyVariety) {
+    private void addAvailableTimestamp(Timestamp snapshot, RollupType rollupType,
+            HistoryVariety historyVariety) {
         Timestamp rollupTime = rollupType.getRollupTime(snapshot);
         Timestamp rollupStart = rollupType.getPeriodStart(snapshot);
         Timestamp rollupEnd = rollupType.getPeriodEnd(snapshot);
@@ -309,8 +346,8 @@ public class RollupProcessor {
             return;
         }
         timer.start("Repartitioning");
-        final Set<Table> tables = getTablesToRepartition();
-        final Stream<Pair<Table, Future<Void>>> tableFutures = tables.stream()
+        final Set<Table<? extends Record>> tables = getTablesToRepartition();
+        final Stream<Pair<Table<? extends Record>, Future<Void>>> tableFutures = tables.stream()
                 .sorted(Comparator.comparing(Table::getName))
                 .map(table -> Pair.of(table, scheduleRepartition(table)));
         tableFutures.forEach(tf -> {
@@ -328,8 +365,8 @@ public class RollupProcessor {
         });
     }
 
-    private Set<Table> getTablesToRepartition() {
-        final Set<Table> tables = new HashSet<>();
+    private Set<Table<? extends Record>> getTablesToRepartition() {
+        final Set<Table<? extends Record>> tables = new HashSet<>();
         tables.add(MarketStatsLatest.MARKET_STATS_LATEST);
         tables.add(MarketStatsByHour.MARKET_STATS_BY_HOUR);
         tables.add(MarketStatsByDay.MARKET_STATS_BY_DAY);
@@ -362,178 +399,232 @@ public class RollupProcessor {
         });
     }
 
-    private void performRollups(@Nonnull final List<Table> tables,
+    private boolean performRollups(@Nonnull final Map<Table<?>, Long> tableCounts,
             final Timestamp snapshot, final RollupType rollupType, @Nonnull MultiStageTimer timer) {
         timer.start(rollupType.getLabel() + " Prep");
         // schedule all the task for execution in the thread pool
-        final List<Pair<Table, List<Future<Void>>>> tableFutures = new ArrayList<>();
-        List<Table> tablesToRollUp = tables.stream()
+        final List<RollupTask> tasks = new ArrayList<>();
+        List<Table<? extends Record>> tablesToRollUp = tableCounts.entrySet().stream()
+                .filter(e -> e.getValue() > 0)
+                .map(Entry::getKey)
                 .filter(rollupType::canRollup)
-                // no point performing a rollup if the source table is empty; this will often be
-                // the case when a customer topology contains no entities of a given type, and if
-                // a type shows up and later disappears, the source tables (latest + hourly) will
-                // return to empty state in about a week based on default retention settings, and
-                // we'll start skipping again when that happens
-                .filter(t -> dsl.fetchExists(rollupType.getSourceTable(t)))
                 .collect(Collectors.toList());
-        for (Table table : tablesToRollUp) {
+        CompletionService<RollupTask> cs = new ExecutorCompletionService<>(
+                this.executorService);
+        for (Table<? extends Record> table : tablesToRollUp) {
             try {
-                tableFutures.add(Pair.of(table, scheduleRollupTasks(table, rollupType, snapshot)));
+                tasks.addAll(scheduleRollupTasks(table, rollupType, snapshot, cs,
+                        tableCounts.get(table)));
             } catch (PartitionProcessingException e) {
                 logger.error("Failed to perform rollups for table {}", table, e);
             }
         }
         timer.stop();
+        // submit all the tasks after randomly shuffling them to reduce the likelihood of data gaps
+        // if we have chronic timeouts on rollups.
+        Collections.shuffle(tasks);
+        Map<Future<RollupTask>, RollupTask> futures = tasks.stream()
+                .collect(Collectors.toMap(RollupTask::submit, Functions.identity()));
         // now wait for each one to complete, and then we're done
-        waitForRollupTasks(tableFutures, rollupType, timer);
+        return waitForRollupTasks(cs, futures, rollupType, tableCounts, timer);
     }
 
-    private List<Future<Void>> scheduleRollupTasks(@Nonnull Table table,
-            @Nonnull RollupType rollupType, @Nonnull Timestamp snapshotTime)
+    private List<RollupTask> scheduleRollupTasks(
+            @Nonnull Table<? extends Record> table,
+            @Nonnull RollupType rollupType, @Nonnull Timestamp snapshotTime,
+            CompletionService<RollupTask> cs, Long recordCount)
             throws PartitionProcessingException {
         // Since CLUSTER is also part of EntityType, we need to first check CLUSTER_STATS_LATEST table.
         // Otherwise, entity stats roll up logic will be applied to cluster stats roll up.
         // TODO: improve the logic for cluster stats roll up
         if (table == CLUSTER_STATS_LATEST) {
-            return scheduleClusterStatsRollupTasks(table, rollupType, snapshotTime);
+            return scheduleClusterStatsRollupTasks(table, rollupType, snapshotTime,
+                    cs);
         } else if (EntityType.fromTable(table).isPresent()) {
-            return scheduleEntityStatsRollupTasks(
-                    table, rollupType, snapshotTime, TASKS_PER_ENTITY_STATS_ROLLUP);
+            return scheduleEntityStatsRollupTasks(table, rollupType, snapshotTime, recordCount,
+                    cs);
         } else if (table == MARKET_STATS_LATEST) {
-            return scheduleMarketStatsRollupTask(table, rollupType, snapshotTime);
+            return scheduleMarketStatsRollupTask(table, rollupType, snapshotTime,
+                    cs);
         }
         throw new IllegalArgumentException(
                 String.format("Cannot schedule rollup tasks for table: %s", table));
     }
 
-    private List<Future<Void>> scheduleEntityStatsRollupTasks(@Nonnull Table table,
-            @Nonnull RollupType rollupType,
-            @Nonnull Timestamp snapshotTime,
-            int numTasks) throws PartitionProcessingException {
-        Table source = rollupType.getSourceTable(table);
-        Table rollup = rollupType.getRollupTable(table);
+    private List<RollupTask> scheduleEntityStatsRollupTasks(
+            @Nonnull Table<? extends Record> table, @Nonnull RollupType rollupType,
+            @Nonnull Timestamp snapshotTime, long recordCount,
+            @Nonnull CompletionService<RollupTask> cs)
+            throws PartitionProcessingException {
+        Table<? extends Record> source = rollupType.getSourceTable(table);
+        Table<? extends Record> rollup = rollupType.getRollupTable(table);
         Timestamp rollupTime = rollupType.getRollupTime(snapshotTime);
         if (dsl.dialect() == SQLDialect.POSTGRES) {
             partmanHelper.prepareForInsertion(rollup, rollupTime);
         }
-        List<Future<Void>> futures = new ArrayList<>();
-        int lowBound = 0;
-        for (Integer highBound : getBoundaries(numTasks)) {
-            if (source == null || rollup == null) {
-                logger.warn("Source or rollup for table {} were missing", table.getName());
-                return futures;
-            }
-            String low = lowBound > 0 ? String.format("%x", lowBound) : null;
-            String high = highBound < 16 ? String.format("%x", highBound) : null;
-            futures.add(executorService.submit(() -> {
-                unpooledDsl.transaction(trans -> {
-                    trans.dsl().connection(conn ->
-                            conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED));
-                    if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-                        new EntityStatsRollups(source, rollup, snapshotTime, rollupTime, low, high)
-                                .execute(trans.dsl());
-                    } else {
-                        Routines.entityStatsRollup(trans, source.getName(), rollup.getName(),
-                                snapshotTime, rollupTime, low, high,
-                                (byte)(rollupType.isCopyHourKey() ? 1 : 0),
-                                (byte)(rollupType.isCopyDayKey() ? 1 : 0),
-                                (byte)(rollupType.isCopyMonthKey() ? 1 : 0),
-                                (byte)(rollupType.sourceHasSamples() ? 1 : 0));
-                    }
-                });
-                return null;
-            }));
+        List<RollupTask> tasks = new ArrayList<>();
+        if (source == null || rollup == null) {
+            logger.warn("Source or rollup for table {} were missing", table.getName());
+            return tasks;
+        }
+        List<Long> hiBounds = getBatchInnerBoundaries(recordCount);
+        hiBounds.add(-1L);
+        long lowBound = 0L;
+        for (long highBound : hiBounds) {
+            // we shift our non-negative bounds left one bit to occupy the sign bit, so we'll get
+            // hex strings in the full range rather than missing everything starting with 8-f
+            String low = lowBound > 0 ? String.format("%016x", lowBound << 1) : null;
+            String high = highBound > 0 ? String.format("%016x", highBound << 1) : null;
+            Query upsert = new EntityStatsRollups(
+                    source, rollup, snapshotTime, rollupTime, rollupType, low, high)
+                    .getUpsert(unpooledDsl);
+            RollupTask task = new RollupTask(table, upsert, cs);
+            tasks.add(task);
             lowBound = highBound;
         }
-        return futures;
+        return tasks;
     }
 
-    private List<Future<Void>> scheduleMarketStatsRollupTask(@Nonnull Table table,
-            @Nonnull RollupType rollupType, @Nonnull Timestamp snapshotTime) {
-        Table source = rollupType.getSourceTable(table);
-        Table rollup = rollupType.getRollupTable(table);
+    private List<RollupTask> scheduleMarketStatsRollupTask(
+            @Nonnull Table<? extends Record> table, @Nonnull RollupType rollupType,
+            @Nonnull Timestamp snapshotTime, @Nonnull CompletionService<RollupTask> cs) {
+        Table<? extends Record> source = rollupType.getSourceTable(table);
+        Table<? extends Record> rollup = rollupType.getRollupTable(table);
         Timestamp rollupTime = rollupType.getRollupTime(snapshotTime);
-        final Future<Void> future = executorService.submit(() -> {
-            unpooledDsl.transaction(trans -> {
-                trans.dsl().connection(conn ->
-                        conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED));
-                if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-                    new MarketStatsRollups(source, rollup, snapshotTime, rollupTime)
-                            .execute(trans.dsl());
-                } else {
-                    String sql = String.format("CALL %s('%s')",
-                            MARKET_ROLLUP_PROC, MARKET_TABLE_PREFIX);
-                    trans.dsl().execute(sql);
-                }
-            });
-            return null;
-        });
-        return Collections.singletonList(future);
+        Query upsert = FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
+                       ? new MarketStatsRollups(source, rollup, snapshotTime, rollupTime)
+                               .getQuery(unpooledDsl)
+                       : unpooledDsl.query(String.format("CALL %s('%s')", MARKET_ROLLUP_PROC,
+                               MARKET_TABLE_PREFIX));
+        return Collections.singletonList(new RollupTask(table, upsert, cs));
     }
 
-    private List<Future<Void>> scheduleClusterStatsRollupTasks(@Nonnull Table table,
-            @Nonnull RollupType rollupType, @Nonnull Timestamp snapshotTime) {
-
-        Table source = rollupType.getSourceTable(table);
-        Table rollup = rollupType.getRollupTable(table);
+    private List<RollupTask> scheduleClusterStatsRollupTasks(
+            @Nonnull Table<? extends Record> table, @Nonnull RollupType rollupType,
+            @Nonnull Timestamp snapshotTime, @Nonnull CompletionService<RollupTask> cs) {
+        Table<? extends Record> source = rollupType.getSourceTable(table);
+        Table<? extends Record> rollup = rollupType.getRollupTable(table);
         Timestamp rollupTime = rollupType.getRollupTime(snapshotTime);
-        final Future<Void> future = executorService.submit(() -> {
-            unpooledDsl.transaction(trans -> {
-                trans.dsl().connection(conn ->
-                        conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED));
-                if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
-                    new ClusterStatsRollups(source, rollup, snapshotTime, rollupTime)
-                            .execute(trans.dsl());
-                } else {
-                    String sql = String.format(
-                            "CALL %s('%s', '%s', '%s', '%s', %d, @count)",
-                            CLUSTER_STATS_ROLLUP_PROC, source.getName(), rollup.getName(),
-                            snapshotTime, rollupTime,
-                            rollupType.sourceHasSamples() ? 1 : 0);
-                    trans.dsl().execute(sql);
-                }
-            });
-            return null;
-        });
-        return Collections.singletonList(future);
+        Query upsert = new ClusterStatsRollups(source, rollup, snapshotTime, rollupTime)
+                .getQuery(unpooledDsl);
+        return Collections.singletonList(new RollupTask(table, upsert, cs));
     }
 
-    private void waitForRollupTasks(final List<Pair<Table, List<Future<Void>>>> tableFutures,
-            RollupType rollupType,
-            final MultiStageTimer timer) {
-        tableFutures.forEach(tf -> {
-            String label = String.format(
-                    "%s %s", getTablePrefix(tf.getLeft()).get(), rollupType.getLabel());
-            try (AsyncTimer tableTimer = timer.async(label)) {
-                tf.getRight().forEach(f -> {
-                    try {
-                        f.get(ROLLUP_TIMEOUT_MINS, TimeUnit.MINUTES);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    } catch (TimeoutException e) {
-                        logger.warn("Timed out during rollup activity for table {}; "
-                                + "rollup may still complete normally", tf.getLeft());
-                    } catch (ExecutionException e) {
-                        logger.error("Error during rollup activity for table {}: {}",
-                                tf.getLeft().getName(), e.toString());
+    private boolean waitForRollupTasks(final CompletionService<RollupTask> cs,
+            final Map<Future<RollupTask>, RollupTask> futures, final RollupType rollupType,
+            Map<Table<?>, Long> tableCounts, final MultiStageTimer timer) {
+        Map<Table<?>, Pair<AtomicInteger, AtomicReference<Duration>>> tableStats = new HashMap<>();
+        long timeoutMsec = Math.max(minTimeoutMsec, timeoutMsecForBatchSize * futures.size());
+        long deadline = System.currentTimeMillis() + timeoutMsec;
+        boolean incomplete = false;
+        while (!futures.isEmpty()) {
+            long msecToWait = deadline - System.currentTimeMillis();
+            Future<RollupTask> future;
+            RollupTask task = null;
+            try {
+                future = cs.poll(msecToWait, TimeUnit.MILLISECONDS);
+                if (future == null) {
+                    // the poll operation above does not throw like future.get does, so we
+                    // do it here for uniform handling.
+                    throw new TimeoutException();
+                }
+                task = futures.get(future);
+                futures.remove(future);
+                // following shouldn't ever time out since we got it from the poll operation
+                // above, but for safety we'll still put a time limit on it
+                RollupTask taskFromFuture = future.get(msecToWait, TimeUnit.MILLISECONDS);
+                if (task == null || task != taskFromFuture) {
+                    logger.warn("Unexpected rollup task associated with future; "
+                                    + "discarding results ({} records for table {} in {})",
+                            taskFromFuture.getAffectedRecordCount(),
+                            taskFromFuture.getTable().getName(),
+                            taskFromFuture.getProcessingTime());
+                } else {
+                    Table<?> table = task.getTable();
+                    Pair<AtomicInteger, AtomicReference<Duration>> statsPair =
+                            tableStats.computeIfAbsent(table, _t -> Pair.of(
+                                    new AtomicInteger(0),
+                                    new AtomicReference<>(Duration.ZERO)));
+                    logger.debug(
+                            "Processed chunk for table {}: {} records in {}, {} batches remaining",
+                            task.getTable().getName(), task.getAffectedRecordCount(),
+                            task.getProcessingTime(), futures.size());
+                    statsPair.getLeft().addAndGet(task.getAffectedRecordCount());
+                    statsPair.getRight().set(
+                            statsPair.getRight().get().plus(task.getProcessingTime()));
+                }
+            } catch (InterruptedException | CancellationException e) {
+                // it appears we're shutting down... cancel remaining task. This will attempt
+                // to cancel any in-progress DB operations as well.
+                cancelRemainingTasks(futures);
+                incomplete = true;
+                Thread.currentThread().interrupt();
+            } catch (ExecutionException e) {
+                if (task != null) {
+                    Optional<Future<RollupTask>> retryFuture = task.retry(cs);
+                    if (retryFuture.isPresent()) {
+                        futures.put(retryFuture.get(), task);
+                    } else {
+                        logger.error("Rollup task {} failed and ran out of retries", task, e);
+                        incomplete = true;
                     }
-                });
+                } else {
+                    logger.error("A future for a rollup task failed "
+                            + "but was unassociated with a task", e);
+                }
+            } catch (TimeoutException e) {
+                logger.error("Rollup operation took too long; canceling {} remaining tasks",
+                        futures.size());
+                cancelRemainingTasks(futures);
+                incomplete = true;
             }
+        }
+        tableStats.keySet().stream().sorted(Comparator.comparing(Table::getName)).forEach(table -> {
+            Pair<AtomicInteger, AtomicReference<Duration>> statPair = tableStats.get(table);
+            String countsDesc = getCountsDescription(
+                    statPair.getLeft().get(), tableCounts.get(table));
+            timer.addSegment(String.format("%s %s (%s)", rollupType, table.getName(), countsDesc),
+                    statPair.getRight().get());
         });
+        return !incomplete;
     }
 
-    private List<Integer> getBoundaries(int numTasks) {
-        List<Integer> boundaries = new ArrayList<>();
-        double step = 16.0 / numTasks;
-        int priorBoundary = 0;
-        for (double x = step; x < 16.0; x += step) {
-            int boundary = (int)x;
+    private void cancelRemainingTasks(Map<Future<RollupTask>, RollupTask> futures) {
+        futures.values().forEach(RollupTask::cancel);
+        futures.clear();
+    }
+
+    private String getCountsDescription(int affectedCount, long incomingCount) {
+        if (unpooledDsl.dialect() == SQLDialect.POSTGRES) {
+            // can't curently distinguish inserts form updates in postgres
+            return String.format("%d records", affectedCount);
+        } else {
+            // The record counts for a MariaDB upsert statement always count 1 for an insert, 2 for
+            // an update to an existing record, and 0 for an existing record that participated but
+            // was not changed. We have none of the latter because `samples` field is always changed.
+            // So we can unambiguously obtain separate counts
+            int updates = affectedCount - (int)incomingCount;
+            int inserts = (int)incomingCount - updates;
+            return String.format("%d inserts, %d updates", inserts, updates);
+        }
+    }
+
+    private List<Long> getBatchInnerBoundaries(Long recordCount) {
+        List<Long> boundaries = new ArrayList<>();
+        recordCount = recordCount != null ? recordCount : MISSING_RECORD_COUNT;
+        long batchCount =
+                recordCount / maxBatchSize + (recordCount % maxBatchSize == 0 ? 0 : 1);
+        long step = Long.MAX_VALUE / batchCount + (Long.MAX_VALUE % batchCount == 0 ? 0 : 1);
+        long priorBoundary = 0L;
+        // x >= 0 ensures we terminate the loop if step*batchCount > Long.MAX_VALUE, which will
+        // almost always be true
+        for (long boundary = step;
+             boundary < Long.MAX_VALUE && boundary >= 0; boundary += step) {
             if (boundary > priorBoundary) {
                 boundaries.add(boundary);
                 priorBoundary = boundary;
             }
         }
-        boundaries.add(16);
         return boundaries;
     }
 
@@ -564,7 +655,7 @@ public class RollupProcessor {
          * @param table the table
          * @return true if the table can be rolled up
          */
-        public boolean canRollup(Table table) {
+        public boolean canRollup(Table<? extends Record> table) {
             if (table == MARKET_STATS_LATEST) {
                 // market stats participates in all rollups except in legacy scenario, where it
                 // only participates in hourly (the legacy stored proc actually does all three)
@@ -578,7 +669,6 @@ public class RollupProcessor {
             }
         }
 
-
         /**
          * Get the source table for rollups of this type given a representative stats table.
          *
@@ -588,7 +678,7 @@ public class RollupProcessor {
          * @param table a stats table for the entity type being rolled up
          * @return the stats table that should serve as the source for rollup data
          */
-        public Table getSourceTable(Table table) {
+        public Table<? extends Record> getSourceTable(Table<? extends Record> table) {
             if (table == MARKET_STATS_LATEST) {
                 return this == BY_HOUR ? table : MARKET_STATS_BY_HOUR;
             } else if (table == CLUSTER_STATS_LATEST) {
@@ -596,8 +686,8 @@ public class RollupProcessor {
             } else {
                 EntityType type = EntityType.fromTable(table).orElse(null);
                 if (type != null) {
-                    return this == BY_HOUR ? type.getLatestTable().get()
-                            : type.getHourTable().get();
+                    return this == BY_HOUR ? type.getLatestTable().orElse(null)
+                                           : type.getHourTable().orElse(null);
                 }
                 return null;
             }
@@ -609,7 +699,7 @@ public class RollupProcessor {
          * @param table a stats table for the entity type being rolled up
          * @return the stats table that should be updated for this rollup
          */
-        public Table getRollupTable(Table table) {
+        public Table<? extends Record> getRollupTable(Table<? extends Record> table) {
             if (table == MARKET_STATS_LATEST) {
                 switch (this) {
                     case BY_HOUR:
@@ -629,7 +719,6 @@ public class RollupProcessor {
             }
             return null;
         }
-
 
         /**
          * Get the rollup time (i.e. the snapshot_time column value) for records in the target table
@@ -670,7 +759,8 @@ public class RollupProcessor {
                 case BY_DAY:
                     return getRollupTime(snapshotTime);
                 case BY_MONTH:
-                    LocalDateTime periodStart = LocalDateTime.ofInstant(snapshotTime.toInstant(),
+                    LocalDateTime periodStart = LocalDateTime.ofInstant(
+                                    snapshotTime.toInstant(),
                                     ZoneOffset.UTC)
                             .truncatedTo(ChronoUnit.DAYS)
                             .withDayOfMonth(1);
@@ -694,7 +784,8 @@ public class RollupProcessor {
                     return Timestamp.from(
                             t.truncatedTo(ChronoUnit.HOURS).plus(1, ChronoUnit.HOURS));
                 case BY_DAY:
-                    return Timestamp.from(t.truncatedTo(ChronoUnit.DAYS).plus(1, ChronoUnit.DAYS));
+                    return Timestamp.from(
+                            t.truncatedTo(ChronoUnit.DAYS).plus(1, ChronoUnit.DAYS));
                 case BY_MONTH:
                     // rollup time is start of final day in month, so we add one day to get start
                     // of first day of next month
@@ -704,45 +795,6 @@ public class RollupProcessor {
                     badValue();
                     return null;
             }
-        }
-
-        /**
-         * Determine whether, for this rollup type, the hour key should be copied to the target
-         * table.
-         *
-         * @return true to copy the hour key
-         */
-        public boolean isCopyHourKey() {
-            return this == BY_HOUR;
-        }
-
-        /**
-         * Determine whether, for this rollup type, the day key should be copied to the target
-         * table.
-         *
-         * @return true to copy the day key
-         */
-        public boolean isCopyDayKey() {
-            return this == BY_HOUR || this == BY_DAY;
-        }
-
-        /**
-         * Determine whether, for this rollup type, the month key should be copied ot the target
-         * table.
-         *
-         * @return true to copy the month key
-         */
-        public boolean isCopyMonthKey() {
-            return true;
-        }
-
-        /**
-         * Determine whether the source table for this rollup has a "samples" column.
-         *
-         * @return true if the source table has a "samples" column
-         */
-        public boolean sourceHasSamples() {
-            return this != BY_HOUR;
         }
 
         /**
@@ -769,24 +821,137 @@ public class RollupProcessor {
     }
 
     /**
-     * Return the table prefix for the given table.
-     *
-     * @param table the table
-     * @return its prefix, if it's subject to rollups
+     * Class to represent a task to perform a single upsert operation during a rollup operation.
      */
-    private Optional<String> getTablePrefix(@Nonnull Table<?> table) {
-        Optional<EntityType> entityType = EntityType.fromTable(table);
-        if (entityType.isPresent()) {
-            // it's an entity table - get its prefix from reference data map
-            return entityType.get().getTablePrefix();
-        } else if (table == MarketStatsLatest.MARKET_STATS_LATEST) {
-            // market stats uses 'market'
-            return Optional.of(MARKET_TABLE_PREFIX);
-        } else if (table == CLUSTER_STATS_LATEST) {
-            return Optional.of(CLUSTER_TABLE_PREFIX);
-        } else {
-            // anything else we don't recognize
-            return Optional.empty();
+    private class RollupTask {
+
+        private final Table<? extends Record> table;
+        private final CompletionService<RollupTask>
+                cs;
+        private Future<RollupTask> future = null;
+        private Query upsert;
+        private final AtomicInteger affectedRecordCount = new AtomicInteger(0);
+        private final AtomicReference<Duration> processingTime = new AtomicReference<>();
+        private int retryCount = 0;
+
+        /**
+         * Create a new instance.
+         *
+         * @param table  source table of rollup operation
+         * @param upsert jOOQ query to perform
+         * @param cs     completion service through which to schedule the task for execution
+         */
+        RollupTask(Table<? extends Record> table, Query upsert,
+                CompletionService<RollupTask> cs) {
+            this.table = table;
+            this.upsert = upsert;
+            this.cs = cs;
+        }
+
+        /**
+         * Submit a task for execution that will perform an upsert operation as part of an overall
+         * rollup.
+         *
+         * @return a {@link Future} that should resolve to this RollupTask instance
+         */
+        Future<RollupTask> submit() {
+            synchronized (this) {
+                Query queryToSubmit = unpooledDsl.dialect() == SQLDialect.POSTGRES
+                                      ? wrapPostgresUpsert() : upsert;
+                this.future = cs.submit(() -> {
+                    Instant start = Instant.now();
+                    try {
+                        int n = upsert instanceof ResultQuery
+                                // Note: currently, wrapping of postgres upserts is suppressed,
+                                // so this first branch will never occur. But eventually...
+                                // for a Postgres upsert we've just added a RETURNING clause at the
+                                // end of the UPSERT so that it now returns a set of ones and zeros
+                                // indicating whether input records were inserted or updated by the
+                                // UPSERT, respectively. We sum them to get the # of inserts
+                                ? ((ResultQuery<? extends Record>)queryToSubmit).stream()
+                                        .map(r -> r.getValue(0))
+                                        .filter(v -> v instanceof Integer)
+                                        .map(v -> (Integer)v)
+                                        .mapToInt(Integer::intValue)
+                                        .sum()
+                                // for MariaDB it's just a straight UPSERT whose affected record
+                                // count is INSERT count + 2*(UPDATE count), which we can combine
+                                // with total record count to deduce the two separate counts
+                                : queryToSubmit.execute();
+                        affectedRecordCount.addAndGet(n);
+                        return this;
+                    } catch (Exception e) {
+                        return null;
+                    } finally {
+                        processingTime.set(Duration.between(start, Instant.now()));
+                    }
+                });
+                return future;
+            }
+        }
+
+        public Optional<Future<RollupTask>> retry(CompletionService<RollupTask> cs) {
+            if (retryCount++ < maxBatchRetry) {
+                return Optional.of(this.submit());
+            } else {
+                return Optional.empty();
+            }
+        }
+
+        /**
+         * The goal of this method is to wrap a normal UPSERT statement as needed to result in a
+         * statement whose results can be used to obtain a single integer which, in combination with
+         * the total record count, can be used to deduce separate insert and update counts. How to
+         * accopmlish this depends on the database dialect.
+         *
+         * @return record count for this operation, with dialet-dependent meaning
+         */
+        private Query wrapPostgresUpsert() {
+            if (upsert instanceof InsertReturningStep
+                    // frustratingly, this mechanism does not work when the target of the insert
+                    // is a partitioned table. For now we'll live with the combined (inserts plus
+                    // updates) count returned from an UPSERT execution.
+                    // TODO make this work or just forget trying to report inserts & updates
+                    && false) {
+                // See https://stackoverflow.com/questions/39058213/postgresql-upsert-differentiate-inserted-and-updated-rows-using-system-columns-x
+                // for a detailed explanation of how the `xmax` system column can be used to
+                // distinguish inserts from updates in a Postgres upsert operation
+                Field<String> xmax =
+                        DSL.cast(DSL.field("xmax", Long.class), SQLDataType.CLOB(10));
+                InsertReturningStep<?> insert = (InsertReturningStep<?>)upsert;
+                return insert.returning(DSL.case_()
+                        .when(xmax.eq("0"), 1)
+                        .else_(0));
+            } else {
+                return upsert;
+            }
+        }
+
+        Table<? extends Record> getTable() {
+            return table;
+        }
+
+        public int getAffectedRecordCount() {
+            return affectedRecordCount.get();
+        }
+
+        public Duration getProcessingTime() {
+            Duration duration = processingTime.get();
+            return duration != null ? duration : Duration.ZERO;
+        }
+
+        synchronized void cancel() {
+            if (upsert != null) {
+                try {
+                    upsert.cancel();
+                } catch (DataAccessException e) {
+                    logger.error("Failed to cancel a rollup task for table {}",
+                            table.getName(), e);
+                }
+            }
+            if (future != null) {
+                future.cancel(true);
+            }
         }
     }
 }

@@ -7,7 +7,6 @@ import java.sql.Date;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -62,7 +61,7 @@ public class RollupProcessorTest extends MultiDbTestBase {
      * Create a new instance with given parameters.
      *
      * @param configurableDbDialect true to enable POSTGRES_PRIMARY_DB feature flag
-     * @param dialect         DB dialect to use
+     * @param dialect               DB dialect to use
      * @throws SQLException                if a DB operation fails
      * @throws UnsupportedDialectException if dialect is bogus
      * @throws InterruptedException        if we're interrupted
@@ -77,9 +76,9 @@ public class RollupProcessorTest extends MultiDbTestBase {
     /**
      * Set up and populate live database for tests, and create required mocks.
      *
-     * @throws SQLException If a DB operation fails
+     * @throws SQLException                If a DB operation fails
      * @throws UnsupportedDialectException if the dialect is bogus
-     * @throws InterruptedException if we're interrupted
+     * @throws InterruptedException        if we're interrupted
      */
     @Before
     public void before() throws SQLException, UnsupportedDialectException, InterruptedException {
@@ -91,30 +90,12 @@ public class RollupProcessorTest extends MultiDbTestBase {
                 .flushTimeoutSecs(10)
                 .build();
         loaders = new SimpleBulkLoaderFactory(dsl, config, mock(PartmanHelper.class),
-                () -> Executors.newSingleThreadExecutor());
+                Executors::newSingleThreadExecutor);
         rollupProcessor = new RollupProcessor(dsl, dsl, mock(PartmanHelper.class),
-                () -> Executors.newFixedThreadPool(8));
+                () -> Executors.newFixedThreadPool(8), 100, 10_000, 10_000, 0);
         RetentionPolicy.init(dsl);
         IdentityGenerator.initPrefix(1L);
     }
-
-    private static final String UUID_FIELD = "uuid";
-    private static final String PRODUCER_UUID_FIELD = "producer_uuid";
-    private static final String PROPERTY_TYPE_FIELD = "property_type";
-    private static final String PROPERTY_SUBTYPE_FIELD = "property_subtype";
-    private static final String COMMODITY_KEY_FIELD = "commodity_key";
-    private static final String RELATION_FIELD = "relation";
-    private static final String CAPACITY_FIELD = "capacity";
-    private static final String EFFECTIVE_CAPACITY_FIELD = "effective_capacity";
-    private static final String AVG_VALUE_FIELD = "avg_value";
-    private static final String MAX_VALUE_FIELD = "max_value";
-    private static final String MIN_VALUE_FIELD = "min_value";
-    private static final String SNAPSHOT_TIME_FIELD = "snapshot_time";
-    private static final String SAMPLES_FIELD = "samples";
-
-    private static final String INTERNAL_NAME_FIELD = "internal_name";
-    private static final String RECORDED_ON_FIELD = "recorded_on";
-    private static final String VALUE_FIELD = "value";
 
     /**
      * Seed for random number generator.
@@ -133,10 +114,8 @@ public class RollupProcessorTest extends MultiDbTestBase {
      */
     private static final long RANDOM_SEED = 0L;
 
-    private static String testDbName;
     private SimpleBulkLoaderFactory loaders;
     private RollupProcessor rollupProcessor;
-    private final Random rand = new Random(RANDOM_SEED);
 
     /**
      * Delete any records inserted during this test.
@@ -152,7 +131,6 @@ public class RollupProcessorTest extends MultiDbTestBase {
     public void after() throws InterruptedException {
         loaders.close(null);
     }
-
 
     private static final long VOLUME_OID = 11111L;
     private static final long VOLUME_OID_2 = 22222L;

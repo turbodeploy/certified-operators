@@ -12,7 +12,6 @@ import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.db.jooq.JooqUtils;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Tables;
@@ -68,6 +67,16 @@ public class MarketStatsRollups {
      * @param dsl {@link DSLContext} with access to the database
      */
     public void execute(DSLContext dsl) {
+        getQuery(dsl).execute();
+    }
+
+    /**
+     * Build an UPSERT statement and return the resulting jOOQ query object, ready to execute.
+     *
+     * @param dsl DSLContext to use when building (and ultimately executing) the upsert
+     * @return the jOOQ Query object representing the UPSERT
+     */
+    public Query getQuery(DSLContext dsl) {
         Query query = new UpsertBuilder().withSourceTable(source).withTargetTable(rollup)
                 .withInsertFields(fSnapshotTime, fTimeSeriesKey,
                         fTopologyContextId, fEntityType, fEnvironmentType,
@@ -85,15 +94,18 @@ public class MarketStatsRollups {
                 .withUpdateValue(fMinValue, UpsertBuilder::min)
                 .withUpdateValue(fSamples, UpsertBuilder::sum)
                 .getUpsert(dsl);
-        execute(query, dsl);
+        if (dsl.dialect() == SQLDialect.POSTGRES) {
+            query = fixQuery(query, dsl);
+        }
+        return query;
     }
 
     /**
-     * Execute the upsert statement, with temporary fixup needed for Postgres dialect.
+     * Fix the upsert statement for Postgres dialect.
      *
      * <p>This method is required until the POSTGRES_PRIMARY_DB feature flag is retired. The reason
      * is that until that time, the "legacy" MariaDB migrations from which the jOOQ model is built
-     * does not reflect that `(snapshot_time, time_series_key)` is a primary key of all the market-
+     * will not reflect that `(snapshot_time, time_series_key)` is a primary key of all the market-
      * stats tables, although this is true in the non-legacy migrations (both for MariaDB and
      * Postgres). Becuase jOOQ is unaware of this primary key, it is unaable to properly compose the
      * upsert statement for postgres, rendering a statement that includes "ON CONFLICT[unknown
@@ -103,17 +115,13 @@ public class MarketStatsRollups {
      * as is the case with Postgres. jOOQ generates an upsert with "ON DUPLICATE KEY" which works
      * just fine with the non-legacy MariaDB schema.</p>
      *
-     * @param upsert upsert {@link Query} object composed by jOOQ
-     * @param dsl    {@link DSLContext} used to build the query
+     * @param query upsert {@link Query} object composed by jOOQ
+     * @param dsl   DSLContext to use when extracting SQL to fix
+     * @return Insert object with fixed SQL
      */
-    private void execute(Query upsert, DSLContext dsl) {
-        if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() && dsl.dialect() == SQLDialect.POSTGRES) {
-            String sql = upsert.getSQL(ParamType.INLINED)
-                    .replace("[unknown primary key]", "snapshot_time, time_series_key");
-            dsl.execute(sql);
-        } else {
-            upsert.execute();
-        }
+    private Query fixQuery(Query query, DSLContext dsl) {
+        return dsl.query(query.getSQL(ParamType.INLINED)
+                .replace("[unknown primary key]", "snapshot_time, time_series_key"));
     }
 
     private void createFields() {

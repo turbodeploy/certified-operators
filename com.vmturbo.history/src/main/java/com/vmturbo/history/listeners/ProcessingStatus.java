@@ -174,16 +174,18 @@ class ProcessingStatus {
         return statusMap.get(snapshot).forceResolved();
     }
 
-    Stream<Table<?>> getIngestionTablesForHour(final Instant snapshot) {
+    Map<Table<?>, Long> getIngestionTablesForHour(final Instant snapshot) {
         Instant hourStart = snapshot.truncatedTo(HOURS);
         Instant hourEnd = hourStart.plus(1, HOURS);
         return getSnapshotTimes()
                 .filter(timestamp -> timestamp.isBefore(hourEnd) && !timestamp.isBefore(hourStart))
-                .flatMap(this::getIngestionTables);
+                .flatMap(t -> getIngestionTableCounts(t).entrySet().stream())
+                .collect(Collectors.groupingBy(Entry::getKey,
+                        Collectors.reducing(0L, Entry::getValue, Long::max)));
     }
 
-    Stream<Table<?>> getIngestionTables(Instant snapshot) {
-        return statusMap.get(snapshot).getIngestionTables();
+    Map<Table<?>, Long> getIngestionTableCounts(Instant snapshot) {
+        return statusMap.get(snapshot).getIngestionTableCounts();
     }
 
     void prune() {
@@ -239,12 +241,12 @@ class ProcessingStatus {
      * This method fills the processing status with data stored in the database.
      *
      * <p>Database records are stored in a record-per-snapshot fashion. The actual
-     * {@link SnapshotStatus} value stored in each record is actaully stored as a JSON
-     * serialization of the object value.</p>
+     * {@link SnapshotStatus} value stored in each record is actaully stored as a JSON serialization
+     * of the object value.</p>
      *
      * <p>GSON type adapters for {@link SnapshotStatus} and {@link IngestionStatus} classes
-     * are nested within those classes and registered by them on first use of either
-     * {@link com.google.gson.Gson#fromJson(Reader, Type)} or {@link Gson#toJson(Object)}.
+     * are nested within those classes and registered by them on first use of either {@link
+     * com.google.gson.Gson#fromJson(Reader, Type)} or {@link Gson#toJson(Object)}.
      * </p>
      */
     @VisibleForTesting
