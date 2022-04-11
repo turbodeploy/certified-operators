@@ -153,6 +153,9 @@ public class GroupMapperTest {
                                                     .setStringPropertyRegex("PhysicalMachine")));
 
     private static final long CONTEXT_ID = 7777777;
+    private static final String GCP_TARGET_DISPLAY_NAME = "GCP-qe-projects";
+    private static final long GCP_TARGET_ID = 11115L;
+    private static final String VENDOR_ID = "folders/634241089087";
 
     private static final ThinTargetCache.ThinTargetInfo AWS_TARGET = ImmutableThinTargetInfo.builder()
             .probeInfo(ImmutableThinProbeInfo.builder()
@@ -196,6 +199,18 @@ public class GroupMapperTest {
                     .build())
             .displayName("AppD Target")
             .oid(11114)
+            .isHidden(false)
+            .build();
+
+    private static final ThinTargetInfo gcpThinTargetInfo = ImmutableThinTargetInfo.builder()
+            .probeInfo(ImmutableThinProbeInfo.builder()
+                    .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
+                    .uiCategory(ProbeCategory.PUBLIC_CLOUD.getCategoryInUpperCase())
+                    .type(SDKProbeType.GCP_SERVICE_ACCOUNT.getProbeType())
+                    .oid(111115L)
+                    .build())
+            .displayName(GCP_TARGET_DISPLAY_NAME)
+            .oid(GCP_TARGET_ID)
             .isHidden(false)
             .build();
 
@@ -1506,6 +1521,7 @@ public class GroupMapperTest {
         createGroupWithMembers(grouping, Collections.emptyList());
         mockRepositoryEntitiesRequest(Collections.emptyList());
         when(businessAccountRetriever.getBusinessAccounts(any())).thenReturn(Collections.emptyList());
+        Mockito.when(targetCache.getTargetInfo(GCP_TARGET_ID)).thenReturn(Optional.of(gcpThinTargetInfo));
         final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Collections.singletonList(grouping), false, null, null)
             .getObjects().iterator().next();
         verifyBusinessAccountFolder(mappedDto, 0, 0, Collections.emptySet());
@@ -1523,6 +1539,7 @@ public class GroupMapperTest {
         createGroupWithMembers(group, childAccounts);
         mockRepositoryEntitiesRequest(childAccounts);
         mockBusinessAccountRetrieverRequest(childAccounts, Collections.emptySet());
+        Mockito.when(targetCache.getTargetInfo(GCP_TARGET_ID)).thenReturn(Optional.of(gcpThinTargetInfo));
         final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Collections.singletonList(group), false, null, null)
             .getObjects().iterator().next();
         verifyBusinessAccountFolder(mappedDto, 3, 3, getFolderMemberUuids(Collections.emptyList(), childAccounts));
@@ -1540,6 +1557,7 @@ public class GroupMapperTest {
         createGroupWithMembers(group, childAccounts);
         mockRepositoryEntitiesRequest(childAccounts);
         mockBusinessAccountRetrieverRequest(childAccounts, new HashSet<>(childAccounts));
+        Mockito.when(targetCache.getTargetInfo(GCP_TARGET_ID)).thenReturn(Optional.of(gcpThinTargetInfo));
         final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Collections.singletonList(group), false, null, null)
             .getObjects().iterator().next();
         verifyBusinessAccountFolder(mappedDto, 0, 3, getFolderMemberUuids(Collections.emptyList(), childAccounts));
@@ -1556,6 +1574,7 @@ public class GroupMapperTest {
         final Grouping group = createFolderGrouping(childFolders, Collections.emptyList());
         createGroupWithMembers(group, childFolders, Collections.emptyList());
         mockRepositoryEntitiesRequest(Collections.emptyList());
+        Mockito.when(targetCache.getTargetInfo(GCP_TARGET_ID)).thenReturn(Optional.of(gcpThinTargetInfo));
         final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Collections.singletonList(group), false, null, null)
             .getObjects().iterator().next();
         verifyBusinessAccountFolder(mappedDto, 0, 2, getFolderMemberUuids(Collections.emptyList(), childFolders));
@@ -1575,6 +1594,7 @@ public class GroupMapperTest {
         createGroupWithMembers(group, childFolders, childAccounts);
         mockRepositoryEntitiesRequest(childAccounts);
         mockBusinessAccountRetrieverRequest(childAccounts, Collections.singleton(55555L));
+        Mockito.when(targetCache.getTargetInfo(GCP_TARGET_ID)).thenReturn(Optional.of(gcpThinTargetInfo));
         final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Collections.singletonList(group), false, null, null)
                     .getObjects().iterator().next();
         verifyBusinessAccountFolder(mappedDto, 2, 4, getFolderMemberUuids(childFolders, childAccounts));
@@ -1625,12 +1645,19 @@ public class GroupMapperTest {
         assertThat(group.getMembersCount(), is(expectedMembersCount));
         assertThat(new HashSet<>(group.getMemberUuidList()), is(memberUuids));
         assertThat(group.getIsStatic(), is(true));
+        assertThat(group.getVendorIds().get(GCP_TARGET_DISPLAY_NAME), is(VENDOR_ID));
     }
 
     private Grouping createFolderGrouping(final List<Long> immediateFolderMembers,
                                           final List<Long> immediateProjectMembers) {
+        final Discovered.Builder discovered = Discovered.newBuilder().setSourceIdentifier(VENDOR_ID)
+                .addAllDiscoveringTargetId(Collections.singletonList(GCP_TARGET_ID));
+
         final Grouping.Builder group = Grouping.newBuilder().setId(FOLDER_ID)
-            .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD);
+            .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                .setOrigin(Origin.newBuilder()
+                        .setDiscovered(discovered.build())
+                        .build());
         final GroupDefinition.Builder definition = GroupDefinition.newBuilder()
             .setDisplayName(FOLDER_NAME)
             .setType(GroupType.BUSINESS_ACCOUNT_FOLDER);
