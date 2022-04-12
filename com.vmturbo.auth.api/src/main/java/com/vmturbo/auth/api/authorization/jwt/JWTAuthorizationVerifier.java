@@ -6,12 +6,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
+import com.google.gson.JsonObject;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
@@ -19,13 +22,27 @@ import io.jsonwebtoken.Jwts;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.auth.api.JWTKeyCodec;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.IAuthorizationToken;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
+import com.vmturbo.auth.api.servicemgmt.AuthServiceDTO;
+import com.vmturbo.auth.api.servicemgmt.AuthServiceHelper.LOCATION;
+import com.vmturbo.auth.api.servicemgmt.AuthServiceHelper.ROLE;
+import com.vmturbo.auth.api.servicemgmt.AuthServiceHelper.TYPE;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.components.api.ComponentRestTemplate;
 
 /**
  * The JWT authentication verifier. All methods are thread safe.
@@ -247,6 +264,63 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
                 rolesPayload, scopeGroups, subject, uuid,
                 provider != null ? AuthUserDTO.PROVIDER.valueOf(provider) : null);
         return entry;
+    }
+
+    /**
+     * Validate token signed by auth.
+     *
+     * @param token the token.
+     * @return AuthUserDTO.
+     * @throws AuthorizationException authentication fails.
+     */
+    public AuthUserDTO verifyAuthComponent(final JWTAuthorizationToken token) throws AuthorizationException {
+        return Optional.of(authStore.retrievePublicKey())
+            .map(JWTKeyCodec::decodePublicKey)
+            .map(publicKey ->
+                Jwts.parser().setAllowedClockSkewSeconds(CLOCK_SKEW_SEC)
+                    .setSigningKey(publicKey)
+                    .parseClaimsJws(token.getCompactRepresentation()))
+            .map(claimsJws ->
+                getEntryStruct((List<String>)claimsJws.getBody().get(ROLE_CLAIM), claimsJws))
+            .map(EntryStruct::asAuthUserDTO)
+            .orElseThrow(() -> new AuthorizationException(AUTH_FAIL_AUTHENTICATION_HAS_FAILED));
+    }
+
+    /**
+     * Validate token signed by hydra.
+     *
+     * @param hydraToken the token.
+     * @return AuthServiceDTO.
+     * @throws AuthorizationException token is invalid.
+     * @throws ServiceUnavailableException can't reach hydra.
+     */
+    public AuthServiceDTO verifyHydraToken(final JWTAuthorizationToken hydraToken)
+            throws AuthorizationException, ServiceUnavailableException {
+        RestTemplate restTemplate = ComponentRestTemplate.create();
+        UriComponentsBuilder uriBuilder = UriComponentsBuilder.newInstance()
+            .scheme(SecurityConstant.HTTP)
+            .host(SecurityConstant.HYDRA_ADMIN)
+            .port(SecurityConstant.HYDRA_ADMIN_PORT)
+            .path(SecurityConstant.HYDRA_INTROSPECT_PATH);
+        final String uri = uriBuilder.build().toUriString();
+        MultiValueMap<String, String> map = new LinkedMultiValueMap<String, String>();
+        map.add(SecurityConstant.TOKEN, hydraToken.getCompactRepresentation());
+        HttpEntity<MultiValueMap<String, String>> hydraPayload =
+            new HttpEntity<MultiValueMap<String, String>>(map, new HttpHeaders());
+        try {
+            ResponseEntity<JsonObject> response = restTemplate.postForEntity(uri, hydraPayload, JsonObject.class);
+            JsonObject stringJson = response.getBody();
+            // TODO: refine usability and support of role to capability mapping.
+            if (stringJson.get(SecurityConstant.ACTIVE).getAsBoolean()) {
+                return new AuthServiceDTO(TYPE.PROBE, LOCATION.EXTERNAL,
+                    Sets.newHashSet(ROLE.PROBE_ADMIN), stringJson.get(SecurityConstant.CLIENT_ID).getAsString(),
+                    hydraToken.getCompactRepresentation(), null,
+                    stringJson.get(SecurityConstant.CLIENT_ID).getAsString(), SecurityConstant.DEFAULT_IP);
+            }
+            throw new AuthorizationException("Hydra is not active");
+        } catch (RestClientException e) {
+            throw new ServiceUnavailableException("Hydra service is not available");
+        }
     }
 
     @Override

@@ -32,6 +32,7 @@ public class SensitiveDataUtilTest {
         Set<String> sensitiveKeySet = ImmutableSet.of(
                 "arangodbPass",
                 "userPassword",
+                "clientSecret",
                 "sslKeystorePassword",
                 "readonlyPassword",
                 "dbRootPassword",

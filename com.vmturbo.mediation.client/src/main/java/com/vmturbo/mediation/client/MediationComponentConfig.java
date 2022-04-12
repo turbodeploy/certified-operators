@@ -4,6 +4,7 @@ import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 
+import javax.annotation.Nullable;
 import javax.annotation.PostConstruct;
 
 import org.apache.logging.log4j.LogManager;
@@ -27,6 +28,36 @@ public class MediationComponentConfig implements ConnectionConfig {
     // configuration value to reflect the Validator IP address - TODO: use service discovery instead of configuration
     @Value("${serverAddress:ws://topology-processor:8080/remoteMediation}")
     private String serverAddress;
+
+    /**
+     * Location of OAuth endpoint for probe to authenticate with.
+     */
+    @Value("${authEndpoint:#{null}}")
+    private String authEndpoint;
+
+    /**
+     * Location of auth endpoint to exchange OAuth JWT for auth JWT.
+     */
+    @Value("${authComponentEndpointExchange:#{null}}")
+    private String authComponentEndpointExchange;
+
+    /**
+     * Flag indicating whether or not Jwt Authentication should be used by the client.
+     */
+    @Value("${jwtAuthenticationEnabled:false}")
+    private boolean jwtAuthenticationEnabled;
+
+    /**
+     * Client ID to use for OAuth authentication.
+     */
+    @Value("${clientId:#{null}}")
+    private String clientId;
+
+    /**
+     * Client secret to use for OAuth authentication.
+     */
+    @Value("${clientSecret:#{null}}")
+    private String clientSecret;
 
     // ssl connection values - by default, the empty string -> no SSL connection
     @Value("${sslTrustAllServerCertificates:false}")
@@ -79,6 +110,35 @@ public class MediationComponentConfig implements ConnectionConfig {
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public boolean isJwtAuthenticationEnabled() {
+        return jwtAuthenticationEnabled;
+    }
+
+    @Nullable
+    @Override
+    public String getOAuthEndpoint() {
+        return authEndpoint;
+    }
+
+    @Nullable
+    @Override
+    public String getAuthComponentEndpointExchange() {
+        return authComponentEndpointExchange;
+    }
+
+    @Nullable
+    @Override
+    public String getClientId() {
+        return clientId;
+    }
+
+    @Nullable
+    @Override
+    public String getClientSecret() {
+        return clientSecret;
     }
 
     /**
