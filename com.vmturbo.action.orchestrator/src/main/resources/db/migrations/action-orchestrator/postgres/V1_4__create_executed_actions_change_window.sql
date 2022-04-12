@@ -2,7 +2,7 @@
 -- The change window is the timeframe in which the action is having an impact on the entity.
 -- Events such as another action execution for the same entity, or an external revert of the action,
 -- would end the "change window".
-CREATE TABLE IF NOT EXISTS executed_actions_change_window (
+CREATE TABLE executed_actions_change_window (
   -- the action id.
   action_oid BIGINT NOT NULL,
   -- the target entity OID.

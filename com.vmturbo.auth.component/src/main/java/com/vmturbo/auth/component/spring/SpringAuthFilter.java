@@ -26,8 +26,6 @@ import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
-import com.vmturbo.auth.api.servicemgmt.AuthServiceDTO;
-import com.vmturbo.auth.api.servicemgmt.AuthServiceHelper.ROLE;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 
 /**
@@ -56,21 +54,17 @@ public class SpringAuthFilter extends GenericFilterBean {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
         final String tokenAttribute = httpRequest.getHeader(AUTH_HEADER_NAME);
         final String componentAttribute = httpRequest.getHeader(SecurityConstant.COMPONENT_ATTRIBUTE);
-        final String oauth2Attribute = httpRequest.getHeader(SecurityConstant.OAUTH2_HEADER_NAME);
+
         if (tokenAttribute != null) { // found the JWT token
             JWTAuthorizationToken token = new JWTAuthorizationToken(tokenAttribute);
             try {
-                if (oauth2Attribute != null && oauth2Attribute.equals(SecurityConstant.HYDRA)) {
-                    setSecurityContext(request, response, filterChain, verifier_.verifyHydraToken(token));
-                } else {
-                    AuthUserDTO dto;
-                    if (componentAttribute != null) { // component request, verify with component public key
-                        dto = verifier_.verifyComponent(token, componentAttribute);
-                    } else { // user request, verify with Auth private key
-                        dto = verifier_.verify(token, Collections.emptyList());
-                    }
-                    setSecurityContext(request, response, filterChain, dto);
+                AuthUserDTO dto;
+                if (componentAttribute != null) { // component request, verify with component public key
+                    dto = verifier_.verifyComponent(token, componentAttribute);
+                } else { // user request, verify with Auth private key
+                    dto = verifier_.verify(token, Collections.emptyList());
                 }
+                setSecurityContext(request, response, filterChain, dto);
             } catch (AuthorizationException e) {
                 throw new SecurityException(e);
             }
@@ -98,25 +92,6 @@ public class SpringAuthFilter extends GenericFilterBean {
         Authentication authentication = new UsernamePasswordAuthenticationToken(dto,
                 CREDENTIALS,
                 grantedAuths);
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        filterChain.doFilter(request, response);
-    }
-
-    private void setSecurityContext(@Nonnull final ServletRequest request,
-            @Nonnull final ServletResponse response,
-            @Nonnull final FilterChain filterChain,
-            @Nonnull final AuthServiceDTO dto) throws IOException, ServletException {
-        Objects.requireNonNull(request);
-        Objects.requireNonNull(response);
-        Objects.requireNonNull(filterChain);
-        Objects.requireNonNull(dto);
-        Set<GrantedAuthority> grantedAuths = new HashSet<>();
-        for (ROLE role : dto.getRoles()) {
-            grantedAuths.add(new SimpleGrantedAuthority(SecurityConstant.ROLE_STRING + role));
-        }
-        Authentication authentication = new UsernamePasswordAuthenticationToken(dto,
-        CREDENTIALS,
-        grantedAuths);
         SecurityContextHolder.getContext().setAuthentication(authentication);
         filterChain.doFilter(request, response);
     }

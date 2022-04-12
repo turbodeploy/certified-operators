@@ -47,7 +47,7 @@ public class WebsocketNotificationReceiver<T extends AbstractMessage> implements
     private ITransport<Empty, T> endpoint;
 
     /**
-     * Constructs websocket notification receiver and starts listening immediately (as soon as
+     * Connstructs websocket notification receiver and starts listening immediately (as soon as
      * websocket connection is established).
      *
      * @param connectionConfig connection configuration
@@ -150,35 +150,6 @@ public class WebsocketNotificationReceiver<T extends AbstractMessage> implements
         @Override
         public URI getServerAddress() {
             return finalUri;
-        }
-
-        @Override
-        public boolean isJwtAuthenticationEnabled() {
-            return false;
-        }
-
-        @Nullable
-        @Override
-        public String getOAuthEndpoint() {
-            return null;
-        }
-
-        @Nullable
-        @Override
-        public String getAuthComponentEndpointExchange() {
-            return null;
-        }
-
-        @Nullable
-        @Override
-        public String getClientId() {
-            return null;
-        }
-
-        @Nullable
-        @Override
-        public String getClientSecret() {
-            return null;
         }
 
         @Nullable

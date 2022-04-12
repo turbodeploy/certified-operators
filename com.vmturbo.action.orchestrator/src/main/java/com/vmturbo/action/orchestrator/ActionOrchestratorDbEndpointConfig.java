@@ -7,7 +7,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 
-import com.vmturbo.action.orchestrator.flyway.V1v24Callback;
 import com.vmturbo.sql.utils.ConditionalDbConfig.DbEndpointCondition;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
@@ -51,9 +50,7 @@ public class ActionOrchestratorDbEndpointConfig extends DbEndpointsConfig {
                     // V1.19 migration was replaced due to performance-related failures at large
                     // installations - see OM-67686
                     new ResetMigrationChecksumCallback("1.19",
-                            ImmutableSet.of(1998263184, -814613695), 1120921943),
-                    // V1.24 migration checksum needs to change.
-                    new V1v24Callback()
+                            ImmutableSet.of(1998263184, -814613695), 1120921943)
                 };
             case POSTGRES:
                 return new FlywayCallback[]{};

@@ -101,10 +101,8 @@ public class GroupEnvironmentTypeResolver {
             }
             groupEnvironment.addEnvironmentType(entityEnvironmentType);
             // calculate cloud type
-            // Getting Environment Type from entity in order to correctly compute group Environment
-            // in case of hybrid environment with no containers or apps, the groupEnvironment may not report the correct type.
             if (entity.getDiscoveringTargetIdsCount() > 0
-                    && !entityEnvironmentType.equals(
+                    && !groupEnvironment.getEnvironmentType().equals(
                     EnvironmentTypeEnum.EnvironmentType.ON_PREM)) {
                 // If the entity is discovered by several targets, iterate over them to find one
                 // with cloud type

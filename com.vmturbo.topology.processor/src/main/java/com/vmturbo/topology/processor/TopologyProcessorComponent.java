@@ -2,34 +2,26 @@ package com.vmturbo.topology.processor;
 
 import java.sql.SQLException;
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
-import javax.servlet.DispatcherType;
-import javax.servlet.Servlet;
+import javax.servlet.ServletException;
 
 import io.grpc.BindableService;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.eclipse.jetty.servlet.FilterHolder;
-import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.websocket.jsr356.server.deploy.WebSocketServerContainerInitializer;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.web.context.ContextLoaderListener;
-import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
-import org.springframework.web.filter.DelegatingFilterProxy;
-import org.springframework.web.servlet.DispatcherServlet;
+import org.springframework.web.context.ConfigurableWebApplicationContext;
 
-import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.components.common.migration.Migration;
@@ -83,7 +75,6 @@ import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineBlockin
     RepositoryConfig.class,
     RESTConfig.class,
     SdkServerConfig.class,
-    SpringSecurityConfig.class,
     SupplyChainValidationConfig.class,
     SchedulerConfig.class,
     StitchingConfig.class,
@@ -100,7 +91,6 @@ import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineBlockin
 public class TopologyProcessorComponent extends BaseVmtComponent {
 
     private Logger log = LogManager.getLogger();
-    private static final String PATH_SPEC = "/*";
 
     @Autowired
     private TopologyProcessorDiagnosticsConfig diagsConfig;
@@ -134,9 +124,6 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
 
     @Autowired
     private TopologyProcessorApiConfig topologyProcessorApiConfig;
-
-    @Autowired
-    private static TopologyProcessorApiSecurityConfig topologyProcessorApiSecurityConfig;
 
     @Autowired
     private DbAccessConfig dbAccessConfig;
@@ -203,30 +190,12 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     public static void main(String[] args) {
         runComponent((contextServer, environment) -> {
             try {
-                final AnnotationConfigWebApplicationContext rootContext =
-                        new AnnotationConfigWebApplicationContext();
-                rootContext.setEnvironment(environment);
-                rootContext.register(TopologyProcessorComponent.class);
-
-                final AnnotationConfigWebApplicationContext restContext =
-                        new AnnotationConfigWebApplicationContext();
-                restContext.setParent(rootContext);
-                final Servlet restDispatcherServlet = new DispatcherServlet(restContext);
-                final ServletHolder restServletHolder = new ServletHolder(restDispatcherServlet);
-
-                // Explicitly add Spring security to the following servlets: REST API
-                final FilterHolder filterHolder = new FilterHolder();
-                filterHolder.setFilter(new DelegatingFilterProxy());
-                filterHolder.setName("springSecurityFilterChain");
-                contextServer.addServlet(restServletHolder, PATH_SPEC);
-                contextServer.addFilter(filterHolder, PATH_SPEC, EnumSet.of(DispatcherType.REQUEST));
-
-                // Setup Spring context
-                final ContextLoaderListener springListener = new ContextLoaderListener(rootContext);
-                contextServer.addEventListener(springListener);
+                final ConfigurableWebApplicationContext context =
+                        attachSpringContext(contextServer, environment,
+                                TopologyProcessorComponent.class);
                 WebSocketServerContainerInitializer.configureContext(contextServer);
-                return restContext;
-            } catch (Exception e) {
+                return context;
+            } catch (ServletException e) {
                 throw new ContextConfigurationException("Could not configure websockets", e);
             }
         });

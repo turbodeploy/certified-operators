@@ -5,7 +5,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -217,80 +216,6 @@ public class GroupEnvironmentTypeResolverTest {
         // THEN
         Assert.assertEquals(EnvironmentType.HYBRID, groupEnvironment.getEnvironmentType());
         Assert.assertEquals(CloudType.AZURE, groupEnvironment.getCloudType());
-    }
-
-    /**
-     * Both on prem and cloud entities (single cloud type) having no App or container.
-     */
-    @Test
-    public void testBothOnPremAndCloudEntitiesSingleCloudTypeWithNoAppOrContainerTarget() {
-        // GIVEN
-        Set<EntityWithOnlyEnvironmentTypeAndTargets> entities = new LinkedHashSet<>(2);
-        entities.add(EntityWithOnlyEnvironmentTypeAndTargets.newBuilder()
-            .setOid(1L)
-            .setEnvironmentType(EnvironmentType.ON_PREM)
-            .addDiscoveringTargetIds(VC_TARGET.oid())
-            .build());
-        entities.add(EntityWithOnlyEnvironmentTypeAndTargets.newBuilder()
-            .setOid(2L)
-            .setEnvironmentType(EnvironmentType.CLOUD)
-            .addDiscoveringTargetIds(AWS_TARGET.oid())
-            .build());
-
-        targets = new ArrayList<>();
-        targets.add(VC_TARGET);
-        targets.add(AWS_TARGET);
-
-        Mockito.when(targetCache.getAllTargets()).thenReturn(targets);
-        Mockito.when(targetCache.getTargetInfo(AWS_TARGET.oid()))
-            .thenAnswer(invocation -> targets.stream()
-                .filter(target -> target.oid() == invocation.getArgumentAt(0, Long.class))
-                .findFirst());
-
-        // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore, 1L,
-            entities, ArrayListMultimap.create());
-        // THEN
-        Assert.assertEquals(EnvironmentType.HYBRID, groupEnvironment.getEnvironmentType());
-        Assert.assertEquals(CloudType.AWS, groupEnvironment.getCloudType());
-    }
-
-    /**
-     * Both on prem and cloud entities (single cloud type) having no App or container.
-     * The logic setting Group Environment should be independent of entities order.
-     */
-    @Test
-    public void testBothOnPremAndCloudEntitiesSingleCloudTypeWithNoAppOrContainerTargetReverse() {
-        // GIVEN
-        Set<EntityWithOnlyEnvironmentTypeAndTargets> entities = new LinkedHashSet<>(2);
-        entities.add(EntityWithOnlyEnvironmentTypeAndTargets.newBuilder()
-            .setOid(1L)
-            .setEnvironmentType(EnvironmentType.CLOUD)
-            .addDiscoveringTargetIds(AWS_TARGET.oid())
-            .build());
-        entities.add(EntityWithOnlyEnvironmentTypeAndTargets.newBuilder()
-            .setOid(2L)
-            .setEnvironmentType(EnvironmentType.ON_PREM)
-            .addDiscoveringTargetIds(VC_TARGET.oid())
-            .build());
-
-
-        targets = new ArrayList<>();
-        targets.add(VC_TARGET);
-        targets.add(AWS_TARGET);
-
-        Mockito.when(targetCache.getAllTargets()).thenReturn(targets);
-        Mockito.when(targetCache.getTargetInfo(AWS_TARGET.oid()))
-            .thenAnswer(invocation -> targets.stream()
-                .filter(target -> target.oid() == invocation.getArgumentAt(0, Long.class))
-                .findFirst());
-
-        // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore, 1L,
-            entities, ArrayListMultimap.create());
-        // THEN
-        Assert.assertEquals(EnvironmentType.HYBRID, groupEnvironment.getEnvironmentType());
-        Assert.assertEquals(CloudType.AWS, groupEnvironment.getCloudType());
     }
 
     /**
