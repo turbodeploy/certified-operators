@@ -1,5 +1,6 @@
--- Drop the unique index on id
-SET FOREIGN_KEY_CHECKS = 0;
+-- Drop unique index on id.
+-- For instances that had already run V1.24 migration before its modification, the unique index
+-- `id` still exists.
 -- there's no DROP INDEX IF EXISTS, so...
 DROP PROCEDURE IF EXISTS _drop_index;
 DELIMITER //
@@ -16,8 +17,3 @@ END //
 CALL _drop_index() //
 DROP PROCEDURE _drop_index //
 DELIMITER ;
-
-SET FOREIGN_KEY_CHECKS = 1;
-
--- Make id the primary key
-ALTER TABLE workflow ADD PRIMARY KEY (id);
