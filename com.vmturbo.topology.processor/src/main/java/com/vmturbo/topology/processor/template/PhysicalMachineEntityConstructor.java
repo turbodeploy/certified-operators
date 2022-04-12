@@ -151,8 +151,37 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
                                                   @Nonnull Map<String, String> fieldNameValueMap) {
         addComputeCommoditiesCpuMemSold(topologyEntityBuilder, fieldNameValueMap);
         addComputeCommoditiesIONetSold(topologyEntityBuilder, fieldNameValueMap);
+        addComputeCommoditiesNumVcoreReadyQueueSold(topologyEntityBuilder, fieldNameValueMap);
         addMiscComputeCommodities(topologyEntityBuilder);
     }
+
+
+    /**
+     * Generate NUM_VCORE and CPU_READY commodity sold and add to TopologyEntityDTO.
+     *
+     * @param topologyEntityBuilder builder of TopologyEntityDTO.
+     * @param fieldNameValueMap a Map which key is template field name and value is field value.
+     */
+    private static void addComputeCommoditiesNumVcoreReadyQueueSold(@Nonnull final TopologyEntityImpl topologyEntityBuilder,
+            @Nonnull Map<String, String> fieldNameValueMap) {
+        final double numOfCpu = Double.valueOf(
+                fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_COMPUTE_NUM_OF_CORE, ZERO));
+
+        // add the num_vcore and the cpu ready commodity
+        // We expect user to input logical cores for host template so we just
+        // multiply that with 20 seconds per core cpu ready capacity
+        // and come up with total cpu ready capacity.
+        final double cpuReady = numOfCpu * QX_VCPU_BASE_COEFFICIENT;
+        final CommoditySoldView numVcoreCommodity =
+                createCommoditySoldDTO(CommodityType.NUM_VCORE_VALUE, numOfCpu);
+        final CommoditySoldView cpuReadyCommodity =
+                createCommoditySoldDTO(CommodityType.CPU_READY_VALUE, cpuReady);
+        topologyEntityBuilder
+                .addCommoditySoldList(numVcoreCommodity)
+                .addCommoditySoldList(cpuReadyCommodity);
+
+    }
+
 
     /**
      * Generate CPU and Memory commodity sold and add to TopologyEntityDTO.
