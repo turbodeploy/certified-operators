@@ -28,6 +28,7 @@ public final class SensitiveDataUtil {
     private static final Set<String> additionalSensitiveKeySet = ImmutableSet.of(
             "arangodbPass",
             "userPassword",
+            "clientSecret",
             "sslKeystorePassword",
             "readonlyPassword",
             "dbRootPassword",

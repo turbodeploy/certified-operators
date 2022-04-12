@@ -31,6 +31,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
 import io.jsonwebtoken.CompressionCodecs;
 import io.jsonwebtoken.JwtBuilder;
@@ -45,6 +46,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authentication.AuthenticationException;
@@ -58,6 +60,7 @@ import com.vmturbo.auth.api.authorization.keyprovider.KeyProvider;
 import com.vmturbo.auth.api.authorization.keyprovider.PersistentVolumeKeyProvider;
 import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
+import com.vmturbo.auth.api.servicemgmt.AuthServiceDTO;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
@@ -624,6 +627,16 @@ public class AuthProvider extends AuthProviderBase {
             }
         }
         throw new AuthorizationException("Authorization failed: " + userName);
+    }
+
+    @PreAuthorize("hasRole('PROBE_ADMIN')")
+    public @Nonnull JWTAuthorizationToken authorizeService(Authentication auth) {
+        AuthServiceDTO authService = (AuthServiceDTO)auth.getPrincipal();
+        JWTAuthorizationToken authToken = generateToken(authService.getName(), authService.getUuid(),
+            authService.getRoles().stream().map(role -> role.toString()).collect(Collectors.toList()),
+            Lists.newArrayList(), authService.getIpAddress(), PROVIDER.LDAP);
+        authService.setInternalToken(authToken.getCompactRepresentation());
+        return authToken;
     }
 
     /**

@@ -1,9 +1,9 @@
-package com.vmturbo.auth.component.spring;
+package com.vmturbo.topology.processor.api.server;
 
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.AUTH_HEADER_NAME;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -14,6 +14,10 @@ import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
+
+import com.google.common.io.BaseEncoding;
+
+import io.jsonwebtoken.SignatureException;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -26,55 +30,52 @@ import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
-import com.vmturbo.auth.api.servicemgmt.AuthServiceDTO;
 import com.vmturbo.auth.api.servicemgmt.AuthServiceHelper.ROLE;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 
 /**
- * The SpringAuthFilter implements the stateless authentication filter.
+ * The SpringTpFilter to intercept requests to tp in order to secure probe communication.
  */
-public class SpringAuthFilter extends GenericFilterBean {
+public class SpringTpFilter extends GenericFilterBean {
     private static final String CREDENTIALS = "***";
 
     /**
-     * The verifier
+     * The verifier.
      */
     private final JWTAuthorizationVerifier verifier_;
 
     /**
-     * Constructs the AUTH Component stateless authentication filter.
+     * Constructs the Tp Component stateless authentication filter.
      *
      * @param verifier The verifier.
      */
-    public SpringAuthFilter(final @Nonnull JWTAuthorizationVerifier verifier) {
+    public SpringTpFilter(final @Nonnull JWTAuthorizationVerifier verifier) {
         verifier_ = verifier;
     }
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain)
             throws IOException, ServletException {
-        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletRequest httpRequest = (HttpServletRequest)request;
         final String tokenAttribute = httpRequest.getHeader(AUTH_HEADER_NAME);
-        final String componentAttribute = httpRequest.getHeader(SecurityConstant.COMPONENT_ATTRIBUTE);
-        final String oauth2Attribute = httpRequest.getHeader(SecurityConstant.OAUTH2_HEADER_NAME);
         if (tokenAttribute != null) { // found the JWT token
-            JWTAuthorizationToken token = new JWTAuthorizationToken(tokenAttribute);
+            String jwttoken = new String(BaseEncoding.base64().decode(tokenAttribute), StandardCharsets.UTF_8);
+            JWTAuthorizationToken token = new JWTAuthorizationToken(jwttoken);
             try {
-                if (oauth2Attribute != null && oauth2Attribute.equals(SecurityConstant.HYDRA)) {
-                    setSecurityContext(request, response, filterChain, verifier_.verifyHydraToken(token));
-                } else {
-                    AuthUserDTO dto;
-                    if (componentAttribute != null) { // component request, verify with component public key
-                        dto = verifier_.verifyComponent(token, componentAttribute);
-                    } else { // user request, verify with Auth private key
-                        dto = verifier_.verify(token, Collections.emptyList());
-                    }
-                    setSecurityContext(request, response, filterChain, dto);
+                AuthUserDTO dto = verifier_.verifyAuthComponent(token);
+                if (PROVIDER.LDAP.equals(dto.getProvider())
+                        && !dto.getRoles().contains(ROLE.PROBE_ADMIN.toString())) {
+                    throw new SecurityException("PROBE_ADMIN role is missing: " + dto.getRoles());
                 }
-            } catch (AuthorizationException e) {
-                throw new SecurityException(e);
+                setSecurityContext(request, response, filterChain, dto);
+            } catch (AuthorizationException | SignatureException e) {
+                throw new SecurityException("Cannot authorize request with token to tp.");
             }
         } else {
+            if ("external".equals(request.getParameter("source"))) {
+                throw new SecurityException("External probe connections require token!");
+            }
             filterChain.doFilter(request, response);
         }
     }
@@ -98,25 +99,6 @@ public class SpringAuthFilter extends GenericFilterBean {
         Authentication authentication = new UsernamePasswordAuthenticationToken(dto,
                 CREDENTIALS,
                 grantedAuths);
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        filterChain.doFilter(request, response);
-    }
-
-    private void setSecurityContext(@Nonnull final ServletRequest request,
-            @Nonnull final ServletResponse response,
-            @Nonnull final FilterChain filterChain,
-            @Nonnull final AuthServiceDTO dto) throws IOException, ServletException {
-        Objects.requireNonNull(request);
-        Objects.requireNonNull(response);
-        Objects.requireNonNull(filterChain);
-        Objects.requireNonNull(dto);
-        Set<GrantedAuthority> grantedAuths = new HashSet<>();
-        for (ROLE role : dto.getRoles()) {
-            grantedAuths.add(new SimpleGrantedAuthority(SecurityConstant.ROLE_STRING + role));
-        }
-        Authentication authentication = new UsernamePasswordAuthenticationToken(dto,
-        CREDENTIALS,
-        grantedAuths);
         SecurityContextHolder.getContext().setAuthentication(authentication);
         filterChain.doFilter(request, response);
     }

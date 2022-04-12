@@ -95,6 +95,7 @@ import com.vmturbo.auth.component.licensing.store.ILicenseStore;
 import com.vmturbo.auth.component.policy.ReportPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
+import com.vmturbo.auth.component.services.AuthServicesController;
 import com.vmturbo.auth.component.services.AuthUsersController;
 import com.vmturbo.auth.component.store.AuthProvider;
 import com.vmturbo.auth.component.store.sso.SsoUtil;
@@ -241,6 +242,16 @@ public class RestTest {
         @Bean
         public AuthUsersController authUsersController() {
             return new AuthUsersController(targetStore());
+        }
+
+        /**
+         * AuthServicesController.
+         *
+         * @return AuthServicesController.
+         */
+        @Bean
+        public AuthServicesController authServicesController() {
+            return new AuthServicesController(targetStore());
         }
 
         @Bean
