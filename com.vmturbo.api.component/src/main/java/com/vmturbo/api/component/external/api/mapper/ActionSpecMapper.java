@@ -2194,7 +2194,7 @@ public class ActionSpecMapper {
                 ActionInfo actionInfo = recommendation.getInfo();
                 if (actionType == ActionDTO.ActionType.RESIZE && actionInfo.hasResize()) {
                     Resize resize = actionInfo.getResize();
-                    if (resize.getCommodityType().getType() == CommodityType.VCPU_VALUE) {
+                    if (resize.getCommodityType().getType() == CommodityType.VCPU_VALUE && resize.getCommodityAttribute() == CommodityAttribute.CAPACITY) {
                         response.put(actionIdString, createOnPremResizeActionDetails(resize));
                     }
                     continue;
