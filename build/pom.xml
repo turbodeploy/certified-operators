@@ -450,6 +450,7 @@
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
+                <module>../com.vmturbo.mediation.aws.cloudbilling.component</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
                 <module>../com.vmturbo.mediation.aws.lambda.component</module>
@@ -579,6 +580,13 @@
             <id>mediation-aws-billing</id>
             <modules>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-aws-cloudbilling</id>
+            <modules>
+                <module>../com.vmturbo.mediation.aws.cloudbilling.component</module>
             </modules>
         </profile>
 
@@ -1330,6 +1338,7 @@
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
+                <module>../com.vmturbo.mediation.aws.cloudbilling.component</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
                 <module>../com.vmturbo.mediation.aws.lambda.component</module>
