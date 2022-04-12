@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.template;
 
+import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.QX_VCPU_BASE_COEFFICIENT;
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommodityBoughtValue;
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommoditySold;
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommoditySoldValue;
@@ -136,8 +137,12 @@ public class PhysicalMachineEntityConstructorTest {
         final TopologyEntityImpl topologyEntityImpl =
                 new PhysicalMachineEntityConstructor().createTopologyEntityFromTemplate(PM_TEMPLATE,
                         topology, null, TemplateActionType.CLONE, identityProvider, null);
-        assertEquals(17, topologyEntityImpl.getCommoditySoldListCount());
+        assertEquals(19, topologyEntityImpl.getCommoditySoldListCount());
         assertEquals(1, topologyEntityImpl.getCommoditiesBoughtFromProvidersCount());
+        assertEquals(10.0, getCommoditySoldValue(topologyEntityImpl.getCommoditySoldListList(),
+                CommodityType.NUM_VCORE_VALUE), epsilon);
+        assertEquals(10 * QX_VCPU_BASE_COEFFICIENT, getCommoditySoldValue(topologyEntityImpl.getCommoditySoldListList(),
+                CommodityType.CPU_READY_VALUE), epsilon);
         assertEquals(200.0, getCommoditySoldValue(topologyEntityImpl.getCommoditySoldListList(),
             CommodityType.CPU_VALUE), epsilon);
         assertEquals(100.0, getCommoditySoldValue(topologyEntityImpl.getCommoditySoldListList(),
@@ -194,7 +199,7 @@ public class PhysicalMachineEntityConstructorTest {
         final TopologyEntityImpl topologyEntityDTO = new PhysicalMachineEntityConstructor()
                 .createTopologyEntityFromTemplate(PM_TEMPLATE, topology, builder, TemplateActionType.CLONE,
                         identityProvider, null);
-        assertEquals(21, topologyEntityDTO.getCommoditySoldListCount());
+        assertEquals(23, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(4,
                 topologyEntityDTO.getCommoditySoldListList().stream().filter(
                         commoditySoldDTO -> !commoditySoldDTO.getCommodityType().getKey().isEmpty())
