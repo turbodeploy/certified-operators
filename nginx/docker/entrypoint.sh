@@ -47,6 +47,18 @@ if [ "$BLOCK_REMOTE_PROBES" == "" ]; then
     export BLOCK_REMOTE_PROBES='FALSE'
 fi
 
+if [ "$ENABLE_TP_PROBE_SECURITY" == "" ]; then
+    export ENABLE_TP_PROBE_SECURITY='FALSE'
+fi
+
+if [ "$AUTH" == "" ]; then
+    export AUTH='auth.turbonomic.svc.cluster.local'
+fi
+
+if [ "$HYDRA_PUBLIC" == "" ]; then
+    export HYDRA_PUBLIC='hydra-public.turbonomic.svc.cluster.local'
+fi
+
 # Allow IPv4 and IPv6 formats.
 # Validation checks characters are alphanumeric : / . for specifying ip.
 if [ "$WHITE_LIST_IPS" != "" ]; then
@@ -77,7 +89,8 @@ fi
 ENV_VARS=(
     '${API}' '${UI}' '${GRAFANA}' '${TOPOLOGY}' '${DNS_RESOLVER}' '${WORKER_PROCESSES}'
     '${WORKER_CONNECTIONS}' '${SSL_PROTOCOLS}' '${SSL_CIPHERS}' '${DISABLE_HTTPS_REDIRECT}'
-    '${BLOCK_REMOTE_PROBES}' '${WHITE_LIST_IPS}'
+    '${BLOCK_REMOTE_PROBES}' '${WHITE_LIST_IPS}' '${AUTH}' '${HYDRA_PUBLIC}'
+    '${ENABLE_TP_PROBE_SECURITY}'
 )
 mkdir -p /tmp/nginx/includes
 envsubst "${ENV_VARS[*]}" < /etc/nginx/nginx.conf.template > /tmp/nginx/nginx.conf

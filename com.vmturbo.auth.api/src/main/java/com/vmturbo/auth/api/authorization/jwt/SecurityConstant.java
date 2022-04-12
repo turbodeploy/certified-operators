@@ -147,6 +147,56 @@ public class SecurityConstant {
     public static final String AUTH_HEADER_NAME = "x-auth-token";
 
     /**
+     * The header name for identifying oauth2 provider.
+     */
+    public static final String OAUTH2_HEADER_NAME = "x-oauth2";
+
+    /**
+     * Hydra oauth2 provider.
+     */
+    public static final String HYDRA = "hydra";
+
+    /**
+     * Http scheme.
+     */
+    public static final String HTTP = "http";
+
+    /**
+     * Hydra admin.
+     */
+    public static final String HYDRA_ADMIN = "hydra-admin";
+
+    /**
+     * Hydra admin port.
+     */
+    public static final String HYDRA_ADMIN_PORT = "4445";
+
+    /**
+     * Hydra introspect path.
+     */
+    public static final String HYDRA_INTROSPECT_PATH = "/oauth2/introspect";
+
+    /**
+     * Client id.
+     */
+    public static final String CLIENT_ID = "client_id";
+
+    /**
+     * Token.
+     */
+    public static final String TOKEN = "token";
+
+    /**
+     * Default ip.
+     */
+    public static final String DEFAULT_IP = "UNKNOWN";
+
+    /**
+     * Active.
+     */
+    public static final String ACTIVE = "active";
+
+    /**
      * These are predefined external groups for all the roles in XL.
      */
     public static final Set<SecurityGroupDTO> PREDEFINED_SECURITY_GROUPS_SET =

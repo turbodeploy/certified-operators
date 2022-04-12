@@ -28,6 +28,7 @@ import com.vmturbo.auth.component.licensing.LicensingConfig;
 import com.vmturbo.auth.component.policy.ReportPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
+import com.vmturbo.auth.component.services.AuthServicesController;
 import com.vmturbo.auth.component.services.AuthUsersController;
 import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.store.AuthProvider;
@@ -261,6 +262,16 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     @Bean
     public AuthUsersController authUsersController() {
         return new AuthUsersController(targetStore());
+    }
+
+    /**
+     * AuthServicesController.
+     *
+     * @return AuthServicesController.
+     */
+    @Bean
+    public AuthServicesController authServicesController() {
+        return new AuthServicesController(targetStore());
     }
 
     @Bean

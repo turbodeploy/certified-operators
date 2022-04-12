@@ -251,6 +251,8 @@ services:
       API: api
       GRAFANA: grafana
       TOPOLOGY: topology-processor
+      AUTH: auth
+      HYDRA_PUBLIC: hydra-public
       DNS_RESOLVER: 127.0.0.11
     volumes:
       - /tmp/certs:/etc/nginx/certs
