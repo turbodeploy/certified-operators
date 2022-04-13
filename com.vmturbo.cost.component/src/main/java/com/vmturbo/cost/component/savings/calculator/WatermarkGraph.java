@@ -11,6 +11,9 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.TierCostDetails;
@@ -28,6 +31,7 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCover
  * - Destination provider: The provider of the entity after the action.
  */
 public class WatermarkGraph {
+    private static final Logger logger = LogManager.getLogger();
     private final TreeSet<Watermark> dataPoints;
 
     private static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
@@ -58,6 +62,8 @@ public class WatermarkGraph {
             // TODO Check volume rate is set in delete volume action.
             final TierCostDetails sourceCostDetails = action.getInfo().getScale().getCloudSavingsDetails()
                     .getSourceTierCostDetails();
+            logger.trace("Source cost details of action {}: {}", action::getId, () -> sourceCostDetails);
+
             // On-demand rate of the provider
             double sourceRate = sourceCostDetails.getOnDemandRate().getAmount();
             // The rate after considering RI coverage
