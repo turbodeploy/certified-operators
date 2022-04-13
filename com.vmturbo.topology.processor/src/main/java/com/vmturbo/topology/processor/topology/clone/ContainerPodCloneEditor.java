@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.Comm
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.topology.TopologyEditorException;
 import com.vmturbo.topology.processor.util.TopologyEditorUtil;
 
 /**
@@ -64,12 +65,6 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
                     cloneContext.getNodeCommodities();
             // When feature flag is on and this is a container cluster plan
             switch (commodityBought.getCommodityType().getType()) {
-                // We drop the cluster commodity, because there is no need for such a restriction
-                // for pods in the container cluster plan where there's only one container cluster.
-                // In the future when we support multiple clusters in plan, we will revisit but this
-                // still seems a good choice not to restrict the pods in any particular cluster.
-                case CommodityType.CLUSTER_VALUE:
-                    return false;
                 // For taint commodity, we only drop it when the taint does not exist in the cluster
                 // of the plan
                 case CommodityType.TAINT_VALUE:
@@ -94,9 +89,26 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
     @Override
     protected boolean shouldReplaceBoughtKey(@Nonnull final CommodityTypeView commodityType,
                                              final int providerEntityType) {
-        return Objects.requireNonNull(commodityType).hasKey()
-                && TopologyEditorUtil.isQuotaCommodity(commodityType.getType())
-                && EntityType.WORKLOAD_CONTROLLER_VALUE == providerEntityType;
+        if (!Objects.requireNonNull(commodityType).hasKey()) {
+            return false;
+        }
+        return (TopologyEditorUtil.isQuotaCommodity(commodityType.getType())
+                    && EntityType.WORKLOAD_CONTROLLER_VALUE == providerEntityType)
+                || ((commodityType.getType() == CommodityType.CLUSTER_VALUE)
+                    && (EntityType.VIRTUAL_MACHINE_VALUE == providerEntityType));
+    }
+
+    @Override
+    protected CommodityTypeView getReplacedBoughtCommodity(@Nonnull final CommodityTypeView commodityType,
+                                                           @Nonnull final CloneContext cloneContext,
+                                                           @Nonnull final CloneInfo cloneInfo) {
+        if (commodityType.getType() == CommodityType.CLUSTER_VALUE) {
+            return cloneContext.getPlanClusterVendorId()
+                    .map(id -> commodityType.copy().setKey(id))
+                    .orElseThrow(() -> new TopologyEditorException(
+                            "Failed to get cluster ID for plan " + cloneContext.getPlanId()));
+        }
+        return super.getReplacedBoughtCommodity(commodityType, cloneContext, cloneInfo);
     }
 
     @Override

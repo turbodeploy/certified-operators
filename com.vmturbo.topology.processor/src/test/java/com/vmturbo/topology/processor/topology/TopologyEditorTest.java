@@ -39,6 +39,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.tag.TagPOJO.TagValuesImpl;
@@ -80,20 +81,25 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.PerTargetEntityInformationImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ConnectedEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ConnectedEntityView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.EditView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.PlanScenarioOriginImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.AnalysisUtil;
+import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST;
@@ -130,7 +136,8 @@ public class TopologyEditorTest {
     private static final long containerSpecId = 80;
     private static final long namespaceId = 90;
     private static final long clusterId = 134;
-    private static final long sourceClusterId = 74327977713718L;
+    private static final long destClusterId = 74327977713718L;
+    private static final long destVMId = 101;
     private static final double USED = 100;
     private static final double VCPU_CAPACITY = 1000;
     private static final double VMEM_CAPACITY = 1000;
@@ -174,21 +181,48 @@ public class TopologyEditorTest {
     private static final CommodityTypeView CLUSTER_KEYED = new CommodityTypeImpl()
             .setType(CommodityDTO.CommodityType.CLUSTER_VALUE)
             .setKey("foo");
+    private static final CommodityTypeView DEST_CLUSTER_KEYED = new CommodityTypeImpl()
+            .setType(CommodityDTO.CommodityType.CLUSTER_VALUE)
+            .setKey("bar");
     private PlanScope scope;
     private TopologyPipelineContext context;
     private TopologyPipelineContext containerClusterPlanContext;
     private TopologyPipelineContext migrateContainerWorkloadPlanContext;
+    private static final TopologyEntity.Builder destVM = TopologyEntityUtils.topologyEntityBuilder(
+            new TopologyEntityImpl()
+                    .setOid(destVMId)
+                    .setDisplayName("destVM")
+                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .setTags(new TagsImpl().putTags("[k8s taint] NoSchedule", new TagValuesImpl()
+                                         // Taint with both key and value
+                                         .addValues("key2=value2")
+                                         // Taint with key only
+                                         .addValues("node-role.kubernetes.io/master")))
+                    .addConnectedEntityList(new ConnectedEntityImpl()
+                                        .setConnectedEntityId(destClusterId)
+                                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                                                  .setCommodityType(VCPU)
+                                                  .setUsed(USED)
+                                                  .setCapacity(VCPU_CAPACITY))
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                                                  .setCommodityType(VMEM)
+                                                  .setUsed(USED)
+                                                  .setCapacity(VMEM_CAPACITY))
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                                                  .setCommodityType(DEST_CLUSTER_KEYED))
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                                                  .setCommodityType(VMPM_NODE_TO_POD))
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                                                  .setCommodityType(TAINT_NODE_TO_POD_1))
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                                                  .setCommodityType(TAINT_NODE_TO_POD_2))
+    );
     private static final TopologyEntity.Builder vm = TopologyEntityUtils.topologyEntityBuilder(
         new TopologyEntityImpl()
             .setOid(vmId)
             .setDisplayName("VM")
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .setTags(new TagsImpl()
-                .putTags("[k8s taint] NoSchedule", new TagValuesImpl()
-                    // Taint with both key and value
-                    .addValues("key2=value2")
-                    // Taint with key only
-                    .addValues("node-role.kubernetes.io/master")))
             .addConnectedEntityList(new ConnectedEntityImpl()
                 .setConnectedEntityId(clusterId)
                 .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
@@ -211,19 +245,33 @@ public class TopologyEditorTest {
                 .setCommodityType(VMEM)
                 .setUsed(USED)
                 .setCapacity(VMEM_CAPACITY))
+            .addCommoditySoldList(new CommoditySoldImpl()
+                .setCommodityType(CLUSTER_KEYED))
+            .addCommoditySoldList(new CommoditySoldImpl()
+                .setCommodityType(VMPM_NODE_TO_POD))
+            .addCommoditySoldList(new CommoditySoldImpl()
+                .setCommodityType(TAINT_NODE_TO_POD_1))
+            .addCommoditySoldList(new CommoditySoldImpl()
+                .setCommodityType(TAINT_NODE_TO_POD_2))
     );
+    private static String clusterName = "ContainerPlatformCluster";
     private static final TopologyEntity.Builder cluster = TopologyEntityUtils.topologyEntityBuilder(
             new TopologyEntityImpl()
                     .setOid(clusterId)
-                    .setDisplayName("ContainerPlatformCluster")
+                    .setDisplayName(clusterName)
                     .setEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
     );
-    private static String sourceContainerClusterName = "SourceContainerPlatformCluster";
-    private static final TopologyEntity.Builder sourceCluster = TopologyEntityUtils.topologyEntityBuilder(
+    private static String destContainerClusterName = "DestinationContainerPlatformCluster";
+    private static final TopologyEntity.Builder destCluster = TopologyEntityUtils.topologyEntityBuilder(
             new TopologyEntityImpl()
-                    .setOid(sourceClusterId)
-                    .setDisplayName(sourceContainerClusterName)
+                    .setOid(destClusterId)
+                    .setDisplayName(destContainerClusterName)
                     .setEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
+                    .setOrigin(new OriginImpl()
+                        .setDiscoveryOrigin(new DiscoveryOriginImpl()
+                            .putDiscoveredTargetData(12345L, new PerTargetEntityInformationImpl()
+                                    .setOrigin(EntityOrigin.DISCOVERED)
+                                    .setVendorId("bar"))))
     );
     private static final TopologyEntity.Builder unplacedVm = TopologyEntityUtils.topologyEntityBuilder(
             new TopologyEntityImpl()
@@ -402,7 +450,7 @@ public class TopologyEditorTest {
                             VMEM_REQUEST_QUOTA.copy().setKey(namespaceKey)))
                     .addCommoditiesBoughtFromProviders(
                             new CommoditiesBoughtFromProviderImpl()
-                                    .setProviderId(sourceClusterId)
+                                    .setProviderId(clusterId)
                                     .setProviderEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
                                     .addCommodityBought(new CommodityBoughtImpl()
                                         .setCommodityType(VMEM)
@@ -416,7 +464,7 @@ public class TopologyEditorTest {
                                         .setUsed(1.0)))
                     .addConnectedEntityList(
                             new ConnectedEntityImpl()
-                                    .setConnectedEntityId(sourceClusterId)
+                                    .setConnectedEntityId(clusterId)
                                     .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                                     .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)));
 
@@ -572,6 +620,8 @@ public class TopologyEditorTest {
      */
     private static final long CLONE_ID_MULTIPLIER = 100;
 
+    private PlanTopologyScopeEditor planTopologyScopeEditor;
+
     @Before
     public void setup() {
         when(identityProvider.getCloneId(any(TopologyEntityView.class)))
@@ -584,6 +634,8 @@ public class TopologyEditorTest {
                 templateConverterFactory,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
         scope = PlanScope.newBuilder().build();
+        planTopologyScopeEditor = new PlanTopologyScopeEditor(
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }
 
     /**
@@ -1514,12 +1566,12 @@ public class TopologyEditorTest {
      * Test adding a container pod to a plan.
      */
     private void testTopologyAdditionPodClone(boolean applyConstraints) throws Exception {
-        Map<Long, TopologyEntity.Builder> topology = Stream.of(container, pod, workloadController, vm, pm, cluster)
+        Map<Long, TopologyEntity.Builder> topology = Stream.of(container, pod, workloadController, vm, pm, destVM, destCluster)
             .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
         List<ScenarioChange> changes = Lists.newArrayList(ADD_POD);
         PlanScope cntClusterPlanScope = PlanScope.newBuilder()
                 .addScopeEntries(PlanScopeEntry.newBuilder()
-                    .setScopeObjectOid(clusterId)
+                    .setScopeObjectOid(destClusterId)
                     .setClassName(ApiEntityType.CONTAINER_PLATFORM_CLUSTER.apiStr()))
                 .build();
         topologyEditor.editTopology(topology, cntClusterPlanScope, changes, containerClusterPlanContext,
@@ -1590,15 +1642,15 @@ public class TopologyEditorTest {
                                 .collect(Collectors.toSet());
                 if (applyConstraints) {
                     // Verify that the cloned pods each buy the right commodities
-                    assertEquals(3, keyed.size());
+                    assertEquals(4, keyed.size());
                     assertTrue("Cloned pods do buy VMPM_ACCESS commodities",
                                keyed.contains(VMPM_NODE_TO_POD));
                     assertTrue("Cloned pods do buy TAINT commodities",
                                keyed.contains(TAINT_NODE_TO_POD_1));
                     assertTrue("Cloned pods do buy TAINT commodities",
                                keyed.contains(TAINT_NODE_TO_POD_2));
-                    assertFalse("Cloned pods do not buy cluster commodity",
-                                keyed.contains(CLUSTER_KEYED));
+                    assertTrue("Cloned pods do buy cluster commodity bound to the plan cluster",
+                                keyed.contains(DEST_CLUSTER_KEYED));
                 } else {
                     // Verify that the cloned pods do not buy any keyed commodities
                     assertTrue("Cloned pods do not buy any keyed commodities", keyed.isEmpty());
@@ -1622,14 +1674,15 @@ public class TopologyEditorTest {
     @Test
     public void testTopologyMigrateContainerWorkload() throws Exception {
         final Set<TopologyEntity.Builder> originalEntities = ImmutableSet.of(
-                container, pod, pod1, workloadController, containerSpec, namespace, sourceCluster, cluster);
+                container, pod, pod1, workloadController, containerSpec,
+                namespace, vm, destVM,cluster, destCluster);
         featureFlagTestRule.enable(FeatureFlags.MIGRATE_CONTAINER_WORKLOAD_PLAN);
         Map<Long, TopologyEntity.Builder> topology = originalEntities.stream()
                 .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
         List<ScenarioChange> changes = Lists.newArrayList(ADD_WORKLOAD);
         PlanScope cntClusterPlanScope = PlanScope.newBuilder()
                 .addScopeEntries(PlanScopeEntry.newBuilder()
-                    .setScopeObjectOid(clusterId)
+                    .setScopeObjectOid(destClusterId)
                     .setClassName(ApiEntityType.CONTAINER_PLATFORM_CLUSTER.apiStr()))
                 .build();
         topologyEditor.editTopology(topology, cntClusterPlanScope, changes,
@@ -1695,6 +1748,45 @@ public class TopologyEditorTest {
             }
             cloneCounter++;
         }
+        // Verify that the cloned pods each only buy the VMPM keyed commodity but not the cluster one
+        cloneCounter = 0;
+        for (final TopologyEntity entity : clonedPods) {
+            for (final CommoditiesBoughtFromProviderView bought : entity.getTopologyEntityImpl()
+                    .getCommoditiesBoughtFromProvidersList()) {
+                assertNotEquals("Cloned pods should skip bought commodities from virtual volume",
+                                EntityType.VIRTUAL_VOLUME_VALUE, bought.getProviderEntityType());
+                final Set<CommodityTypeView> keyedComm = bought.getCommodityBoughtList().stream()
+                        .map(CommodityBoughtView::getCommodityType)
+                        .filter(CommodityTypeView::hasKey)
+                        .collect(Collectors.toSet());
+                final Set<String> keys = keyedComm.stream()
+                        .map(CommodityTypeView::getKey)
+                        .collect(Collectors.toSet());
+                if (bought.getProviderEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                    // Verify that the cloned pods each buy the right commodities
+                    assertEquals(4, keyedComm.size());
+                    assertTrue("Cloned pods do buy VMPM_ACCESS commodities",
+                               keyedComm.contains(VMPM_NODE_TO_POD));
+                    assertTrue("Cloned pods do buy TAINT commodities",
+                               keyedComm.contains(TAINT_NODE_TO_POD_1));
+                    assertTrue("Cloned pods do buy TAINT commodities",
+                               keyedComm.contains(TAINT_NODE_TO_POD_2));
+                    assertTrue("Cloned pods do buy cluster commodity bound to the plan cluster",
+                               keyedComm.contains(DEST_CLUSTER_KEYED));
+                } else if (bought.getProviderEntityType() == EntityType.WORKLOAD_CONTROLLER_VALUE) {
+                    // Verify that the cloned pods do not buy any keyed commodities
+                    assertTrue(keys.contains(workloadControllerKey + DefaultEntityCloneEditor.cloneSuffix(cloneCounter)));
+                }
+            }
+            for (final CommoditySoldView sold : entity.getTopologyEntityImpl().getCommoditySoldListList()) {
+                if (sold.getCommodityType().hasKey()) {
+                    final CommodityTypeView expected = VMPM_POD_TO_CONTAINER.copy()
+                            .setKey(VMPM_POD_TO_CONTAINER.getKey() + DefaultEntityCloneEditor.cloneSuffix(cloneCounter));
+                    assertEquals("Cloned pods sell keyed commodities but with a distinct key",
+                                 expected, sold.getCommodityType());
+                }
+            }
+        }
         // Verify that the two cloned pods have the same provider, which is the cloned workload controller
         assertTrue(clonedPods.stream()
                            .allMatch(pod -> pod.getProviders().stream()
@@ -1708,7 +1800,7 @@ public class TopologyEditorTest {
                            .allMatch(wc -> wc.getAggregators().stream()
                                    .allMatch(clonedNamespaces.get(0)::equals)));
         // Verify that the cloned workload controller has the correct display name
-        assertEquals(sourceWorkloadControllerName + " - Clone from " + sourceContainerClusterName,
+        assertEquals(sourceWorkloadControllerName + " - Clone from " + clusterName,
                      clonedWorkloadControllers.get(0).getDisplayName());
         // Verify that the cloned workload controller owns the cloned container spec
         assertTrue(clonedWorkloadControllers.stream()
@@ -1717,11 +1809,24 @@ public class TopologyEditorTest {
         // Verify that the cloned namespace consumes from the destination cluster
         assertTrue(clonedNamespaces.stream()
                            .allMatch(ns -> ns.getProviders().stream()
-                                   .allMatch(clusters.get(0)::equals)));
+                                   .map(TopologyEntity::getDisplayName)
+                                   .allMatch(destCluster.getDisplayName()::equals)));
         // Verify that the cloned container is controlled by the cloned container spec
         assertTrue(clonedContainers.stream()
                            .allMatch(cnt -> cnt.getControllers().stream()
                                    .allMatch(clonedContainerSpecs.get(0)::equals)));
+
+        // populate InvertedIndex
+        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
+                index = planTopologyScopeEditor.createInvertedIndex();
+        topologyGraph.entities().forEach(index::add);
+        // scope using inverted index
+        TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
+                .indexBasedScoping(index, migrateContainerWorkloadPlanTopologyInfo, topologyGraph,
+                                   groupResolver, cntClusterPlanScope, PlanProjectType.USER);
+        // Verify that the original VM is not scoped
+        assertFalse(result.getEntity(vmId).isPresent());
+        assertTrue(result.getEntity(destVMId).isPresent());
     }
 
     /**

@@ -117,7 +117,8 @@ public class DefaultEntityCloneEditor {
                 if (shouldCopyBoughtCommodity(commodityBought, cloneContext)) {
                     final CommodityTypeView commodityType = commodityBought.getCommodityType();
                     if (shouldReplaceBoughtKey(commodityType, bought.getProviderEntityType())) {
-                        final CommodityTypeView newType = newCommodityTypeWithClonedKey(commodityType, cloneCounter);
+                        final CommodityTypeView newType = getReplacedBoughtCommodity(
+                                commodityType, cloneContext, cloneInfo);
                         final CommodityBoughtView clonedBought = commodityBought.copy()
                                 .setCommodityType(newType);
                         clonedBoughtFromProvider.addCommodityBought(clonedBought);
@@ -213,8 +214,22 @@ public class DefaultEntityCloneEditor {
      * @return true if we should replace the key, or otherwise false
      */
     protected boolean shouldReplaceBoughtKey(@Nonnull final CommodityTypeView commodityType,
-            final int providerEntityType) {
+                                             final int providerEntityType) {
         return false;
+    }
+
+    /**
+     * Get the replaced bought commodity.
+     *
+     * @param commodityType the commodity type
+     * @param cloneContext the clone context
+     * @param cloneInfo the clone info
+     * @return the replaced bought commodity
+     */
+    protected CommodityTypeView getReplacedBoughtCommodity(@Nonnull final CommodityTypeView commodityType,
+                                                           @Nonnull final CloneContext cloneContext,
+                                                           @Nonnull final CloneInfo cloneInfo) {
+        return newCommodityTypeWithClonedKey(commodityType, cloneInfo.getCloneCounter());
     }
 
     /**

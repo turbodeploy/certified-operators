@@ -11,6 +11,7 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.topology.TopologyEditorException;
 import com.vmturbo.topology.processor.util.TopologyEditorUtil;
 
 /**
@@ -37,7 +38,8 @@ public class NamespaceCloneEditor extends DefaultEntityCloneEditor {
         // For provider of the cloned namespace, we set it to the destination cluster
         return cloneContext.getPlanCluster()
                 .map(TopologyEntity.Builder::getOid)
-                .orElse(null);
+                .orElseThrow(() -> new TopologyEditorException(
+                        "Failed to get destination cluster for plan " + cloneContext.getPlanId()));
     }
 
     @Override
