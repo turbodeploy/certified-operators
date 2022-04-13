@@ -275,6 +275,8 @@ public enum UICommodityType {
     TAINT(CommodityType.TAINT, "Kubernetes Taint"),
     /** The commodity LABEL */
     LABEL(CommodityType.LABEL, "Kubernetes Label"),
+    /** The commodity HARDWARE_VERSION **/
+    HARDWARE_VERSION(CommodityType.HARDWARE_VERSION, "Hardware Version"),
     /** The commodity UNKNOWN. */
     UNKNOWN(CommodityType.UNKNOWN, "Unknown");
 

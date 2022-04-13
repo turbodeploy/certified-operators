@@ -189,6 +189,7 @@ public class CommodityTypeMapping {
             .put(CommodityType.IO_THROUGHPUT_WRITE, CommodityInfo.of("IOThroughputWrite", "IOThroughputWrite", "KByte/sec"))
             .put(CommodityType.TAINT, CommodityInfo.of("Taint", "Taint", ""))
             .put(CommodityType.LABEL, CommodityInfo.of("Label", "Label", ""))
+            .put(CommodityType.HARDWARE_VERSION, CommodityInfo.of("HardwareVersion", "HardwareVersion", ""))
             .put(CommodityType.UNKNOWN, CommodityInfo.of("Unknown", "Unknown", ""))
             .build();
 

@@ -296,7 +296,8 @@ public final class MarketAnalysisUtils {
                                     CommodityDTO.CommodityType.INSTANCE_DISK_COUNT_VALUE,
                                     CommodityDTO.CommodityType.IMAGE_CPU_VALUE,
                                     CommodityDTO.CommodityType.IMAGE_MEM_VALUE,
-                                    CommodityDTO.CommodityType.IMAGE_STORAGE_VALUE);
+                                    CommodityDTO.CommodityType.IMAGE_STORAGE_VALUE,
+                                    CommodityDTO.CommodityType.HARDWARE_VERSION_VALUE);
 
     /**
      * Overhead calculated in market analysis for these commodities.
