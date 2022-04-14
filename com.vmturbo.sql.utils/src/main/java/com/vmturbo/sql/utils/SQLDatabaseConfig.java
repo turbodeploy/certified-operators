@@ -172,19 +172,6 @@ public abstract class SQLDatabaseConfig {
     }
 
     /**
-     * Get a {@link DataSource} that will produce connections that are not part of the connection
-     * pool. This may be advisable for connections that will be used for potentially long-running
-     * operations, to avoid tying up limited pool connections.
-     *
-     * @return unpooled datasource
-     */
-    @Bean
-    public DataSource unpooledDataSource() {
-        return getUnpooledDataSource(getDbSchemaName(), dbRootUsername,
-                Optional.of(getDBRootPassword(false)));
-    }
-
-    /**
      * Get the DataSource from the given DB url, username and password.
      *
      * @param dbUrl       Given JDBC connection url.
@@ -238,7 +225,7 @@ public abstract class SQLDatabaseConfig {
         return configuration(dataSource());
     }
 
-    private DefaultConfiguration configuration(@Nonnull final DataSource dataSource) {
+    protected DefaultConfiguration configuration(@Nonnull final DataSource dataSource) {
         DefaultConfiguration jooqConfiguration = new DefaultConfiguration();
 
         jooqConfiguration.set(connectionProvider(dataSource));
@@ -297,17 +284,6 @@ public abstract class SQLDatabaseConfig {
     @Bean
     public DSLContext dsl() {
         return new DefaultDSLContext(configuration());
-    }
-
-    /**
-     * Get a {@link DSLContext} that uses unpooled connections to perform database operations.
-     * This may be advisable when performing potentially long-running DB operaitions to avoid
-     * tying up limited pool connections.
-     *
-     * @return DSLContext that uses unpooled connections
-     */
-    public DSLContext unpooledDsl() {
-        return new DefaultDSLContext(configuration(unpooledDataSource()));
     }
 
     /**
