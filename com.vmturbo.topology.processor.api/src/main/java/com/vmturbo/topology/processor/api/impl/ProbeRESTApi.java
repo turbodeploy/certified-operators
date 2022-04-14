@@ -15,7 +15,6 @@ import io.swagger.annotations.ApiModelProperty;
 
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.common.protobuf.utils.ProbeFeature;
-import com.vmturbo.platform.common.dto.SupplyChain;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
@@ -216,10 +215,6 @@ public class ProbeRESTApi {
 
         private final Set<ProbeFeature> probeFeatures;
 
-        private final List<SupplyChain.TemplateDTO> supplyChainDefinitionSetList;
-
-        private final String templateClass = "virtual_machine";
-
         /**
          * Protected constructor, suitable only for deserialization purposes.
          */
@@ -235,7 +230,6 @@ public class ProbeRESTApi {
             this.identifyingFields = null;
             this.actionPolicies = null;
             this.probeFeatures = null;
-            this.supplyChainDefinitionSetList = null;
         }
 
         public ProbeDescription(final long probeId, @Nonnull final String type,
@@ -246,8 +240,7 @@ public class ProbeRESTApi {
                 @Nonnull final List<AccountField> accountFields,
                 @Nonnull final List<String> identifyingFields,
                 @Nonnull final List<ProbeActionCapability> actionPolicies,
-                @Nonnull final Set<ProbeFeature> probeFeatures,
-                @Nonnull final List<SupplyChain.TemplateDTO> supplyChainDefinitionSetList) {
+                @Nonnull final Set<ProbeFeature> probeFeatures) {
             this.id = probeId;
             this.type = Objects.requireNonNull(type);
             this.category = Objects.requireNonNull(category);
@@ -260,7 +253,6 @@ public class ProbeRESTApi {
             this.actionPolicies = ImmutableList.copyOf(Objects.requireNonNull(actionPolicies,
                     "Action policies shouldn't be null."));
             this.probeFeatures = Objects.requireNonNull(probeFeatures);
-            this.supplyChainDefinitionSetList = Objects.requireNonNull(supplyChainDefinitionSetList);
         }
 
         /**
@@ -281,7 +273,6 @@ public class ProbeRESTApi {
             this.error = Objects.requireNonNull(error);
             this.actionPolicies = null;
             this.probeFeatures = null;
-            supplyChainDefinitionSetList = null;
         }
 
         public List<AccountField> getAccountFields() {
@@ -346,17 +337,6 @@ public class ProbeRESTApi {
                 return Collections.emptySet();
             }
             return probeFeatures;
-        }
-
-        @Override
-        @Nonnull
-        public Boolean isDiscoveringVMs() {
-            for (SupplyChain.TemplateDTO supplyChain : supplyChainDefinitionSetList) {
-                if (supplyChain.getTemplateClass().name().equalsIgnoreCase(templateClass)) {
-                    return true;
-                }
-            }
-            return false;
         }
 
         /**

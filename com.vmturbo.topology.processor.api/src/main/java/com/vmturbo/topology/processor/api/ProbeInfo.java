@@ -85,11 +85,4 @@ public interface ProbeInfo {
      * @return set of probe features
      */
     Set<ProbeFeature> getSupportedFeatures();
-
-    /**
-     * Checks whether probe is discovering VMs.
-     *
-     * @return Discoverable status of probe, true/false
-     */
-    Boolean isDiscoveringVMs();
 }

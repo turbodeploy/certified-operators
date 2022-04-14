@@ -35,6 +35,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.probe.ProbeDTO;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
@@ -129,8 +130,6 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.KubernetesServiceData;
-import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -1441,24 +1440,16 @@ public class SearchService implements ISearchService {
 
     @Nonnull
     private List<CriteriaOptionApiDTO> getProbeTypeOptions() {
-        final List<CriteriaOptionApiDTO> probeTypeOptions = new ArrayList<>();
-        final List<String> probeTypes = targetsService.getProbesForTargetTypeFilter()
-                        .stream()
-                        .map(TargetApiDTO::getType)
-                        .filter(probe -> !probe.equalsIgnoreCase(SDKProbeType.AWS_BILLING.getProbeType()))
-                        .distinct()
-                        .collect(Collectors.toList());
-
-        for (String probeType : probeTypes) {
-            final CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
-            crOpt.setValue(probeType);
-            if (probeType.equalsIgnoreCase(SDKProbeType.VCENTER.getProbeType())) {
-                probeTypeOptions.add(0, crOpt);
-            } else {
-                probeTypeOptions.add(crOpt);
-            }
-        }
-        return probeTypeOptions;
+        return targetsService.getProbes()
+                .stream()
+                .map(probe -> probe.getType())
+                .distinct()
+                .map(probeType -> {
+                    final CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
+                    crOpt.setValue(probeType);
+                    return crOpt;
+                })
+                .collect(Collectors.toList());
     }
 
     /**
@@ -1469,24 +1460,16 @@ public class SearchService implements ISearchService {
      */
     @Nonnull
     private List<CriteriaOptionApiDTO> getProbeCategoryOptions() {
-        final List<CriteriaOptionApiDTO> probeCategoryOptions = new ArrayList<>();
-        final List<String> probeCategories = targetsService.getProbes()
+        return targetsService.getProbes()
                         .stream()
-                        .map(TargetApiDTO::getCategory)
-                        .filter(category -> !category.equalsIgnoreCase(ProbeCategory.STORAGE_BROWSING.getCategory()))
+                        .map(probe -> probe.getCategory())
                         .distinct()
+                        .map(probeCategory -> {
+                            final CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
+                            crOpt.setValue(probeCategory);
+                            return crOpt;
+                        })
                         .collect(Collectors.toList());
-
-        for (String probeCategory : probeCategories) {
-            final CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
-            crOpt.setValue(probeCategory);
-            if (probeCategory.equalsIgnoreCase(ProbeCategory.HYPERVISOR.getCategory()) ) {
-                probeCategoryOptions.add(0, crOpt);
-            } else {
-                probeCategoryOptions.add(crOpt);
-            }
-        }
-        return probeCategoryOptions;
     }
 
 
