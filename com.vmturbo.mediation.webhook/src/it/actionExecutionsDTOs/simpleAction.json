@@ -42,7 +42,7 @@
       "value": "http://localhost:5000/probeHarnessTest"
     }, {
       "name": "TEMPLATED_ACTION_BODY",
-      "value": "Test Payload"
+      "value": "\"Test Payload\""
     }, {
       "name": "HTTP_METHOD",
       "value": "POST"
