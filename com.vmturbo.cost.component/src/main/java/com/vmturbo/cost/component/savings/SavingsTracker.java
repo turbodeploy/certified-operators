@@ -1,13 +1,12 @@
 package com.vmturbo.cost.component.savings;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -88,7 +87,7 @@ public class SavingsTracker {
                 () -> lastUpdatedEndTime);
 
         // Get billing records in this time range, mapped by entity id.
-        final Map<Long, NavigableSet<BillingChangeRecord>> billingRecords = new HashMap<>();
+        final Map<Long, Set<BillingChangeRecord>> billingRecords = new HashMap<>();
 
         // For this set of billing records, see if we have any last_updated times that are newer.
         final AtomicLong newLastUpdated = new AtomicLong(savingsTimes.getCurrentLastUpdatedTime());
@@ -99,10 +98,7 @@ public class SavingsTracker {
                             && record.getLastUpdated() > newLastUpdated.get()) {
                         newLastUpdated.set(record.getLastUpdated());
                     }
-                    billingRecords.computeIfAbsent(
-                                    record.getEntityId(),
-                                    e -> new TreeSet<>(Comparator.comparing(
-                                            BillingChangeRecord::getSampleTime)))
+                    billingRecords.computeIfAbsent(record.getEntityId(), e -> new HashSet<>())
                             .add(record);
                 });
         savingsTimes.setCurrentLastUpdatedTime(newLastUpdated.get());
@@ -116,7 +112,7 @@ public class SavingsTracker {
         // contain stats that need to be written. State may also need to be written back.
         entityStates.forEach(state -> {
             long entityId = state.getEntityId();
-            NavigableSet<BillingChangeRecord> entityBillingRecords = billingRecords.get(entityId);
+            Set<BillingChangeRecord> entityBillingRecords = billingRecords.get(entityId);
             NavigableSet<ActionSpec> entityActionChain = actionChains.get(entityId);
             if (SetUtils.emptyIfNull(entityBillingRecords).isEmpty()
                     || SetUtils.emptyIfNull(entityActionChain).isEmpty()) {
