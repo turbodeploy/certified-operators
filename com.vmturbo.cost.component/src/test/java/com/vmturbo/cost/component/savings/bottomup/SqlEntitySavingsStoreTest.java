@@ -685,34 +685,44 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
     public void duplicateRowsUpdateHourly() throws EntitySavingsException {
         final Set<EntitySavingsStats> hourlyStats = new HashSet<>();
         int multiple = 10;
-        EntitySavingsStatsType statsType = EntitySavingsStatsType.REALIZED_SAVINGS;
 
         // hourlyStats is a set, so we cannot expect a reliable ordering. That is why the
         // addHourlyStats() is being called 3 times below.
-        setStatsValues(hourlyStats, vm1Id, timeExact1PM, multiple, ImmutableSet.of(statsType));
+        setStatsValues(hourlyStats, vm1Id, timeExact1PM, multiple,
+                ImmutableSet.of(EntitySavingsStatsType.REALIZED_SAVINGS,
+                        EntitySavingsStatsType.REALIZED_INVESTMENTS));
         store.addHourlyStats(hourlyStats, dsl);
         hourlyStats.clear();
 
-        setStatsValues(hourlyStats, vm1Id, timeExact1PM, multiple * 2, ImmutableSet.of(statsType));
+        setStatsValues(hourlyStats, vm1Id, timeExact1PM, multiple * 2,
+                ImmutableSet.of(EntitySavingsStatsType.REALIZED_SAVINGS,
+                        EntitySavingsStatsType.REALIZED_INVESTMENTS));
         store.addHourlyStats(hourlyStats, dsl);
         hourlyStats.clear();
 
         int finalMultiple = multiple * 3;
-        setStatsValues(hourlyStats, vm1Id, timeExact1PM, finalMultiple, ImmutableSet.of(statsType));
+        setStatsValues(hourlyStats, vm1Id, timeExact1PM, finalMultiple,
+                ImmutableSet.of(EntitySavingsStatsType.REALIZED_SAVINGS,
+                        EntitySavingsStatsType.REALIZED_INVESTMENTS));
         store.addHourlyStats(hourlyStats, dsl);
         hourlyStats.clear();
 
-        final Result<EntitySavingsByHourRecord> records = dsl.selectFrom(
+        Result<EntitySavingsByHourRecord> records = dsl.selectFrom(
                 EntitySavingsByHour.ENTITY_SAVINGS_BY_HOUR)
                 .fetch();
-        double expectedValue = getDummyValue(statsType, finalMultiple, vm1Id);
-        assertEquals(1, records.size());
+        assertEquals(2, records.size());
+        double expectedSavings = getDummyValue(EntitySavingsStatsType.REALIZED_SAVINGS,
+                finalMultiple, vm1Id);
+        double expectedInvestments = getDummyValue(EntitySavingsStatsType.REALIZED_INVESTMENTS,
+                finalMultiple, vm1Id);
 
-        // Before the onDuplicateKeyUpdate() fix, this will give the test failure error message:
-        // expected:<0.3> but was:<0.1>
-        // Because 1st record with value 0.1 got inserted, and then we ignore 0.2 and 0.3 insertion
-        // attempts (because of onDuplicateKeyIgnore()).
-        assertEquals(expectedValue, records.iterator().next().getStatsValue(), 0.00001d);
+        for (EntitySavingsByHourRecord record : records) {
+            if (record.getStatsType() == EntitySavingsStatsType.REALIZED_SAVINGS_VALUE) {
+                assertEquals(expectedSavings, record.getStatsValue(), 0.0000d);
+            } else if (record.getStatsType() == EntitySavingsStatsType.REALIZED_INVESTMENTS_VALUE) {
+                assertEquals(expectedInvestments, record.getStatsValue(), 0.0000d);
+            }
+        }
     }
 
     /**
