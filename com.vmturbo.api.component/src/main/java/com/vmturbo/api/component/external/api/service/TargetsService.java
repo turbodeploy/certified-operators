@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -279,7 +280,11 @@ public class TargetsService implements ITargetsService {
             // convert category to types
             if (targetCategory != null) {
                 probeTypes = probeMap.values().stream()
-                    .filter(p -> targetCategory.equals(p.getUICategory()))
+                    .filter(new Predicate<ProbeInfo>() {
+                        @Override public boolean test(ProbeInfo p) {
+                            return targetCategory.equals(p.getUICategory());
+                        }
+                    })
                     .map(ProbeInfo::getType)
                     .collect(Collectors.toSet());
                 if (probeTypes.isEmpty()) {
@@ -668,11 +673,42 @@ public class TargetsService implements ITargetsService {
                 }
             } catch (FieldVerificationException e) {
                 throw new RuntimeException(
-                        "Fields of target " + probeInfo.getType() + " failed validation", e);
+                                "Fields of target " + probeInfo.getType() + " failed validation", e);
             }
         }
         return answer;
     }
+
+    /**
+     * Return information about all the probes those are actually responsible to discover the
+     * virtual machines, It includes licensed as well as hidden probe types which are not included
+     * in /target/specs.
+     *
+     * @return a List of information {@link TargetApiDTO} about each probe known to the system.
+     */
+    @Nonnull
+    public List<TargetApiDTO> getProbesForTargetTypeFilter() {
+        logger.debug("Get all probe types discovering VMs");
+        final Set<ProbeInfo> probes;
+        try {
+            probes = topologyProcessor.getAllProbes();
+        } catch (CommunicationException e) {
+            throw new CommunicationError(e);
+        }
+        final List<TargetApiDTO> answer = new ArrayList<>(probes.size());
+        for (ProbeInfo probeInfo : probes) {
+            try {
+                if (probeInfo.isDiscoveringVMs()) {
+                    answer.add(targetMapper.mapProbeInfoToDTO(probeInfo));
+                }
+            } catch (FieldVerificationException e) {
+                throw new RuntimeException("Could not get the VM discovery information from"
+                                           + " supply chain for " + probeInfo.getType(), e);
+            }
+        }
+        return answer;
+    }
+
 
     private boolean isProbeExternallyVisible(ProbeInfo probeInfo) {
         switch (probeInfo.getCreationMode()) {
