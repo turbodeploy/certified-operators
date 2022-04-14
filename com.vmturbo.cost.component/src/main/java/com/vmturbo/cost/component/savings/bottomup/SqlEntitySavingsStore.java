@@ -215,15 +215,10 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, St
                             // If dup, update the stats value.
                             insert.values(values)
                                     .onDuplicateKeyUpdate()
-                                    .set(fieldTypes.valueField, stats.getValue());
+                                    .set(fieldTypes.valueField,
+                                            JooqUtil.upsertValue(fieldTypes.valueField, dsl.dialect()));
                         });
-                        int inserted = insert.execute();
-                        if (inserted < chunk.size()) {
-                            logger.warn("{} entity savings stats: Could only insert {} out of "
-                                            + "batch size of {}. Total input stats count: {}. "
-                                            + "Chunk size: {}", isDaily ? "Daily" : "Hourly",
-                                    inserted, chunkSize, savingsStats.size(), chunk.size());
-                        }
+                        insert.execute();
                     });
         } catch (Exception e) {
             throw new EntitySavingsException("Could not add " + savingsStats.size()
