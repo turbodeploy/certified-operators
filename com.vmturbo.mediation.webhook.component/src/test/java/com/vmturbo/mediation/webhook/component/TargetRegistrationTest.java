@@ -32,7 +32,7 @@ public class TargetRegistrationTest {
             SDKProbeType.WEBHOOK.getProbeType(), ProbeCategory.ORCHESTRATOR.getCategory(),
             ProbeCategory.ORCHESTRATOR.getCategory(), null, CreationMode.INTERNAL,
             Collections.emptyList(), Collections.emptyList(), Collections.emptyList(),
-            new HashSet<>(Arrays.asList(ProbeFeature.ACTION_EXECUTION, ProbeFeature.DISCOVERY)));
+            new HashSet<>(Arrays.asList(ProbeFeature.ACTION_EXECUTION, ProbeFeature.DISCOVERY)), Collections.emptyList());
 
     private static final TargetInfo WEBHOOK_TARGET = new TargetInfo(2L, "Webhook",
             Collections.emptyList(),
