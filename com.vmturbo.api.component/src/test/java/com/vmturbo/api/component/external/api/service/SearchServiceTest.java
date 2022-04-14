@@ -152,8 +152,11 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
  */
 public class SearchServiceTest {
 
+    private static final String DISCOVEREDBY = "discoveredBy:";
     private static final String CLOUD_PROVIDER_OPTION =
-            "discoveredBy:" + SearchableProperties.CLOUD_PROVIDER;
+                    DISCOVEREDBY + SearchableProperties.CLOUD_PROVIDER;
+    private static final String TARGET_TYPE_OPTION =
+                    DISCOVEREDBY + SearchableProperties.PROBE_TYPE;
 
     private final SupplyChainTestUtils supplyChainTestUtils = new SupplyChainTestUtils();
     private SearchService searchService;
@@ -2115,6 +2118,44 @@ public class SearchServiceTest {
         assertEquals(1, scopeIdsCaptor.getValue().size());
         assertTrue(scopeIdsCaptor.getValue().contains(Long.valueOf(scopeID)));
     }
+
+    /**
+     * Test target type options for filter.
+     *
+     * @throws Exception if something is wrong.
+     */
+    @Test
+    public void testTargetTypeOptions() throws Exception {
+        final TargetApiDTO probe1 = new TargetApiDTO();
+        probe1.setType(probeType1);
+
+        when(targetsService.getProbesForTargetTypeFilter()).thenReturn(Collections.singletonList(probe1));
+        final List<CriteriaOptionApiDTO> result1 =
+                        searchService.getCriteriaOptions(TARGET_TYPE_OPTION, null, null, null);
+
+        assertEquals(1, result1.size());
+        assertEquals(SDKProbeType.AWS.getProbeType(), result1.get(0).getValue());
+
+        final TargetApiDTO probe2 = new TargetApiDTO();
+        probe2.setType(probeType2);
+
+        when(targetsService.getProbesForTargetTypeFilter()).thenReturn(Collections.singletonList(probe2));
+        final List<CriteriaOptionApiDTO> result2 =
+                        searchService.getCriteriaOptions(TARGET_TYPE_OPTION, null, null, null);
+
+        assertEquals(1, result2.size());
+        assertEquals(SDKProbeType.AZURE.getProbeType(), result2.get(0).getValue());
+
+        final TargetApiDTO probe3 = new TargetApiDTO();
+        probe3.setType("Azure Service Principal");
+
+        when(targetsService.getProbesForTargetTypeFilter()).thenReturn(Collections.singletonList(probe3));
+        final List<CriteriaOptionApiDTO> result3 =
+                        searchService.getCriteriaOptions(TARGET_TYPE_OPTION, null, null, null);
+
+        Assert.assertNotEquals(Collections.emptyList(), result3);
+    }
+
 
     /**
      * Create SearchPaginationRequest object.

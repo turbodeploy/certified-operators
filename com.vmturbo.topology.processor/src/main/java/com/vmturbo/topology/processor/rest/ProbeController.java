@@ -96,6 +96,6 @@ public final class ProbeController {
                 probeInfo.getUiProbeCategory(), probeInfo.getLicense(),
                 probeInfo.getCreationMode(), fields, probeInfo.getTargetIdentifierFieldList(),
                 SdkToProbeActionsConverter.convert(probeInfo.getActionPolicyList()),
-                ProbeFeaturesUtil.getFeaturesProvidedByProbe(probeInfo));
+                ProbeFeaturesUtil.getFeaturesProvidedByProbe(probeInfo), probeInfo.getSupplyChainDefinitionSetList());
     }
 }
