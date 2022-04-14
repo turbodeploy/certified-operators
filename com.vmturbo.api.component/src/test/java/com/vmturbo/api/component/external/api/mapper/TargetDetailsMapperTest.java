@@ -50,7 +50,6 @@ public class TargetDetailsMapperTest {
         final TargetOperationStageStatusApiDTO actualStatus = actualStage.getStatus();
         assertEquals(TargetOperationStageState.FAILURE, actualStatus.getState());
         assertEquals(DATABASE_LONG_EXPLANATION, actualStatus.getFullExplanation());
-        assertNull(actualStatus.getStackTrace());
         assertEquals(DATABASE_SHORT_EXPLANATION, actualStatus.getSummary());
     }
 
@@ -71,7 +70,6 @@ public class TargetDetailsMapperTest {
         final TargetOperationStageStatusApiDTO actualStatus = actualStage.getStatus();
         assertNull(actualStatus.getState());
         assertNull(actualStatus.getFullExplanation());
-        assertNull(actualStatus.getStackTrace());
         assertNull(actualStatus.getSummary());
     }
 
@@ -126,7 +124,6 @@ public class TargetDetailsMapperTest {
             assertNotNull(actualStage.getStatus());
             assertEquals(TargetOperationStageState.FAILURE, actualStatus.getState());
             assertEquals(DATABASE_LONG_EXPLANATION + i, actualStatus.getFullExplanation());
-            assertNull(actualStatus.getStackTrace());
             assertEquals(DATABASE_SHORT_EXPLANATION + i, actualStatus.getSummary());
         }
     }
