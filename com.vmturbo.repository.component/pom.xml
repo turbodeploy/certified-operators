@@ -17,7 +17,7 @@
         <swagger.component.name>Repository</swagger.component.name>
 
         <derive4j.version>0.9.1</derive4j.version>
-        <handlerbars.version>4.0.6</handlerbars.version>
+        <handlerbars.version>4.3.0</handlerbars.version>
         <javaslang.version>2.0.5</javaslang.version>
         <javaslang-circuitbreaker.version>0.5.0</javaslang-circuitbreaker.version>
         <zt-zip.version>1.9</zt-zip.version>
