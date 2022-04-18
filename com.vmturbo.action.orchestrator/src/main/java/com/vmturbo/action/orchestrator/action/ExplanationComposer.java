@@ -913,6 +913,17 @@ public class ExplanationComposer {
                     commToEntityTypes.computeIfAbsent(commType, v -> new ArrayList<>()).add(entityType);
                 });
 
+        // If commodity types from Related actions are unavailable for any reason, then default to
+        // creating the resize explanation using the primary action.
+        // So for the namespace action, the explanation will be 'VCPU Limit Quota Congestion'
+        // instead of 'VCPU congestion in Related Workload Controller'
+        if (commToEntityTypes.isEmpty()) {
+            logger.warn("{}::{} : Invalid related action data, cannot find impacted commodities {}",
+                    ApiEntityType.fromType(action.getInfo().getResize().getTarget().getType()).displayName(),
+                    action.getInfo().getResize().getTarget().getId(), relatedActions);
+           return buildResizeCoreExplanation(action, true);
+        }
+
         CommodityType comm = commToEntityTypes.keySet().stream().findFirst().get();
         String commodityType = ActionDTOUtil.getAtomicResizeCommodityDisplayName(comm);
 
