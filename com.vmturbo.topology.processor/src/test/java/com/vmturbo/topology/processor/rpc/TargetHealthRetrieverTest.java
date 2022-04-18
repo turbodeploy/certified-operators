@@ -13,6 +13,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 
@@ -53,6 +56,8 @@ import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.ProbeVersionFactory;
+import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
@@ -64,22 +69,22 @@ import common.HealthCheck.HealthState;
  * Unit tests for {@link TargetHealthRetriever}.
  */
 public class TargetHealthRetrieverTest {
-    private IOperationManager operationManager = mock(IOperationManager.class);
+    private final IOperationManager operationManager = mock(IOperationManager.class);
 
-    private TargetStore targetStore = mock(TargetStore.class);
+    private final TargetStore targetStore = mock(TargetStore.class);
 
-    private ProbeStore probeStore = mock(ProbeStore.class);
+    private final ProbeStore probeStore = mock(ProbeStore.class);
 
-    private TargetStatusTracker targetStatusTracker = mock(TargetStatusTracker.class);
+    private final TargetStatusTracker targetStatusTracker = mock(TargetStatusTracker.class);
 
-    private Clock clock = new MutableFixedClock(1_000_000);
+    private final Clock clock = new MutableFixedClock(1_000_000);
 
-    private SettingServiceMole settingsService = Mockito.spy(new SettingServiceMole());
-    private GrpcTestServer grpcServer = GrpcTestServer.newServer(settingsService);
+    private final SettingServiceMole settingsService = Mockito.spy(new SettingServiceMole());
+    private final GrpcTestServer grpcServer = GrpcTestServer.newServer(settingsService);
 
     private TargetHealthRetriever healthRetriever;
 
-    private IdentityProvider identityProvider = mock(IdentityProvider.class);
+    private final IdentityProvider identityProvider = mock(IdentityProvider.class);
 
     private static final long PROBE_ID = 101;
 
@@ -95,9 +100,10 @@ public class TargetHealthRetrieverTest {
             .setDataIsMissingErrorType(DataIsMissingErrorType.getDefaultInstance()).build();
     private static final ErrorTypeInfo delayedDataError = ErrorTypeInfo.newBuilder()
             .setDelayedDataErrorType(DelayedDataErrorType.getDefaultInstance()).build();
-    private static final ProbeRegistrationDescription olderProbe = mockProbe("8.3.5", "8.3.6");
-    private final ProbeRegistrationDescription newerProbe = mockProbe("8.3.7", "8.3.6");
-    private final ProbeRegistrationDescription perfectProbe = mockProbe("8.3.6", "8.3.6");
+    private static final ProbeRegistrationDescription olderProbe = mockProbe("8.3.5");
+    private final ProbeRegistrationDescription newerProbe = mockProbe("8.3.7");
+    private final ProbeRegistrationDescription perfectProbe = mockProbe("8.3.6");
+    private static final Scheduler scheduler = mock(Scheduler.class);
 
     /**
      * Common setup before each test.
@@ -134,6 +140,8 @@ public class TargetHealthRetrieverTest {
 
         healthRetriever = new TargetHealthRetriever(operationManager, targetStatusTracker,
                         targetStore, probeStore, clock, settingServiceClient);
+        healthRetriever.setScheduler(scheduler);
+        setRediscoveryInterval();
     }
 
     /**
@@ -151,7 +159,7 @@ public class TargetHealthRetrieverTest {
      */
     @Test
     public void testSingleTargetHealthNoGoodValidationButDiscoveryOk() throws Exception {
-        final Target target = mockTarget(PROBE_ID, 1, "43");
+        final Target target = mockTarget();
         final long targetId = target.getId();
         when(probeStore.getProbeRegistrationsForTarget(any())).thenReturn(ImmutableList.of(perfectProbe));
 
@@ -201,7 +209,7 @@ public class TargetHealthRetrieverTest {
      */
     @Test
     public void testSingleTargetHealthNoData() throws Exception {
-        final Target target = mockTarget(PROBE_ID, 1, "43");
+        final Target target = mockTarget();
         final long targetId = target.getId();
 
         TargetHealth healthInfo = getTargetHealth(targetId);
@@ -230,7 +238,7 @@ public class TargetHealthRetrieverTest {
      */
     @Test
     public void testSingleTargetWithProbeVersionMismatch() throws Exception   {
-        final Target target = mockTarget(PROBE_ID, 1, "43");
+        final Target target = mockTarget();
         final long targetId = target.getId();
         when(probeStore.getProbeRegistrationsForTarget(any())).thenReturn(
                 ImmutableList.of(olderProbe, newerProbe, perfectProbe));
@@ -256,7 +264,7 @@ public class TargetHealthRetrieverTest {
      */
     @Test
     public void testSingleTargetHealthOk() throws Exception   {
-        final Target target = mockTarget(PROBE_ID, 1, "43");
+        final Target target = mockTarget();
         final long targetId = target.getId();
         when(probeStore.getProbeRegistrationsForTarget(any())).thenReturn(ImmutableList.of(perfectProbe));
 
@@ -284,7 +292,7 @@ public class TargetHealthRetrieverTest {
      */
     @Test
     public void testSingleTargetHealthValidationFailed() throws Exception   {
-        final Target target = mockTarget(PROBE_ID, 1, "43");
+        final Target target = mockTarget();
         final long targetId = target.getId();
 
         ErrorTypeInfo errorTypeInfo = ErrorTypeInfo.newBuilder().setConnectionTimeOutErrorType(
@@ -339,7 +347,7 @@ public class TargetHealthRetrieverTest {
      */
     @Test
     public void testSingleTargetHealthDiscoveryFailed() throws Exception   {
-        final Target target = mockTarget(PROBE_ID, 1, "43");
+        final Target target = mockTarget();
         final long targetId = target.getId();
         when(probeStore.getProbeRegistrationsForTarget(any())).thenReturn(ImmutableList.of(perfectProbe));
 
@@ -400,7 +408,7 @@ public class TargetHealthRetrieverTest {
      */
     @Test
     public void testValidationFailureOverridenByDiscoveryFailure() throws Exception {
-        final Target target = mockTarget(PROBE_ID, 1, "43");
+        final Target target = mockTarget();
         final long targetId = target.getId();
 
         final Validation validation = new Validation(PROBE_ID,  targetId, identityProvider);
@@ -460,7 +468,7 @@ public class TargetHealthRetrieverTest {
      */
     @Test
     public void testLastDiscoveryTimePresent() {
-        final Target target = mockTarget(PROBE_ID, 1, "43");
+        final Target target = mockTarget();
         final long targetId = target.getId();
 
         final Discovery discovery = new Discovery(PROBE_ID, targetId, identityProvider);
@@ -485,7 +493,7 @@ public class TargetHealthRetrieverTest {
      */
     @Test
     public void testLastDiscoveryTimePersists() {
-        final Target target = mockTarget(PROBE_ID, 1, "43");
+        final Target target = mockTarget();
         final long targetId = target.getId();
 
         final Discovery discovery = new Discovery(PROBE_ID, targetId, identityProvider);
@@ -525,27 +533,21 @@ public class TargetHealthRetrieverTest {
     }
 
     /**
-     * Test the detection of delayed data.
+     * Test the detection of delayed data .
      */
     @Test
-    public void testDelayedData() {
-        final Target target = mockTarget(PROBE_ID, 1, "43");
+    public void testDelayedDataDefaultDiscoveryInterval() {
+        final Target target = mockTarget();
         final long targetId = target.getId();
 
         //Set the last successful discovery to have been long ago.
-        long successfulDiscoveryTime = System.currentTimeMillis() - DEFAULT_REDISCOVERY_PERIOD * 1000
-                        * DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER * 2;
-        long successfulDiscoveryStart = successfulDiscoveryTime - 500 * DEFAULT_REDISCOVERY_PERIOD;
-        when(targetStatusTracker.getLastSuccessfulDiscoveryTime(targetId)).thenReturn(
-                new Pair<>(successfulDiscoveryStart, successfulDiscoveryTime));
+        Pair<Long, Long> interval = setLastDiscoveryTime(targetId,
+                DEFAULT_REDISCOVERY_PERIOD * 500,
+                DEFAULT_REDISCOVERY_PERIOD * 1000 * DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER
+                        * 2);
 
         TargetHealth healthInfo = getTargetHealth(targetId);
-        Assert.assertEquals(HealthState.CRITICAL, healthInfo.getHealthState());
-        Assert.assertEquals(TargetHealthSubCategory.DELAYED_DATA, healthInfo.getSubcategory());
-        Assert.assertEquals(1, healthInfo.getErrorTypeInfoList().size());
-        Assert.assertEquals(delayedDataError, healthInfo.getErrorTypeInfoList().get(0));
-        Assert.assertEquals(successfulDiscoveryTime, healthInfo.getLastSuccessfulDiscoveryCompletionTime());
-        Assert.assertEquals(successfulDiscoveryStart, healthInfo.getLastSuccessfulDiscoveryStartTime());
+        assertDelayedData(healthInfo, interval.getFirst(), interval.getSecond());
         Assert.assertEquals(System.currentTimeMillis(), healthInfo.getTimeOfCheck(), 1000);
         Assert.assertFalse(healthInfo.hasConsecutiveFailureCount());
 
@@ -556,28 +558,47 @@ public class TargetHealthRetrieverTest {
         when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
                 .thenReturn(Optional.of(discovery));
 
-        successfulDiscoveryTime = TimeUtil.localTimeToMillis(discovery.getCompletionTime(), clock);
-        successfulDiscoveryStart = successfulDiscoveryTime - DEFAULT_REDISCOVERY_PERIOD * 1000
-                        * DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER * 2;
-        when(targetStatusTracker.getLastSuccessfulDiscoveryTime(targetId)).thenReturn(
-                new Pair<>(successfulDiscoveryStart, successfulDiscoveryTime));
+        interval = setLastDiscoveryTime(targetId,
+                DEFAULT_REDISCOVERY_PERIOD * 1000 * DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER * 2);
 
         healthInfo = getTargetHealth(targetId);
-        Assert.assertEquals(HealthState.CRITICAL, healthInfo.getHealthState());
-        Assert.assertEquals(TargetHealthSubCategory.DELAYED_DATA, healthInfo.getSubcategory());
-        Assert.assertEquals(1, healthInfo.getErrorTypeInfoList().size());
-        Assert.assertEquals(delayedDataError, healthInfo.getErrorTypeInfoList().get(0));
-        Assert.assertEquals(successfulDiscoveryTime, healthInfo.getLastSuccessfulDiscoveryCompletionTime());
-        Assert.assertEquals(successfulDiscoveryStart, healthInfo.getLastSuccessfulDiscoveryStartTime());
+        assertDelayedData(healthInfo, interval.getFirst(), interval.getSecond());
     }
 
-    private Target mockTarget(long probeId, long targetId, String displayName) {
+    /**
+     * Test delayed data calculation after setting the rediscovery interval manually.
+     */
+    @Test
+    public void testDelayedDataCustomRediscoveryInterval() {
+        // Let the length of the discovery time exceed the threshold
+        final long targetId = mockTarget().getId();
+        Pair<Long, Long> interval = setLastDiscoveryTime(targetId,
+                TimeUnit.SECONDS.toMillis(DEFAULT_REDISCOVERY_PERIOD)
+                        * DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER + 1);
+        TargetHealth healthInfo = getTargetHealth(targetId);
+        assertDelayedData(healthInfo, interval.getFirst(), interval.getSecond());
+
+        // Since we have a larger rediscovery interval, the new threshold would be 10*(10000*1000),
+        // versus the old 10*(600*1000). Now, the length of discovery would be well within the
+        // threshold
+        final long newRediscoveryInterval = 10000;
+        setRediscoveryInterval(newRediscoveryInterval);
+        setLastDiscoveryTime(targetId,
+                TimeUnit.SECONDS.toMillis(DEFAULT_REDISCOVERY_PERIOD)
+                        * DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER + 1);
+        healthInfo = getTargetHealth(targetId);
+        Assert.assertNotEquals(HealthState.CRITICAL, healthInfo.getHealthState());
+        Assert.assertNotEquals(TargetHealthSubCategory.DELAYED_DATA, healthInfo.getSubcategory());
+    }
+
+    @Nonnull
+    private Target mockTarget() {
         Target target = mock(Target.class);
-        when(target.getProbeId()).thenReturn(probeId);
-        when(target.getId()).thenReturn(targetId);
-        when(target.getDisplayName()).thenReturn(displayName);
+        when(target.getProbeId()).thenReturn(TargetHealthRetrieverTest.PROBE_ID);
+        when(target.getId()).thenReturn((long)1);
+        when(target.getDisplayName()).thenReturn("43");
         when(target.getProbeInfo()).thenReturn(probeInfo);
-        when(targetStore.getTargets(Collections.singleton(targetId))).thenReturn(Collections.singletonList(target));
+        when(targetStore.getTargets(Collections.singleton((long)1))).thenReturn(Collections.singletonList(target));
         return target;
     }
 
@@ -590,13 +611,70 @@ public class TargetHealthRetrieverTest {
      * the given probe and platform versions.
      *
      * @param probeVersion the probe version
-     * @param platformVersion the platform version
      * @return the mocked probe registration
      */
-    private static ProbeRegistrationDescription mockProbe(final String probeVersion, final String platformVersion) {
-        final Pair<HealthState, String> probeHealth = ProbeVersionFactory.deduceProbeHealth(probeVersion, platformVersion);
-        final ProbeRegistrationDescription probeRegistration = new ProbeRegistrationDescription(
+    private static ProbeRegistrationDescription mockProbe(final String probeVersion) {
+        final Pair<HealthState, String> probeHealth = ProbeVersionFactory.deduceProbeHealth(probeVersion,
+                "8.3.6");
+        return new ProbeRegistrationDescription(
                 0, 0, "", probeVersion, 0, "", probeHealth.getFirst(), probeHealth.getSecond());
-        return probeRegistration;
+    }
+
+    /**
+     * Set the rediscovery interval that will be returned by the scheduler. When -1, the default
+     * probe interval is used.
+     *
+     * @param rediscoveryInterval the rediscovery interval
+     */
+    private static void setRediscoveryInterval(long rediscoveryInterval) {
+        final TargetDiscoverySchedule targetDiscoverySchedule = mock(TargetDiscoverySchedule.class);
+        when(targetDiscoverySchedule.getScheduleInterval(Mockito.any()))
+                .thenReturn(rediscoveryInterval);
+        when(scheduler.getDiscoverySchedule(Mockito.anyLong(), Mockito.any()))
+                .thenReturn(Optional.of(targetDiscoverySchedule));
+    }
+
+    /**
+     * See {@link #setRediscoveryInterval(long)}.
+     */
+    private static void setRediscoveryInterval() {
+        setRediscoveryInterval(DEFAULT_REDISCOVERY_PERIOD);
+    }
+
+    /**
+     * Set the last successful discovery given the length of the discovery and the offset. Return the
+     * interval of the discovery. The following would be the calculated discovery interval like the following
+     * (using a timeline).
+     *    Timeline:       |-----------------------|----------------|
+     *                    A        (length)       B          (currentTime)
+     *                    |_______________________|________________|
+     *                        DiscoveryInterval      endTimeOffset
+     * @return (A, B)
+     */
+    @Nonnull
+    private Pair<Long, Long> setLastDiscoveryTime(long targetId, long length, long endTimeOffset) {
+        long endTime = System.currentTimeMillis() - endTimeOffset;
+        long startTime = endTime - length;
+        Pair<Long, Long> interval = new Pair<>(startTime, endTime);
+        when(targetStatusTracker.getLastSuccessfulDiscoveryTime(targetId)).thenReturn(interval);
+        return interval;
+    }
+
+    /**
+     * See {@link #setLastDiscoveryTime(long, long, long)}.
+     */
+    @Nonnull
+    private Pair<Long, Long> setLastDiscoveryTime(long targetId, long length) {
+        return setLastDiscoveryTime(targetId, length, 0);
+    }
+
+    private void assertDelayedData(TargetHealth healthInfo, long discoveryCompletionStart,
+            long discoveryCompletionTime) {
+        Assert.assertEquals(HealthState.CRITICAL, healthInfo.getHealthState());
+        Assert.assertEquals(TargetHealthSubCategory.DELAYED_DATA, healthInfo.getSubcategory());
+        Assert.assertEquals(1, healthInfo.getErrorTypeInfoList().size());
+        Assert.assertEquals(delayedDataError, healthInfo.getErrorTypeInfoList().get(0));
+        Assert.assertEquals(discoveryCompletionStart, healthInfo.getLastSuccessfulDiscoveryStartTime());
+        Assert.assertEquals(discoveryCompletionTime, healthInfo.getLastSuccessfulDiscoveryCompletionTime());
     }
 }

@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.topology.SchedulerREST;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
+import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
@@ -47,6 +48,9 @@ public class SchedulerConfig {
     @Autowired
     private StitchingConfig stitchingConfig;
 
+    @Autowired
+    private TopologyProcessorRpcConfig topologyProcessorRpcConfig;
+
     @Value("${topologyBroadcastIntervalMinutes:10}")
     private long topologyBroadcastIntervalMinutes;
 
@@ -55,7 +59,7 @@ public class SchedulerConfig {
 
     @Bean
     public Scheduler scheduler() {
-        return new Scheduler(operationConfig.operationManager(),
+        Scheduler scheduler = new Scheduler(operationConfig.operationManager(),
             targetConfig.targetStore(),
             probeConfig.probeStore(),
             topologyConfig.topologyHandler(),
@@ -76,6 +80,13 @@ public class SchedulerConfig {
             topologyBroadcastIntervalMinutes,
             numDiscoveriesMissedBeforeLogging
         );
+
+        // Needed to inject the scheduler into the target health retriever so that we can
+        // use the broadcast schedule information for each target when calculating the target
+        // data health
+        topologyProcessorRpcConfig.targetHealthRetriever().setScheduler(scheduler);
+
+        return scheduler;
     }
 
     @Bean
