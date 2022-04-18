@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -39,6 +40,8 @@ import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
@@ -62,6 +65,7 @@ public class TargetHealthRetriever {
     private final ProbeStore probeStore;
     private final Clock clock;
     private final SettingServiceBlockingStub settingServiceClient;
+    private Scheduler scheduler;
 
     /**
      * Discovery timing status.
@@ -100,6 +104,17 @@ public class TargetHealthRetriever {
         this.probeStore = probeStore;
         this.clock = clock;
         this.settingServiceClient = settingServiceClient;
+    }
+
+    /**
+     * We use this to inject the scheduler after the instance has been created. We cannot pass in the
+     * schedule during instantiation due to cyclic dependency involving the TargetHealthRetriever and
+     * the Scheduler.
+     *
+     * @param scheduler The scheduler
+     */
+    public void setScheduler(Scheduler scheduler) {
+        this.scheduler = scheduler;
     }
 
     /**
@@ -415,9 +430,9 @@ public class TargetHealthRetriever {
      */
     private DiscoveryTimingStatus checkForDelayedData(Target target) {
         long fullRediscoveryThreshold = delayedDataThresholdMultiplier
-                        * target.getProbeInfo().getFullRediscoveryIntervalSeconds() * 1000;
+                        * getRediscoveryInterval(target, DiscoveryType.FULL) * 1000;
         long incrementalRediscoveryThreshold = delayedDataThresholdMultiplier
-                        * target.getProbeInfo().getIncrementalRediscoveryIntervalSeconds() * 1000;
+                        * getRediscoveryInterval(target, DiscoveryType.INCREMENTAL) * 1000;
         long currentInstant = System.currentTimeMillis();
 
         Pair<Long, Long> lastSuccessfulDiscoveryTime = targetStatusTracker
@@ -432,6 +447,45 @@ public class TargetHealthRetriever {
             return DiscoveryTimingStatus.INCREMENTAL_DISCOVERY_DELAYED;
         }
         return DiscoveryTimingStatus.DISCOVERY_NOT_DELAYED;
+    }
+
+    /**
+     * Get the rediscovery interval for the interval in seconds using the scheduler. If the scheduler
+     * does not have this info, we resort to using the probes default value 600s.
+     *
+     * @param target The target in question
+     * @param discoveryType FULL or INCREMENTAL
+     * @return The rediscovery interval in seconds
+     */
+    private long getRediscoveryInterval(@Nonnull Target target, @Nonnull DiscoveryType discoveryType) {
+        // Check if the target has its own discovery interval, otherwise we fall back to the default
+        // probes value
+        long schedulerRediscoveryInterval = schedulerRediscoveryInterval(target.getId(), discoveryType);
+        if (schedulerRediscoveryInterval != -1L) {
+            return schedulerRediscoveryInterval;
+        }
+
+        return discoveryType.equals(DiscoveryType.FULL)
+                ? target.getProbeInfo().getFullRediscoveryIntervalSeconds()
+                : target.getProbeInfo().getIncrementalRediscoveryIntervalSeconds();
+    }
+
+    /**
+     * Get the rediscovery interval (seconds) defined in the scheduler, if no such entry exists,
+     * return -1.
+     *
+     * @param targetId The id of the target
+     * @param discoveryType FULL or INCREMENTAL
+     * @return The rediscovery interval defined in the scheduler
+     */
+    private long schedulerRediscoveryInterval(long targetId, @Nonnull DiscoveryType discoveryType) {
+        final Optional<TargetDiscoverySchedule> discoverySchedule =
+                this.scheduler.getDiscoverySchedule(targetId, discoveryType);
+
+        return discoverySchedule.map(
+                targetDiscoverySchedule ->
+                        targetDiscoverySchedule.getScheduleInterval(TimeUnit.SECONDS))
+                .orElse(-1L);
     }
 
     /**
