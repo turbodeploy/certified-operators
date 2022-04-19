@@ -743,13 +743,15 @@ public class SavingsCalculatorTest {
         // journal.
         Gson gson = new Gson();
         JsonReader reader = new JsonReader(new FileReader(eventFileName));
-        List<ScriptEvent> events = Arrays.asList(gson.fromJson(reader, ScriptEvent[].class));
+        List<ScriptEvent> events = Arrays.asList(gson.fromJson(reader, EventInjector.ScriptEvent[].class));
         AtomicBoolean purgePreviousTestState = new AtomicBoolean(false);
+        EventInjector eventInjector = new EventInjector(entityEventsJournal,
+                mock(EntitySavingsRetentionConfig.class));
         Map<String, Long> oidMap = events.stream()
                 .map(event -> event.uuid)
                 .collect(Collectors.toSet()).stream()
                 .collect(Collectors.toMap(Function.identity(), Long::valueOf));
-        events.forEach(event -> EventInjector.addEvent(event, oidMap, entityEventsJournal,
+        events.forEach(event -> eventInjector.handleScriptEvent(event, oidMap.get(event.uuid),
                 purgePreviousTestState));
     }
 

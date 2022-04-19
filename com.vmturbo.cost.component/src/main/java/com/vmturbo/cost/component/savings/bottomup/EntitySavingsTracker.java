@@ -31,13 +31,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.savings.EntitySavingsException;
 import com.vmturbo.cost.component.savings.EntityState;
+import com.vmturbo.cost.component.savings.ScenarioDataHandler;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Module to track entity realized/missed savings/investments stats.
  */
-public class EntitySavingsTracker {
+public class EntitySavingsTracker implements ScenarioDataHandler {
     /**
      * Logger.
      */
@@ -218,11 +219,26 @@ public class EntitySavingsTracker {
     }
 
     /**
+     * Process given list of entity states. A chunk of states are processed at a time. This can
+     * only be invoked when the {@link ENABLE_SAVINGS_TEST_INPUT} feature flag is enabled.
+     *
+     * @param participatingUuids list of UUIDs involved in the injected scenario
+     * @param startTime starting time of the injected scenario
+     * @param endTime ending time of the injected scenario
+     */
+    @Override
+    public void processStates(@Nonnull Set<Long> participatingUuids,
+            @Nonnull LocalDateTime startTime, @Nonnull LocalDateTime endTime) {
+        processEvents(startTime, endTime, participatingUuids);
+    }
+
+    /**
      * Delete entity state and stats for the provided list of UUIDs.
      *
      * @param uuids list of UUIDs to purge.  If the list is empty, no state will be deleted.
      */
-    void purgeState(@Nonnull Set<Long> uuids) {
+    @Override
+    public void purgeState(@Nonnull Set<Long> uuids) {
         if (!uuids.isEmpty()) {
             try {
                 logger.info("Purging state for UUIDs: {}", uuids);
