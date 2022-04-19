@@ -44,7 +44,7 @@
         <grpc.version>1.44.0</grpc.version>
         <grpc.prometheus.version>0.3.0</grpc.prometheus.version>
 
-        <protobuf.version>3.19.3</protobuf.version>
+        <protobuf.version>3.20.0</protobuf.version>
         <protobuf.maven.plugin.version>0.6.1</protobuf.maven.plugin.version>
         <maven-enforcer-plugin.version>3.0.0</maven-enforcer-plugin.version>
         <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
