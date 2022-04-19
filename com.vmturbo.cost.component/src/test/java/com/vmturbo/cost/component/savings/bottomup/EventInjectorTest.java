@@ -19,6 +19,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.cost.component.savings.DataInjectionMonitor;
 import com.vmturbo.cost.component.savings.bottomup.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.bottomup.EventInjector.ScriptEvent;
 
@@ -137,12 +138,12 @@ public class EventInjectorTest {
         long roundedUpMidHourMs = calToMs(2021, 0, 1, 22, 0);
 
         // Verify non-rounded results
-        Assert.assertEquals(msToLdt(topOfHourMs), EventInjector.makeLocalDateTime(topOfHourMs, false));
-        Assert.assertEquals(msToLdt(roundedDownMidHourMs), EventInjector.makeLocalDateTime(midHourMs, false));
+        Assert.assertEquals(msToLdt(topOfHourMs), DataInjectionMonitor.makeLocalDateTime(topOfHourMs, false));
+        Assert.assertEquals(msToLdt(roundedDownMidHourMs), DataInjectionMonitor.makeLocalDateTime(midHourMs, false));
 
         // Verify rounded results
-        Assert.assertEquals(msToLdt(topOfHourMs), EventInjector.makeLocalDateTime(topOfHourMs, true));
-        Assert.assertEquals(msToLdt(roundedUpMidHourMs), EventInjector.makeLocalDateTime(midHourMs, true));
+        Assert.assertEquals(msToLdt(topOfHourMs), DataInjectionMonitor.makeLocalDateTime(topOfHourMs, true));
+        Assert.assertEquals(msToLdt(roundedUpMidHourMs), DataInjectionMonitor.makeLocalDateTime(midHourMs, true));
     }
 
 //    /**

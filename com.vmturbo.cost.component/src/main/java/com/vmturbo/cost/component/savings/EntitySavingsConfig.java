@@ -369,6 +369,9 @@ public class EntitySavingsConfig {
             }
             logger.info("EntitySavingsProcessor is enabled, will run at hour+{} min, after {} mins. TEM is {}.",
                     entitySavingsStartMinuteMark, initialDelayMinutes, temConfigInfo);
+            if (FeatureFlags.ENABLE_SAVINGS_TEST_INPUT.isEnabled()) {
+                startEventInjector();
+            }
         } else {
             logger.info("EntitySavingsProcessor is disabled.");
         }
@@ -453,17 +456,20 @@ public class EntitySavingsConfig {
     }
 
     /**
-     * Starts the event injector.
-     *
-     * @return the EventInjector instance.
+     * Starts the bottom-up event injector.
      */
-    @Bean
-    public EventInjector eventInjector() {
-        EventInjector injector = new EventInjector(entitySavingsTracker(), entitySavingsProcessor(),
-                entityEventsJournal(), getEntitySavingsRetentionConfig(),
-                searchServiceBlockingStub);
-        injector.start();
-        return injector;
+    private void startEventInjector() {
+        new DataInjectionMonitor("injected-events.json",
+                new EventInjector(entityEventsJournal(), getEntitySavingsRetentionConfig()),
+                entitySavingsTracker(), searchServiceBlockingStub).start();
+    }
+
+    /**
+     * Starts the bill based data injector.
+     */
+    public void startBillDataInjector() {
+        new DataInjectionMonitor("injected-data.json",
+                new BillingDataInjector(), savingsTracker(), searchServiceBlockingStub).start();
     }
 
     /**
@@ -588,6 +594,9 @@ public class EntitySavingsConfig {
                     savingsProcessor::execute, waitMinutes, durationMinutes, TimeUnit.MINUTES);
             logger.info("BillSavingsProcessor will run every {}h (+ {}m), next after {}m.",
                     billSavingsProcessorFrequencyHours, entitySavingsStartMinuteMark, waitMinutes);
+            if (FeatureFlags.ENABLE_SAVINGS_TEST_INPUT.isEnabled()) {
+                startBillDataInjector();
+            }
         } else {
             logger.info("BillSavingsProcessor is disabled.");
         }

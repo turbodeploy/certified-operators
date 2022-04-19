@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.savings;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -24,7 +25,7 @@ import com.vmturbo.cost.component.savings.calculator.SavingsValues;
 /**
  * Processes a chunk of entity stats for a set of given time periods.
  */
-public class SavingsTracker {
+public class SavingsTracker implements ScenarioDataHandler {
     private final Logger logger = LogManager.getLogger();
 
     /**
@@ -129,5 +130,33 @@ public class SavingsTracker {
         // Once we are done processing all the states for this period, we write stats.
         // Save off the day stats timestamps for all stats written this time, used for rollups.
         savingsTimes.addAllDayStatsTimes(statsWriter.writeDailyStats(allSavingsValues));
+    }
+
+    /**
+     * Process given list of entity states. A chunk of states are processed at a time. This can
+     * only be invoked when the {@link ENABLE_SAVINGS_TEST_INPUT} feature flag is enabled.
+     *
+     * @param participatingUuids list of UUIDs involved in the injected scenario
+     * @param startTime starting time of the injected scenario
+     * @param endTime ending time of the injected scenario
+     */
+    @Override
+    public void processStates(@Nonnull Set<Long> participatingUuids,
+            @Nonnull LocalDateTime startTime,
+            @Nonnull LocalDateTime endTime) {
+        logger.debug("Data injector invoked for the period of {} to {} on UUIDs: {}",
+                startTime, endTime, participatingUuids);
+    }
+
+    /**
+     * Purge state for the indicated UUIDs in preparation for processing injected data.  This can
+     * only be invoked when the {@link ENABLE_SAVINGS_TEST_INPUT} feature flag is enabled.
+     *
+     * @param participatingUuids UUIDs to purge.
+     */
+    @Override
+    public void purgeState(Set<Long> participatingUuids) {
+        logger.debug("Purge state for UUIDs in preparation for data injection: {}",
+                participatingUuids);
     }
 }
