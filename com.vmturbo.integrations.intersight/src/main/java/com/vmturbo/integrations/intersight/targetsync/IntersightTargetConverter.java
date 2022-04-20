@@ -236,22 +236,6 @@ public class IntersightTargetConverter {
                 return Collections.singleton(SDKProbeType.DATADOG);
             case SERVICENOW:
                 return Collections.singleton(SDKProbeType.SERVICENOW);
-            case GOOGLECLOUDPLATFORM:
-                return Collections.singleton(SDKProbeType.GCP_SERVICE_ACCOUNT);
-            case GOOGLECLOUDPLATFORMBILLING:
-                return Collections.singleton(SDKProbeType.GCP_BILLING);
-            case APACHETOMCATSERVER:
-                return Collections.singleton(SDKProbeType.TOMCAT);
-            case JAVAVIRTUALMACHINE:
-                return Collections.singleton(SDKProbeType.JVM);
-            case REDHATJBOSSAPPLICATIONSERVER:
-                return Collections.singleton(SDKProbeType.JBOSS);
-            case ORACLEWEBLOGICSERVER:
-                return Collections.singleton(SDKProbeType.WEBLOGIC);
-            case IBMWEBSPHEREAPPLICATIONSERVER:
-                return Collections.singleton(SDKProbeType.WEBSPHERE);
-            case ORACLEDATABASESERVER:
-                return Collections.singleton(SDKProbeType.ORACLE);
             default:
                 logger.debug("Unsupported Intersight target type {} in asset.Target {}",
                         assetTarget.getTargetType(), assetTarget.getMoid());
