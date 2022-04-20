@@ -429,3 +429,7 @@ dependencies:
     repository: file://../probes/mediation-xen
     version: 0.1.0
     condition: xen.enabled
+  - name: mediation-azurebilling
+    repository: file://../probes/mediation-azurebilling
+    version: 0.1.0
+    condition: azure.billing.enabled

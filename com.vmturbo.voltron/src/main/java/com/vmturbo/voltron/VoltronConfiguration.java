@@ -622,6 +622,11 @@ public class VoltronConfiguration {
         MEDIATION_AZURE_EA(Component.MEDIATION_AZURE_EA),
 
         /**
+         * Azure EA.
+         */
+        MEDIATION_AZURE_BILLING(Component.MEDIATION_AZURE_BILLING),
+
+        /**
          * Azure SP.
          */
         MEDIATION_AZURE_SP(Component.MEDIATION_AZURE_SP),

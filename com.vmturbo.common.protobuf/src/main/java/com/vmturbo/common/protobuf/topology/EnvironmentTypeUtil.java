@@ -33,7 +33,8 @@ public class EnvironmentTypeUtil {
         SDKProbeType.GCP_SERVICE_ACCOUNT,
         SDKProbeType.GCP_COST,
         SDKProbeType.GCP_BILLING,
-        SDKProbeType.GCP_PROJECT);
+        SDKProbeType.GCP_PROJECT,
+        SDKProbeType.AZURE_BILLING);
 
     /**
      * Mapping between {@link EnvironmentType} enum values and their API
