@@ -127,11 +127,14 @@ spec:
                 annotations:
                   description: Global pod annotations list
                   type: object
+                labels:
+                  description: Global pod labels list
+                  type: object
                 serviceAnnotations:
-                  description: Global pod annotations list
+                  description: Global service annotations list
                   type: object
                 serviceLabels:
-                  description: Global pod annotations list
+                  description: Global service labels list
                   type: object
                 readinessPeriodSecs:
                   description: Global pod readiness period in seconds
