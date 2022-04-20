@@ -692,7 +692,9 @@ public class JournalActionSavingsCalculatorTest {
         final TraxSavingsDetails actualDetails = actualSavings.cloudSavingsDetails().get();
         // on-demand rate should be 8 + 3 = 11
         assertThat(actualDetails.sourceTierCostDetails().onDemandRate().getValue(), closeTo(9.0, ERROR));
-        assertFalse(actualDetails.sourceTierCostDetails().cloudCommitmentCoverage().isPresent());
+        assertTrue(actualDetails.sourceTierCostDetails().cloudCommitmentCoverage().isPresent());
+        assertFalse(actualDetails.sourceTierCostDetails().cloudCommitmentCoverage().get().hasCapacity());
+        assertFalse(actualDetails.sourceTierCostDetails().cloudCommitmentCoverage().get().hasUsed());
         // on-demand cost should be 4 + 3 + 4 (compute + on-demand license + reserved license)
         assertThat(actualDetails.sourceTierCostDetails().onDemandCost().getValue(), closeTo(11.0, ERROR));
 

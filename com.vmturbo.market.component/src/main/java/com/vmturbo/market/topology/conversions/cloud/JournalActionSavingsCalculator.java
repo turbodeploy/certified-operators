@@ -448,21 +448,18 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
                 .onDemandRate(onDemandRate)
                 .onDemandCost(onDemandCost)
                 .costJournal(costJournal);
-
+        final CloudCommitmentCoverage.Builder cloudCommitmentCoverage =
+                CloudCommitmentCoverage.newBuilder();
         // check on the commitment mappings first since source RI coverage has an entry of 0 coupons.
         if (reservedInstanceCoverage.isPresent()
                 && (reservedInstanceCoverage.get().getCouponsCoveredByBuyRiCount() > 0
                         || reservedInstanceCoverage.get().getCouponsCoveredByRiCount() > 0)) {
-            final CloudCommitmentCoverage.Builder cloudCommitmentCoverage =
-                    CloudCommitmentCoverage.newBuilder();
             double coverageUsed = sumCoverage(reservedInstanceCoverage.get(), includeBuyRICoverage);
             cloudCommitmentCoverage
                     .setCapacity(CloudCommitmentAmount.newBuilder().setCoupons(reservedInstanceCoverage.get().getEntityCouponCapacity()))
                     .setUsed(CloudCommitmentAmount.newBuilder().setCoupons(coverageUsed));
-            tierCostDetails.cloudCommitmentCoverage(cloudCommitmentCoverage.build());
         } else if (!commitmentMappings.isEmpty()) {
-            final CloudCommitmentCoverage.Builder cloudCommitmentCoverage =
-                    CloudCommitmentCoverage.newBuilder();
+
             // set based on costs - where the coverage is converted to a scalar value in the form of coupons.
             // Actual coverages will be set once the action details supports multiple commodity coverages.
             final CloudCommitmentAmount capacityInCoupons = CloudCommitmentAmount.newBuilder().setCoupons(1D).build();
@@ -486,9 +483,9 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
             cloudCommitmentCoverage
                     .setCapacity(capacityInCoupons)
                     .setUsed(used);
-            tierCostDetails.cloudCommitmentCoverage(cloudCommitmentCoverage.build());
 
         }
+        tierCostDetails.cloudCommitmentCoverage(cloudCommitmentCoverage.build());
         return tierCostDetails.build();
     }
 
