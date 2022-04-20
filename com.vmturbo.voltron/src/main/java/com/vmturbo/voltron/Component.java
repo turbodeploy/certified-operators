@@ -228,6 +228,11 @@ public enum Component {
      * Azure EA.
      */
     MEDIATION_AZURE_EA("azure-ea", "com.vmturbo.mediation.azure.ea.component"),
+    /**
+     * Azure BILLING.
+     */
+    MEDIATION_AZURE_BILLING("azure-billing", "com.vmturbo.mediation.azure.billing.component"),
+
 
     /**
      * Azure SP.
