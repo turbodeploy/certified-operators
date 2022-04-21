@@ -1892,7 +1892,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVStorageRecommendation);
 
-        assertEquals("Resize up VStorage /tmp for Virtual Machine vm1_test from 2.0 GB to 3.9 GB",
+        assertEquals("Resize up VStorage /tmp for Virtual Machine vm1_test from 1.95 GB to 3.91 GB",
                 description);
     }
 
@@ -2039,7 +2039,7 @@ public class ActionDescriptionBuilderTest {
             entitySettingsCache, resizeVemRequestRecommendationForContainer);
 
         assertEquals(description,
-            "Resize down VMem Request for Container container1_test from 3.1 MB to 2.1 MB");
+            "Resize down VMem Request for Container container1_test from 3.12 MB to 2.15 MB");
     }
 
     /**
@@ -2105,7 +2105,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, resizeDBMem);
         assertEquals(description,
-                "Resize down DB Mem for Database Server sqlServer1 from 15.1 GB to 5.9 GB");
+                "Resize down DB Mem for Database Server sqlServer1 from 15.12 GB to 5.87 GB");
     }
 
     /**

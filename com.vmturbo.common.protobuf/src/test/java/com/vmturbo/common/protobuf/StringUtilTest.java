@@ -70,12 +70,12 @@ public class StringUtilTest {
             assertEquals("1023 Bytes", StringUtil.getHumanReadableSize(1023L));
             assertEquals("1 KB", StringUtil.getHumanReadableSize(1024L));
             assertEquals("-1 KB", StringUtil.getHumanReadableSize(-1024L));
-            assertEquals("1.8 KB", StringUtil.getHumanReadableSize(1800L));
-            assertEquals("6.7 MB", StringUtil.getHumanReadableSize(7000000L));
-            assertEquals("372.5 GB", StringUtil.getHumanReadableSize(400000000000L));
-            assertEquals("1.4 TB", StringUtil.getHumanReadableSize(1500000000000L));
-            assertEquals("-1.4 TB", StringUtil.getHumanReadableSize(-1500000000000L));
-            assertEquals("8.0 EB", StringUtil.getHumanReadableSize(Long.MAX_VALUE));
+            assertEquals("1.76 KB", StringUtil.getHumanReadableSize(1800L));
+            assertEquals("6.67 MB", StringUtil.getHumanReadableSize(7000000L));
+            assertEquals("372.53 GB", StringUtil.getHumanReadableSize(400000000000L));
+            assertEquals("1.36 TB", StringUtil.getHumanReadableSize(1500000000000L));
+            assertEquals("-1.36 TB", StringUtil.getHumanReadableSize(-1500000000000L));
+            assertEquals("8 EB", StringUtil.getHumanReadableSize(Long.MAX_VALUE));
         }
     }
 }
