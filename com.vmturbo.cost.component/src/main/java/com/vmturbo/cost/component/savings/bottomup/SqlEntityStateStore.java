@@ -193,6 +193,14 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
         }
     }
 
+    @Override
+    public void updateEntityStates(@Nonnull final Map<Long, EntityState> entityStateMap,
+            @Nonnull final TopologyEntityCloudTopology cloudTopology,
+            @Nonnull final Set<Long> testEntityOidSet)
+            throws EntitySavingsException {
+        updateEntityStates(entityStateMap, cloudTopology, dsl, testEntityOidSet);
+    }
+
     /**
      * Update entity states. If the state of the entity is not already in the store, create it.
      *
@@ -320,34 +328,12 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
     @Nullable
     private EntityCloudScopeRecord createCloudScopeRecord(Long entityOid,
             TopologyEntityCloudTopology cloudTopology, boolean isTestEntity) {
-
-        if ((!cloudTopology.getEntity(entityOid).isPresent()) && !isTestEntity) {
-            logger.debug("Cannot create entity cloud scope record because some of the required information is missing ; EntityOid={}", entityOid);
-            return null;
-        }
-
-        Integer entityType = cloudTopology.getEntity(entityOid).map(TopologyEntityDTO::getEntityType).orElse(null);
-
-        // Get the service provider OID.
-        Optional<TopologyEntityDTO> serviceProvider = cloudTopology.getServiceProvider(entityOid);
-        Long serviceProviderOid = serviceProvider.map(TopologyEntityDTO::getOid).orElse(null);
-
-        // Get the region OID.
-        Optional<TopologyEntityDTO> region = cloudTopology.getConnectedRegion(entityOid);
-        Long regionOid = region.map(TopologyEntityDTO::getOid).orElse(null);
-
-        // Get the availability zone OID.
-        Optional<TopologyEntityDTO> availabilityZone = cloudTopology.getConnectedAvailabilityZone(entityOid);
-        Optional<Long> availabilityZoneOid = availabilityZone.map(TopologyEntityDTO::getOid);
-
-        // Get the account OID.
-        Optional<TopologyEntityDTO> businessAccount = cloudTopology.getOwner(entityOid);
-        Long accountOid = businessAccount.map(TopologyEntityDTO::getOid).orElse(null);
-
-        // Get the resource group OID.
-        Optional<GroupAndMembers> resourceGroup = cloudTopology.getResourceGroup(entityOid);
-        Optional<Long> resourceGroupOid = resourceGroup.map(groupAndMembers -> groupAndMembers.group().getId());
-
+        Integer entityType;
+        Long serviceProviderOid;
+        Long regionOid;
+        Optional<Long> availabilityZoneOid = Optional.empty();
+        Long accountOid;
+        Optional<Long> resourceGroupOid;
         if (isTestEntity) {
             /*
              * To implement scope for the test entities, create scope based upon the entity's UUID,
@@ -362,6 +348,35 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
             regionOid = entityOid / 10000L;
             accountOid = entityOid / 1000L;
             resourceGroupOid = Optional.of(entityOid / 100L);
+        } else {
+            if (!cloudTopology.getEntity(entityOid).isPresent()) {
+                logger.debug(
+                        "Cannot create entity cloud scope record because some of the required information is missing ; EntityOid={}",
+                        entityOid);
+                return null;
+            }
+
+            entityType = cloudTopology.getEntity(entityOid).map(TopologyEntityDTO::getEntityType).orElse(null);
+
+            // Get the service provider OID.
+            Optional<TopologyEntityDTO> serviceProvider = cloudTopology.getServiceProvider(entityOid);
+            serviceProviderOid = serviceProvider.map(TopologyEntityDTO::getOid).orElse(null);
+
+            // Get the region OID.
+            Optional<TopologyEntityDTO> region = cloudTopology.getConnectedRegion(entityOid);
+            regionOid = region.map(TopologyEntityDTO::getOid).orElse(null);
+
+            // Get the availability zone OID.
+            Optional<TopologyEntityDTO> availabilityZone = cloudTopology.getConnectedAvailabilityZone(entityOid);
+            availabilityZoneOid = availabilityZone.map(TopologyEntityDTO::getOid);
+
+            // Get the account OID.
+            Optional<TopologyEntityDTO> businessAccount = cloudTopology.getOwner(entityOid);
+            accountOid = businessAccount.map(TopologyEntityDTO::getOid).orElse(null);
+
+            // Get the resource group OID.
+            Optional<GroupAndMembers> resourceGroup = cloudTopology.getResourceGroup(entityOid);
+            resourceGroupOid = resourceGroup.map(groupAndMembers -> groupAndMembers.group().getId());
         }
 
         if (entityType != null && serviceProviderOid != null && regionOid != null && accountOid != null) {

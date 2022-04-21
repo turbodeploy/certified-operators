@@ -1,0 +1,96 @@
+{
+  "recommendation": {
+    "id": "144788020498288",
+    "info": {
+      "scale": {
+        "target": {
+          "id": "74413626193600",
+          "type": 10,
+          "environmentType": "CLOUD"
+        },
+        "changes": [{
+          "source": {
+            "id": "${sourceTierId}",
+            "type": 56,
+            "environmentType": "CLOUD"
+          },
+          "destination": {
+            "id": "${destinationTierId}",
+            "type": 56,
+            "environmentType": "CLOUD"
+          }
+        }],
+        "cloudSavingsDetails": {
+          "sourceTierCostDetails": {
+            "onDemandRate": {
+              "amount": ${sourceOnDemandRate}
+            },
+            "onDemandCost": {
+              "amount": 0.00
+            }
+          },
+          "projectedTierCostDetails": {
+            "onDemandRate": {
+              "amount": 0.00
+            },
+            "onDemandCost": {
+              "amount": 0.00
+            }
+          },
+          "entityUptime": {
+            "uptimeDurationMs": "345037239",
+            "totalDurationMs": "355479000",
+            "creationTimeMs": "1648826121000",
+            "uptimePercentage": 100.0
+          }
+        }
+      }
+    },
+    "DeprecatedImportance": 0.0,
+    "explanation": {
+      "scale": {
+        "changeProviderExplanation": [{
+          "congestion": {
+            "congestedCommodities": [{
+              "commodityType": {
+                "type": 53
+              }
+            }]
+          },
+          "isPrimaryChangeProviderExplanation": true
+        }]
+      }
+    },
+    "executable": true,
+    "supportingLevel": "SUPPORTED",
+    "savingsPerHour": {
+      "amount": -4.0
+    }
+  },
+  "executionStep": {
+    "enqueueTime": "1649183259826",
+    "startTime": "1649183259868",
+    "completionTime": "${completionTime}",
+    "status": "SUCCESS",
+    "targetId": "74307075719728",
+    "progressPercentage": 100,
+    "progressDescription": "Completed successfully."
+  },
+  "recommendationTime": "1649178854000",
+  "explanation": "(^_^)~VMem Congestion",
+  "decision": {
+    "decisionTime": "1649183259868",
+    "executionDecision": {
+      "reason": "MANUALLY_ACCEPTED",
+      "userUuid": "administrator(3938323367600)"
+    }
+  },
+  "actionMode": "RECOMMEND",
+  "actionState": "SUCCEEDED",
+  "actionPlanId": "144788020498288",
+  "isExecutable": false,
+  "category": "PERFORMANCE_ASSURANCE",
+  "description": "Scale Virtual Machine jjbosvm1-azure from Standard_B2s to Standard_B2ms in EA - Development",
+  "severity": "CRITICAL",
+  "recommendationId": "637367953898000"
+}

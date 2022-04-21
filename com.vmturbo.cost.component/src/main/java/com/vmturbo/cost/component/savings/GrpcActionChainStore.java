@@ -9,6 +9,8 @@ import java.util.TreeSet;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionChainsRequest;
@@ -26,7 +28,8 @@ public class GrpcActionChainStore implements ActionChainStore {
     /**
      * Comparator for specs, sorts by completion time.
      */
-    private final Comparator<ActionSpec> specComparator = (o1, o2) -> {
+    @VisibleForTesting
+    static final Comparator<ActionSpec> specComparator = (o1, o2) -> {
         if (o1.hasExecutionStep() && o2.hasExecutionStep()) {
             if (o1.getExecutionStep().hasCompletionTime()
                     && o2.getExecutionStep().hasCompletionTime()) {

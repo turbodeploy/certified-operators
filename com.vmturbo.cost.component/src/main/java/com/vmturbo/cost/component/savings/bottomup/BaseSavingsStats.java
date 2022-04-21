@@ -70,7 +70,7 @@ abstract class BaseSavingsStats {
     }
 
     /**
-     * Checking equality, entityId and timestamp together make up unique key.
+     * Checking equality, entityId, timestamp and value need to be same for them to be equal.
      *
      * @param o Other stats object.
      * @return Whether this is equal to other.
@@ -84,7 +84,8 @@ abstract class BaseSavingsStats {
             return false;
         }
         BaseSavingsStats that = (BaseSavingsStats)o;
-        return timestamp == that.timestamp && type == that.type;
+        return timestamp == that.timestamp && type == that.type
+                && Double.compare(value, that.value) == 0;
     }
 
     /**
@@ -94,7 +95,7 @@ abstract class BaseSavingsStats {
      */
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, type);
+        return Objects.hash(this.timestamp, this.type, this.value);
     }
 
     /**
@@ -105,7 +106,8 @@ abstract class BaseSavingsStats {
     @Override
     public String toString() {
         return new ToStringBuilder(this)
-                .append("timestamp", new Timestamp(timestamp).toLocalDateTime())
+                .append("epochMillis", timestamp)
+                .append("displayTime", new Timestamp(timestamp).toLocalDateTime())
                 .append("type", type)
                 .append("value", value)
                 .toString();
