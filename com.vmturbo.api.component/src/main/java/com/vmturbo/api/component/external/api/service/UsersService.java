@@ -37,6 +37,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.validation.Errors;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -302,8 +303,15 @@ public class UsersService implements IUsersService {
         final String request = baseRequest().path("/users/" + uuid).build().toUriString();
         HttpHeaders headers = composeHttpHeaders();
         HttpEntity<List> entity = new HttpEntity<>(headers);
-        ResponseEntity<Object> result = restTemplate_.exchange(request, HttpMethod.GET, entity,
-                Object.class);
+        ResponseEntity<Object> result;
+        try {
+            result = restTemplate_.exchange(request, HttpMethod.GET, entity, Object.class);
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new UnknownObjectException("User not found: " + uuid);
+        } catch (Exception e) {
+            logger_.warn(e.getMessage());
+            throw new OperationFailedException("Unknown error: Unable to perform user retrieval.");
+        }
 
         // We do the conversion manually here from the result, as we can't specify the
         // exact class for automatic JSON generation.

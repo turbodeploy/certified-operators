@@ -216,7 +216,7 @@ public class AuthUsersController {
      *
      */
     @ApiOperation(value="Returns user")
-    @RequestMapping(path = "/{uuid}",
+    @RequestMapping(value = "/{uuid}",
                     method = RequestMethod.GET,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
