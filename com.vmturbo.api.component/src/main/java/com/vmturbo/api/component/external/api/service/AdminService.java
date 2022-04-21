@@ -211,16 +211,20 @@ public class AdminService implements IAdminService {
         final Map<String, LoggingLevel> componentLoggingLevels = new HashMap<>();
         final Set<String> components = clusterService.getKnownComponents();
         for (String component : components) {
-            if (component.equals(apiHost)) {
-                // no need for rest call for API component since we are in API component
-                final LoggerContext logContext = (LoggerContext)LogManager.getContext(false);
-                componentLoggingLevels.put(apiHost, LoggingMapper.protoLogLevelToApiLogLevel(
-                    LoggingUtils.log4jLevelToProtoLogLevel(
-                            logContext.getLogger(LogConfigurationService.TURBO_PACKAGE_NAME)
-                            .getLevel())));
-            } else {
-                getLoggingLevel(component).ifPresent(loggingLevel ->
-                    componentLoggingLevels.put(component, loggingLevel));
+            try {
+                if (component.equals(apiHost)) {
+                    // no need for rest call for API component since we are in API component
+                    final LoggerContext logContext = (LoggerContext)LogManager.getContext(false);
+                    componentLoggingLevels.put(apiHost, LoggingMapper.protoLogLevelToApiLogLevel(
+                        LoggingUtils.log4jLevelToProtoLogLevel(
+                                logContext.getLogger(LogConfigurationService.TURBO_PACKAGE_NAME)
+                                .getLevel())));
+                } else {
+                    getLoggingLevel(component).ifPresent(loggingLevel ->
+                        componentLoggingLevels.put(component, loggingLevel));
+                }
+            } catch (Exception e) {
+                logger.error("Exception attempting to get logging level for component: " + component, e);
             }
         }
         final LoggingApiDTO loggingApiDTO = new LoggingApiDTO();
