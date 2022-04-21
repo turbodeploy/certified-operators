@@ -54,6 +54,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -1810,7 +1811,8 @@ public class UserServiceTest {
     }
 
     /**
-     * Handle error response by rethrowing. Expect AccessDeniedException from non-admin users.
+     * Handle error response by rethrowing. Expect HttpClientErrorException.NotFound when user not
+     * found for given uuid.
      *
      * @throws Exception
      */
@@ -1818,7 +1820,19 @@ public class UserServiceTest {
     public void testGetUserByUuidFailure() throws Exception {
         logon("observer");
         when(restTemplate.exchange(Matchers.startsWith("http://:0/users/"), any(), any(), eq(Object.class)))
-                .thenThrow(UnknownObjectException.class);
+                .thenThrow(HttpClientErrorException.NotFound.class);
+        usersService.getUser("123");
+    }
+
+    /**
+     * Handle error response by rethrowing. For exceptions other than HttpClientErrorException.BadRequest,
+     * should throw an OperationFailedException
+     */
+    @Test(expected = OperationFailedException.class)
+    public void testGetUserByUuidUnknownFailure() throws Exception {
+        logon("administrator");
+        when(restTemplate.exchange(Matchers.startsWith("http://:0/users/"), any(), any(), eq(Object.class)))
+                .thenThrow(Exception.class);
         usersService.getUser("123");
     }
 
