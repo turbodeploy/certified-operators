@@ -1,6 +1,7 @@
 package com.vmturbo.common.protobuf;
 
 import java.text.CharacterIterator;
+import java.text.DecimalFormat;
 import java.text.StringCharacterIterator;
 import java.util.regex.Pattern;
 
@@ -72,9 +73,7 @@ public class StringUtil {
             ci.next();
         }
 
-        if (value % 1024 == 0) {
-            return String.format("%.0f %cB", value / 1024.0, ci.current());
-        }
-        return String.format("%.1f %cB", value / 1024.0, ci.current());
+        final String formattedValue = new DecimalFormat("0.##").format(value / 1024.0);
+        return String.format("%s %cB", formattedValue, ci.current());
     }
 }
