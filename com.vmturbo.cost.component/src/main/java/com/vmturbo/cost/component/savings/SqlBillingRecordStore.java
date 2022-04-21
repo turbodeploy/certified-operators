@@ -1,7 +1,9 @@
 package com.vmturbo.cost.component.savings;
 
+import static com.vmturbo.cost.component.db.Tables.BILLED_COST_DAILY;
+
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -33,8 +35,8 @@ public class SqlBillingRecordStore implements BillingRecordStore {
     }
 
     @Override
-    public Stream<BillingChangeRecord> getBillingChangeRecords(long lastUpdatedStartTime,
-            long lastUpdatedEndTime, @Nonnull final List<Long> entityIds) {
+    public Stream<BillingRecord> getUpdatedBillRecords(long lastUpdatedStartTime,
+            long lastUpdatedEndTime, @Nonnull final Set<Long> entityIds) {
         final BilledCostDaily t1 = BilledCostDaily.BILLED_COST_DAILY.as("t1");
         final BilledCostDaily t2 = BilledCostDaily.BILLED_COST_DAILY.as("t2");
 
@@ -66,6 +68,27 @@ public class SqlBillingRecordStore implements BillingRecordStore {
                 .map(this::createChangeRecord);
     }
 
+    @Override
+    public Stream<BillingRecord> getBillRecords(LocalDateTime startTime, LocalDateTime endTime,
+            @Nonnull Set<Long> entityIds) {
+        final Condition condition = BILLED_COST_DAILY.ENTITY_ID.in(entityIds)
+                .and(BILLED_COST_DAILY.SAMPLE_TIME.between(startTime, endTime));
+        return dsl.select(BILLED_COST_DAILY.SAMPLE_TIME,
+                BILLED_COST_DAILY.ENTITY_ID,
+                BILLED_COST_DAILY.ENTITY_TYPE,
+                BILLED_COST_DAILY.PRICE_MODEL,
+                BILLED_COST_DAILY.COST_CATEGORY,
+                BILLED_COST_DAILY.PROVIDER_ID,
+                BILLED_COST_DAILY.PROVIDER_TYPE,
+                BILLED_COST_DAILY.USAGE_AMOUNT,
+                BILLED_COST_DAILY.COST,
+                BILLED_COST_DAILY.LAST_UPDATED)
+                .from(BILLED_COST_DAILY)
+                .where(condition)
+                .stream()
+                .map(this::createChangeRecord);
+    }
+
     /**
      * Creates a new billing change record.
      *
@@ -73,9 +96,9 @@ public class SqlBillingRecordStore implements BillingRecordStore {
      * @return BillingChangeRecord instance.
      */
     @Nonnull
-    private BillingChangeRecord createChangeRecord(
+    private BillingRecord createChangeRecord(
             Record10<LocalDateTime, Long, Short, Short, Short, Long, Short, Double, Double, Long> dbRecord) {
-        return new BillingChangeRecord.Builder()
+        return new BillingRecord.Builder()
                 .sampleTime(dbRecord.get(0, LocalDateTime.class))
                 .entityId(dbRecord.get(1, Long.class))
                 .entityType(dbRecord.get(2, Short.class))

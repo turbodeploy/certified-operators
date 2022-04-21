@@ -221,7 +221,15 @@ public class DataInjectionMonitor implements Runnable {
         if (purgePreviousTestState.get()) {
             scenarioDataHandler.purgeState(participatingUuids);
         }
-        scenarioDataHandler.processStates(participatingUuids, startTime, endTime);
+        try {
+            scenarioDataHandler.processStates(participatingUuids, startTime, endTime);
+        } catch (EntitySavingsException e) {
+            String oids = participatingUuids.stream()
+                    .map(Object::toString)
+                    .collect(Collectors.joining(","));
+            logger.error("Error occurred when writing savings stats. Entity OIDs: {} "
+                    + " start time: {}, end time: {}", oids, startTime, endTime, e);
+        }
     }
 
     /**

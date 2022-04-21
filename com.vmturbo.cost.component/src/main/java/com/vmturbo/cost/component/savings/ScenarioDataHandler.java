@@ -18,7 +18,7 @@ public interface ScenarioDataHandler {
      * @param endTime ending time of the injected scenario
      */
     void processStates(@Nonnull Set<Long> participatingUuids, @Nonnull LocalDateTime startTime,
-            @Nonnull LocalDateTime endTime);
+            @Nonnull LocalDateTime endTime) throws EntitySavingsException;
 
     /**
      * Purge state for the indicated UUIDs in preparation for processing injected data.  This can

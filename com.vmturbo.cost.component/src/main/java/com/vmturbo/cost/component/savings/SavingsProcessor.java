@@ -3,8 +3,10 @@ package com.vmturbo.cost.component.savings;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -147,7 +149,10 @@ public class SavingsProcessor {
             @Nonnull final SavingsTimes savingsTimes, @Nonnull final AtomicInteger chunkCounter) {
         boolean processed = true;
         try {
-            savingsTracker.processStates(stateChunk, savingsTimes, chunkCounter);
+            final Set<Long> entityIds = stateChunk.stream()
+                    .map(EntityState::getEntityId)
+                    .collect(Collectors.toSet());
+            savingsTracker.processStates(entityIds, savingsTimes, chunkCounter);
             // Once we process this chunk, we clear the chunk states list, in preparation
             // for it to be filled with the next chunk of states.
             stateChunk.clear();

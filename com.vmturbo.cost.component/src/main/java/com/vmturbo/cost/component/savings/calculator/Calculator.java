@@ -25,7 +25,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.cost.component.savings.BillingChangeRecord;
+import com.vmturbo.cost.component.savings.BillingRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -50,7 +50,7 @@ public class Calculator {
      * @return result of the calculation
      */
     @Nonnull
-    public static List<SavingsValues> calculate(long entityOid, Set<BillingChangeRecord> billRecords,
+    public static List<SavingsValues> calculate(long entityOid, Set<BillingRecord> billRecords,
             NavigableSet<ActionSpec> actionChain) {
         if (actionChain.isEmpty() || billRecords.isEmpty()) {
             logger.error("Savings calculator invoked for an entity {} with no actions or has no bill records.",
@@ -77,14 +77,14 @@ public class Calculator {
         logger.debug(() -> watermarkGraph);
 
         // Create a map of bill records associated for each day.
-        final Map<LocalDateTime, Set<BillingChangeRecord>> billRecordsByDay = new HashMap<>();
+        final Map<LocalDateTime, Set<BillingRecord>> billRecordsByDay = new HashMap<>();
         billRecords.forEach(r -> {
             LocalDateTime recordTime = r.getSampleTime().truncatedTo(ChronoUnit.DAYS);
             billRecordsByDay.computeIfAbsent(recordTime, t -> new HashSet<>()).add(r);
         });
 
         final List<SavingsValues> results = new ArrayList<>();
-        for (Entry<LocalDateTime, Set<BillingChangeRecord>> dailyRecords: billRecordsByDay.entrySet()) {
+        for (Entry<LocalDateTime, Set<BillingRecord>> dailyRecords: billRecordsByDay.entrySet()) {
             results.add(calculateDay(entityOid, dailyRecords.getKey(), watermarkGraph,
                     dailyRecords.getValue()));
         }
@@ -102,7 +102,7 @@ public class Calculator {
      */
     @Nonnull
     private static SavingsValues calculateDay(long entityOid, LocalDateTime date,
-            WatermarkGraph watermarkGraph, Set<BillingChangeRecord> billRecords) {
+            WatermarkGraph watermarkGraph, Set<BillingRecord> billRecords) {
         logger.debug("Calculating savings for entity {} for date {}.", entityOid, date);
         // Use the high-low graph and the bill records to determine the billing segments in the day.
         List<Segment> segments = createBillingSegments(
@@ -122,10 +122,10 @@ public class Calculator {
             Watermark watermark = segment.watermark;
             long providerOid = watermark.getDestinationProviderOid();
             // Get all bill records of this provider and sum up the cost
-            Set<BillingChangeRecord> recordsForProvider = billRecords.stream()
+            Set<BillingRecord> recordsForProvider = billRecords.stream()
                     .filter(r -> r.getProviderId() == providerOid).collect(Collectors.toSet());
             double costOfProvider = recordsForProvider.stream()
-                    .map(BillingChangeRecord::getCost)
+                    .map(BillingRecord::getCost)
                     .reduce(0d, Double::sum);
             double usageAmount = getUsageAmount(recordsForProvider);
             double investments = Math.max(0,
@@ -154,13 +154,13 @@ public class Calculator {
      * @param recordsForProvider set of bill records for a provider for an entity for one day
      * @return usage amount
      */
-    private static double getUsageAmount(Set<BillingChangeRecord> recordsForProvider) {
+    private static double getUsageAmount(Set<BillingRecord> recordsForProvider) {
         int entityType = recordsForProvider.stream()
                 .findAny()
-                .map(BillingChangeRecord::getEntityType)
+                .map(BillingRecord::getEntityType)
                 .orElse(EntityType.UNKNOWN_VALUE);
         double usageAmount = recordsForProvider.stream()
-                    .map(BillingChangeRecord::getUsageAmount)
+                    .map(BillingRecord::getUsageAmount)
                     .reduce(0d, Double::sum);
         // For azure volumes, the time unit for usage amount is expressed as the fraction of a month.
         // 730 is the number of hours in a month. May need a more precise number if the bill
