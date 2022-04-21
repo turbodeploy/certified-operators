@@ -83,6 +83,9 @@ public class AdminServiceTest {
     private static final String API_COMPONENT = "api";
     private static final String AUTH_COMPONENT = "auth";
     private static final String MARKET_COMPONENT = "market";
+    // Using this component in testGetLoggingLevels() in order to test that we can recover from
+    // an exception when attempting to get logging levels for all components.
+    private static final String MISSING_COMPONENT = "MISSING_COMPONENT";
 
     private static final String GIT_PROP_BRANCH = "testBranch";
     private static final String GIT_BUILD_TIME = "123";
@@ -361,7 +364,7 @@ public class AdminServiceTest {
     @Test
     public void testGetLoggingLevels() throws Exception {
         Mockito.when(clusterService.getKnownComponents()).thenReturn(
-            ImmutableSet.of(API_COMPONENT, AUTH_COMPONENT, MARKET_COMPONENT));
+            ImmutableSet.of(API_COMPONENT, AUTH_COMPONENT, MARKET_COMPONENT, MISSING_COMPONENT));
         // mock logging level for api and other components
         Configurator.setLevel(LogConfigurationService.TURBO_PACKAGE_NAME, Level.WARN);
         mockGetLogLevelForComponent(AUTH_COMPONENT, LogLevel.DEBUG);
