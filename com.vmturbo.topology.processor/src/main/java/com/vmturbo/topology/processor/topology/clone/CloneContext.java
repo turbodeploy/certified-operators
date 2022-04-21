@@ -28,6 +28,8 @@ public class CloneContext {
     private final String planType;
     private final long planId;
     @Nullable private final TopologyEntity.Builder planCluster;
+    @Nullable private String planClusterVendorId;
+
     /**
      * Editor-wise flag to indicate whether to apply constraints.  True only if the corresponding
      * feature flag is enabled and this is a container cluster plan.
@@ -57,12 +59,14 @@ public class CloneContext {
         this.idProvider = idProvider;
         this.topology = topology;
         this.planCluster = planCluster;
+        if (planCluster != null) {
+            nodeCommodities.putAll(K8sProcessingUtil.collectNodeCommodities(planCluster));
+            planClusterVendorId = TopologyEditorUtil.getContainerClusterVendorId(planCluster).orElse(null);
+        }
         this.shouldApplyConstraints = FeatureFlags.APPLY_CONSTRAINTS_IN_CONTAINER_CLUSTER_PLAN.isEnabled()
                 && StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN.equals(planType);
         this.isMigrateContainerWorkloadPlan = FeatureFlags.MIGRATE_CONTAINER_WORKLOAD_PLAN.isEnabled()
                 && StringConstants.MIGRATE_CONTAINER_WORKLOAD_PLAN.equals(planType);
-        getPlanCluster().map(K8sProcessingUtil::collectNodeCommodities)
-                .ifPresent(nodeCommodities::putAll);
     }
 
     /**
@@ -93,6 +97,15 @@ public class CloneContext {
      */
     Optional<TopologyEntity.Builder> getPlanCluster() {
         return Optional.ofNullable(planCluster);
+    }
+
+    /**
+     * Get the plan cluster vendor ID.
+     *
+     * @return the plan cluster vendor ID
+     */
+    Optional<String> getPlanClusterVendorId() {
+        return Optional.ofNullable(planClusterVendorId);
     }
 
     /**

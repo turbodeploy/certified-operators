@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.PerTargetEntityInformationView;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -102,6 +103,26 @@ public final class TopologyEditorUtil {
                         .findAny())
                 .map(PlanScopeEntry::getScopeObjectOid)
                 .map(topology::get);
+    }
+
+    /**
+     * Get the container cluster vendor ID.
+     *
+     * @param containerCluster the container cluster entity
+     * @return the container cluster vendor ID
+     */
+    @Nonnull
+    public static Optional<String> getContainerClusterVendorId(
+            @Nonnull TopologyEntity.Builder containerCluster) {
+        return containerCluster
+                .getTopologyEntityImpl()
+                .getOrigin()
+                .getDiscoveryOrigin()
+                .getDiscoveredTargetDataMap()
+                .values().stream()
+                .filter(PerTargetEntityInformationView::hasVendorId)
+                .map(PerTargetEntityInformationView::getVendorId)
+                .findFirst();
     }
 
     /**
