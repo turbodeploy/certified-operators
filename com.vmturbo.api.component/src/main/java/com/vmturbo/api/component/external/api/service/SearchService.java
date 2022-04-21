@@ -513,7 +513,7 @@ public class SearchService implements ISearchService {
             // validate group_types includes valid entity or group types
             ValidationUtils.validateGroupEntityTypes(groupTypes);
             // validate types includes valid entity or group types or "target" or "market"
-            ValidationUtils.validateSearchableObjTypes(types);
+            ValidationUtils.validateGetSearchableObjTypes(types);
         } catch (IllegalArgumentException e) {
             // TODO - don't catch exception once feature is fully enabled
             logger.error("Validation failed: {}", e.getMessage());
@@ -813,7 +813,7 @@ public class SearchService implements ISearchService {
                     Collections.emptyList() : Collections.singleton(inputDTO.getGroupType()));
             // validate types includes valid entity or group types
             // (getSearchResults allows "market" / "target" but not currently supported here)
-            ValidationUtils.validateGroupEntityTypes(inputDTO.getClassName() == null ?
+            ValidationUtils.validatePostSearchableObjTypes(inputDTO.getClassName() == null ?
                     Collections.emptyList() : Collections.singleton(inputDTO.getClassName()));
         } catch (IllegalArgumentException e) {
             // TODO - don't catch exception once feature is fully enabled
