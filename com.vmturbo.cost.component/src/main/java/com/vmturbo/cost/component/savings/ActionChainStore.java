@@ -1,8 +1,8 @@
 package com.vmturbo.cost.component.savings;
 
-import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -19,5 +19,5 @@ public interface ActionChainStore {
      * @return For each entityId, the sorted action chain.
      */
     @Nonnull
-    Map<Long, NavigableSet<ActionSpec>> getActionChains(@Nonnull List<Long> entityIds);
+    Map<Long, NavigableSet<ActionSpec>> getActionChains(@Nonnull Set<Long> entityIds);
 }

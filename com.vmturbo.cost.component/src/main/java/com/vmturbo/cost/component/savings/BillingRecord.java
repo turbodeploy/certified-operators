@@ -18,7 +18,7 @@ import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingDataPoint.CostCat
  */
 @Value.Style(visibility = Value.Style.ImplementationVisibility.PACKAGE, overshadowImplementation = true)
 @Value.Immutable(lazyhash = true)
-public interface BillingChangeRecord {
+public interface BillingRecord {
     /**
      * Usage date.
      *
@@ -110,5 +110,5 @@ public interface BillingChangeRecord {
     /**
      * Creates a new builder.
      */
-    class Builder extends ImmutableBillingChangeRecord.Builder {}
+    class Builder extends ImmutableBillingRecord.Builder {}
 }

@@ -10,7 +10,6 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -69,30 +68,26 @@ public class SavingsTracker implements ScenarioDataHandler {
     /**
      * Process given list of entity states. A chunk of states are processed at a time.
      *
-     * @param entityStates States to process this time.
+     * @param entityIds OIDs of entities to be processed.
      * @param savingsTimes Contains timing related info used for query, stores responses as well.
      * @param chunkCounter Counter for current chunk, for logging.
      * @throws EntitySavingsException Thrown on DB error.
      */
-    void processStates(@Nonnull final List<EntityState> entityStates,
+    void processStates(@Nonnull final Set<Long> entityIds,
             @Nonnull final SavingsTimes savingsTimes, @Nonnull final AtomicInteger chunkCounter)
             throws EntitySavingsException {
-        final List<Long> entityIds = entityStates.stream()
-                .map(EntityState::getEntityId)
-                .collect(Collectors.toList());
-
         long previousLastUpdated = savingsTimes.getPreviousLastUpdatedTime();
         long lastUpdatedEndTime = savingsTimes.getLastUpdatedEndTime();
         logger.trace("{}: Processing chunk of {} states with last updated >= {} && < {}...",
-                () -> chunkCounter, entityStates::size, () -> previousLastUpdated,
+                () -> chunkCounter, entityIds::size, () -> previousLastUpdated,
                 () -> lastUpdatedEndTime);
 
         // Get billing records in this time range, mapped by entity id.
-        final Map<Long, Set<BillingChangeRecord>> billingRecords = new HashMap<>();
+        final Map<Long, Set<BillingRecord>> billingRecords = new HashMap<>();
 
         // For this set of billing records, see if we have any last_updated times that are newer.
         final AtomicLong newLastUpdated = new AtomicLong(savingsTimes.getCurrentLastUpdatedTime());
-        billingRecordStore.getBillingChangeRecords(previousLastUpdated, lastUpdatedEndTime, entityIds)
+        billingRecordStore.getUpdatedBillRecords(previousLastUpdated, lastUpdatedEndTime, entityIds)
                 .filter(record -> record.isValid(supportedProviderTypes))
                 .forEach(record -> {
                     if (record.getLastUpdated() != null
@@ -108,12 +103,18 @@ public class SavingsTracker implements ScenarioDataHandler {
         final Map<Long, NavigableSet<ActionSpec>> actionChains = actionChainStore
                 .getActionChains(entityIds);
 
+        final Set<Long> statTimes = processStates(entityIds, billingRecords, actionChains);
+
+        // Save off the day stats timestamps for all stats written this time, used for rollups.
+        savingsTimes.addAllDayStatsTimes(statTimes);
+    }
+
+    private Set<Long> processStates(@Nonnull final Set<Long> entityOids,
+            Map<Long, Set<BillingRecord>> billingRecords,
+            Map<Long, NavigableSet<ActionSpec>> actionChains) throws EntitySavingsException {
         final List<SavingsValues> allSavingsValues = new ArrayList<>();
-        // Process one state at a time. State will get updated after calculation and will
-        // contain stats that need to be written. State may also need to be written back.
-        entityStates.forEach(state -> {
-            long entityId = state.getEntityId();
-            Set<BillingChangeRecord> entityBillingRecords = billingRecords.get(entityId);
+        entityOids.forEach(entityId -> {
+            Set<BillingRecord> entityBillingRecords = billingRecords.get(entityId);
             NavigableSet<ActionSpec> entityActionChain = actionChains.get(entityId);
             if (SetUtils.emptyIfNull(entityBillingRecords).isEmpty()
                     || SetUtils.emptyIfNull(entityActionChain).isEmpty()) {
@@ -121,20 +122,19 @@ public class SavingsTracker implements ScenarioDataHandler {
             }
             final List<SavingsValues> values = Calculator.calculate(entityId, entityBillingRecords,
                     entityActionChain);
-            logger.trace("{} savings values (c={}) for entity {}, {} bill records, {} actions.",
-                    values::size, () -> chunkCounter, () -> entityId, entityBillingRecords::size,
+            logger.trace("{} savings values for entity {}, {} bill records, {} actions.",
+                    values::size, () -> entityId, entityBillingRecords::size,
                     entityActionChain::size);
             allSavingsValues.addAll(values);
         });
 
         // Once we are done processing all the states for this period, we write stats.
-        // Save off the day stats timestamps for all stats written this time, used for rollups.
-        savingsTimes.addAllDayStatsTimes(statsWriter.writeDailyStats(allSavingsValues));
+        return statsWriter.writeDailyStats(allSavingsValues);
     }
 
     /**
      * Process given list of entity states. A chunk of states are processed at a time. This can
-     * only be invoked when the {@link ENABLE_SAVINGS_TEST_INPUT} feature flag is enabled.
+     * only be invoked when the ENABLE_SAVINGS_TEST_INPUT feature flag is enabled.
      *
      * @param participatingUuids list of UUIDs involved in the injected scenario
      * @param startTime starting time of the injected scenario
@@ -143,14 +143,26 @@ public class SavingsTracker implements ScenarioDataHandler {
     @Override
     public void processStates(@Nonnull Set<Long> participatingUuids,
             @Nonnull LocalDateTime startTime,
-            @Nonnull LocalDateTime endTime) {
+            @Nonnull LocalDateTime endTime) throws EntitySavingsException {
         logger.debug("Data injector invoked for the period of {} to {} on UUIDs: {}",
                 startTime, endTime, participatingUuids);
+        // Get billing records in this time range, mapped by entity id.
+        final Map<Long, Set<BillingRecord>> billingRecords = new HashMap<>();
+        billingRecordStore.getBillRecords(startTime, endTime, participatingUuids)
+                .filter(record -> record.isValid(supportedProviderTypes))
+                .forEach(record -> billingRecords.computeIfAbsent(record.getEntityId(), e -> new HashSet<>())
+                            .add(record));
+
+        // Get map of entity id to sorted list of actions for it, starting with first executed.
+        final Map<Long, NavigableSet<ActionSpec>> actionChains = actionChainStore
+                .getActionChains(participatingUuids);
+
+        processStates(participatingUuids, billingRecords, actionChains);
     }
 
     /**
      * Purge state for the indicated UUIDs in preparation for processing injected data.  This can
-     * only be invoked when the {@link ENABLE_SAVINGS_TEST_INPUT} feature flag is enabled.
+     * only be invoked when the ENABLE_SAVINGS_TEST_INPUT feature flag is enabled.
      *
      * @param participatingUuids UUIDs to purge.
      */

@@ -2,9 +2,9 @@ package com.vmturbo.cost.component.savings;
 
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
+import java.util.Set;
 import java.util.TreeSet;
 
 import javax.annotation.Nonnull;
@@ -51,7 +51,7 @@ public class GrpcActionChainStore implements ActionChainStore {
 
     @Override
     @Nonnull
-    public Map<Long, NavigableSet<ActionSpec>> getActionChains(@Nonnull List<Long> entityIds) {
+    public Map<Long, NavigableSet<ActionSpec>> getActionChains(@Nonnull Set<Long> entityIds) {
         final GetActionChainsRequest request = GetActionChainsRequest.newBuilder()
                 .addAllEntityOid(entityIds)
                 .build();
