@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.util;
 
+import static com.vmturbo.api.component.external.api.mapper.GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
@@ -14,7 +16,6 @@ import org.springframework.util.Assert;
 
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.enums.EntityType;
-import com.vmturbo.api.enums.GroupType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
@@ -35,7 +36,7 @@ public class ValidationUtils {
         EXTERNAL_ENTITY_TYPES = builder.build();
 
         // build Group Entity Types set (groups, entities)
-        Arrays.stream(GroupType.values()).map(Enum::toString).forEach(builder::add);
+        API_GROUP_TYPE_TO_GROUP_TYPE.keySet().forEach(builder::add);
         GROUP_ENTITY_TYPES = builder.build();
 
         // build Searchable generic Types set (groups, entities, market, target)
@@ -69,13 +70,24 @@ public class ValidationUtils {
 
     /**
      * Validates that all elements in the supplied {@link Collection} are supported searchable
-     * object types.
+     * object types. Used with GET /search
      *
      * @param types a collection of searchable object type strings
      * @throws IllegalArgumentException if at least one element is invalid
      */
-    public static void validateSearchableObjTypes(@Nullable final Collection<String> types) {
+    public static void validateGetSearchableObjTypes(@Nullable final Collection<String> types) {
         assertIsSubset(types, SEARCHABLE_OBJ_TYPES, "Invalid type(s)");
+    }
+
+    /**
+     * Validates that all elements in the supplied {@link Collection} are supported searchable
+     * object types. Used with POST /search
+     *
+     * @param types a collection of searchable object type strings
+     * @throws IllegalArgumentException if at least one element is invalid
+     */
+    public static void validatePostSearchableObjTypes(@Nullable final Collection<String> types) {
+        assertIsSubset(types, GROUP_ENTITY_TYPES, "Invalid type(s)");
     }
 
     /**

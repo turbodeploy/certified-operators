@@ -177,79 +177,168 @@ public class ValidationUtilsTest {
     }
 
     /**
-     * Test that {@link ValidationUtils#validateSearchableObjTypes(Collection)} does not throw an
-     * exception when an empty collection is passed to the funciton.
+     * Test that {@link ValidationUtils#validateGetSearchableObjTypes(Collection)} does not throw an
+     * exception when an empty collection is passed to the function.
      */
     @Test
     public void testEmptyObjTypeCollectionIsValid() {
-        ValidationUtils.validateSearchableObjTypes(Collections.emptyList());
+        ValidationUtils.validateGetSearchableObjTypes(Collections.emptyList());
     }
 
     /**
-     * Test that {@link ValidationUtils#validateSearchableObjTypes(Collection)} does not throw an
+     * Test that {@link ValidationUtils#validateGetSearchableObjTypes(Collection)} does not throw an
      * exception when null is passed to the function.
      */
     @Test
     public void testNullObjTypeCollectionIsValid() {
-        ValidationUtils.validateSearchableObjTypes(null);
+        ValidationUtils.validateGetSearchableObjTypes(null);
     }
 
     /**
-     * Test that {@link ValidationUtils#validateSearchableObjTypes(Collection)} does not throw an
+     * Test that {@link ValidationUtils#validateGetSearchableObjTypes(Collection)} does not throw an
      * exception when a valid {@link EntityType} string is passed to the function.
      */
     @Test
     public void testEntityTypeAsValidObjType() {
-        ValidationUtils.validateSearchableObjTypes(Collections.singleton(EntityType.VirtualMachine.toString()));
+        ValidationUtils.validateGetSearchableObjTypes(Collections.singleton(EntityType.VirtualMachine.toString()));
     }
 
     /**
-     * Test that {@link ValidationUtils#validateSearchableObjTypes(Collection)} does not throw an
+     * Test that {@link ValidationUtils#validateGetSearchableObjTypes(Collection)} does not throw an
      * exception when a valid {@link GroupType} string is passed to the function.
      */
     @Test
     public void testGroupTypeAsValidObjType() {
-        ValidationUtils.validateSearchableObjTypes(Collections.singleton(GroupType.Group.toString()));
+        ValidationUtils.validateGetSearchableObjTypes(Collections.singleton(GroupType.Group.toString()));
     }
 
     /**
-     * Test that {@link ValidationUtils#validateSearchableObjTypes(Collection)} does not throw an
+     * Test that {@link ValidationUtils#validateGetSearchableObjTypes(Collection)} correctly maps
+     * {@link GroupType} by not throwing exception for valid strings to the function.
+     */
+    @Test
+    public void testMappedGroupTypesAsValidGetObjTypes() {
+        ValidationUtils.validateGetSearchableObjTypes(Arrays.asList(StringConstants.RESOURCE_GROUP,
+                StringConstants.VIRTUAL_MACHINE_CLUSTER, StringConstants.CLUSTER));
+    }
+
+    /**
+     * Test that {@link ValidationUtils#validateGetSearchableObjTypes(Collection)} does not throw an
      * exception when the values {@link StringConstants#WORKLOAD} or {@link MarketMapper#MARKET} is
      * passed to the function.
      */
     @Test
     public void testConstantsAsValidObjTypes() {
-        ValidationUtils.validateSearchableObjTypes(Arrays.asList(MarketMapper.MARKET, StringConstants.TARGET));
+        ValidationUtils.validateGetSearchableObjTypes(Arrays.asList(MarketMapper.MARKET, StringConstants.TARGET));
     }
 
     /**
-     * Test that {@link ValidationUtils#validateSearchableObjTypes(Collection)} throws an
+     * Test that {@link ValidationUtils#validateGetSearchableObjTypes(Collection)} throws an
      * {@link IllegalArgumentException} when a collection containing an invalid string
      * is passed to the function.
      */
     @Test
     public void testExceptionThrownWhenObjTypeStringIsInvalid() {
-        Assertions.assertThatThrownBy(() -> ValidationUtils.validateSearchableObjTypes(Collections.singleton("invalid")))
+        Assertions.assertThatThrownBy(() -> ValidationUtils.validateGetSearchableObjTypes(Collections.singleton("invalid")))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     /**
-     * Test that {@link ValidationUtils#validateSearchableObjTypes(Collection)} throws an
+     * Test that {@link ValidationUtils#validateGetSearchableObjTypes(Collection)} throws an
      * {@link IllegalArgumentException} when null string is passed to the function.
      */
     @Test
     public void testExceptionThrownWhenObjTypesStringIsNull() {
-        Assertions.assertThatThrownBy(() -> ValidationUtils.validateSearchableObjTypes(Collections.singleton(null)))
+        Assertions.assertThatThrownBy(() -> ValidationUtils.validateGetSearchableObjTypes(Collections.singleton(null)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     /**
-     * Test that {@link ValidationUtils#validateSearchableObjTypes(Collection)} throws an
+     * Test that {@link ValidationUtils#validateGetSearchableObjTypes(Collection)} throws an
      * {@link IllegalArgumentException} when a collection contains both valid and invalid strings.
+     * This test fails because null value an invalid collection member.
      */
     @Test
     public void testExceptionThrowWhenObjTypesIncludesInvalid() {
-        Assertions.assertThatThrownBy(() -> ValidationUtils.validateSearchableObjTypes(
+        Assertions.assertThatThrownBy(() -> ValidationUtils.validateGetSearchableObjTypes(
+                Arrays.asList(GroupType.Group.toString(), EntityType.VirtualMachine.toString(), null)
+        )).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /**
+     * Test that {@link ValidationUtils#validatePostSearchableObjTypes(Collection)} does not throw an
+     * exception when an empty collection is passed to the funciton.
+     */
+    @Test
+    public void testEmptyPostObjTypeCollectionIsValid() {
+        ValidationUtils.validatePostSearchableObjTypes(Collections.emptyList());
+    }
+
+    /**
+     * Test that {@link ValidationUtils#validatePostSearchableObjTypes(Collection)} does not throw an
+     * exception when null is passed to the function.
+     */
+    @Test
+    public void testNullPostObjTypeCollectionIsValid() {
+        ValidationUtils.validatePostSearchableObjTypes(null);
+    }
+
+    /**
+     * Test that {@link ValidationUtils#validatePostSearchableObjTypes(Collection)} does not throw an
+     * exception when a valid {@link EntityType} string is passed to the function.
+     */
+    @Test
+    public void testEntityTypeAsValidPostObjType() {
+        ValidationUtils.validatePostSearchableObjTypes(Collections.singleton(EntityType.VirtualMachine.toString()));
+    }
+
+    /**
+     * Test that {@link ValidationUtils#validatePostSearchableObjTypes(Collection)} does not throw an
+     * exception when a valid {@link GroupType} string is passed to the function.
+     */
+    @Test
+    public void testGroupTypeAsValidPostObjType() {
+        ValidationUtils.validatePostSearchableObjTypes(Collections.singleton(GroupType.Group.toString()));
+    }
+
+    /**
+     * Test that {@link ValidationUtils#validatePostSearchableObjTypes(Collection)} correctly maps
+     * {@link GroupType} by not throwing exception for valid strings to the function.
+     */
+    @Test
+    public void testMappedGroupTypesAsValidPostObjTypes() {
+        ValidationUtils.validateGetSearchableObjTypes(Arrays.asList(StringConstants.RESOURCE_GROUP,
+                StringConstants.VIRTUAL_MACHINE_CLUSTER, StringConstants.STORAGE_CLUSTER));
+    }
+
+    /**
+     * Test that {@link ValidationUtils#validatePostSearchableObjTypes(Collection)} throws an
+     * {@link IllegalArgumentException} when a collection containing an invalid string
+     * is passed to the function.
+     */
+    @Test
+    public void testExceptionThrownWhenPostObjTypeStringIsInvalid() {
+        Assertions.assertThatThrownBy(() -> ValidationUtils.validatePostSearchableObjTypes(Collections.singleton("invalid")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /**
+     * Test that {@link ValidationUtils#validatePostSearchableObjTypes(Collection)} throws an
+     * {@link IllegalArgumentException} when null string is passed to the function.
+     */
+    @Test
+    public void testExceptionThrownWhenPostObjTypesStringIsNull() {
+        Assertions.assertThatThrownBy(() -> ValidationUtils.validatePostSearchableObjTypes(Collections.singleton(null)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /**
+     * Test that {@link ValidationUtils#validatePostSearchableObjTypes(Collection)} throws an
+     * {@link IllegalArgumentException} when a collection contains both valid and invalid strings.
+     */
+    @Test
+    public void testExceptionThrowWhenPostObjTypesIncludesInvalid() {
+        Assertions.assertThatThrownBy(() -> ValidationUtils.validatePostSearchableObjTypes(
                 Arrays.asList(GroupType.Group.toString(), EntityType.VirtualMachine.toString(), null)
         )).isInstanceOf(IllegalArgumentException.class);
     }
