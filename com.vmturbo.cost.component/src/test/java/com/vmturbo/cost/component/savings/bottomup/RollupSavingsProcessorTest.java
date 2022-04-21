@@ -1,10 +1,10 @@
 package com.vmturbo.cost.component.savings.bottomup;
 
+import static com.vmturbo.cost.component.util.TestUtils.getTimeMillis;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.time.Clock;
-import java.time.LocalDateTime;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -13,7 +13,6 @@ import com.google.common.collect.ImmutableList;
 
 import org.junit.Test;
 
-import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
 import com.vmturbo.cost.component.rollup.RollupTimeInfo;
@@ -100,15 +99,5 @@ public class RollupSavingsProcessorTest {
         assertTrue(rollupTimeMonthly.isMonthly());
         assertEquals(time12AmUtcDayBefore, rollupTimeMonthly.fromTime());
         assertEquals(time12AmUtcMonthEnd, rollupTimeMonthly.toTime());
-    }
-
-    /**
-     * Util method to get epoch millis from UTC display string.
-     *
-     * @param utcDisplay Display time.
-     * @return Epoch millis.
-     */
-    private long getTimeMillis(String utcDisplay) {
-        return TimeUtil.localDateTimeToMilli(LocalDateTime.parse(utcDisplay), clock);
     }
 }

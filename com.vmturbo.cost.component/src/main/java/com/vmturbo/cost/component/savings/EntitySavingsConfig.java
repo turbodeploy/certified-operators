@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -205,7 +206,8 @@ public class EntitySavingsConfig {
     /**
      * Provider types we care about for bill based savings.
      */
-    private static final Set<Integer> supportedProviderTypes = ImmutableSet.of(
+    @VisibleForTesting
+    static final Set<Integer> supportedProviderTypes = ImmutableSet.of(
             EntityType.COMPUTE_TIER.getNumber(),
             EntityType.STORAGE_TIER.getNumber(),
             EntityType.DATABASE_TIER.getNumber(),
