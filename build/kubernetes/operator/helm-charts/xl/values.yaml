@@ -214,6 +214,8 @@ awslambda:
   enabled: false
 azure:
   enabled: false
+  billing:
+    enabled: false
 compellent:
   enabled: false
 dynatrace:
