@@ -76,12 +76,14 @@ public class EconomyCachesTest {
     private static final int ST_AMT_TYPE = CommodityType.STORAGE_AMOUNT_VALUE;
     private static final int CLUSTER1_COMM_SPEC_TYPE = 300;
     private static final int CLUSTER2_COMM_SPEC_TYPE = 400;
+    private static final int CLUSTER3_COMM_SPEC_TYPE = 301;
     private static final int MERGE_CLUSTERS_COMM_SPEC_TYPE = 500;
     private static final int SEGMENTATION_COMM_SPEC_TYPE = 600;
     private static final int ST_CLUSTER1_COMM_SPEC_TYPE = 700;
     private static final int ST_CLUSTER2_COMM_SPEC_TYPE = 800;
     private static final String cluster1Key = "cluster1";
     private static final String cluster2Key = "cluster2";
+    private static final String cluster3Key = "cluster3";
     private static final String mergeClusterKey = "merge";
     private static final String placePolicyKey = "AtMostNBound";
     private static final double pmMemCapacity = 100;
@@ -1322,22 +1324,36 @@ public class EconomyCachesTest {
      */
     @Test
     public void testAddTradersToHistoricalEconomyCache() {
-        Economy economy = economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed});
+        Economy realeconomy = economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed});
+        Economy histeconomy = economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed});
         economyCaches.getState().setReservationReceived(true);
-        economyCaches.updateHistoricalCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(),
+        economyCaches.updateHistoricalCachedEconomy(histeconomy, commTypeToSpecMap, new HashMap<>(),
                 new HashMap<>());
-        economyCaches.updateRealtimeCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(),
+        economyCaches.updateRealtimeCachedEconomy(realeconomy, commTypeToSpecMap, new HashMap<>(),
                 new HashMap<>());
-        Trader pm5 = economy.addTrader(PM_TYPE, TraderState.ACTIVE,
-                        new Basket(Collections.singleton(new CommoditySpecification(MEM_TYPE))),
+
+        List<CommoditySpecification> commoditySpecifications = new ArrayList<>();
+        commoditySpecifications.add(new CommoditySpecification(CLUSTER3_COMM_SPEC_TYPE));
+        commoditySpecifications.add(new CommoditySpecification(MEM_TYPE));
+        Trader pm5 = realeconomy.addTrader(PM_TYPE, TraderState.ACTIVE,
+                        new Basket(commoditySpecifications),
                         ImmutableList.of(455L));
         final long oid = 237612L;
         pm5.setOid(oid);
-        Economy clonedEconomy = InitialPlacementUtils.cloneEconomy(economy, false);
-        economyCaches.updateRealtimeCachedEconomy(clonedEconomy, commTypeToSpecMap, new HashMap<>(),
+        BiMap<TopologyDTO.CommodityType, Integer> newCommTypeToSpecMap = HashBiMap.create(commTypeToSpecMap);
+        TopologyDTO.CommodityType cluster3 =
+                TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CLUSTER_VALUE).setKey(cluster3Key).build();
+        newCommTypeToSpecMap.put(cluster3, CLUSTER3_COMM_SPEC_TYPE);
+        Economy clonedEconomy = InitialPlacementUtils.cloneEconomy(realeconomy, false);
+        economyCaches.updateRealtimeCachedEconomy(clonedEconomy, newCommTypeToSpecMap, new HashMap<>(),
+                new HashMap<>());
+        // simulate one more broadcast which is when the exception would happen if HistoricalCachedCommTypeMap
+        // is not updated properly.
+        economyCaches.updateRealtimeCachedEconomy(clonedEconomy, newCommTypeToSpecMap, new HashMap<>(),
                 new HashMap<>());
         Assert.assertEquals(1, economyCaches.historicalCachedEconomy.getTraders().stream()
                 .filter(t -> t.getOid() == oid).count());
+        Assert.assertEquals((Integer)CLUSTER3_COMM_SPEC_TYPE, economyCaches.getHistoricalCachedCommTypeMap().get(cluster3));
     }
 
     /**

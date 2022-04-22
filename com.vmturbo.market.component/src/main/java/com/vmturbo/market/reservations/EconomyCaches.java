@@ -360,7 +360,7 @@ public class EconomyCaches {
             logger.error(logPrefix + "Updating access commodity in historical economy cache encounter error {},"
                     + " resetting historical economy to be the same as real time", e);
             updateHistoricalCachedEconomy(realtimeCachedEconomy, realtimeCachedCommTypeMap,
-                    buyerOidToPlacement, existingReservations);
+                    new HashMap(), new HashMap());
         }
     }
 
@@ -388,6 +388,7 @@ public class EconomyCaches {
         if (FeatureFlags.HEADROOM_ADD_PROVISIONED_RESOURCES.isEnabled()) {
             Stopwatch sw = Stopwatch.createStarted();
             Set<Long> histTraderOids = histEconomy.getTopology().getTradersByOid().keySet();
+            List<Trader> newlyAddedTraders = new ArrayList<>();
             int added = 0;
             for (Map.Entry<Long, Trader> oid2trader : realtimeEconomy.getTopology().getTradersByOid().entrySet()) {
                 Trader trader = oid2trader.getValue();
@@ -397,10 +398,27 @@ public class EconomyCaches {
                     Trader clone = InitialPlacementUtils.cloneTraderForInitialPlacement(trader, histEconomy);
                     histEconomy.getTopology().getModifiableTraderOids().put(oid2trader.getKey(), clone);
                     ++added;
+                    newlyAddedTraders.add(clone);
                 }
             }
             if (added > 0) {
                 logger.info("{}added {} new traders to historical economy cache in {}", logPrefix, added, sw);
+                // The newly added traders are copied from the real time economy. They are
+                // already selling the access commodities same as real time economy. We have to
+                // update the historicalCachedCommTypeMap to be aware of the new access
+                // commodities sold by the new traders.
+                for (Trader t : newlyAddedTraders) {
+                    for (int i = 0; i < t.getBasketSold().size(); i++) {
+                        int realtimeCommSpecType = t.getBasketSold().get(i).getType();
+                        CommodityType realtimeComm = realtimeCachedCommTypeMap.inverse().get(realtimeCommSpecType);
+                        if (realtimeComm != null && realtimeComm.hasKey()) {
+                            if (historicalCachedCommTypeMap.inverse().containsKey(realtimeCommSpecType)) {
+                                historicalCachedCommTypeMap.inverse().remove(realtimeCommSpecType);
+                            }
+                            historicalCachedCommTypeMap.put(realtimeComm, realtimeCommSpecType);
+                        }
+                    }
+                }
             }
         }
     }
