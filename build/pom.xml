@@ -1427,6 +1427,7 @@
                 <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.api.component</module>
+                <module>../com.vmturbo.market.component.api</module>
                 <module>../com.vmturbo.search.api</module>
                 <module>../com.vmturbo.search.schema</module>
                 <module>../com.vmturbo.oid</module>
