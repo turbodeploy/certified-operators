@@ -905,6 +905,12 @@ spec:
                   enabled:
                     description: Enable Azure mediation
                     type: boolean
+                  billing:
+                    properties:
+                      enabled:
+                        description: Enable Azure mediation
+                        type: boolean
+                    type: object
                 type: object
               baremetal:
                 properties:
