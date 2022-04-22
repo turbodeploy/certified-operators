@@ -22,6 +22,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.math.DoubleMath;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
@@ -114,6 +115,13 @@ public class ActionDTOUtil {
      */
     private static final Set<Integer> ENTITY_TYPES_TO_EXCLUDE_FROM_INVOLVED = ImmutableSet.of(
             ApiEntityType.CONTAINER.typeNumber());
+
+    /**
+     * Because we use floating point calculations to subtract discounts from costs, there is always
+     * the chance for infinitesimal errors to creep into our costs and savings. For this reason we
+     * always want to treat very small numbers as effectively zero.
+     */
+    public static final double DOUBLE_TOLERANCE = 1e-10;
 
     private ActionDTOUtil() {}
 
@@ -739,9 +747,9 @@ public class ActionDTOUtil {
      * @return the {@link ActionCostType} of the action.
      */
     public static ActionCostType getActionCostTypeFromAction(@Nonnull final Action action) {
-        if (action.getSavingsPerHour().getAmount() < 0.0) {
+        if (DoubleMath.fuzzyCompare(action.getSavingsPerHour().getAmount(), 0.0D, DOUBLE_TOLERANCE) < 0) {
             return ActionCostType.INVESTMENT;
-        } else if (action.getSavingsPerHour().getAmount() > 0.0) {
+        } else if (DoubleMath.fuzzyCompare(action.getSavingsPerHour().getAmount(), 0.0D, DOUBLE_TOLERANCE) > 0.0) {
             return ActionCostType.SAVINGS;
         } else {
             return ActionCostType.ACTION_COST_TYPE_NONE;

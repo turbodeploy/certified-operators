@@ -84,6 +84,13 @@ public class QueryFilterTest {
             .setVisible(true)
             .build();
 
+    // For action categorization the threshold for what is a significant cost is 1e-10
+    // Because we use floating point calculations to subtract discounts from costs, there is always
+    // the chance for infinitesimal errors to creep into our costs and savings. For this reason we
+    // always want to treat very small numbers as effectively zero.
+    public static final double SIGNIFICANT = 5e-10;
+    public static final double TRIVIAL = SIGNIFICANT / 10.0;
+
     @Test
     public void testEmptyFilter() {
         // Even if the visibility is false, the spec should still pass the test if no visibility
@@ -542,81 +549,59 @@ public class QueryFilterTest {
 
     /**
      * Test query filter should return true when filter costType is SAVINGS and amount is
-     * non-negative
+     * non-negative or very close to zero
+     *
+     * Because we use floating point calculations to subtract discounts from costs, there is always
+     * the chance for infinitesimal errors to creep into our costs and savings. For this reason we
+     * always want to treat very small numbers as effectively zero.
      */
     @Test
     public void testCostTypeFilterMatchForSaving() {
-        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
-                .setId(1)
-                .setDeprecatedImportance(0)
-                .setExecutable(true)
-                .setExplanation(Explanation.newBuilder().build())
-                .setInfo(ActionInfo.getDefaultInstance())
-                .setSavingsPerHour(CurrencyAmount.newBuilder()
-                        .setAmount(0.05))
-                .build();
+        // all actions with savings near or above zero should return true
+        assertTrue(testActionWithSavingsForCostType(SIGNIFICANT, ActionCostType.SAVINGS));
+        assertTrue(testActionWithSavingsForCostType(TRIVIAL, ActionCostType.SAVINGS));
+        assertTrue(testActionWithSavingsForCostType(-1 * TRIVIAL, ActionCostType.SAVINGS));
 
-        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
-                .setCostType(ActionCostType.SAVINGS)
-                .build();
-        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
-        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
-                .test(actionView));
+        // any action with significant negative savigns should return false
+        assertFalse(testActionWithSavingsForCostType(-1 * SIGNIFICANT, ActionCostType.SAVINGS));
     }
 
     /**
      * Test query filter should return true when filter costType is INVESTMENT and amount is
-     * negative
+     * below zero by more than a trivial amount
+     *
+     * Because we use floating point calculations to subtract discounts from costs, there is always
+     * the chance for infinitesimal errors to creep into our costs and savings. For this reason we
+     * always want to treat very small numbers as effectively zero.
      */
     @Test
     public void testCostTypeFilterMatchForInvestment() {
-        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
-                .setId(1)
-                .setDeprecatedImportance(0)
-                .setExecutable(true)
-                .setExplanation(Explanation.newBuilder().build())
-                .setInfo(ActionInfo.getDefaultInstance())
-                .setSavingsPerHour(CurrencyAmount.newBuilder()
-                        .setAmount(-0.05))
-                .build();
+        // only actions with significant negative savings should return true
+        assertTrue(testActionWithSavingsForCostType(-1 * SIGNIFICANT, ActionCostType.INVESTMENT));
 
-        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
-                .setCostType(ActionCostType.INVESTMENT)
-                .build();
-        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
-        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
-                .test(actionView));
+        // all actions with savings near or above zero should return false
+        assertFalse(testActionWithSavingsForCostType(-1 * TRIVIAL, ActionCostType.INVESTMENT));
+        assertFalse(testActionWithSavingsForCostType(TRIVIAL, ActionCostType.INVESTMENT));
+        assertFalse(testActionWithSavingsForCostType(SIGNIFICANT, ActionCostType.INVESTMENT));
     }
 
     /**
      * Test query filter should return true when filter costType is SAVINGS or ACTION_COST_TYPE_NONE
-     * and amount is zero
+     * and amount is very close to zero
+     *
+     * Because we use floating point calculations to subtract discounts from costs, there is always
+     * the chance for infinitesimal errors to creep into our costs and savings. For this reason we
+     * always want to treat very small numbers as effectively zero.
      */
     @Test
-    public void testCostTypeFilterMatchForZeroSaving() {
-        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
-                .setId(1)
-                .setDeprecatedImportance(0)
-                .setExecutable(true)
-                .setExplanation(Explanation.newBuilder().build())
-                .setInfo(ActionInfo.getDefaultInstance())
-                .setSavingsPerHour(CurrencyAmount.newBuilder()
-                        .setAmount(0.00))
-                .build();
+    public void testCostTypeFilterMatchForActionCostTypeNone() {
+        // only actions with savings close to zero should return true
+        assertTrue(testActionWithSavingsForCostType(TRIVIAL, ActionCostType.ACTION_COST_TYPE_NONE));
+        assertTrue(testActionWithSavingsForCostType(-1 * TRIVIAL, ActionCostType.ACTION_COST_TYPE_NONE));
 
-        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
-                .setCostType(ActionCostType.SAVINGS)
-                .build();
-        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
-        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
-                .test(actionView));
-
-        final ActionQueryFilter filter2 = ActionQueryFilter.newBuilder()
-                .setCostType(ActionCostType.ACTION_COST_TYPE_NONE)
-                .build();
-        final ActionView actionView2 = ActionOrchestratorTestUtils.mockActionView(action);
-        assertTrue(new QueryFilter(filter2, PlanActionStore.VISIBILITY_PREDICATE)
-                .test(actionView2));
+        // actions with significant positive or negative savings should return false
+        assertFalse(testActionWithSavingsForCostType(SIGNIFICANT, ActionCostType.ACTION_COST_TYPE_NONE));
+        assertFalse(testActionWithSavingsForCostType(-1 * SIGNIFICANT, ActionCostType.ACTION_COST_TYPE_NONE));
     }
 
     /**
@@ -989,5 +974,23 @@ public class QueryFilterTest {
                 9L,
                 null,
                 id), actionModeCalculator));
+    }
+
+    private boolean testActionWithSavingsForCostType(double nonZero, ActionCostType actionCostType) {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                        .setId(1)
+                        .setDeprecatedImportance(0)
+                        .setExecutable(true)
+                        .setExplanation(Explanation.newBuilder().build())
+                        .setInfo(ActionInfo.getDefaultInstance())
+                        .setSavingsPerHour(CurrencyAmount.newBuilder()
+                                                           .setAmount(nonZero))
+                        .build();
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+                        .setCostType(actionCostType)
+                        .build();
+        return new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                        .test(ActionOrchestratorTestUtils.mockActionView(action));
     }
 }

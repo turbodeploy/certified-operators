@@ -21,7 +21,9 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -64,6 +66,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CommonCost;
 
 /**
  * Unit tests for {@link ActionDTOUtil}.
@@ -284,6 +287,29 @@ public class ActionDTOUtilTest {
     @Test
     public void testMapMoveToStart() {
         assertEquals(ActionType.ACTIVATE, ActionDTOUtil.getActionInfoActionType(action));
+    }
+
+    /**
+     * Actions with savingsPerHour very close to zero should have ACTION_COST_TYPE_NONE.
+     * Actions with significant positive savingsPerHour should be classified as SAVINGS.
+     * Actions with significant negative savingsPerHour should be classified as INVESTMENT.
+     *
+     * Because we use floating point calculations to subtract discounts from costs, there is always
+     * the chance for infinitesimal errors to creep into our costs and savings. For this reason we
+     * always want to treat very small numbers as effectively zero.
+     */
+    @Test
+    public void testGetActionCostTypeFromAction() {
+        double smallestSignificantValue = 5e-10;
+
+        assertEquals(ActionDTOUtil.getActionCostTypeFromAction(createActionWithSavings(smallestSignificantValue)), ActionDTO.ActionCostType.SAVINGS);
+        assertEquals(ActionDTOUtil.getActionCostTypeFromAction(createActionWithSavings(-1 * smallestSignificantValue)), ActionDTO.ActionCostType.INVESTMENT);
+
+        double trivialValue = 5e-11;
+
+        assertEquals(ActionDTOUtil.getActionCostTypeFromAction(createActionWithSavings(trivialValue)), ActionDTO.ActionCostType.ACTION_COST_TYPE_NONE);
+        assertEquals(ActionDTOUtil.getActionCostTypeFromAction(createActionWithSavings(-1 * trivialValue)), ActionDTO.ActionCostType.ACTION_COST_TYPE_NONE);
+
     }
 
     /**
@@ -941,6 +967,19 @@ public class ActionDTOUtilTest {
                 .setInfo(actionInfo)
                 .setDeprecatedImportance(1)
                 .build();
+    }
+
+    private static Action createActionWithSavings(double savings) {
+        CommonCost.CurrencyAmount
+                        savingsPerHour =
+                        CommonCost.CurrencyAmount.newBuilder().setAmount(savings).build();
+        return Action.newBuilder()
+                        .setId(123121)
+                        .setExplanation(Explanation.getDefaultInstance())
+                        .setSavingsPerHour(savingsPerHour)
+                        .setInfo(ActionInfo.getDefaultInstance())
+                        .setDeprecatedImportance(1)
+                        .build();
     }
 
     private static ReasonCommodity createReasonCommodity(int baseType) {

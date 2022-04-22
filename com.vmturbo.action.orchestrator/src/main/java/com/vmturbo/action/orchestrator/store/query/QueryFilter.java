@@ -2,10 +2,8 @@ package com.vmturbo.action.orchestrator.store.query;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -16,12 +14,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.google.common.math.DoubleMath;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDisruptiveness;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -228,15 +228,15 @@ public class QueryFilter {
             final double amount = actionView.getTranslationResultOrOriginal().getSavingsPerHour().getAmount();
 
             if (filter.getCostType() == ActionCostType.ACTION_COST_TYPE_NONE) {
-                return amount == 0.0;
+                return DoubleMath.fuzzyEquals(0.0, amount, ActionDTOUtil.DOUBLE_TOLERANCE);
             }
 
             if (filter.getCostType() == ActionCostType.INVESTMENT) {
-                return amount < 0.0;
+                return DoubleMath.fuzzyCompare(amount, 0.0, ActionDTOUtil.DOUBLE_TOLERANCE) < 0.0;
             }
 
             if (filter.getCostType() == ActionCostType.SAVINGS) {
-                return amount >= 0.0;
+                return DoubleMath.fuzzyCompare(amount, 0.0, ActionDTOUtil.DOUBLE_TOLERANCE) >= 0.0;
             }
         }
 
