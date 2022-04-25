@@ -113,21 +113,29 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
     }
 
     @Nullable
-    private static Integer getVmInfoParameter(@Nonnull TopologyEntityImpl entity,
+    private static <T> T getVmInfoParameter(@Nonnull TopologyEntityImpl entity,
+            @Nonnull Predicate<VirtualMachineInfoView> valueChecker,
+            @Nonnull Function<VirtualMachineInfoView, T> valueGetter) {
+        return getVmInfoParameter(entity, valueChecker, valueGetter, null);
+    }
+
+    @Nullable
+    private static <T> T getVmInfoParameter(@Nonnull TopologyEntityImpl entity,
                     @Nonnull Predicate<VirtualMachineInfoView> valueChecker,
-                    @Nonnull Function<VirtualMachineInfoView, Integer> valueGetter) {
+                    @Nonnull Function<VirtualMachineInfoView, T> valueGetter,
+                    @Nullable T defaultValue) {
         if (!entity.hasTypeSpecificInfo()) {
-            return null;
+            return defaultValue;
         }
         final TypeSpecificInfoView typeSpecificInfo = entity.getTypeSpecificInfo();
         if (!typeSpecificInfo.hasVirtualMachine()) {
-            return null;
+            return defaultValue;
         }
         final VirtualMachineInfoView vmInfo = typeSpecificInfo.getVirtualMachine();
         if (valueChecker.test(vmInfo)) {
             return valueGetter.apply(vmInfo);
         }
-        return null;
+        return defaultValue;
     }
 
     /**
@@ -183,9 +191,12 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
                         @Nonnull CommoditySoldImpl vcpuCommodity) {
             final Integer numCpus = getVmInfoParameter(entity, VirtualMachineInfoView::hasNumCpus,
                             VirtualMachineInfoView::getNumCpus);
-            final Integer cpsr =
-                            getVmInfoParameter(entity, VirtualMachineInfoView::hasCoresPerSocketRatio,
-                                            VirtualMachineInfoView::getCoresPerSocketRatio);
+            final boolean coresPerSocketChangeable = getVmInfoParameter(entity,
+                    VirtualMachineInfoView::hasCoresPerSocketChangeable,
+                    VirtualMachineInfoView::getCoresPerSocketChangeable, false);
+            final Integer cpsr = coresPerSocketChangeable ? getVmInfoParameter(entity,
+                    VirtualMachineInfoView::hasCoresPerSocketRatio,
+                    VirtualMachineInfoView::getCoresPerSocketRatio) : 1;
 
             final VcpuScalingCoresPerSocketSocketModeEnum coresPerSocketModeType =
                             getSettingValue(entitySettings,
@@ -371,6 +382,15 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
             final VcpuScalingSocketsCoresPerSocketModeEnum mode = getSettingValue(entitySettings,
                             EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketMode,
                             VcpuScalingSocketsCoresPerSocketModeEnum.USER_SPECIFIED);
+
+            // We should set the cores per socket to be 1 by default for VMs that do not support
+            // cores per socket. Eg, Nutanix, HyperV, ...
+            final boolean coresPerSocketChangeable = getVmInfoParameter(entity, VirtualMachineInfoView::hasCoresPerSocketChangeable,
+                            VirtualMachineInfoView::getCoresPerSocketChangeable, false);
+            if (!coresPerSocketChangeable) {
+                return 1;
+            }
+
             if (mode == VcpuScalingSocketsCoresPerSocketModeEnum.USER_SPECIFIED) {
                 final int result = (int)getNumericSetting(entitySettings,
                                 EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketValue, LOGGER);

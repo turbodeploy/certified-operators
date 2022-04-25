@@ -1997,6 +1997,30 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
+     * Checks that in case capacity increment has not been sent explicitly from the probe and probe
+     * has not send cores per socket ratio value and probe has not send num cpus, setting value will
+     * be taken.
+     */
+    @Test
+    public void testVCPUIncrementDefaultModetNoCapacityIncrementNoCSPRNoNumCpus() {
+        testVCPUIncrementApplicator(1800, 10400, null, createVmTypeSpecificInfo(null, null),
+                EntityType.VIRTUAL_MACHINE, new CpuScalingPolicyImpl(),
+                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                VM_VCPU_INCREMENT_DEFAULT);
+    }
+
+    /**
+     * Checks that {@link EntitySettingsApplicator} will not fail with {@link
+     * IllegalArgumentException} in case probe has sent 0 as capacity increment value.
+     */
+    @Test
+    public void testVCPUIncrementDefaultModeShouldNotFailWhenProbeSent0ForCapacityIncrement() {
+        testVCPUIncrementApplicator(1800, 10400, 0, createVmTypeSpecificInfo(null, null),
+                EntityType.VIRTUAL_MACHINE, new CpuScalingPolicyImpl(),
+                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, VM_VCPU_INCREMENT_DEFAULT);
+    }
+
+    /**
      * Capacity increment from the probe will be used in case:
      * 'Change' setting is 'Sockets'
      * 'Cores per socket' setting is 'Preserve'
@@ -2009,11 +2033,8 @@ public class EntitySettingsApplicatorTest {
                         VCPU_SCLAING_SOCKETS_CORES_PER_SOCKET_MODE_PRESERVE);
     }
 
-    /**
-     * If there is No CSR setting(e.g. containers), should work as if settinng = RESPECT.
-     */
     @Test
-    public void testVCPUIncrementUnitSocketsIncrementSocketsNonDefault() {
+    public void testVCPUIncrementDefaultModeUnitSocketsIncrementSocketsNonDefault() {
         testVCPUIncrementApplicator(1800, 10400, 5200, new TypeSpecificInfoImpl(),
                         EntityType.VIRTUAL_MACHINE, new CpuScalingPolicyImpl(),
                         EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
@@ -2030,7 +2051,7 @@ public class EntitySettingsApplicatorTest {
     }
 
     @Test
-    public void testVcpuVmScalingApplicatorWithoutVmSpecificInfo() {
+    public void testVCPUIncrementCoresModeWithoutVmSpecificInfo() {
         testVCPUIncrementApplicator(1800, 10400, 5200, null,
                         EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(1),
@@ -2040,7 +2061,7 @@ public class EntitySettingsApplicatorTest {
     }
 
     @Test
-    public void testVcpuVmScalingApplicatorCoresUserSpecified() {
+    public void testVCPUIncrementCoresModesUserSpecifiedSockets() {
         testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(3),
                         EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
@@ -2053,7 +2074,7 @@ public class EntitySettingsApplicatorTest {
      * Test where no num cpus is provided, goes with default mhz scaling.
      */
     @Test
-    public void testVcpuVmScalingApplicatorVCPUsModeNoNumCpus() {
+    public void testVCPUIncrementVcpusModeNoNumCpus() {
         testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
                 new CpuScalingPolicyImpl().setCoresPerSocket(1),
                 EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
@@ -2066,7 +2087,7 @@ public class EntitySettingsApplicatorTest {
      * Test where num cpus is provided, goes with proper sockets scaling
      */
     @Test
-    public void testVcpuVmScalingApplicatorVCPUsMode() {
+    public void testVCPUIncrementVcpusModeProperSocketsScaling() {
         testVCPUIncrementApplicator(5200, 10400, 5200, createVmTypeSpecificInfo(4, 2), EntityType.VIRTUAL_MACHINE,
                 new CpuScalingPolicyImpl().setCoresPerSocket(1),
                 EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
@@ -2074,8 +2095,11 @@ public class EntitySettingsApplicatorTest {
                 CORE_SOCKET_RATIO_VCPUS_VALUE);
     }
 
+    /**
+     * Socket policy should be set to 1 by default when no pm provider.
+     */
     @Test
-    public void testVcpuVmScalingApplicatorWithoutPmAsProvider() {
+    public void testVCPUIncrementCoresModeMatchHostWithoutPmAsProvider() {
         testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(1),
                         EntityType.STORAGE_VALUE, createPmTypeSpecificInfo(4), 10L,
@@ -2083,8 +2107,11 @@ public class EntitySettingsApplicatorTest {
                         CORE_SOCKET_RATIO_MATCH_HOST);
     }
 
+    /**
+     * Socket policy should be set to 1 by default when provider id does not match in the topology.
+     */
     @Test
-    public void testVcpuVmScalingApplicatorWithoutProviderIdAvailableInTopologyGraph() {
+    public void testVCPUIncrementCoresModeMatchHostWithoutProviderIdAvailableInTopologyGraph() {
         testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(1),
                         EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 11L,
@@ -2092,16 +2119,23 @@ public class EntitySettingsApplicatorTest {
                         CORE_SOCKET_RATIO_MATCH_HOST);
     }
 
+    /**
+     * Socket policy should be set to 1 by default when pm does not have any type specific info.
+     */
     @Test
-    public void testVcpuVmScalingApplicatorWithoutProviderSpecificInfo() {
+    public void testVCPUIncrementCoresModeMatchHostWithoutPmTypeSpecificInfo() {
         testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(1),
                         EntityType.PHYSICAL_MACHINE_VALUE, null, 10L, VM_VCPU_INCREMENT_DEFAULT,
                         CORE_SOCKET_RATIO_MODE_CORES, CORE_SOCKET_RATIO_MATCH_HOST);
     }
 
+    /**
+     * Socket policy should be set to 1 by default when pm does not have any physical machine related
+     * info specified.
+     */
     @Test
-    public void testVcpuVmScalingApplicatorWithoutPmSpecificInfo() {
+    public void testVCPUIncrementCoresModeMatchHostWithoutPmSpecificInfo() {
         testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(1),
                         EntityType.PHYSICAL_MACHINE_VALUE, new TypeSpecificInfoImpl(),
@@ -2110,8 +2144,11 @@ public class EntitySettingsApplicatorTest {
                         CORE_SOCKET_RATIO_MATCH_HOST);
     }
 
+    /**
+     * Socket policy should be set to 1 by default when pm does not have socket information.
+     */
     @Test
-    public void testVcpuVmScalingApplicatorWithoutPmNumCpuSockets() {
+    public void testVCPUIncrementCoresModeMatchHostWithoutPmNumCpuSockets() {
         testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(1),
                         EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(null), 10L,
@@ -2129,6 +2166,21 @@ public class EntitySettingsApplicatorTest {
                         CORE_SOCKET_RATIO_PRESERVE);
     }
 
+    /**
+     * Mode: Cores.
+     * Setting: Preserve sockets
+     * When there is no cps provided (non vc case), cps is defaulted to 1.
+     */
+    @Test
+    public void testVCPUIncrementCoresModePreserveVMSocketsNoCps() {
+        testVCPUIncrementApplicator(10400, 10400, 5200, createVmTypeSpecificInfo(4, null),
+                EntityType.VIRTUAL_MACHINE,
+                new CpuScalingPolicyImpl().setSockets(4),
+                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                CORE_SOCKET_RATIO_PRESERVE);
+    }
+
     @Test
     public void testVCPUIncrementCoresModeMatchHostSocketsNoNumCpusNoCpsr() {
         testVCPUIncrementApplicator(1800, 10400, 5200, new TypeSpecificInfoImpl(),
@@ -2141,7 +2193,7 @@ public class EntitySettingsApplicatorTest {
     }
 
     @Test
-    public void testVCPUIncrementCoresModeMatchHostSockets() {
+    public void testVCPUIncrementCoresModeMatchHostProperSocketsAndVcpuScaling() {
         testVCPUIncrementApplicator(10400, 10400, 5200, createVmTypeSpecificInfo(4, 2),
                         EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(4),
@@ -2152,44 +2204,45 @@ public class EntitySettingsApplicatorTest {
     }
 
     @Test
-    public void testVCPUIncrementApplicatorNonDefaultCSRRespect() {
+    public void testVCPUIncrementSocketsModeUserSpecifiedCPSWithoutVmNumCpus() {
         testVCPUIncrementApplicator(5200, 10400, 5200, new TypeSpecificInfoImpl(),
                         EntityType.VIRTUAL_MACHINE,
-                        new CpuScalingPolicyImpl().setCoresPerSocket(1),
+                        new CpuScalingPolicyImpl(),
                         EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
                         VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_SOCKETS);
     }
 
     @Test
-    public void testVCPUIncrementApplicatorWithVmNumCpus() {
+    public void testVCPUIncrementSocketsModeUserSpecifiedCPSWithVmNumCpus() {
         testVCPUIncrementApplicator(1300, 10400, null, new TypeSpecificInfoImpl().setVirtualMachine(
                                         new VirtualMachineInfoImpl().setNumCpus(8)),
                         EntityType.VIRTUAL_MACHINE,
-                        new CpuScalingPolicyImpl().setCoresPerSocket(1),
+                        new CpuScalingPolicyImpl(),
                         EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
                         VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_SOCKETS);
     }
 
     @Test
-    public void testVCPUIncrementApplicatorWithoutCapacityIncrementAndWithoutVmNumCpus() {
+    public void testVCPUIncrementSocketsModeUserSpecifiedCPSWithoutCapacityIncrementAndWithoutVmNumCpus() {
         testVCPUIncrementApplicator(1800, 10400, null, new TypeSpecificInfoImpl()
                                         .setVirtualMachine(new VirtualMachineInfoImpl()), EntityType.VIRTUAL_MACHINE,
-                        new CpuScalingPolicyImpl().setCoresPerSocket(1),
+                        new CpuScalingPolicyImpl(),
                         EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
                         VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_SOCKETS);
     }
 
     /**
-     * Checks that in case capacity increment has not been sent explicitly from the probe and probe
-     * has not send cores per socket ratio value and probe has not send num cpus, setting value will
-     * be taken.
+     * When CPS is not set in Sockets mode for non VC vms, we should we 1 as the default to
+     * calculate the CPU increment.
      */
     @Test
-    public void testVCPUIncrementUnitSocketsIncrementSocketsNonDefaultCSRRespectNoCapacityIncrementNoCSPRNoNumCpus() {
-        testVCPUIncrementApplicator(1800, 10400, null, createVmTypeSpecificInfo(null, null),
-                        EntityType.VIRTUAL_MACHINE, new CpuScalingPolicyImpl(),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
-                        VM_VCPU_INCREMENT_DEFAULT);
+    public void testVCPUIncrementSocketsModeShouldUseDefaultCPSNonVc() {
+        testVCPUIncrementApplicator(2600, 10400, 5200,
+                createVmTypeSpecificInfo(4, null)
+                , EntityType.VIRTUAL_MACHINE,
+                new CpuScalingPolicyImpl(),
+                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_SOCKETS);
     }
 
     /**
@@ -2203,17 +2256,6 @@ public class EntitySettingsApplicatorTest {
                         EntityType.CONTAINER_SPEC, new CpuScalingPolicyImpl(),
                         EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
                         VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
-    }
-
-    /**
-     * Checks that {@link EntitySettingsApplicator} will not fail with {@link
-     * IllegalArgumentException} in case probe has sent 0 as capacity increment value.
-     */
-    @Test
-    public void testVCPUIncrementApplicatorDoesNotFailWhenProbeSent0() {
-        testVCPUIncrementApplicator(1800, 10400, 0, createVmTypeSpecificInfo(null, null),
-                        EntityType.VIRTUAL_MACHINE, new CpuScalingPolicyImpl(),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, VM_VCPU_INCREMENT_DEFAULT);
     }
 
     private static void testVCPUIncrementApplicator(int expectedVCPUIncrement, int capacity,
@@ -2258,6 +2300,7 @@ public class EntitySettingsApplicatorTest {
             vmInfo.setNumCpus(numCpus);
         }
         if (cpsr != null) {
+            vmInfo.setCoresPerSocketChangeable(true);
             vmInfo.setCoresPerSocketRatio(cpsr);
         }
         return new TypeSpecificInfoImpl().setVirtualMachine(vmInfo);
