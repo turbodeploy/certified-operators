@@ -47,6 +47,8 @@ RUN cd /tmp && \
     chown -R zookeeper /var/lib/zoo && \
     chmod a+x /start_zookeeper && \
     chmod a+x /zookeeper-ready && \
+    # Remove old netty components
+    rm /opt/zookeeper/lib/netty-*.* && \
     # Remove old log4j 1.x components
     rm /opt/zookeeper/lib/slf4j-*.* && \
     rm /opt/zookeeper/lib/log4j-*.*
