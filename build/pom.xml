@@ -52,9 +52,6 @@
         <owasp.version>7.0.0</owasp.version>
         <prometheus.java.client.version>0.4.0</prometheus.java.client.version>
 
-        <!-- Used by Zookeeper and Kakfa, and we don't have updates for those yet -->
-        <netty.version>4.1.68.Final</netty.version>
-
         <lz4.version>1.4</lz4.version>
         <fastutil.version>8.3.1</fastutil.version>
 
