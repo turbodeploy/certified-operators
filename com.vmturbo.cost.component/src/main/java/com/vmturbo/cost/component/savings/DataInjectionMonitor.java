@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,11 +33,13 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import com.google.gson.stream.JsonReader;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
@@ -93,6 +96,10 @@ public class DataInjectionMonitor implements Runnable {
          * Event's target UUID.
          */
         public String uuid;
+
+        public Long getTimestamp() {
+            return timestamp;
+        }
     }
 
     /**
@@ -180,30 +187,32 @@ public class DataInjectionMonitor implements Runnable {
         if (!availableFile.exists()) {
             return;
         }
-        logger.debug("Injecting data from scenario events");
+        logger.info("Processing data from scenario script.");
         Gson gson = new Gson();
         JsonReader reader;
         List<ScriptEvent> scriptEvents = new ArrayList<>();
-        AtomicBoolean purgePreviousTestState = new AtomicBoolean(false);
         @Nonnull Map<String, Long> uuidMap = new HashMap<>();
         try {
             reader = new JsonReader(new FileReader("/tmp/" + scriptFile));
             scriptEvents = Arrays.asList(gson.fromJson(reader,
                     scenarioDataInjector.getScriptEventClass()));
-            uuidMap = resolveEntities(scriptEvents);
-            for (ScriptEvent event : scriptEvents) {
-                Long uuid = uuidMap.getOrDefault(event.uuid, 0L);
-                scenarioDataInjector.handleScriptEvent(event, uuid, purgePreviousTestState);
-            }
         } catch (FileNotFoundException e) {
-             logger.error("Cannot inject events: {}", e.toString());
+            logger.error("Cannot inject events: {}", e.toString());
+            return;
+        } catch (JsonSyntaxException e) {
+            logger.error("There is syntax error in the Json file.", e);
+            return;
         } finally {
             // Remove the events available file.
             availableFile.delete();
         }
+
+        // Find OIDs of entities referenced in the script events.
+        uuidMap = resolveEntities(scriptEvents);
+
         // Determine the scope of the scenario: participating UUIDs and the time period.
-        Long earliestEventTime = Long.MAX_VALUE;
-        Long latestEventTime = Long.MIN_VALUE;
+        long earliestEventTime = Long.MAX_VALUE;
+        long latestEventTime = Long.MIN_VALUE;
         Set<Long> participatingUuids = new HashSet<>();
         for (ScriptEvent event : scriptEvents) {
             earliestEventTime = Math.min(earliestEventTime, event.timestamp);
@@ -218,11 +227,23 @@ public class DataInjectionMonitor implements Runnable {
         }
         LocalDateTime startTime = makeLocalDateTime(earliestEventTime, false);
         LocalDateTime endTime = makeLocalDateTime(latestEventTime, true);
+
+        // Handle the script events.
+        final AtomicBoolean purgePreviousTestState = new AtomicBoolean(false);
+        final Map<Long, NavigableSet<ActionSpec>> actionChains = new HashMap<>();
+        final Map<Long, Set<BillingRecord>> billRecordsByEntity = new HashMap<>();
+        scenarioDataInjector.handleScriptEvents(scriptEvents, uuidMap, purgePreviousTestState,
+                actionChains, billRecordsByEntity);
+
+        // Purge savings states if needed.
         if (purgePreviousTestState.get()) {
             scenarioDataHandler.purgeState(participatingUuids);
         }
+
+        // Invoke the savings calculations for the specified entities and time period.
         try {
-            scenarioDataHandler.processStates(participatingUuids, startTime, endTime);
+            scenarioDataHandler.processStates(participatingUuids, startTime, endTime, actionChains,
+                    billRecordsByEntity);
         } catch (EntitySavingsException e) {
             String oids = participatingUuids.stream()
                     .map(Object::toString)

@@ -1,9 +1,13 @@
 package com.vmturbo.cost.component.savings;
 
 import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 
 /**
  * Interface for classes that can handle injected test data.
@@ -18,7 +22,8 @@ public interface ScenarioDataHandler {
      * @param endTime ending time of the injected scenario
      */
     void processStates(@Nonnull Set<Long> participatingUuids, @Nonnull LocalDateTime startTime,
-            @Nonnull LocalDateTime endTime) throws EntitySavingsException;
+            @Nonnull LocalDateTime endTime, @Nonnull Map<Long, NavigableSet<ActionSpec>> actionChains,
+            @Nonnull Map<Long, Set<BillingRecord>> billRecordsByEntity) throws EntitySavingsException;
 
     /**
      * Purge state for the indicated UUIDs in preparation for processing injected data.  This can
