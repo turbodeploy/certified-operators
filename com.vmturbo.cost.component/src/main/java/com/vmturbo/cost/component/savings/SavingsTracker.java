@@ -162,7 +162,7 @@ public class SavingsTracker implements ScenarioDataHandler {
             actions.putAll(actionChainStore.getActionChains(participatingUuids));
         }
 
-        processStates(participatingUuids, billRecordsByEntity, actionChains);
+        processStates(participatingUuids, billRecords, actions);
     }
 
     /**
