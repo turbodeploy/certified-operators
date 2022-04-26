@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -151,7 +152,8 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
 
                 cloudCommitmentStatsServiceGrpc.getTopologyCommitmentCoverage(request)
                         .forEachRemaining(response -> response.getCommitmentCoverageStatChunkList().forEach(record -> {
-                            final StatSnapshotApiDTO snapshot = snapshotTimestampMap.computeIfAbsent(record.getSnapshotDate(),
+                            final long snapShotDate = epoch == Epoch.PROJECTED ? (record.getSnapshotDate() + TimeUnit.HOURS.toMillis(1)) : record.getSnapshotDate();
+                            final StatSnapshotApiDTO snapshot = snapshotTimestampMap.computeIfAbsent(snapShotDate,
                                     snaphotDate -> createSnapshotApi(snaphotDate, epoch));
                             addRecordToSnapshot(snapshot, record, StringConstants.CLOUD_COMMITMENT_COVERAGE);
                         }));

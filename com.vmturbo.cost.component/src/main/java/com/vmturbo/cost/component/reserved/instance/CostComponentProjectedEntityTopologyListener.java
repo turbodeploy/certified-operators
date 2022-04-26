@@ -26,6 +26,7 @@ import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.component.cloud.commitment.ProjectedCommitmentMappingProcessor;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 
 /**
@@ -45,13 +46,18 @@ public class CostComponentProjectedEntityTopologyListener implements
     private final Object topologyInfoLock = new Object();
     @GuardedBy("topologyInfoLock")
     private long latestKnownProjectedTopologyId = -1;
+    protected CloudTopology<TopologyEntityDTO> cloudTopology;
+
+    private final ProjectedCommitmentMappingProcessor projectedCommitmentMappingProcessor;
 
     CostComponentProjectedEntityTopologyListener(final long realtimeTopopologyContextId,
              @Nonnull final ComputeTierDemandStatsWriter computeTierDemandStatsWriter,
-             @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory) {
+             @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
+             @Nonnull final ProjectedCommitmentMappingProcessor projectedCommitmentMappingProcessor) {
         this.realtimeTopologyContextId = realtimeTopopologyContextId;
         this.computeTierDemandStatsWriter = Objects.requireNonNull(computeTierDemandStatsWriter);
         this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
+        this.projectedCommitmentMappingProcessor = Objects.requireNonNull(projectedCommitmentMappingProcessor);
     }
 
     @Override
@@ -143,14 +149,14 @@ public class CostComponentProjectedEntityTopologyListener implements
 
             // if no Cloud entity, skip further processing
             if (cloudEntities.size() > 0) {
-                final CloudTopology<TopologyEntityDTO> cloudTopology =
-                        cloudTopologyFactory.newCloudTopology(cloudEntities.stream());
+                cloudTopology = cloudTopologyFactory.newCloudTopology(cloudEntities.stream());
                 // Store consumption demand in db
                 // Note that we are passing in sourceTopologyInfo.  This is used to retrieve
                 // previously written context for source topology (persisted with
                 // isSourceTopology = false via LiveTopologyEntitiesListener.
                 computeTierDemandStatsWriter.calculateAndStoreRIDemandStats(sourceTopologyInfo,
                         cloudTopology, true);
+                projectedCommitmentMappingProcessor.projectedAvailable(projectedTopologyId, topologyContextId, cloudTopology);
             } else {
                 logger.info("live projected topology with topologyId: {}  doesn't " +
                         "have Cloud entity, skip processing", sourceTopologyInfo.getTopologyId());
