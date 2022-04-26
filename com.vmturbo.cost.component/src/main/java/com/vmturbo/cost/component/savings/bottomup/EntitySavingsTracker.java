@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -25,10 +26,12 @@ import org.jooq.impl.DSL;
 
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.cost.component.savings.BillingRecord;
 import com.vmturbo.cost.component.savings.EntitySavingsException;
 import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.cost.component.savings.ScenarioDataHandler;
@@ -228,7 +231,9 @@ public class EntitySavingsTracker implements ScenarioDataHandler {
      */
     @Override
     public void processStates(@Nonnull Set<Long> participatingUuids,
-            @Nonnull LocalDateTime startTime, @Nonnull LocalDateTime endTime) {
+            @Nonnull LocalDateTime startTime, @Nonnull LocalDateTime endTime,
+            @Nonnull Map<Long, NavigableSet<ActionSpec>> actionChains,
+            @Nonnull Map<Long, Set<BillingRecord>> billRecordsByEntity) {
         processEvents(startTime, endTime, participatingUuids);
     }
 

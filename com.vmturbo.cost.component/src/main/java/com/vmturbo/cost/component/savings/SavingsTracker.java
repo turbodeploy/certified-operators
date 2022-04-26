@@ -142,22 +142,27 @@ public class SavingsTracker implements ScenarioDataHandler {
      */
     @Override
     public void processStates(@Nonnull Set<Long> participatingUuids,
-            @Nonnull LocalDateTime startTime,
-            @Nonnull LocalDateTime endTime) throws EntitySavingsException {
+            @Nonnull LocalDateTime startTime, @Nonnull LocalDateTime endTime,
+            @Nonnull final Map<Long, NavigableSet<ActionSpec>> actionChains,
+            @Nonnull final Map<Long, Set<BillingRecord>> billRecordsByEntity)
+            throws EntitySavingsException {
         logger.debug("Data injector invoked for the period of {} to {} on UUIDs: {}",
                 startTime, endTime, participatingUuids);
-        // Get billing records in this time range, mapped by entity id.
-        final Map<Long, Set<BillingRecord>> billingRecords = new HashMap<>();
-        billingRecordStore.getBillRecords(startTime, endTime, participatingUuids)
-                .filter(record -> record.isValid(supportedProviderTypes))
-                .forEach(record -> billingRecords.computeIfAbsent(record.getEntityId(), e -> new HashSet<>())
+        final Map<Long, NavigableSet<ActionSpec>> actions = new HashMap<>(actionChains);
+        final Map<Long, Set<BillingRecord>> billRecords = new HashMap<>(billRecordsByEntity);
+        if (actions.isEmpty()) {
+            // If no action chains are passed in, we will use the data in the database.
+            // Get billing records in this time range, mapped by entity id.
+            billingRecordStore.getBillRecords(startTime, endTime, participatingUuids)
+                    .filter(record -> record.isValid(supportedProviderTypes))
+                    .forEach(record -> billRecords.computeIfAbsent(record.getEntityId(), e -> new HashSet<>())
                             .add(record));
 
-        // Get map of entity id to sorted list of actions for it, starting with first executed.
-        final Map<Long, NavigableSet<ActionSpec>> actionChains = actionChainStore
-                .getActionChains(participatingUuids);
+            // Get map of entity id to sorted list of actions for it, starting with first executed.
+            actions.putAll(actionChainStore.getActionChains(participatingUuids));
+        }
 
-        processStates(participatingUuids, billingRecords, actionChains);
+        processStates(participatingUuids, billRecordsByEntity, actionChains);
     }
 
     /**
@@ -170,5 +175,6 @@ public class SavingsTracker implements ScenarioDataHandler {
     public void purgeState(Set<Long> participatingUuids) {
         logger.debug("Purge state for UUIDs in preparation for data injection: {}",
                 participatingUuids);
+        throw new UnsupportedOperationException();
     }
 }

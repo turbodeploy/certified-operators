@@ -1,6 +1,9 @@
 package com.vmturbo.cost.component.savings.bottomup;
 
+import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.Nonnull;
@@ -10,7 +13,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.cost.component.savings.BillingRecord;
 import com.vmturbo.cost.component.savings.DataInjectionMonitor;
 import com.vmturbo.cost.component.savings.ScenarioDataInjector;
 import com.vmturbo.cost.component.savings.bottomup.TopologyEvent.EventType;
@@ -77,6 +82,17 @@ public class EventInjector implements ScenarioDataInjector {
         this.entitySavingsRetentionConfig = entitySavingsRetentionConfig;
     }
 
+    @Override
+    public void handleScriptEvents(@Nonnull List<DataInjectionMonitor.ScriptEvent> scriptEvents,
+            @Nonnull Map<String, Long> uuidMap,
+            @Nonnull AtomicBoolean purgePreviousTestState,
+            @Nonnull Map<Long, NavigableSet<ActionSpec>> actionChains,
+            @Nonnull Map<Long, Set<BillingRecord>> billRecordsByEntity) {
+        for (DataInjectionMonitor.ScriptEvent event : scriptEvents) {
+            Long uuid = uuidMap.getOrDefault(event.uuid, 0L);
+            handleScriptEvent(event, uuid, purgePreviousTestState);
+        }
+    }
 
     /**
      * Convert a script event to a SavingsEvent and add it to the journal.
@@ -85,7 +101,7 @@ public class EventInjector implements ScenarioDataInjector {
      * @param uuid resolved UUID of target of event
      * @param purgePreviousTestState true if the stats and entity for the entities in the UUID list
      */
-     public void handleScriptEvent(@Nonnull DataInjectionMonitor.ScriptEvent scriptEvent, @Nonnull Long uuid,
+    void handleScriptEvent(@Nonnull DataInjectionMonitor.ScriptEvent scriptEvent, @Nonnull Long uuid,
              @Nonnull AtomicBoolean purgePreviousTestState) {
          ScriptEvent event = (ScriptEvent)scriptEvent;
         logger.debug("Adding event: " + event);
