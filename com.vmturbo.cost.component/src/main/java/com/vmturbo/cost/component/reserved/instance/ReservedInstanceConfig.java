@@ -3,6 +3,8 @@ package com.vmturbo.cost.component.reserved.instance;
 import java.sql.SQLException;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nonnull;
+
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +31,10 @@ import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
+import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
+import com.vmturbo.cost.component.cloud.commitment.ProjectedCommitmentMappingProcessor;
+import com.vmturbo.cost.component.cloud.commitment.mapping.CommitmentMappingFilter;
+import com.vmturbo.cost.component.cloud.commitment.mapping.MappingInfo;
 import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
@@ -36,6 +42,7 @@ import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalCoverageAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalCoverageAnalysisFactory;
+import com.vmturbo.cost.component.stores.SingleFieldDataStore;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
@@ -56,7 +63,8 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
     SupplyChainServiceConfig.class,
     CostClientConfig.class,
     EntityCostConfig.class,
-    SupplementalCoverageAnalysisConfig.class})
+    SupplementalCoverageAnalysisConfig.class,
+    CloudCommitmentStatsConfig.class})
 public class ReservedInstanceConfig {
 
     @Value("${retention.numRetainedMinutes:130}")
@@ -124,6 +132,9 @@ public class ReservedInstanceConfig {
 
     @Autowired
     private SupplementalCoverageAnalysisFactory supplementalCoverageAnalysisFactory;
+
+    @Autowired
+    private ProjectedCommitmentMappingProcessor projectedCommitmentMappingProcessor;
 
     // OM-66854 - normalization with consider the sample count of each data point within the
     // down-sampled RI coverage/utilization tables (rollup tables). If this is disabled, the behavior
@@ -358,7 +369,8 @@ public class ReservedInstanceConfig {
         final CostComponentProjectedEntityTopologyListener projectedEntityTopologyListener =
                 new CostComponentProjectedEntityTopologyListener(realtimeTopologyContextId,
                         computeTierDemandStatsConfig.riDemandStatsWriter(),
-                        cloudTopologyFactory());
+                        cloudTopologyFactory(),
+                        projectedCommitmentMappingProcessor);
         marketComponent.addProjectedTopologyListener(projectedEntityTopologyListener);
         return projectedEntityTopologyListener;
     }
