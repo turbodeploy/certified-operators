@@ -229,6 +229,9 @@ public class ServiceConfig {
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
 
+    @Value("${openIdExternalGroupTag:groups}")
+    private String openIdExternalGroupTag;
+
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
      */
@@ -1121,7 +1124,7 @@ public class ServiceConfig {
     public CustomRequestAwareAuthenticationSuccessHandler customRequestAwareAuthenticationSuccessHandler() {
         return new CustomRequestAwareAuthenticationSuccessHandler(authConfig.getAuthHost(), authConfig.getAuthPort(),
                 authConfig.getAuthRoute(), communicationConfig.serviceRestTemplate(),
-                securityConfig.verifier(), targetStore());
+                securityConfig.verifier(), targetStore(), openIdExternalGroupTag);
     }
 
     /**

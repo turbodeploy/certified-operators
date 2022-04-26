@@ -82,13 +82,14 @@ import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
 public class CustomRequestAwareAuthenticationSuccessHandler extends
         SimpleUrlAuthenticationSuccessHandler {
     protected final Log logger = LogFactory.getLog(this.getClass());
+    private final String openIdExternalGroupTag;
 
     private RequestCache requestCache = new HttpSessionRequestCache();
     private final IComponentJwtStore componentJwtStore;
     private RestAuthenticationProvider authProvider;
 
     public CustomRequestAwareAuthenticationSuccessHandler(String authHost, Integer authPort, String authRoute, RestTemplate restTemplate,
-            JWTAuthorizationVerifier verifier, ComponentJwtStore componentJwtStore) {
+            JWTAuthorizationVerifier verifier, ComponentJwtStore componentJwtStore, String openIdExternalGroupTag) {
          authProvider = new RestAuthenticationProvider(
                 authHost,
                 authPort,
@@ -96,6 +97,7 @@ public class CustomRequestAwareAuthenticationSuccessHandler extends
                 restTemplate,
                 verifier);
         this.componentJwtStore = Objects.requireNonNull(componentJwtStore);
+        this.openIdExternalGroupTag = openIdExternalGroupTag;
     }
 
     @Override
@@ -144,8 +146,9 @@ public class CustomRequestAwareAuthenticationSuccessHandler extends
                 logger.debug("OpenID user email: " + email);
             }
             // Use the first group of the user if returned
-            if (user.getAttributes().get("groups") instanceof ArrayList) {
-                List<String> jsongroups = (ArrayList)user.getAttributes().get("groups");
+            logger.debug("OpenID user group tag: " + openIdExternalGroupTag);
+            if (user.getAttributes().get(openIdExternalGroupTag) instanceof ArrayList) {
+                List<String> jsongroups = (ArrayList)user.getAttributes().get(openIdExternalGroupTag);
                 logger.debug("OpenID user groups: " + jsongroups.toString());
                 if (jsongroups.size() > 1) {
                     Authentication resultAuthentication = authProvider
