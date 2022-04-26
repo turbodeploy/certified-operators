@@ -6,6 +6,7 @@ option java_outer_classname = "CloudCommitmentDTO";
 
 import "CommonCost.proto";
 import "CommonDTO.proto";
+import "topology/TopologyDTO.proto";
 
 enum CloudCommitmentType {
     RESERVED_INSTANCE = 1;
@@ -163,6 +164,36 @@ message CloudCommitmentMapping {
     optional int32 entity_type = 3;
 
     optional CloudCommitmentAmount commitment_amount = 4;
+}
+
+message ProjectedCloudCommitmentMapping {
+
+    // The ID of the projected topology the cost is for.
+    optional int64 projected_topology_id = 1;
+
+    oneof segment {
+        Start start = 2;
+        Data data = 3;
+        End end = 4;
+    }
+
+    // Marker message, declaring the start of the broadcast
+    message Start {
+        // The basic information of the source topology
+        optional .topology.TopologyInfo source_topology_info = 1;
+    };
+
+    // Message to hold real data of the commitment mappings
+    message Data {
+        // Some number of projected entity costs.
+        repeated CloudCommitmentMapping projected_committed_mappings = 1;
+    }
+
+    // Message to appear at the very end of the broadcast
+    message End {
+        // Total number of costs sent (can be used for integrity checks)
+        required uint64 total_count = 1;
+    }
 }
 
 message CloudCommitmentEntityScope {
