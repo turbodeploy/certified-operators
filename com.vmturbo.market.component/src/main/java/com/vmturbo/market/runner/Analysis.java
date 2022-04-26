@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.print.attribute.HashDocAttributeSet;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -31,6 +32,7 @@ import io.grpc.StatusRuntimeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.units.qual.C;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -41,6 +43,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount.ValueCase;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -862,11 +866,19 @@ public class Analysis {
                                 .setSourceTopologyInfo(topologyInfo)))
                         .setAnalysisStartTimestamp(startTime.toEpochMilli());
 
+                    Map<Long, Set<CloudCommitmentMapping>> projectedMappings  = new HashMap<>();
+                    if (getProjectedCloudCommitmentMappings().isPresent()) {
+                        getProjectedCloudCommitmentMappings().get().stream()
+                                .forEach(mapping ->
+                                     projectedMappings.computeIfAbsent(mapping.getEntityOid(),
+                                                    k ->  new HashSet())
+                                            .add(mapping));
+                    }
                     final CloudActionSavingsCalculator actionSavingsCalculator = actionSavingsCalculatorFactory.newCalculator(
                             topologyDTOs, originalCloudTopology, topologyCostCalculator,
                             projectedEntities, projectedEntityCosts,
                             converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
-                            smaConverter.getProjectedVMToCommitmentMappings());
+                            projectedMappings);
 
                     List<Action> actions;
                     try (TracingScope ignored = Tracing.trace("interpret_actions")) {
@@ -1635,6 +1647,17 @@ public class Analysis {
     public Optional<Map<Long, EntityReservedInstanceCoverage>> getProjectedEntityRiCoverage() {
         return completed ? Optional.of(
             converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage()) : Optional.empty();
+    }
+
+    public Optional<Set<CloudCommitmentMapping>> getProjectedCloudCommitmentMappings() {
+        Map<Long, Set<CloudCommitmentMapping>> allMappings =
+                smaConverter.getProjectedVMToCommitmentMappings();
+        Set<CloudCommitmentMapping> gcpMappings =
+                allMappings.values().stream()
+                .flatMap( mapping -> mapping.stream())
+                .filter(mapping -> mapping.getCommitmentAmount().getValueCase() == ValueCase.COMMODITIES_BOUGHT)
+                .collect(Collectors.toSet());
+        return  gcpMappings.isEmpty() ? Optional.empty() : Optional.of(gcpMappings);
     }
 
     /**

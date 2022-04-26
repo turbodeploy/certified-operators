@@ -48,6 +48,9 @@ topics:
   - topic: projected-entity-ri-coverage
     properties:
       retention.ms: 3600000 # 3600k ms = 1 hr
+  - topic: projected-commitment-mappings
+    properties:
+      retention.ms: 3600000 # 3600k ms = 1 hr
   - topic: action-plans
     properties:
       retention.ms: 2400000 # 2400k ms = 40 min

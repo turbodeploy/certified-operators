@@ -8,6 +8,9 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.ProjectedCloudCommitmentMapping;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.ProjectedCloudCommitmentMapping.Start;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
@@ -42,6 +45,7 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
     private final IMessageSender<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageSender;
     private final IMessageSender<ActionPlan> actionPlanSender;
     private final IMessageSender<AnalysisStatusNotification> analysisStatusSender;
+    private final IMessageSender<ProjectedCloudCommitmentMapping> projectedCommitmentMappingSender;
 
     public MarketNotificationSender(
             @Nonnull IMessageSender<ProjectedTopology> projectedTopologySender,
@@ -49,13 +53,15 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
             @Nonnull IMessageSender<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageSender,
             @Nonnull IMessageSender<ActionPlan> actionPlanSender,
             @Nonnull IMessageSender<AnalysisSummary> analysisSummarySender,
-            @Nonnull IMessageSender<AnalysisStatusNotification>  analysisStatusSender) {
+            @Nonnull IMessageSender<AnalysisStatusNotification>  analysisStatusSender,
+            @Nonnull IMessageSender<ProjectedCloudCommitmentMapping> projectedCommitmentMappingSender) {
         this.projectedTopologySender = Objects.requireNonNull(projectedTopologySender);
         this.projectedEntityCostsSender = Objects.requireNonNull(projectedEntityCostsSender);
         this.projectedEntityRiCoverageSender = Objects.requireNonNull(projectedEntityRiCoverageSender);
         this.actionPlanSender = Objects.requireNonNull(actionPlanSender);
         this.analysisSummarySender = Objects.requireNonNull(analysisSummarySender);
         this.analysisStatusSender = Objects.requireNonNull(analysisStatusSender);
+        this.projectedCommitmentMappingSender = projectedCommitmentMappingSender;
     }
 
     /**
@@ -206,6 +212,58 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
     }
 
     /**
+     * Send projected entity commitment mapping notifications.
+     *
+     * @param projectedCommitmentMappings the projected entity to cloud commitment mappings.
+     * @param topologyId projectedTopologyId
+     * @throws CommunicationException
+     *             if persistent communication error occurs
+     * @throws InterruptedException
+     *             if thread interrupted
+     */
+    public void notifyProjectedEntityCommitmentMappings(@Nonnull Set<CloudCommitmentMapping> projectedCommitmentMappings,
+            @Nonnull Long topologyId, @Nonnull TopologyInfo topologyInfo)
+            throws CommunicationException, InterruptedException {
+
+        sendProjectedCommitmentMapping(ProjectedCloudCommitmentMapping.newBuilder()
+                .setProjectedTopologyId(topologyId)
+                .setStart(Start.newBuilder().setSourceTopologyInfo(topologyInfo).build())
+                .build(), topologyId);
+
+        final ProtobufChunkIterator<CloudCommitmentMapping> chunkIterator =
+                ProtobufChunkIterator.partition(projectedCommitmentMappings,
+                        projectedCommitmentMappingSender.getRecommendedRequestSizeBytes(),
+                        projectedCommitmentMappingSender.getMaxRequestSizeBytes());
+
+        try (KafkaTracingReenabler ignored = withKafkaTracingDisabled()) {
+            while (chunkIterator.hasNext()) {
+                Collection<CloudCommitmentMapping> mappingChunk;
+                try {
+                    mappingChunk = chunkIterator.next();
+                } catch (OversizedElementException e) {
+                    //
+                    logOversizedElement("projected commitment mappings", e, TopologyInfo.newBuilder().setTopologyId(topologyId).build());
+                    continue;
+                } catch (GetSerializedSizeException e) {
+                    // this should not happen since serialized size of protobuf object can be determined
+                    logUndeterminedSerializedSizeElement("projected commitment mappings", e, TopologyInfo.newBuilder().setTopologyId(topologyId).build());
+                    continue;
+                }
+                sendProjectedCommitmentMapping(ProjectedCloudCommitmentMapping.newBuilder()
+                        .setProjectedTopologyId(topologyId)
+                        .setData(ProjectedCloudCommitmentMapping.Data.newBuilder().addAllProjectedCommittedMappings(mappingChunk))
+                        .build(), topologyId);
+            }
+
+        }
+        sendProjectedCommitmentMapping(ProjectedCloudCommitmentMapping.newBuilder()
+                .setProjectedTopologyId(topologyId)
+                .setEnd(ProjectedCloudCommitmentMapping.End.newBuilder()
+                        .setTotalCount(projectedCommitmentMappings.size()).build())
+                .build(), topologyId);
+    }
+
+    /**
      * Send projected entity reserved instance coverage notification synchronously.
      * Synchronously means this method will not return until all costs have been
      * sent over to the message broker.
@@ -269,6 +327,7 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
                                         .build());
     }
 
+
     private void sendProjectedEntityRiCoverageSegment(
                     @Nonnull final ProjectedEntityReservedInstanceCoverage entityRiCoverageSegment)
                     throws CommunicationException, InterruptedException {
@@ -284,6 +343,15 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
         getLogger().debug("Sending projected entity cost segment {} for topology {}",
                 entityCostSegment::getSegmentCase, entityCostSegment::getProjectedTopologyId);
         projectedEntityCostsSender.sendMessage(entityCostSegment);
+
+    }
+
+    private void sendProjectedCommitmentMapping(@Nonnull final  ProjectedCloudCommitmentMapping commitmentMapping,
+            long topologyId)
+            throws CommunicationException, InterruptedException {
+        getLogger().debug("Sending projected commitment mappings for topology {}",
+                commitmentMapping.getProjectedTopologyId(), topologyId);
+        projectedCommitmentMappingSender.sendMessage(commitmentMapping);
 
     }
 

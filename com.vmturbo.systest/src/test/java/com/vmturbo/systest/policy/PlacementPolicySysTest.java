@@ -66,6 +66,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.ProjectedCloudCommitmentMapping;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -162,6 +163,7 @@ public class PlacementPolicySysTest {
     private IMessageReceiver<AnalysisSummary> analysisSummaryReceiver;
     private IMessageReceiver<AnalysisStatusNotification> analysisStatusReceiver;
     private IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver;
+    private IMessageReceiver<ProjectedCloudCommitmentMapping> commitmentMappingReceiver;
     private IMessageReceiver<ActionPlan> actionsReceiver;
 
     private DiscoveryDriverController discoveryDriverController;
@@ -301,6 +303,9 @@ public class PlacementPolicySysTest {
         projectedEntityRiCoverageReceiver = kafkaMessageConsumer.messageReceiver(
                 MarketComponentNotificationReceiver.PROJECTED_ENTITY_RI_COVERAGE_TOPIC,
                 ProjectedEntityReservedInstanceCoverage::parseFrom);
+        commitmentMappingReceiver = kafkaMessageConsumer.messageReceiver(
+                MarketComponentNotificationReceiver.PROJECTED_COMMITMENT_MAPPING_TOPIC,
+                ProjectedCloudCommitmentMapping::parseFrom);
         actionsReceiver = kafkaMessageConsumer.messageReceiver(
                 MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC, ActionPlan::parseFrom);
         analysisSummaryReceiver = kafkaMessageConsumer.messageReceiver(
@@ -311,7 +316,7 @@ public class PlacementPolicySysTest {
                               AnalysisStatusNotification::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(
                 projectedTopologyReceiver, projectedEntityCostReceiver, projectedEntityRiCoverageReceiver,
-                actionsReceiver, analysisSummaryReceiver, analysisStatusReceiver,
+                actionsReceiver, analysisSummaryReceiver, commitmentMappingReceiver, analysisStatusReceiver,
                 threadPool, 0);
         kafkaMessageConsumer.start();
     }
