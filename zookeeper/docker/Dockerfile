@@ -51,7 +51,9 @@ RUN cd /tmp && \
     rm /opt/zookeeper/lib/netty-*.* && \
     # Remove old log4j 1.x components
     rm /opt/zookeeper/lib/slf4j-*.* && \
-    rm /opt/zookeeper/lib/log4j-*.*
+    rm /opt/zookeeper/lib/log4j-*.* && \
+    # Remove old jackson jars (vulnerable)
+    rm /opt/zookeeper/lib/jackson-*.*
 
 # Add reload4j components
 ADD lib/* /opt/zookeeper/lib/
