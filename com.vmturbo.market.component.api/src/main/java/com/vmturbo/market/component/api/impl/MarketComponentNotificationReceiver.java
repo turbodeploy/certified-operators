@@ -15,7 +15,11 @@ import com.google.common.collect.Sets;
 
 import io.opentracing.SpanContext;
 
+import org.jetbrains.annotations.NotNull;
+
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.ProjectedCloudCommitmentMapping;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
@@ -36,6 +40,7 @@ import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.AnalysisStatusNotificationListener;
 import com.vmturbo.market.component.api.AnalysisSummaryListener;
 import com.vmturbo.market.component.api.MarketComponent;
+import com.vmturbo.market.component.api.ProjectedCommitmentMappingListener;
 import com.vmturbo.market.component.api.ProjectedEntityCostsListener;
 import com.vmturbo.market.component.api.ProjectedReservedInstanceCoverageListener;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
@@ -72,6 +77,11 @@ public class MarketComponentNotificationReceiver extends
     public static final String ANALYSIS_SUMMARY_TOPIC = "analysis-summary";
 
     /**
+     * Projected commitment Mappings topic.
+     */
+    public static final String PROJECTED_COMMITMENT_MAPPING_TOPIC = "projected-commitment-mappings";
+
+    /**
      * Analysis status topic. Should be synchronized with kafka-config.yml
      */
     public static final String ANALYSIS_STATUS_NOTIFICATION_TOPIC = "analysis-status-notification";
@@ -87,12 +97,16 @@ public class MarketComponentNotificationReceiver extends
     private final MulticastNotificationReceiver<AnalysisSummary, AnalysisSummaryListener> analysisSummaryHandler;
     private final MulticastNotificationReceiver<AnalysisStatusNotification, AnalysisStatusNotificationListener> analysisStatusHandler;
 
+    private final Set<ProjectedCommitmentMappingListener> projectedCommitmentMappingListenerSet;
+    private final ChunkingReceiver<CloudCommitmentMapping> projectedCommitmentMappingChunkReceiver;
+
     public MarketComponentNotificationReceiver(
             @Nullable final IMessageReceiver<ProjectedTopology> projectedTopologyReceiver,
             @Nullable final IMessageReceiver<ProjectedEntityCosts> projectedEntityCostsReceiver,
             @Nullable final IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver,
             @Nullable final IMessageReceiver<ActionPlan> actionPlanReceiver,
             @Nullable final IMessageReceiver<AnalysisSummary> analysisSummaryReceiver,
+            @Nullable final IMessageReceiver<ProjectedCloudCommitmentMapping> projectedMappingReceiver,
             @Nullable final IMessageReceiver<AnalysisStatusNotification> analysisStatusReceiver,
             @Nonnull final ExecutorService executorService,
             final int kafkaReceiverTimeoutSeconds) {
@@ -127,6 +141,7 @@ public class MarketComponentNotificationReceiver extends
         projectedTopologyChunkReceiver = new ChunkingReceiver<>(executorService);
         projectedEntityCostChunkReceiver = new ChunkingReceiver<>(executorService);
         projectedEntityRiCoverageChunkReceiver = new ChunkingReceiver<>(executorService);
+        projectedCommitmentMappingChunkReceiver = new ChunkingReceiver<>(executorService);
 
         if (analysisSummaryReceiver == null) {
             analysisSummaryHandler = null;
@@ -140,6 +155,12 @@ public class MarketComponentNotificationReceiver extends
         } else {
             analysisStatusHandler = new MulticastNotificationReceiver<>(analysisStatusReceiver, executorService,
               kafkaReceiverTimeoutSeconds, analysisStatusNotification -> l -> l.onAnalysisStatusNotification(analysisStatusNotification));
+        }
+        if (projectedMappingReceiver == null) {
+            projectedCommitmentMappingListenerSet = Collections.emptySet();
+        } else {
+            projectedCommitmentMappingListenerSet = Sets.newConcurrentHashSet();
+            projectedMappingReceiver.addListener(this::processProjectedCommitmentMappingCoverage);
         }
     }
 
@@ -170,6 +191,12 @@ public class MarketComponentNotificationReceiver extends
             throw new IllegalStateException("The analysis status topic has not been subscribed to.");
         }
         analysisStatusHandler.addListener(Objects.requireNonNull(listener));
+    }
+
+    @Override
+    public void addProjectedCommitmentMappingListener(
+            @NotNull ProjectedCommitmentMappingListener listener) {
+        projectedCommitmentMappingListenerSet.add(listener);
     }
 
     @Override
@@ -292,6 +319,37 @@ public class MarketComponentNotificationReceiver extends
         }
     }
 
+    private void processProjectedCommitmentMappingCoverage(
+            @Nonnull final ProjectedCloudCommitmentMapping projectedMappingCoverage,
+            @Nonnull final Runnable commitCommand,
+            @Nullable final SpanContext tracingContext) {
+        final long topologyId = projectedMappingCoverage.getProjectedTopologyId();
+        switch (projectedMappingCoverage.getSegmentCase()) {
+            case START:
+                final ProjectedCloudCommitmentMapping.Start start =
+                        projectedMappingCoverage.getStart();
+                projectedCommitmentMappingChunkReceiver.startTopologyBroadcast(
+                        projectedMappingCoverage.getProjectedTopologyId(),
+                        createProjectedCommitmentMappingChunkConsumers(topologyId,
+                                start.getSourceTopologyInfo()));
+
+                break;
+            case DATA:
+                projectedCommitmentMappingChunkReceiver.processData(topologyId,
+                        projectedMappingCoverage.getData().getProjectedCommittedMappingsList());
+                break;
+            case END:
+                projectedCommitmentMappingChunkReceiver.finishTopologyBroadcast(projectedMappingCoverage.getProjectedTopologyId(),
+                        projectedMappingCoverage.getEnd().getTotalCount());
+
+                commitCommand.run();
+                break;
+            default:
+                getLogger().warn("Unknown broadcast data segment received: {}",
+                        projectedMappingCoverage.getSegmentCase());
+        }
+    }
+
     private Collection<Consumer<RemoteIterator<ProjectedTopologyEntity>>> createProjectedTopologyChunkConsumers(
             final Metadata metadata, @Nullable final SpanContext tracingContext) {
         return projectedTopologyListenersSet.stream().map(listener -> {
@@ -317,6 +375,16 @@ public class MarketComponentNotificationReceiver extends
             final Consumer<RemoteIterator<EntityReservedInstanceCoverage>> consumer =
                             iterator -> listener.onProjectedEntityRiCoverageReceived(topologyId,
                                             topologyInfo, iterator);
+            return consumer;
+        }).collect(Collectors.toList());
+    }
+
+    private Collection<Consumer<RemoteIterator<CloudCommitmentMapping>>>
+    createProjectedCommitmentMappingChunkConsumers(final long topologyId,
+            TopologyInfo topologyInfo) {
+        return projectedCommitmentMappingListenerSet.stream().map(listener -> {
+            final Consumer<RemoteIterator<CloudCommitmentMapping>> consumer =
+                    iterator -> listener.onProjectedCommitmentMappingReceived(topologyId, topologyInfo, iterator);
             return consumer;
         }).collect(Collectors.toList());
     }

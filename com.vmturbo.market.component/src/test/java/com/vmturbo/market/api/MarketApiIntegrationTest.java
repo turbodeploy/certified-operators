@@ -5,11 +5,13 @@ import static org.hamcrest.Matchers.is;
 
 import java.util.Collection;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -26,6 +28,7 @@ import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.cloud.common.commitment.CommitmentAmountCalculator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -35,6 +38,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -42,6 +47,9 @@ import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.impl.MarketComponentNotificationReceiver;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CommittedCommoditiesBought;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CommittedCommodityBought;
 
 /**
  * Integration test for Market API client and server.
@@ -84,6 +92,7 @@ public class MarketApiIntegrationTest {
                         integrationTestServer.getBean("projectedEntityRiCoverageSender"),
                         integrationTestServer.getBean("actionPlanSender"),
                         integrationTestServer.getBean("analysisSummarySender"),
+                        integrationTestServer.getBean("projectedCommitmentMappingSender"),
                         integrationTestServer.getBean("analysisStatusSender"),
                         threadPool, 0);
 
@@ -212,6 +221,82 @@ public class MarketApiIntegrationTest {
                                                         .build())
                                         .build()).build())
                         .build();
+    }
+
+
+    /**
+     * Test if projected committed mappings  notification is being sent and
+     * is captured in test commitment with the data that was sent
+     *
+     * @throws Exception
+     *             If anything goes wrong.
+     */
+    @Test
+    public void testNotifyCommitmentMappngs() throws Exception {
+        // Original topology id
+        long originalTopoId = 123l;
+        // topology context of real time market
+        long topoContextId = 456l;
+        // Projected topology id
+        long projectedTopologyId = 789l;
+        // entity that has projected RI coverage data in map returned
+        long entityId = 1l;
+        // Reserved instance id that is covered in market
+        long commitmentId = 2l;
+        // number of coupons used by market
+        double numVcpu = 4d;
+        double memSize = 8d;
+        CountDownLatch latch = new CountDownLatch(1);
+        // Topology Info object to be used
+        final CommitmentMappingListenerForTest testListener =
+                new CommitmentMappingListenerForTest();
+        testListener.setLatch(latch);
+        // Adding the new listener into market api
+        market.addProjectedCommitmentMappingListener(testListener);
+        // Topology info object to be sent
+        TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyId(originalTopoId)
+                .setTopologyContextId(topoContextId).setTopologyType(TopologyType.REALTIME)
+                .build();
+        // Set up the commitment mappings
+        CommittedCommodityBought vcpu = CommittedCommodityBought.newBuilder()
+                .setCapacity(numVcpu).setCommodityType(CommodityType.NUM_VCORE).build();
+        CommittedCommodityBought mem = CommittedCommodityBought.newBuilder()
+                .setCapacity(memSize).setCommodityType(CommodityType.MEM_PROVISIONED).build();
+
+        CloudCommitmentMapping commitmentMapping = CloudCommitmentMapping.newBuilder()
+                .setCloudCommitmentOid(commitmentId)
+                .setEntityOid(entityId)
+                .setCommitmentAmount(CloudCommitmentAmount.newBuilder()
+                        .setCommoditiesBought(CommittedCommoditiesBought.newBuilder()
+                                .addCommodity(vcpu)
+                                .addCommodity(mem).build()).build())
+                .build();
+        Set<CloudCommitmentMapping> commitmentMappings = ImmutableSet.of(commitmentMapping);
+        notificationSender.notifyProjectedEntityCommitmentMappings(commitmentMappings, projectedTopologyId,
+                topologyInfo);
+        // Wait for receiver here to receive and process the message
+        latch.await();
+
+        // After processing finishes, just assert, if listener collected same data that was sent to it
+        Assert.assertEquals("Original Topology id did not match between sender and receiver",
+                originalTopoId, testListener.getTopologyInfo().getTopologyId());
+        Assert.assertEquals(
+                "Original Topology context id did not match between sender and receiver",
+                topoContextId, testListener.getTopologyInfo().getTopologyContextId());
+        Assert.assertEquals("Projected Topology id did not match between sender and receiver",
+                projectedTopologyId, testListener.getTopologyId());
+        Assert.assertEquals("Projected Topology commitment mapping list size does now match between sender and listener",
+                1, testListener.getMapingList().size());
+        CloudCommitmentMapping mappingReceived = testListener.getMapingList().get(0);
+
+        Assert.assertEquals("Projected Topology commitment mapping entityOID does now match between sender and listener",
+                mappingReceived.getEntityOid(), commitmentMapping.getEntityOid());
+        Assert.assertEquals("Projected Topology commitment mapping commitment ID does now match between sender and listener",
+                mappingReceived.getCloudCommitmentOid(), commitmentMapping.getCloudCommitmentOid());
+        CloudCommitmentAmount receivedAmount = mappingReceived.getCommitmentAmount();
+        Assert.assertTrue("Projected Topology commitment mapping commitment amount does now match between sender and listener",
+                CommitmentAmountCalculator.isSame(receivedAmount, commitmentMapping.getCommitmentAmount(), 0.000001D));
+
     }
 
 }

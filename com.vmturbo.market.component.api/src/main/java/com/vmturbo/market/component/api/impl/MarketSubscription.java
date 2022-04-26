@@ -115,6 +115,10 @@ public class MarketSubscription {
          *
          * <p>Notifies Status of a market analysis run.
          */
-        AnalysisStatusNotification;
+        AnalysisStatusNotification,
+        /**
+         * Projected Cloud Commitment Mappings
+         */
+        ProjectedCommitmentMappings;
     }
 }

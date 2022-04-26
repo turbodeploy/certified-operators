@@ -28,13 +28,16 @@ import org.springframework.util.CollectionUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.PlacementProblem;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -413,6 +416,13 @@ public class MarketRunner {
                                 analysis.getProjectedTopologyId()
                                         .get(),
                                 projectedCoverage.values());
+                        Optional<Set<CloudCommitmentMapping>>
+                                projectedCommitments =
+                                analysis.getProjectedCloudCommitmentMappings();
+                        if (projectedCommitments.isPresent() && analysis.getProjectedTopologyId().isPresent()) {
+                            serverApi.notifyProjectedEntityCommitmentMappings(
+                                    projectedCommitments.get(), analysis.getProjectedTopologyId().get(), analysis.getTopologyInfo());
+                        }
                     }
                     if (isPlan) {
                         logger.info("{} Sent notifications on plan completion.",

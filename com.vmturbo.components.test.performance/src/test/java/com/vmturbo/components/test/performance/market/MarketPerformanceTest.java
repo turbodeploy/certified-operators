@@ -26,6 +26,7 @@ import org.junit.Test;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.ProjectedCloudCommitmentMapping;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -89,6 +90,7 @@ public class MarketPerformanceTest {
     private IMessageReceiver<ProjectedTopology> projectedTopologyReceiver;
     private IMessageReceiver<ProjectedEntityCosts> projectedEntityCostReceiver;
     private IMessageReceiver<AnalysisSummary> analysisSummaryReceiver;
+    private IMessageReceiver<ProjectedCloudCommitmentMapping> commitmentMappingReceiver;
     private IMessageReceiver<AnalysisStatusNotification> analysisStatusReceiver;
     private IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver;
     private KafkaMessageConsumer kafkaMessageConsumer;
@@ -114,9 +116,12 @@ public class MarketPerformanceTest {
         analysisStatusReceiver = kafkaMessageConsumer.messageReceiver(
                        MarketComponentNotificationReceiver.ANALYSIS_STATUS_NOTIFICATION_TOPIC,
                            AnalysisStatusNotification::parseFrom);
+         commitmentMappingReceiver = kafkaMessageConsumer.messageReceiver(
+                 MarketComponentNotificationReceiver.PROJECTED_COMMITMENT_MAPPING_TOPIC,
+                 ProjectedCloudCommitmentMapping::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(projectedTopologyReceiver,
                 projectedEntityCostReceiver, projectedEntityRiCoverageReceiver, actionsReceiver,
-            analysisSummaryReceiver, analysisStatusReceiver, threadPool, 0);
+            analysisSummaryReceiver, commitmentMappingReceiver, analysisStatusReceiver, threadPool, 0);
         kafkaMessageConsumer.start();
     }
 

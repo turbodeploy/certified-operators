@@ -49,4 +49,12 @@ public interface MarketComponent {
      * @param listener the listener for analysis run status.
      */
     void addAnalysisStatusListener(@Nonnull AnalysisStatusNotificationListener listener);
+
+    /**
+     * Registers a listener for projected cloud commitment notifications.
+     *
+     * @param listener Listener to register.
+     */
+    void addProjectedCommitmentMappingListener(@Nonnull final ProjectedCommitmentMappingListener listener);
+
 }
