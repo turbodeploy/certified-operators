@@ -74,7 +74,7 @@
         <commons-logging.version>1.2</commons-logging.version>
         <commons-io.version>2.5</commons-io.version>
         <influxdb-java-api.version>2.21</influxdb-java-api.version>
-        <junit.version>4.12</junit.version>
+        <junit.version>4.13.2</junit.version>
         <jacocoVersion>0.8.2</jacocoVersion>
         <jacocoAntVersion>0.8.2</jacocoAntVersion>
         <javax.servlet-api.version>3.1.0</javax.servlet-api.version>
