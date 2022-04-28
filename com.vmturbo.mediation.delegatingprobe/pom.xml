@@ -53,7 +53,7 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>28.2-jre</version>
+            <version>${guava.version}</version>
         </dependency>
         <!-- START gRPC dependencies. -->
         <dependency>
