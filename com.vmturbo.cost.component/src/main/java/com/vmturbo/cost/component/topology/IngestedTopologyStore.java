@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.logging.log4j.LogManager;
@@ -101,9 +102,13 @@ public class IngestedTopologyStore {
         }
     }
 
-    private void cleanup() {
+    /**
+     * Clean the records in ingested_live_topology table.
+     */
+    @VisibleForTesting
+    public void cleanup() {
 
-        final LocalDateTime earliestAggregatedTime = dslContext
+        final Optional<LocalDateTime> earliestAggregatedTime = dslContext
                 .select(
                         least(
                                 min(AGGREGATION_META_DATA.LAST_AGGREGATED_BY_HOUR),
@@ -113,13 +118,17 @@ public class IngestedTopologyStore {
                 .where(AGGREGATION_META_DATA.AGGREGATE_TABLE.in(AGGREGATED_TABLE_LIST))
                 .fetchOptional()
                 .map(Record1::value1)
-                .map(Timestamp::toLocalDateTime)
-                .orElse(LocalDateTime.MIN);
+                .map(Timestamp::toLocalDateTime);
+
+        if (!earliestAggregatedTime.isPresent()) {
+            logger.info("Skipping cleaning ingested live topology record since no aggregation was done");
+            return;
+        }
 
         final int numRecordsRemoved = dslContext.deleteFrom(INGESTED_LIVE_TOPOLOGY)
                 // While it would be valid to remove any records equal to earliestAggregatedTime,
                 // that record is intentionally left in place to aid in debugging
-                .where(INGESTED_LIVE_TOPOLOGY.CREATION_TIME.lessThan(earliestAggregatedTime))
+                .where(INGESTED_LIVE_TOPOLOGY.CREATION_TIME.lessThan(earliestAggregatedTime.get()))
                 .execute();
 
         logger.info("Deleted {} ingested live topology record (Earliest Aggregation Time={})",
