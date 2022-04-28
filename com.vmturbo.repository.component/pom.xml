@@ -20,7 +20,6 @@
         <handlerbars.version>4.3.0</handlerbars.version>
         <javaslang.version>2.0.5</javaslang.version>
         <javaslang-circuitbreaker.version>0.5.0</javaslang-circuitbreaker.version>
-        <zt-zip.version>1.9</zt-zip.version>
 
         <!-- TODO: user and password configuration should NOT be checked into source control -->
         <db.url>jdbc:mysql://localhost:3306</db.url>
@@ -464,12 +463,6 @@
         <dependency>
             <groupId>org.springframework.hateoas</groupId>
             <artifactId>spring-hateoas</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.zeroturnaround</groupId>
-            <artifactId>zt-zip</artifactId>
-            <version>${zt-zip.version}</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.antlr</groupId>
