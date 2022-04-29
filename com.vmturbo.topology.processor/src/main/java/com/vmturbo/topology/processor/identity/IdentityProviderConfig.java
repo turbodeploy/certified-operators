@@ -84,6 +84,12 @@ public class IdentityProviderConfig {
     @Value("${initialExpirationDelayMins:720}")
     private int initialExpirationDelayMin;
 
+    @Value("${shouldDeleteExpiredOids:false}")
+    private boolean shouldDeleteExpiredOids;
+
+    @Value("${expiredRecordsRetentionDays:180}")
+    private int expiredRecordsRetentionDays;
+
     @Bean
     public IdentityDatabaseStore identityDatabaseStore() {
         try {
@@ -152,11 +158,19 @@ public class IdentityProviderConfig {
             }
         }
         try {
-            return new StaleOidManagerImpl(
-                    Math.max(TimeUnit.DAYS.toMillis(1), TimeUnit.DAYS.toMillis(entityExpirationTimeDays)),
-                    Math.max(TimeUnit.HOURS.toMillis(1), TimeUnit.HOURS.toMillis(entityValidationFrequencyHours)),
-                    Math.max(0, TimeUnit.MINUTES.toMillis(initialExpirationDelayMin)), dbAccessConfig.dsl(),
-                    clockConfig.clock(), expireOids, oidsExpirationScheduledExecutor(), expirationDaysMap);
+            final long entityExpirationTimeMs = Math.max(TimeUnit.DAYS.toMillis(1), TimeUnit.DAYS.toMillis(entityExpirationTimeDays));
+            final long validationFrequencyMs = Math.max(TimeUnit.HOURS.toMillis(1), TimeUnit.HOURS.toMillis(entityValidationFrequencyHours));
+            final long initialExpirationDelayMs = Math.max(0, TimeUnit.MINUTES.toMillis(initialExpirationDelayMin));
+
+            final StaleOidManagerImpl.OidManagementParameters.Builder oidManagementParameters =
+                    new StaleOidManagerImpl.OidManagementParameters.Builder(entityExpirationTimeMs, dbAccessConfig.dsl(), expireOids,
+                            clockConfig.clock(), validationFrequencyMs, shouldDeleteExpiredOids, expiredRecordsRetentionDays);
+
+            if (!expirationDaysMap.isEmpty()) {
+                oidManagementParameters.setExpirationDaysPerEntity(expirationDaysMap);
+            }
+
+            return new StaleOidManagerImpl(initialExpirationDelayMs, oidsExpirationScheduledExecutor(), oidManagementParameters.build());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();

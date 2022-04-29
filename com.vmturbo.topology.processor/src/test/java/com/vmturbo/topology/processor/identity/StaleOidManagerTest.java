@@ -1,9 +1,12 @@
 package com.vmturbo.topology.processor.identity;
 
+import static com.vmturbo.topology.processor.identity.recurrenttasks.OidExpirationTask.EXPIRATION_TASK_NAME;
+import static com.vmturbo.topology.processor.identity.recurrenttasks.RecurrentTask.RecurrentTasksEnum.OID_TIMESTAMP_UPDATE;
 import static junitparams.JUnitParamsRunner.$;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -63,7 +66,9 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.db.tables.AssignedIdentity;
 import com.vmturbo.topology.processor.db.tables.RecurrentOperations;
+import com.vmturbo.topology.processor.db.tables.RecurrentTasks;
 import com.vmturbo.topology.processor.db.tables.records.RecurrentOperationsRecord;
+import com.vmturbo.topology.processor.db.tables.records.RecurrentTasksRecord;
 import com.vmturbo.topology.processor.identity.StaleOidManagerImpl.OidExpirationResultRecord;
 
 /**
@@ -88,8 +93,9 @@ public class StaleOidManagerTest {
     private static final int EXPIRATION_DAYS = 30;
     private static final int INITIAL_DELAY_HRS = 6;
     private static final int VALIDATION_FREQUENCY_HRS = 1;
-    private static final int N_QUERIES_PER_EXPIRATION_TASK = 6;
+    private static final int N_QUERIES_PER_EXPIRATION_TASK = 7;
     private static final int TIMEOUT_SECONDS = 10;
+    private static final int RECORD_DELETION_RETENTION_DAYS = 180;
     private static final String EXPIRATION_EXCEPTION_MESSAGE = "Exception with OidExpirationTask";
     private static final int DELETED_OPERATIONS_N = 10;
     private StaleOidManagerImpl staleOidManager;
@@ -100,6 +106,8 @@ public class StaleOidManagerTest {
     private final Clock clock = mock(Clock.class);
     private ScheduledExecutorService executor;
     private RecurrentOperationsRecord recurrentOperationsRecord;
+    private RecurrentTasksRecord recurrentTaskRecord;
+    private StaleOidManagerImpl.OidManagementParameters oidManagementParameters;
 
     long oid1 = 1;
     long oid2 = 2;
@@ -117,10 +125,15 @@ public class StaleOidManagerTest {
         when(clock.millis()).thenReturn(currentTime);
         when(clock.getZone()).thenReturn(ZoneOffset.UTC);
         executor = Executors.newScheduledThreadPool(1);
-        staleOidManager = new StaleOidManagerImpl(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
-            TimeUnit.HOURS.toMillis(VALIDATION_FREQUENCY_HRS), 0, context, clock, true, executor, new HashMap<>());
+        oidManagementParameters =
+                new StaleOidManagerImpl.OidManagementParameters.Builder(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
+                        context, true, clock,
+                        TimeUnit.HOURS.toMillis(VALIDATION_FREQUENCY_HRS), true, RECORD_DELETION_RETENTION_DAYS).build();
+        staleOidManager = new StaleOidManagerImpl(0, executor, oidManagementParameters);
         recurrentOperationsRecord = context.newRecord(RecurrentOperations.RECURRENT_OPERATIONS)
-                .values(LocalDateTime.now(), StaleOidManagerImpl.EXPIRATION_TASK_NAME, true, true, 10, 10, "");
+                .values(LocalDateTime.now(), EXPIRATION_TASK_NAME, true, true, 10, 10, "");
+        recurrentTaskRecord = context.newRecord(RecurrentTasks.RECURRENT_TASKS)
+                .values(LocalDateTime.now(), OID_TIMESTAMP_UPDATE.toString(), true, 10, "", "");
     }
 
     /**
@@ -145,10 +158,7 @@ public class StaleOidManagerTest {
     @Test
     @Parameters(method = "generateTestData")
     public void testInitialDelay(SQLDialect dialect) throws Exception {
-        final DSLContext context = DSL.using(new MockConnection(assignedIdentityJooqProvider), dialect);
-        staleOidManager = new StaleOidManagerImpl(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
-                TimeUnit.HOURS.toMillis(VALIDATION_FREQUENCY_HRS),
-                TimeUnit.HOURS.toMillis(INITIAL_DELAY_HRS), context, clock, true, executor, new HashMap<>());
+        staleOidManager = new StaleOidManagerImpl(TimeUnit.HOURS.toMillis(INITIAL_DELAY_HRS), executor, oidManagementParameters);
         ScheduledFuture<?> staleOidManagerProcess = staleOidManager.initialize(() -> entityStoreOids, set -> { });
         try {
             staleOidManagerProcess.get(2, TimeUnit.SECONDS);
@@ -159,77 +169,29 @@ public class StaleOidManagerTest {
     }
 
     /**
-     * Tests that there's no task execution right after the initialization. We should not perform a new task execution
-     * we should be waiting at least for {@link StaleOidManagerTest#INITIAL_DELAY_HRS}
-     *
-     * @param dialect SQLDialect to use
-     * @throws Exception if an error occurs in the staleOidManagerProcess
-     */
-    @Test
-    @Parameters(method = "generateTestData")
-    public void testBatching(SQLDialect dialect) throws Exception {
-        Set<Long> customEntityStoreOids = new HashSet<>();
-        for (long i = 0; i < 110; i++) {
-            customEntityStoreOids.add(i);
-        }
-        final AssignedIdentityJooqProvider assignedIdentityJooqProvider = new AssignedIdentityJooqProvider(N_QUERIES_PER_EXPIRATION_TASK + 1, false,
-                false);
-        final DSLContext context = DSL.using(new MockConnection(assignedIdentityJooqProvider), dialect);
-        StaleOidManagerImpl staleOidManager =
-                new StaleOidManagerImpl(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
-                        TimeUnit.HOURS.toMillis(VALIDATION_FREQUENCY_HRS),
-                        0,
-                        context, clock, true, Executors.newScheduledThreadPool(1), new HashMap<>());
-        staleOidManagerProcess = staleOidManager.initialize(() -> customEntityStoreOids, set -> { });
-        try {
-            staleOidManagerProcess.get(1000, TimeUnit.SECONDS);
-            Assert.fail();
-        } catch (CancellationException e) {
-            assertEquals(customEntityStoreOids.size(), assignedIdentityJooqProvider.getLastSeenQuery().stream().mapToInt(query -> query.updatedOids.size()).sum());
-        }
-    }
-
-    /**
-     * Tests that no exception is ever propagated from an OidExpirationTask. The reason we do not
+     * Tests that no exception is ever propagated from an oidManagementTask. The reason we do not
      * want this is that any propagated exception would stop the scheduler to perform the tasks
      * @param dialect SQLDialect to use
      */
     @Test
     @Parameters(method = "generateTestData")
     public void testExceptionInScheduledTask(SQLDialect dialect) {
-        final AssignedIdentityJooqProvider assignedIdentityJooqProvider = new AssignedIdentityJooqProvider(3, true,
+        final AssignedIdentityJooqProvider assignedIdentityJooqProvider = new AssignedIdentityJooqProvider(4, true,
                 false);
         final DSLContext context = DSL.using(new MockConnection(assignedIdentityJooqProvider), dialect);
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        ArgumentCaptor<? extends Runnable> oidExpirationTask = ArgumentCaptor.forClass(Runnable.class);
-        staleOidManager = new StaleOidManagerImpl(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
-                TimeUnit.SECONDS.toMillis(1),
-                0, context, clock, true, executor, new HashMap<>());
+        ArgumentCaptor<? extends Runnable> oidManagementTask = ArgumentCaptor.forClass(Runnable.class);
+        final StaleOidManagerImpl.OidManagementParameters oidManagementParameters =
+                new StaleOidManagerImpl.OidManagementParameters.Builder(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
+                        context, true, clock,
+                        TimeUnit.HOURS.toMillis(VALIDATION_FREQUENCY_HRS), true, RECORD_DELETION_RETENTION_DAYS).build();
+        staleOidManager = new StaleOidManagerImpl(0, executor, oidManagementParameters);
         initialize();
-        Mockito.verify(executor).scheduleWithFixedDelay(oidExpirationTask.capture(), anyLong(), anyLong(), any());
+        Mockito.verify(executor).scheduleWithFixedDelay(oidManagementTask.capture(), anyLong(), anyLong(), any());
         try {
-            oidExpirationTask.getValue().run();
+            oidManagementTask.getValue().run();
         } catch (Exception e) {
             Assert.fail();
-        }
-    }
-
-    /**
-     * Tests that we correctly set the last seen timestamp to the oids that currently exist in
-     * the entity store.
-     *
-     * @throws Exception if the staleOidManagerProcess is interrupted or canceled
-     */
-    @Test
-    public void testSetLastSeenTimeStamp() throws Exception {
-        initialize();
-        try {
-            staleOidManagerProcess.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            Assert.fail();
-        } catch (CancellationException e) {
-            assertEquals(currentTime,
-                assignedIdentityJooqProvider.getLastSeenQuery().get(0).getQueryTimeStamp().getTime());
-            assertEquals(assignedIdentityJooqProvider.getLastSeenQuery().get(0).getUpdatedOids(), entityStoreOids);
         }
     }
 
@@ -282,7 +244,7 @@ public class StaleOidManagerTest {
         } catch (CancellationException e) {
             assertEquals(Timestamp.valueOf(LocalDateTime.ofInstant(Instant.ofEpochMilli(currentTime), clock.getZone())),
                 assignedIdentityJooqProvider.getSetRecurrentOperationQuery().getExecutionTime());
-            assertEquals(StaleOidManagerImpl.EXPIRATION_TASK_NAME,
+            assertEquals(EXPIRATION_TASK_NAME,
                 assignedIdentityJooqProvider.getSetRecurrentOperationQuery().getOperationName());
         }
     }
@@ -298,13 +260,13 @@ public class StaleOidManagerTest {
     @Parameters(method = "generateTestData")
     public void testDoNotSetExpiredOidsBecauseOfFlag(SQLDialect dialect) throws Exception {
         AssignedIdentityJooqProvider assignedIdentityJooqProvider =
-                new AssignedIdentityJooqProvider(2, false, false);
+                new AssignedIdentityJooqProvider(3, false, false);
         final DSLContext context = DSL.using(new MockConnection(assignedIdentityJooqProvider), dialect);
-        StaleOidManagerImpl staleOidManagerWithoutExpiration =
-            new StaleOidManagerImpl(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
-            TimeUnit.HOURS.toMillis(VALIDATION_FREQUENCY_HRS),
-            0,
-            context, clock, false, Executors.newScheduledThreadPool(1), new HashMap<>());
+        final StaleOidManagerImpl.OidManagementParameters oidManagementParameters =
+                new StaleOidManagerImpl.OidManagementParameters.Builder(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
+                        context, false, clock,
+                        TimeUnit.HOURS.toMillis(VALIDATION_FREQUENCY_HRS), true, RECORD_DELETION_RETENTION_DAYS).build();
+        StaleOidManagerImpl staleOidManagerWithoutExpiration = new StaleOidManagerImpl(0, executor, oidManagementParameters);
         staleOidManagerProcess = staleOidManagerWithoutExpiration.initialize(() -> entityStoreOids,
                 set -> { });
         try {
@@ -312,11 +274,12 @@ public class StaleOidManagerTest {
             Assert.fail();
         } catch (CancellationException e) {
             assertEquals(assignedIdentityJooqProvider.getLastSeenQuery().get(0).getUpdatedOids(), entityStoreOids);
+            assertNull(assignedIdentityJooqProvider.getSetExpiredRecordsQuery().getExpirationDate());
         }
     }
 
     /**
-     * Tests that when there haven't ran at least 50% successful last_seen update in the last
+     * Tests that when there were not at least 50% successful last_seen updates in the last
      * EXPIRATION_DAYS we do not perform expiration.
      * @param dialect SQLDialect to use
      * @throws Exception if the staleOidManagerProcess is interrupted or canceled
@@ -325,17 +288,16 @@ public class StaleOidManagerTest {
     @Parameters(method = "generateTestData")
     public void testDoNotSetExpiredOids(SQLDialect dialect) throws Exception {
         AssignedIdentityJooqProvider assignedIdentityJooqProvider =
-                new AssignedIdentityJooqProvider(4, false, true);
+                new AssignedIdentityJooqProvider(5, false, true);
         final DSLContext context = DSL.using(new MockConnection(assignedIdentityJooqProvider), dialect);
-        StaleOidManagerImpl staleOidManagerWithoutExpiration =
-                new StaleOidManagerImpl(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
-                        TimeUnit.HOURS.toMillis(VALIDATION_FREQUENCY_HRS),
-                        0,
-                        context, clock, true, Executors.newScheduledThreadPool(1), new HashMap<>());
-        staleOidManagerProcess = staleOidManagerWithoutExpiration.initialize(() -> entityStoreOids,
-                set -> { });
+        final StaleOidManagerImpl.OidManagementParameters oidManagementParameters =
+                new StaleOidManagerImpl.OidManagementParameters.Builder(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
+                        context, true, clock,
+                        TimeUnit.HOURS.toMillis(VALIDATION_FREQUENCY_HRS), true, RECORD_DELETION_RETENTION_DAYS).build();
+        staleOidManager = new StaleOidManagerImpl(0, executor, oidManagementParameters);
+        initialize();
         try {
-            staleOidManagerProcess.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            staleOidManagerProcess.get(100, TimeUnit.SECONDS);
             Assert.fail();
         } catch (CancellationException e) {
             assertEquals(assignedIdentityJooqProvider.getLastSeenQuery().get(0).getUpdatedOids(), entityStoreOids);
@@ -356,10 +318,9 @@ public class StaleOidManagerTest {
     public void testExpireOidsAsynchronously() throws InterruptedException, ExecutionException, TimeoutException {
         staleOidManagerProcess = staleOidManager.initialize(() -> entityStoreOids, set -> { });
         staleOidManager.expireOidsImmediatly();
-
         assertEquals(Timestamp.valueOf(LocalDateTime.ofInstant(Instant.ofEpochMilli(currentTime), clock.getZone())),
             assignedIdentityJooqProvider.getSetRecurrentOperationQuery().getExecutionTime());
-        assertEquals(StaleOidManagerImpl.EXPIRATION_TASK_NAME,
+        assertEquals(EXPIRATION_TASK_NAME,
             assignedIdentityJooqProvider.getSetRecurrentOperationQuery().getOperationName());
         Assert.assertTrue(assignedIdentityJooqProvider.getSetExpiredRecordsQuery().getIsExpired());
         assertEquals(currentTime - TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
@@ -444,9 +405,13 @@ public class StaleOidManagerTest {
         entityStoreOids.add(oid2);
         when(clock.millis()).thenReturn(currentTime);
         when(clock.getZone()).thenReturn(ZoneOffset.UTC);
-        staleOidManager = new StaleOidManagerImpl(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
-            TimeUnit.HOURS.toMillis(VALIDATION_FREQUENCY_HRS), 0,
-                context, clock, true, Executors.newScheduledThreadPool(1), expirationDaysPerEntity);
+
+        oidManagementParameters =
+                new StaleOidManagerImpl.OidManagementParameters.Builder(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
+                        context, true, clock,
+                        TimeUnit.HOURS.toMillis(VALIDATION_FREQUENCY_HRS), true, RECORD_DELETION_RETENTION_DAYS)
+                        .setExpirationDaysPerEntity(expirationDaysPerEntity).setExpirationDaysPerEntity(expirationDaysPerEntity).build();
+        staleOidManager = new StaleOidManagerImpl(0, executor, oidManagementParameters);
         staleOidManagerProcess = staleOidManager.initialize(() -> entityStoreOids, set -> { });
         try {
             staleOidManagerProcess.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -478,21 +443,8 @@ public class StaleOidManagerTest {
     public void testDeleteRecurrentOperations(SQLDialect dialect) {
         final DSLContext context = DSL.using(new MockConnection(assignedIdentityJooqProvider), dialect);
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        ArgumentCaptor<? extends Runnable> oidExpirationTask = ArgumentCaptor.forClass(Runnable.class);
-        staleOidManager = new StaleOidManagerImpl(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
-                TimeUnit.SECONDS.toMillis(1),
-                0, context, clock, true, executor, new HashMap<>());
         initialize();
-        Mockito.verify(executor).scheduleWithFixedDelay(oidExpirationTask.capture(), anyLong(), anyLong(), any());
-        initialize();
-        assignedIdentityJooqProvider.deleteRecurrentOperations.setDeletedRecords(0);
-        oidExpirationTask.getValue().run();
         assertEquals(DELETED_OPERATIONS_N,
-                assignedIdentityJooqProvider.getDeleteRecurrentOperations().getDeletedRecords());
-        assignedIdentityJooqProvider.deleteRecurrentOperations.setDeletedRecords(0);
-
-        oidExpirationTask.getValue().run();
-        assertEquals(0,
                 assignedIdentityJooqProvider.getDeleteRecurrentOperations().getDeletedRecords());
     }
 
@@ -602,6 +554,12 @@ public class StaleOidManagerTest {
                 result.add(recurrentOperationsRecord);
                 mockResult = new MockResult(1, result);
             }
+            if (isGetRecurrentTasksQuery(ctx.sql())) {
+                Result<RecurrentTasksRecord> result =
+                        create.newResult(RecurrentTasks.RECURRENT_TASKS);
+                result.add(recurrentTaskRecord);
+                mockResult = new MockResult(1, result);
+            }
 
             if (isDeleteRecurrentOperationsQuery(ctx.sql())) {
                 deleteRecurrentOperations.setDeletedRecords(DELETED_OPERATIONS_N);
@@ -661,6 +619,10 @@ public class StaleOidManagerTest {
 
         private boolean isGetRecurrentOperationsQuery(String sql) {
             return sql.contains("select") && sql.contains("recurrent_operations") && !sql.contains("count");
+        }
+
+        private boolean isGetRecurrentTasksQuery(String sql) {
+            return sql.contains("select") && sql.contains("recurrent_tasks") && !sql.contains("count");
         }
 
         private boolean isDeleteRecurrentOperationsQuery(String sql) {

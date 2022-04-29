@@ -113,6 +113,7 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
 
     @Override
     public void restore(final WrappedZipEntry zipEntry) {
+        logger.info("Attempting to restore binary discovery dumps");
         if (!succesfulInitialization) {
             return;
         }

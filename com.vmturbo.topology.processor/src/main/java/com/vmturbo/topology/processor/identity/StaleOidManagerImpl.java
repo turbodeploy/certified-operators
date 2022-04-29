@@ -1,17 +1,17 @@
 package com.vmturbo.topology.processor.identity;
 
 import static com.vmturbo.topology.processor.db.Tables.RECURRENT_OPERATIONS;
-import static com.vmturbo.topology.processor.db.tables.AssignedIdentity.ASSIGNED_IDENTITY;
+import static com.vmturbo.topology.processor.db.Tables.RECURRENT_TASKS;
+import static com.vmturbo.topology.processor.identity.recurrenttasks.OidExpirationTask.EXPIRATION_TASK_NAME;
 
-import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -26,41 +26,29 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Stopwatch;
-import com.google.common.collect.Iterators;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-import org.jooq.Record1;
-import org.jooq.Result;
-import org.jooq.SelectConditionStep;
-import org.jooq.SelectQuery;
-import org.jooq.UpdateConditionStep;
-import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.proactivesupport.DataMetricCounter;
-import com.vmturbo.proactivesupport.DataMetricHistogram;
-import com.vmturbo.topology.processor.db.tables.records.AssignedIdentityRecord;
 import com.vmturbo.topology.processor.db.tables.records.RecurrentOperationsRecord;
+import com.vmturbo.topology.processor.identity.recurrenttasks.OidDeletionTask;
+import com.vmturbo.topology.processor.identity.recurrenttasks.OidExpirationTask;
+import com.vmturbo.topology.processor.identity.recurrenttasks.OidTimestampUpdateTask;
+import com.vmturbo.topology.processor.identity.recurrenttasks.RecurrentTask;
 
 /**
  * Class that handles the expiration of the oids. This class performs a periodic
- * {@link OidExpirationTask} every {@link StaleOidManagerImpl#validationFrequencyMs} that sets the
+ * {@link OidManagement} every {@link OidManagementParameters#validationFrequencyMs} that sets the
  * last_seen value for all the oids that exist in the entity store. It then gets the
- * oids that haven't been seen for more than {@link StaleOidManagerImpl#entityExpirationTimeMs},
+ * oids that haven't been seen for more than {@link OidManagementParameters#entityExpirationTimeMs},
  * set their expired value to true. See https://vmturbo.atlassian.net/wiki/spaces/XD/pages/2372600988/Stale+OID+Management
  * for more information about this feature.
  */
 public class StaleOidManagerImpl implements StaleOidManager {
-
-    /**
-     * Name of the task run by the StaleOidManager.
-     */
-    public static final String EXPIRATION_TASK_NAME = "OID_EXPIRATION_TASK";
 
     /**
      * Header for the diags.
@@ -76,72 +64,27 @@ public class StaleOidManagerImpl implements StaleOidManager {
      * Name of the file that will appear in the diags.
      */
     public static final String DIAGS_FILE_NAME = "RecurrentOperations.csv";
+
     private static final Logger logger = LogManager.getLogger();
-    private static final String UPDATE_TIMESTAMPS = "update_timestamps";
-    private static final String EXPIRE_RECORDS = "expire_records";
     private static final int RECURRENT_OPERATIONS_RETENTION_YEARS = 1;
 
-    private final long entityExpirationTimeMs;
-    private final long validationFrequencyMs;
-    private final DSLContext context;
-    private final Clock clock;
-    private final boolean expireOids;
     private final ScheduledExecutorService executorService;
-    private final Map<Integer, Long> expirationDaysPerEntity;
     private final long initialExpirationDelayMs;
-    private boolean shouldDeleteRecurrentOperations = true;
-    private Consumer<Set<Long>> listener;
+    private final DSLContext context;
+    private final OidManagementParameters oidManagementParameters;
     private Supplier<Set<Long>> getCurrentOids;
-
-    /**
-     * Track the time taken to perform and oid expiration task. This will be broken into two steps:
-     *   "update_timestamps" -- the amount of time it takes to update the last seen timestamps of the oids
-     *   "expire_records" -- the amount of time it takes to expire the oids.
-     */
-    private static final DataMetricHistogram OID_EXPIRATION_EXECUTION_TIME = DataMetricHistogram.builder()
-            .withName("turbo_oid_expiration_execution_seconds")
-            .withHelp("Time (in seconds) spent to perform an oid expiration task.")
-            .withLabelNames("step")
-            .withBuckets(1, 10, 100)
-            .build()
-            .register();
-
-    /**
-     * A counter metric that represents the total number of expired oids.
-     */
-    private static final DataMetricCounter EXPIRED_ENTITIES_COUNT = DataMetricCounter.builder()
-            .withName("turbo_expired_entities_total")
-            .withHelp("Total number of entity OIDs expired by an oid expiration task since topology processor started.")
-            .build()
-            .register();
+    private Consumer<Set<Long>> notifyExpiredOids;
 
     /**
      * Creates an instance of a {@link StaleOidManagerImpl}.
-     * @param entityExpirationTimeMs amount of time before an entity gets expired if not present in
-     *                            the entity store
-     * @param validationFrequencyMs how often we perform the {@link OidExpirationTask}
-     * @param initialExpirationDelayMs initial delay for the {@link OidExpirationTask}
-     * @param context used to interact with the database.
-     * @param clock used to get a consistent current time
-     * @param expireOids if enabled oids are expired, otherwise we only set the last_seen timestamp
-     * @param executorService executor service to schedule a recurring task
-     * @param expirationDaysPerEntity expiration days per entity type
+     * @param initialExpirationDelayMs initial delay for the {@link OidManagement}
      */
-    public StaleOidManagerImpl(final long entityExpirationTimeMs,
-                               final long validationFrequencyMs,
-                               final long initialExpirationDelayMs,
-                               @Nonnull DSLContext context, final Clock clock,
-                               final boolean expireOids,
-                               @Nonnull final ScheduledExecutorService executorService,
-                               @Nonnull final Map<String, String> expirationDaysPerEntity) {
-        this.entityExpirationTimeMs = entityExpirationTimeMs;
-        this.validationFrequencyMs = validationFrequencyMs;
-        this.context = context;
-        this.clock = clock;
-        this.expireOids = expireOids;
-        this.executorService = executorService;
-        this.expirationDaysPerEntity = parseExpirationTimesPerEntityType(expirationDaysPerEntity);
+    public StaleOidManagerImpl(long initialExpirationDelayMs, @Nonnull final ScheduledExecutorService oidsExpirationScheduledExecutor,
+                               @Nonnull OidManagementParameters oidManagementParameters) {
         this.initialExpirationDelayMs = initialExpirationDelayMs;
+        this.executorService = oidsExpirationScheduledExecutor;
+        this.oidManagementParameters = oidManagementParameters;
+        this.context = oidManagementParameters.getContext();
     }
 
     @Nonnull
@@ -157,36 +100,39 @@ public class StaleOidManagerImpl implements StaleOidManager {
         for (OidExpirationResultRecord record : records) {
             appender.appendString(record.toCsvLine());
         }
+        List<RecurrentTask.RecurrentTaskRecord> taskRecords = getLatestRecurrentTasks(N_OPERATIONS_IN_DIAGS);
+        for (RecurrentTask.RecurrentTaskRecord record : taskRecords) {
+            appender.appendString(record.toCsvLine() + "empty");
+        }
     }
 
     /**
-     * Initializes the {@link StaleOidManagerImpl}. The initialization consists in scheduling a {@link OidExpirationTask}
-     * to run periodically, every {@link StaleOidManagerImpl#validationFrequencyMs} and with an initial
+     * Initializes the {@link StaleOidManagerImpl}. The initialization consists in scheduling a {@link OidManagement}
+     * to run periodically, every {@link OidManagementParameters#validationFrequencyMs} and with an initial
      * delay of {@link StaleOidManagerImpl#initialExpirationDelayMs}.
      *
      * @param getCurrentOids function to get the oids present in the entity store.
-     * @param listener to notify when oids are marked stale.
+     * @param notifyExpiredOids to notify when oids are marked stale.
      * @return a ScheduledFuture with the task currently running
      */
     public ScheduledFuture<?> initialize(@Nonnull final Supplier<Set<Long>> getCurrentOids,
-            @Nonnull Consumer<Set<Long>> listener) {
+            @Nonnull Consumer<Set<Long>> notifyExpiredOids) {
         this.getCurrentOids = getCurrentOids;
-        this.listener = listener;
+        this.notifyExpiredOids = notifyExpiredOids;
         logger.info("Initializing StaleOidManager with expiration set to {}. Next task will happen in {} hours."
-                        + " After that there will be a task running every {} hours", this.expireOids,
+                        + " After that there will be a task running every {} hours", oidManagementParameters.isExpireOids(),
                 TimeUnit.MILLISECONDS.toHours(initialExpirationDelayMs), TimeUnit.MILLISECONDS.toHours(
-                        validationFrequencyMs));
-        if (!expirationDaysPerEntity.keySet().isEmpty()) {
-            logger.info("StaleOidManager settings: {}", this.expirationDaysPerEntity);
+                        oidManagementParameters.getValidationFrequencyMs()));
+        if (!oidManagementParameters.getExpirationDaysPerEntity().keySet().isEmpty()) {
+            logger.info("StaleOidManager settings: {}", oidManagementParameters.getExpirationDaysPerEntity());
         }
-        return this.executorService.scheduleWithFixedDelay(new OidExpirationTask(getCurrentOids,
-                        this::notifyListener, entityExpirationTimeMs, context, expireOids, clock,
-                        this.expirationDaysPerEntity, validationFrequencyMs, false, this::deleteLatestRecurrentOperations), initialExpirationDelayMs,
-                validationFrequencyMs, TimeUnit.MILLISECONDS);
+        deleteLatestRecurrentOperations();
+        return this.executorService.scheduleWithFixedDelay(new OidManagement(oidManagementParameters, getCurrentOids, notifyExpiredOids), initialExpirationDelayMs,
+                oidManagementParameters.getValidationFrequencyMs(), TimeUnit.MILLISECONDS);
     }
 
     /**
-     * Runs an {@link OidExpirationTask} asynchronously. It waits for the thread to be done.
+     * Runs an {@link OidManagement} asynchronously. It waits for the thread to be done.
      * Should only be used for triggering this process from the api.
      *
      * @return the number of expired oids
@@ -198,36 +144,16 @@ public class StaleOidManagerImpl implements StaleOidManager {
      */
     public int expireOidsImmediatly() throws InterruptedException, ExecutionException, TimeoutException {
         logger.info("Running the OidExpirationTask asynchronously");
-        OidExpirationTask task = new OidExpirationTask(this.getCurrentOids, this::notifyListener,
-                entityExpirationTimeMs, context, expireOids, clock, this.expirationDaysPerEntity,
-                validationFrequencyMs,
-                true, this::deleteLatestRecurrentOperations);
+        final OidManagementParameters oidManagementParameters =
+                new StaleOidManagerImpl.OidManagementParameters.Builder(this.oidManagementParameters.getEntityExpirationTimeMs(),
+                        context, this.oidManagementParameters.isExpireOids(), this.oidManagementParameters.getClock(),
+                        this.oidManagementParameters.getValidationFrequencyMs(), true,
+                        this.oidManagementParameters.expiredRecordsRetentionDays)
+                        .setForceExpiration(true).build();
+        OidManagement task = new OidManagement(oidManagementParameters, this.getCurrentOids, this.notifyExpiredOids);
         Future<?> future = this.executorService.submit(task);
-        future.get(5, TimeUnit.MINUTES);
+        future.get(20, TimeUnit.MINUTES);
         return task.getNumberOfExpiredOids();
-    }
-
-    private void notifyListener(@Nonnull Set<Long> removedOids) {
-        logger.debug("Notifying listener of {} oids removed", removedOids.size());
-        if (listener != null) {
-            listener.accept(removedOids);
-        } else {
-            logger.error("No listener provided. Stale OIDs will not be cleared from cache.");
-        }
-    }
-
-    private HashMap<Integer, Long> parseExpirationTimesPerEntityType(Map<String, String> expirationDaysPerEntity) {
-        HashMap<Integer, Long> expirationTimePerEntity = new HashMap<>();
-        for (Entry<String, String> entry : expirationDaysPerEntity.entrySet()) {
-            try {
-                expirationTimePerEntity.put(CommonDTO.EntityDTO.EntityType.valueOf(entry.getKey()).getNumber(),
-                    Math.max(0, TimeUnit.DAYS.toMillis(Integer.parseInt(entry.getValue()))));
-            } catch (IllegalArgumentException e) {
-                logger.error("Could not convert yaml parameter {} into an EntityType, will "
-                    + "skip this setting", entry.getKey());
-            }
-        }
-        return expirationTimePerEntity;
     }
 
     private List<OidExpirationResultRecord> getLatestRecurrentOperations(final int nOperations) {
@@ -236,64 +162,174 @@ public class StaleOidManagerImpl implements StaleOidManager {
                         OidExpirationResultRecord::new).collect(Collectors.toList());
     }
 
+    private List<RecurrentTask.RecurrentTaskRecord> getLatestRecurrentTasks(final int nOperations) {
+        return context.selectFrom(RECURRENT_TASKS)
+                .orderBy(RECURRENT_TASKS.EXECUTION_TIME.desc()).limit(nOperations).fetch().stream().map(
+                        RecurrentTask.RecurrentTaskRecord::new).collect(Collectors.toList());
+    }
+
     /**
      * Delete the recurrent operations that are older than {@link StaleOidManagerImpl#RECURRENT_OPERATIONS_RETENTION_YEARS}.
      * This should be done only once after every restart of the component.
      * @return the number of deleted operations
      */
     private int deleteLatestRecurrentOperations() {
-        if (shouldDeleteRecurrentOperations) {
-            int deletedOperations = context.deleteFrom(RECURRENT_OPERATIONS)
-                    .where(RECURRENT_OPERATIONS.EXECUTION_TIME.lessThan(LocalDateTime.now().minusYears(RECURRENT_OPERATIONS_RETENTION_YEARS)))
-                    .execute();
-            logger.info("Deleted {} operations from the recurrent operations table", deletedOperations);
-            shouldDeleteRecurrentOperations = false;
-            return deletedOperations;
-        }
-        return 0;
+        int deletedOperations = context.deleteFrom(RECURRENT_OPERATIONS)
+                .where(RECURRENT_OPERATIONS.EXECUTION_TIME.lessThan(LocalDateTime.now().minusYears(RECURRENT_OPERATIONS_RETENTION_YEARS)))
+                .execute();
+        logger.info("Deleted {} operations from the recurrent operations table", deletedOperations);
+        return deletedOperations;
     }
 
     /**
-     * Task that expires the oids. These are the operations performed by this task:
-     * 1) Set the last_seen timestamp of the oids retrieved from {@link OidExpirationTask#getCurrentOids}
-     * 2) Get all the oids that haven't been seen for {@link OidExpirationTask#entityExpirationTimeMs}
-     * 3) Set all those oids as expired in the {@link com.vmturbo.topology.processor.db.tables.AssignedIdentity} table
-     * 4) Sets the result of the operation in the {@link com.vmturbo.topology.processor.db.tables.RecurrentOperations} table
+     * Class used to facilitate the usage of input parameters for the {@link StaleOidManagerImpl}. It guarantees immutability
      */
-    private static class OidExpirationTask implements Runnable {
-        private static final int MAX_ERROR_LENGTH = 150;
+    static class OidManagementParameters {
         private final DSLContext context;
         private final long entityExpirationTimeMs;
-        private final Supplier<Set<Long>> getCurrentOids;
-        private final Consumer<Set<Long>> notifyExpiredOids;
+
+        public DSLContext getContext() {
+            return context;
+        }
+
+        public long getEntityExpirationTimeMs() {
+            return entityExpirationTimeMs;
+        }
+
+        public boolean isExpireOids() {
+            return expireOids;
+        }
+
+        public Clock getClock() {
+            return clock;
+        }
+
+        public long getValidationFrequencyMs() {
+            return validationFrequencyMs;
+        }
+
+        public boolean isShouldDeleteExpiredRecords() {
+            return shouldDeleteExpiredRecords;
+        }
+
+        public boolean isForceExpiration() {
+            return forceExpiration;
+        }
+
+        public Map<Integer, Long> getExpirationDaysPerEntity() {
+            return expirationDaysPerEntity;
+        }
+
+        public int getExpiredRecordsRetentionDays() {
+            return expiredRecordsRetentionDays;
+        }
+
         private final boolean expireOids;
         private final Clock clock;
-        private final Map<Integer, Long> expirationDaysPerEntity;
         private final long validationFrequencyMs;
+        private final boolean shouldDeleteExpiredRecords;
         private final boolean forceExpiration;
-        private final Supplier<Integer> deleteRecurrentOperations;
-        private long currentTimeMs;
-        private int numberOfExpiredOids;
-        private OidExpirationResultRecord oidExpirationResultRecord;
-        /**
-         * Batch size for oids updates.
-         */
-        private static final int BATCH_SIZE = 100;
+        private final Map<Integer, Long> expirationDaysPerEntity;
+        private final int expiredRecordsRetentionDays;
 
-        OidExpirationTask(@Nonnull final Supplier<Set<Long>> getCurrentOids, @Nonnull final Consumer<Set<Long>> notifyExpiredOids,
-                final long entityExpirationTimeMs, final DSLContext context, final boolean expireOids,
-                final Clock clock, final Map<Integer, Long> expirationTimePerEntity, long validationFrequencyMs,
-                boolean forceExpiration, Supplier<Integer> deleteRecurrentOperations) {
+        /**
+         * Instance of a builder.
+         */
+        static class Builder {
+            // Required parameters
+            private final DSLContext context;
+            private final long entityExpirationTimeMs;
+            private final boolean expireOids;
+            private final Clock clock;
+            private final long validationFrequencyMs;
+            private final boolean shouldDeleteExpiredRecords;
+            private final int expiredRecordsRetentionDays;
+
+            // Optional parameters
+            private boolean forceExpiration = false;
+            private Map<Integer, Long> expirationDaysPerEntity = Collections.emptyMap();
+
+            /**
+             * Gets an instance of the Builder.
+             * @param entityExpirationTimeMs the entity expiration time
+             * @param context to access the database
+             * @param expireOids the expiration flag
+             * @param clock clock shared among the tasks
+             * @param validationFrequencyMs the frequency for the tasks
+             * @param shouldDeleteExpiredRecords the deletion flag
+             * @param expiredRecordsRetentionDays the amount of days before deleting an expired record
+             */
+            Builder(final long entityExpirationTimeMs, @Nonnull final DSLContext context, final boolean expireOids,
+                    @Nonnull final Clock clock, long validationFrequencyMs, boolean shouldDeleteExpiredRecords, int expiredRecordsRetentionDays) {
+                this.entityExpirationTimeMs = entityExpirationTimeMs;
+                this.context = context;
+                this.expireOids = expireOids;
+                this.clock = clock;
+                this.validationFrequencyMs = validationFrequencyMs;
+                this.shouldDeleteExpiredRecords = shouldDeleteExpiredRecords;
+                this.expiredRecordsRetentionDays = expiredRecordsRetentionDays;
+            }
+
+            Builder setForceExpiration(boolean forceExpiration) {
+                this.forceExpiration = forceExpiration;
+                return this;
+            }
+
+            Builder setExpirationDaysPerEntity(final Map<String, String> expirationDaysPerEntity) {
+                this.expirationDaysPerEntity = parseExpirationTimesPerEntityType(expirationDaysPerEntity);
+                return this;
+            }
+
+            private HashMap<Integer, Long> parseExpirationTimesPerEntityType(Map<String, String> expirationDaysPerEntity) {
+                HashMap<Integer, Long> expirationTimePerEntity = new HashMap<>();
+                for (Map.Entry<String, String> entry : expirationDaysPerEntity.entrySet()) {
+                    try {
+                        expirationTimePerEntity.put(CommonDTO.EntityDTO.EntityType.valueOf(entry.getKey()).getNumber(),
+                                Math.max(0, TimeUnit.DAYS.toMillis(Integer.parseInt(entry.getValue()))));
+                    } catch (IllegalArgumentException e) {
+                        logger.error("Could not convert yaml parameter {} into an EntityType, will "
+                                + "skip this setting", entry.getKey(), e);
+                    }
+                }
+                return expirationTimePerEntity;
+            }
+
+            OidManagementParameters build() {
+                return new OidManagementParameters(this);
+            }
+        }
+
+        private OidManagementParameters(@Nonnull Builder builder) {
+            context = builder.context;
+            entityExpirationTimeMs = builder.entityExpirationTimeMs;
+            expireOids = builder.expireOids;
+            clock = builder.clock;
+            validationFrequencyMs = builder.validationFrequencyMs;
+            shouldDeleteExpiredRecords = builder.shouldDeleteExpiredRecords;
+            forceExpiration = builder.forceExpiration;
+            expirationDaysPerEntity = builder.expirationDaysPerEntity;
+            expiredRecordsRetentionDays = builder.expiredRecordsRetentionDays;
+        }
+
+    }
+
+    /**
+     * Runnable that performs all the tasks related to oid management. At the moment it runs a {@link OidTimestampUpdateTask},
+     * a {@link OidExpirationTask} and a {@link OidDeletionTask}.
+     */
+    private static class OidManagement implements Runnable {
+        private final OidManagementParameters oidManagementParameters;
+        private final OidExpirationResultRecord oidExpirationResultRecord;
+        private final Supplier<Set<Long>> getCurrentOids;
+        private final Consumer<Set<Long>> expireOidsFromCache;
+        private int numberOfExpiredOids;
+
+        OidManagement(@Nonnull OidManagementParameters oidManagementParameters, final Supplier<Set<Long>> getCurrentOids,
+                      @Nonnull final Consumer<Set<Long>> expireOidsFromCache) {
+            this.oidManagementParameters = oidManagementParameters;
+            this.oidExpirationResultRecord = new OidExpirationResultRecord(Instant.ofEpochMilli(oidManagementParameters.getClock().millis()));
             this.getCurrentOids = getCurrentOids;
-            this.notifyExpiredOids = notifyExpiredOids;
-            this.entityExpirationTimeMs = entityExpirationTimeMs;
-            this.context = context;
-            this.expireOids = expireOids;
-            this.clock = clock;
-            this.expirationDaysPerEntity = expirationTimePerEntity;
-            this.validationFrequencyMs = validationFrequencyMs;
-            this.forceExpiration = forceExpiration;
-            this.deleteRecurrentOperations = deleteRecurrentOperations;
+            this.expireOidsFromCache = expireOidsFromCache;
         }
 
         /**
@@ -302,75 +338,51 @@ public class StaleOidManagerImpl implements StaleOidManager {
         @Override
         public synchronized void run() {
             try {
-                try {
-                    deleteRecurrentOperations.get();
-                } catch (Exception e) {
-                    // We do not want to stop the task if this operation fails
-                    logger.error("Exception occurred while attempting to delete recurrent operations", e);
-                }
-                try {
-                    final boolean shouldExpireOids = shouldExpireOids();
-                    logger.info("Starting the task with expiration set to {}", shouldExpireOids);
-                    this.oidExpirationResultRecord = new OidExpirationResultRecord(Instant.ofEpochMilli(clock.millis()));
-                    this.currentTimeMs = clock.millis();
-                    final Stopwatch stopwatch = Stopwatch.createStarted();
-                    final int updatedRecords = setLastSeenTimeStamps(getCurrentOids.get());
-                    oidExpirationResultRecord.setUpdatedRecords(updatedRecords);
-                    OID_EXPIRATION_EXECUTION_TIME.labels(UPDATE_TIMESTAMPS).observe((double)stopwatch.elapsed(TimeUnit.SECONDS));
-                    logger.info("Updated the timestamp to {} for {} oids in {}", new Timestamp(currentTimeMs), updatedRecords, stopwatch);
-                    stopwatch.reset();
-                    if (shouldExpireOids) {
-                        stopwatch.start();
-                        Set<Long> expiredOids = getExpiredRecords(entityExpirationTimeMs, expirationDaysPerEntity);
-                        int expiredRecord = setExpiredRecords(expirationDaysPerEntity);
-                        oidExpirationResultRecord.setExpiredRecords(expiredOids.size());
-                        if (expiredRecord > 0) {
-                            EXPIRED_ENTITIES_COUNT.increment((double)expiredRecord);
-                        }
-                        notifyExpiredOids.accept(expiredOids);
-                        OID_EXPIRATION_EXECUTION_TIME.labels(EXPIRE_RECORDS).observe((double)stopwatch.elapsed(TimeUnit.SECONDS));
-                        numberOfExpiredOids = expiredOids.size();
-                        logger.info("OidExpirationTask finished in {} seconds. Number of expired oids: {}",
-                                TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - currentTimeMs),
-                                numberOfExpiredOids);
-                        stopwatch.stop();
-                    }
-                } catch (Exception e) {
-                    logger.error("OidExpirationTask failed due to ", e);
-                    oidExpirationResultRecord.setErrors(e.getMessage().substring(0, Math.min(e.getMessage().length(), MAX_ERROR_LENGTH)));
-                } finally {
-                    storeOidExpirationResultRecord(oidExpirationResultRecord);
-                }
+                final Clock clock = oidManagementParameters.getClock();
+                final DSLContext context = oidManagementParameters.getContext();
+                long currentTimeMs = clock.millis();
+                final boolean shouldExpireOids = shouldExpireOids(oidManagementParameters);
+                new OidTimestampUpdateTask(currentTimeMs, clock, context.dsl(), getCurrentOids, oidExpirationResultRecord).run();
+                numberOfExpiredOids = new OidExpirationTask(oidManagementParameters.getEntityExpirationTimeMs(), shouldExpireOids,
+                        expireOidsFromCache, oidManagementParameters.getExpirationDaysPerEntity(),
+                        oidExpirationResultRecord, currentTimeMs, clock, context.dsl()).run();
+                new OidDeletionTask(currentTimeMs, clock, context.dsl(), shouldExpireOids && oidManagementParameters.isShouldDeleteExpiredRecords(),
+                        oidManagementParameters.getExpiredRecordsRetentionDays()).run();
             } catch (Throwable t) {
-                // We need to catch all the exceptions to make sure the scheduled tasks will keep going even
+                // We need to catch all the exceptions to make sure the scheduled runnable will keep going even
                 // if one task fails
-                logger.error("OidExpirationTask failed due to ", t);
+                logger.error("Error in performing the expiration and dropping of the oids ", t);
             }
         }
 
+        public int getNumberOfExpiredOids() {
+            return numberOfExpiredOids;
+        }
+
         /**
-         * Determines whether or not an {@link OidExpirationTask} should also perform an expiration or
+         * Determines whether an {@link OidManagement} should also perform an expiration or
          * just update the last_seen flag. We should not expire in the case the expireOids is set to false
          * OR if in the past entityExpirationTime we haven't successfully run at least 50% of the tasks we were
          * supposed to run. The number of runs that are supposed to run in a entityExpirationTime time range is given by
          * entityExpirationTime / validationFrequency
-         * @return whether or not oids should be expired
+         * @return whether oids should be expired
          */
-        private boolean shouldExpireOids() {
+        private boolean shouldExpireOids(@Nonnull OidManagementParameters oidManagementParameters) {
             // This should only be true when the task is manually triggered by the api
-            if (forceExpiration) {
+            if (oidManagementParameters.isForceExpiration()) {
                 return true;
             }
-            if (!expireOids) {
+            if (!oidManagementParameters.isExpireOids()) {
                 return false;
             }
+            final long entityExpirationTimeMs = oidManagementParameters.getEntityExpirationTimeMs();
             long entityExpirationTimeDays = TimeUnit.MILLISECONDS.toDays(entityExpirationTimeMs);
-            int successfulUpdatesCount = context.selectCount()
+            int successfulUpdatesCount = oidManagementParameters.getContext().selectCount()
                     .from(RECURRENT_OPERATIONS)
                     .where(RECURRENT_OPERATIONS.EXECUTION_TIME
                             .greaterThan(LocalDateTime.now().minusDays(entityExpirationTimeDays))
                             .and(RECURRENT_OPERATIONS.LAST_SEEN_UPDATE_SUCCESSFUL.isTrue())).fetchOne(0, int.class);
-            int expectedNumberOfSuccessfulTasks = (int)(entityExpirationTimeMs / validationFrequencyMs) / 2;
+            int expectedNumberOfSuccessfulTasks = (int)(entityExpirationTimeMs / oidManagementParameters.getValidationFrequencyMs()) / 2;
             if (successfulUpdatesCount >= expectedNumberOfSuccessfulTasks) {
                 return true;
             }
@@ -381,107 +393,14 @@ public class StaleOidManagerImpl implements StaleOidManager {
             return false;
         }
 
-        private int setLastSeenTimeStamps(Set<Long> currentOids) throws DataAccessException {
-            final Timestamp currentTimeStamp = new Timestamp(currentTimeMs);
-            Iterators.partition(currentOids.iterator(), BATCH_SIZE).forEachRemaining(batch ->
-                    context.update(ASSIGNED_IDENTITY)
-                            .set(ASSIGNED_IDENTITY.LAST_SEEN, currentTimeStamp)
-                            .where(ASSIGNED_IDENTITY.ID.in(batch)).execute());
-            return currentOids.size();
-        }
 
-        private Set<Long> getExpiredRecords(long entityExpirationTime, Map<Integer, Long> expirationDaysPerEntity) throws DataAccessException {
-            Timestamp expirationDateMs =
-                Timestamp.from(Instant.ofEpochMilli(currentTimeMs - entityExpirationTime));
-            final Result<Record1<Long>> updatedRecords;
-            SelectConditionStep<Record1<Long>> defaultExpirationQuery =
-                context.select(ASSIGNED_IDENTITY.ID)
-                .from(ASSIGNED_IDENTITY)
-                .where(ASSIGNED_IDENTITY.LAST_SEEN
-                    .lessThan(expirationDateMs)).and(ASSIGNED_IDENTITY.EXPIRED.isFalse());
-
-            if (!expirationDaysPerEntity.keySet().isEmpty()) {
-                updatedRecords = defaultExpirationQuery.andNot(ASSIGNED_IDENTITY.ENTITY_TYPE.in(expirationDaysPerEntity.keySet())).fetch();
-                for (Entry<Integer, Long> entry: expirationDaysPerEntity.entrySet()) {
-                    SelectQuery<Record1<Long>> queryPerEntity =
-                        getQueryForSelectingExpiredRecordsByEntity(entry.getKey(), entry.getValue());
-                    updatedRecords.addAll(queryPerEntity.fetch());
-                }
-            } else {
-                updatedRecords = defaultExpirationQuery.fetch();
-            }
-            return updatedRecords.intoSet(ASSIGNED_IDENTITY.ID);
-        }
-
-        private int setExpiredRecords(Map<Integer, Long> expirationDaysPerEntity) throws DataAccessException {
-            int updatedRecords = 0;
-            Timestamp expirationDateMs =
-                Timestamp.from(Instant.ofEpochMilli(currentTimeMs - entityExpirationTimeMs));
-             UpdateConditionStep<AssignedIdentityRecord> defaultUpdateQuery = context.update(ASSIGNED_IDENTITY)
-                .set(ASSIGNED_IDENTITY.EXPIRED, true)
-                .where(ASSIGNED_IDENTITY.LAST_SEEN
-                    .lessThan(expirationDateMs)).and(ASSIGNED_IDENTITY.EXPIRED.isFalse());
-            if (!expirationDaysPerEntity.keySet().isEmpty()) {
-                updatedRecords += defaultUpdateQuery.andNot(ASSIGNED_IDENTITY.ENTITY_TYPE.in(expirationDaysPerEntity.keySet())).execute();
-                for (Entry<Integer, Long> entry: expirationDaysPerEntity.entrySet()) {
-                    UpdateConditionStep<AssignedIdentityRecord> queryPerEntity =
-                        getQueryForSettingExpiredRecordsByEntity(entry.getKey(), entry.getValue());
-                    updatedRecords += queryPerEntity.execute();
-                }
-            } else {
-                updatedRecords = defaultUpdateQuery.execute();
-            }
-            return updatedRecords;
-        }
-
-        private void storeOidExpirationResultRecord(
-                @Nonnull final OidExpirationResultRecord oidExpirationResultRecord) throws DataAccessException {
-            context.insertInto(RECURRENT_OPERATIONS,
-                RECURRENT_OPERATIONS.EXECUTION_TIME,
-                RECURRENT_OPERATIONS.OPERATION_NAME,
-                RECURRENT_OPERATIONS.EXPIRATION_SUCCESSFUL,
-                RECURRENT_OPERATIONS.LAST_SEEN_UPDATE_SUCCESSFUL,
-                RECURRENT_OPERATIONS.EXPIRED_RECORDS,
-                RECURRENT_OPERATIONS.UPDATED_RECORDS,
-                RECURRENT_OPERATIONS.ERRORS)
-                .values(LocalDateTime.ofInstant(oidExpirationResultRecord.getTimeStamp(), clock.getZone()),
-                        EXPIRATION_TASK_NAME, oidExpirationResultRecord.isSuccessfulExpiration(), oidExpirationResultRecord.isSuccessfulUpdate(),
-                        oidExpirationResultRecord.getExpiredRecords(), oidExpirationResultRecord.getUpdatedRecords(),
-                        oidExpirationResultRecord.getErrors()).execute();
-        }
-
-        public int getNumberOfExpiredOids() {
-            return numberOfExpiredOids;
-        }
-
-        private SelectQuery<Record1<Long>> getQueryForSelectingExpiredRecordsByEntity(int entityType,
-                                                                                      long entityExpirationTimeMs) {
-            Timestamp entityExpirationDateMs =
-                Timestamp.from(Instant.ofEpochMilli(currentTimeMs - entityExpirationTimeMs));
-            return context.select(ASSIGNED_IDENTITY.ID)
-                .from(ASSIGNED_IDENTITY)
-                .where(ASSIGNED_IDENTITY.LAST_SEEN
-                    .lessThan(entityExpirationDateMs)).and(ASSIGNED_IDENTITY.EXPIRED.isFalse())
-                .and(ASSIGNED_IDENTITY.ENTITY_TYPE.eq(entityType)).getQuery();
-        }
-
-        private UpdateConditionStep<AssignedIdentityRecord> getQueryForSettingExpiredRecordsByEntity(int entityType,
-                                                                                                     long entityExpirationTimeMs) {
-            Timestamp entityExpirationDateMs =
-                Timestamp.from(Instant.ofEpochMilli(currentTimeMs - entityExpirationTimeMs));
-            return context.update(ASSIGNED_IDENTITY)
-                .set(ASSIGNED_IDENTITY.EXPIRED, true)
-                .where(ASSIGNED_IDENTITY.LAST_SEEN
-                    .lessThan(entityExpirationDateMs)).and(ASSIGNED_IDENTITY.EXPIRED.isFalse())
-                .and(ASSIGNED_IDENTITY.ENTITY_TYPE.eq(entityType));
-        }
     }
 
     /**
-     * Class to represent an {@link OidExpirationTask record} to insert in the database.
+     * Class to represent an {@link OidManagement record} to insert in the database.
      */
     @VisibleForTesting
-    static class OidExpirationResultRecord {
+    public static class OidExpirationResultRecord {
         private final Instant timeStamp;
         private boolean successfulUpdate;
         private boolean successfulExpiration;
@@ -506,11 +425,19 @@ public class StaleOidManagerImpl implements StaleOidManager {
             this.errors = recurrentOperationsRecord.getErrors();
         }
 
+        /**
+         * Set the updated records.
+         * @param updatedRecords to update
+         */
         public void setUpdatedRecords(int updatedRecords) {
             this.successfulUpdate = true;
             this.updatedRecords = updatedRecords;
         }
 
+        /**
+         * Set the expired records.
+         * @param expiredRecords records to expire
+         */
         public void setExpiredRecords(int expiredRecords) {
             this.successfulExpiration = true;
             this.expiredRecords = expiredRecords;
@@ -544,7 +471,11 @@ public class StaleOidManagerImpl implements StaleOidManager {
             return successfulExpiration;
         }
 
-        public synchronized String toCsvLine() {
+        /**
+         * Serialize the object into a csv format for diags.
+         * @return the csv
+         */
+        public String toCsvLine() {
             return String.format("%s, %s, %s, %s, %d, %d, %s", this.timeStamp, EXPIRATION_TASK_NAME, this.isSuccessfulUpdate(),
                     this.isSuccessfulExpiration(), this.updatedRecords, this.expiredRecords, this.errors);
         }
