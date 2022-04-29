@@ -82,10 +82,6 @@
             <artifactId>guava</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.arangodb</groupId>
-            <artifactId>arangodb-java-driver</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.github.rholder</groupId>
             <artifactId>guava-retrying</artifactId>
             <version>${guava-retrying.version}</version>

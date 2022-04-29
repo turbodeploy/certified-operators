@@ -41,7 +41,7 @@ public class TopologyGraphRepositoryRpcServiceTest {
 
     private LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator(), searchResolver);
 
-    private final ArangoRepositoryRpcService arangoRepoRpcService = mock(ArangoRepositoryRpcService.class);
+    private final RepositoryRpcService repositoryRpcService1 = mock(RepositoryRpcService.class);
 
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
@@ -51,7 +51,7 @@ public class TopologyGraphRepositoryRpcServiceTest {
             liveTopologyStore);
 
     private TopologyGraphRepositoryRpcService repositoryRpcService = new TopologyGraphRepositoryRpcService(
-        liveTopologyStore, arangoRepoRpcService, partialEntityConverter,
+        liveTopologyStore, repositoryRpcService1, partialEntityConverter,
         REALTIME_CONTEXT_ID, 1000, userSessionContext);
 
     @Test

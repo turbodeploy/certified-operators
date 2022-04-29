@@ -139,8 +139,6 @@
 
         <reactor.version>3.4.12</reactor.version>
 
-        <arangodb.version>3.0.ON</arangodb.version>
-        <arangodb.driver.version>4.2.6</arangodb.driver.version>
         <kafka.version>3.1.0</kafka.version>
 
         <st4.version>4.0.8</st4.version>
@@ -1236,7 +1234,6 @@
                      and these libraries, so keep them towards the top of the module list. -->
                 <module>../syslog</module>
                 <module>../db</module>
-                <module>../com.vmturbo.arangodb</module>
                 <module>../com.vmturbo.influxdb</module>
                 <module>../protoc-plugin-common</module>
                 <module>../protoc-spring-rest</module>
@@ -1470,7 +1467,6 @@
                 <module>../com.vmturbo.components.baseimage</module>
                 <module>../syslog</module>
                 <module>../db</module>
-                <module>../com.vmturbo.arangodb</module>
                 <module>../com.vmturbo.consul</module>
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.influxdb</module>
@@ -2465,11 +2461,6 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
-                <artifactId>com.vmturbo.arangodb</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.mediation.delegatingprobe</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -3345,11 +3336,6 @@
                 <groupId>com.palantir.docker.compose</groupId>
                 <artifactId>docker-compose-rule-core</artifactId>
                 <version>${docker.compose.rule.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.arangodb</groupId>
-                <artifactId>arangodb-java-driver</artifactId>
-                <version>${arangodb.driver.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.projectreactor</groupId>

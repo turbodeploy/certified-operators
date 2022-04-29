@@ -190,20 +190,6 @@ services:
       - topology-processor:/home/turbonomic/data
     restart: always
 
-  arangodb-prod:
-    extends:
-      file: common-services.yml
-      service: common-service
-    image: turbonomic/arangodb
-    environment:
-      ARANGO_ROOT_PASSWORD: "root"
-    volumes:
-      - arangodb:/var/lib/arangodb3
-      - arangodb-apps:/var/lib/arangodb3-apps
-      - arangodb-dump:/home/arangodb/arangodb-dump
-    stop_grace_period: '30m'
-    restart: always
-
   repository-prod:
     extends:
       file: common-services.yml
@@ -212,7 +198,6 @@ services:
     environment:
       component_type: repository
       instance_id: repository-1
-      REPOSITORY_ARANGODB_HOST: arangodb
       kafkaServers: kafka1:9092
     restart: always
 

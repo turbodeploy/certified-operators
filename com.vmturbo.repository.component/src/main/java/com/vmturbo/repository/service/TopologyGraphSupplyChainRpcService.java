@@ -17,8 +17,10 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
+
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,6 +29,7 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
@@ -52,6 +55,9 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
+import com.vmturbo.repository.plan.db.PlanEntityStore;
+import com.vmturbo.repository.plan.db.TopologyNotFoundException;
+import com.vmturbo.repository.plan.db.TopologySelection;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
@@ -65,26 +71,25 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final ArangoSupplyChainRpcService arangoSupplyChainService;
-
     private final LiveTopologyStore liveTopologyStore;
 
     private final SupplyChainStatistician supplyChainStatistician;
 
+    private final PlanEntityStore planEntityStore;
     private final long realtimeTopologyContextId;
 
     private final InMemorySupplyChainResolver inMemorySupplyChainResolver;
 
     public TopologyGraphSupplyChainRpcService(@Nonnull final UserSessionContext userSessionContext,
-                                              @Nonnull final LiveTopologyStore liveTopologyStore,
-                                              @Nonnull final ArangoSupplyChainRpcService arangoSupplyChainService,
-                                              @Nonnull final SupplyChainStatistician supplyChainStatistician,
-                                              @Nonnull final SupplyChainCalculator supplyChainCalculator,
-                                              final long realtimeTopologyContextId) {
+            @Nonnull final LiveTopologyStore liveTopologyStore,
+            @Nonnull final PlanEntityStore planEntityStore,
+            @Nonnull final SupplyChainStatistician supplyChainStatistician,
+            @Nonnull final SupplyChainCalculator supplyChainCalculator,
+            final long realtimeTopologyContextId) {
         this.liveTopologyStore = liveTopologyStore;
+        this.planEntityStore = planEntityStore;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.supplyChainStatistician = supplyChainStatistician;
-        this.arangoSupplyChainService = arangoSupplyChainService;
         inMemorySupplyChainResolver = new InMemorySupplyChainResolver(userSessionContext,
                                                                       liveTopologyStore,
                                                                       supplyChainCalculator);
@@ -123,14 +128,20 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
                 // to be serviced by in-memory topology
             inMemorySupplyChainResolver.serveInMemoryRequest(request, responseObserver);
         } else {
-
-            // this is not a real time topology request
-                // To be serviced by a topology stored in ArangoDB.
-                // This service is not currently used.
-                // We should consider either improving it
-                // to use the same algorithm as the real-time
-                // topology, or to remove it altogether.
-            arangoSupplyChainService.getSupplyChain(request, responseObserver);
+            try {
+                // We only look up supply chain in the projected topology for plans.
+                TopologySelection topologySelection = planEntityStore.getTopologySelection(contextId.get(), TopologyType.PROJECTED);
+                SupplyChain supplyChain = planEntityStore.getSupplyChain(topologySelection, request.getScope());
+                responseObserver.onNext(GetSupplyChainResponse.newBuilder()
+                        .setSupplyChain(supplyChain)
+                        .build());
+                responseObserver.onCompleted();
+            } catch (TopologyNotFoundException e) {
+                final String errorMessage = String.format("Topology not found in SQL database, "
+                        + "this may be a plan before removing ArangoDB: %s", e);
+                logger.warn(errorMessage);
+                responseObserver.onError(Status.NOT_FOUND.withDescription(errorMessage).asException());
+            }
         }
     }
 

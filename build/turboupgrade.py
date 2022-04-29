@@ -44,7 +44,6 @@ POST_HOOK = "post_hook"
 CONTAINER_STOP_TIMEOUT_SECS = 30
 COMPONENT_PORTS = {
     "db": 3306,
-    "arangodb": 8529,
     "consul": 8500,
     "clustermgr": 8080,
     "rsyslog": 2514,
@@ -297,7 +296,7 @@ def wait_until_component_ready(component):
     if component in ["nginx", "zoo1", "kafka1", "influxdb", "ml-datastore"]:
         time.sleep(wait_secs)
         return
-    elif component in ["arangodb", "db", "consul", "clustermgr", "rsyslog"]:
+    elif component in ["db", "consul", "clustermgr", "rsyslog"]:
         wait_until_connection_ready(component)
         return
 

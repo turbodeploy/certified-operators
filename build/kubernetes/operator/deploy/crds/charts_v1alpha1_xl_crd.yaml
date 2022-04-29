@@ -71,9 +71,6 @@ spec:
                 customImageNames:
                   description: Use custom image names
                   type: boolean
-                externalArangoDBName:
-                  description: DNS name for external arangodb server
-                  type: string
                 externalIP:
                   description: Static external IP address for ingress LoadBalancer
                   type: string
@@ -323,41 +320,6 @@ spec:
               type: object
 
             # Configure platform
-            arangodb:
-              properties:
-                annotations:
-                  description: component specific pod annotations list
-                  type: object
-                image:
-                  description: component specific image options
-                  properties:
-                    repository:
-                      description: component container registry and repository name
-                      type: string
-                    tag:
-                      description: component container tag
-                      type: string
-                    pullPolicy:
-                      description: component image pull policy
-                      type: string
-                  type: object
-                persistence:
-                  description: arangodb persistence options
-                  properties:
-                    arangodb:
-                      description: arangodb persistent volume size
-                      type: string
-                    apps:
-                      description: arangodb apps persistent volume size
-                      type: string
-                    dump:
-                      description: arangodb dump persistent volume size
-                      type: string
-                  type: object
-                serviceAccountName:
-                  description: component serviceAccountName
-                  type: string
-              type: object
             consul:
               properties:
                 annotations:

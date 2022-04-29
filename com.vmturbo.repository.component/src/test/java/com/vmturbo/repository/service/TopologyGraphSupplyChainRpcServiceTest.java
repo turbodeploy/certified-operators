@@ -55,6 +55,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
+import com.vmturbo.repository.plan.db.PlanEntityStore;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
@@ -69,16 +70,15 @@ public class TopologyGraphSupplyChainRpcServiceTest {
             searchResolver = new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
     private LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator(), searchResolver);
     private final UserSessionContext userSessionContext = Mockito.mock(UserSessionContext.class);
-
+    private final PlanEntityStore planEntityStore = mock(PlanEntityStore.class);
     private final long realTimeContextId = 7L;
 
     @Spy
     private final SupplyChainStatistician supplyChainStatistician =
             mock(SupplyChainStatistician.class);
     private final TopologyGraphSupplyChainRpcService service =
-        new TopologyGraphSupplyChainRpcService(
-            userSessionContext, liveTopologyStore, mock(ArangoSupplyChainRpcService.class),
-            supplyChainStatistician, new SupplyChainCalculator(), realTimeContextId);
+        new TopologyGraphSupplyChainRpcService(userSessionContext, liveTopologyStore,
+                planEntityStore, supplyChainStatistician, new SupplyChainCalculator(), realTimeContextId);
 
     private static final long VM_ID = 1L;
     private static final long REG_ID = 2L;

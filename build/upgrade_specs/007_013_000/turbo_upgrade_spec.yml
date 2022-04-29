@@ -2,7 +2,3 @@ services :
     nginx:
         pre_hook:
           - update_nginx_conf.sh
-
-    arangodb:
-        pre_hook:
-          - upgrade_arangodb_version.sh

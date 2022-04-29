@@ -7,8 +7,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
-import com.arangodb.ArangoDBException;
-
 import io.opentracing.SpanContext;
 
 import org.slf4j.Logger;
@@ -135,7 +133,7 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
             } else if (topologyInfo.getTopologyType() == TopologyType.PLAN) {
                 onPlanAnalysisTopologyReceivedInternal(topologyInfo, entityIterator, tracingContext);
             }
-        } catch (CommunicationException | InterruptedException | ArangoDBException e) {
+        } catch (CommunicationException | InterruptedException e) {
             logger.error("Error processing topology {}", topologyLabel, e);
         } finally {
             RemoteIteratorDrain.drainIterator(entityIterator, topologyLabel, true);

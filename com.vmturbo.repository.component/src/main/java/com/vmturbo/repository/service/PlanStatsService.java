@@ -75,8 +75,8 @@ public class PlanStatsService {
      * scenario change (i.e. as part of the plan configuration).
      */
     private static final Predicate<TopologyEntityDTO> ENTITY_ADDED_BY_SCENARIO =
-        topologyEntityDTO -> topologyEntityDTO.hasOrigin()
-        && topologyEntityDTO.getOrigin().hasPlanScenarioOrigin();
+            topologyEntityDTO -> topologyEntityDTO.hasOrigin()
+                    && topologyEntityDTO.getOrigin().hasPlanScenarioOrigin();
 
     /**
      * A predicate to test whether a given {@link TopologyEntityDTO} is suspended.
@@ -159,13 +159,13 @@ public class PlanStatsService {
      * @param relatedEntityType the {@link ApiEntityType} string version specifying entities targeted
      */
     public void getPlanTopologyStats(@Nonnull final Iterator<List<ProjectedTopologyEntity>> reader,
-                                     @Nonnull final StatEpoch statEpoch,
-                                     @Nonnull final StatsFilter statsFilter,
-                                     @Nonnull final Predicate<TopologyEntityDTO> entityPredicate,
-                                     @Nonnull final PaginationParameters paginationParameters,
-                                     @Nonnull final Type entityReturnType,
-                                     @Nonnull StreamObserver<PlanTopologyStatsResponse> responseObserver,
-                                     @Nullable final  String relatedEntityType) {
+            @Nonnull final StatEpoch statEpoch,
+            @Nonnull final StatsFilter statsFilter,
+            @Nonnull final Predicate<TopologyEntityDTO> entityPredicate,
+            @Nonnull final PaginationParameters paginationParameters,
+            @Nonnull final Type entityReturnType,
+            @Nonnull StreamObserver<PlanTopologyStatsResponse> responseObserver,
+            @Nullable final  String relatedEntityType) {
         // We store them in memory first, and sort and paginate them after.
         // The better solution would be to do the sorting and pagination in the database, but:
         //  1) At the time of this writing we often restrict the number of entities we retrieve
@@ -183,62 +183,62 @@ public class PlanStatsService {
 
         // For source topologies, filter entities added via scenario changes
         Predicate<TopologyEntityDTO> updatedEntityPredicate =
-            StatEpoch.PLAN_SOURCE == statEpoch
-                ? entityPredicate.and(ENTITY_ADDED_BY_SCENARIO.negate())
-                : entityPredicate;
+                StatEpoch.PLAN_SOURCE == statEpoch
+                        ? entityPredicate.and(ENTITY_ADDED_BY_SCENARIO.negate())
+                        : entityPredicate;
 
         updatedEntityPredicate = updatedEntityPredicate
-            // Filter suspended entities from both the source and projected topologies
-            .and(ENTITY_SUSPENDED.negate())
-            // Filter unplaced VMs from both the source and projected topologies (though we
-            // generally only expect to encounter them in the projected topology)
-            .and(UNPLACED_VM.negate());
+                // Filter suspended entities from both the source and projected topologies
+                .and(ENTITY_SUSPENDED.negate())
+                // Filter unplaced VMs from both the source and projected topologies (though we
+                // generally only expect to encounter them in the projected topology)
+                .and(UNPLACED_VM.negate());
 
         // Retrieve the entities and their stats from the data store
         final Map<Long, EntityAndStats> entities = retrieveTopologyEntitiesAndStats(
-            reader, updatedEntityPredicate, statsFilter, statEpoch, sourceSnapshotTime,
+                reader, updatedEntityPredicate, statsFilter, statEpoch, sourceSnapshotTime,
                 relatedEntityType);
 
         // Begin the sorting and pagination process
         final EntityStatsPaginationParams paginationParams =
-            paginationParamsFactory.newPaginationParams(paginationParameters);
+                paginationParamsFactory.newPaginationParams(paginationParameters);
         final SortCommodityValueGetter sortCommodityValueGetter;
         if (paginationParams.getSortCommodity().equals(PRICE_INDEX)) {
             // Note: This sorting will only work for projected topologies. Source topologies entities
             // are stored as TopologyEntityDTOs and thus will not have the projectedPriceIndex or the
             // originalPriceIndex fields set.
             sortCommodityValueGetter = (entityId) ->
-                Optional.of((float)entities.get(entityId).entity.getProjectedPriceIndex());
+                    Optional.of((float)entities.get(entityId).entity.getProjectedPriceIndex());
         } else {
             sortCommodityValueGetter = (entityId) ->
-                entities.get(entityId).getCommodityUsedAvg(paginationParams.getSortCommodity());
+                    entities.get(entityId).getCommodityUsedAvg(paginationParams.getSortCommodity());
         }
 
         final PaginatedStats paginatedStats =
-            entityStatsPaginator.paginate(entities.keySet(), sortCommodityValueGetter, paginationParams);
+                entityStatsPaginator.paginate(entities.keySet(), sortCommodityValueGetter, paginationParams);
 
         final PlanTopologyStatsResponse.Builder paginationResponseBuilder =
-            PlanTopologyStatsResponse.newBuilder()
-                .setPaginationResponse(paginatedStats.getPaginationResponse());
+                PlanTopologyStatsResponse.newBuilder()
+                        .setPaginationResponse(paginatedStats.getPaginationResponse());
         responseObserver.onNext(paginationResponseBuilder.build());
 
         // It's important to preserve the order in the paginated stats page.
         for (List<Long> idsChunk :
-            Lists.partition(paginatedStats.getNextPageIds(), maxEntitiesPerChunk)) {
+                Lists.partition(paginatedStats.getNextPageIds(), maxEntitiesPerChunk)) {
             final PlanTopologyStatsResponse.Builder entityStatsResponseBuilder =
-                PlanTopologyStatsResponse.newBuilder();
+                    PlanTopologyStatsResponse.newBuilder();
             final PlanEntityStatsChunk.Builder planEntityStatsChunkBuilder =
-                PlanEntityStatsChunk.newBuilder();
+                    PlanEntityStatsChunk.newBuilder();
             idsChunk.stream()
-                .forEach(entityId -> {
-                    final EntityAndStats entityAndStats = Objects.requireNonNull(entities.get(entityId));
-                    final PlanEntityStats planEntityStat = PlanEntityStats.newBuilder()
-                        .setPlanEntity(partialEntityConverter
-                            .createPartialEntity(entityAndStats.entity.getEntity(), entityReturnType,
-                                    userSessionContext))
-                        .setPlanEntityStats(entityAndStats.stats).build();
-                    planEntityStatsChunkBuilder.addEntityStats(planEntityStat);
-                });
+                    .forEach(entityId -> {
+                        final EntityAndStats entityAndStats = Objects.requireNonNull(entities.get(entityId));
+                        final PlanEntityStats planEntityStat = PlanEntityStats.newBuilder()
+                                .setPlanEntity(partialEntityConverter
+                                        .createPartialEntity(entityAndStats.entity.getEntity(), entityReturnType,
+                                                userSessionContext))
+                                .setPlanEntityStats(entityAndStats.stats).build();
+                        planEntityStatsChunkBuilder.addEntityStats(planEntityStat);
+                    });
             entityStatsResponseBuilder.setEntityStatsWrapper(planEntityStatsChunkBuilder);
             responseObserver.onNext(entityStatsResponseBuilder.build());
         }
@@ -275,14 +275,14 @@ public class PlanStatsService {
      * @param relatedEntityType the {@link ApiEntityType} string version specifying entities targeted
      */
     public void getPlanCombinedStats(@Nonnull final Iterator<List<ProjectedTopologyEntity>> sourceReader,
-                                     @Nonnull final Iterator<List<ProjectedTopologyEntity>> projectedReader,
-                                     @Nonnull final StatsFilter statsFilter,
-                                     @Nonnull final Predicate<TopologyEntityDTO> entityPredicate,
-                                     @Nonnull final TopologyType topologyToSortOn,
-                                     @Nonnull final PaginationParameters paginationParameters,
-                                     @Nonnull final Type entityReturnType,
-                                     @Nonnull StreamObserver<PlanCombinedStatsResponse> responseObserver,
-                                     @Nullable final  String relatedEntityType) {
+            @Nonnull final Iterator<List<ProjectedTopologyEntity>> projectedReader,
+            @Nonnull final StatsFilter statsFilter,
+            @Nonnull final Predicate<TopologyEntityDTO> entityPredicate,
+            @Nonnull final TopologyType topologyToSortOn,
+            @Nonnull final PaginationParameters paginationParameters,
+            @Nonnull final Type entityReturnType,
+            @Nonnull StreamObserver<PlanCombinedStatsResponse> responseObserver,
+            @Nullable final  String relatedEntityType) {
         // We don't store any timestamps within the plan data stored in ArangoDB. Instead, we have
         // a convention where the requested start and end date are used to determine the timestamp
         // for source and projected snapshots, respectively. In order to get source stats, the
@@ -292,33 +292,33 @@ public class PlanStatsService {
         long sourceSnapshotTime = statsFilter.getStartDate();
         long projectedSnapshotTime = statsFilter.getEndDate();
         final Predicate<TopologyEntityDTO> updatedEntityPredicate = entityPredicate
-            // Filter suspended entities from both the source and projected topologies
-            .and(ENTITY_SUSPENDED.negate())
-            // Filter unplaced VMs from both the source and projected topologies (though we
-            // generally only expect to encounter them in the projected topology)
-            .and(UNPLACED_VM.negate());
+                // Filter suspended entities from both the source and projected topologies
+                .and(ENTITY_SUSPENDED.negate())
+                // Filter unplaced VMs from both the source and projected topologies (though we
+                // generally only expect to encounter them in the projected topology)
+                .and(UNPLACED_VM.negate());
         // Filter entities added via scenario changes from the source topology response
         final Predicate<TopologyEntityDTO> sourceEntityPredicate = updatedEntityPredicate
-            .and(ENTITY_ADDED_BY_SCENARIO.negate());
+                .and(ENTITY_ADDED_BY_SCENARIO.negate());
         // Retrieve the entities and their stats from the data store
         final Map<Long, EntityAndStats> sourceEntities =
-            retrieveTopologyEntitiesAndStats(sourceReader, sourceEntityPredicate, statsFilter,
-                StatEpoch.PLAN_SOURCE, sourceSnapshotTime, relatedEntityType);
+                retrieveTopologyEntitiesAndStats(sourceReader, sourceEntityPredicate, statsFilter,
+                        StatEpoch.PLAN_SOURCE, sourceSnapshotTime, relatedEntityType);
         final Map<Long, EntityAndStats> projectedEntities =
-            retrieveTopologyEntitiesAndStats(projectedReader, updatedEntityPredicate, statsFilter,
-                StatEpoch.PLAN_PROJECTED, projectedSnapshotTime, relatedEntityType);
+                retrieveTopologyEntitiesAndStats(projectedReader, updatedEntityPredicate, statsFilter,
+                        StatEpoch.PLAN_PROJECTED, projectedSnapshotTime, relatedEntityType);
 
         // Determine which topology to sort on
         // Retrieve from the request the primary topology type for this request, which will be used
         // for sorting
         final Map<Long, EntityAndStats> entitiesToSort =
-            (topologyToSortOn == TopologyType.SOURCE) ?
-                sourceEntities :
-                projectedEntities;
+                (topologyToSortOn == TopologyType.SOURCE) ?
+                        sourceEntities :
+                        projectedEntities;
 
         // Begin the sorting and pagination process
         final EntityStatsPaginationParams paginationParams =
-            paginationParamsFactory.newPaginationParams(paginationParameters);
+                paginationParamsFactory.newPaginationParams(paginationParameters);
 
         // Determine how entities will be sorted
         // It's possible that some entities may only exist in one or the other topology. If an
@@ -332,14 +332,14 @@ public class PlanStatsService {
             // are stored as TopologyEntityDTOs and thus will not have the projectedPriceIndex or the
             // originalPriceIndex fields set.
             sortCommodityValueGetter = (entityId) ->
-                entitiesToSort.containsKey(entityId)
-                    ? Optional.of((float)entitiesToSort.get(entityId).entity.getProjectedPriceIndex())
-                    : Optional.empty();
+                    entitiesToSort.containsKey(entityId)
+                            ? Optional.of((float)entitiesToSort.get(entityId).entity.getProjectedPriceIndex())
+                            : Optional.empty();
         } else {
             sortCommodityValueGetter = (entityId) ->
-                entitiesToSort.containsKey(entityId)
-                    ? entitiesToSort.get(entityId).getCommodityUsedAvg(paginationParams.getSortCommodity())
-                    : Optional.empty();
+                    entitiesToSort.containsKey(entityId)
+                            ? entitiesToSort.get(entityId).getCommodityUsedAvg(paginationParams.getSortCommodity())
+                            : Optional.empty();
         }
 
         // Create a set containing the IDs of all entities found in either topology
@@ -348,16 +348,16 @@ public class PlanStatsService {
         combinedEntityIds.addAll(projectedEntities.keySet());
         // Sort and paginate all the entity IDs, using the comparator created above
         final PaginatedStats paginatedStats =
-            entityStatsPaginator.paginate(combinedEntityIds, sortCommodityValueGetter, paginationParams);
+                entityStatsPaginator.paginate(combinedEntityIds, sortCommodityValueGetter, paginationParams);
 
         // Send the pagination information as the first chunk of the response
         final PlanCombinedStatsResponse.Builder paginationResponseBuilder =
-            PlanCombinedStatsResponse.newBuilder()
-                .setPaginationResponse(paginatedStats.getPaginationResponse());
+                PlanCombinedStatsResponse.newBuilder()
+                        .setPaginationResponse(paginatedStats.getPaginationResponse());
         responseObserver.onNext(paginationResponseBuilder.build());
 
         sendCombinedStatsResponse(paginatedStats, sourceEntities, projectedEntities,
-            entityReturnType, responseObserver);
+                entityReturnType, responseObserver);
 
         // Signal that the page has been completely transmited.
         responseObserver.onCompleted();
@@ -592,50 +592,50 @@ public class PlanStatsService {
     }
 
     private void sendCombinedStatsResponse(@Nonnull final PaginatedStats paginatedStats,
-                                           @Nonnull final Map<Long, EntityAndStats> sourceEntities,
-                                           @Nonnull final Map<Long, EntityAndStats> projectedEntities,
-                                           @Nonnull final Type returnType,
-                                           @Nonnull final StreamObserver<PlanCombinedStatsResponse> responseObserver) {
+            @Nonnull final Map<Long, EntityAndStats> sourceEntities,
+            @Nonnull final Map<Long, EntityAndStats> projectedEntities,
+            @Nonnull final Type returnType,
+            @Nonnull final StreamObserver<PlanCombinedStatsResponse> responseObserver) {
         // Send the entities and stats as chunks, limited by our internal chunk sizes rather than
         // the configured page size. A single page may require multiple chunks to transmit.
         // It's important to preserve the order in the paginated stats page.
         for (List<Long> idsChunk :
-            Lists.partition(paginatedStats.getNextPageIds(), maxEntitiesPerChunk)) {
+                Lists.partition(paginatedStats.getNextPageIds(), maxEntitiesPerChunk)) {
             final PlanCombinedStatsResponse.Builder entityCombinedStatsResponseBuilder =
-                PlanCombinedStatsResponse.newBuilder();
+                    PlanCombinedStatsResponse.newBuilder();
             final PlanEntityAndCombinedStatsChunk.Builder planEntityAndCombinedStatsChunkBuilder =
-                PlanEntityAndCombinedStatsChunk.newBuilder();
+                    PlanEntityAndCombinedStatsChunk.newBuilder();
             // Build a single chunk of the page
             idsChunk.stream()
-                .forEach(entityId -> {
-                    final EntityAndStats sourceEntityAndStats = sourceEntities.get(entityId);
-                    final EntityAndStats projectedEntityAndStats = projectedEntities.get(entityId);
-                    final Builder planEntityAndCombinedStatsBuilder =
-                        PlanEntityAndCombinedStats.newBuilder();
-                    EntityStats.Builder combinedStatsBuilder = EntityStats.newBuilder();
-                    // A given entity may exist in (either) one or both plan topologies
-                    if (sourceEntityAndStats != null) {
-                        combinedStatsBuilder.mergeFrom(sourceEntityAndStats.stats.build());
-                        planEntityAndCombinedStatsBuilder
-                            .setPlanSourceEntity(partialEntityConverter
-                                .createPartialEntity(sourceEntityAndStats.entity.getEntity(), returnType,
-                                        userSessionContext))
-                            .setPlanCombinedStats(combinedStatsBuilder);
-                    }
-                    if (projectedEntityAndStats != null) {
-                        combinedStatsBuilder.mergeFrom(projectedEntityAndStats.stats.build());
-                        planEntityAndCombinedStatsBuilder
-                            .setPlanProjectedEntity(partialEntityConverter
-                                .createPartialEntity(projectedEntityAndStats.entity.getEntity(), returnType,
-                                        userSessionContext))
-                            .setPlanCombinedStats(combinedStatsBuilder);
-                    }
-                    planEntityAndCombinedStatsChunkBuilder
-                        .addEntityAndCombinedStats(planEntityAndCombinedStatsBuilder.build());
-                });
+                    .forEach(entityId -> {
+                        final EntityAndStats sourceEntityAndStats = sourceEntities.get(entityId);
+                        final EntityAndStats projectedEntityAndStats = projectedEntities.get(entityId);
+                        final Builder planEntityAndCombinedStatsBuilder =
+                                PlanEntityAndCombinedStats.newBuilder();
+                        EntityStats.Builder combinedStatsBuilder = EntityStats.newBuilder();
+                        // A given entity may exist in (either) one or both plan topologies
+                        if (sourceEntityAndStats != null) {
+                            combinedStatsBuilder.mergeFrom(sourceEntityAndStats.stats.build());
+                            planEntityAndCombinedStatsBuilder
+                                    .setPlanSourceEntity(partialEntityConverter
+                                            .createPartialEntity(sourceEntityAndStats.entity.getEntity(), returnType,
+                                                    userSessionContext))
+                                    .setPlanCombinedStats(combinedStatsBuilder);
+                        }
+                        if (projectedEntityAndStats != null) {
+                            combinedStatsBuilder.mergeFrom(projectedEntityAndStats.stats.build());
+                            planEntityAndCombinedStatsBuilder
+                                    .setPlanProjectedEntity(partialEntityConverter
+                                            .createPartialEntity(projectedEntityAndStats.entity.getEntity(), returnType,
+                                                    userSessionContext))
+                                    .setPlanCombinedStats(combinedStatsBuilder);
+                        }
+                        planEntityAndCombinedStatsChunkBuilder
+                                .addEntityAndCombinedStats(planEntityAndCombinedStatsBuilder.build());
+                    });
             // Stream a single chunk of the page to the responseObserver
             entityCombinedStatsResponseBuilder
-                .setEntityCombinedStatsWrapper(planEntityAndCombinedStatsChunkBuilder);
+                    .setEntityCombinedStatsWrapper(planEntityAndCombinedStatsChunkBuilder);
             responseObserver.onNext(entityCombinedStatsResponseBuilder.build());
         }
     }
@@ -667,19 +667,19 @@ public class PlanStatsService {
         @Nonnull
         Optional<Float> getCommodityUsedAvg(@Nonnull final String commodityName) {
             return stats.getStatSnapshotsList().stream()
-                // There should be at most one stat snapshot, because each stat snapshot represents
-                // a point in time, and we are restoring a single ProjectedTopologyEntity
-                // message - which is just the entity at the time that the source or projected
-                // topology was generated.
-                .findFirst()
-                .flatMap(snapshot -> snapshot.getStatRecordsList().stream()
-                    .filter(record -> record.getName().equals(commodityName))
-                    // This is technically incorrect, because commodities may have keys.
-                    // But in practice, we usually sort by sold commodities (e.g. CPU) or
-                    // commodities from attributes (e.g. priceIndex) that don't
-                    // have keys.
-                    .findFirst())
-                .map(record -> record.getUsed().getAvg());
+                    // There should be at most one stat snapshot, because each stat snapshot represents
+                    // a point in time, and we are restoring a single ProjectedTopologyEntity
+                    // message - which is just the entity at the time that the source or projected
+                    // topology was generated.
+                    .findFirst()
+                    .flatMap(snapshot -> snapshot.getStatRecordsList().stream()
+                            .filter(record -> record.getName().equals(commodityName))
+                            // This is technically incorrect, because commodities may have keys.
+                            // But in practice, we usually sort by sold commodities (e.g. CPU) or
+                            // commodities from attributes (e.g. priceIndex) that don't
+                            // have keys.
+                            .findFirst())
+                    .map(record -> record.getUsed().getAvg());
         }
     }
 }

@@ -11,9 +11,7 @@ import com.google.common.base.MoreObjects;
 
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
-import com.vmturbo.repository.topology.TopologyDatabase;
 
 public abstract class GraphCmd {
     /**
@@ -57,7 +55,7 @@ public abstract class GraphCmd {
     private GraphCmd() {}
 
     /**
-     * A command that contains all the information a {@link GraphDBExecutor} needs to compute
+     * A command that contains all the information a {@link GraphCmd} needs to compute
      * a supply chain for a given service entity.
      */
     public static final class GetSupplyChain extends GraphCmd {
@@ -137,8 +135,6 @@ public abstract class GraphCmd {
     public static final class GetGlobalSupplyChain extends GraphCmd {
         private final String vertexCollection;
 
-        private final TopologyDatabase topologyDatabase;
-
         private final Optional<EnvironmentType> environmentType;
 
         // the entity access scope represents the set of entities a user has access to.
@@ -147,12 +143,10 @@ public abstract class GraphCmd {
         // the entity types to skip while traversing the repository
         private final Set<Integer> ignoredEntityTypes;
 
-        public GetGlobalSupplyChain(final TopologyDatabase topologyDatabase,
-                                    final String vertexCollection,
+        public GetGlobalSupplyChain(final String vertexCollection,
                                     final Optional<EnvironmentType> environmentType,
                                     final Optional<EntityAccessScope> entityAccessScope,
                                     final Set<Integer> ignoredEntityTypes) {
-            this.topologyDatabase = topologyDatabase;
             this.vertexCollection = vertexCollection;
             this.environmentType = environmentType;
             this.entityAccessScope = entityAccessScope;
@@ -161,10 +155,6 @@ public abstract class GraphCmd {
 
         public String getVertexCollection() {
             return vertexCollection;
-        }
-
-        public TopologyDatabase getTopologyDatabase() {
-            return topologyDatabase;
         }
 
         public Optional<EnvironmentType> getEnvironmentType() {
@@ -182,7 +172,6 @@ public abstract class GraphCmd {
         @Override
         public String toString() {
             return MoreObjects.toStringHelper(this)
-                    .add("topologyDatabase", topologyDatabase)
                     .add("vertexCollection", vertexCollection)
                     .add("environmentType", environmentType)
                     .add("entityAccessScope",

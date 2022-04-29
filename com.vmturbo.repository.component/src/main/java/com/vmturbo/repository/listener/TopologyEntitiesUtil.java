@@ -7,8 +7,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -27,7 +27,7 @@ import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntities
  */
 public class TopologyEntitiesUtil {
 
-    private static final Logger logger = LoggerFactory.getLogger(TopologyEntitiesUtil.class);
+    private static final Logger logger = LogManager.getLogger();
 
     private TopologyEntitiesUtil() {}
 

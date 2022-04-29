@@ -23,9 +23,6 @@ volumes:
   mysqldata: *localdriver
   mysql_var: *localdriver
   mysql_log: *localdriver
-  arangodb: *localdriver
-  arangodb-apps: *localdriver
-  arangodb-dump: *localdriver
   influxdb: *localdriver
   influxdb-dump: *localdriver
   clustermgr: *localdriver
@@ -377,22 +374,6 @@ services:
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
 
-  arangodb:
-    extends:
-      file: common-services.yml
-      service: common-service
-    image: turbonomic/arangodb:${XL_VERSION}
-    environment:
-      ARANGO_ROOT_PASSWORD: "root"
-    ports:
-      - "${ARANGODB_PORT}"
-      - "${ARANGODB_DUMP_PORT}"
-    volumes:
-      - arangodb:/var/lib/arangodb3
-      - arangodb-apps:/var/lib/arangodb3-apps
-      - arangodb-dump:/home/arangodb/arangodb-dump
-    mem_limit: ${ARANGODB_MEM_LIMIT_BYTE}
-
   influxdb:
     extends:
       file: common-services.yml
@@ -448,14 +429,12 @@ services:
       - "${REPOSITORY_PORT}"
       - "${REPOSITORY_DEBUG_PORT}"
     depends_on:
-      - arangodb
       - clustermgr
       - kafka1
       - auth
     environment:
       component_type: repository
       instance_id: repository-1
-      REPOSITORY_ARANGODB_HOST: arangodb
       kafkaServers: ${KAFKA_SERVERS}
       JAVA_COMPONENT_OPTS: "${REPOSITORY_SYSTEM_PROPERTIES}"
       JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
