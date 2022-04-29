@@ -8,8 +8,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
-import com.arangodb.ArangoDBException;
-
 import io.opentracing.SpanContext;
 
 import org.apache.logging.log4j.LogManager;
@@ -186,7 +184,7 @@ public class MarketTopologyListener implements
             }
             throw e;
         } catch (CommunicationException | TimeoutException | TopologyEntitiesException
-            | GraphDatabaseException | ArangoDBException e) {
+            | GraphDatabaseException e) {
             logger.error(
                 "Error occurred during retrieving projected topology " + projectedTopologyId, e);
             SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.PROJECTED_LABEL, SharedMetrics.FAILED_LABEL).increment();

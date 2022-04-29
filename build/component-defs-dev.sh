@@ -92,17 +92,6 @@ function start_topology-processor() {
     turbonomic/topology-processor:latest
 }
 
-function start_arangodb() {
-    TARGET_NODE="$1"
-    docker service create --replicas 1 --name arangodb --network turbosecure --constraint "node.hostname == ${TARGET_NODE}" \
-    -p "8529:8529" \
-    -e 'ARANGO_ROOT_PASSWORD=root' \
-    --mount type=volume,src=arangodb,dst=/var/lib/arangodb3,volume-driver=local \
-    --mount type=volume,src=arangodb-apps,dst=/var/lib/arangodb3-apps,volume-driver=local \
-    --mount type=volume,src=arangodb-dump,dst=/home/arangodb/arangodb-dump,volume-driver=local \
-    turbonomic/arangodb:latest
-}
-
 function start_repository() {
     TARGET_NODE="$1"
     docker service create --replicas 1 --name repository --network turbosecure --constraint "node.hostname == ${TARGET_NODE}" \
@@ -110,7 +99,6 @@ function start_repository() {
     -e 'consul_host=consul' \
     -e 'component_type=repository' \
     -e 'instance_id=repository-1' \
-    -e 'REPOSITORY_ARANGODB_HOST=arangodb' \
     --mount type=volume,src=repository,dst=/home/turbonomic/data,volume-driver=local \
     turbonomic/com.vmturbo.repository-component:latest
 }
@@ -212,7 +200,7 @@ function start_xl_component() {
 
 # We store the images for worker node
 function save_images_for_worker() {
-    IMAGES=(db arangodb repository api history group)
+    IMAGES=(db repository api history group)
     SRC="$1"
     DST="$2"
     mkdir "${DST}"
@@ -249,7 +237,6 @@ function start_all_xl() {
     start_xl_component plan-orchestrator "turbonomic"
     start_xl_component action-orchestrator "turbonomic"
 
-    start_xl_component arangodb "worker1"
     start_xl_component repository "worker1"
     start_xl_component api "worker1"
     start_xl_component history "worker1"

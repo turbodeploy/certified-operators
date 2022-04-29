@@ -20,9 +20,6 @@ volumes:
   mysqldata: *localdriver
   mysql_var: *localdriver
   mysql_log: *localdriver
-  arangodb: *localdriver
-  arangodb-apps: *localdriver
-  arangodb-dump: *localdriver
   influxdb: *localdriver
   influxdb-dump: *localdriver
   clustermgr: *localdriver
@@ -145,19 +142,12 @@ services:
       - kafka1
       - auth
 
-  arangodb:
-    extends:
-      file: prod-services.yml
-      service: arangodb-prod
-    mem_limit: 1024M
-
   repository:
     extends:
       file: prod-services.yml
       service: repository-prod
     mem_limit: 2560M
     depends_on:
-      - arangodb
       - clustermgr
       - kafka1
       - auth

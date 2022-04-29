@@ -1,11 +1,6 @@
 package com.vmturbo.repository.topology;
 
 
-import java.util.List;
-import java.util.Map.Entry;
-
-import com.arangodb.entity.BaseDocument;
-import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
 
@@ -20,26 +15,6 @@ public class GlobalSupplyChainRelationships {
        return this.relationships;
     }
 
-    /**
-     * Convert into a BaseDocument for ArangoDB
-     */
-    public BaseDocument convertToDocument() {
-        BaseDocument providerRelsDocument = new BaseDocument();
-        for (String key : this.relationships.keySet()) {
-            providerRelsDocument.addAttribute(key, this.relationships.get(key));
-        }
-        return providerRelsDocument;
-    }
-
-    public GlobalSupplyChainRelationships(List<BaseDocument> results) {
-        this.relationships = HashMultimap.create();
-        for (BaseDocument result: results) {
-            for (Entry<String, Object> e : result.getProperties().entrySet()) {
-                relationships.putAll(e.getKey(), (List<String>) e.getValue());
-            }
-        }
-
-    }
     public GlobalSupplyChainRelationships(final Multimap<String, String> providerRels) {
         this.relationships = providerRels;
     }

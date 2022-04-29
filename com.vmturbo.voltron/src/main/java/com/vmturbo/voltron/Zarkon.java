@@ -5,21 +5,15 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.arangodb.ArangoDB;
-import com.arangodb.ArangoDBException;
-import com.arangodb.ArangoDatabase;
-import com.arangodb.Protocol;
 import com.ecwid.consul.v1.ConsulClient;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.core.env.ConfigurableEnvironment;
-import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.kvstore.ConsulKeyValueStore;
-import com.vmturbo.repository.RepositoryComponentConfig;
 import com.vmturbo.sql.utils.TestDbConfiguration;
 import com.vmturbo.voltron.Voltron.VoltronContext;
 
@@ -29,7 +23,6 @@ import com.vmturbo.voltron.Voltron.VoltronContext;
  */
 class Zarkon implements Runnable {
 
-    private static final int ARANGO_DB_ERROR_CODE_DATABASE_NOT_FOUND = 1228;
     private static final Logger logger = LogManager.getLogger();
     private final AtomicBoolean demolished = new AtomicBoolean(false);
 
@@ -53,43 +46,6 @@ class Zarkon implements Runnable {
             // The context is probably not initialized so we can't get bean objects from it,
             // but we can still get the property values.
             VoltronContext context = contextOpt.getValue().get();
-
-            AnnotationConfigWebApplicationContext repoContext =
-                    context.getComponents().get(Component.REPOSITORY);
-            if (repoContext != null) {
-                ConfigurableEnvironment repoEnv = repoContext.getEnvironment();
-                // Create an arango driver, and drop the database.
-                String dbName = RepositoryComponentConfig.DATABASE_NAME_PREFIX + namespace;
-                try {
-                    ArangoDB arangoDB = new ArangoDB.Builder().host(repoEnv.getProperty("REPOSITORY_ARANGODB_HOST", "localhost"),
-                            Integer.parseInt(repoEnv.getProperty("arangoDBPort", "8529")))
-                            .password(repoEnv.getProperty("arangoDBPassword", "root"))
-                            .user(repoEnv.getProperty("arangoDBUsername", "root"))
-                            .maxConnections(5)
-                            .useProtocol(Protocol.HTTP_VPACK)
-                            .build();
-                    ArangoDatabase db = arangoDB.db(dbName);
-                    final boolean success = db.drop();
-                    if (success) {
-                        logger.info("Dropped arango database: {}", db.name());
-                    } else {
-                        logger.warn(
-                                "Database {} was not dropped successfully. May not have existed.",
-                                db.name());
-                    }
-                } catch (ArangoDBException e) {
-                    if (e.getErrorNum() != null
-                            && e.getErrorNum() == ARANGO_DB_ERROR_CODE_DATABASE_NOT_FOUND) {
-                        logger.warn(
-                                "Database {} was not dropped successfully. It did not exist.",
-                                dbName);
-                    } else {
-                        logger.error("Failed to demolish arango database.", e);
-                    }
-                } catch (Exception e) {
-                    logger.error("Failed to demolish arango database.", e);
-                }
-            }
 
             // Clean up SQL.
             context.getComponents().forEach((component, uninitializedContext) -> {

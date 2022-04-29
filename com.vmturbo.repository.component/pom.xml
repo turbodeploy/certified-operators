@@ -16,7 +16,6 @@
     <properties>
         <swagger.component.name>Repository</swagger.component.name>
 
-        <derive4j.version>0.9.1</derive4j.version>
         <handlerbars.version>4.3.0</handlerbars.version>
         <javaslang.version>2.0.5</javaslang.version>
         <javaslang-circuitbreaker.version>0.5.0</javaslang-circuitbreaker.version>
@@ -388,16 +387,6 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.arangodb</groupId>
-            <artifactId>arangodb-java-driver</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.derive4j</groupId>
-            <artifactId>derive4j</artifactId>
-            <version>${derive4j.version}</version>
-            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>com.github.jknack</groupId>

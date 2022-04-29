@@ -5,7 +5,6 @@ COMPONENTS=(
     kafka
     zookeeper
     db
-    arangodb
     com.vmturbo.consul
     syslog
     vmt-component-base

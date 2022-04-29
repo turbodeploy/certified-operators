@@ -10,7 +10,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -57,9 +56,6 @@ import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable;
 import com.vmturbo.external.api.TurboApiClient;
 import com.vmturbo.kvstore.KeyValueStore;
-import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
-import com.vmturbo.repository.graph.driver.GraphDatabaseDriverBuilder;
-import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.securekvstore.VaultKeyValueStore;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
@@ -99,9 +95,6 @@ public class VoltronsContainer {
             context.getComponents().entrySet().stream()
                 .filter(entry -> components.contains(entry.getKey()))
                 .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
-        // Arango first - least dependencies.
-        Optional.ofNullable(componentsToClean.get(Component.REPOSITORY))
-                .ifPresent(repoContext -> cleanArango(Component.REPOSITORY.getShortName(), repoContext));
         componentsToClean.forEach(this::cleanSQL);
         // Consul/KV store last - lightweight data, potentially stores passwords.
         componentsToClean.forEach((component, context) -> {
@@ -132,21 +125,6 @@ public class VoltronsContainer {
                 }
             }
             logger.info("Voltron demolished in {} seconds", stopwatch.elapsed(TimeUnit.SECONDS));
-        }
-    }
-
-    private void cleanArango(String name, ConfigurableWebApplicationContext context) {
-        // Clean Arango
-        try {
-            GraphDatabaseDriverBuilder driverBuilder = context.getBean(GraphDatabaseDriverBuilder.class);
-            GraphDBExecutor executor = context.getBean(GraphDBExecutor.class);
-            GraphDatabaseDriver driver = driverBuilder.build(executor.getArangoDatabaseName(), "");
-            driver.dropCollections();
-        } catch (BeansException e) {
-            // No config, expected for all except repository.
-            logger.debug("No arango database config for {}. {}", name, e.getMessage());
-        } catch (Exception e) {
-            logger.error("Failed to remove arango database for {}", name, e);
         }
     }
 

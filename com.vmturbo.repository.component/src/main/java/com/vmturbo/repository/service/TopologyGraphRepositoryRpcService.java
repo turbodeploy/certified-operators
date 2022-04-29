@@ -44,7 +44,7 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
 
     private final Logger logger = LogManager.getLogger();
 
-    private final ArangoRepositoryRpcService arangoRepoRpcService;
+    private final RepositoryRpcService repositoryRpcService;
 
     private final int maxEntitiesPerChunk; // the max number of entities to send in a single message
 
@@ -57,12 +57,12 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
     private final UserSessionContext userSessionContext;
 
     public TopologyGraphRepositoryRpcService(@Nonnull final LiveTopologyStore liveTopologyStore,
-                                      @Nonnull final ArangoRepositoryRpcService arangoRepoRpcService,
+                                      @Nonnull final RepositoryRpcService repositoryRpcService,
                                       @Nonnull final PartialEntityConverter partialEntityConverter,
                                       final long realtimeTopologyContextId,
                                       final int maxEntitiesPerChunk,
                                       final UserSessionContext userSessionContext) {
-        this.arangoRepoRpcService = arangoRepoRpcService;
+        this.repositoryRpcService = repositoryRpcService;
         this.liveTopologyStore = Objects.requireNonNull(liveTopologyStore);
         this.partialEntityConverter = Objects.requireNonNull(partialEntityConverter);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -73,7 +73,7 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
     @Override
     public void deleteTopology(DeleteTopologyRequest request,
             StreamObserver<RepositoryOperationResponse> responseObserver) {
-        arangoRepoRpcService.deleteTopology(request, responseObserver);
+        repositoryRpcService.deleteTopology(request, responseObserver);
     }
 
     @Override
@@ -81,7 +81,7 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
                                  final StreamObserver<RepositoryDTO.RetrieveTopologyResponse> responseObserver) {
         // TODO (roman, May 22 2019): We could check for the realtime topology here, but realistically
         // we only use this endpoint for plans, so it's probably not necessary.
-        arangoRepoRpcService.retrieveTopology(topologyRequest, responseObserver);
+        repositoryRpcService.retrieveTopology(topologyRequest, responseObserver);
     }
 
     @Override
@@ -132,7 +132,7 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
 
             responseObserver.onCompleted();
         } else {
-            arangoRepoRpcService.retrieveTopologyEntities(request, responseObserver);
+            repositoryRpcService.retrieveTopologyEntities(request, responseObserver);
         }
     }
 
@@ -149,12 +149,12 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
     @Override
     public void getPlanTopologyStats(@Nonnull final PlanTopologyStatsRequest request,
                                      @Nonnull final StreamObserver<PlanTopologyStatsResponse> responseObserver) {
-        arangoRepoRpcService.getPlanTopologyStats(request, responseObserver);
+        repositoryRpcService.getPlanTopologyStats(request, responseObserver);
     }
 
     @Override
     public void getPlanCombinedStats(@Nonnull final PlanCombinedStatsRequest request,
                                      @Nonnull final StreamObserver<PlanCombinedStatsResponse> responseObserver) {
-        arangoRepoRpcService.getPlanCombinedStats(request, responseObserver);
+        repositoryRpcService.getPlanCombinedStats(request, responseObserver);
     }
 }

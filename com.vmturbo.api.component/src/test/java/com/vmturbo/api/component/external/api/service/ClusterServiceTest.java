@@ -22,7 +22,6 @@ import com.vmturbo.clustermgr.api.ComponentProperties;
 public class ClusterServiceTest {
     private static final String ASTERISKS = "*****";
     private static final String GROUP = "group";
-    private static final String ARANGODB_PASS = "arangodbPass";
     private static final String USER_PASSWORD = "userPassword";
     private static final String SSL_KEYSTORE_PASSWORD = "sslKeystorePassword";
     private static final String READONLY_PASSWORD = "readonlyPassword";
@@ -44,8 +43,6 @@ public class ClusterServiceTest {
     public void testGetClusterConfiguration() {
         final ClusterConfiguration clusterConfigurationDTO = new ClusterConfiguration();
         final ComponentProperties propertiesDTO = new ComponentProperties();
-        // arrango password
-        propertiesDTO.put(ARANGODB_PASS, "root");
         propertiesDTO.put(USER_PASSWORD, "root");
         propertiesDTO.put(SSL_KEYSTORE_PASSWORD, "root");
         propertiesDTO.put(READONLY_PASSWORD, "root");
@@ -54,7 +51,6 @@ public class ClusterServiceTest {
         Mockito.when(clusterManagerClient.getClusterConfiguration())
                 .thenReturn(clusterConfigurationDTO);
         ClusterConfigurationDTO newClusterConfigurationDTO = serviceUnderTest.getClusterConfiguration();
-        assertEquals(ASTERISKS, newClusterConfigurationDTO.getDefaultProperties().get(GROUP).get(ARANGODB_PASS));
         assertEquals(ASTERISKS, newClusterConfigurationDTO.getDefaultProperties().get(GROUP).get(USER_PASSWORD));
         assertEquals(ASTERISKS, newClusterConfigurationDTO.getDefaultProperties().get(GROUP).get(SSL_KEYSTORE_PASSWORD));
         assertEquals(ASTERISKS, newClusterConfigurationDTO.getDefaultProperties().get(GROUP).get(READONLY_PASSWORD));
@@ -68,8 +64,6 @@ public class ClusterServiceTest {
     @Test
     public void testGetDefaultPropertiesForComponentType() {
         final ComponentProperties propertiesDTO = new ComponentProperties();
-        // arrango password
-        propertiesDTO.put(ARANGODB_PASS, "root");
         propertiesDTO.put(USER_PASSWORD, "root");
         propertiesDTO.put(SSL_KEYSTORE_PASSWORD, "root");
         propertiesDTO.put(READONLY_PASSWORD, "root");
@@ -77,7 +71,6 @@ public class ClusterServiceTest {
         Mockito.when(clusterManagerClient.getComponentDefaultProperties(GROUP))
                 .thenReturn(propertiesDTO);
         ComponentPropertiesDTO newPropertiesDTO = serviceUnderTest.getComponentDefaultProperties(GROUP);
-        assertEquals(ASTERISKS, newPropertiesDTO.get(ARANGODB_PASS));
         assertEquals(ASTERISKS, newPropertiesDTO.get(USER_PASSWORD));
         assertEquals(ASTERISKS, newPropertiesDTO.get(SSL_KEYSTORE_PASSWORD));
         assertEquals(ASTERISKS, newPropertiesDTO.get(READONLY_PASSWORD));
@@ -90,12 +83,8 @@ public class ClusterServiceTest {
      */
     @Test
     public void testGetComponentTypeProperty() {
-        Mockito.when(clusterManagerClient.getComponentDefaultProperty(GROUP, ARANGODB_PASS))
-                .thenReturn("root");
         Mockito.when(clusterManagerClient.getComponentDefaultProperty(GROUP, DB_HOST))
                 .thenReturn(DB);
-        String resultArrango = serviceUnderTest.getComponentDefaultProperty(GROUP, ARANGODB_PASS);
-        assertEquals(ASTERISKS, resultArrango);
         String resultDB = serviceUnderTest.getComponentDefaultProperty(GROUP, DB_HOST);
         assertEquals(DB, resultDB);
     }
@@ -108,14 +97,12 @@ public class ClusterServiceTest {
         // given
         final ClusterConfiguration originalClusterConfiguration = new ClusterConfiguration();
         final ComponentProperties propertiesDTO = new ComponentProperties();
-        propertiesDTO.put(ARANGODB_PASS, "root");
         propertiesDTO.put(USER_PASSWORD, "root");
         propertiesDTO.put(DB_HOST, "DB");
         propertiesDTO.put(USERNAME, "tester");
         originalClusterConfiguration.addComponentType(GROUP, propertiesDTO);
 
         final ComponentPropertiesDTO newPropertiesDTO = new ComponentPropertiesDTO();
-        newPropertiesDTO.put(ARANGODB_PASS, "*****"); //no change
         newPropertiesDTO.put(USER_PASSWORD, "newPassword"); //updated password
         newPropertiesDTO.put(DB_HOST, "newValue"); //updated other property
         newPropertiesDTO.put(USERNAME, "tester"); //no change
@@ -124,7 +111,6 @@ public class ClusterServiceTest {
 
         final  ClusterConfiguration mergedClusterConfiguration = new ClusterConfiguration();
         final ComponentProperties mergedPropertiesDTO = new ComponentProperties();
-        mergedPropertiesDTO.put(ARANGODB_PASS, "root"); //should replace the "*****" with original password
         mergedPropertiesDTO.put(USER_PASSWORD, "newPassword"); //should update to new password
         mergedPropertiesDTO.put(DB_HOST, "newValue"); // should udpate to new value
         mergedPropertiesDTO.put(USERNAME, "tester"); // should not change

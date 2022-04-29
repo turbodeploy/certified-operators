@@ -58,7 +58,7 @@ services:
       LOG4J_CONTEXT_SELECTOR: com.vmturbo.mediation.common.context.ThreadGroupPrefixContextSelector
 
   # A common-service is a common service definition for a service that is not a fully-fledged component in the
-  # XL system. For example, services such as consul, MariaDB, ArangoDB, etc. do not implement the component
+  # XL system. For example, services such as consul, MariaDB etc. do not implement the component
   # interface. These sorts of services should consider extending the common-service service.
   common-service:
     cap_drop:

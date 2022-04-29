@@ -26,7 +26,6 @@ do
         # Generally available stuff
         # We assume that neither base image name, nor the version contain the ':'.
         # So the following happens for the file names:
-        # arangodb:3.0.8 -> arangodb
         # grafana/grafana -> grafana
         # hopsoft/graphite-statsd -> graphite-statsd
         docker pull ${img} && docker save ${img} | xz -T0 -9 > $(echo $img | cut -d':' -f1 | cut -d'/' -f2).tgz

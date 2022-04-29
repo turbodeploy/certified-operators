@@ -26,7 +26,6 @@ public final class SensitiveDataUtil {
     public static final String ASTERISKS = "xxxxx";
     // Other sensitive keys that are not currently included in component secrets.
     private static final Set<String> additionalSensitiveKeySet = ImmutableSet.of(
-            "arangodbPass",
             "userPassword",
             "clientSecret",
             "sslKeystorePassword",

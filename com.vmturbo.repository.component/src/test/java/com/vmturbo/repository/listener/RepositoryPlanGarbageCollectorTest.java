@@ -2,12 +2,9 @@ package com.vmturbo.repository.listener;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -22,7 +19,6 @@ import com.vmturbo.repository.plan.db.PlanEntityStore;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyDeletionException;
 
 /**
  * Unit tests for {@link RepositoryPlanGarbageCollector}.
@@ -66,85 +62,6 @@ public class RepositoryPlanGarbageCollectorTest {
         }
 
         assertThat(result, containsInAnyOrder(1L, 2L));
-    }
-
-    /**
-     * Test delete gets propagated.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
-    public void testDelete() throws Exception {
-        garbageCollector.deletePlanData(CONTEXT_ID);
-
-        verify(lifecycleManager).deleteTopology(SRC_TID);
-        verify(lifecycleManager).deleteTopology(PROJ_TID);
-    }
-
-
-    /**
-     * Test projected topology not found.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
-    public void testDeleteOnlySrcFound() throws Exception {
-        when(lifecycleManager.getTopologyId(CONTEXT_ID, TopologyType.PROJECTED))
-            .thenReturn(Optional.empty());
-
-        garbageCollector.deletePlanData(CONTEXT_ID);
-
-        verify(lifecycleManager).deleteTopology(SRC_TID);
-    }
-
-    /**
-     * Test projected topology failed to delete.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
-    public void testDeleteOnlySrcSucceed() throws Exception {
-
-        doThrow(new TopologyDeletionException(
-            Collections.singletonList("foo"))).when(lifecycleManager).deleteTopology(PROJ_TID);
-
-        garbageCollector.deletePlanData(CONTEXT_ID);
-
-        verify(lifecycleManager).deleteTopology(SRC_TID);
-        verify(lifecycleManager).deleteTopology(PROJ_TID);
-    }
-
-
-    /**
-     * Test source topology not found.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
-    public void testDeleteOnlyProjFound() throws Exception {
-        when(lifecycleManager.getTopologyId(CONTEXT_ID, TopologyType.SOURCE))
-            .thenReturn(Optional.empty());
-
-        garbageCollector.deletePlanData(CONTEXT_ID);
-
-        verify(lifecycleManager).deleteTopology(PROJ_TID);
-    }
-
-    /**
-     * Test source failed to delete.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
-    public void testDeleteOnlyProjSucceed() throws Exception {
-
-        doThrow(new TopologyDeletionException(
-            Collections.singletonList("foo"))).when(lifecycleManager).deleteTopology(SRC_TID);
-
-        garbageCollector.deletePlanData(CONTEXT_ID);
-
-        verify(lifecycleManager).deleteTopology(SRC_TID);
-        verify(lifecycleManager).deleteTopology(PROJ_TID);
     }
 
 }

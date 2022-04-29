@@ -21,7 +21,7 @@ XL_COMPONENTS="auth topology-processor market repository plan-orchestrator actio
         history cost mediation-hyperv mediation-vcenter mediation-netapp mediation-ucs mediation-udt \
         mediation-vmax mediation-vmm mediation-hpe3par mediation-pure mediation-oneview api"
 # list of "support" containers to start
-BASE_IMAGES="nginx rsyslog consul clustermgr db arangodb"
+BASE_IMAGES="nginx rsyslog consul clustermgr db"
 # how many docker images to start, XL components and nginx
 # the dependent base images are started automatically due to the dependencies.
 N_IMAGES=$(($(echo ${XL_COMPONENTS} | wc -w) + 1))

@@ -1,22 +1,16 @@
 package com.vmturbo.repository.service;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
@@ -24,8 +18,6 @@ import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import javaslang.control.Either;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -43,7 +35,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEnti
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceImplBase;
 import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
@@ -60,25 +51,20 @@ import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyDeletionException;
-import com.vmturbo.repository.topology.protobufs.TopologyProtobufReader;
-import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
 
 /**
- * Implementation of RepositoryService that uses ArangoDB for both plan and realtime.
+ * Implementation of RepositoryService for plans.
  *
  * <p>Note that this is currently only used for plans. It is still capable of handling realtime
  * topologies, but for such topologies it has been replaced by the
  * {@link TopologyGraphRepositoryRpcService} for efficiency reasons.</p>
  */
-public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
+public class RepositoryRpcService extends RepositoryServiceImplBase {
 
     private static final Logger logger = LogManager.getLogger();
 
     private final TopologyLifecycleManager topologyLifecycleManager;
 
-    private final TopologyProtobufsManager topologyProtobufsManager;
-
-    private final GraphDBService graphDBService;
 
     /**
      * A service for retrieving plan entity stats.
@@ -95,9 +81,10 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
 
     private final UserSessionContext userSessionContext;
 
-    public ArangoRepositoryRpcService(@Nonnull final TopologyLifecycleManager topologyLifecycleManager,
-                                      @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
-                                      @Nonnull final GraphDBService graphDBService,
+    /**
+     * Repository Service.
+     */
+    public RepositoryRpcService(@Nonnull final TopologyLifecycleManager topologyLifecycleManager,
                                       @Nonnull final PlanStatsService planStatsService,
                                       @Nonnull final PartialEntityConverter partialEntityConverter,
                                       final int maxEntitiesPerChunk,
@@ -105,8 +92,6 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
                                       @Nonnull final PlanEntityFilterConverter planEntityFilterConverter,
                                       @Nonnull final UserSessionContext userSessionContext) {
         this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
-        this.topologyProtobufsManager = Objects.requireNonNull(topologyProtobufsManager);
-        this.graphDBService = Objects.requireNonNull(graphDBService);
         this.planStatsService = Objects.requireNonNull(planStatsService);
         this.partialEntityConverter = partialEntityConverter;
         this.maxEntitiesPerChunk = maxEntitiesPerChunk;
@@ -189,8 +174,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
             responseObserver.onCompleted();
             return true;
         } catch (TopologyNotFoundException e) {
-            // Move up to warn when we deprecate Arango.
-            logger.debug("Topology not found in SQL database: {}", e.toString());
+            logger.warn("Topology not found in SQL database: {}", e.toString());
             return false;
         }
     }
@@ -201,39 +185,12 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
 
         if (retrieveTopologyFromSql(topologyRequest, responseObserver)) {
             return;
-        }
-
-        final long topologyID = topologyRequest.getTopologyId();
-
-        try {
-            logger.debug("Retrieving topology for {} with filter {}", topologyID,
-                    topologyRequest.getEntityFilter());
-            final TopologyProtobufReader reader =
-                    topologyProtobufsManager.createTopologyProtobufReader(
-                        topologyID,
-                        topologyRequest.hasEntityFilter() ?
-                                Optional.of(topologyRequest.getEntityFilter()) : Optional.empty());
-            while (reader.hasNext()) {
-                for (List<ProjectedTopologyEntity> chunk :
-                    Lists.partition(reader.next(), maxEntitiesPerChunk)) {
-                    final RepositoryDTO.RetrieveTopologyResponse.Builder responseChunkBuilder =
-                        RepositoryDTO.RetrieveTopologyResponse.newBuilder();
-                    chunk.forEach(e -> responseChunkBuilder.addEntities(
-                        partialEntityConverter.createPartialEntity(e.getEntity(), topologyRequest.getReturnType(),
-                                userSessionContext)));
-                    responseObserver.onNext(responseChunkBuilder.build());
-                }
-            }
-            responseObserver.onCompleted();
-        } catch (NoSuchElementException nse) {
+        } else {
+            final long topologyID = topologyRequest.getTopologyId();
             responseObserver.onError(Status
-                .NOT_FOUND
-                .withDescription(String.format("Cannot find topology with ID %s", topologyID))
-                .asException());
-        } catch (RuntimeException e) {
-            responseObserver.onError(Status.UNKNOWN.withCause(e)
-                                                   .withDescription(e.getMessage())
-                                                   .asException());
+                    .NOT_FOUND
+                    .withDescription(String.format("Cannot find topology with ID %s", topologyID))
+                    .asException());
         }
     }
 
@@ -262,8 +219,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
             responseObserver.onCompleted();
             return true;
         } catch (TopologyNotFoundException e) {
-            // Move up to warn when we deprecate Arango.
-            logger.debug("Topology not found in SQL database: {}", e.toString());
+            logger.warn("Topology not found in SQL database: {}", e.toString());
             return false;
         }
     }
@@ -297,36 +253,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
             return;
         }
 
-        final TopologyID topologyID = topologyIdOpt.get();
-        final Either<String, Collection<TopologyEntityDTO>> result =
-            graphDBService.retrieveTopologyEntities(topologyID,
-                ImmutableSet.copyOf(request.getEntityOidsList()));
-
-        Collection<TopologyEntityDTO> filteredEntities = result.isRight()
-                ? filterEntityByType(request, result.get())
-                : Collections.emptyList();
-        // send the results in batches, if needed
-        Iterators.partition(filteredEntities.iterator(), maxEntitiesPerChunk).forEachRemaining(chunk -> {
-            PartialEntityBatch.Builder batch = PartialEntityBatch.newBuilder();
-            chunk.forEach(e -> batch.addEntities(
-                partialEntityConverter.createPartialEntity(e, request.getReturnType(), userSessionContext)));
-
-            logger.debug("Sending entity batch of {} items", batch.getEntitiesCount());
-            responseObserver.onNext(batch.build());
-        });
-
         responseObserver.onCompleted();
-    }
-
-    private Collection<TopologyEntityDTO> filterEntityByType (RetrieveTopologyEntitiesRequest request,
-                                                              Collection<TopologyEntityDTO> entities) {
-        if (!request.getEntityTypeList().isEmpty()) {
-            return entities.stream()
-                    .filter(e -> request.getEntityTypeList().contains(e.getEntityType()))
-                    .collect(Collectors.toList());
-        } else {
-            return entities;
-        }
     }
 
     private boolean getPlanTopologyStatsFromSql(@Nonnull PlanTopologyStatsRequest request,
@@ -339,7 +266,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
             StatEpoch epoch = topologySelection.getTopologyType() == RepositoryDTO.TopologyType.SOURCE ? StatEpoch.PLAN_SOURCE : StatEpoch.PLAN_PROJECTED;
             Iterator<List<ProjectedTopologyEntity>> entities =
                     planEntityStore.getHackyStatsEntities(topologySelection, filter);
-            Predicate<TopologyEntityDTO> entityPredicate = ArangoRepositoryRpcService.newEntityMatcher(request);
+            Predicate<TopologyEntityDTO> entityPredicate = RepositoryRpcService.newEntityMatcher(request);
 
             planStatsService.getPlanTopologyStats(entities, epoch, request.getRequestDetails().getFilter(),
                 entityPredicate,
@@ -373,44 +300,15 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
         if (getPlanTopologyStatsFromSql(request, responseObserver)) {
             // Served the request from SQL database.
             return;
-        }
-
-        final long topologyId = request.getTopologyId();
-        logger.debug("Retrieving plan stats for topology {}.", topologyId);
-        // create a filter on relatedEntityType
-        final String relatedEntityType = request.getRequestDetails().hasRelatedEntityType() ?
-            request.getRequestDetails().getRelatedEntityType() : null;
-        final StatsFilter statsFilter = request.getRequestDetails().getFilter();
-        final Predicate<TopologyEntityDTO> entityPredicate = newEntityMatcher(request);
-
-        // Create a reader to read the entities for the provided topology
-        final TopologyProtobufReader reader;
-        try {
-            reader = topologyProtobufsManager.createTopologyProtobufReader(topologyId, Optional.empty());
-        } catch (NoSuchElementException e) {
-            // If the topology couldn't be found, notify the responseObserver and return.
+        } else {
+            final long topologyId = request.getTopologyId();
             final String errorMessage = "Topology with ID: " + topologyId + "not found.";
-            logger.error(errorMessage, e.getMessage());
+            logger.error(errorMessage);
             responseObserver.onError(Status.NOT_FOUND
-                .withDescription(errorMessage)
-                .asException());
+                    .withDescription(errorMessage)
+                    .asException());
             return;
         }
-
-        // Lookup the topology type so that the StatEpoch will be set correctly
-        StatEpoch statEpoch = topologyLifecycleManager.getTopologyId(topologyId)
-            .map(TopologyID::getType)
-            .map(topologyType -> topologyType == TopologyType.SOURCE ? StatEpoch.PLAN_SOURCE
-                : StatEpoch.PLAN_PROJECTED)
-            .orElse(null);
-
-        final PaginationParameters paginationParams = request.getRequestDetails().getPaginationParams();
-        final Type entityReturnType = request.getRequestDetails().getReturnType();
-        // Let the plan stats service do the rest of the heavy lifting.
-        // The response will be sent through the responseObserver. Streaming in this way may perform
-        // better than returning the entire result here and subsequently streaming.
-        planStatsService.getPlanTopologyStats(reader, statEpoch, statsFilter, entityPredicate,
-            paginationParams, entityReturnType, responseObserver, relatedEntityType);
     }
 
     private boolean getPlanCombinedStatsFromSql(PlanCombinedStatsRequest request,
@@ -428,7 +326,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
             final Type entityReturnType = request.getRequestDetails().getReturnType();
             final String relatedEntityType = request.getRequestDetails().hasRelatedEntityType()
                 ? request.getRequestDetails().getRelatedEntityType() : null;
-            Predicate<TopologyEntityDTO> entityPredicate = ArangoRepositoryRpcService.newEntityMatcher(request);
+            Predicate<TopologyEntityDTO> entityPredicate = RepositoryRpcService.newEntityMatcher(request);
             planStatsService.getPlanCombinedStats(source,
                 projected,
                 request.getRequestDetails().getFilter(),
@@ -441,8 +339,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
                 relatedEntityType);
             return true;
         } catch (TopologyNotFoundException e) {
-            // Move up to warn when we deprecate Arango.
-            logger.debug("Topology not found in SQL database: {}", e.toString());
+            logger.warn("Topology not found in SQL database: {}", e.toString());
             return false;
         }
     }
@@ -497,45 +394,6 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
             return;
         }
 
-        final TopologyID sourceTopologyID = sourceTopologyIdOpt.get();
-        final TopologyID projectedTopologyID = projectedTopologyIdOpt.get();
-
-        // create a filter on relatedEntityType
-        final String relatedEntityType = request.getRequestDetails().hasRelatedEntityType() ?
-                request.getRequestDetails().getRelatedEntityType() : null;
-        final StatsFilter statsFilter = request.getRequestDetails().getFilter();
-        final Predicate<TopologyEntityDTO> entityPredicate = newEntityMatcher(request);
-
-        // Create a reader to read the entities for each of source and projected topologies
-        final TopologyProtobufReader sourceReader;
-        final TopologyProtobufReader projectedReader;
-        try {
-            sourceReader = topologyProtobufsManager
-                .createTopologyProtobufReader(sourceTopologyID.getTopologyId(), Optional.empty());
-            projectedReader = topologyProtobufsManager
-                .createTopologyProtobufReader(projectedTopologyID.getTopologyId(), Optional.empty());
-        } catch (NoSuchElementException e) {
-            // If either topology couldn't be found, notify the responseObserver and return.
-            final String errorMessage = "Topology for plan ID: " + contextId + "not found.";
-            logger.error(errorMessage, e.getMessage());
-            responseObserver.onError(Status.NOT_FOUND
-                .withDescription(errorMessage)
-                .asException());
-            return;
-        }
-
-        // Determine which topology to sort on
-        // Retrieve from the request the primary topology type for this request, which will be used
-        // for sorting
-        final TopologyType topologyToSortOn = TopologyType.mapTopologyType(request.getTopologyToSortOn());
-        final PaginationParameters paginationParams = request.getRequestDetails().getPaginationParams();
-        final Type entityReturnType = request.getRequestDetails().getReturnType();
-        // Let the plan stats service do the rest of the heavy lifting.
-        // The response will be sent through the responseObserver. Streaming in this way may perform
-        // better than returning the entire result here and subsequently streaming.
-        planStatsService.getPlanCombinedStats(sourceReader, projectedReader, statsFilter,
-            entityPredicate, topologyToSortOn, paginationParams, entityReturnType, responseObserver,
-            relatedEntityType);
     }
 
     private boolean validatePlanCombinedStatsRequest(PlanCombinedStatsRequest request,
@@ -573,9 +431,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
     /**
      * A predicate over a TopologyEntityDTO that will return true if the entity matches the
      * filters in the request.
-     *
      * TODO: implement the filtering in the PropertyValueFilter component of the request - OM-33678
-     *
      * @param request the External REST API version of the entity type to select
      * @return true if the entity type of the given TopologyEntityDTO matches the given relatedEntityType
      */
@@ -618,11 +474,10 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
         @Nullable final String relatedEntityType) {
         logger.debug("Creating entity matcher using relatedType: {}, entity filter: {}.",
             relatedEntityType, entityFilter);
-        final Optional<Set<Long>> requestedEntities = entityFilter != null ?
-            Optional.of(Sets.newHashSet(entityFilter.getEntityIdsList())) :
-            Optional.empty();
-        final Predicate<TopologyEntityDTO> entityTypePredicate = relatedEntityType != null ?
-            matchEntityType(relatedEntityType) : noFilterPredicate();
+        final Optional<Set<Long>> requestedEntities = entityFilter != null
+                ? Optional.of(Sets.newHashSet(entityFilter.getEntityIdsList())) : Optional.empty();
+        final Predicate<TopologyEntityDTO> entityTypePredicate = relatedEntityType != null
+                ? matchEntityType(relatedEntityType) : noFilterPredicate();
         return (entity) -> {
             if (requestedEntities.isPresent() && !requestedEntities.get().contains(entity.getOid())) {
                 return false;
@@ -647,6 +502,5 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
     private static Predicate<TopologyEntityDTO> noFilterPredicate() {
         return (entity) -> true;
     }
-
 
 }

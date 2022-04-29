@@ -76,9 +76,6 @@ public class GroupComponent extends BaseVmtComponent {
 
     private static Logger logger = LoggerFactory.getLogger(GroupComponent.class);
 
-    @Value("${arangodbHealthCheckIntervalSeconds:60}")
-    private int arangoHealthCheckIntervalSeconds;
-
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariadbHealthCheckIntervalSeconds;
 
