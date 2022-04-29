@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.Writer;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -185,6 +186,53 @@ public class IdentityProviderImplTest {
         assertNotEquals(Long.valueOf(entityId),
                 identityProvider.getIdsForEntities(probeId,
                         Collections.singletonList(diffEntity)).keySet().iterator().next());
+    }
+
+    /**
+     * Test that the same entity according to the input properties gets assigned
+     * the same OID, and different entities get Optional Long OIDs.
+     *
+     * @throws Exception If any exception thrown.
+     */
+    @Test
+    public void testGetEntityIdFromProperties() throws Exception {
+        identityProvider.waitForInitializedStore();
+        ProbeInfo probeInfo = ProbeInfo.newBuilder(baseProbeInfo)
+                .addEntityMetadata(
+                        EntityIdentityMetadata.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                                .addNonVolatileProperties(PropertyMetadata.newBuilder().setName("id"))
+                )
+                .build();
+        long probeId = identityProvider.getProbeId(probeInfo);
+        EntityDTO entity = EntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                .setId("test")
+                .setDisplayName("testName")
+                .build();
+        final Map<Long, EntityDTO> ids = identityProvider.getIdsForEntities(probeId,
+                Collections.singletonList(entity));
+        assertEquals(1, ids.size());
+        final long entityId = ids.keySet().iterator().next();
+        // Entity with the same id and same name
+        Map<String, String> identifyingProperties = new HashMap<String, String>();
+        identifyingProperties.put("id", "test");
+        identifyingProperties.put("displayName", "testName");
+        assertEquals(Optional.of(Long.valueOf(entityId)),
+                identityProvider.getOidFromProperties(identifyingProperties, probeId, entity.getEntityType()));
+        identifyingProperties.clear();
+        // Entity with the same id and different name
+        identifyingProperties.put("id", "test");
+        identifyingProperties.put("displayName", "newTestName");
+        assertEquals(Optional.of(Long.valueOf(entityId)),
+                identityProvider.getOidFromProperties(identifyingProperties, probeId, entity.getEntityType()));
+        identifyingProperties.clear();
+        // Entity with different id and same name
+        identifyingProperties.put("id", "newTest");
+        identifyingProperties.put("displayName", "testName");
+        Optional<Long>  retrievedOid = identityProvider.getOidFromProperties(identifyingProperties, probeId, entity.getEntityType());
+        assertNotEquals(Optional.of(Long.valueOf(entityId)), retrievedOid);
+        assertEquals(Optional.empty(), retrievedOid);
     }
 
     /**

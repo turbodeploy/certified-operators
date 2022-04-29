@@ -5,7 +5,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import java.io.Reader;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -86,7 +85,7 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
         try (IdentityRecordsOperation identityRecordsOperation = store_.createTransaction();
              DataMetricTimer timer = OID_ASSIGNMENT_TIME.startTimer()) {
             for (EntryData data : entries) {
-                retList.add(getOidToUse(data, identityRecordsOperation));
+                retList.add(getOrCreateOidToUse(data, identityRecordsOperation));
             }
         } catch (IdentityServiceStoreOperationException | IdentityUninitializedException e) {
             throw new IdentityServiceException("Failed upserting entries " + entries, e);
@@ -107,7 +106,7 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
      *                                              underlying store.
      * @throws IdentityUninitializedException If the identity service initialization is incomplete.
      */
-    private long getOidToUse(@Nonnull final EntryData entryData,
+    private long getOrCreateOidToUse(@Nonnull final EntryData entryData,
                              @Nonnull final IdentityRecordsOperation identityRecordsOperation)
             throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         final EntityDescriptor descriptor = entryData.getDescriptor();
@@ -116,50 +115,81 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
                 descriptor.getVolatileProperties(metadataDescriptor);
         final List<PropertyDescriptor> nonVolatileProperties =
             descriptor.getNonVolatileProperties(metadataDescriptor);
-        // First, see if we have the match by the identifying properties
-        final long existingOid;
-        existingOid = store_.lookupByIdentifyingSet(nonVolatileProperties, volatileProperties);
+        final List<PropertyDescriptor> heuristicsProperties =
+                descriptor.getHeuristicProperties(metadataDescriptor);
+        long existingOid;
+        existingOid = getOidFromProperties(nonVolatileProperties, volatileProperties,
+                heuristicsProperties, descriptor, metadataDescriptor);
         if (existingOid != INVALID_OID) {
-            if (!volatileProperties.isEmpty()) {
+                // Update immediately. This is because, if there is a placeholder match(e.g. matching a dummy
+                // value during upgrade) and it gets substituted with the actual value, the record has to be
+                // updated so that subsequent entities won't match and get a new oid.
+            if (!volatileProperties.isEmpty() || !heuristicsProperties.isEmpty()) {
                 identityRecordsOperation.addEntry(existingOid, entryData);
             }
             return existingOid;
-        }
-        // We do not have the match. We might have to perform the search based on non-volatile
-        // properties.
-        // The volatile properties are the subset of the identifying properties, and
-        // the result of descriptor.getVolatileProperties(dtoNow) is fully contained in the
-        // result of the descriptor.getIdentifyingProperties(dtoNow).
-        // Search for all identifying properties, including volatile ones.
-        // We might have a match there.
-        Collection<PropertyDescriptor> heuristicsNow =
-                descriptor.getHeuristicProperties(metadataDescriptor);
-        // We only need non-volatile properties for the query.
-        // The reason behind it is the fact that when we get to this point, one or more volatile
-        // properties have changed.
-        // We will perform the heuristic match, and we need all the Entities that could be a
-        // potential hit.
-        if (heuristicsNow.size() > 0) {
-            for (EntityProxyDescriptor match : store_.getDtosByNonVolatileProperties(nonVolatileProperties)) {
-                // We have volatile properties. Perform heuristics
-                Iterable<PropertyDescriptor> heuristicsLast = match.getHeuristicProperties();
-                // See if we need to merge the two
-                // The VMTHeuristicsMatcher will have to perform the query, locate the existing
-                // Entity, and see if match is found.
-                // The match is found, return OID.
-                if (heuristicsMatcher_.locateMatch(heuristicsLast, heuristicsNow, descriptor, metadataDescriptor)) {
-                    // Update immediately. This is because, if there is a placeholder match(e.g. matching a dummy
-                    // value during upgrade) and it gets substituted with the actual value, the record has to be
-                    // updated so that subsequent entities won't match and get a new oid.
-                    identityRecordsOperation.addEntry(match.getOID(), entryData);
-                    return match.getOID();
-                }
-            }
         }
         // Exhausted all possibilities. No match. Generate a new one.
         final long oid = IdentityGenerator.next();
         identityRecordsOperation.addEntry(oid, entryData);
         return oid;
+    }
+
+    /**
+     * Returns the OID of an entity from its identifying properties. If there is no match in the
+     * current cache from volatile and non-volatile properties, heuristics are used to calculate if
+     * the same entity has been cached with different volatile properties.
+     * If no matches are found from identifying properties, a dummy invalid OID is returned.
+     *
+     * @param nonVolatileProperties The "volatile identifying" property set
+     * @param volatileProperties    The "non-volatile identifying" property set
+     * @param heuristicsProperties  The "heuristic identifying" property set
+     * @param descriptor            The "descriptor" of the given entity
+     * @param metadataDescriptor    The metadata of the given entity
+     * @return  The OID already cached for the entity, or an INVALID_OID if there's no match
+     * @throws IdentityServiceStoreOperationException   In the case of an error interacting with the
+     *                                                    underlying store.
+     * @throws IdentityUninitializedException   If the identity service initialization is incomplete.
+     */
+    public long getOidFromProperties(@Nonnull final List<PropertyDescriptor> nonVolatileProperties,
+            @Nonnull final List<PropertyDescriptor> volatileProperties,
+            @Nonnull final List<PropertyDescriptor> heuristicsProperties,
+            final EntityDescriptor descriptor,
+            final EntityMetadataDescriptor metadataDescriptor)
+            throws IdentityServiceStoreOperationException, IdentityUninitializedException {
+
+        // First, see if we have the match by the identifying properties
+        final long existingOid = store_.lookupByIdentifyingSet(nonVolatileProperties, volatileProperties);
+        if (existingOid == INVALID_OID) {
+            // We do not have the match.
+            // We might have to perform the search based on non-volatile properties.
+            // The volatile properties are the subset of the identifying properties, and
+            // the result of descriptor.getVolatileProperties(dtoNow) is fully contained in the
+            // result of the descriptor.getIdentifyingProperties(dtoNow).
+            // Search for all identifying properties, including volatile ones.
+            // We might have a match there.
+
+            // We only need non-volatile properties for the query.
+            // The reason behind it is the fact that when we get to this point, one or more volatile
+            // properties have changed.
+            // We will perform the heuristic match, and we need all the Entities that could be a
+            // potential hit.
+            if (heuristicsProperties.size() > 0) {
+                for (EntityProxyDescriptor match : store_.getDtosByNonVolatileProperties(nonVolatileProperties)) {
+                    // We have volatile properties. Perform heuristics
+                    Iterable<PropertyDescriptor> heuristicsLast = match.getHeuristicProperties();
+                    // See if we need to merge the two
+                    // The VMTHeuristicsMatcher will have to perform the query, locate the existing
+                    // Entity, and see if match is found.
+                    // The match is found, return OID.
+                    if (heuristicsMatcher_.locateMatch(heuristicsLast, heuristicsProperties,
+                            descriptor, metadataDescriptor)) {
+                        return match.getOID();
+                    }
+                }
+            }
+        }
+        return existingOid;
     }
 
     /**

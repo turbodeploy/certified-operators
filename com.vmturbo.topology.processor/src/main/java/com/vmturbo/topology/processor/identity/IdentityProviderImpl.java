@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -44,9 +45,12 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.cache.DescriptorsBasedCache;
 import com.vmturbo.topology.processor.identity.cache.IdentityRecordsBasedCache;
 import com.vmturbo.topology.processor.identity.cache.OptimizedIdentityRecordsBasedCache;
+import com.vmturbo.topology.processor.identity.extractor.EntityDescriptorImpl;
 import com.vmturbo.topology.processor.identity.extractor.IdentifyingPropertyExtractor;
+import com.vmturbo.topology.processor.identity.extractor.PropertyDescriptorImpl;
 import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadata;
 import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadataStore;
+import com.vmturbo.topology.processor.identity.metadata.ServiceEntityProperty;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
@@ -357,6 +361,7 @@ public class IdentityProviderImpl implements IdentityProvider {
             // the contract of identityService.getEntityOIDs.
             retMap.put(ids.get(i), entryData.get(i).getEntityDTO().get());
         }
+
         return retMap;
     }
 
@@ -483,5 +488,79 @@ public class IdentityProviderImpl implements IdentityProvider {
                         System.currentTimeMillis() - startTime, staleOids.size() - removedOids);
             }
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Optional<Long> getOidFromProperties(Map<String, String> identifyingProperties, long probeId,
+            EntityDTO.EntityType entityType)
+            throws IdentityServiceException, IdentityServiceStoreOperationException,
+            IdentityUninitializedException {
+
+        // get probe metadata
+        final ServiceEntityIdentityMetadataStore probeMetadata =
+                perProbeMetadata.get(probeId);
+
+        // entity type has to be part of non-volatile properties, hence adding it in identifyingProperties
+        String entityTypeFieldName = entityType.getValueDescriptor().getType().getName();
+        if (!identifyingProperties.containsKey(entityTypeFieldName)) {
+            identifyingProperties.put(entityTypeFieldName, entityType.name());
+        } else {
+            if (!entityType.name().equals(identifyingProperties.get(entityTypeFieldName))) {
+                throw new IdentityServiceException(
+                        "Entity type value in the identifyingProperties does not match the type of entityType param.");
+            }
+        }
+
+        ServiceEntityIdentityMetadata entityMetadata = probeMetadata.getMetadata(entityType);
+        List<ServiceEntityProperty> entityVolatileProps = entityMetadata.getVolatileProperties();
+        List<PropertyDescriptor> volatileProperties = extractProperties(identifyingProperties,
+                entityVolatileProps);
+        List<ServiceEntityProperty> entityNonVolatileProps = entityMetadata.getNonVolatileProperties();
+        List<PropertyDescriptor> nonVolatileProperties = extractProperties(identifyingProperties,
+                entityNonVolatileProps);
+        List<ServiceEntityProperty> entityHeuristicsProps = entityMetadata.getHeuristicProperties();
+        List<PropertyDescriptor> heuristicsProperties = extractProperties(identifyingProperties,
+                entityHeuristicsProps);
+
+        EntityDescriptor descriptor = new EntityDescriptorImpl(nonVolatileProperties, volatileProperties,
+                heuristicsProperties);
+        EntityMetadataDescriptor metadataDescriptor = new ServiceEntityIdentityMetadata(entityNonVolatileProps,
+                entityVolatileProps, entityHeuristicsProps, entityMetadata.getHeuristicThreshold());
+
+        long existingOid = identityService.getOidFromProperties(nonVolatileProperties, volatileProperties,
+                heuristicsProperties, descriptor, metadataDescriptor);
+
+        if (existingOid == identityService.INVALID_OID) {
+            return Optional.empty();
+        }
+        return Optional.of(existingOid);
+    }
+
+    /**
+     * Utility to generate a List of property descriptors from a map of strings.
+     *
+     * @param inputProperties   Collection that contains property name as key and a string as value.
+     *                          Ie: <code>{id : 123, displayName: vm1, tag: myTag}</code>.
+     * @param entityProperties  List of {@link ServiceEntityProperty} to pull from input Properties.
+     * @return  List of {@link PropertyDescriptor}.
+     * @throws IdentityServiceException  if unable to fetch the entity property.
+     */
+    private List<PropertyDescriptor> extractProperties(Map<String, String> inputProperties,
+            List<ServiceEntityProperty> entityProperties) throws IdentityServiceException {
+        List<PropertyDescriptor> extractedProperties = new ArrayList<>(entityProperties.size());
+        for (ServiceEntityProperty prop : entityProperties) {
+            String propValue = inputProperties.get(prop.name);
+            if (propValue != null) {
+                extractedProperties.add(new PropertyDescriptorImpl(propValue, prop.groupId));
+            } else {
+                // If we are unable to find a property abandon the attempt.
+                throw new IdentityServiceException(
+                        "Property " + prop.name + " is not present in the input identifying properties.");
+            }
+        }
+        return extractedProperties;
     }
 }

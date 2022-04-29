@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.identity;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -148,4 +149,20 @@ public interface IdentityProvider extends DiagsRestorable<Void>, RequiresDataIni
      */
     void initializeStaleOidManager(@Nonnull Supplier<Set<Long>> getCurrentOids);
 
+    /**
+     *  Utility to return OID of an entity from its raw properties.
+     *
+     * @param identifyingProperties Collection that contains property name as key and a string as value.
+     *                              Ie: <code>{id : 123, displayName: vm1, tag: myTag}</code>.
+     * @param probeId               The OID to use to identify the probe.
+     * @param entityType            The entityType to get the identifying properties for.
+     * @return  The OID wrapped as an Optional<>, if a match in the cache is found; Optional.empty(), else
+     * @throws IdentityServiceException                 If unable to fetch the entity property.
+     * @throws IdentityServiceStoreOperationException   In the case of an error interacting with the underlying store.
+     * @throws IdentityUninitializedException           If the identity service initialization is incomplete
+     */
+    Optional<Long> getOidFromProperties(Map<String, String> identifyingProperties, long probeId,
+            EntityDTO.EntityType entityType)
+            throws IdentityServiceException, IdentityServiceStoreOperationException,
+            IdentityUninitializedException;
 }
