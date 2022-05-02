@@ -431,7 +431,7 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
                 if (response.size() > 2) {
                     // This is unexpected.
                     logger.warn("Capacity cache should only contain Response Time"
-                        + "and Transaction commodities. Found: {}", response.keySet().stream()
+                        + " and Transaction commodities. Found: {}", response.keySet().stream()
                             .map(UICommodityType::fromType)
                             .collect(Collectors.toSet()));
                 }

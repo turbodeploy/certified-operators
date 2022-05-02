@@ -800,35 +800,6 @@ public enum EntitySettingSpecs {
                     EntityType.APPLICATION_COMPONENT),
             new BooleanSettingDataType(false),
             true),
-    /**
-     * Connections capacity for Database servers.
-     */
-    ConnectionCapacity("ConnectionCapacity", "Connection capacity",
-            Collections.emptyList(),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DATABASE_SERVER),
-            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 2000.0f/*default*/),
-            true),
-
-    /**
-     * Connections used for Database servers.
-     */
-    Connection("Connection", "Connection",
-            Collections.emptyList(),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DATABASE_SERVER),
-            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 2000.0f/*default*/),
-            true),
-
-    /**
-     * Connections used for Database servers.
-     */
-    ConnectionEnabled("ConnectionEnabled", "ConnectionEnabled",
-            Collections.emptyList(),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DATABASE_SERVER),
-            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 2000.0f/*default*/),
-            true),
 
     /**
      * Response Time SLO for Business Applications, Business Transactions, Services, Application
