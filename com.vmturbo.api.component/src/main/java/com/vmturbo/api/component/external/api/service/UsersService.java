@@ -347,7 +347,7 @@ public class UsersService implements IUsersService {
     /**
      * Get permitted features for the user, from licensed features.
      *
-     * @param user The UserApiDTO corresponding to the user.
+     * @param loggedInUserInfo The user information.
      * @return List of permitted features.
      */
     private List<String> getPermittedFeatures(final @Nonnull LoggedInUserInfo loggedInUserInfo) {
@@ -679,7 +679,7 @@ public class UsersService implements IUsersService {
                 logger_.error("Unable to remove user {}", uuid, e.getCause());
                 throw new IllegalArgumentException("Unable to remove user " + uuid, e.getCause());
             }
-            widgetsetsService.transferWidgetsets(uuid, userDto.getUsername());
+            widgetsetsService.deleteWidgetsetFromUser(uuid);
             expireActiveSessions(uuid);
             reportingUserCalculator.onUserDeleted(userDto);
 

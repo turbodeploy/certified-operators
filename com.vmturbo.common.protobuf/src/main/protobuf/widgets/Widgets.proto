@@ -106,6 +106,18 @@ message TransferWidgetsetRequest {
     optional string removed_userid = 1;
 }
 
+// request to delete widgetsets from the deleted user.
+message DeleteWidgetsetFromUserRequest {
+
+    // the userid of the user deleted.
+    optional int64 removed_userid = 1;
+}
+
+// response for deleting widgetsets from the deleted user.
+message DeleteWidgetsetFromUserResponse {
+    optional bool result = 1;
+}
+
 service WidgetsetsService {
 
     // Return all Widgetset that match the given request
@@ -126,6 +138,8 @@ service WidgetsetsService {
     // Transfer a widgetset from the previous owner to current user.
     rpc TransferWidgetset (TransferWidgetsetRequest) returns (stream Widgetset);
 
+    // Delete widgetsets from the deleted user
+    rpc DeleteWidgetsetFromUser (DeleteWidgetsetFromUserRequest) returns (DeleteWidgetsetFromUserResponse);
 }
 /**
 Sample Widgetset with one 'Commodities' widget. Widgetsets will typically be comprised of many
