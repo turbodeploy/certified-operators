@@ -371,5 +371,16 @@ public class WidgetsetDbStoreTest extends MultiDbTestBase {
         widgetsetRecord4 = testDbStore.createWidgetSet(widgetsetInfo4, USER_OID_3);
     }
 
-
+    @Test
+    public void testDeleteWidgetsetOwnedByUser() {
+        // Arrange
+        addDbWidgets(testDbStore);
+        // Act
+        final int result = testDbStore.deleteWidgetsetOwnedByUser(USER_OID_1);
+        // Assert
+        // addDbWidgets added two widgetset to the test user.
+        assertEquals(2, result);
+        Optional<WidgetsetRecord> afterDelete = testDbStore.fetch(widgetsetRecord1.getOid(), USER_OID_1);
+        assertFalse(afterDelete.isPresent());
+    }
 }

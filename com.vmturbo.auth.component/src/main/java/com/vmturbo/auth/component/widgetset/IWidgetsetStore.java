@@ -92,4 +92,12 @@ public interface IWidgetsetStore {
      * @return @return an Iterator over all {@link WidgetsetRecord}s which have been transferred
      */
     Iterator<WidgetsetRecord> transferOwnership(Collection<Long> fromUserOids, long toUserOid);
+
+    /**
+     * Remove all Widgetsets owned by user. Return the number of Widgetset deleted.
+     *
+     * @param userOid the OID of the user who owns Widgetset.
+     * @return the number of Widgetset deleted.
+     */
+    int deleteWidgetsetOwnedByUser(long userOid);
 }

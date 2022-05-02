@@ -13,6 +13,7 @@ import com.google.common.collect.Lists;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -26,6 +27,7 @@ import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.common.protobuf.widgets.Widgets.CreateWidgetsetRequest;
+import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetFromUserRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.GetWidgetsetListRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.GetWidgetsetRequest;
@@ -186,5 +188,16 @@ public class WidgetSetsService implements IWidgetSetsService {
             logger.info("Transfer widgetset {} from user {} to {}.",
                 widgetset.getInfo().getDisplayName(), userName, widgetset.getOwnerUserid());
         }
+    }
+
+    /**
+     * Delete widgetsets from the deleted user.
+     *
+     * @param removedUserid the user id which was deleted.
+     */
+    public void deleteWidgetsetFromUser(@Nonnull final String removedUserid) {
+        widgetsetsService.deleteWidgetsetFromUser(DeleteWidgetsetFromUserRequest.newBuilder()
+                .setRemovedUserid(NumberUtils.toLong(removedUserid))
+                .build());
     }
 }

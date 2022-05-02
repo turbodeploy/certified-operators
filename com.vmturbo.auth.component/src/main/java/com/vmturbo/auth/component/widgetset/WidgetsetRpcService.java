@@ -14,6 +14,8 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.component.store.AuthProvider;
 import com.vmturbo.auth.component.store.db.tables.records.WidgetsetRecord;
 import com.vmturbo.common.protobuf.widgets.Widgets;
+import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetFromUserRequest;
+import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetFromUserResponse;
 import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.TransferWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.UpdateWidgetsetRequest;
@@ -118,6 +120,15 @@ public class WidgetsetRpcService extends WidgetsetsServiceGrpc.WidgetsetsService
                 .withDescription("User id: " + request.getRemovedUserid() + " not found.")
                 .asException());
         }
+    }
+
+    @Override
+    public void deleteWidgetsetFromUser(DeleteWidgetsetFromUserRequest request,
+            StreamObserver<DeleteWidgetsetFromUserResponse> responseObserver) {
+        widgetsetStore.deleteWidgetsetOwnedByUser(request.getRemovedUserid());
+        responseObserver.onNext(
+                DeleteWidgetsetFromUserResponse.newBuilder().setResult(true).build());
+        responseObserver.onCompleted();
     }
 
     /**

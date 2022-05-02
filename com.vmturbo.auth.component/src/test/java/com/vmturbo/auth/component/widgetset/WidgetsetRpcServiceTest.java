@@ -34,6 +34,8 @@ import com.vmturbo.auth.component.store.db.tables.records.WidgetsetRecord;
 import com.vmturbo.auth.test.JwtContextUtil;
 import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.common.protobuf.widgets.Widgets.CreateWidgetsetRequest;
+import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetFromUserRequest;
+import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetFromUserResponse;
 import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.GetWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.TransferWidgetsetRequest;
@@ -233,4 +235,18 @@ public class WidgetsetRpcServiceTest {
         verifyNoMoreInteractions(widgetsetStore);
     }
 
+    @Test
+    public void testdeleteWidgetsetFromUser() {
+        // Arrange
+        when(widgetsetStore.deleteWidgetsetOwnedByUser(userOid)).thenReturn(1);
+        // Act
+        DeleteWidgetsetFromUserResponse response = widgetsetRpcClient.deleteWidgetsetFromUser(
+                DeleteWidgetsetFromUserRequest.newBuilder().build().newBuilder()
+                        .setRemovedUserid(userOid)
+                .build());
+        // Assert
+        assertTrue(response.getResult());
+        verify(widgetsetStore).deleteWidgetsetOwnedByUser(userOid);
+        verifyNoMoreInteractions(widgetsetStore);
+    }
 }

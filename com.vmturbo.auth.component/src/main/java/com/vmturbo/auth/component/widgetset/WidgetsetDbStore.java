@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -283,4 +284,20 @@ public class WidgetsetDbStore implements IWidgetsetStore {
         }
         return dbWidgetset;
     }
+
+    /**
+     * Remove all Widgetsets owned by user. Return the number of Widgetset deleted.
+     *
+     * @param userOid the OID of the user who owns Widgetset.
+     * @return the number of Widgetset deleted.
+     */
+    @Override
+    public int deleteWidgetsetOwnedByUser(long userOid) {
+        int deletedRecordCount = dsl.deleteFrom(WIDGETSET)
+                .where(WIDGETSET.OWNER_OID.eq(userOid))
+                .execute();
+        logger.debug("{} widgetsets owned by {} were deleted.", deletedRecordCount, userOid);
+        return deletedRecordCount;
+    }
 }
+
