@@ -10,6 +10,7 @@ import json
 from typing import Callable
 from datetime import datetime, timedelta
 import logging
+from getpass import getpass
 
 from ruamel.yaml import YAML
 
@@ -260,6 +261,19 @@ def validate_password(password_input):
         return "Password should not contain # or ;"
     return None
 
+def wait_for_password(msg):
+     while True:
+         if sys.stdin.isatty():
+            password = getpass(msg)
+         else:
+            password = input()
+         warning = validate_password(password)
+         if warning is None:
+             break
+         else:
+             print(warning)
+     return password
+
 # Checks to see if a service is running.
 def is_service_running(service_name):
     ACTIVE_SERVICE = 'active (running)'
@@ -315,8 +329,8 @@ def main():
         print("Embedded reporting is already enabled. Please contact support if it is not working.")
         return
 
-    grafana_admin_password = collect_input("Set initial Grafana Administrator password: ", validate_password)
-    grafana_db_password = collect_input("Set Grafana database password: ", validate_password)
+    grafana_admin_password = wait_for_password("Set initial Grafana Administrator password: ")
+    grafana_db_password = wait_for_password("Set Grafana database password: ")
     embedded_reporting.enable(grafana_admin_password, grafana_db_password)
 
     # write out custom resource component
