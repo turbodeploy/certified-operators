@@ -1993,7 +1993,8 @@ public class EntitySettingsApplicatorTest {
         //coreSocketRatio default is ignore, so use default vmCpuIncrement
         testVCPUIncrementApplicator(1800, 10400, 5200, new TypeSpecificInfoImpl(),
                         EntityType.VIRTUAL_MACHINE, new CpuScalingPolicyImpl(),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
     }
 
     /**
@@ -2005,7 +2006,7 @@ public class EntitySettingsApplicatorTest {
     public void testVCPUIncrementDefaultModetNoCapacityIncrementNoCSPRNoNumCpus() {
         testVCPUIncrementApplicator(1800, 10400, null, createVmTypeSpecificInfo(null, null),
                 EntityType.VIRTUAL_MACHINE, new CpuScalingPolicyImpl(),
-                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
                 VM_VCPU_INCREMENT_DEFAULT);
     }
 
@@ -2017,7 +2018,8 @@ public class EntitySettingsApplicatorTest {
     public void testVCPUIncrementDefaultModeShouldNotFailWhenProbeSent0ForCapacityIncrement() {
         testVCPUIncrementApplicator(1800, 10400, 0, createVmTypeSpecificInfo(null, null),
                 EntityType.VIRTUAL_MACHINE, new CpuScalingPolicyImpl(),
-                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, VM_VCPU_INCREMENT_DEFAULT);
+                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT);
     }
 
     /**
@@ -2029,7 +2031,8 @@ public class EntitySettingsApplicatorTest {
     public void testVCPUIncrementUnitSockets() {
         testVCPUIncrementApplicator(5200, 10400, 5200, new TypeSpecificInfoImpl(),
                         EntityType.VIRTUAL_MACHINE, new CpuScalingPolicyImpl(),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, CORE_SOCKET_RATIO_MODE_SOCKETS,
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                CORE_SOCKET_RATIO_MODE_SOCKETS,
                         VCPU_SCLAING_SOCKETS_CORES_PER_SOCKET_MODE_PRESERVE);
     }
 
@@ -2037,7 +2040,8 @@ public class EntitySettingsApplicatorTest {
     public void testVCPUIncrementDefaultModeUnitSocketsIncrementSocketsNonDefault() {
         testVCPUIncrementApplicator(1800, 10400, 5200, new TypeSpecificInfoImpl(),
                         EntityType.VIRTUAL_MACHINE, new CpuScalingPolicyImpl(),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
     }
 
     @Test
@@ -2045,8 +2049,8 @@ public class EntitySettingsApplicatorTest {
         testVCPUIncrementApplicator(1800, 10400, 5200, new TypeSpecificInfoImpl(),
                         EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(1),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
                         CORE_SOCKET_RATIO_PRESERVE);
     }
 
@@ -2055,8 +2059,8 @@ public class EntitySettingsApplicatorTest {
         testVCPUIncrementApplicator(1800, 10400, 5200, null,
                         EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(1),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
                         CORE_SOCKET_RATIO_PRESERVE);
     }
 
@@ -2064,8 +2068,8 @@ public class EntitySettingsApplicatorTest {
     public void testVCPUIncrementCoresModesUserSpecifiedSockets() {
         testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(3),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
                         CORE_SOCKET_RATIO_USER_SPECIFIED, CORE_SOCKET_RATIO_USER_SPECIFIED_VALUE);
     }
 
@@ -2077,7 +2081,7 @@ public class EntitySettingsApplicatorTest {
     public void testVCPUIncrementVcpusModeNoNumCpus() {
         testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
                 new CpuScalingPolicyImpl().setCoresPerSocket(1),
-                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
                 VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_VCPUS,
                 CORE_SOCKET_RATIO_VCPUS_VALUE);
     }
@@ -2090,7 +2094,7 @@ public class EntitySettingsApplicatorTest {
     public void testVCPUIncrementVcpusModeProperSocketsScaling() {
         testVCPUIncrementApplicator(5200, 10400, 5200, createVmTypeSpecificInfo(4, 2), EntityType.VIRTUAL_MACHINE,
                 new CpuScalingPolicyImpl().setCoresPerSocket(1),
-                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
                 VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_VCPUS,
                 CORE_SOCKET_RATIO_VCPUS_VALUE);
     }
@@ -2102,8 +2106,8 @@ public class EntitySettingsApplicatorTest {
     public void testVCPUIncrementCoresModeMatchHostWithoutPmAsProvider() {
         testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(1),
-                        EntityType.STORAGE_VALUE, createPmTypeSpecificInfo(4), 10L,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        EntityType.STORAGE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
                         CORE_SOCKET_RATIO_MATCH_HOST);
     }
 
@@ -2114,8 +2118,8 @@ public class EntitySettingsApplicatorTest {
     public void testVCPUIncrementCoresModeMatchHostWithoutProviderIdAvailableInTopologyGraph() {
         testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(1),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 11L,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 11L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
                         CORE_SOCKET_RATIO_MATCH_HOST);
     }
 
@@ -2126,7 +2130,8 @@ public class EntitySettingsApplicatorTest {
     public void testVCPUIncrementCoresModeMatchHostWithoutPmTypeSpecificInfo() {
         testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(1),
-                        EntityType.PHYSICAL_MACHINE_VALUE, null, 10L, VM_VCPU_INCREMENT_DEFAULT,
+                        EntityType.PHYSICAL_MACHINE_VALUE, null, 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT,
                         CORE_SOCKET_RATIO_MODE_CORES, CORE_SOCKET_RATIO_MATCH_HOST);
     }
 
@@ -2139,8 +2144,7 @@ public class EntitySettingsApplicatorTest {
         testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(1),
                         EntityType.PHYSICAL_MACHINE_VALUE, new TypeSpecificInfoImpl(),
-                        10L,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        10L, null, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
                         CORE_SOCKET_RATIO_MATCH_HOST);
     }
 
@@ -2152,7 +2156,7 @@ public class EntitySettingsApplicatorTest {
         testVCPUIncrementApplicator(1800, 10400, 5200, null, EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(1),
                         EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(null), 10L,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                null, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
                         CORE_SOCKET_RATIO_MATCH_HOST);
     }
 
@@ -2161,8 +2165,8 @@ public class EntitySettingsApplicatorTest {
         testVCPUIncrementApplicator(5200, 10400, 5200, createVmTypeSpecificInfo(4, 2),
                         EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(2),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
                         CORE_SOCKET_RATIO_PRESERVE);
     }
 
@@ -2177,6 +2181,7 @@ public class EntitySettingsApplicatorTest {
                 EntityType.VIRTUAL_MACHINE,
                 new CpuScalingPolicyImpl().setSockets(4),
                 EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                vcpuSold -> !vcpuSold.getIsResizeable(),
                 VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
                 CORE_SOCKET_RATIO_PRESERVE);
     }
@@ -2186,8 +2191,8 @@ public class EntitySettingsApplicatorTest {
         testVCPUIncrementApplicator(1800, 10400, 5200, new TypeSpecificInfoImpl(),
                         EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(4),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
                         CORE_SOCKET_RATIO_MATCH_HOST);
 
     }
@@ -2197,8 +2202,8 @@ public class EntitySettingsApplicatorTest {
         testVCPUIncrementApplicator(10400, 10400, 5200, createVmTypeSpecificInfo(4, 2),
                         EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl().setSockets(4),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_CORES,
                         CORE_SOCKET_RATIO_MATCH_HOST);
 
     }
@@ -2208,8 +2213,8 @@ public class EntitySettingsApplicatorTest {
         testVCPUIncrementApplicator(5200, 10400, 5200, new TypeSpecificInfoImpl(),
                         EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl(),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_SOCKETS);
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_SOCKETS);
     }
 
     @Test
@@ -2218,8 +2223,8 @@ public class EntitySettingsApplicatorTest {
                                         new VirtualMachineInfoImpl().setNumCpus(8)),
                         EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl(),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_SOCKETS);
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_SOCKETS);
     }
 
     @Test
@@ -2227,8 +2232,8 @@ public class EntitySettingsApplicatorTest {
         testVCPUIncrementApplicator(1800, 10400, null, new TypeSpecificInfoImpl()
                                         .setVirtualMachine(new VirtualMachineInfoImpl()), EntityType.VIRTUAL_MACHINE,
                         new CpuScalingPolicyImpl(),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_SOCKETS);
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_SOCKETS);
     }
 
     /**
@@ -2241,7 +2246,7 @@ public class EntitySettingsApplicatorTest {
                 createVmTypeSpecificInfo(4, null)
                 , EntityType.VIRTUAL_MACHINE,
                 new CpuScalingPolicyImpl(),
-                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
+                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
                 VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_SOCKETS);
     }
 
@@ -2254,15 +2259,14 @@ public class EntitySettingsApplicatorTest {
         //coreSocketRatio default is ignore, so use default vmCpuIncrement
         testVCPUIncrementApplicator(5200, 10400, 5200, new TypeSpecificInfoImpl(),
                         EntityType.CONTAINER_SPEC, new CpuScalingPolicyImpl(),
-                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L,
-                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
+                        EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
     }
 
-    private static void testVCPUIncrementApplicator(int expectedVCPUIncrement, int capacity,
-                    Integer capacityIncrement, TypeSpecificInfoView vmTypeSpecificInfo,
-                    EntityType entityType, CpuScalingPolicyView cpuScalingPolicy,
-                    int commodityProviderType, TypeSpecificInfoView pmTypeSpecificInfo, long providerId,
-                    Setting... settings) {
+    private static void testVCPUIncrementApplicator(int expectedVCPUIncrement, int capacity, Integer capacityIncrement, TypeSpecificInfoView vmTypeSpecificInfo,
+            EntityType entityType, CpuScalingPolicyView cpuScalingPolicy, int commodityProviderType,
+            TypeSpecificInfoView pmTypeSpecificInfo, long providerId,
+            Predicate<CommoditySoldImpl> commValidator, Setting... settings) {
         final TopologyEntityImpl vmBuilder = createEntityWithCommodity(entityType,
                 CommodityType.VCPU);
 
@@ -2290,6 +2294,9 @@ public class EntitySettingsApplicatorTest {
         assertEquals(expectedVCPUIncrement, vcpuSoldCommodity.getCapacityIncrement(), 0);
         Assert.assertThat(vmBuilder.getTypeSpecificInfo().getVirtualMachine().getCpuScalingPolicy(),
                         CoreMatchers.is(cpuScalingPolicy));
+        if(commValidator != null) {
+            assertTrue(commValidator.test(vcpuSoldCommodity));
+        }
 
     }
 
