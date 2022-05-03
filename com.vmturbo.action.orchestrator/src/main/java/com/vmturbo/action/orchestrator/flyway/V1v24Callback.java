@@ -29,6 +29,6 @@ public class V1v24Callback extends BaseFlywayCallback {
     @Override
     public void beforeValidate(final Connection connection) {
         new ResetMigrationChecksumCallback("1.24", ImmutableSet.of(1546449123),
-                -755749439).beforeValidate(connection);
+                1013957996).beforeValidate(connection);
     }
 }
