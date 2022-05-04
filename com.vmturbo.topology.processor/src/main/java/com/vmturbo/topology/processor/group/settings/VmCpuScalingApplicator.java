@@ -179,7 +179,7 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
                                         VcpuScalingCoresPerSocketSocketModeEnum.MATCH_HOST,
                                         new HandleMatchHost(),
                                         VcpuScalingCoresPerSocketSocketModeEnum.USER_SPECIFIED,
-                                        (entity, topologyGraph, entitySettings, numCpus, cpsr) -> (int)getNumericSetting(
+                                (entity, topologyGraph, entitySettings, numCpus, cpsr, coresPerSocketChangable, vcpuCommodity) -> (int)getNumericSetting(
                                                         entitySettings,
                                                         EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketValue,
                                                         LOGGER));
@@ -197,7 +197,6 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
             final Integer cpsr = coresPerSocketChangeable ? getVmInfoParameter(entity,
                     VirtualMachineInfoView::hasCoresPerSocketRatio,
                     VirtualMachineInfoView::getCoresPerSocketRatio) : 1;
-
             final VcpuScalingCoresPerSocketSocketModeEnum coresPerSocketModeType =
                             getSettingValue(entitySettings,
                                             EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode,
@@ -208,8 +207,8 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
             if (modeHandler == null) {
                 sockets = 1;
             } else {
-                sockets = modeHandler.getIncrementSockets(entity, topologyGraph, entitySettings,
-                                numCpus, cpsr);
+                sockets = modeHandler.getIncrementSocketsAndModifyVcpuComm(entity, topologyGraph, entitySettings,
+                                numCpus, cpsr, coresPerSocketChangeable, vcpuCommodity);
                 entity.getOrCreateTypeSpecificInfo().getOrCreateVirtualMachine()
                                 .getOrCreateCpuScalingPolicy().setSockets(sockets);
             }
@@ -256,14 +255,13 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
 
     /**
      * Interface for handling sub-settings for CORES mode Each sub-setting has a different way of
-     * calculating increment sockets.
+     * calculating increment sockets, adjust vcpuCommodity if necessary.
      */
     @FunctionalInterface
     private interface CoresModeHandler {
-        int getIncrementSockets(@Nonnull TopologyEntityImpl entity,
-                        @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
-                        @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
-                        @Nullable Integer numCpus, @Nullable Integer cpsr);
+        int getIncrementSocketsAndModifyVcpuComm(@Nonnull TopologyEntityImpl entity, @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
+                @Nonnull Map<EntitySettingSpecs, Setting> entitySettings, @Nullable Integer numCpus,
+                @Nullable Integer cpsr, boolean coresPerSocketChangeable, @Nonnull CommoditySoldImpl vcpuCommodity);
     }
 
 
@@ -273,10 +271,13 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
      */
     private static class HandlePreserve implements CoresModeHandler {
         @Override
-        public int getIncrementSockets(@Nonnull TopologyEntityImpl entity,
-                        @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
-                        @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
-                        @Nullable Integer numCpus, @Nullable Integer cpsr) {
+        public int getIncrementSocketsAndModifyVcpuComm(@Nonnull TopologyEntityImpl entity, @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
+                @Nonnull Map<EntitySettingSpecs, Setting> entitySettings, @Nullable Integer numCpus,
+                @Nullable Integer cpsr, boolean coresPerSocketChangeable, @Nonnull CommoditySoldImpl vcpuSoldCommodity) {
+            //If core per socket is not changeable and socket is preserved, nothing will be change, so mark resizable false.
+            if (!coresPerSocketChangeable) {
+                vcpuSoldCommodity.setIsResizeable(false);
+            }
             if (numCpus != null && cpsr != null && cpsr > 0) {
                 return numCpus / cpsr;
             } else {
@@ -294,10 +295,9 @@ class VmCpuScalingApplicator extends BaseSettingApplicator {
      */
     private static class HandleMatchHost implements CoresModeHandler {
         @Override
-        public int getIncrementSockets(@Nonnull TopologyEntityImpl entity,
-                        @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
-                        @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
-                        @Nullable Integer numCpus, @Nullable Integer cpsr) {
+        public int getIncrementSocketsAndModifyVcpuComm(@Nonnull TopologyEntityImpl entity, @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
+                @Nonnull Map<EntitySettingSpecs, Setting> entitySettings, @Nullable Integer numCpus,
+                @Nullable Integer cpsr, boolean coresPerSocketChangeable, @Nonnull CommoditySoldImpl vcpuSoldCommodity) {
             final CommoditiesBoughtFromProviderView commdityBoughtFromPM =
                             entity.getCommoditiesBoughtFromProvidersList().stream()
                                             .filter(e -> e.getProviderEntityType()
