@@ -2,11 +2,13 @@ package com.vmturbo.plan.orchestrator;
 
 import java.time.Clock;
 
+import org.flywaydb.core.api.callback.FlywayCallback;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 
 import com.vmturbo.commons.idgen.IdentityInitializer;
@@ -18,6 +20,7 @@ import com.vmturbo.cost.api.impl.CostSubscription.Topic;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.market.component.api.impl.MarketSubscription;
+import com.vmturbo.plan.orchestrator.flyway.ResetJavaMigrationsChecksumsCallback;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
@@ -111,5 +114,18 @@ public class GlobalConfig {
     @Bean
     public Clock clock() {
         return Clock.systemUTC();
+    }
+
+    /**
+     * Define flyway callbacks to be active during migrations for Plan Orchestrator component.
+     *
+     * @return array of callback objects
+     */
+    @Bean
+    @Primary
+    public FlywayCallback[] flywayCallbacks() {
+        return new FlywayCallback[] {
+                new ResetJavaMigrationsChecksumsCallback()
+        };
     }
 }

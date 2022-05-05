@@ -47,7 +47,7 @@ public class DBMigrationScriptsTest extends TestDBMigrationChecksums {
      */
     @Test
     public void testPostgresMigrations() throws Exception {
-        final File migrationDir = new File("src/main/resources/db/migrations/plan-orchestrator/postgres");
+        final File migrationDir = new File("src/main/resources/db/migrations/planorchestrator/postgres");
         Assert.assertTrue("Migration directory must exist and must be a directory.",
                 migrationDir.exists() && migrationDir.isDirectory());
 
@@ -66,7 +66,7 @@ public class DBMigrationScriptsTest extends TestDBMigrationChecksums {
      */
     @Test
     public void testMariaDBMigrations() throws Exception {
-        final File migrationDir = new File("src/main/resources/db/migrations/plan-orchestrator/mariadb");
+        final File migrationDir = new File("src/main/resources/db/migrations/planorchestrator/mariadb");
         Assert.assertTrue("Migration directory must exist and must be a directory.",
                 migrationDir.exists() && migrationDir.isDirectory());
 
