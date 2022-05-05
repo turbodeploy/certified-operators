@@ -17,8 +17,8 @@ public class ActionOrchestratorMultiDBMigrationTest extends MultiDBMigrationTest
      */
     private static final Pair<Integer, String> INITIAL_OFFSET = new Pair<>(24, "V1_24__workflow_primary_key.sql");
     private static final String DEFAULT_PATH = "src/main/resources/db/migration";
-    private static final String MARIA_DB_PATH = "src/main/resources/db/migrations/action-orchestrator/mariadb";
-    private static final String POSTGRES_PATH = "src/main/resources/db/migrations/action-orchestrator/postgres";
+    private static final String MARIA_DB_PATH = "src/main/resources/db/migrations/actionorchestrator/mariadb";
+    private static final String POSTGRES_PATH = "src/main/resources/db/migrations/actionorchestrator/postgres";
 
     /**
      * Test that the number of migrations for the supported databases match.

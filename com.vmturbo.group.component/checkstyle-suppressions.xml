@@ -43,7 +43,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]group[/\\]setting[/\\]SettingPolicyValidatorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]group[/\\]setting[/\\]SettingSpecsStoreTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]group[/\\]setting[/\\]SettingStoreTest.java" />
-    <suppress checks="TypeName" files="src[/\\]main[/\\]java[/\\]db[/\\]migration[/\\]*" />
     <suppress checks="TypeName" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]group[/\\]flyway[/\\]V1_11_CallbackTest.java" />
     <suppress checks="TypeName" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]group[/\\]flyway[/\\]V1_11_Callback.java" />
 </suppressions>

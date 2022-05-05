@@ -16,6 +16,7 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.group.DbAccessConfig;
 import com.vmturbo.group.GroupMultiDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
+import com.vmturbo.group.flyway.ResetJavaMigrationsChecksumsCallback;
 import com.vmturbo.group.flyway.V1_11_Callback;
 import com.vmturbo.group.group.pagination.GroupPaginationConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -64,7 +65,8 @@ public class GroupConfig {
     @Primary
     public FlywayCallback[] flywayCallbacks() {
         return new FlywayCallback[] {
-            new V1_11_Callback()
+            new V1_11_Callback(),
+            new ResetJavaMigrationsChecksumsCallback()
         };
     }
 

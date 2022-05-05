@@ -684,11 +684,32 @@ public class DbEndpointResolver {
      * @return default migration locations string
      */
     public String getDefaultMigrationLocations() {
+        String componentName = sanitizeComponentName(getComponentName());
         if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
             String dialect = config.getDialect().name().toLowerCase();
-            return String.join(".", "db", "migrations", getComponentName(), dialect);
+            return String.join(".", "db", "migrations", componentName, dialect);
         } else {
-            return DEFAULT_MIGRATION_LOCATION_PREFIX + getComponentName();
+            return DEFAULT_MIGRATION_LOCATION_PREFIX + componentName;
         }
+    }
+
+    /**
+     * Sanitize the name of a given component.
+     *
+     * <p>There are some components that include a hyphen in their name (e.g. plan-orchestrator).
+     * This causes a problem in migration paths when Java migrations are needed in addition to
+     * regular SQL migrations, as Java packages are not allowed to contain hyphen in their name.
+     * In order to avoid any issues regarding a component's name, this method is in charge of
+     * sanitizing the component name by lower-casing it and removing any hyphen characters.
+     * </p>
+     *
+     * @param componentName the name of the component
+     * @return the sanitized component name
+     */
+    private static String sanitizeComponentName(String componentName) {
+        if (componentName != null && !componentName.isEmpty()) {
+            return componentName.toLowerCase().replace("-", "");
+        }
+        return componentName;
     }
 }

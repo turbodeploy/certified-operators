@@ -17,8 +17,8 @@ public class TopologyProcessorMultiDBMigrationTest extends MultiDBMigrationTest 
      */
     private static final Pair<Integer, String> INITIAL_OFFSET = new Pair<>(14, "V6_5__fix_timestamp_column_execution_time.sql");
     private static final String DEFAULT_PATH = "src/main/resources/db/migration";
-    private static final String MARIA_DB_PATH = "src/main/resources/db/migrations/topology-processor/mariadb";
-    private static final String POSTGRES_PATH = "src/main/resources/db/migrations/topology-processor/postgres";
+    private static final String MARIA_DB_PATH = "src/main/resources/db/migrations/topologyprocessor/mariadb";
+    private static final String POSTGRES_PATH = "src/main/resources/db/migrations/topologyprocessor/postgres";
 
     /**
      * Test that the number of migrations for the supported databases match.
