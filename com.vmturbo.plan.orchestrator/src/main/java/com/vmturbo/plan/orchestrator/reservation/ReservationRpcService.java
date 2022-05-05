@@ -100,7 +100,11 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                 .getInitialPlacementList());
             responseObserver.onNext(response.build());
             responseObserver.onCompleted();
+            if(logger.isDebugEnabled()){
+                logger.debug(logPrefix + "reservations found {}", reservations.size());
+            }
         } catch (Exception e) {
+            logger.error(logPrefix + "Failed to get existing reservation", e);
             responseObserver.onError(Status.INTERNAL
                     .withDescription("Failed to send existing reservation.")
                     .asException());
