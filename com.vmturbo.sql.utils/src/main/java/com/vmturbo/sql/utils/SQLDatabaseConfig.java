@@ -221,7 +221,8 @@ public abstract class SQLDatabaseConfig {
         return new JooqExceptionTranslator();
     }
 
-    private DefaultConfiguration configuration() {
+    @VisibleForTesting
+    DefaultConfiguration configuration() {
         return configuration(dataSource());
     }
 

@@ -15,6 +15,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 
 import org.jooq.SQLDialect;
+import org.jooq.impl.DefaultConfiguration;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.springframework.beans.factory.BeanCreationException;
@@ -49,6 +50,15 @@ public class SQLDatabaseConfigTest {
         System.setProperty("enableSecureDBConnection", "false");
         TestSQLDataBaseConfigImpl testSQLDataBseConfig = new TestSQLDataBaseConfigImpl();
         assertEquals(EXPECTED_DB_URL_BASE, testSQLDataBseConfig.getURL());
+    }
+
+    @Test
+    public void testRenderSchema() {
+        TestSQLDataBaseConfigImpl testSQLDataBseConfig = new TestSQLDataBaseConfigImpl();
+        DefaultConfiguration configuration = testSQLDataBseConfig.configuration();
+        // Set withRenderSchema to false to avoid rendering schema name in Jooq generated SQL statement.
+        assertFalse("Render schema must be false to support multi-DB secnario",
+                (configuration.settings().isRenderSchema()));
     }
 
     @Test
