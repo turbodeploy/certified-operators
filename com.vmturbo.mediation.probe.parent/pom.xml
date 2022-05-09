@@ -57,13 +57,15 @@
         <fabricateDockerHost>unix:///var/run/docker.sock</fabricateDockerHost>
         <pre-integration-test-phase>none</pre-integration-test-phase>
         <integration-test-phase>none</integration-test-phase>
-        <dockerRobotImage>registry.turbonomic.com/turbonomic/robot-docker:1.0.8</dockerRobotImage>
+        <dockerRobotImage>registry.turbonomic.com/turbonomic/robot-docker:1.0.9</dockerRobotImage>
         <it.s6.kill.finish.maxtime>30000</it.s6.kill.finish.maxtime>
         <it.fabric8.kill>30000</it.fabric8.kill>
         <it.fabric8.wait>600000</it.fabric8.wait>
         <it.suite.name>${artifactId}</it.suite.name>
         <it.test.directory>/usr/src/project/it</it.test.directory>
         <it.tag></it.tag>
+        <it.skip.pull>False</it.skip.pull>
+        <it.debug>False</it.debug>
     </properties>
 
     <profiles>
@@ -185,7 +187,7 @@
                                         pattern needs to start with "maven-" so jenkins builds
                                         will properly clean up leaked containers
                                         -->
-                                        <containerNamePattern>maven-${project.artifactId}-%t
+                                        <containerNamePattern>maven-${it.suite.name}-%t
                                         </containerNamePattern>
                                         <volumes>
                                             <bind>
@@ -202,6 +204,9 @@
                                             <ROBOT_TAG>${it.tag}</ROBOT_TAG>
                                             <DOCKER_USERNAME>${docker.pull.username}</DOCKER_USERNAME>
                                             <DOCKER_PASSWORD>${docker.pull.password}</DOCKER_PASSWORD>
+                                            <SKIP_PULL>${it.skip.pull}</SKIP_PULL>
+                                            <DEBUG_MODE>${it.debug}</DEBUG_MODE>
+                                            <TEST_PROJECT_DIR>${project.build.directory}</TEST_PROJECT_DIR>
                                         </env>
                                         <wait>
                                             <log>${it.suite.name}[ ]+\| PASS \|</log>

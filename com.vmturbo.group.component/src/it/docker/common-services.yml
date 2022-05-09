@@ -16,7 +16,7 @@ services:
     tmpfs:
       - /tmp
     volumes:
-      - ${PWD}/properties.yaml:/etc/turbonomic/properties.yaml:ro
+      - ${TEST_PROJECT_DIR}/it/docker/properties.yaml:/etc/turbonomic/properties.yaml:ro
     environment:
       clustermgr_host: clustermgr
       clustermgr_port: 8080
@@ -43,7 +43,7 @@ services:
     tmpfs:
       - /tmp
     volumes:
-      - ${PWD}/properties.yaml:/etc/turbonomic/properties.yaml:ro
+      - ${TEST_PROJECT_DIR}/it/docker/properties.yaml:/etc/turbonomic/properties.yaml:ro
     environment:
       clustermgr_host: clustermgr
       clustermgr_port: 8080
