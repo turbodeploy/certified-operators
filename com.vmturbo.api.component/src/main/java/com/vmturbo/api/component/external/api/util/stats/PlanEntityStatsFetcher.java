@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -23,7 +24,6 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCostsStatsSubQuery;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
@@ -182,7 +182,7 @@ public class PlanEntityStatsFetcher {
         // they're arranged according to the pagination request.
         final List<EntityStatsApiDTO> entityStatsList = new ArrayList<>();
         final AtomicReference<Optional<PaginationResponse>> paginationResponseReference =
-            new AtomicReference<>(Optional.ofNullable(null));
+            new AtomicReference<>(Optional.empty());
 
         // Reconstruct the streamed response, representing a single page
         StreamSupport.stream(response.spliterator(), false)
@@ -190,34 +190,19 @@ public class PlanEntityStatsFetcher {
                 if (chunk.getTypeCase() == TypeCase.PAGINATION_RESPONSE) {
                     paginationResponseReference.set(Optional.of(chunk.getPaginationResponse()));
                 } else {
-                    chunk.getEntityStatsWrapper().getEntityStatsList().stream()
+                    chunk.getEntityStatsWrapper().getEntityStatsList()
                         .forEach(entityStats -> {
-                            final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
                             final ApiPartialEntity planEntity = entityStats.getPlanEntity().getApi();
-                            final ServiceEntityApiDTO serviceEntityApiDTO =
-                                serviceEntityMapper.toServiceEntityApiDTO(planEntity);
-                            StatsMapper.populateEntityDataEntityStatsApiDTO(
-                                    planEntity, entityStatsApiDTO);
-                            entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
-                            final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
-                                .getStatSnapshotsList()
-                                .stream()
-                                .map(statsMapper::toStatSnapshotApiDTO)
-                                .collect(Collectors.toList());
-                            entityStatsApiDTO.setStats(statSnapshotsList);
-                            entityStatsList.add( entityStatsApiDTO);
+                            final EntityStatsApiDTO entityStatsApiDTO =
+                                    statsMapper.toEntityStatsApiDTO(
+                                            planEntity, entityStats.getPlanEntityStats()
+                                                    .getStatSnapshotsList());
+                            entityStatsList.add(entityStatsApiDTO);
                         });
                 }
             });
-        if (paginationResponseReference.get().isPresent()) {
-            final PaginationResponse paginationResponse = paginationResponseReference.get().get();
-            final int totalRecordCount = paginationResponse.getTotalRecordCount();
-            return PaginationProtoUtil.getNextCursor(paginationResponse)
-                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor, totalRecordCount))
-                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList, totalRecordCount));
-        } else {
-            return paginationRequest.allResultsResponse(entityStatsList);
-        }
+        return getEntityStatsPaginationResponse(paginationRequest, entityStatsList,
+                                                paginationResponseReference);
     }
 
     /**
@@ -290,7 +275,7 @@ public class PlanEntityStatsFetcher {
         // they're arranged according to the pagination request.
         final List<EntityStatsApiDTO> entityStatsList = new ArrayList<>();
         final AtomicReference<Optional<PaginationResponse>> paginationResponseReference =
-            new AtomicReference<>(Optional.ofNullable(null));
+            new AtomicReference<>(Optional.empty());
 
         final Set<Integer> cloudEnvTypes = new HashSet<Integer>() {{
             add(EnvironmentType.CLOUD.getNumber());
@@ -302,9 +287,8 @@ public class PlanEntityStatsFetcher {
                 if (chunk.getTypeCase() == PlanCombinedStatsResponse.TypeCase.PAGINATION_RESPONSE) {
                     paginationResponseReference.set(Optional.of(chunk.getPaginationResponse()));
                 } else {
-                    chunk.getEntityCombinedStatsWrapper().getEntityAndCombinedStatsList().stream()
+                    chunk.getEntityCombinedStatsWrapper().getEntityAndCombinedStatsList()
                         .forEach(entityAndCombinedStats -> {
-                            final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
                             // For now, we'll always include the projected entity, if present
                             // Stats for both source and projected topologies will be included though
                             // TODO: Consider to allow requesting the source entity or both
@@ -312,34 +296,32 @@ public class PlanEntityStatsFetcher {
                                 entityAndCombinedStats.hasPlanProjectedEntity()
                                 ? entityAndCombinedStats.getPlanProjectedEntity().getApi()
                                 : entityAndCombinedStats.getPlanSourceEntity().getApi();
-                            final long planEntityOid = planEntity.getOid();
-                            final ServiceEntityApiDTO serviceEntityApiDTO =
-                                serviceEntityMapper.toServiceEntityApiDTO(planEntity);
-                            StatsMapper.populateEntityDataEntityStatsApiDTO(
-                                    planEntity, entityStatsApiDTO);
-                            entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
-                            final List<StatSnapshotApiDTO> combinedStatSnapshots = entityAndCombinedStats
-                                .getPlanCombinedStats()
-                                .getStatSnapshotsList()
-                                .stream()
-                                .map(statsMapper::toStatSnapshotApiDTO)
-                                .collect(Collectors.toList());
+                            final EntityStatsApiDTO entityStatsApiDTO = statsMapper.toEntityStatsApiDTO(
+                                    planEntity, entityAndCombinedStats.getPlanCombinedStats().getStatSnapshotsList());
                             final EnvironmentType environmentType = planEntity.getEnvironmentType();
-                            if (Objects.nonNull(environmentType)
-                                    && cloudEnvTypes.contains(environmentType.getNumber())) {
+                            if (cloudEnvTypes.contains(environmentType.getNumber())) {
+                                // Add cost stats and sort the final result by date
                                 final List<StatSnapshotApiDTO> costStats = getCostStats(
-                                        topologyContextId, inputDto, planEntityOid);
-                                combinedStatSnapshots.addAll(costStats);
-                                combinedStatSnapshots.stream()
+                                        topologyContextId, inputDto, planEntity.getOid());
+                                final List<StatSnapshotApiDTO> newStats = Stream
+                                        .concat(entityStatsApiDTO.getStats().stream(), costStats.stream())
                                         .sorted(Comparator.comparing(StatSnapshotApiDTO::getDate))
                                         .collect(Collectors.toList());
+                                entityStatsApiDTO.setStats(newStats);
                             }
-                            entityStatsApiDTO.setStats(combinedStatSnapshots);
-
                             entityStatsList.add(entityStatsApiDTO);
                         });
                 }
             });
+        return getEntityStatsPaginationResponse(paginationRequest, entityStatsList,
+                                                paginationResponseReference);
+    }
+
+    @Nonnull
+    private EntityStatsPaginationResponse getEntityStatsPaginationResponse(
+            @Nonnull EntityStatsPaginationRequest paginationRequest,
+            List<EntityStatsApiDTO> entityStatsList,
+            AtomicReference<Optional<PaginationResponse>> paginationResponseReference) {
         if (paginationResponseReference.get().isPresent()) {
             final PaginationResponse paginationResponse = paginationResponseReference.get().get();
             final int totalRecordCount = paginationResponse.getTotalRecordCount();
@@ -350,5 +332,4 @@ public class PlanEntityStatsFetcher {
             return paginationRequest.allResultsResponse(entityStatsList);
         }
     }
-
 }

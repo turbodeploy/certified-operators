@@ -13,11 +13,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -104,11 +102,6 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
-import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsRequest;
-import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsResponse;
-import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacements;
-import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.EntityConstraintsServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
@@ -415,11 +408,7 @@ public class ActionsService implements IActionsService {
                     .collect(Collectors.toSet());
 
             final Map<String, EntityStatsApiDTO> entityStatsByUuid = scopes.stream()
-                .collect(Collectors.toMap(ApiId::uuid, scope -> {
-                    final EntityStatsApiDTO entityDto = new EntityStatsApiDTO();
-                    StatsMapper.populateEntityDataEntityStatsApiDTO(scope, entityDto);
-                    return entityDto;
-                }));
+                .collect(Collectors.toMap(ApiId::uuid, StatsMapper::toEntityStatsApiDTO));
 
             final ImmutableActionStatsQuery.Builder queryBuilder = ImmutableActionStatsQuery.builder()
                 .scopes(scopes)
@@ -492,11 +481,7 @@ public class ActionsService implements IActionsService {
                     .collect(Collectors.toSet());
 
             final Map<String, EntityStatsApiDTO> entityStatsByUuid = scopes.stream()
-                    .collect(Collectors.toMap(ApiId::uuid, scope -> {
-                        final EntityStatsApiDTO entityDto = new EntityStatsApiDTO();
-                        StatsMapper.populateEntityDataEntityStatsApiDTO(scope, entityDto);
-                        return entityDto;
-                    }));
+                    .collect(Collectors.toMap(ApiId::uuid, StatsMapper::toEntityStatsApiDTO));
 
             final ImmutableActionStatsQuery.Builder queryBuilder = ImmutableActionStatsQuery.builder()
                     .scopes(scopes)

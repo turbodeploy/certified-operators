@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -33,7 +34,10 @@ import com.google.common.collect.Sets;
 import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
+import org.springframework.context.annotation.Bean;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.StatsService;
@@ -51,9 +55,11 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.cost.Cost;
@@ -62,9 +68,12 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.CostStatsSnapshot;
 import com.vmturbo.common.protobuf.cost.Cost.CostStatsSnapshot.StatRecord.TagKeyValuePair;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.cost.CostMoles;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -80,13 +89,19 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Unit tests for the static Mapper utility functions for the {@link StatsService}.
@@ -104,18 +119,61 @@ public class StatsMapperTest {
     private static final String COST_SOURCE = "costSource";
     private static final String PERCENTILE = "percentile";
     private static final String BYTE_PER_SEC = "Byte/sec";
+    private final PaginationMapper paginationMapper = mock(PaginationMapper.class);
+    private final TargetsService targetsService = mock(TargetsService.class);
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+            FeatureFlags.DELAYED_DATA_HANDLING);
+    /**
+     * Rule to provide GRPC server and channels for GRPC services for test purposes.
+     */
+    @Rule
+    public GrpcTestServer grpcServer =
+            GrpcTestServer.newServer(Mockito.spy(new PolicyServiceMole()),
+                                     Mockito.spy(new CostMoles.CostServiceMole()),
+                                     Mockito.spy(new CostMoles.ReservedInstanceBoughtServiceMole()),
+                                     Mockito.spy(new SupplyChainServiceMole()));
+    @Bean
+    public JwtClientInterceptor jwtClientInterceptor() {
+        return new JwtClientInterceptor();
+    }
+    private ServiceEntityMapper serviceEntityMapper;
+    private StatsMapper statsMapper;
+    private static final long PLAN_ID = 7L;
+    private static final long projectedTopologyId = 77L;
+    private static final EntityStatsPaginationRequest ENTITY_PAGINATION_REQUEST =
+            new EntityStatsPaginationRequest("foo", 1, true, "orderBy");
+    private static final PaginationParameters MAPPED_PAGINATION_PARAMS = PaginationParameters.newBuilder()
+            .setCursor("this is fake")
+            .build();
 
-    private PaginationMapper paginationMapper = mock(PaginationMapper.class);
-
-    private TargetsService targetsService = mock(TargetsService.class);
-
-    private StatsMapper statsMapper = spy(new StatsMapper(paginationMapper));
+    @Before
+    public void setup() throws UnknownObjectException {
+        when(paginationMapper.toProtoParams(ENTITY_PAGINATION_REQUEST))
+                .thenReturn(MAPPED_PAGINATION_PARAMS);
+        final TargetApiDTO targetApiDTO = new TargetApiDTO();
+        targetApiDTO.setUuid("11111");
+        targetApiDTO.setType("AWS Billing");
+        targetApiDTO.setDisplayName("engineering.aws.com");
+        when(targetsService.getTarget(anyString(), eq(TargetDetailLevel.BASIC)))
+                .thenReturn(targetApiDTO);
+        serviceEntityMapper =
+                new ServiceEntityMapper(Mockito.mock(ThinTargetCache.class),
+                                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                                        SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel())
+                                                .withInterceptors(jwtClientInterceptor()),
+                                        Mockito.mock(ConnectedEntityMapper.class));
+        statsMapper = spy(new StatsMapper(paginationMapper, serviceEntityMapper));
+    }
 
     /**
      * Test Conversion of gRPC stats call result to the ApiDTO to return for the REST API caller.
      */
     @Test
-    public void toStatSnapshotApiDTOTest() throws Exception {
+    public void toStatSnapshotApiDTOTest() {
         String[] postfixes = {"A", "B", "C"};
         String[] relations = {RelationType.COMMODITIES.getLiteral(),
                               RelationType.COMMODITIESBOUGHT.getLiteral(),
@@ -142,7 +200,7 @@ public class StatsMapperTest {
     }
 
     @Test (expected = IllegalArgumentException.class)
-    public void toStatSnapshotApiDTOWrongStatRelationTest() throws Exception {
+    public void toStatSnapshotApiDTOWrongStatRelationTest() {
         String[] postfixes = {"A"};
         String[] relations = {"WrongStatRelation"};
 
@@ -156,7 +214,7 @@ public class StatsMapperTest {
         statsMapper.toStatSnapshotApiDTO(testSnapshot);
     }
     @Test
-    public void toStatApiDTOStatKeyFilter() throws Exception {
+    public void toStatApiDTOStatKeyFilter() {
         final String statKey = "foo";
         StatSnapshot snapshot = StatSnapshot.newBuilder()
                 .addStatRecords(StatSnapshot.StatRecord.newBuilder()
@@ -445,33 +503,6 @@ public class StatsMapperTest {
         assertThat(filter.getCommodityAttributesCount(), equalTo(0));
     }
 
-    private static final long PLAN_ID = 7L;
-    private static final long projectedTopologyId = 77L;
-    private static final PlanInstance PLAN_INSTANCE = PlanInstance.newBuilder()
-            .setPlanId(PLAN_ID)
-            .setProjectedTopologyId(projectedTopologyId)
-            .setStatus(PlanStatus.SUCCEEDED)
-            .build();
-
-    private static final EntityStatsPaginationRequest ENTITY_PAGINATION_REQUEST =
-            new EntityStatsPaginationRequest("foo", 1, true, "orderBy");
-
-    private static final PaginationParameters MAPPED_PAGINATION_PARAMS = PaginationParameters.newBuilder()
-                .setCursor("this is fake")
-                .build();
-
-    @Before
-    public void setup() throws UnknownObjectException {
-        when(paginationMapper.toProtoParams(ENTITY_PAGINATION_REQUEST))
-                .thenReturn(MAPPED_PAGINATION_PARAMS);
-        final TargetApiDTO targetApiDTO = new TargetApiDTO();
-        targetApiDTO.setUuid("11111");
-        targetApiDTO.setType("AWS Billing");
-        targetApiDTO.setDisplayName("engineering.aws.com");
-        when(targetsService.getTarget(anyString(), eq(TargetDetailLevel.BASIC)))
-                .thenReturn(targetApiDTO);
-    }
-
     @Test
     public void testToPlanTopologyStatsRequestTopologyIdSet() {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
@@ -606,7 +637,7 @@ public class StatsMapperTest {
      */
     @Test
     public void testNewPeriodStatsFilterWith1MendDate() {
-        StatsMapper localStatsMapper = new StatsMapper(new PaginationMapper());
+        StatsMapper localStatsMapper = new StatsMapper(new PaginationMapper(), serviceEntityMapper);
         StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
         statPeriodApiInputDTO.setEndDate("1M");
         StatsFilter filter = localStatsMapper.newPeriodStatsFilter(statPeriodApiInputDTO);
@@ -619,7 +650,7 @@ public class StatsMapperTest {
      */
     @Test
     public void testNewPeriodStatsFilterWithDataCenters() {
-        StatsMapper localStatsMapper = new StatsMapper(new PaginationMapper());
+        StatsMapper localStatsMapper = new StatsMapper(new PaginationMapper(), serviceEntityMapper);
         StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
         List<StatApiInputDTO> statistics = Lists.newArrayListWithCapacity(1);
         // The API caller is requesting stats for a DATACENTER
@@ -920,13 +951,10 @@ public class StatsMapperTest {
                 .setOid(123L)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setDisplayName("Test VM 1")
-                .setEnvironmentType(
-                        EnvironmentTypeMapper.fromApiToXL(
-                                com.vmturbo.api.enums.EnvironmentType.ONPREM))
+                .setEnvironmentType(Objects.requireNonNull(
+                        EnvironmentTypeMapper.fromApiToXL(EnvironmentType.ONPREM)))
                 .build();
-        EntityStatsApiDTO outputDTO = new EntityStatsApiDTO();
-
-        StatsMapper.populateEntityDataEntityStatsApiDTO(vm, outputDTO);
+        EntityStatsApiDTO outputDTO = StatsMapper.toEntityStatsApiDTO(vm);
         // Verify the data in the output
         assertEquals("123", outputDTO.getUuid());
         assertEquals("VirtualMachine", outputDTO.getClassName());
@@ -939,14 +967,13 @@ public class StatsMapperTest {
                 .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                 .setDisplayName("Test PM 1")
                 .build();
-        EntityStatsApiDTO outputDTO2 = StatsMapper.populateEntityDataEntityStatsApiDTO(pm,
-                new EntityStatsApiDTO());
+        EntityStatsApiDTO outputDTO2 = StatsMapper.toEntityStatsApiDTO(pm);
         // Verify the data in the output
         assertEquals("123", outputDTO2.getUuid());
         assertEquals("PhysicalMachine", outputDTO2.getClassName());
         assertEquals("Test PM 1", outputDTO2.getDisplayName());
         //  no env type was specified.  So, this will be null
-        assertEquals(null, outputDTO2.getEnvironmentType());
+        assertNull(outputDTO2.getEnvironmentType());
 
     }
 
@@ -967,8 +994,7 @@ public class StatsMapperTest {
                         EnvironmentTypeMapper.fromApiToXL(
                                 com.vmturbo.api.enums.EnvironmentType.ONPREM));
 
-        EntityStatsApiDTO outputDTO = StatsMapper.populateEntityDataEntityStatsApiDTO(
-                apiId, new EntityStatsApiDTO());
+        EntityStatsApiDTO outputDTO = StatsMapper.toEntityStatsApiDTO(apiId);
         // Verify the data in the output
         assertEquals("123", outputDTO.getUuid());
         assertEquals("VirtualMachine", outputDTO.getClassName());
@@ -986,13 +1012,11 @@ public class StatsMapperTest {
                 .setOid(123L)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setDisplayName("Test VM 1")
-                .setEnvironmentType(
-                        EnvironmentTypeMapper.fromApiToXL(
-                                com.vmturbo.api.enums.EnvironmentType.ONPREM))
+                .setEnvironmentType(Objects.requireNonNull(
+                        EnvironmentTypeMapper.fromApiToXL(EnvironmentType.ONPREM)))
                 .build();
-
-        EntityStatsApiDTO outputDTO = StatsMapper.populateEntityDataEntityStatsApiDTO(
-                apiPartialEntity, new EntityStatsApiDTO());
+        EntityStatsApiDTO outputDTO = statsMapper.toEntityStatsApiDTO(
+                apiPartialEntity, Collections.emptyList());
         // Verify the data in the output
         assertEquals("123", outputDTO.getUuid());
         assertEquals("VirtualMachine", outputDTO.getClassName());
@@ -1005,20 +1029,36 @@ public class StatsMapperTest {
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setDisplayName("Test VM 2")
                 .build();
-
-        EntityStatsApiDTO outputDTONoEnv = new EntityStatsApiDTO();
-        StatsMapper.populateEntityDataEntityStatsApiDTO(apiPartialEntityNoEnv, outputDTONoEnv);
+        EntityStatsApiDTO outputDTONoEnv = statsMapper.toEntityStatsApiDTO(
+                apiPartialEntityNoEnv, Collections.emptyList());
         // Verify the data in the output
         assertEquals("456", outputDTONoEnv.getUuid());
         assertEquals("VirtualMachine", outputDTONoEnv.getClassName());
         assertEquals("Test VM 2", outputDTONoEnv.getDisplayName());
-        assertEquals(null, outputDTONoEnv.getEnvironmentType());
+        assertNull(outputDTONoEnv.getEnvironmentType());
+
+        // Test entity with plan origin
+        ApiPartialEntity apiPartialEntityWithPlanOrigin = ApiPartialEntity.newBuilder()
+                .setOid(789L)
+                .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
+                .setDisplayName("Test ContainerSpec")
+                .setOrigin(Origin.newBuilder()
+                        .setPlanScenarioOrigin(PlanScenarioOrigin.newBuilder()
+                                .setPlanId(1000L)
+                                .setOriginalEntityId(135L)))
+                .build();
+        EntityStatsApiDTO outputDTOWithPlanOrigin = statsMapper.toEntityStatsApiDTO(
+                apiPartialEntityWithPlanOrigin, Collections.emptyList());
+        // Verify the data in the output
+        assertEquals("789", outputDTOWithPlanOrigin.getUuid());
+        assertNotNull(outputDTOWithPlanOrigin.getRealtimeMarketReference());
+        assertEquals("135", outputDTOWithPlanOrigin.getRealtimeMarketReference().getUuid());
     }
 
     /**
      * Tests that when converting from {@link StatRecord} to {@link StatApiDTO} with commodities
      * that need conversion from bytes to bits, totalMax & totalMin in capacity & values fields are
-     * being populated correctly. Also verifies that {@link StatApiDTO#histUtilizations} is properly converted.
+     * being populated correctly. Also verifies that {@link StatApiDTO##histUtilizations} is properly converted.
      */
     @Test
     public void testToStatApiDtoTotalMaxMinWithByteToBitConversion() {
