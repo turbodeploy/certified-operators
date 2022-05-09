@@ -8,6 +8,7 @@ import java.io.OutputStream;
 import java.net.SocketTimeoutException;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -23,20 +24,20 @@ import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.sshd.client.ClientBuilder;
-import org.apache.sshd.client.ClientFactoryManager;
 import org.apache.sshd.client.SshClient;
 import org.apache.sshd.client.channel.ClientChannel;
 import org.apache.sshd.client.channel.ClientChannelEvent;
 import org.apache.sshd.client.config.hosts.HostConfigEntryResolver;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.client.subsystem.SubsystemClient;
-import org.apache.sshd.client.subsystem.sftp.SftpClient;
-import org.apache.sshd.client.subsystem.sftp.SftpClient.Attributes;
-import org.apache.sshd.client.subsystem.sftp.SftpClientFactory;
-import org.apache.sshd.common.PropertyResolverUtils;
+import org.apache.sshd.common.util.GenericUtils;
+import org.apache.sshd.core.CoreModuleProperties;
+import org.apache.sshd.sftp.client.SftpClient;
+import org.apache.sshd.sftp.client.SftpClient.Attributes;
+import org.apache.sshd.sftp.client.SftpClientFactory;
 import org.apache.sshd.common.random.RandomFactory;
 import org.apache.sshd.common.random.SingletonRandomFactory;
-import org.apache.sshd.common.util.io.NoCloseOutputStream;
+import org.apache.sshd.common.util.io.output.NoCloseOutputStream;
 import org.apache.sshd.common.util.security.SecurityUtils;
 
 import com.vmturbo.mediation.actionscript.exception.KeyValidationException;
@@ -146,7 +147,8 @@ public class SshUtils {
                 client.start();
 
                 try {
-                    PropertyResolverUtils.updateProperty(client, ClientFactoryManager.HEARTBEAT_INTERVAL, TimeUnit.SECONDS.toMillis(HEARTBEAT_SECS));
+                    CoreModuleProperties.HEARTBEAT_INTERVAL.set(client, Duration.ofSeconds(HEARTBEAT_SECS));
+
                     this.session = client.connect(userid, host, port)
                         .verify(SESSION_CONNECT_TIMEOUT_SECS, TimeUnit.SECONDS)
                         .getSession();
@@ -213,7 +215,17 @@ public class SshUtils {
         throws GeneralSecurityException, IOException {
 
         InputStream privateKeyStream = new ByteArrayInputStream(privateKeyString.getBytes());
-        return SecurityUtils.loadKeyPairIdentity(null, privateKeyStream, null);
+
+        Iterable<KeyPair> allResults = SecurityUtils.loadKeyPairIdentities(null,
+                                                                           null,
+                                                                           privateKeyStream,
+                                                                           null);
+        if(allResults == null || !allResults.iterator().hasNext()) {
+            throw new GeneralSecurityException("Could not extract key pair elements from provided string");
+        }
+
+        // There should only be on key, so just use that.
+        return GenericUtils.head(allResults);
     }
 
     /**

@@ -16,7 +16,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.sshd.client.subsystem.sftp.SftpClient.Attributes;
+import org.apache.sshd.sftp.client.SftpClient.Attributes;
 
 import com.vmturbo.mediation.actionscript.ActionScriptsManifest.ActionScriptDeclaration;
 import com.vmturbo.mediation.actionscript.SshUtils.SshRunner;

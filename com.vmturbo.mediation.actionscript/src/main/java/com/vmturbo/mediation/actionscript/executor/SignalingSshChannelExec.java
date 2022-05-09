@@ -17,7 +17,7 @@ import org.apache.sshd.common.util.buffer.Buffer;
 public class SignalingSshChannelExec extends ChannelExec {
 
     public SignalingSshChannelExec(final @Nonnull String command) {
-        super(command);
+        super(command, null, null);
     }
 
     /**

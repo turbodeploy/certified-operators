@@ -12,10 +12,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.io.Resources;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.sshd.common.Factory;
-import org.apache.sshd.common.NamedFactory;
 import org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory;
 import org.apache.sshd.common.keyprovider.ClassLoadableResourceKeyPairProvider;
 import org.apache.sshd.common.random.RandomFactory;
@@ -26,11 +26,12 @@ import org.apache.sshd.server.ExitCallback;
 import org.apache.sshd.server.ServerBuilder;
 import org.apache.sshd.server.SshServer;
 import org.apache.sshd.server.auth.pubkey.KeySetPublickeyAuthenticator;
+import org.apache.sshd.server.channel.ChannelSession;
 import org.apache.sshd.server.command.Command;
-import org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory;
+import org.apache.sshd.server.shell.ShellFactory;
+import org.apache.sshd.server.subsystem.SubsystemFactory;
+import org.apache.sshd.sftp.server.SftpSubsystemFactory;
 import org.springframework.util.SocketUtils;
-
-import com.google.common.io.Resources;
 
 public class ApacheSshdBuilder {
     private static final Logger logger = LogManager.getLogger(ApacheSshdBuilder.class);
@@ -60,13 +61,19 @@ public class ApacheSshdBuilder {
         // extract a keypair from the key for this test
         final KeyPair keyPair = SshUtils.extractKeyPair(privateKeyString);
         // prepare the authenticator to recognize the public key of this pair
-        sshd.setPublickeyAuthenticator(new KeySetPublickeyAuthenticator(Collections.singleton(keyPair.getPublic())));
+        sshd.setPublickeyAuthenticator(new KeySetPublickeyAuthenticator("A Public Key",
+                                                                        Collections.singleton(keyPair.getPublic())));
     }
 
     public ApacheSshdBuilder setupSftp() {
-        List<NamedFactory<Command>> factories = sshd.getSubsystemFactories();
-        factories = factories != null ? factories : new ArrayList<>();
+        final List<SubsystemFactory> factories = new ArrayList<>();
         factories.add(new SftpSubsystemFactory.Builder().build());
+
+        List<? extends SubsystemFactory> currentFactories = sshd.getSubsystemFactories();
+        if (currentFactories != null) {
+            factories.addAll(currentFactories);
+        }
+
         sshd.setSubsystemFactories(factories);
         return this;
     }
@@ -104,34 +111,28 @@ public class ApacheSshdBuilder {
     /**
      * A fake Shell factory, to be used instead of running real shell commands
      */
-    private class TestShellFactory implements Factory<Command> {
+    private static class TestShellFactory implements ShellFactory {
         @Override
-        public Command create() {
+        public Command createShell(ChannelSession channel) throws IOException {
             return new Command() {
-
                 @Override
-                public void start(final Environment environment) throws IOException {
-
+                public void start(ChannelSession channel, Environment env) throws IOException {
                 }
 
                 @Override
-                public void destroy() throws Exception {
-
+                public void destroy(ChannelSession channel) throws Exception {
                 }
 
                 @Override
                 public void setInputStream(final InputStream inputStream) {
-
                 }
 
                 @Override
                 public void setOutputStream(final OutputStream outputStream) {
-
                 }
 
                 @Override
                 public void setErrorStream(final OutputStream outputStream) {
-
                 }
 
                 @Override

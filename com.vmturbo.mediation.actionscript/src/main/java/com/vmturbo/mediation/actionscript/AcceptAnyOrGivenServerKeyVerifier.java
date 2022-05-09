@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.net.SocketAddress;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
+import java.util.Collections;
 
 import javax.annotation.Nullable;
 
@@ -118,20 +119,28 @@ public class AcceptAnyOrGivenServerKeyVerifier implements ServerKeyVerifier {
      * @param publicKeyString the key string to be parsed
      * @return parsed public key, or null if parsing fails
      */
+    @Nullable
     private PublicKey parsePublicKey(String publicKeyString) {
         String[] parts = publicKeyString.split("\\s+");
         byte[] keyValue = null;
+
         // TODO attempt to parse first part if only one part
         if (parts.length >= 2) {
             keyValue = Base64.decode(parts[1].getBytes());
+        } else {
+            logger.warn("Public key string had an unexpected format. Not attempting to parse it.");
+            return null;
         }
+
         try (InputStream bais = new ByteArrayInputStream(keyValue)) {
-            String keyType = KeyEntryResolver.decodeString(bais);
+            final String keyType = KeyEntryResolver.decodeString(bais, keyValue.length);
+
             PublicKeyEntryDecoder<?, ?> decoder = KeyUtils.getPublicKeyEntryDecoder(keyType);
             if (decoder == null) {
                 throw new NoSuchAlgorithmException("Unsupported key type (" + keyType + ")");
             }
-            return decoder.decodePublicKey(keyType, bais);
+
+            return decoder.decodePublicKey(null, keyType, bais, Collections.emptyMap());
         } catch (Exception e) {
             logger.warn("Failed to resolve supplied SSH host public key", e);
             return null;
