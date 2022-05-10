@@ -28,6 +28,7 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -136,6 +137,57 @@ public class CoverageAllocatorAwsFuncTest extends AbstractCoverageAllocatorTest 
         final Table<Long, Long, CloudCommitmentAmount> expectedAllocations = ImmutableTable.of(
                 VIRTUAL_MACHINE_SMALL_A.getOid(),
                 zonalRiBoughtB.getId(),
+                CloudCommitmentAmount.newBuilder()
+                        .setCoupons(1.0)
+                        .build());
+        assertThat(allocationResult.allocatorCoverageTable().size(), equalTo(1));
+        assertThat(allocationResult.allocatorCoverageTable(), equalTo(expectedAllocations));
+    }
+
+    /**
+     * Test direct regional RI with account scope.
+     */
+    @Test
+    public void testDirectRegionalAssignmentAccountScope() {
+
+        final ReservedInstanceBought accountScopedRIBought = ReservedInstanceBought.newBuilder()
+                .setId(OID_PROVIDER.incrementAndGet())
+                .setReservedInstanceBoughtInfo(RI_BOUGHT_SMALL_REGIONAL
+                        .getReservedInstanceBoughtInfo()
+                        .toBuilder()
+                        .setReservedInstanceScopeInfo(ReservedInstanceScopeInfo.newBuilder()
+                                .setShared(false)
+                                .addApplicableBusinessAccountId(BUSINESS_ACCOUNT.getOid())))
+                .build();
+
+        final CoverageTopology coverageTopology = generateCoverageTopology(
+                AWS_SERVICE_PROVIDER_TEST,
+                Collections.singleton(accountScopedRIBought),
+                Collections.singleton(RI_SPEC_SMALL_REGIONAL),
+                Collections.emptySet(),
+                groupMemberRetriever,
+                COMPUTE_TIER_SMALL,
+                AVAILIBILITY_ZONE_A,
+                REGION,
+                VIRTUAL_MACHINE_SMALL_A,
+                BUSINESS_ACCOUNT);
+
+        /*
+         * Invoke SUT
+         */
+        final CloudCommitmentCoverageAllocator allocator = allocatorFactory.createAllocator(
+                CoverageAllocationConfig.builder()
+                        .coverageTopology(coverageTopology)
+                        .build());
+
+        final CloudCommitmentCoverageAllocation allocationResult = allocator.allocateCoverage();
+
+        /*
+         * Asserts
+         */
+        final Table<Long, Long, CloudCommitmentAmount> expectedAllocations = ImmutableTable.of(
+                VIRTUAL_MACHINE_SMALL_A.getOid(),
+                accountScopedRIBought.getId(),
                 CloudCommitmentAmount.newBuilder()
                         .setCoupons(1.0)
                         .build());
