@@ -503,7 +503,6 @@
                 <module>../com.vmturbo.mediation.appinsights.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
-                <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.udt</module>
                 <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.scaleio.component</module>
@@ -717,13 +716,6 @@
             <id>mediation-vplex</id>
             <modules>
                 <module>../com.vmturbo.mediation.vplex.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-rhv</id>
-            <modules>
-                <module>../com.vmturbo.mediation.rhv.component</module>
             </modules>
         </profile>
 
@@ -1388,7 +1380,6 @@
                 <module>../com.vmturbo.mediation.nutanix.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
-                <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.scaleio.component</module>
                 <module>../com.vmturbo.mediation.servicenow.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
