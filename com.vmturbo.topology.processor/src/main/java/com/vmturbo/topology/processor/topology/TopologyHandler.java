@@ -56,6 +56,7 @@ public class TopologyHandler {
     private final Set<String> wastedFilesProbeTypes =
         ImmutableSet.of(SDKProbeType.AZURE_STORAGE_BROWSE.getProbeType(),
             SDKProbeType.AWS.getProbeType(),
+            SDKProbeType.GCP_PROJECT.getProbeType(),
             SDKProbeType.VC_STORAGE_BROWSE.getProbeType());
 
     public TopologyHandler(final long realtimeTopologyContextId,
