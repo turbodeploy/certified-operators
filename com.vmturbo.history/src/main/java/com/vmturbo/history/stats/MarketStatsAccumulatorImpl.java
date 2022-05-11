@@ -55,7 +55,7 @@ import com.vmturbo.history.schema.abstraction.tables.HistUtilization;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
-import com.vmturbo.history.stats.live.LiveStatsStore.CommodityCache;
+import com.vmturbo.history.stats.live.CommodityCache;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 

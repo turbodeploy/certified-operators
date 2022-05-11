@@ -19,7 +19,7 @@ import com.vmturbo.history.db.bulk.BulkInserter;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
-import com.vmturbo.history.stats.live.LiveStatsStore.CommodityCache;
+import com.vmturbo.history.stats.live.CommodityCache;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**

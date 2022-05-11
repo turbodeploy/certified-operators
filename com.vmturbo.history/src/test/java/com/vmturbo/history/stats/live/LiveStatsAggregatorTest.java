@@ -47,7 +47,7 @@ public class LiveStatsAggregatorTest {
 
     private static final String PRODUCES = PropertySubType.Produces.getApiParameterName();
     private static LiveStatsAggregator aggregator;
-    private LiveStatsStore.CommodityCache commodityCache;
+    private CommodityCache commodityCache;
     private static Record record;
     private static HistorydbIO historydbIO;
 
@@ -110,7 +110,7 @@ public class LiveStatsAggregatorTest {
                 vm1.getOid(), vm1,
                 pm1.getOid(), pm1
         );
-        commodityCache = new LiveStatsStore.CommodityCache(Sets.newSet(), new LongDataPack());
+        commodityCache = new CommodityCache(Sets.newSet(), new LongDataPack());
         aggregator.aggregateEntity(vm1, entityByOid);
         aggregator.aggregateEntity(pm1, entityByOid);
         assertEquals(0, aggregator.numPendingBought());

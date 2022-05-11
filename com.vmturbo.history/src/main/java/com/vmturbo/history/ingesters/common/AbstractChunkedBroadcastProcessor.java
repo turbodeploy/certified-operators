@@ -2,12 +2,17 @@ package com.vmturbo.history.ingesters.common;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -43,13 +48,17 @@ import com.vmturbo.history.ingesters.common.IChunkProcessor.ChunkDisposition;
  *
  * @param <T>       the type of the objects that make up the broadcast
  * @param <InfoT>   type of metadata about the broadcast as a whole
- * @param <StateT>  type of a shared state object provided to all chunk processors
+ * @param <StateT>  type of shared state object provided to all chunk processors
  * @param <ResultT> type of data returned after processing a broadcast
  */
 public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, ResultT> {
 
     private final Logger logger;
-    protected final Collection<? extends IChunkProcessorFactory<T, InfoT, StateT>> chunkProcessorFactories;
+
+    private static final long CHUNK_PROCESSING_EXTRA_TIME_MS = TimeUnit.SECONDS.toMillis(10);
+
+    protected final Collection<? extends IChunkProcessorFactory<T, InfoT, StateT>>
+            chunkProcessorFactories;
     private final ChunkedBroadcastProcessorConfig config;
 
     /**
@@ -131,7 +140,7 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
     /**
      * Process a broadcast, using a shared state instance provided by the subclass.
      *
-     * <p>See {@link #processBroadcast(Object, RemoteIterator)} for details.</p>
+     * <p>See {@link #processBroadcast(InfoT, RemoteIterator, StateT)} for details.</p>
      *
      * @param info          the metadata info object for this broadcast
      * @param chunkIterator provider of broadcast chunks
@@ -279,7 +288,7 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
          * @return total number of objects processed
          */
         public ResultT process() {
-            try (AsyncTimer elapsed = timer.async("Total Elapsed")) {
+            try (AsyncTimer ignored = timer.async("Total Elapsed")) {
                 logger.info("Processing {}", infoSummary);
                 int chunkNo = 1;
                 // if we don't flip this by the time we're done, we'll log a warning
@@ -345,7 +354,7 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
         }
 
         // futures for tasks submitted for active chunk processors for current chunk
-        private final Map<IChunkProcessor<T>, Future<ChunkDisposition>> futures = new HashMap<>();
+        private final Map<Future<ChunkDisposition>, IChunkProcessor<T>> futures = new HashMap<>();
         // dispositions returned by active chunk processors for current chunk
         private final Map<IChunkProcessor<T>, ChunkDisposition> dispositions = new HashMap<>();
 
@@ -354,8 +363,10 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
             // reset per-chunk state
             futures.clear();
             dispositions.clear();
-            submitProcessors(chunk, chunkNo);
-            collectResults(chunkNo);
+            CompletionService<ChunkDisposition> cs =
+                    new ExecutorCompletionService<>(config.threadPool());
+            submitProcessors(chunk, chunkNo, cs);
+            collectResults(chunkNo, cs);
             performDeactivations();
             totalChunkTime += chunkTimer.stop().elapsed().toMillis();
             String rate = String.format("%.2f", chunkNo / (totalChunkTime / 60000.0));
@@ -369,11 +380,13 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
          *
          * @param chunk   the current chunk
          * @param chunkNo the chunk number, for use in logging
+         * @param cs      completion service for task submission
          */
-        private void submitProcessors(Collection<T> chunk, int chunkNo) {
+        private void submitProcessors(Collection<T> chunk, int chunkNo,
+                CompletionService<ChunkDisposition> cs) {
             for (IChunkProcessor<T> processor : activeProcessors) {
                 try {
-                    futures.put(processor, submitChunkProcessor(processor, chunk, timer));
+                    futures.put(submitChunkProcessor(processor, chunk, cs, timer), processor);
                 } catch (RejectedExecutionException e) {
                     logger.error(
                             "Chunk processor {} could not be scheduled for chunk #{} of {}",
@@ -385,58 +398,96 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
         }
 
         /**
+         * Obtain the number of entries in the reporting object, if that makes sense and is feasible
+         * for the reporting object.
+         *
+         * <p>By default, we report the size of a Java {@link Collection} or {@link Map}</p>
+         *
+         * @return number of entries, or null if not appropriate or not available
+         */
+        @Override
+        public Integer getMemItemCount() {
+            return MemReporter.super.getMemItemCount();
+        }
+
+        /**
          * Collect the dispositions of all the tasks we submitted for processing this chunk.
          *
          * @param chunkNo the chunk number, for use in logging
-         * @throws InterruptedException if we're interrupted while awaiting a result
+         * @param cs      completion service that will supply complete futures
          */
-        private void collectResults(int chunkNo) throws InterruptedException {
-            // keep track of whether we're interrupted
-            InterruptedException interrupted = null;
-            for (Entry<IChunkProcessor<T>, Future<ChunkDisposition>> entry : futures.entrySet()) {
-                final IChunkProcessor<T> processor = entry.getKey();
+        private void collectResults(int chunkNo, CompletionService<ChunkDisposition> cs) {
+            // each processor processes a chunk in its own self-timed task, since different
+            // processors can have different time limits. We use the sum of all those time
+            // limits, plus a few seconds, as a time limit for each individual poll operation
+            // on the completion service. That time limit should never be reached, because
+            // some individual task will time out before that happens (especially given that they
+            // will normally execute in parallel).
+            final long deadline = System.currentTimeMillis() + CHUNK_PROCESSING_EXTRA_TIME_MS
+                    + activeProcessors.stream()
+                    .mapToLong(this::getChunkTimeLimit)
+                    .sum();
+            while (!futures.isEmpty()) {
+                final long timeToWait = deadline - System.currentTimeMillis();
+                final List<IChunkProcessor<T>> processorRef = new ArrayList<>(
+                        Collections.singletonList(null));
+                final List<Future<ChunkDisposition>> futureRef = new ArrayList<>(
+                        Collections.singletonList(null));
                 try {
-                    if (interrupted == null) {
-                        // collect this processor's result
-                        long timeLimit = getChunkTimeLimit(processor);
-                        dispositions.put(processor, entry.getValue()
-                                .get(timeLimit, TimeUnit.MILLISECONDS));
+                    futureRef.set(0, cs.poll(timeToWait, TimeUnit.MILLISECONDS));
+                    Future<ChunkDisposition> future = futureRef.get(0);
+                    if (future != null) {
+                        processorRef.set(0, futures.get(future));
+                        futures.remove(future);
+                        dispositions.put(processorRef.get(0), future.get());
                     } else {
-                        // if we've been interrupted, try to stop ongoing work
-                        logger.error("Ingester interrupted while procesing chunk #{} of topology {}; "
-                                + "attempting to cancel current procesing", chunkNo, infoSummary);
-                        entry.getValue().cancel(true);
+                        // exceeded aggregate time limit... cancel pending tasks and log
+                        cancelPendingProcessors(String.format(
+                                "Aggregate time limit exceeded procesing chunk #%d of %s",
+                                chunkNo, infoSummary));
                     }
-                } catch (ExecutionException e) {
-                    logger.error(
-                            "Chunk processor {} failed to process chunk #{} of {}",
-                            processor.getLabel(), chunkNo, infoSummary, e);
-                    // for a failed processor, use its exception disposition as a result
-                    dispositions.put(processor, processor.getDispositionOnException());
-                } catch (TimeoutException e) {
-                    // attempt to cancel the in-progress execution, and free up the thread for
-                    // another task
-                    entry.getValue().cancel(true);
-                    logger.error(
-                            "Chunk processor {} timed out processing chunk #{} of {}",
-                            processor.getLabel(), chunkNo, infoSummary);
-                    // for a failed processor, use its exception disposition as a result
-                    dispositions.put(processor, processor.getDispositionOnTimeout());
-                } catch (InterruptedException e) {
-                    logger.warn(
-                            "Chunk processor {} was interrupted processing chunk #{} of {}; "
-                                    + "other processors that have not completed will be canceled.",
-                            processor.getLabel(), chunkNo, infoSummary);
-                    // don't hide the fact that this thread has been interrupted
-                    Thread.currentThread().interrupt();
-                    // and stash the exception so we can rethrow after we've canceled all the
-                    // other processors
-                    interrupted = e;
+                } catch (ExecutionException | InterruptedException e) {
+                    IChunkProcessor<T> processor = processorRef.get(0);
+                    InterruptedException ie = null;
+                    if (e instanceof InterruptedException) {
+                        ie = (InterruptedException)e;
+                    } else if (e.getCause() instanceof InterruptedException) {
+                        ie = (InterruptedException)(e.getCause());
+                    } else if (e.getCause() instanceof ExecutionException
+                            && e.getCause().getCause() instanceof InterruptedException) {
+                        ie = (InterruptedException)e.getCause().getCause();
+                    }
+                    if (ie != null) {
+                        // interruption of any task or of the overall operation results in
+                        // abandonment of all pending tasks, and propagation of interrupted
+                        // state
+                        cancelPendingProcessors(String.format(
+                                "Interrupted while processing chunk #%d of %s",
+                                chunkNo, infoSummary));
+                        dispositions.put(processor, ChunkDisposition.TERMINATE);
+                    } else if (e.getCause() instanceof TimeoutException) {
+                        // individual task timeout causes that task to be terminated
+                        logger.error("Processor {} timed out on chunk #{} of {}",
+                                processor, chunkNo, infoSummary);
+                        futureRef.get(0).cancel(true);
+                        dispositions.put(processor, processor.getDispositionOnTimeout());
+                    } else {
+                        // some other failure
+                        logger.error("Processor {} failed on chunk ${} of {}",
+                                processor, chunkNo, infoSummary, e.getCause());
+                        dispositions.put(processor, processor.getDispositionOnException());
+                    }
                 }
             }
-            if (interrupted != null) {
-                throw interrupted;
-            }
+        }
+
+        private void cancelPendingProcessors(String msg) {
+            List<String> pendingProcesorNames = futures.values().stream()
+                    .map(IChunkProcessor::getLabel)
+                    .collect(Collectors.toList());
+            futures.keySet().forEach(f -> f.cancel(true));
+            futures.clear();
+            logger.error("{}; canceling pending procesors {}", msg, pendingProcesorNames);
         }
 
         /**
@@ -522,17 +573,26 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
          *
          * @param processor the chunk processor instance to process the chunk
          * @param chunk     the chunk to be processed
+         * @param cs        completion service for task submission
          * @param timer     a timer to track processing by various chunk processors
          * @return future that will provide processing disposition
          */
         private Future<ChunkDisposition> submitChunkProcessor(
-                IChunkProcessor<T> processor, Collection<T> chunk, MultiStageTimer timer) {
+                IChunkProcessor<T> processor, Collection<T> chunk,
+                CompletionService<ChunkDisposition> cs,
+                MultiStageTimer timer) {
+            return cs.submit(executeChunkProcessor(processor, chunk, timer));
+        }
 
-            return config.threadPool().submit(() -> {
-                try (AsyncTimer taskTimer = timer.async(processor.getLabel())) {
-                    return processor.processChunk(chunk, infoSummary);
+        private Callable<ChunkDisposition> executeChunkProcessor(
+                IChunkProcessor<T> processor, Collection<T> chunk, MultiStageTimer timer) {
+            return () -> {
+                try (AsyncTimer ignored = timer.async(processor.getLabel())) {
+                    Future<ChunkDisposition> future = Executors.newSingleThreadExecutor()
+                            .submit(() -> processor.processChunk(chunk, infoSummary));
+                    return future.get(getChunkTimeLimit(processor), TimeUnit.MILLISECONDS);
                 }
-            });
+            };
         }
 
         @Override
