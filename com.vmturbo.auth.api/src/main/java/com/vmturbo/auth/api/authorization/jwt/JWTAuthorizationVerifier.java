@@ -33,6 +33,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.auth.api.JWTKeyCodec;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.IAuthorizationToken;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
@@ -312,14 +314,21 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
             JsonObject stringJson = response.getBody();
             // TODO: refine usability and support of role to capability mapping.
             if (stringJson.get(SecurityConstant.ACTIVE).getAsBoolean()) {
+                AuditLogUtils.logSecurityAudit(AuditAction.AUTHENTICATE_PROBE,
+                    "Authorization sever authenticated probe: "
+                        + stringJson.get(SecurityConstant.CLIENT_ID).getAsString(), true);
                 return new AuthServiceDTO(TYPE.PROBE, LOCATION.EXTERNAL,
                     Sets.newHashSet(ROLE.PROBE_ADMIN), stringJson.get(SecurityConstant.CLIENT_ID).getAsString(),
                     hydraToken.getCompactRepresentation(), null,
                     stringJson.get(SecurityConstant.CLIENT_ID).getAsString(), SecurityConstant.DEFAULT_IP);
             }
-            throw new AuthorizationException("Hydra is not active");
+            AuditLogUtils.logSecurityAudit(AuditAction.AUTHENTICATE_PROBE,
+                "Authorization sever could not authenticate probe due to inactive token", false);
+            throw new AuthorizationException("Token is not active");
         } catch (RestClientException e) {
-            throw new ServiceUnavailableException("Hydra service is not available");
+            AuditLogUtils.logSecurityAudit(AuditAction.AUTHENTICATE_PROBE,
+                "Authorization sever is not available. Could not authenticate probe", false);
+            throw new ServiceUnavailableException("Authorization sever is not available");
         }
     }
 

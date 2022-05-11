@@ -197,6 +197,11 @@ public class SecurityConstant {
     public static final String ACTIVE = "active";
 
     /**
+     * Constant for security target name for audit log entries.
+     */
+    public static final String AUDIT_LOG_SECURITY = "Security";
+
+    /**
      * These are predefined external groups for all the roles in XL.
      */
     public static final Set<SecurityGroupDTO> PREDEFINED_SECURITY_GROUPS_SET =

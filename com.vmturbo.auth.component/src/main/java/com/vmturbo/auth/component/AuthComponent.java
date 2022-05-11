@@ -32,12 +32,15 @@ import org.springframework.web.filter.DelegatingFilterProxy;
 import org.springframework.web.servlet.DispatcherServlet;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.auth.component.licensing.LicensingConfig;
 import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.userscope.UserScopeServiceConfig;
 import com.vmturbo.auth.component.widgetset.WidgetsetConfig;
 import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 import com.vmturbo.sql.utils.DbEndpoint;
 
@@ -171,5 +174,13 @@ public class AuthComponent extends BaseVmtComponent {
         final ContextLoaderListener springListener = new ContextLoaderListener(rootContext);
         contextServer.addEventListener(springListener);
         return restContext;
+    }
+
+    @Override
+    public void logInitialAuditMessage() {
+        if (FeatureFlags.ENABLE_TP_PROBE_SECURITY.isEnabled()) {
+            AuditLogUtils.logSecurityAudit(AuditAction.ENABLE_PROBE_SECURITY,
+                getComponentName() + ": " + FeatureFlags.ENABLE_TP_PROBE_SECURITY.getName(), true);
+        }
     }
 }

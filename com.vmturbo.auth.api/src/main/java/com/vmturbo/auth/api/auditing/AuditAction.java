@@ -59,8 +59,11 @@ public enum AuditAction {
     SET_LOCAL_ONLY_AUTH("Configure Local only authentication and authorization"),
     SET_HEADER_AUTH("Configure header authentication and authorization"),
     SET_AD_MULTI_GROUP_AUTH("Configure AD to support multiple external groups"),
-    HEAP_DUMP("Heap Dump");
-
+    HEAP_DUMP("Heap Dump"),
+    ENABLE_PROBE_SECURITY("External probe authentication is enabled"),
+    AUTHENTICATE_PROBE("Authenticate Probe"),
+    AUTHORIZE_PROBE("Authorize Probe"),
+    SET_SECURITY_CONTEXT("Set Security Context");
 
     private String displayName;
 
