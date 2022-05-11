@@ -32,6 +32,11 @@ public class TopologyProcessorApiSecurityConfig extends WebSecurityConfigurerAda
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
+        // TP's security config permits all requests at the moment in order to preserve functionality
+        // of existing requests. In order to remove permitAll for all paths we would need to find
+        // all existing requests and permit them, similar to AuthRESTSecurityConfig, so we don't
+        // introduce a regression issue. We may decide to use some different mechanism like istio
+        // in the future to secure communication between components.
         http.csrf().disable();
         if (FeatureFlags.ENABLE_TP_PROBE_SECURITY.isEnabled()) {
             http.authorizeRequests()
