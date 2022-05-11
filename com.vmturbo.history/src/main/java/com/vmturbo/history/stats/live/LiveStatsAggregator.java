@@ -32,7 +32,6 @@ import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.DelayedCommodityBoughtWriter;
-import com.vmturbo.history.stats.live.LiveStatsStore.CommodityCache;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
