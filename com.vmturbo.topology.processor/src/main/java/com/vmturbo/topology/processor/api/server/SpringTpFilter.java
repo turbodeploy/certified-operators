@@ -26,6 +26,8 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.GenericFilterBean;
 
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
@@ -33,6 +35,8 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.servicemgmt.AuthServiceHelper.ROLE;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
+import com.vmturbo.common.api.utils.EnvironmentUtils;
+import com.vmturbo.components.common.BaseVmtComponent;
 
 /**
  * The SpringTpFilter to intercept requests to tp in order to secure probe communication.
@@ -45,6 +49,8 @@ public class SpringTpFilter extends GenericFilterBean {
      */
     private final JWTAuthorizationVerifier verifier_;
 
+    private String instance;
+
     /**
      * Constructs the Tp Component stateless authentication filter.
      *
@@ -52,6 +58,7 @@ public class SpringTpFilter extends GenericFilterBean {
      */
     public SpringTpFilter(final @Nonnull JWTAuthorizationVerifier verifier) {
         verifier_ = verifier;
+        instance = EnvironmentUtils.getOptionalEnvProperty(BaseVmtComponent.PROP_INSTANCE_ID).get();
     }
 
     @Override
@@ -66,6 +73,9 @@ public class SpringTpFilter extends GenericFilterBean {
                 AuthUserDTO dto = verifier_.verifyAuthComponent(token);
                 if (PROVIDER.LDAP.equals(dto.getProvider())
                         && !dto.getRoles().contains(ROLE.PROBE_ADMIN.toString())) {
+                    AuditLogUtils.logSecurityAudit(AuditAction.AUTHORIZE_PROBE,
+                        instance + ": TopologyProcessor could not authorize Probe with token due to "
+                        + "PROBE_ADMIN role is missing.", false);
                     throw new SecurityException("PROBE_ADMIN role is missing: " + dto.getRoles());
                 }
                 setSecurityContext(request, response, filterChain, dto);
@@ -74,6 +84,8 @@ public class SpringTpFilter extends GenericFilterBean {
             }
         } else {
             if ("external".equals(request.getParameter("source"))) {
+                AuditLogUtils.logSecurityAudit(AuditAction.AUTHENTICATE_PROBE,
+                    instance +  ": TopologyProcessor could not authenticate external service without token", false);
                 throw new SecurityException("External probe connections require token!");
             }
             filterChain.doFilter(request, response);
@@ -100,6 +112,8 @@ public class SpringTpFilter extends GenericFilterBean {
                 CREDENTIALS,
                 grantedAuths);
         SecurityContextHolder.getContext().setAuthentication(authentication);
+        AuditLogUtils.logSecurityAudit(AuditAction.SET_SECURITY_CONTEXT,
+            instance + ": Successfully set security context for service: " + dto.getUser(), true);
         filterChain.doFilter(request, response);
     }
 }

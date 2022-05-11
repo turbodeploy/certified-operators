@@ -48,7 +48,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 
+import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authentication.AuthenticationException;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
@@ -69,6 +71,7 @@ import com.vmturbo.auth.component.exception.DuplicateExternalGroupException;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.auth.component.widgetset.WidgetsetDbStore;
+import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -76,6 +79,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.PublicKeyStore;
 
@@ -636,6 +640,9 @@ public class AuthProvider extends AuthProviderBase {
             authService.getRoles().stream().map(role -> role.toString()).collect(Collectors.toList()),
             Lists.newArrayList(), authService.getIpAddress(), PROVIDER.LDAP);
         authService.setInternalToken(authToken.getCompactRepresentation());
+        AuditLogUtils.logSecurityAudit(AuditAction.AUTHORIZE_PROBE,
+            EnvironmentUtils.getOptionalEnvProperty(BaseVmtComponent.PROP_INSTANCE_ID).get()
+                + ": Successfully authorized service: " + authService.getName(), true);
         return authToken;
     }
 

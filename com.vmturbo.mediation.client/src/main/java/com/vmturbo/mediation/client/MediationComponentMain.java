@@ -21,10 +21,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.stereotype.Component;
 
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.mediation.common.ContainerJavaHeapResourceValueSupplier;
 import com.vmturbo.components.common.ExecutionStatus;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.mediation.common.ProbeConfigurationLoadException;
 import com.vmturbo.mediation.common.ProbeProperties;
 import com.vmturbo.mediation.common.ProbesConfig;
@@ -59,6 +62,11 @@ public class MediationComponentMain extends BaseVmtComponent {
     private long resourceUsageIntervalMillis;
     @Value("${communicationBindingChannel:#{null}}")
     private String communicationBindingChannel;
+    /**
+     * Flag indicating whether or not Jwt Authentication should be used by the client.
+     */
+    @Value("${jwtAuthenticationEnabled:false}")
+    private boolean jwtAuthenticationEnabled;
 
     @Autowired
     private MediationDiagnosticsConfig diagnosticsConfig;
@@ -178,4 +186,11 @@ public class MediationComponentMain extends BaseVmtComponent {
         log.info("Done collecting diags from {}", instanceId);
     }
 
+    @Override
+    public void logInitialAuditMessage() {
+        if (jwtAuthenticationEnabled) {
+            AuditLogUtils.logSecurityAudit(AuditAction.ENABLE_PROBE_SECURITY,
+                getComponentName() + ": " + FeatureFlags.ENABLE_TP_PROBE_SECURITY.getName(), true);
+        }
+    }
 }

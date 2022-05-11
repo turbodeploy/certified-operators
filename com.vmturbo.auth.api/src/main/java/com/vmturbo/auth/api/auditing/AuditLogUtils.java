@@ -197,4 +197,17 @@ public final class AuditLogUtils {
         return (userName != null && userUuid != null) ?
                 userName + LEFT_BRACKET + userUuid + RIGHT_BRACKET : SYSTEM;
     }
+
+    /**
+     * Log a security related entry.
+     *
+     * @param auditAction the action to log.
+     * @param msg the detailed message.
+     * @param isSuccessful if action attempt was successful.
+     */
+    public static void logSecurityAudit(AuditAction auditAction, String msg, boolean isSuccessful) {
+        AuditLog.newEntry(auditAction, msg, isSuccessful)
+            .targetName(SecurityConstant.AUDIT_LOG_SECURITY)
+            .audit();
+    }
 }

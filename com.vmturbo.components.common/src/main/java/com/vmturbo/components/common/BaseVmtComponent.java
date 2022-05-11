@@ -423,7 +423,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                     }
                     logger.info("Finished running initializations for {} beans.", sortedInitialization.size());
                 }
-
+                logInitialAuditMessage();
                 this.onStartComponent();
                 publishVersionInformation();
                 componentStatusNotifierConfig.componentStatusNotifier().ifPresent(
@@ -554,6 +554,12 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             changedPropertyKeys.forEach(propertyKey -> logger.info("  changed property  {} = {}",
                     propertyKey, environment.getProperty(propertyKey)));
     }
+
+    /**
+     * Method for components to log whatever would be relevant and useful to the audit log upon
+     * startup.
+     */
+    protected void logInitialAuditMessage() {}
 
     /**
      * Component implementations should override this method and return the gRPC services

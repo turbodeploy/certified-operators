@@ -22,6 +22,8 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.GenericFilterBean;
 
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
@@ -29,6 +31,8 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.servicemgmt.AuthServiceDTO;
 import com.vmturbo.auth.api.servicemgmt.AuthServiceHelper.ROLE;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.common.api.utils.EnvironmentUtils;
+import com.vmturbo.components.common.BaseVmtComponent;
 
 /**
  * The SpringAuthFilter implements the stateless authentication filter.
@@ -41,6 +45,8 @@ public class SpringAuthFilter extends GenericFilterBean {
      */
     private final JWTAuthorizationVerifier verifier_;
 
+    private String instance;
+
     /**
      * Constructs the AUTH Component stateless authentication filter.
      *
@@ -48,6 +54,7 @@ public class SpringAuthFilter extends GenericFilterBean {
      */
     public SpringAuthFilter(final @Nonnull JWTAuthorizationVerifier verifier) {
         verifier_ = verifier;
+        instance = EnvironmentUtils.getOptionalEnvProperty(BaseVmtComponent.PROP_INSTANCE_ID).get();
     }
 
     @Override
@@ -72,6 +79,8 @@ public class SpringAuthFilter extends GenericFilterBean {
                     setSecurityContext(request, response, filterChain, dto);
                 }
             } catch (AuthorizationException e) {
+                AuditLogUtils.logSecurityAudit(AuditAction.AUTHENTICATE_PROBE,
+                    instance + ": Verifier could not authenticate token.", false);
                 throw new SecurityException(e);
             }
         } else {
@@ -99,6 +108,8 @@ public class SpringAuthFilter extends GenericFilterBean {
                 CREDENTIALS,
                 grantedAuths);
         SecurityContextHolder.getContext().setAuthentication(authentication);
+        AuditLogUtils.logSecurityAudit(AuditAction.SET_SECURITY_CONTEXT,
+            instance + ": Successfully set security context for service: " + dto.getUser(), true);
         filterChain.doFilter(request, response);
     }
 
@@ -118,6 +129,8 @@ public class SpringAuthFilter extends GenericFilterBean {
         CREDENTIALS,
         grantedAuths);
         SecurityContextHolder.getContext().setAuthentication(authentication);
+        AuditLogUtils.logSecurityAudit(AuditAction.SET_SECURITY_CONTEXT,
+            instance + ": Successfully set security context for service: " + dto.getName(), true);
         filterChain.doFilter(request, response);
     }
 }

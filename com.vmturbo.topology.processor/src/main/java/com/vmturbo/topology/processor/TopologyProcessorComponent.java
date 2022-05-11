@@ -30,7 +30,10 @@ import org.springframework.web.filter.DelegatingFilterProxy;
 import org.springframework.web.servlet.DispatcherServlet;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -193,6 +196,14 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
             topologyProcessorRpcConfig.probeService(),
             topologyProcessorRpcConfig.targetRpcService(),
             planExportConfig.planExportToTargetService());
+    }
+
+    @Override
+    public void logInitialAuditMessage() {
+        if (FeatureFlags.ENABLE_TP_PROBE_SECURITY.isEnabled()) {
+            AuditLogUtils.logSecurityAudit(AuditAction.ENABLE_PROBE_SECURITY,
+                getComponentName() + ": " + FeatureFlags.ENABLE_TP_PROBE_SECURITY.getName(), true);
+        }
     }
 
     /**
