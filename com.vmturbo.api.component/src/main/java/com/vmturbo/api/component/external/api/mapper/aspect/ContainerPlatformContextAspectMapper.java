@@ -59,16 +59,17 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
      *                                  Note: This only permits the lookup of aspects on the
      *                                  realtime topology and not plan entities.
      */
-    public ContainerPlatformContextAspectMapper(@Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
-                                          @Nonnull final RepositoryApi repositoryApi,
-                                          @Nonnull final Long realtimeTopologyContextId) {
+    public ContainerPlatformContextAspectMapper(
+            @Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
+            @Nonnull final RepositoryApi repositoryApi,
+            @Nonnull final Long realtimeTopologyContextId) {
         containerPlatformContextMapper = new ContainerPlatformContextMapper(
             supplyChainRpcService, repositoryApi, realtimeTopologyContextId);
     }
 
     @Override
-    public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatchPartial(@Nonnull List<ApiPartialEntity> entities)
-        throws InterruptedException, ConversionException {
+    @Nonnull
+    public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatchPartial(@Nonnull List<ApiPartialEntity> entities) {
         return Optional.of(containerPlatformContextMapper.bulkMapContainerPlatformContext(entities, Optional.empty()));
     }
 

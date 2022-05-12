@@ -836,7 +836,7 @@ public class ExplanationComposer {
             return risks;
         }
         // Combined explanation for all the targets
-        StringBuilder allExplanations = new StringBuilder();
+        StringBuilder allExplanations = new StringBuilder(ActionDTOUtil.TRANSLATION_PREFIX);
         allExplanations.append(String.join("; ", resizeInfoExplanations));
 
         return Collections.singleton(allExplanations.toString());

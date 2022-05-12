@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -20,6 +21,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec.ActionSpecCase;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.UploadAtomicActionSpecsRequest;
+import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.UploadAtomicActionSpecsRequest.UploadType;
 import com.vmturbo.common.protobuf.action.AtomicActionSpecsUploadServiceGrpc.AtomicActionSpecsUploadServiceImplBase;
 
 /**
@@ -32,7 +34,8 @@ public class AtomicActionSpecsRpcService extends AtomicActionSpecsUploadServiceI
     private static final Logger logger = LogManager.getLogger();
 
     // Cache for saving the atomic action specs by action type
-    private final AtomicActionSpecsCache atomicActionSpecsCache;
+    private final AtomicActionSpecsCache liveAtomicActionSpecsCache;
+    private final AtomicActionSpecsCache planAtomicActionSpecsCache;
 
     private static final Map<ActionSpecCase, ActionType> actionTypes
                 = ImmutableMap.of(
@@ -45,10 +48,34 @@ public class AtomicActionSpecsRpcService extends AtomicActionSpecsUploadServiceI
     /**
      * Constructor of the rpc service.
      *
-     * @param atomicActionSpecsCache the cache which has access to all atomic action specs
+     * @param liveAtomicActionSpecsCache the cache that holds atomic action specs for realtime
+     * @param planAtomicActionSpecsCache the cache that holds atomic action specs for plan
      */
-    AtomicActionSpecsRpcService(@Nonnull final AtomicActionSpecsCache atomicActionSpecsCache) {
-        this.atomicActionSpecsCache = atomicActionSpecsCache;
+    AtomicActionSpecsRpcService(@Nonnull final AtomicActionSpecsCache liveAtomicActionSpecsCache,
+                                @Nonnull final AtomicActionSpecsCache planAtomicActionSpecsCache) {
+        this.liveAtomicActionSpecsCache = liveAtomicActionSpecsCache;
+        this.planAtomicActionSpecsCache = planAtomicActionSpecsCache;
+    }
+
+    /**
+     * Get the atomic action specs cache by upload type.
+     *
+     * @param uploadType the upload type
+     * @return the atomic action specs cache for the given upload type
+     */
+    @Nonnull
+    private Optional<AtomicActionSpecsCache> getAtomicActionSpecsCache(
+            @Nonnull final UploadType uploadType)  {
+        switch (uploadType) {
+            case REALTIME:
+                return Optional.of(liveAtomicActionSpecsCache);
+            case PLAN:
+                return Optional.of(planAtomicActionSpecsCache);
+            default:
+                logger.debug("AtomicActionSpecsRpcService : unsupported upload type {}",
+                             uploadType);
+                return Optional.empty();
+        }
     }
 
     /**
@@ -69,6 +96,8 @@ public class AtomicActionSpecsRpcService extends AtomicActionSpecsUploadServiceI
 
         private final Map<ActionType, List<AtomicActionSpec>> actionSpecsMap;
 
+        private UploadType uploadType;
+
         /**
          * Constructor of this class.
          *
@@ -81,20 +110,15 @@ public class AtomicActionSpecsRpcService extends AtomicActionSpecsUploadServiceI
 
         @Override
         public void onNext(final UploadAtomicActionSpecsRequest request) {
-            for (AtomicActionSpec actionSpec : request.getAtomicActionSpecsInfoList()) {
-
-                if (!actionTypes.containsKey(actionSpec.getActionSpecCase())) {
-                    logger.warn("Received action spec for unsupported action type {}",
-                                                actionSpec.getActionSpecCase());
-                    continue;
-                }
-
-                ActionType actionType = actionTypes.get(actionSpec.getActionSpecCase());
-
-               // save by action type
-               actionSpecsMap.computeIfAbsent(actionType, v -> new ArrayList<>())
-                                                    .add(actionSpec);
-            }
+            this.uploadType = request.getUploadType();
+            request.getAtomicActionSpecsInfoList().stream()
+                    .filter(actionSpec -> actionTypes.containsKey(actionSpec.getActionSpecCase()))
+                    .forEach(actionSpec -> {
+                        final ActionType actionType = actionTypes.get(actionSpec.getActionSpecCase());
+                        // save by action type
+                        actionSpecsMap.computeIfAbsent(actionType, v -> new ArrayList<>())
+                                .add(actionSpec);
+                    });
         }
 
         @Override
@@ -104,9 +128,11 @@ public class AtomicActionSpecsRpcService extends AtomicActionSpecsUploadServiceI
 
         @Override
         public void onCompleted() {
-            logger.debug("AtomicActionSpecsRpcService : updating atomic action specs cache");
+            logger.debug("AtomicActionSpecsRpcService : updating atomic action specs cache for {}",
+                         uploadType);
             //now move to store
-            atomicActionSpecsCache.updateAtomicActionSpecsInfo(actionSpecsMap);
+            getAtomicActionSpecsCache(uploadType)
+                    .ifPresent(cache -> cache.updateAtomicActionSpecsInfo(actionSpecsMap));
             responseObserver.onCompleted();
         }
     }

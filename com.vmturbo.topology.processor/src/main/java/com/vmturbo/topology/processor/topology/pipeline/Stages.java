@@ -565,7 +565,8 @@ public class Stages {
         @Nonnull
         @Override
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
-            actionMergeSpecsUploader.uploadAtomicActionSpecsInfo(topologyGraph);
+            actionMergeSpecsUploader.uploadAtomicActionSpecsInfo(topologyGraph,
+                                                                 getContext().getTopologyInfo());
             return Status.success();
         }
     }
@@ -1847,7 +1848,7 @@ public class Stages {
             final String planType = topologyInfo.getPlanInfo().getPlanType();
             if (!StringConstants.CLOUD_PLAN_TYPES.contains(planType)) {
                 if (planType.equals(StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN)
-                        || planType.equals(StringConstants.MIGRATE_CONTAINER_WORKLOAD_PLAN)) {
+                        || planType.equals(StringConstants.MIGRATE_CONTAINER_WORKLOADS_PLAN)) {
                     logger.info("Indexing container platform entities for scoping .....");
                 } else {
                     logger.info("Indexing on-prem entities for scoping .....");

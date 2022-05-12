@@ -54,6 +54,12 @@ enum PlanProjectType {
 
     // Plan for on-prem or cloud, to cloud migration.
     CLOUD_MIGRATION = 4;
+
+    // Plan for migrating container workloads.
+    // This corresponds to the MIGRATE_CONTAINER_WORKLOADS plan, but for the purpose of storing
+    // the type in the "plan_project" table in the DB, it has to be limited to 20 characters at
+    // the moment.
+    CONTAINER_MIGRATION = 5;
 }
 
 // Information describing the plan project.

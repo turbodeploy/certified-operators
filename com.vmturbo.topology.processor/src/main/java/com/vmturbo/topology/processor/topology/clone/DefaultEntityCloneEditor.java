@@ -61,10 +61,14 @@ public class DefaultEntityCloneEditor {
         // entities added in this stage will heave a plan origin pointed to the context id of this topology
         final TopologyEntityImpl clonedEntityImpl =
                 internalClone(entityImpl, cloneContext, cloneInfo);
-        final OriginView entityOrigin = new OriginImpl().setPlanScenarioOrigin(
-                new PlanScenarioOriginImpl()
-                        .setPlanId(cloneContext.getPlanId())
-                        .setOriginalEntityId(entityImpl.getOid()));
+        final PlanScenarioOriginImpl planScenarioOrigin = new PlanScenarioOriginImpl()
+                .setPlanId(cloneContext.getPlanId())
+                .setOriginalEntityId(entityImpl.getOid());
+        if (entityImpl.hasOrigin() && entityImpl.getOrigin().hasDiscoveryOrigin()) {
+            planScenarioOrigin.addAllOriginalEntityDiscoveringTargetIds(
+                    entityImpl.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet());
+        }
+        final OriginView entityOrigin = new OriginImpl().setPlanScenarioOrigin(planScenarioOrigin);
         final TopologyEntity.Builder entityBuilder = TopologyEntity
                 .newBuilder(clonedEntityImpl.setOrigin(entityOrigin))
                 .setClonedFromEntity(entityImpl);

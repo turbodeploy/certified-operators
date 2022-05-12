@@ -11,6 +11,7 @@ import javax.annotation.Nullable;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.EntityOids;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsUploader;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -87,6 +88,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopSortStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadAtomicActionSpecsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UserScopingStage;
 
 import common.HealthCheck.HealthState;
@@ -161,6 +163,8 @@ public class PlanPipelineFactory {
 
     private final ControllableManager controllableManager;
 
+    private final ActionMergeSpecsUploader actionMergeSpecsUploader;
+
     private final boolean enableConsistentScalingOnHeterogeneousProviders;
 
     private boolean firstPlanOverLive = true;
@@ -196,6 +200,7 @@ public class PlanPipelineFactory {
                                @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver,
                                @Nonnull final CloudMigrationPlanHelper cloudMigrationPlanHelper,
                                @Nonnull final ControllableManager controllableManager,
+                               @Nonnull final ActionMergeSpecsUploader actionMergeSpecsUploader,
                                final boolean enableConsistentScalingOnHeterogeneousProviders) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
@@ -226,6 +231,7 @@ public class PlanPipelineFactory {
         this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
         this.cloudMigrationPlanHelper = Objects.requireNonNull(cloudMigrationPlanHelper);
         this.controllableManager = Objects.requireNonNull(controllableManager);
+        this.actionMergeSpecsUploader = Objects.requireNonNull(actionMergeSpecsUploader);
         this.enableConsistentScalingOnHeterogeneousProviders = enableConsistentScalingOnHeterogeneousProviders;
     }
 
@@ -325,6 +331,7 @@ public class PlanPipelineFactory {
             .addStage(new RequestAndLimitCommodityThresholdsStage(requestAndLimitCommodityThresholdsInjector))
             .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor, enableConsistentScalingOnHeterogeneousProviders))
             .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
+            .addStage(new UploadAtomicActionSpecsStage(actionMergeSpecsUploader))
             .addStage(new TopSortStage())
             .finalStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix)));
 

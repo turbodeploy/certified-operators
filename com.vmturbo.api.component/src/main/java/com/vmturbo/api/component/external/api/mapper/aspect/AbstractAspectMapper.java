@@ -1,9 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;

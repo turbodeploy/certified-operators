@@ -242,7 +242,9 @@ public class RpcConfig {
      */
     @Bean
     public AtomicActionSpecsRpcService atomicActionSpecsRpcService() {
-        return new AtomicActionSpecsRpcService(actionStoreConfig.actionMergeSpecsCache());
+        return new AtomicActionSpecsRpcService(
+                actionStoreConfig.liveActionMergeSpecsCache(),
+                actionStoreConfig.planActionMergeSpecsCache());
     }
 
     /**

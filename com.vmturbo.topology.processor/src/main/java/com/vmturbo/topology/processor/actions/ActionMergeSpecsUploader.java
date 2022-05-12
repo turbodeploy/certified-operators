@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -22,7 +23,10 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.UploadAtomicActionSpecsRequest;
+import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.UploadAtomicActionSpecsRequest.UploadType;
 import com.vmturbo.common.protobuf.action.AtomicActionSpecsUploadServiceGrpc.AtomicActionSpecsUploadServiceStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.platform.common.dto.ActionExecutionREST.ActionMergePolicyDTO;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -68,9 +72,11 @@ public class ActionMergeSpecsUploader {
      * This method is used to create and upload atomic action specs to action orchestrator.
      *
      * @param topologyGraph {@link TopologyGraph}
+     * @param topologyInfo {@link com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo}
      *
      */
-    public void uploadAtomicActionSpecsInfo(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
+    public void uploadAtomicActionSpecsInfo(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
+                                            @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
         final StreamObserver<UploadAtomicActionSpecsRequest> requestObserver =
                 atomicActionSpecsUploadServiceClient.uploadAtomicActionSpecs(new StreamObserver<Empty>() {
                     @Override
@@ -83,7 +89,7 @@ public class ActionMergeSpecsUploader {
                     public void onCompleted() {}
                 });
 
-        buildAtomicActionSpecsMessage(topologyGraph, requestObserver);
+        buildAtomicActionSpecsMessage(topologyGraph, requestObserver, topologyInfo);
 
         requestObserver.onCompleted();
     }
@@ -91,31 +97,32 @@ public class ActionMergeSpecsUploader {
     static final int NUMBER_OF_ATOMIC_ATOMIC_SPECS_PER_CHUNK = 1000;
 
     void buildAtomicActionSpecsMessage(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
-                                       @Nonnull final StreamObserver<UploadAtomicActionSpecsRequest> requestObserver) {
-
+                                       @Nonnull final StreamObserver<UploadAtomicActionSpecsRequest> requestObserver,
+                                       @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
         // Create the atomic action specs for the entities belonging to probes which
         // sent the action merge policy DTOs.
         List<AtomicActionSpec> specs = new ArrayList<>();
         final TargetEntityCache targetEntityCache = new TargetEntityCache(topologyGraph);
         probeStore.getProbes().entrySet().stream()
                 .filter(entry -> entry.getValue().getActionMergePolicyCount() > 0)
-                .map(entry -> entry.getKey())
-                .forEach(probeId -> targetStore.getProbeTargets(probeId).stream()
-                                    .forEach(target -> specs.addAll(
-                                            actionMergeSpecsRepository.createAtomicActionSpecs(probeId, target.getId(),
-                                                                                               targetEntityCache, topologyGraph)
-                                    ))
+                .map(Entry::getKey)
+                .forEach(probeId -> targetStore.getProbeTargets(probeId)
+                        .forEach(target -> specs.addAll(
+                                actionMergeSpecsRepository.createAtomicActionSpecs(
+                                        probeId, target.getId(), targetEntityCache, topologyGraph)))
                 );
 
         // Chunk messages in order not to exceed gRPC message maximum size, which is 4MB by default.
         Iterators.partition(specs.iterator(), NUMBER_OF_ATOMIC_ATOMIC_SPECS_PER_CHUNK)
                 .forEachRemaining(chunk -> {
-                    requestObserver.onNext(UploadAtomicActionSpecsRequest.newBuilder()
-                            .addAllAtomicActionSpecsInfo(chunk)
-                            .build());
-
-                    }
-                );
+                      final UploadAtomicActionSpecsRequest.Builder uploadRequestBuilder =
+                              UploadAtomicActionSpecsRequest.newBuilder()
+                                      .addAllAtomicActionSpecsInfo(chunk);
+                      if (TopologyDTOUtil.isPlan(topologyInfo)) {
+                          uploadRequestBuilder.setUploadType(UploadType.PLAN);
+                      }
+                      requestObserver.onNext(uploadRequestBuilder.build());
+                  });
 
         logger.debug("Upload of atomic action specs completed");
     }
@@ -157,7 +164,7 @@ public class ActionMergeSpecsUploader {
             return cache.computeIfAbsent(entityType, (type) -> {
                 final Long2ObjectMap<List<TopologyEntity>> mapForType = new Long2ObjectOpenHashMap<>();
                 topologyGraph.entitiesOfType(type).forEach(entity ->
-                    entity.getDiscoveringTargetIds().forEach(discoveringId ->
+                    entity.getTargetIds().forEach(discoveringId ->
                         mapForType.computeIfAbsent(discoveringId.longValue(), id -> new ArrayList<>())
                             .add(entity)));
                 return mapForType;

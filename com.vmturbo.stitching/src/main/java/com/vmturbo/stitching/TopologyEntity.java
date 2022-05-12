@@ -210,6 +210,24 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
             : Stream.empty();
     }
 
+    /**
+     * Get the discovering targets of the entity. If the entity is cloned in a plan topology,
+     * get the discovering targets of the original entity.
+     *
+     * @return the discovering targets of the entity
+     */
+    @Nonnull
+    public List<Long> getTargetIds() {
+        if (hasDiscoveryOrigin()) {
+            return getDiscoveringTargetIds().collect(Collectors.toList());
+        }
+        if (hasPlanOrigin()) {
+            return entityImpl.getOrigin().getPlanScenarioOrigin()
+                    .getOriginalEntityDiscoveringTargetIdsList();
+        }
+        return Collections.emptyList();
+    }
+
     @Override
     public String getVendorId(long targetId) {
         if (hasDiscoveryOrigin()) {

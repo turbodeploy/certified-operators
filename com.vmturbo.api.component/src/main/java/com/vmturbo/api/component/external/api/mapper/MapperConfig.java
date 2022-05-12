@@ -511,7 +511,8 @@ public class MapperConfig {
                 databaseServerAspectMapper(), regionAspectMapper(), workloadControllerAspectMapper(),
                 computeTierAspectMapper(), databaseServerTierAspectMapper(), databaseTierAspectMapper(),
                 businessUserAspectMapper(), virtualVolumeEntityAspectMapper(),
-                cloudCommitmentAspectMapper(), cloudNativeAspectMapper());
+                cloudCommitmentAspectMapper(), cloudNativeAspectMapper(),
+                communicationConfig.getRealtimeTopologyContextId());
     }
 
     @Bean

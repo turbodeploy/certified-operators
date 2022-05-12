@@ -243,6 +243,7 @@ public class TopologyPipelineFactoryTest {
             mock(GroupResolverSearchFilterResolver.class),
             mock(CloudMigrationPlanHelper.class),
             mock(ControllableManager.class),
+            mock(ActionMergeSpecsUploader.class),
             true);
 
         return ppf;

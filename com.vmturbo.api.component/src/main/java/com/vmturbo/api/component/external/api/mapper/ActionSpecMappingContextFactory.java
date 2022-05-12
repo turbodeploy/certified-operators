@@ -318,9 +318,11 @@ public class ActionSpecMappingContextFactory {
         final Map<Long, EntityAspect> cloudAspects = getEntityToAspectMapping(entitiesById.values(),
             Collections.emptySet(), Sets.newHashSet(EnvironmentType.CLOUD), AspectName.CLOUD);
 
-        // fetch all container platform context aspects
+        // fetch all container platform context aspects for the given entities based on the
+        // given topology context
         final Map<Long, EntityAspect> containerPlatformAspects =
-                entityAspectMapper.getAspectsByEntitiesPartial(entitiesById.values(), AspectName.CONTAINER_PLATFORM_CONTEXT);
+                entityAspectMapper.getAspectsByEntitiesPartial(
+                        entitiesById.values(), AspectName.CONTAINER_PLATFORM_CONTEXT, topologyContextId);
 
         // fetch all volume aspects
         final Map<Long, List<VirtualDiskApiDTO>> volumesAspectsByEntity = fetchVolumeAspects(actions, topologyContextId);

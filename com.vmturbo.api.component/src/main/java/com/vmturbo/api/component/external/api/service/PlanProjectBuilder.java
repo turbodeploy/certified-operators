@@ -2,17 +2,23 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.common.protobuf.utils.StringConstants.AUTOMATIC;
 import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN;
-import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__ALLOCATION;
-import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION;
 import static com.vmturbo.common.protobuf.utils.StringConstants.DISABLED;
+import static com.vmturbo.common.protobuf.utils.StringConstants.MIGRATE_CONTAINER_WORKLOADS_PLAN;
+import static com.vmturbo.common.protobuf.utils.StringConstants.MIGRATION_PLAN__ALLOCATION;
+import static com.vmturbo.common.protobuf.utils.StringConstants.MIGRATION_PLAN__CONSUMPTION;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import io.grpc.StatusRuntimeException;
@@ -53,10 +59,25 @@ class PlanProjectBuilder {
     private final PlanServiceBlockingStub planRpcService;
 
     /**
-     * All resize settings.
+     * This two-level map holds predefined sets of setting overrides for use in the plan projects.
+     * The first-level key is the plan scenario type (such as CLOUD_MIGRATION); the second-level
+     * key is the plan mode/subtype, either ALLOCATION (lift & shift) or CONSUMPTION (optimized).
      */
-    private final Set<ConfigurableActionSettings> resizeSettings = ImmutableSet.of(
-        ConfigurableActionSettings.Resize);
+    static final Map<String, Map<String, Set<ScenarioChange>>> settingOverridesByPlanType = ImmutableMap.of(
+            CLOUD_MIGRATION_PLAN, ImmutableMap.of(
+                    MIGRATION_PLAN__ALLOCATION,
+                    Collections.singleton(settingOverride(ConfigurableActionSettings.Resize, DISABLED)),
+                    MIGRATION_PLAN__CONSUMPTION,
+                    Collections.singleton(settingOverride(ConfigurableActionSettings.Resize, AUTOMATIC))),
+            MIGRATE_CONTAINER_WORKLOADS_PLAN, ImmutableMap.of(
+                    MIGRATION_PLAN__ALLOCATION,
+                    ImmutableSet.of(
+                            settingOverride(ConfigurableActionSettings.Resize, DISABLED),
+                            settingOverride(ConfigurableActionSettings.Suspend, DISABLED)),
+                    MIGRATION_PLAN__CONSUMPTION,
+                    ImmutableSet.of(
+                            settingOverride(ConfigurableActionSettings.Resize, AUTOMATIC),
+                            settingOverride(ConfigurableActionSettings.Suspend, AUTOMATIC))));
 
     PlanProjectBuilder(@Nonnull final PlanProjectServiceBlockingStub planProjectRpcService,
                       @Nonnull final ScenarioServiceBlockingStub scenariosService,
@@ -85,17 +106,27 @@ class PlanProjectBuilder {
         if (!scenario.hasScenarioInfo()) {
             return false;
         }
+        return getPlanProjectType(scenario) != null;
+    }
+
+    @Nullable
+    private PlanProjectType getPlanProjectType(@Nonnull final Scenario scenario) {
         final String scenarioType = scenario.getScenarioInfo().getType();
-        PlanProjectType projectType = null;
+        if (MIGRATE_CONTAINER_WORKLOADS_PLAN.equals(scenarioType)) {
+            // Special conversion for this plan.  We store the name in an action db table, which
+            // has a limit of 20 characters for that field.  This plan type name is too long, so
+            // we can't use the default Enum.valueOf() method as below to convert.
+            return PlanProjectType.CONTAINER_MIGRATION;
+        }
         try {
             // If the scenario type not one of the known project types (like CLOUD_MIGRATION),
             // then we don't try to create a plan project.
-            projectType = PlanProjectType.valueOf(scenarioType);
+            return PlanProjectType.valueOf(scenarioType);
         } catch (NullPointerException | IllegalArgumentException e) {
-            logger.trace("Scenario type {} for market {} is not a plan project: {}",
-                    scenarioType, sourceMarketId.uuid(), e.getMessage());
+            logger.trace("Scenario {} type {}is not a plan project: {}",
+                    scenario.getScenarioInfo().getName(), scenarioType, e.getMessage());
         }
-        return projectType != null;
+        return null;
     }
 
     /**
@@ -110,9 +141,9 @@ class PlanProjectBuilder {
     PlanProject createPlanProject(@Nonnull final Scenario scenario)
             throws OperationFailedException {
         final String scenarioType = scenario.getScenarioInfo().getType();
-        if (PlanProjectType.CLOUD_MIGRATION.name().equals(scenarioType)) {
+        if (settingOverridesByPlanType.containsKey(scenarioType)) {
             try {
-                return createCloudMigrationPlanProject(scenario);
+                return createMigrationPlanProject(scenario);
             } catch (StatusRuntimeException sre) {
                 final String message = String.format(
                         "Plan project creation failed using scenario type %s. %s",
@@ -125,21 +156,21 @@ class PlanProjectBuilder {
     }
 
     /**
-     * Construct a cloud migration plan project. The project will contain two
-     * {@link PlanProjectScenario}, one for changes needed for Allocation (Lift & Shift) plan
-     * and the other for changes needed for Consumption (Optimized) plan. Both the plans are
-     * created in the DB as well.
+     * Construct a migration plan project. The project will contain two {@link PlanProjectScenario},
+     * one for changes needed for Allocation (Lift & Shift) plan and the other for changes needed
+     * for Consumption (Optimized) plan. Both the plans are created in the DB as well.
      *
      * @param scenario Scenario that was initially created as part of plan project.
      * @return a plan project.
      * @throws StatusRuntimeException Thrown on errors coming from rpc calls, DB update issues.
      */
-    private PlanProject createCloudMigrationPlanProject(@Nonnull final Scenario scenario)
+    private PlanProject createMigrationPlanProject(@Nonnull final Scenario scenario)
             throws StatusRuntimeException {
         // Create a plan project and save to DB.
+        final PlanProjectType projectType = getPlanProjectType(scenario);
         PlanProjectInfo planProjectInfo = PlanProjectInfo.newBuilder()
-                .setName(CLOUD_MIGRATION_PLAN)
-                .setType(PlanProjectType.CLOUD_MIGRATION)
+                .setName(scenario.getScenarioInfo().getName())
+                .setType(projectType)
                 .build();
         PlanProject planProject = planProjectRpcService.createPlanProject(planProjectInfo);
 
@@ -149,8 +180,8 @@ class PlanProjectBuilder {
 
         // Set the consumption (i.e optimized) plan as the 'main' plan, out of the 2 plans
         // in the project. Allocation plan is the related plan. Create both plans first.
-        Long consumptionPlanId = createCloudMigrationPlan(true, planProjectId, scenario);
-        Long allocationPlanId = createCloudMigrationPlan(false, planProjectId, scenario);
+        Long allocationPlanId = createMigrationPlan(MIGRATION_PLAN__ALLOCATION, planProjectId, scenario);
+        Long consumptionPlanId = createMigrationPlan(MIGRATION_PLAN__CONSUMPTION, planProjectId, scenario);
 
         List<Long> relatedPlanIds = new ArrayList<>();
         relatedPlanIds.add(allocationPlanId);
@@ -165,55 +196,61 @@ class PlanProjectBuilder {
     }
 
     /**
-     * Get a set of ScenarioChange instances corresponding to all resize settings.
-     * @param enableResize Whether to enable resize or not.
-     * @return Set of ScenarioChange instances.
+     * Construct a {@link ScenarioChange} with the {@link SettingOverride} given the setting name
+     * and the setting value.
+     *
+     * @param settings the {@link ConfigurableActionSettings}, such as "Resize"
+     * @param settingValue the value of the setting, such as "AUTOMATIC"
+     * @return the constructed {@link ScenarioChange}
      */
-    private Set<ScenarioChange> getResizeSettings(boolean enableResize) {
-        Set<ScenarioChange> allSettings = new HashSet<>();
-        resizeSettings.forEach(setting -> {
-            allSettings.add(ScenarioChange.newBuilder()
-                    .setSettingOverride(SettingOverride.newBuilder()
-                            .setSetting(Setting.newBuilder()
-                                    .setSettingSpecName(setting.getSettingName())
-                                    .setEnumSettingValue(EnumSettingValue.newBuilder()
-                                            .setValue(enableResize ? AUTOMATIC : DISABLED)
-                                            .build())
-                                    .build())
-                            .build())
-                    .build());
-        });
-        return allSettings;
+    @Nonnull
+    private static ScenarioChange settingOverride(
+            @Nonnull final ConfigurableActionSettings settings,
+            @Nonnull final String settingValue) {
+        final EnumSettingValue enumSettingValue = EnumSettingValue.newBuilder()
+                .setValue(Objects.requireNonNull(settingValue)).build();
+        final Setting setting = Setting.newBuilder()
+                .setSettingSpecName(Objects.requireNonNull(settings).getSettingName())
+                .setEnumSettingValue(enumSettingValue).build();
+        final SettingOverride settingOverride = SettingOverride.newBuilder()
+                .setSetting(setting).build();
+        return ScenarioChange.newBuilder().setSettingOverride(settingOverride).build();
     }
 
     /**
      * Creates and saves a migration plan to DB, belonging to the given plan project.
      *
-     * @param enableResize Whether resize in plan is enabled (Consumption) or not (Allocation).
+     * @param planMode plan mode (Consumption or Allocation).
      * @param planProjectId Id of the plan project.
      * @param existingScenario Scenario that was originally created by user.
      * @return Id of the newly created plan.
      * @throws StatusRuntimeException Thrown on errors coming from rpc calls, DB update issues.
      */
     @Nonnull
-    private Long createCloudMigrationPlan(boolean enableResize,
-                                          @Nonnull final Long planProjectId,
-                                          @Nonnull final Scenario existingScenario)
+    private Long createMigrationPlan(@Nonnull String planMode,
+                                     @Nonnull final Long planProjectId,
+                                     @Nonnull final Scenario existingScenario)
             throws StatusRuntimeException {
         // Make up a name like "Migrate to Public Cloud 1_MIGRATION_ALLOCATION"
         String scenarioName = existingScenario.getScenarioInfo().getName();
-        String updatedScenarioName = String.format("%s_%s", scenarioName,
-                enableResize ? CLOUD_MIGRATION_PLAN__CONSUMPTION : CLOUD_MIGRATION_PLAN__ALLOCATION);
+        final String planType = existingScenario.getScenarioInfo().getType();
+        String updatedScenarioName = String.format("%s_%s", scenarioName, planType + planMode);
 
         // Add these additional resizes related changes to the scenario as well.
+        final Set<ScenarioChange> settingOverrides = settingOverridesByPlanType.get(planType).get(planMode);
+        final Set<ScenarioChange> existingNonOverrideChanges = existingScenario.getScenarioInfo()
+                .getChangesList().stream()
+                .filter(change -> !change.hasSettingOverride())
+                .collect(Collectors.toSet());
         final ScenarioInfo planScenarioInfo = ScenarioInfo.newBuilder(
                 existingScenario.getScenarioInfo())
-                .addAllChanges(getResizeSettings(enableResize))
+                .clearChanges().addAllChanges(existingNonOverrideChanges)
+                .addAllChanges(settingOverrides)
                 .setName(updatedScenarioName)
                 .build();
-        Scenario planScenario;
-        String planName;
-        if (enableResize) {
+        final Scenario planScenario;
+        final String planName;
+        if (MIGRATION_PLAN__CONSUMPTION.equals(planMode)) {
             // For the main (consumption) plan, we use the original name specified by user as-is.
             planName = scenarioName;
             // Update the existing scenario with the additional change about resize.
@@ -226,11 +263,12 @@ class PlanProjectBuilder {
             // Create a new scenario for related (allocation) plan.
             planScenario = scenarioServiceClient.createScenario(planScenarioInfo);
         }
-        // Finally use the scenario to create the plan.
-        CreatePlanRequest planRequest = CreatePlanRequest.newBuilder()
+        // Finally, use the scenario to create the plan.
+        final PlanProjectType planProjectType = getPlanProjectType(existingScenario);
+        final CreatePlanRequest planRequest = CreatePlanRequest.newBuilder()
                 .setScenarioId(planScenario.getId())
                 .setName(planName)
-                .setProjectType(PlanProjectType.CLOUD_MIGRATION)
+                .setProjectType(planProjectType)
                 .setPlanProjectId(planProjectId)
                 .build();
         PlanInstance planInstance = planRpcService.createPlan(planRequest);
