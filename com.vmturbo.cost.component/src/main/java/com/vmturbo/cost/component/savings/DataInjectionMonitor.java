@@ -14,7 +14,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -190,8 +189,7 @@ public class DataInjectionMonitor implements Runnable {
         logger.info("Processing data from scenario script.");
         Gson gson = new Gson();
         JsonReader reader;
-        List<ScriptEvent> scriptEvents = new ArrayList<>();
-        @Nonnull Map<String, Long> uuidMap = new HashMap<>();
+        List<ScriptEvent> scriptEvents;
         try {
             reader = new JsonReader(new FileReader("/tmp/" + scriptFile));
             scriptEvents = Arrays.asList(gson.fromJson(reader,
@@ -208,7 +206,7 @@ public class DataInjectionMonitor implements Runnable {
         }
 
         // Find OIDs of entities referenced in the script events.
-        uuidMap = resolveEntities(scriptEvents);
+        @Nonnull Map<String, Long> uuidMap = resolveEntities(scriptEvents);
 
         // Determine the scope of the scenario: participating UUIDs and the time period.
         long earliestEventTime = Long.MAX_VALUE;

@@ -10,7 +10,7 @@ import com.vmturbo.cost.component.savings.calculator.SavingsValues;
 /**
  * Interface to write stats to store.
  */
-public interface StatsWriter {
+public interface SavingsStore {
     /**
      * Saves states for the given daily period to the store.
      *
@@ -19,4 +19,11 @@ public interface StatsWriter {
      * @throws EntitySavingsException Thrown on DB error.
      */
     Set<Long> writeDailyStats(@Nonnull List<SavingsValues> values) throws EntitySavingsException;
+
+    /**
+     * Delete all stats from the hourly, daily, and monthly tables.
+     *
+     * @param uuids list of UUIDs for which to delete stats.
+     */
+    void deleteStats(@Nonnull Set<Long> uuids);
 }

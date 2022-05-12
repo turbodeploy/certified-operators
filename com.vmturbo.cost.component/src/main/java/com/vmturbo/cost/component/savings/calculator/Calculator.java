@@ -143,7 +143,6 @@ public class Calculator {
                 .timestamp(date)
                 .entityOid(entityOid)
                 .build();
-        logger.debug("Result: {}", result);
         return result;
     }
 

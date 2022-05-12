@@ -15,7 +15,6 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -48,7 +47,6 @@ import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingDataPoint.CostCat
 public class ScenarioGenerator {
     private static final Logger logger = LogManager.getLogger();
     private static final Clock clock = Clock.systemUTC();
-    private static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
 
     private ScenarioGenerator() {
     }
@@ -60,7 +58,7 @@ public class ScenarioGenerator {
      * @param uuidMap display name to OID map
      * @return map of entity OID to sorted (by time) set of action chains
      */
-    public static Map<Long, NavigableSet<ActionSpec>> generateActionChains(List<BillingScriptEvent> events,
+    static Map<Long, NavigableSet<ActionSpec>> generateActionChains(List<BillingScriptEvent> events,
             Map<String, Long> uuidMap) {
         final Map<Long, NavigableSet<ActionSpec>> actionChains = new HashMap<>();
         logger.info("Generating actions from script events:");
@@ -74,11 +72,13 @@ public class ScenarioGenerator {
                 }
                 LocalDateTime actionDateTime = TimeUtil.millisToLocalDateTime(actionTime, clock);
                 ActionSpec action = createActionSpec(actionDateTime, oid, event.sourceOnDemandRate,
-                        event.destinationOnDemandRate, event.sourceTierId, event.destinationTierId);
+                        event.destinationOnDemandRate, generateProviderIdFromRate(event.sourceOnDemandRate),
+                        generateProviderIdFromRate(event.destinationOnDemandRate));
                 logger.info("action time: {}, entity OID: {}, source rate: {}, "
                                 + "destination rate: {} source provider: {}, destination provider: {}",
                         actionDateTime, oid, event.sourceOnDemandRate, event.destinationOnDemandRate,
-                        event.sourceTierId, event.destinationTierId);
+                        generateProviderIdFromRate(event.sourceOnDemandRate),
+                        generateProviderIdFromRate(event.destinationOnDemandRate));
                 actionChains.computeIfAbsent(oid, c -> new TreeSet<>(GrpcActionChainStore.specComparator))
                         .add(action);
             }
@@ -91,41 +91,59 @@ public class ScenarioGenerator {
      *
      * @param events script events
      * @param uuidMap display name to OID map
+     * @param startTime The start time of the scenario.
      * @param endTime The end time of the scenario.
      * @return map of entity OID to set of bill records
      */
-    public static Map<Long, Set<BillingRecord>> generateBillRecords(List<BillingScriptEvent> events,
-            Map<String, Long> uuidMap, LocalDateTime endTime) {
-        final Map<Long, NavigableSet<BillingScriptEvent>> eventsByEntity = new HashMap<>();
+    static Map<Long, Set<BillingRecord>> generateBillRecords(List<BillingScriptEvent> events,
+            Map<String, Long> uuidMap, LocalDateTime startTime, LocalDateTime endTime) {
+        final Map<Long, NavigableSet<BillingScriptEvent>> scaleEventsByEntity = new HashMap<>();
+        final Map<Long, NavigableSet<BillingScriptEvent>> powerEventsByEntity = new HashMap<>();
         for (BillingScriptEvent event : events) {
             if ("RESIZE".equals(event.eventType)) {
                 Long oid = uuidMap.getOrDefault(event.uuid, 0L);
-                eventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
+                scaleEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
+                        .add(event);
+            } else if ("POWER_STATE".equals(event.eventType)) {
+                Long oid = uuidMap.getOrDefault(event.uuid, 0L);
+                powerEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
                         .add(event);
             }
         }
         final Map<Long, Set<BillingRecord>> billRecords = new HashMap<>();
-        eventsByEntity.forEach((oid, records) -> billRecords.put(oid, generateBillRecordForEntity(records, oid, endTime)));
+        scaleEventsByEntity.forEach((oid, scaleEvents) -> billRecords.put(oid,
+                generateBillRecordForEntity(scaleEvents,
+                        powerEventsByEntity.getOrDefault(oid, Collections.emptyNavigableSet()), oid,
+                        startTime, endTime)));
         billRecords.forEach((oid, records) -> {
             logger.info("Generated bill records for entity {}:", oid);
-            records.forEach(r -> logger.info("{}", r));
+            records.stream().sorted(Comparator.comparing(BillingRecord::getSampleTime))
+                    .forEach(r -> logger.info("{}", r));
         });
         return billRecords;
     }
 
-    private static Set<BillingRecord> generateBillRecordForEntity(NavigableSet<BillingScriptEvent> events,
-            long entityOid, LocalDateTime endTime) {
-        if (events.isEmpty()) {
+    private static Set<BillingRecord> generateBillRecordForEntity(NavigableSet<BillingScriptEvent> scaleEvents,
+            NavigableSet<BillingScriptEvent> powerEvents, long entityOid, LocalDateTime startTime,
+            LocalDateTime endTime) {
+        if (scaleEvents.isEmpty()) {
             return Collections.emptySet();
         }
-        LocalDateTime dayStart = TimeUtil.millisToLocalDateTime(events.first().timestamp, clock)
+        // Start with the day of the first scale action because the days before that won't have any
+        // savings/investments anyways.
+        LocalDateTime dayStart = TimeUtil.millisToLocalDateTime(scaleEvents.first().timestamp, clock)
                 .truncatedTo(ChronoUnit.DAYS);
 
-        // Loop through each day between the first and last event.
+        // Create powered off intervals, which can span over more than 1 day.
+        List<Interval> poweredOffIntervals = createPoweredOffIntervals(startTime, endTime, powerEvents);
+
+        // Loop through each day between the first event and the end time of the scenario.
         Set<BillingRecord> generatedRecords = new HashSet<>();
         while (dayStart.isBefore(endTime)) {
             // Create segments for the day. Each segment has one provider.
-            List<Segment> segments = createSegments(dayStart, events);
+            LocalDateTime dayEnd = endTime.isBefore(dayStart.plusDays(1)) ? endTime
+                    : dayStart.plusDays(1);
+            List<Segment> segments = createSegments(dayStart, dayEnd, scaleEvents, poweredOffIntervals);
 
             // Find usage amount and cost for each provider for the day.
             // If there are multiple segments for the same provider, combine them.
@@ -160,6 +178,30 @@ public class ScenarioGenerator {
         return generatedRecords;
     }
 
+    private static List<Interval> createPoweredOffIntervals(LocalDateTime startTime,
+            LocalDateTime endTime, NavigableSet<BillingScriptEvent> powerEvents) {
+        long scenarioStartMillis = TimeUtil.localTimeToMillis(startTime, Clock.systemUTC());
+        long scenarioEndMillis = TimeUtil.localTimeToMillis(endTime, Clock.systemUTC());
+
+        List<Interval> poweredOffIntervals = new ArrayList<>();
+        long intervalStart = scenarioStartMillis;
+        boolean poweredOn = powerEvents.size() == 0
+                || (powerEvents.first().timestamp >= scenarioStartMillis && !powerEvents.first().state);
+        for (BillingScriptEvent powerEvent : powerEvents) {
+            if (powerEvent.state && !poweredOn) {
+                poweredOffIntervals.add(new Interval(intervalStart, powerEvent.timestamp));
+                poweredOn = true;
+            } else if (!powerEvent.state && poweredOn) {
+                intervalStart = powerEvent.timestamp;
+                poweredOn = false;
+            }
+        }
+        if (!poweredOn) {
+            poweredOffIntervals.add(new Interval(intervalStart, scenarioEndMillis));
+        }
+        return poweredOffIntervals;
+    }
+
     private static BillingScriptEvent eventAtTime(LocalDateTime dateTime) {
         BillingScriptEvent event = new BillingScriptEvent();
         event.timestamp = TimeUtil.localTimeToMillis(dateTime, clock);
@@ -167,8 +209,10 @@ public class ScenarioGenerator {
     }
 
     private static List<Segment> createSegments(@Nonnull LocalDateTime dayStart,
-            NavigableSet<BillingScriptEvent> events) {
+            @Nonnull LocalDateTime dayEnd,
+            NavigableSet<BillingScriptEvent> events, List<Interval> poweredOffIntervals) {
         final long dayStartMillis = TimeUtil.localTimeToMillis(dayStart, clock);
+        final long dayEndMillis = TimeUtil.localTimeToMillis(dayEnd, clock);
         // Find all script events on the day.
         SortedSet<BillingScriptEvent> eventsForDay = events.subSet(
                 eventAtTime(dayStart), eventAtTime(dayStart.plusDays(1)));
@@ -188,29 +232,46 @@ public class ScenarioGenerator {
                 return segments;
             }
             if (event.timestamp < dayStartMillis) {
-                segments.add(new Segment(event.destinationOnDemandRate * 24, event.destinationTierId, 24));
+                Segment segment = new Segment(dayStartMillis, dayEndMillis,
+                        event.destinationOnDemandRate, generateProviderIdFromRate(event.destinationOnDemandRate));
+                // Exclude time when it is powered off.
+                List<Segment> segmentsToAdd = segment.exclude(poweredOffIntervals);
+                segments.addAll(segmentsToAdd);
             } else {
-                segments.add(new Segment(event.sourceOnDemandRate * 24, event.sourceTierId, 24));
+                Segment segment = new Segment(dayStartMillis, dayEndMillis,
+                        event.sourceOnDemandRate, generateProviderIdFromRate(event.sourceOnDemandRate));
+                // Exclude time when it is powered off.
+                List<Segment> segmentsToAdd = segment.exclude(poweredOffIntervals);
+                segments.addAll(segmentsToAdd);
             }
             return segments;
         }
-        // At least one event on that day.
+
         long segmentStart = dayStartMillis;
         long segmentEnd;
         for (BillingScriptEvent event : eventsForDay) {
             segmentEnd = event.timestamp;
-            double durationInHours = (segmentEnd - segmentStart) / 1000d / 3600d;
-            double cost = durationInHours * event.sourceOnDemandRate;
-            segments.add(new Segment(cost, event.sourceTierId, durationInHours));
+            Segment segment = new Segment(segmentStart, segmentEnd, event.sourceOnDemandRate,
+                    generateProviderIdFromRate(event.sourceOnDemandRate));
+            // Exclude time when it is powered off.
+            List<Segment> segmentsToAdd = segment.exclude(poweredOffIntervals);
+            segments.addAll(segmentsToAdd);
             segmentStart = segmentEnd;
         }
         // last segment
-        if (segmentStart < dayStartMillis + MILLIS_IN_DAY) {
-            double durationInHours = (dayStartMillis + MILLIS_IN_DAY - segmentStart) / 1000d / 3600d;
-            double cost = durationInHours * eventsForDay.last().destinationOnDemandRate;
-            segments.add(new Segment(cost, eventsForDay.last().destinationTierId, durationInHours));
+        if (segmentStart < dayEndMillis) {
+            Segment segment = new Segment(segmentStart, dayEndMillis,
+                    eventsForDay.last().destinationOnDemandRate,
+                    generateProviderIdFromRate(eventsForDay.last().destinationOnDemandRate));
+            // Exclude time when it is powered off.
+            List<Segment> segmentsToAdd = segment.exclude(poweredOffIntervals);
+            segments.addAll(segmentsToAdd);
         }
         return segments;
+    }
+
+    static long generateProviderIdFromRate(double rate) {
+        return (long)(rate * 10000);
     }
 
     private static ActionSpec createActionSpec(LocalDateTime actionTime, long entityOid,
@@ -262,28 +323,108 @@ public class ScenarioGenerator {
     }
 
     /**
+     * The Interval class represent a period of time with start and end timestamps.
+     */
+    static class Interval {
+        protected long start;
+        protected long end;
+
+        /**
+         * Constructor.
+         *
+         * @param start start timestamp
+         * @param end start timestamp
+         */
+        Interval(long start, long end) {
+            this.start = start;
+            this.end = end;
+        }
+    }
+
+    /**
      * A segment of a period of time when an entity is running with the same provider.
      * It is a simple data structure to hold the cost and duration of a segment for the purpose
      * of generating bill records.
      */
-    private static class Segment {
+    static class Segment extends Interval {
         // Provider ID.
         private final long providerId;
-        // Cost
+        // Cost per hour
+        private final double costPerHour;
+        // Cost in the segment
         private double cost;
         // Duration in hours
         private double durationInHours;
 
         /**
          * Constructor.
-         * @param cost cost
+         * @param start start time
+         * @param end end time
+         * @param costPerHour cost per hour
          * @param providerId provider ID
-         * @param durationInHours duration in hours
          */
-        Segment(double cost, long providerId, double durationInHours) {
-            this.cost = cost;
+        Segment(long start, long end, double costPerHour, long providerId) {
+            super(start, end);
+            this.costPerHour = costPerHour;
             this.providerId = providerId;
-            this.durationInHours = durationInHours;
+            updateCost();
+        }
+
+        Segment(Segment segment) {
+            super(segment.start, segment.end);
+            this.costPerHour = segment.costPerHour;
+            this.cost = segment.cost;
+            this.providerId = segment.providerId;
+            this.durationInHours = segment.durationInHours;
+        }
+
+        private void updateCost() {
+            this.durationInHours = (end - start) / 1000d / 3600d;
+            this.cost = durationInHours * costPerHour;
+        }
+
+        List<Segment> exclude(List<Interval> intervals) {
+            List<Segment> segments = new ArrayList<>();
+            segments.add(this);
+            for (Interval interval : intervals) {
+                List<Segment> newSegmentList = new ArrayList<>();
+                for (Segment segment : segments) {
+                    newSegmentList.addAll(segment.exclude(interval));
+                }
+                segments = newSegmentList;
+            }
+            return segments;
+        }
+
+        List<Segment> exclude(Interval interval) {
+            final List<Segment> segments = new ArrayList<>();
+            if (start <= interval.start && end > interval.start) {
+                if (end <= interval.end) {
+                    Segment segment = new Segment(this);
+                    segment.end = interval.start;
+                    segment.updateCost();
+                    segments.add(segment);
+                } else {
+                    Segment segment1 = new Segment(this);
+                    segment1.end = interval.start;
+                    segment1.updateCost();
+                    segments.add(segment1);
+                    Segment segment2 = new Segment(this);
+                    segment2.start = interval.end;
+                    segment2.updateCost();
+                    segments.add(segment2);
+                }
+            } else if (start > interval.start && start <= interval.end) {
+                if (end > interval.end) {
+                    Segment segment = new Segment(this);
+                    segment.start = interval.end;
+                    segment.updateCost();
+                    segments.add(segment);
+                } // else the whole segment is cancelled out. So return nothing.
+            } else {
+                segments.add(this);
+            }
+            return segments;
         }
     }
 }
