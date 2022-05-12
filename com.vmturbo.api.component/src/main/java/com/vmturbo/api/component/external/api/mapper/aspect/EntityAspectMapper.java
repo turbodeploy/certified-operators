@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -35,6 +36,8 @@ public class EntityAspectMapper {
     private final Logger logger = LogManager.getLogger();
 
     private Map<Integer, List<IAspectMapper>> aspectMappers;
+
+    private final long realtimeTopologyContextId;
 
     public EntityAspectMapper(@Nonnull final StorageTierAspectMapper storageTierAspectMapper,
                               @Nonnull final VirtualVolumeAspectMapper virtualVolumeAspectMapper,
@@ -58,8 +61,9 @@ public class EntityAspectMapper {
                               @Nonnull final BusinessUserAspectMapper businessUserAspectMapper,
                               @Nonnull final VirtualVolumeEntityAspectMapper virtualVolumeEntityAspecMapper,
                               @Nonnull final CloudCommitmentAspectMapper cloudCommitmentAspectMapper,
-                              @Nonnull final ContainerPlatformContextAspectMapper containerPlatformContextAspectMapper) {
-
+                              @Nonnull final ContainerPlatformContextAspectMapper containerPlatformContextAspectMapper,
+                              final long realtimeTopologyContextId) {
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
         aspectMappers = new ImmutableMap.Builder<Integer, List<IAspectMapper>>()
             .put(EntityType.DATABASE_VALUE, ImmutableList.of(
                 databaseAspectMapper,
@@ -358,29 +362,59 @@ public class EntityAspectMapper {
     }
 
     /**
-     * Convert a list of partial entities to aspect.
-     * @param entities list of partial entities.
+     * Convert a list of partial entities to aspect for real time topology.
+     *
+     * @param entities list of partial entities
      * @param aspectName name of the aspect
+     *
      * @return map containing aspects with key as oid
      * @throws InterruptedException if thread is interrupted
      * @throws ConversionException if there is error in conversion of DTOs.
      */
     @Nonnull
     public Map<Long, EntityAspect> getAspectsByEntitiesPartial(
-            @Nonnull Collection<ApiPartialEntity> entities, AspectName aspectName)
+            @Nonnull final Collection<ApiPartialEntity> entities,
+            @Nonnull final AspectName aspectName)
+            throws InterruptedException, ConversionException {
+        return getAspectsByEntitiesPartial(entities, aspectName, null);
+    }
+
+    /**
+     * Convert a list of partial entities to aspect based on the given topology context.
+     * If topology context is null, real time topology is used.
+     *
+     * @param entities list of partial entities
+     * @param aspectName name of the aspect
+     * @param topologyContextId the topology context id
+     *
+     * @return map containing aspects with key as oid
+     * @throws InterruptedException if thread is interrupted
+     * @throws ConversionException if there is error in conversion of DTOs.
+     */
+    @Nonnull
+    public Map<Long, EntityAspect> getAspectsByEntitiesPartial(
+            @Nonnull final Collection<ApiPartialEntity> entities,
+            @Nonnull final AspectName aspectName,
+            @Nullable final Long topologyContextId)
             throws InterruptedException, ConversionException {
 
         Map<Long, EntityAspect> ret = new HashMap<>();
-        getAspectsByEntitiesPartial(entities, Collections.singletonList(aspectName.getApiName()))
-                .entrySet().stream()
-                .forEach(entry -> {
-                    EntityAspect aspect = entry.getValue().get(aspectName);
+        getAspectsByEntitiesPartial(entities, Collections.singletonList(aspectName.getApiName()),
+                                    getPlanContextId(topologyContextId))
+                .forEach((oid, aspects) -> {
+                    EntityAspect aspect = aspects.get(aspectName);
                     if (aspect != null) {
-                        ret.put(entry.getKey(), aspect);
+                        ret.put(oid, aspect);
                     }
                 });
         return ret;
+    }
 
+    private Optional<Long> getPlanContextId(@Nullable final Long topologyContextId) {
+        if (topologyContextId == null || topologyContextId == realtimeTopologyContextId) {
+            return Optional.empty();
+        }
+        return Optional.of(topologyContextId);
     }
 
     /**
@@ -389,13 +423,17 @@ public class EntityAspectMapper {
      *
      * @param entities the entities for which to return aspects
      * @param aspectsList the {@link IAspectMapper}s to apply to each entity provided
+     * @param planContextId an optional plan context id
+     *
      * @return A map of entity OID, to a map of aspect name to EntityAspect DTO
      * @throws InterruptedException if thread has been interrupted
      * @throws ConversionException if errors faced during converting data to API DTOs
      */
     @Nonnull
     public Map<Long, Map<AspectName, EntityAspect>> getAspectsByEntitiesPartial(
-            @Nonnull Collection<ApiPartialEntity> entities, @Nullable Collection<String> aspectsList)
+            @Nonnull final Collection<ApiPartialEntity> entities,
+            @Nullable final Collection<String> aspectsList,
+            @Nonnull final Optional<Long> planContextId)
             throws InterruptedException, ConversionException {
         // a mapping from aspectMapper -> list of entity types supported by that aspect mapper.
         Map<IAspectMapper, List<Integer>> mappers = getMappersAndEntityTypes(aspectsList);
@@ -422,12 +460,16 @@ public class EntityAspectMapper {
             // We will first call mapper.mapEntityToAspectBatch(), which handles entities in bulk.
             // If mapEntityToAspectBatch() is not implemented for this mapper, it will return an empty Optional.
             // In that case, revert to mapper.mapEntityToAspect(), which handles entities one at a time.
-
-            Optional<Map<Long, EntityAspect>> aspectMap = mapper.mapEntityToAspectBatchPartial(matchingEntities);
-            if (aspectMap.isPresent()) {
-                aspectMap.get().forEach((oid, aspect) -> {
-                    aspects.get(oid).put(mapper.getAspectName(), aspect);
-                });
+            try {
+                Optional<Map<Long, EntityAspect>> aspectMap = planContextId.isPresent()
+                        ? mapper.mapPlanEntityToAspectBatchPartial(matchingEntities, planContextId.get())
+                        : mapper.mapEntityToAspectBatchPartial(matchingEntities);
+                aspectMap.ifPresent(
+                        longEntityAspectMap -> longEntityAspectMap
+                                .forEach((oid, aspect) -> aspects.get(oid)
+                                        .put(mapper.getAspectName(), aspect)));
+            } catch (InvalidOperationException e) {
+                logger.error("Failed to map plan entity aspect: {}.", e.getMessage());
             }
         }
 

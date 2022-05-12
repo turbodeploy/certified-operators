@@ -1075,6 +1075,9 @@ message TopologyEntityDTO {
 
         // the id of the entity it was cloned from.
         optional int64 original_entity_id = 2;
+
+        // the target ids of the original entity
+        repeated int64 original_entity_discovering_target_ids = 3;
     }
 
     // An entity created by the market's analysis, and included in the projected topology.

@@ -19,7 +19,7 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.project.headroom.ClusterHeadroomPlanProjectExecutor;
-import com.vmturbo.plan.orchestrator.project.migration.CloudMigrationPlanProjectExecutor;
+import com.vmturbo.plan.orchestrator.project.migration.MigrationPlanProjectExecutor;
 import com.vmturbo.plan.orchestrator.reservation.ReservationManager;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -32,7 +32,7 @@ public class PlanProjectExecutor {
 
     private final ClusterHeadroomPlanProjectExecutor headroomExecutor;
 
-    private final CloudMigrationPlanProjectExecutor cloudMigrationExecutor;
+    private final MigrationPlanProjectExecutor migrationExecutor;
 
     /**
      * Constructor for {@link PlanProjectExecutor}.
@@ -77,7 +77,7 @@ public class PlanProjectExecutor {
                 topologyProcessor, cpuCapacityEstimator, taskScheduler, reservationManager,
                 considerReservedVMsInClusterHeadroomPlan);
 
-        cloudMigrationExecutor = new CloudMigrationPlanProjectExecutor(planDao, planProjectDao,
+        migrationExecutor = new MigrationPlanProjectExecutor(planDao, planProjectDao,
                 planRpcService, projectPlanPostProcessorRegistry, projectNotifier);
     }
 
@@ -111,7 +111,8 @@ public class PlanProjectExecutor {
                 headroomExecutor.executePlanProject(planProject, handleFailure);
                 break;
             case CLOUD_MIGRATION:
-                cloudMigrationExecutor.executePlanProject(planProject);
+            case CONTAINER_MIGRATION:
+                migrationExecutor.executePlanProject(planProject);
                 break;
             default:
                 logger.error("Unsupported project {} type {}. Cannot execute plan.",

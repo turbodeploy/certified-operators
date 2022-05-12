@@ -4,6 +4,8 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.plan.PlanProjectREST.PlanProjectType;
+
 public class StringConstants {
     public static final String ALL_GROUP_MEMBERS = "AllGroupMembers";
     public static final String ASSN_ID = "assn_id";
@@ -433,12 +435,16 @@ public class StringConstants {
     /**
      * Allocation (new name: Lift & Shift) plan type of cloud migration plan project. Resize = false.
      */
-    public static final String CLOUD_MIGRATION_PLAN__ALLOCATION = "CLOUD_MIGRATION__ALLOCATION";
+    public static final String MIGRATION_PLAN__ALLOCATION = "__ALLOCATION";
+    public static final String CLOUD_MIGRATION_PLAN__ALLOCATION
+            = PlanProjectType.CLOUD_MIGRATION.name() + MIGRATION_PLAN__ALLOCATION;
 
     /**
      * Consumption (new name: Optimized) plan type of cloud migration plan project. Resize = true.
      */
-    public static final String CLOUD_MIGRATION_PLAN__CONSUMPTION = "CLOUD_MIGRATION__CONSUMPTION";
+    public static final String MIGRATION_PLAN__CONSUMPTION = "__CONSUMPTION";
+    public static final String CLOUD_MIGRATION_PLAN__CONSUMPTION
+            = PlanProjectType.CLOUD_MIGRATION.name() + MIGRATION_PLAN__CONSUMPTION;;
 
     /**
      * String indicating the Business Account entity type in the UI.
@@ -526,9 +532,9 @@ public class StringConstants {
     public static final String OPTIMIZE_CONTAINER_CLUSTER_PLAN = "OPTIMIZE_CONTAINER_CLUSTER";
 
     /**
-     * Migrate container workload plan type.
+     * Migrate container workloads plan type.
      */
-    public static final String MIGRATE_CONTAINER_WORKLOAD_PLAN = "MIGRATE_CONTAINER_WORKLOAD";
+    public static final String MIGRATE_CONTAINER_WORKLOADS_PLAN = "MIGRATE_CONTAINER_WORKLOADS";
 
     /**
      * Buy RI plan type.

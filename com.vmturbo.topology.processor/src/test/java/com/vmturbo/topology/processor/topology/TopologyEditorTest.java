@@ -609,7 +609,7 @@ public class TopologyEditorTest {
             .setCreationTime(System.currentTimeMillis())
             .setTopologyType(TopologyType.PLAN)
             .setPlanInfo(PlanTopologyInfo.newBuilder()
-                .setPlanType(StringConstants.MIGRATE_CONTAINER_WORKLOAD_PLAN))
+                .setPlanType(StringConstants.MIGRATE_CONTAINER_WORKLOADS_PLAN))
             .build();
 
     private final Set<Long> sourceEntities = new HashSet<>();
@@ -1052,7 +1052,8 @@ public class TopologyEditorTest {
         assertThat(cloneBuilder.getTopologyEntityImpl().getOrigin().getPlanScenarioOrigin(),
             is(new PlanScenarioOriginImpl()
                 .setPlanId(topologyInfo.getTopologyContextId())
-                    .setOriginalEntityId(pmId)));
+                    .setOriginalEntityId(pmId)
+                    .addAllOriginalEntityDiscoveringTargetIds(Collections.singletonList(0L))));
 
     }
 
@@ -1131,7 +1132,8 @@ public class TopologyEditorTest {
         assertThat(cloneBuilder.getTopologyEntityImpl().getOrigin().getPlanScenarioOrigin(),
                 is(new PlanScenarioOriginImpl()
                         .setPlanId(topologyInfo.getTopologyContextId())
-                        .setOriginalEntityId(stId)));
+                        .setOriginalEntityId(stId)
+                        .addAllOriginalEntityDiscoveringTargetIds(Collections.singletonList(0L))));
 
     }
 
@@ -1205,7 +1207,8 @@ public class TopologyEditorTest {
         assertThat(cloneBuilder.getTopologyEntityImpl().getOrigin().getPlanScenarioOrigin(),
             is(new PlanScenarioOriginImpl()
                 .setPlanId(topologyInfo.getTopologyContextId())
-                    .setOriginalEntityId(vmId)));
+                    .setOriginalEntityId(vmId)
+                    .addAllOriginalEntityDiscoveringTargetIds(Collections.singletonList(0L))));
     }
 
     // test remove VM when user choose from a host cluster

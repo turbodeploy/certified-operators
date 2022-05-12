@@ -91,7 +91,7 @@ public final class TopologyEditorUtil {
                                                         @Nullable final PlanScope scope,
                                                         @Nonnull final Map<Long, Builder> topology) {
         final String planType = topologyInfo.getPlanInfo().getPlanType();
-        if (!StringConstants.MIGRATE_CONTAINER_WORKLOAD_PLAN.equals(planType)
+        if (!StringConstants.MIGRATE_CONTAINER_WORKLOADS_PLAN.equals(planType)
                 && !StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN.equals(planType)) {
             return Optional.empty();
         }

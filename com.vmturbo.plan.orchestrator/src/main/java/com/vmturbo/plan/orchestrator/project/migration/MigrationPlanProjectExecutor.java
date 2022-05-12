@@ -27,7 +27,7 @@ import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessorRegistry;
 /**
  * This class executes a plan project.
  */
-public class CloudMigrationPlanProjectExecutor {
+public class MigrationPlanProjectExecutor {
     private final Logger logger = LogManager.getLogger();
 
     private final PlanDao planDao;
@@ -41,7 +41,7 @@ public class CloudMigrationPlanProjectExecutor {
     private final PlanProjectNotificationSender notificationSender;
 
     /**
-     * Constructor for {@link CloudMigrationPlanProjectExecutor}.
+     * Constructor for {@link MigrationPlanProjectExecutor}.
      *
      * @param planDao Plan DAO.
      * @param planProjectDao DAO for plan project status update.
@@ -49,7 +49,7 @@ public class CloudMigrationPlanProjectExecutor {
      * @param registry Registry for post processors of plans.
      * @param sender Project status notification sender.
      */
-    public CloudMigrationPlanProjectExecutor(@Nonnull final PlanDao planDao,
+    public MigrationPlanProjectExecutor(@Nonnull final PlanDao planDao,
                                              @Nonnull final PlanProjectDao planProjectDao,
                                              @Nonnull final PlanRpcService planRpcService,
                                              @Nonnull final ProjectPlanPostProcessorRegistry registry,
@@ -85,7 +85,7 @@ public class CloudMigrationPlanProjectExecutor {
                 projectTracker.updateStatus(planInstance.getPlanId(), PlanStatus.READY);
                 // Register post process handler to listen for plan instance status
                 ProjectPlanPostProcessor projectPlanPostProcessor =
-                        new CloudMigrationProjectPlanPostProcessor(planInstance.getPlanId(),
+                        new MigrationProjectPlanPostProcessor(planInstance.getPlanId(),
                                 projectTracker);
                 processorRegistry.registerPlanPostProcessor(projectPlanPostProcessor);
                 PlanProjectExecutor.runPlanInstance(planService, planInstance, logger);

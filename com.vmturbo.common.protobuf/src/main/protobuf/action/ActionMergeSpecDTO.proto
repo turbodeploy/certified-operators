@@ -87,6 +87,12 @@ message ProvisionMergeSpec {
 message UploadAtomicActionSpecsRequest {
     // A list of AtomicActionSpec per target
     repeated AtomicActionSpec atomic_action_specs_info = 1;
+    // The upload type
+    optional UploadType upload_type = 2 [default = REALTIME];
+    enum UploadType {
+        REALTIME = 0;
+        PLAN = 1;
+    }
 }
 
 // This service provides RPCs for CRUD-type operations related to action merge specs

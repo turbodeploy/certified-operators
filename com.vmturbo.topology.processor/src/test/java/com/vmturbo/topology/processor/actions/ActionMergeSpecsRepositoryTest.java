@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.Comm
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ConnectedEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.DiscoveryOriginImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.PlanScenarioOriginImpl;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionMergeExecutionTarget;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionMergePolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionMergeTargetData;
@@ -53,6 +54,7 @@ import com.vmturbo.topology.processor.topology.TopologyEntityUtils;
 public class ActionMergeSpecsRepositoryTest {
 
     private static final long KUBERNETES_TARGET_ID = 1L;
+    private static final long SOURCE_KUBERNETES_TARGET_ID = 111L;
     private static final long TERRAFORM_TARGET_ID = 2L;
     private static final long KUBERNETES_PROBE_ID = 1L;
     private static final long TERRAFORM_PROBE_ID = 2L;
@@ -156,6 +158,56 @@ public class ActionMergeSpecsRepositoryTest {
                 .build();
 
         return terraformMergePolicy;
+    }
+
+    private static TopologyGraph<TopologyEntity> constructKubernetesTopologyWithPlanOrigin() {
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+        // Cloned
+        topology.put(2L,
+                     buildTopologyEntityWithPlanOrigin(2L,
+                                                       CommodityDTO.CommodityType.VCPU.getNumber(),
+                                                       EntityType.CONTAINER_POD_VALUE,
+                                                       Collections.singleton(SOURCE_KUBERNETES_TARGET_ID)));
+        final TopologyEntity.Builder container3 =
+                buildTopologyEntityWithPlanOrigin(21L,
+                                                  CommodityDTO.CommodityType.VCPU.getNumber(),
+                                                  CommodityDTO.CommodityType.VCPU.getNumber(),
+                                                  EntityType.CONTAINER_VALUE,
+                                                  2L, Collections.singleton(SOURCE_KUBERNETES_TARGET_ID));
+
+        final TopologyEntity.Builder container4 =
+                buildTopologyEntityWithPlanOrigin(22L,
+                                                  CommodityDTO.CommodityType.VCPU.getNumber(),
+                                                  CommodityDTO.CommodityType.VCPU.getNumber(),
+                                                  EntityType.CONTAINER_VALUE,
+                                                  2L, Collections.singleton(SOURCE_KUBERNETES_TARGET_ID));
+        topology.put(21L, container3);
+        topology.put(22L, container4);
+        final TopologyEntity.Builder spec2 =
+                buildTopologyEntityWithPlanOrigin(32L,
+                                                  CommodityDTO.CommodityType.VCPU.getNumber(),
+                                                  EntityType.CONTAINER_SPEC_VALUE,
+                                                  Collections.singleton(SOURCE_KUBERNETES_TARGET_ID));
+        container3.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
+                                                .setConnectedEntityId(32L)
+                                                .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION));
+        container4.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
+                                                .setConnectedEntityId(32L)
+                                                .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION));
+        topology.put(32L, spec2);
+        final TopologyEntity.Builder controller2 =
+                buildTopologyEntityWithPlanOrigin(42L,
+                                                  CommodityDTO.CommodityType.VCPU.getNumber(),
+                                                  EntityType.WORKLOAD_CONTROLLER_VALUE,
+                                                  Collections.singleton(SOURCE_KUBERNETES_TARGET_ID));
+        spec2.getTopologyEntityImpl()
+                .addConnectedEntityList(new ConnectedEntityImpl()
+                                                .setConnectedEntityId(42L)
+                                                .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION));
+        topology.put(42L, controller2);
+        return TopologyEntityTopologyGraphCreator.newGraph(topology);
     }
 
     /**
@@ -364,6 +416,46 @@ public class ActionMergeSpecsRepositoryTest {
                         .setEntityType(entityType)
                         .setOrigin(new OriginImpl()
                                 .setDiscoveryOrigin(origin))
+                        .setOid(oid)
+                        .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(
+                                new CommodityTypeImpl().setType(soldType).setKey(""))));
+    }
+
+    private static TopologyEntity.Builder buildTopologyEntityWithPlanOrigin(
+            long oid, int soldType, int boughtType, int entityType,
+            long providerId, final Collection<Long> targetIds) {
+        PlanScenarioOriginImpl origin = new PlanScenarioOriginImpl()
+                .setPlanId(12345L)
+                .setOriginalEntityId(oid)
+                .addAllOriginalEntityDiscoveringTargetIds(targetIds);
+        return TopologyEntityUtils.topologyEntityBuilder(
+                new TopologyEntityImpl()
+                        .setAnalysisSettings(new AnalysisSettingsImpl())
+                        .setEntityType(entityType)
+                        .setOrigin(new OriginImpl().setPlanScenarioOrigin(origin))
+                        .setOid(oid)
+                        .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(
+                                new CommodityTypeImpl().setType(soldType).setKey("")))
+                        .addCommoditiesBoughtFromProviders(
+                                new CommoditiesBoughtFromProviderImpl()
+                                        .setProviderId(providerId)
+                                        .addCommodityBought(new CommodityBoughtImpl()
+                                                .setCommodityType(new CommodityTypeImpl()
+                                                        .setType(boughtType).setKey(""))
+                                                .setActive(true))));
+    }
+
+    private static TopologyEntity.Builder buildTopologyEntityWithPlanOrigin(
+            long oid, int soldType, int entityType, final Collection<Long> targetIds) {
+        PlanScenarioOriginImpl origin = new PlanScenarioOriginImpl()
+                .setPlanId(12345L)
+                .setOriginalEntityId(oid)
+                .addAllOriginalEntityDiscoveringTargetIds(targetIds);
+        return TopologyEntityUtils.topologyEntityBuilder(
+                new TopologyEntityImpl()
+                        .setAnalysisSettings(new AnalysisSettingsImpl())
+                        .setEntityType(entityType)
+                        .setOrigin(new OriginImpl().setPlanScenarioOrigin(origin))
                         .setOid(oid)
                         .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(
                                 new CommodityTypeImpl().setType(soldType).setKey(""))));
@@ -696,6 +788,34 @@ public class ActionMergeSpecsRepositoryTest {
         List<Long> deDuplicationTargetIds = Arrays.asList(31L, 32L);
         for (AtomicActionSpec mergeSpec : specs) {
             Assert.assertEquals(41L, mergeSpec.getAggregateEntity().getEntity().getId());
+            Assert.assertTrue(mergeSpec.hasResizeSpec());
+            Assert.assertTrue(mergeSpec.getResizeSpec().hasDeDuplicationTarget());
+            Assert.assertTrue(deDuplicationTargetIds.contains(mergeSpec.getResizeSpec().getDeDuplicationTarget().getEntity().getId()));
+        }
+    }
+
+    /**
+     * Test action merge policy with topology that have entities with plan origins.
+     */
+    @Test
+    public void testActionMergePolicyWithTopologyWithPlanOrigin() {
+        ProbeInfo probeInfo = ProbeInfo.newBuilder()
+                .setProbeCategory("cat")
+                .setProbeType("Kubernetes")
+                .addTargetIdentifierField("field")
+                .addActionMergePolicy(kubeTurboMergePolicyNew)
+                .build();
+        ActionMergeSpecsRepository repo = new ActionMergeSpecsRepository();
+        repo.setPoliciesForProbe(1L, probeInfo);
+        final TopologyGraph<TopologyEntity> kubernetesGraph = constructKubernetesTopologyWithPlanOrigin();
+        List<AtomicActionSpec> specs = repo.createAtomicActionSpecs(KUBERNETES_PROBE_ID,
+                                                                    SOURCE_KUBERNETES_TARGET_ID,
+                                                                    new TargetEntityCache(kubernetesGraph),
+                                                                    kubernetesGraph);
+        Assert.assertEquals(1, specs.size());
+        List<Long> deDuplicationTargetIds = Collections.singletonList(32L);
+        for (AtomicActionSpec mergeSpec : specs) {
+            Assert.assertEquals(42L, mergeSpec.getAggregateEntity().getEntity().getId());
             Assert.assertTrue(mergeSpec.hasResizeSpec());
             Assert.assertTrue(mergeSpec.getResizeSpec().hasDeDuplicationTarget());
             Assert.assertTrue(deDuplicationTargetIds.contains(mergeSpec.getResizeSpec().getDeDuplicationTarget().getEntity().getId()));

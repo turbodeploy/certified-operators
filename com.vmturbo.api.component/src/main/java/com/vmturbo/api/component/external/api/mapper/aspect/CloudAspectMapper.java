@@ -179,6 +179,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
      * @return map containing aspect
      */
     @Override
+    @Nonnull
     public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatch(@Nonnull List<TopologyEntityDTO> entities) {
         // this aspect only applies to cloud service entities
         List<TopologyEntityDTO> cloudEntities = entities.stream().filter(CloudAspectMapper::isCloudEntity).collect(Collectors.toList());

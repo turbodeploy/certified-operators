@@ -196,7 +196,17 @@ public class ActionStoreConfig {
      * @return {@link AtomicActionSpecsCache}
      */
     @Bean
-    public AtomicActionSpecsCache actionMergeSpecsCache() {
+    public AtomicActionSpecsCache liveActionMergeSpecsCache() {
+        return new AtomicActionSpecsCache();
+    }
+
+    /**
+     * Class with the {@link AtomicActionSpec} received from the topology processor.
+     *
+     * @return {@link AtomicActionSpecsCache}
+     */
+    @Bean
+    public AtomicActionSpecsCache planActionMergeSpecsCache() {
         return new AtomicActionSpecsCache();
     }
 
@@ -218,7 +228,7 @@ public class ActionStoreConfig {
      */
     @Bean
     public AtomicActionFactory atomicActionFactory() {
-        return new AtomicActionFactory(actionMergeSpecsCache());
+        return new AtomicActionFactory(liveActionMergeSpecsCache());
     }
 
     /**
@@ -228,7 +238,7 @@ public class ActionStoreConfig {
      */
     @Bean
     public PlanAtomicActionFactory planAtomicActionFactory() {
-        return new PlanAtomicActionFactory(actionMergeSpecsCache());
+        return new PlanAtomicActionFactory(planActionMergeSpecsCache());
     }
 
     @Bean

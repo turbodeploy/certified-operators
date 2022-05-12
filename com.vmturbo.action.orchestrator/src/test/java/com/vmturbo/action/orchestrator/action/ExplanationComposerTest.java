@@ -823,12 +823,12 @@ public class ExplanationComposerTest {
         setupTopologyGraph(entity(1, "Irene", EntityType.CONTAINER_SPEC_VALUE));
 
 
-        assertEquals("VCPU Limit Congestion, "
+        assertEquals("(^_^)~VCPU Limit Congestion, "
                 + "Underutilized VMem Request"
                 + " in Container Spec {entity:1:displayName:}",
             ExplanationComposer.composeExplanation(action.build(), Collections.emptyList()));
 
-        assertEquals("VCPU Limit Congestion, "
+        assertEquals("(^_^)~VCPU Limit Congestion, "
                         + "Underutilized VMem Request"
                         + " in Container Spec Irene",
             ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),

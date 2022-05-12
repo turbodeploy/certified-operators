@@ -66,7 +66,7 @@ public class CloneContext {
         this.shouldApplyConstraints = FeatureFlags.APPLY_CONSTRAINTS_IN_CONTAINER_CLUSTER_PLAN.isEnabled()
                 && StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN.equals(planType);
         this.isMigrateContainerWorkloadPlan = FeatureFlags.MIGRATE_CONTAINER_WORKLOAD_PLAN.isEnabled()
-                && StringConstants.MIGRATE_CONTAINER_WORKLOAD_PLAN.equals(planType);
+                && StringConstants.MIGRATE_CONTAINER_WORKLOADS_PLAN.equals(planType);
     }
 
     /**

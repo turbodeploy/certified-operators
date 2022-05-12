@@ -341,6 +341,7 @@ public class TopologyConfig {
                 topologyProcessorRpcConfig.groupResolverSearchFilterResolver(),
                 cloudMigrationPlanHelper(),
                 controllableConfig.controllableManager(),
+                actionsConfig.actionMergeSpecsUploader(),
                 stitchingConfig.getEnableConsistentScalingOnHeterogeneousProviders()
         );
     }

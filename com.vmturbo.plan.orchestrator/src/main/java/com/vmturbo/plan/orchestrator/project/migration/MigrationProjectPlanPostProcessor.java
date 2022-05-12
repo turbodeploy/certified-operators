@@ -8,16 +8,16 @@ import com.vmturbo.plan.orchestrator.project.PlanProjectStatusTracker;
 import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessorImpl;
 
 /**
- * Performs cloud migration post-processing related tasks.
+ * Performs migration plan post-processing related tasks.
  */
-public class CloudMigrationProjectPlanPostProcessor extends ProjectPlanPostProcessorImpl {
+public class MigrationProjectPlanPostProcessor extends ProjectPlanPostProcessorImpl {
     /**
      * Creates a new migration post-processor.
      *
      * @param instanceId Plan instance id.
      * @param statusTracker Tracker for plan project status.
      */
-    public CloudMigrationProjectPlanPostProcessor(final long instanceId,
+    public MigrationProjectPlanPostProcessor(final long instanceId,
                                                   @Nonnull final PlanProjectStatusTracker statusTracker) {
         super(instanceId, statusTracker);
     }
@@ -27,7 +27,8 @@ public class CloudMigrationProjectPlanPostProcessor extends ProjectPlanPostProce
      */
     @Override
     public boolean appliesTo(@Nonnull final TopologyInfo sourceTopologyInfo) {
-        return sourceTopologyInfo.getPlanInfo().getPlanProjectType()
-                == PlanProjectType.CLOUD_MIGRATION;
+        final PlanProjectType planProjectType = sourceTopologyInfo.getPlanInfo().getPlanProjectType();
+        return PlanProjectType.CLOUD_MIGRATION == planProjectType
+                || PlanProjectType.CONTAINER_MIGRATION == planProjectType;
     }
 }

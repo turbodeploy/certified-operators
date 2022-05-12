@@ -59,7 +59,7 @@ public class ActionMergeSpecsRepository {
      */
     public void setPoliciesForProbe(long probeId, @Nonnull final ProbeInfo probeInfo) {
         if (probeInfo.getActionMergePolicyCount() >= 0) {
-            logger.debug("received action merge policies from probe {}",
+            logger.debug("Received {} action merge policies from probe {}",
                                 probeInfo.getActionMergePolicyCount(), probeId);
 
             Map<EntityDTO.EntityType, ActionMergePolicyDTO> policyMap
@@ -71,7 +71,7 @@ public class ActionMergeSpecsRepository {
                                             || policy.hasScaleSpec())
                         .collect(Collectors.toMap(ActionMergePolicyDTO::getEntityType, Function.identity()));
 
-            logger.trace("probe {} has action merge policies for {}", probeId, policyMap.keySet());
+            logger.trace("Probe {} has action merge policies for {}", probeId, policyMap.keySet());
             actionMergePolicyMap.put(probeId, policyMap);
         }
     }
@@ -100,8 +100,8 @@ public class ActionMergeSpecsRepository {
                                                           TopologyGraph<TopologyEntity> topologyGraph) {
         // no action merge policies for the given probe, nothing to do
         if (!actionMergePolicyMap.containsKey(probeId)) {
-            // this unexpected since the upload stage should use probe which contain the policy DTOs
-            logger.warn("{} : cannot find action merge policy dtos");
+            // this is unexpected since the upload stage should use probe which contain the policy DTOs
+            logger.warn("Cannot find action merge policy for probe {}", probeId);
             return new ArrayList<>();
         }
         // Map of policies by entity type
@@ -116,6 +116,8 @@ public class ActionMergeSpecsRepository {
                 .entitiesOfTypeForTarget(policyEntityType.getNumber(), targetId);
 
             if (entitiesForTarget.size() == 0) {
+                // print at debug level as plan topology may not contain entities from all
+                // cloud native targets
                 logger.warn("{} : no discovered entities for entity type {}", targetId, policyEntityType);
                 continue;
             }
