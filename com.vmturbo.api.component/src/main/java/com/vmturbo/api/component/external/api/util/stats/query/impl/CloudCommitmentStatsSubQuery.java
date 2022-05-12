@@ -123,7 +123,8 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
 
                 cloudCommitmentStatsServiceGrpc.getTopologyCommitmentUtilization(request)
                         .forEachRemaining(response -> response.getCommitmentUtilizationRecordChunkList().forEach(record -> {
-                            final StatSnapshotApiDTO snapshot = snapshotTimestampMap.computeIfAbsent(record.getSnapshotDate(),
+                            final long snapShotDate = epoch == Epoch.PROJECTED ? (record.getSnapshotDate() + TimeUnit.HOURS.toMillis(1)) : record.getSnapshotDate();
+                            final StatSnapshotApiDTO snapshot = snapshotTimestampMap.computeIfAbsent(snapShotDate,
                                     snaphotDate -> createSnapshotApi(snaphotDate, epoch));
                             addRecordToSnapshot(snapshot, record, StringConstants.CLOUD_COMMITMENT_UTILIZATION);
                         }));
