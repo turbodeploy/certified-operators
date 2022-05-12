@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.savings;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -10,6 +11,7 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -40,7 +42,7 @@ public class SavingsTracker implements ScenarioDataHandler {
     /**
      * Stats writing interface.
      */
-    private final StatsWriter statsWriter;
+    private final SavingsStore savingsStore;
 
     /**
      * Supported provider types.
@@ -52,16 +54,16 @@ public class SavingsTracker implements ScenarioDataHandler {
      *
      * @param billingRecordStore Store for billing records.
      * @param actionChainStore Action chain store.
-     * @param statsWriter Writer for final stats.
+     * @param savingsStore Writer for final stats.
      * @param supportedProviderTypes Provider types wer are interested in.
      */
     public SavingsTracker(@Nonnull final BillingRecordStore billingRecordStore,
             @Nonnull ActionChainStore actionChainStore,
-            @Nonnull final StatsWriter statsWriter,
+            @Nonnull final SavingsStore savingsStore,
             @Nonnull final Set<Integer> supportedProviderTypes) {
         this.billingRecordStore = billingRecordStore;
         this.actionChainStore = actionChainStore;
-        this.statsWriter = statsWriter;
+        this.savingsStore = savingsStore;
         this.supportedProviderTypes = supportedProviderTypes;
     }
 
@@ -126,15 +128,22 @@ public class SavingsTracker implements ScenarioDataHandler {
                     values::size, () -> entityId, entityBillingRecords::size,
                     entityActionChain::size);
             allSavingsValues.addAll(values);
+            logger.trace("Savings stats for entity {}:\n{}\n{}", () -> entityId,
+                    SavingsValues::toCsvHeader,
+                    () -> values.stream()
+                            .sorted(Comparator.comparing(SavingsValues::getTimestamp))
+                            .map(SavingsValues::toCsv)
+                            .collect(Collectors.joining("\n")));
+
         });
 
         // Once we are done processing all the states for this period, we write stats.
-        return statsWriter.writeDailyStats(allSavingsValues);
+        return savingsStore.writeDailyStats(allSavingsValues);
     }
 
     /**
-     * Process given list of entity states. A chunk of states are processed at a time. This can
-     * only be invoked when the ENABLE_SAVINGS_TEST_INPUT feature flag is enabled.
+     * Process given list of entity states. This can only be invoked when the
+     * ENABLE_SAVINGS_TEST_INPUT feature flag is enabled.
      *
      * @param participatingUuids list of UUIDs involved in the injected scenario
      * @param startTime starting time of the injected scenario
@@ -146,11 +155,12 @@ public class SavingsTracker implements ScenarioDataHandler {
             @Nonnull final Map<Long, NavigableSet<ActionSpec>> actionChains,
             @Nonnull final Map<Long, Set<BillingRecord>> billRecordsByEntity)
             throws EntitySavingsException {
-        logger.debug("Data injector invoked for the period of {} to {} on UUIDs: {}",
+        logger.info("Scenario generator invoked for the period of {} to {} on UUIDs: {}",
                 startTime, endTime, participatingUuids);
         final Map<Long, NavigableSet<ActionSpec>> actions = new HashMap<>(actionChains);
         final Map<Long, Set<BillingRecord>> billRecords = new HashMap<>(billRecordsByEntity);
         if (actions.isEmpty()) {
+            logger.info("No actions are defined in the scenario. Get action and bill data from the database.");
             // If no action chains are passed in, we will use the data in the database.
             // Get billing records in this time range, mapped by entity id.
             billingRecordStore.getBillRecords(startTime, endTime, participatingUuids)
@@ -169,12 +179,15 @@ public class SavingsTracker implements ScenarioDataHandler {
      * Purge state for the indicated UUIDs in preparation for processing injected data.  This can
      * only be invoked when the ENABLE_SAVINGS_TEST_INPUT feature flag is enabled.
      *
-     * @param participatingUuids UUIDs to purge.
+     * @param uuids UUIDs to purge.
      */
     @Override
-    public void purgeState(Set<Long> participatingUuids) {
+    public void purgeState(Set<Long> uuids) {
         logger.debug("Purge state for UUIDs in preparation for data injection: {}",
-                participatingUuids);
-        throw new UnsupportedOperationException();
+                uuids);
+        if (!uuids.isEmpty()) {
+            logger.info("Purging savings stats for UUIDs: {}", uuids);
+            savingsStore.deleteStats(uuids);
+        }
     }
 }

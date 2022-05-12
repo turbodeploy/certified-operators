@@ -30,11 +30,10 @@ public class BillingDataInjector implements ScenarioDataInjector {
      * Event format passed between the data generator and the event injector.
      */
     public static class BillingScriptEvent extends ScriptEvent {
-        long sourceTierId;
-        long destinationTierId;
         double sourceOnDemandRate;
         double destinationOnDemandRate;
         boolean purgeState;
+        boolean state;
 
         /**
          * Return string representation of event.
@@ -44,11 +43,10 @@ public class BillingDataInjector implements ScenarioDataInjector {
         @Override
         public String toString() {
             final StringBuilder sb = new StringBuilder("BillingScriptEvent{");
-            sb.append("sourceTierId=").append(sourceTierId);
-            sb.append(", destinationTierId=").append(destinationTierId);
-            sb.append(", sourceOnDemandRate=").append(sourceOnDemandRate);
+            sb.append("sourceOnDemandRate=").append(sourceOnDemandRate);
             sb.append(", destinationOnDemandRate=").append(destinationOnDemandRate);
             sb.append(", purgeState=").append(purgeState);
+            sb.append(", state=").append(state);
             sb.append(", timestamp=").append(timestamp);
             sb.append(", eventType='").append(eventType).append('\'');
             sb.append(", uuid='").append(uuid).append('\'');
@@ -87,12 +85,14 @@ public class BillingDataInjector implements ScenarioDataInjector {
             return;
         }
         // Get the purgeState flag from the STOP event, and get the scenario end time.
+        long startTime = Long.MAX_VALUE;
         long endTime = Long.MIN_VALUE;
         for (ScriptEvent event : scriptEvents) {
             if ("STOP".equals(event.eventType)) {
                 BillingScriptEvent billingScriptEvent = (BillingScriptEvent)event;
                 purgePreviousTestState.set(billingScriptEvent.purgeState);
             }
+            startTime = Math.min(startTime, event.timestamp);
             endTime = Math.max(endTime, event.timestamp);
         }
 
@@ -104,6 +104,7 @@ public class BillingDataInjector implements ScenarioDataInjector {
         actionChains.putAll(ScenarioGenerator.generateActionChains(eventList, uuidMap));
         if (!actionChains.isEmpty()) {
             billRecordsByEntity.putAll(ScenarioGenerator.generateBillRecords(eventList, uuidMap,
+                    TimeUtil.millisToLocalDateTime(startTime, Clock.systemUTC()),
                     TimeUtil.millisToLocalDateTime(endTime, Clock.systemUTC())));
         }
     }

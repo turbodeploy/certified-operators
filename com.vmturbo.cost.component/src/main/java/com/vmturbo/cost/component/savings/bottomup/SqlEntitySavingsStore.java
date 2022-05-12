@@ -51,8 +51,8 @@ import com.vmturbo.cost.component.db.tables.EntitySavingsByHour;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsByHourRecord;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
 import com.vmturbo.cost.component.savings.EntitySavingsException;
+import com.vmturbo.cost.component.savings.SavingsStore;
 import com.vmturbo.cost.component.savings.SavingsUtil;
-import com.vmturbo.cost.component.savings.StatsWriter;
 import com.vmturbo.cost.component.savings.calculator.SavingsValues;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.jooq.JooqUtil;
@@ -60,7 +60,7 @@ import com.vmturbo.sql.utils.jooq.JooqUtil;
 /**
  * Implementation of store that accesses savings hourly/daily/monthly DB tables.
  */
-public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, StatsWriter {
+public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, SavingsStore {
     /**
      * Minimal info logging.
      */
@@ -551,5 +551,10 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, St
         });
         addDailyStats(dailyStats, this.dsl);
         return uniqueDailyTimestamps;
+    }
+
+    @Override
+    public void deleteStats(@Nonnull Set<Long> uuids) {
+        deleteStatsForUuids(uuids);
     }
 }
