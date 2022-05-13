@@ -28,6 +28,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPhase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
@@ -117,41 +118,39 @@ public class ActionAuditSender {
         }
         if (workflowOptional.isPresent()) {
             final Workflow workflow = workflowOptional.get();
-            switch (workflow.getWorkflowInfo().getActionPhase()) {
-                case AFTER_EXECUTION: {
-                    logger.debug("Found action event for action {} with AFTER_EXEC workflow {}",
-                        action::getId, workflow::getId);
+            if (!workflow.getWorkflowInfo().hasActionPhase() || workflow.getWorkflowInfo().getActionPhase() == ActionPhase.AFTER_EXECUTION) {
+                logger.debug("Found action event for action {} with AFTER_EXEC workflow {},"
+                        + " or a workflow with no action phase",
+                    action::getId, workflow::getId);
 
-                    final ActionResponseState newState;
-                    if (action.getState() == ActionState.SUCCEEDED) {
-                        newState = ActionResponseState.SUCCEEDED;
-                    } else if (action.getState() == ActionState.FAILED) {
-                        newState = ActionResponseState.FAILED;
-                    } else {
-                        logger.error(
-                            "For action {}: unsupported action with state {} for after exec ",
-                            action, action.getState());
-                        break;
-                    }
-
-                    final ActionEvent event = getActionEvent(action, workflow, ActionResponseState.IN_PROGRESS, newState);
-                    logger.debug("Sending action {} audit AFTER_EXEC event to external audit", action.getId());
-                    messageSender.sendMessage(event);
-
-                    // TODO OM-64606 remove this ServiceNow specific logic after changing the
-                    //      ServiceNow app and having generic audit logic for orchestration targets
-                    if (!Optional.of(SDKProbeType.SERVICENOW.getProbeType()).equals(getProbeType(workflow))) {
-                        final AuditedActionsUpdate update = new AuditedActionsUpdate();
-                        update.addRemovedActionRecommendationOid(action.getRecommendationOid());
-                        auditedActionsManager.persistAuditedActionsUpdates(update);
-                    }
-                    break;
-                }
-                default:
-                    logger.trace("Action {}'s workflow {} ({}) is for phase {}. Skipping audit AFTER_EXEC",
-                        action::getId, workflow::getId, () -> workflow.getWorkflowInfo().getName(),
-                        () -> workflow.getWorkflowInfo().getActionPhase());
+                final ActionResponseState newState;
+                if (action.getState() == ActionState.SUCCEEDED) {
+                    newState = ActionResponseState.SUCCEEDED;
+                } else if (action.getState() == ActionState.FAILED) {
+                    newState = ActionResponseState.FAILED;
+                } else {
+                    logger.error(
+                        "For action {}: unsupported action with state {} for after exec ",
+                        action, action.getState());
                     return;
+                }
+
+                final ActionEvent event = getActionEvent(action, workflow, ActionResponseState.IN_PROGRESS, newState);
+                logger.debug("Sending action {} audit AFTER_EXEC event to external audit", action.getId());
+                messageSender.sendMessage(event);
+
+                // TODO OM-64606 remove this ServiceNow specific logic after changing the
+                //      ServiceNow app and having generic audit logic for orchestration targets
+                if (!Optional.of(SDKProbeType.SERVICENOW.getProbeType()).equals(getProbeType(workflow))) {
+                    final AuditedActionsUpdate update = new AuditedActionsUpdate();
+                    update.addRemovedActionRecommendationOid(action.getRecommendationOid());
+                    auditedActionsManager.persistAuditedActionsUpdates(update);
+                }
+            } else {
+                logger.trace("Action {}'s workflow {} ({}) is for phase {}. Skipping audit AFTER_EXEC",
+                    action::getId, workflow::getId, () -> workflow.getWorkflowInfo().getName(),
+                    () -> workflow.getWorkflowInfo().getActionPhase());
+                return;
             }
         } else {
             logger.trace(

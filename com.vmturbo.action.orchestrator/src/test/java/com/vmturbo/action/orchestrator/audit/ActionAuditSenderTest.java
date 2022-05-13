@@ -87,6 +87,7 @@ public class ActionAuditSenderTest {
     private static final long SERVICENOW_ONGEN_WORKFLOW_ID = 2004L;
     private static final long SERVICENOW_ONGEN_WORKFLOW_ID_2 = 2005L;
     private static final long SERVICENOW_AFTEREXEC_WORKFLOW_ID = 2006L;
+    private static final long WEBHOOK_WORKFLOW_ID = 2007L;
     private static final long WORKFLOW_ID3 = 2003L;
     private static final long KAFKA_TARGET_ID = 3001L;
     private static final long SERVICENOW_TARGET_ID = 3002L;
@@ -196,6 +197,15 @@ public class ActionAuditSenderTest {
                 .setActionPhase(ActionPhase.AFTER_EXECUTION)
                 .setTargetId(KAFKA_TARGET_ID))
         .build();
+
+
+    private static final Workflow WEBHOOK_WORKFLOW = Workflow.newBuilder()
+            .setId(WEBHOOK_WORKFLOW_ID)
+            .setWorkflowInfo(
+                    WorkflowInfo.newBuilder()
+                            // intentionally no action phase
+                            .setTargetId(KAFKA_TARGET_ID))
+            .build();
 
     private static final Workflow SERVICENOW_ONGEN_WORKFLOW = Workflow.newBuilder()
         .setId(SERVICENOW_ONGEN_WORKFLOW_ID)
@@ -867,6 +877,33 @@ public class ActionAuditSenderTest {
             serviceNowActionSent.getOldState());
         Assert.assertEquals(ActionResponseState.FAILED,
             serviceNowActionSent.getNewState());
+    }
+
+    /**
+     * We should send the audit message when there is no action phase on the workflow.
+     * Before the bug fix from https://vmturbo.atlassian.net/browse/OM-84181, this test would fail.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testAfterExecHasNoActionPhase() throws Exception {
+        final Action actionWithWebhook = createAction(ACTION1_ID, WEBHOOK_WORKFLOW, ActionState.SUCCEEDED);
+
+        actionAuditSender.sendAfterExecutionEvents(actionWithWebhook);
+
+        verify(auditedActionsManager, times(1))
+                .persistAuditedActionsUpdates(persistedActionsCaptor.capture());
+        Assert.assertEquals(Arrays.asList(actionWithWebhook.getRecommendationOid()),
+                persistedActionsCaptor.getValue().getRemovedActionRecommendationOid());
+        verify(messageSender, times(1))
+                .sendMessage(sentActionEventMessageCaptor.capture());
+        ActionEvent workflowActionSent = sentActionEventMessageCaptor.getAllValues().get(0);
+        Assert.assertEquals(actionWithWebhook.getRecommendationOid(),
+                workflowActionSent.getActionRequest().getActionId());
+        Assert.assertEquals(ActionResponseState.IN_PROGRESS,
+                workflowActionSent.getOldState());
+        Assert.assertEquals(ActionResponseState.SUCCEEDED,
+                workflowActionSent.getNewState());
     }
 
     /**
