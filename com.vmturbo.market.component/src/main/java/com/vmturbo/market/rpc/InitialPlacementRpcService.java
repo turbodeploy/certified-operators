@@ -105,7 +105,7 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
                     successBuilder.setCluster(reservationResult.getClusterComm().get());
                 }
                 builder.setInitialPlacementSuccess(successBuilder);
-            } else {
+            } else if (!triplet.getValue().getFailureInfoList().isEmpty()) {
                 InitialPlacementFailure.Builder failureBuilder = InitialPlacementFailure.newBuilder();
                 for (FailureInfo info: triplet.getValue().getFailureInfoList()) {
                     CommodityType commodityType = info.getCommodityType();
@@ -118,6 +118,8 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
                     failureBuilder.addUnplacedReason(reason);
                 }
                 builder.setInitialPlacementFailure(failureBuilder);
+            } else if (triplet.getValue().getInvalidInfo().isPresent()) {
+                builder.setInitialPlacementInvalid(triplet.getValue().getInvalidInfo().get());
             }
             response.addInitialPlacementBuyerPlacementInfo(builder.build());
         }

@@ -3,6 +3,7 @@ package com.vmturbo.market.reservations;
 import java.util.List;
 import java.util.Optional;
 
+import com.vmturbo.common.protobuf.market.InitialPlacement.InvalidInfo.InvalidConstraints;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 
 /**
@@ -26,6 +27,11 @@ public class InitialPlacementDecision {
     public List<FailureInfo> failureInfos;
 
     /**
+     * The invalid constraints info of the buyer.
+     */
+    public final Optional<InvalidConstraints> invalidConstraints;
+
+    /**
      * Constructor.
      *
      * @param slOid the shopping list oid.
@@ -33,9 +39,11 @@ public class InitialPlacementDecision {
      * @param failureInfos a list of {@link FailureInfo}s
      */
     public InitialPlacementDecision(final long slOid, final Optional<Long> supplier,
-            final List<FailureInfo> failureInfos) {
+                                    final List<FailureInfo> failureInfos,
+                                    final Optional<InvalidConstraints> invalidConstraints) {
         this.slOid = slOid;
         this.supplier = supplier;
         this.failureInfos = failureInfos;
+        this.invalidConstraints = invalidConstraints;
     }
 }

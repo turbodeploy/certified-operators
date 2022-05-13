@@ -172,7 +172,7 @@ public class EconomyCachesTest {
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyerOid, Arrays.asList(
-                    new InitialPlacementDecision(buyerSlOid, Optional.of(pm1Oid), new ArrayList())));
+                    new InitialPlacementDecision(buyerSlOid, Optional.of(pm1Oid), new ArrayList(), Optional.empty())));
         }};
         Assert.assertFalse(economyCaches.getState().isEconomyReady());
         economyCaches.updateRealtimeCachedEconomy(simpleEconomy(), commTypeToSpecMap,
@@ -217,7 +217,7 @@ public class EconomyCachesTest {
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyerOid, Arrays.asList(
-                    new InitialPlacementDecision(buyerSlOid, Optional.of(pm2Oid), new ArrayList())));
+                    new InitialPlacementDecision(buyerSlOid, Optional.of(pm2Oid), new ArrayList(), Optional.empty())));
         }};
         Mockito.doNothing().when(economyCachePersistenceSpy).saveEconomyCache(Mockito.any(), Mockito.any(), Mockito.anyBoolean());
         Map<Long, List<InitialPlacementDecision>> newPlacements = economyCaches.updateHistoricalCachedEconomy(simpleEconomy(), commTypeToSpecMap,
@@ -270,7 +270,7 @@ public class EconomyCachesTest {
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyerOid, Arrays.asList(
-                    new InitialPlacementDecision(buyerSlOid, Optional.of(pm2Oid), new ArrayList())));
+                    new InitialPlacementDecision(buyerSlOid, Optional.of(pm2Oid), new ArrayList(), Optional.empty())));
         }};
         Mockito.doNothing().when(economyCachePersistenceSpy).saveEconomyCache(Mockito.any(), Mockito.any(), Mockito.anyBoolean());
         Assert.assertFalse(economyCaches.getState().isEconomyReady());
@@ -313,7 +313,7 @@ public class EconomyCachesTest {
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyerOid, Arrays.asList(
-                    new InitialPlacementDecision(buyerSlOid, Optional.of(pm2Oid), new ArrayList())));
+                    new InitialPlacementDecision(buyerSlOid, Optional.of(pm2Oid), new ArrayList(), Optional.empty())));
         }};
         economyCaches.getState().setReservationReceived(true);
         economyCaches.updateRealtimeCachedEconomy(simpleEconomy(), commTypeToSpecMap,
@@ -362,7 +362,7 @@ public class EconomyCachesTest {
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyerOid, Arrays.asList(
-                    new InitialPlacementDecision(buyerSlOid, Optional.of(pm2Oid), new ArrayList())));
+                    new InitialPlacementDecision(buyerSlOid, Optional.of(pm2Oid), new ArrayList(), Optional.empty())));
         }};
         economyCaches.getState().setReservationReceived(true);
         economyCaches.updateRealtimeCachedEconomy(simpleEconomy(), commTypeToSpecMap,
@@ -405,7 +405,7 @@ public class EconomyCachesTest {
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyerOid, Arrays.asList(
-                    new InitialPlacementDecision(buyerSlOid, Optional.of(pm2Oid), new ArrayList())));
+                    new InitialPlacementDecision(buyerSlOid, Optional.of(pm2Oid), new ArrayList(), Optional.empty())));
         }};
         Mockito.doNothing().when(economyCachePersistenceSpy).saveEconomyCache(Mockito.any(), Mockito.any(), Mockito.anyBoolean());
         // Add the existing reservation buyer to the simple economy and find placement for it.
@@ -1019,7 +1019,7 @@ public class EconomyCachesTest {
         }});
         Map<Long, List<InitialPlacementDecision>> placements = new HashMap();
         placements.put(buyerOid, new ArrayList(Arrays.asList(
-                new InitialPlacementDecision(slOid, Optional.of(st1Oid), new ArrayList<>()))));
+                new InitialPlacementDecision(slOid, Optional.of(st1Oid), new ArrayList<>(), Optional.empty()))));
         Map<Long, TopologyDTO.CommodityType> map = InitialPlacementUtils.extractClusterBoundary(
                 economy, commTypeToSpecMap, placements, new ArrayList(Arrays.asList(buyer)), new HashSet<>());
         Assert.assertTrue(map.get(slOid).getType() == CommodityType.STORAGE_CLUSTER_VALUE);
@@ -1048,7 +1048,7 @@ public class EconomyCachesTest {
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyerOid, Arrays.asList(
-                    new InitialPlacementDecision(buyerSlOid, Optional.of(pm2Oid), new ArrayList())));
+                    new InitialPlacementDecision(buyerSlOid, Optional.of(pm2Oid), new ArrayList(), Optional.empty())));
         }};
         Mockito.doNothing().when(economyCachePersistenceSpy).saveEconomyCache(Mockito.any(), Mockito.any(), Mockito.anyBoolean());
         // Create a historical economy with 4 pms, 2 in each cluster. A reservation buyer is

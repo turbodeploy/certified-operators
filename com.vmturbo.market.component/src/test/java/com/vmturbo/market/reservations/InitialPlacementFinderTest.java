@@ -155,7 +155,7 @@ true, 1, 5, diagsCollectorFactory,  5);
         pf.existingReservations.put(1L, PlanUtils.setupInitialPlacement(new ArrayList(Arrays
                     .asList(getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 10))), 1L));
         pf.buyerPlacements.put(vmID, new ArrayList(Arrays.asList(new InitialPlacementDecision(pmSlOid,
-                    Optional.of(pm1Oid), new ArrayList()))));
+                    Optional.of(pm1Oid), new ArrayList(), Optional.empty()))));
         handler.buyersToBeDeleted(Arrays.asList(vmID), false);
         assertTrue(pf.existingReservations.isEmpty());
         assertTrue(pf.buyerPlacements.isEmpty());

@@ -18,6 +18,8 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
@@ -30,6 +32,7 @@ import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.market.InitialPlacement;
 import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
@@ -40,6 +43,7 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InvalidInfo;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -293,22 +297,46 @@ public class ReservationManager implements ReservationDeletedListener {
             }
             Set<Reservation> updatedReservations = currentReservations;
             try {
-                // TODO We should have a timeout on this.
-                FindInitialPlacementRequest initialPlacementRequest =
-                        buildInitialPlacementRequest(currentReservations);
-                FindInitialPlacementResponse response =
-                        initialPlacementServiceBlockingStub.findInitialPlacement(
-                                initialPlacementRequest);
-                updatedReservations = updateProviderInfoForReservations(response.getInitialPlacementBuyerPlacementInfoList(),
-                        currentReservations.stream().map(res -> res.getId()).collect(Collectors.toSet()),
-                        ReservationStatus.INPROGRESS);
+                Set<Reservation> invalidReservations = new HashSet<>();
+                Optional<FindInitialPlacementResponse> response = findInitialPlacement(currentReservations, invalidReservations);
+                if (response.isPresent()) {
+                    updatedReservations = updateProviderInfoForReservations(response.get().getInitialPlacementBuyerPlacementInfoList(),
+                            currentReservations.stream().map(res -> res.getId()).collect(Collectors.toSet()),
+                            ReservationStatus.INPROGRESS);
+                } else if (!invalidReservations.isEmpty()) {
+                    updatedReservations = invalidReservations;
+                }
             } catch (Exception e) {
-                logger.warn(logPrefix + "findInitialPlacement was not completed successfully");
+                logger.warn(logPrefix + "findInitialPlacement was not completed successfully. Exception: {}", e);
             } finally {
                 updateReservationResult(updatedReservations);
             }
         }
+    }
 
+    private Optional<FindInitialPlacementResponse> findInitialPlacement(Set<Reservation> currentReservations,
+                                                                        Set<Reservation> invalidReservations) {
+        FindInitialPlacementResponse response = null;
+        try {
+            // TODO We should have a timeout on this.
+            FindInitialPlacementRequest initialPlacementRequest =
+                    buildInitialPlacementRequest(currentReservations);
+            response = initialPlacementServiceBlockingStub.findInitialPlacement(
+                    initialPlacementRequest);
+        } catch (Exception e) {
+            logger.warn(logPrefix + " Got exception when making GRPC call to market. Exception: {}", e);
+            for (Reservation reservation : currentReservations) {
+                Reservation.Builder invalidResBuilder = reservation.toBuilder();
+                invalidResBuilder.getReservationTemplateCollectionBuilder().getReservationTemplateBuilderList()
+                        .forEach(template -> template.getReservationInstanceBuilderList()
+                                .forEach(instance -> instance.setInvalidInfo(
+                                        InvalidInfo.newBuilder().setMarketConnectivityError(
+                                                InvalidInfo.MarketConnectivityError.getDefaultInstance()).build())));
+                invalidReservations.add(invalidResBuilder.build());
+            }
+            return Optional.empty();
+        }
+        return Optional.ofNullable(response);
     }
 
     /**
@@ -410,14 +438,23 @@ public class ReservationManager implements ReservationDeletedListener {
                         .getInitialPlacementSuccess().getProviderOid()
                         + " found for entity: " + reservationInstance.getEntityId()
                         + " of reservation: " + updatedReservation.getId());
-            } else {
+            } else if (initialPlacementBuyerPlacementInfo.hasInitialPlacementFailure()) {
                 reservationInstance
                         .addAllUnplacedReason(
                                 initialPlacementBuyerPlacementInfo.getInitialPlacementFailure()
                                         .getUnplacedReasonList());
+                // When there is an existing reservation, every night we retry to make sure the reservation still
+                // can be placed. If for some reason that reservation which was placed, now becomes invalid/failed,
+                // we need to clear the provider id.
                 placementInfo.clearProviderId();
                 logger.info(logPrefix + "entity: " + reservationInstance.getEntityId()
                         + " of reservation: " + updatedReservation.getId() + " failed to get placed.");
+            } else if (!reservationInstance.hasInvalidInfo() && initialPlacementBuyerPlacementInfo.hasInitialPlacementInvalid()) {
+                reservationInstance.setInvalidInfo(initialPlacementBuyerPlacementInfo.getInitialPlacementInvalid()).build();
+                // When there is an existing reservation, every night we retry to make sure the reservation still
+                // can be placed. If for some reason that reservation which was placed, now becomes invalid/failed,
+                // we need to clear the provider id.
+                placementInfo.clearProviderId();
             }
             reservationInstance.setPlacementInfo(placementInfoIndex, placementInfo);
             reservationTemplate.setReservationInstance(instanceIndex, reservationInstance);
@@ -890,6 +927,9 @@ public class ReservationManager implements ReservationDeletedListener {
                 // reservation is PLACEMENT_FAILED.
                 if (!reservationInstance.getUnplacedReasonList().isEmpty()) {
                     return ReservationStatus.PLACEMENT_FAILED;
+                }
+                if (reservationInstance.hasInvalidInfo()) {
+                    return ReservationStatus.INVALID;
                 }
                 // if at least one reservation instance has placement info then the reservation is valid.
                 if (reservationInstance.getPlacementInfoList() != null

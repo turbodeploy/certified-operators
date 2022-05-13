@@ -31,9 +31,12 @@ import org.jooq.DSLContext;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementFailure;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InvalidInfo;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InvalidInfo.MarketNotReady;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetExistingReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetExistingReservationsResponse;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
@@ -279,7 +282,7 @@ public class InitialPlacementFinder {
         Map<Long, CommodityType> slToClusterMap = new HashMap<>();
         if (!economyCaches.getState().isEconomyReady()) {
             logger.warn(logPrefix + "Market is not ready to run reservation yet, wait for another broadcast to retry");
-            return HashBasedTable.create();
+            return buildMarketNotReadyResults(allBuyers);
         }
         // Find providers for buyers via running placements in economy caches. Keep track of
         // placement results in buyerPlacements.
@@ -359,10 +362,23 @@ public class InitialPlacementFinder {
                 b.getInitialPlacementCommoditiesBoughtFromProviderList().stream()
                         .map(sl -> sl.getCommoditiesBoughtFromProviderId())
                         .forEach(id -> emptyDecisions.add(new InitialPlacementDecision(
-                                b.getBuyerId(), Optional.empty(), new ArrayList<>())));
+                                b.getBuyerId(), Optional.empty(), new ArrayList<>(), Optional.empty())));
                 initialPlacements.put(b.getBuyerId(), emptyDecisions);
             });
         }
+    }
+
+    private Table<Long, Long, InitialPlacementFinderResult> buildMarketNotReadyResults(List<InitialPlacementBuyer> allBuyers) {
+        Table<Long, Long, InitialPlacementFinderResult> invalidResult = HashBasedTable.create();
+        InvalidInfo invalidInfo = InvalidInfo.newBuilder().setMarketNotReady(MarketNotReady.getDefaultInstance()).build();
+        for (InitialPlacementBuyer buyer : allBuyers) {
+            for (InitialPlacementCommoditiesBoughtFromProvider commBoughtGrouping
+                    : buyer.getInitialPlacementCommoditiesBoughtFromProviderList()) {
+                invalidResult.put(buyer.getBuyerId(), commBoughtGrouping.getCommoditiesBoughtFromProviderId(),
+                        new InitialPlacementFinderResult(Optional.empty(), Optional.empty(), new ArrayList<>(), Optional.of(invalidInfo)));
+            }
+        }
+        return invalidResult;
     }
 
     /**
@@ -387,11 +403,11 @@ public class InitialPlacementFinder {
                     placementResult.put(buyerOid, placement.slOid, new InitialPlacementFinderResult(
                             Optional.of(placement.supplier.get()),
                             Optional.ofNullable(slToClusterMap.get(placement.slOid)),
-                            new ArrayList<>()));
+                            new ArrayList<>(), Optional.empty()));
                 } else if (!placement.failureInfos.isEmpty()) { // the sl is unplaced, populate reason
                     placementResult.put(buyerOid, placement.slOid,
                             new InitialPlacementFinderResult(Optional.empty(), Optional.empty(),
-                                    placement.failureInfos));
+                                    placement.failureInfos, Optional.empty()));
                     if (!placement.failureInfos.isEmpty()) {
                         logger.debug(logPrefix + "Unplaced reservation entity id {}, sl id {} has the following"
                                 + " commodities", buyerPlacement.getKey(), placement.slOid);
@@ -406,7 +422,10 @@ public class InitialPlacementFinder {
                     // success reservation.
                     placementResult.put(buyerOid, placement.slOid,
                             new InitialPlacementFinderResult(Optional.empty(), Optional.empty(),
-                                    new ArrayList<>()));
+                                    new ArrayList<>(),
+                                    placement.invalidConstraints.isPresent()
+                                            ? Optional.of(InvalidInfo.newBuilder().setInvalidConstraints(placement.invalidConstraints.get()).build())
+                                            : Optional.empty()));
                 }
             }
         }
@@ -520,7 +539,7 @@ public class InitialPlacementFinder {
                     Optional<Long> supplier = sl.getCommoditiesBoughtFromProvider().hasProviderId()
                             ? Optional.of(sl.getCommoditiesBoughtFromProvider().getProviderId())
                             : Optional.empty();
-                    decisions.add(new InitialPlacementDecision(slOid, supplier, new ArrayList<>()));
+                    decisions.add(new InitialPlacementDecision(slOid, supplier, new ArrayList<>(), Optional.empty()));
                 });
                 buyerPlacements.put(buyer.getBuyerId(), decisions);
                 if (!existingReservations.containsKey(initialPlacement.getId())) {
