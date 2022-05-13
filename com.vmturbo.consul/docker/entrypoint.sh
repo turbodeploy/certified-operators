@@ -84,16 +84,25 @@ fi
 # Remove serf config
 rm -f /consul/data/serf/* >/dev/null 2>&1
 
+# kv export path
+kv_store="/consul/data/kv_store.json"
 
-###hack
-# To handle changing host IP's always set up to set the 'peers' list so election will succeed
-if [ -d /consul/data/raft ]
-then
-  echo  "[\"${CONSUL_BIND_ADDRESS}:8300\"]" > /consul/data/raft/peers.json
-else
-  mkdir /consul/data/raft
+# check if kv store exists
+# if it does, then don't upgrade
+if [ -f "$kv_store" ]; then
+    echo "Found kv store, no upgrade to consul needed." | ${LOGGER_COMMAND}
+else 
+    echo "kv store not found, performing upgrade." | ${LOGGER_COMMAND}
+    ./upgrade.sh $CONSUL_DATA_DIR $CONSUL_CONFIG_DIR | ${LOGGER_COMMAND}
 fi
-###/hack
+
+# To handle changing host IP's always set up to set the 'peers' list so election will succeed
+# peers.json is only needed if there exists data from a previous consul run (ie. this is not the
+# first time we are running consul)
+if [ -f /consul/data/node-id ]; then
+  NODE_ID=$(cat /consul/data/node-id)
+  echo  "[{\"id\": \"${NODE_ID}\", \"address\": \"${CONSUL_BIND_ADDRESS}:8300\",\"non_voter\": false}]" > /consul/data/raft/peers.json
+fi
 
 # The first argument is used to decide which mode we are running in. All the
 # remaining arguments are passed along to Consul (or the executable if one of
@@ -144,4 +153,3 @@ elif [ "$MODE" = 'vmt-client' ]; then
 else
     exec "$@"
 fi
-
