@@ -420,6 +420,11 @@ public enum Component {
     MEDIATION_STRESS("stress", "com.vmturbo.mediation.stressprobe.component"),
 
     /**
+     * Tanium.
+     */
+    MEDIATION_TANIUM("Tanium", "com.vmturbo.mediation.tanium.component"),
+
+    /**
      * Terraform.
      */
     MEDIATION_TERRAFORM("terraform", "com.vmturbo.mediation.terraform.component"),

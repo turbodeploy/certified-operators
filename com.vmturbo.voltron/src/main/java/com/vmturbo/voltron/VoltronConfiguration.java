@@ -812,6 +812,11 @@ public class VoltronConfiguration {
         MEDIATION_STRESS(Component.MEDIATION_STRESS),
 
         /**
+         * Tanium.
+         */
+        MEDIATION_TANIUM(Component.MEDIATION_TANIUM),
+
+        /**
          * Terraform.
          */
         MEDIATION_TERRAFORM(Component.MEDIATION_TERRAFORM),

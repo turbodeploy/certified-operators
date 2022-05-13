@@ -241,6 +241,10 @@ dependencies:
     repository: file://../probes/mediation-flexera
     version: 0.1.0
     condition: flexera.enabled
+  - name: mediation-tanium
+    repository: file://../probes/mediation-tanium
+    version: 0.1.0
+    condition: tanium.enabled
   - name: mediation-gcpcost
     repository: file://../probes/mediation-gcpcost
     version: 0.1.0
