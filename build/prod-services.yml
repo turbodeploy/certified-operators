@@ -835,6 +835,17 @@ services:
       instance_id: mediation-flexera-1
     restart: always
 
+  mediation-tanium-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.tanium.component
+    environment:
+      consul_host: consul
+      component_type: mediation-tanium
+      instance_id: mediation-tanium-1
+    restart: always
+
   mediation-instana-prod:
     extends:
       file: common-services.yml
