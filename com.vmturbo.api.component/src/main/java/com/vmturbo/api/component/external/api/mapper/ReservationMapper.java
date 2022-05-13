@@ -47,6 +47,8 @@ import com.vmturbo.api.dto.reservation.PlacementInfoDTO;
 import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
 import com.vmturbo.api.dto.reservation.ReservationConstraintApiDTO;
 import com.vmturbo.api.dto.reservation.ReservationFailureInfoDTO;
+import com.vmturbo.api.dto.reservation.ReservationInvalidInfoApiDTO;
+import com.vmturbo.api.dto.reservation.ReservationInvalidInfoApiDTO.InvalidReason;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
@@ -63,6 +65,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InvalidInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChange;
@@ -379,8 +382,11 @@ public class ReservationMapper {
                                         a.hasClusterId()
                                                 ? Optional.of(a.getClusterId()) : Optional.empty()))
                                 .collect(Collectors.toList());
+                        final InvalidInfo invalidInfo = reservationInstance.hasInvalidInfo() ?
+                                reservationInstance.getInvalidInfo() : null;
                         return new PlacementInfo(reservationInstance.getEntityId(),
-                                ImmutableList.copyOf(providerInfos), reservationInstance.getUnplacedReasonList());
+                                ImmutableList.copyOf(providerInfos), reservationInstance.getUnplacedReasonList(),
+                                Optional.ofNullable(invalidInfo));
                     }).collect(Collectors.toList());
             final Map<Long, ServiceEntityApiDTO> serviceEntityMap = getServiceEntityMap(placementInfos);
             final Map<Long, BaseApiDTO> clusterMap = getClusterMap(placementInfos);
@@ -577,6 +583,7 @@ public class ReservationMapper {
         addReservationFailureInfoDTO(placementInfo.getUnpalcementReasons(),
                 placementInfoApiDTO,
                 serviceEntityApiDTOMap);
+
         for (ProviderInfo providerInfo : placementInfo.getProviderInfos()) {
             if (providerInfo.getProviderId().isPresent()) {
                 try {
@@ -587,6 +594,22 @@ public class ReservationMapper {
                     logger.error("providerId not found", e);
                 }
             }
+        }
+        if (placementInfo.getInvalidInfo().isPresent()) {
+            InvalidInfo invalidInfo = placementInfo.getInvalidInfo().get();
+            ReservationInvalidInfoApiDTO invalidInfoApiDTO = new ReservationInvalidInfoApiDTO();
+            switch (invalidInfo.getInvalidInfoReasonCase()) {
+                case MARKET_NOT_READY:
+                    invalidInfoApiDTO.setInvalidReason(InvalidReason.MARKET_NOT_READY);
+                    break;
+                case MARKET_CONNECTIVITY_ERROR:
+                    invalidInfoApiDTO.setInvalidReason(InvalidReason.MARKET_CONNECTIVITY_ERROR);
+                    break;
+                case INVALID_CONSTRAINTS:
+                    invalidInfoApiDTO.setInvalidReason(InvalidReason.INVALID_CONSTRAINTS);
+                    break;
+            }
+            placementInfoApiDTO.setInvalidInfo(invalidInfoApiDTO);
         }
         return placementInfoApiDTO;
     }
@@ -768,6 +791,8 @@ public class ReservationMapper {
         private final List<ProviderInfo> providerInfos;
         // failure information when reservation fails.
         private final List<UnplacementReason> reasons;
+        // reason why reservation is invalid
+        private final Optional<InvalidInfo> invalidInfo;
 
         /**
          * Constructor.
@@ -778,10 +803,12 @@ public class ReservationMapper {
          */
         public PlacementInfo(final long entityId,
                              @Nonnull final List<ProviderInfo> providerInfoList,
-                             @Nonnull final List<UnplacementReason> reasons) {
+                             @Nonnull final List<UnplacementReason> reasons,
+                             final Optional<InvalidInfo> invalidInfo) {
             this.entityId = entityId;
             this.providerInfos = Collections.unmodifiableList(providerInfoList);
             this.reasons = reasons;
+            this.invalidInfo = invalidInfo;
         }
 
         /**
@@ -796,7 +823,9 @@ public class ReservationMapper {
             return this.entityId;
         }
 
-
+        public Optional<InvalidInfo> getInvalidInfo() {
+            return invalidInfo;
+        }
 
         public List<ProviderInfo> getProviderInfos() {
             return this.providerInfos;

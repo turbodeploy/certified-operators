@@ -1,5 +1,7 @@
 package com.vmturbo.market.reservations;
 
+import static com.vmturbo.platform.analysis.actions.ActionType.RECONFIGURE_CONSUMER;
+
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -29,6 +31,7 @@ import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InvalidInfo.InvalidConstraints;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ReservationGrouping;
@@ -36,6 +39,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ReservationMode;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.actions.ReconfigureConsumer;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -1001,7 +1005,12 @@ public class EconomyCaches {
      */
     private void processPlacements(@Nonnull List<Long> buyerIds,
             @Nonnull Set<Long> unplacedBuyer, @Nonnull Economy economy,
-            @Nonnull Map<Long, List<InitialPlacementDecision>> traderIdToPlacement) {
+            @Nonnull Map<Long, List<InitialPlacementDecision>> traderIdToPlacement,
+            PlacementResults placementResults) {
+        Set<ShoppingList> reconfigureSls = placementResults.getActions().stream()
+                .filter(a -> a.getType() == RECONFIGURE_CONSUMER)
+                .map(a -> ((ReconfigureConsumer)a).getTarget())
+                .collect(Collectors.toSet());
         for (long oid : buyerIds) {
             Trader reservationBuyer = economy.getTopology().getTradersByOid().get(oid);
             for (ShoppingList sl : economy.getMarketsAsBuyer(reservationBuyer).keySet()) {
@@ -1009,7 +1018,8 @@ public class EconomyCaches {
                 // so that each sl has a reservationPlacement initialized
                 InitialPlacementDecision resPlacement = new InitialPlacementDecision(
                     economy.getTopology().getShoppingListOids().get(sl), sl.getSupplier() == null
-                    ? Optional.empty() : Optional.of(sl.getSupplier().getOid()), new ArrayList<>());
+                    ? Optional.empty() : Optional.of(sl.getSupplier().getOid()), new ArrayList<>(),
+                        reconfigureSls.contains(sl) ? Optional.of(InvalidConstraints.getDefaultInstance()) : Optional.empty());
                 if (!traderIdToPlacement.containsKey(oid)) {
                     traderIdToPlacement.put(oid, new ArrayList<>(Arrays.asList(resPlacement)));
                 } else {
@@ -1098,7 +1108,7 @@ public class EconomyCaches {
         disableMovesForExistingTraders(economy, scopeTypeMap, updateCanAcceptEntities);
         List<Long> buyerIds = addTraders(traderTOs, economy);
         PlacementResults placementResults = Placement.placementDecisions(economy);
-        processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement);
+        processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement, placementResults);
         if (!unplacedBuyer.isEmpty()) {
             // Populate explanation only if there is any unplaced buyer.
             placementResults.populateExplanationForInfinityQuoteTraders();
@@ -1266,7 +1276,7 @@ public class EconomyCaches {
         @Nonnull Map<Long, List<InitialPlacementDecision>> firstAttemptTraderIdToPlacement,
         @Nonnull PlacementResults firstAttemptFailureResults,
         @Nonnull PlacementResults placementResults, boolean firstAttempt) {
-        processPlacements(buyerIds, firstAttemptUnplacedBuyers, economy, firstAttemptTraderIdToPlacement);
+        processPlacements(buyerIds, firstAttemptUnplacedBuyers, economy, firstAttemptTraderIdToPlacement, placementResults);
         firstAttemptFailureResults.addActions(placementResults.getActions());
         placementResults.getInfinityQuoteTraders().forEach((trader, quoteTrackers) -> {
             firstAttemptFailureResults.addInfinityQuoteTraders(trader, (List<QuoteTracker>)quoteTrackers);
@@ -1319,7 +1329,7 @@ public class EconomyCaches {
                 // Run the placement with the rest of the buyers shopping. The buyers should not find placement.
                 placementResults.combine(Placement.placementDecisions(economy));
                 // Process the results and update the collections.
-                processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement);
+                processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement, placementResults);
                 // Populate unplacement explanations.
                 placementResults.populateExplanationForInfinityQuoteTraders();
                 if (!firstAttempt) {
@@ -1331,7 +1341,7 @@ public class EconomyCaches {
             }
             if (buyerIds.size() == 1) {
                 // Only 1 buyer in reservation and it is placed, so process the reservation results.
-                processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement);
+                processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement, placementResults);
                 return placementResults;
             }
             // First buyer is able to place. Now find what grouping its provider entity is on.
@@ -1344,7 +1354,7 @@ public class EconomyCaches {
                 // Log a message but still process the rest of the reservation and exit.
                 logger.error("Unexpected behavior for affinity reservation. Attempts " + attempts);
                 placementResults.combine(Placement.placementDecisions(economy));
-                processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement);
+                processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement, placementResults);
                 if (!unplacedBuyer.isEmpty()) {
                     placementResults.populateExplanationForInfinityQuoteTraders();
                 }
@@ -1368,7 +1378,7 @@ public class EconomyCaches {
             // Run placements with the rest of the buyers able to find placement.
             placementResults.combine(Placement.placementDecisions(economy));
             // Process the results.
-            processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement);
+            processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement, placementResults);
             if (unplacedBuyer.isEmpty()) {
                 // Successful placement of all buyers within the same grouping.
                 return placementResults;

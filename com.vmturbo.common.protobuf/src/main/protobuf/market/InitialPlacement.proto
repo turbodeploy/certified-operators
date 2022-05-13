@@ -58,9 +58,9 @@ message InitialPlacementBuyerPlacementInfo {
     optional int64 commoditiesBoughtFromProviderId = 2;
 
     oneof initial_placement_result {
-
         InitialPlacementSuccess initial_placement_success = 3;
         InitialPlacementFailure initial_placement_failure = 4;
+        InvalidInfo initial_placement_invalid = 5;
     }
 }
 
@@ -71,6 +71,17 @@ message InitialPlacementSuccess {
 
 message InitialPlacementFailure {
     repeated .topology.TopologyEntityDTO.UnplacementReason unplaced_reason = 1;
+}
+
+message InvalidInfo {
+    message MarketConnectivityError {}
+    message MarketNotReady {}
+    message InvalidConstraints {}
+    oneof InvalidInfoReason {
+        MarketConnectivityError market_connectivity_error = 1;
+        MarketNotReady market_not_Ready = 2;
+        InvalidConstraints invalid_constraints = 3;
+    }
 }
 
 message FindInitialPlacementResponse {

@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.market.InitialPlacement;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 
 /**
@@ -21,6 +22,7 @@ public class InitialPlacementFinderResult {
     // a list of failure data when placement failed
     private final List<FailureInfo> failureInfoList;
 
+    private final Optional<InitialPlacement.InvalidInfo> invalidInfo;
 
     /**
      * Constructor of InitialPlacementFinderResult.
@@ -29,11 +31,13 @@ public class InitialPlacementFinderResult {
      * @param failureInfoList failure information if placement failed
      */
     public InitialPlacementFinderResult(@Nonnull final Optional<Long> providerOid,
-            @Nonnull final Optional<CommodityType> clusterComm,
-            @Nonnull List<FailureInfo> failureInfoList) {
+                                        @Nonnull final Optional<CommodityType> clusterComm,
+                                        @Nonnull List<FailureInfo> failureInfoList,
+                                        @Nonnull Optional<InitialPlacement.InvalidInfo> invalidInfo) {
         this.providerOid = providerOid;
         this.clusterComm = clusterComm;
         this.failureInfoList = failureInfoList;
+        this.invalidInfo = invalidInfo;
     }
 
     /**
@@ -62,6 +66,10 @@ public class InitialPlacementFinderResult {
      */
     public List<FailureInfo> getFailureInfoList() {
         return failureInfoList;
+    }
+
+    public Optional<InitialPlacement.InvalidInfo> getInvalidInfo() {
+        return invalidInfo;
     }
 
     /**

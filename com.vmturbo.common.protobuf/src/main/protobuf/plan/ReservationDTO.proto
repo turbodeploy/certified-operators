@@ -117,6 +117,8 @@ message ReservationTemplateCollection {
             // details of why a reservation instance was unplaced.
             repeated .topology.TopologyEntityDTO.UnplacementReason unplaced_reason = 4;
 
+            optional .market.InvalidInfo invalid_info = 5;
+
             // Contains placement information of reservation instance.
             message PlacementInfo {
                 // The provider id of this reservation instance.
