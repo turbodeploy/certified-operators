@@ -358,7 +358,12 @@ public class ConsistentResizer {
                     .inConsistentUnits())
                 .forEach(pr -> {
                     pr.getResize().setNewCapacity(finalNewCapacity
-                        .inNormalizedUnits(pr.getProviderConsistentScalingFactor()));
+                        // We inverse-scale from consistent scaling number to normalized MHz using
+                        // the ORIGINAL consistentScalingFactor on the selling trader. This is to
+                        // be consistent with TopologyConverter.commSoldTOtoCommSoldDTO later on
+                        // where we further inverse-scale from normalized MHz to milli-cores using
+                        // the ORIGINAL cpuScalingFactor.
+                        .inNormalizedUnits(pr.getConsistentScalingFactor()));
                     Resizer.takeAndAddResizeAction(actions, pr.getResize());
                 });
         }

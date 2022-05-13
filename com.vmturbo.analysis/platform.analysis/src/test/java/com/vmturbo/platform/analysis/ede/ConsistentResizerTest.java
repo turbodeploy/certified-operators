@@ -300,6 +300,44 @@ public class ConsistentResizerTest {
     }
 
     /**
+     * Test that new capacity are inverse scaled using the original CSF instead of the provider CSF.
+     * Resize1 from 114m to 331m;
+     * Resize2 from 120m to 104m.
+     * So final new capacity is set to a multiple of the increment (300m).
+     * Resize1 is inverse scaled to 300 / 0.25 = 1200 MHz
+     * Resize2 is inverse scaled to 300 / 1.0 = 300 MHz
+     */
+    @Test
+    public void testResizingGroupGenerateVCPUResizeUpWithDifferentProviderCSF() {
+        Resize resize1 = mockResize(TestUtils.VCPU, 114, 414, 0, true, VCPU_CAPACITY_INCREMENT,
+                                    FAST_CONSISTENT_SCALING_FACTOR);
+        Resize resize2 = mockResize(TestUtils.VCPU, 120, 520, 0, true, VCPU_CAPACITY_INCREMENT,
+                                    SLOW_CONSISTENT_SCALING_FACTOR);
+        ResizingGroup rg = new ConsistentResizer().new ResizingGroup();
+        Trader sellerTrader = TestUtils.createTrader(new Economy(), TestUtils.VM_TYPE, Collections.singletonList(0L),
+                                                     Collections.singletonList(TestUtils.VCPU), new double[]{4000}, false, false);
+        sellerTrader.getSettings().setConsistentScalingFactor(0.2f);
+        CommoditySold sellerCommSold = sellerTrader.getCommoditySold(TestUtils.VCPU);
+        RawMaterialMetadata metadataForVCPU = new RawMaterialMetadata(TestUtils.VCPU.getType(), true, true);
+        Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialAndSupplier =
+                ImmutableMap.of(metadataForVCPU, new Pair<>(sellerCommSold, sellerTrader));
+        Optional<RawMaterials> rawMaterials =
+                Optional.of(new RawMaterials(RawMaterialInfo.newBuilder(ImmutableList.of(
+                                new RawMaterial(TestUtils.VCPU.getType(), false, false)))
+                                                     .requiresConsistentScalingFactor(true)
+                                                     .build()));
+        rg.addResize(resize1, true, rawMaterialAndSupplier, rawMaterials);
+        rg.addResize(resize2, true, rawMaterialAndSupplier, rawMaterials);
+        List<Action> actions = new ArrayList<>();
+        rg.generateResizes(actions);
+        assertEquals(2, actions.size());
+        assertEquals(300 / SLOW_CONSISTENT_SCALING_FACTOR,
+                     ((Resize)actions.get(0)).getNewCapacity(), CAPACITY_COMPARISON_DELTA);
+        assertEquals(300 / FAST_CONSISTENT_SCALING_FACTOR,
+                     ((Resize)actions.get(1)).getNewCapacity(), CAPACITY_COMPARISON_DELTA);
+    }
+
+    /**
      * Test ResizingGroup.generateResizes.
      * <p/>
      * Resize1 from 114 to 150; resize 2 from 120 to 150. The changes of both resizes are smaller than
