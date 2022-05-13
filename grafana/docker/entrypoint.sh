@@ -37,6 +37,11 @@ SAAS_REPORTING=false
 if [[ $(/util/config_props.py featureFlags.saasReporting) == True ]] ; then SAAS_REPORTING=true; fi
 
 setup() {
+  # Create any /tmp directories needed here, since a tmpfs might be mounted, and remove the ones
+  # existing on the image.
+  mkdir -p /tmp/etc/grafana/provisioning/{dashboards,datasources,plugins,notifiers} \
+      /tmp/grafana/plugins
+  chown -R grafana:grafana /tmp/etc/grafana /tmp/grafana
   # figure out which reporting context we're running, defaulting to embedded-reporting
   context='embedded-reporting'
   if [[ $(/util/config_props.py deploymentMode) == SAAS ]]; then context='saas-reporting'; fi

@@ -13,8 +13,8 @@ ARG grafana_versions="embedded-reporting:8.3.2 saas-reporting:7.5.10"
 #   `grafana."grafana.ini.defaults"`. Each such structure provides values for some subset of the
 #   available parameters.
 
-# WHen the grafana.ini file is constructed, values in the CR file have the highest precedence,
-# followed by valuse in a `grafana.ini.defaults` block whose key is the current `deploymentMode`
+# When the grafana.ini file is constructed, values in the CR file have the highest precedence,
+# followed by values in a `grafana.ini.defaults` block whose key is the current `deploymentMode`
 # value (or the "_default" block if `deploymentMode` is unspecified). Lowest priority values come
 # from a block named "_base" in that same `grafana.ini.defaults` object.
 
@@ -172,12 +172,14 @@ COPY dashboards /grafana-dashboards/
 COPY datasources /grafana-datasources/
 
 # set up directories required by grafana at runtime. Where these will differ based on grafana
-# version it will be up to the entrypoint script to make selections using synmlinks.
+# version it will be up to the entrypoint script to make selections using symlinks.
 RUN mkdir -p /tmp/etc/grafana/provisioning/{dashboards,datasources,plugins,notifiers} \
              /grafana-plugins /tmp/grafana/plugins  \
              /grafana-data /grafana-ini /var/log/grafana && \
     chown -R grafana:grafana /tmp/etc/grafana /tmp/grafana /grafana-dashboards /grafana-plugins \
              /grafana-datasources /grafana-data /grafana-ini /var/log/grafana
+
+COPY grafana.ini /etc/grafana/grafana.ini
 
 # copy utility scripts
 COPY util /util/
