@@ -67,7 +67,7 @@ public class EnumTests {
             ImmutableSet.of(GROUP, RESOURCE_GROUP, COMPUTE_CLUSTER, K8S_CLUSTER, STORAGE_CLUSTER,
                     BILLING_FAMILY, _NONE_, TARGET, NODE_POOL);
     private static final Set<EntityDTO.EntityType> OK_MISSING_ENTITY_TYPES =
-            ImmutableSet.of(EntityDTO.EntityType.UNKNOWN);
+            ImmutableSet.of(EntityDTO.EntityType.UNKNOWN, EntityDTO.EntityType.CLUSTER);
 
     private static final Set<CommodityType> OK_MISSING_METRIC_TYPES =
             Sets.difference(ImmutableSet.copyOf(CommodityType.values()),

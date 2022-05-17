@@ -283,7 +283,7 @@ public class ConsistentScalingHelperTest {
                 CommodityIndex.newFactory(),
                 tierExcluderFactory,
                 consistentScalingHelperFactory, cloudTopology, mock(ReversibilitySettingFetcher.class),
-                analysisConfig));
+                analysisConfig, null));
 
         // Prime the topology converter with the VMs by converting it.
         converter.convertToMarket(ImmutableMap.of(100L, vm1Builder.build(), 101L, vm2Builder.build()),

@@ -255,6 +255,7 @@ public interface AnalysisFactory {
             configCustomizer.customize(configBuilder);
             final IDiagnosticsCleaner diagsCleaner = new AnalysisDiagnosticsCleaner(saveAnalysisDiagsTimeoutSecs,
                     numRealTimeAnalysisDiagsToRetain, new DiagsFileSystem());
+            FakeEntityCreator fakeEntityCreator = new FakeEntityCreator(groupMemberRetriever);
             return new Analysis(topologyInfo, topologyEntities,
                 groupMemberRetriever, clock,
                 configBuilder.build(), cloudTopologyFactory,
@@ -263,7 +264,7 @@ public interface AnalysisFactory {
                 consistentScalingHelperFactory, initialPlacementHandler, reversibilitySettingFetcherFactory,
                 migratedWorkloadCloudCommitmentAnalysisService, commodityIdUpdater,
                 actionSavingsCalculatorFactory, externalReconfigureActionEngine, diagsCleaner,
-                analysisDiagsCollectorFactory);
+                analysisDiagsCollectorFactory, fakeEntityCreator);
         }
 
         /**
