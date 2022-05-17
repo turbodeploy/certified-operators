@@ -11,6 +11,7 @@ import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
@@ -76,7 +77,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
@@ -242,7 +242,7 @@ public class AnalysisTest {
      * @return Analysis
      */
     private Analysis getAnalysis(AnalysisConfig analysisConfig, Set<TopologyEntityDTO> topologySet,
-                                 TopologyInfo topoInfo) {
+                                 TopologyInfo topoInfo, Optional<FakeEntityCreator> fakeEntityCreator) {
         final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
@@ -287,16 +287,32 @@ public class AnalysisTest {
         final AnalysisDiagnosticsCollectorFactory analysisCollectorFactory =
                 mock(AnalysisDiagnosticsCollectorFactory.class);
         when(analysisCollectorFactory.newDiagsCollector(any(), any())).thenReturn(Optional.empty());
-        return new Analysis(topoInfo, topologySet,
-            new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,
+        GroupMemberRetriever groupMemberRetriever = new GroupMemberRetriever(groupServiceClient);
+        return new Analysis(topoInfo, topologySet, groupMemberRetriever, mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
             wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, nsQuotaAnalysisFactory,
             tierExcluderFactory, listener, consistentScalingHelperFactory, initialPlacementHandler,
             reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
             new CommodityIdUpdater(), actionSavingsCalculatorFactory,
                 externalReconfigureActionEngine, new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
-                analysisCollectorFactory);
+                analysisCollectorFactory, fakeEntityCreator.isPresent() ? fakeEntityCreator.get() : new FakeEntityCreator(groupMemberRetriever));
     }
+
+    /**
+     * Convenience method to get an Analysis based on an analysisConfig, a set of
+     * TopologyEntityDTOs, and TopologyInfo.
+     *
+     * @param analysisConfig configuration for the Analysis.
+     * @param topologySet Set of TopologyEntityDTOs for the Analysis.
+     * @param topoInfo TopologyInfo related to the Analysis.
+     * @return Analysis
+     */
+    private Analysis getAnalysis(AnalysisConfig analysisConfig, Set<TopologyEntityDTO> topologySet,
+                                 TopologyInfo topoInfo) {
+        return getAnalysis(analysisConfig, topologySet, topoInfo, Optional.empty());
+    }
+
+
     /**
      * Convenience method to get an Analysis based on an analysisConfig and a set of
      * TopologyEntityDTOs.
@@ -547,14 +563,14 @@ public class AnalysisTest {
                 .setRightsizeLowerWatermark(0.3f)
                 .setRightsizeUpperWatermark(0.8f)
                 .build();
-
+        FakeEntityCreator fakeEntityCreator = spy(new FakeEntityCreator(mock(GroupMemberRetriever.class)));
         Analysis analysis = Mockito.spy(getAnalysis(analysisConfig, topologySet));
 
-        Mockito.doReturn(topologySet).when(analysis)
-                .getEntityDTOsInCluster(eq(GroupType.STORAGE_CLUSTER));
-        Mockito.doReturn(new HashSet<>()).when(analysis)
-        .getEntityDTOsInCluster(eq(GroupType.COMPUTE_HOST_CLUSTER));
-        Map<Long, TopologyEntityDTO> fakeEntity = analysis.createFakeTopologyEntityDTOsForSuspensionThrottling();
+        Mockito.doReturn(topologySet).when(fakeEntityCreator)
+                .getEntityDTOsInCluster(eq(GroupType.STORAGE_CLUSTER), eq(null));
+        Mockito.doReturn(new HashSet<>()).when(fakeEntityCreator)
+        .getEntityDTOsInCluster(eq(GroupType.COMPUTE_HOST_CLUSTER), eq(null));
+        Map<Long, TopologyEntityDTO> fakeEntity = fakeEntityCreator.createFakeTopologyEntityDTOs(null, true, false);
         assertTrue(fakeEntity.size() == 1);
         TopologyEntityDTO fakeEntityDTO = fakeEntity.values().iterator().next();
         CommodityType type = CommodityType.newBuilder()
@@ -585,24 +601,27 @@ public class AnalysisTest {
                 .setTopologyType(TopologyType.REALTIME)
                 .addAnalysisType(AnalysisType.MARKET_ANALYSIS)
                 .build();
-        Analysis analysis = Mockito.spy(getAnalysis(analysisConfig, Collections.emptySet(), realtimeTopologyType));
+        FakeEntityCreator fakeEntityCreator = mock(FakeEntityCreator.class);
+        Analysis analysis = Mockito.spy(getAnalysis(analysisConfig, Collections.emptySet(), realtimeTopologyType, Optional.of(fakeEntityCreator)));
         when(cloudTopology.getEntities()).thenReturn(ImmutableMap.of());
         analysis.execute();
 
-        // Fake Entities creation should not be called once since its REALTIME.
-        Mockito.verify(analysis, times(1)).createFakeTopologyEntityDTOsForSuspensionThrottling();
+        // Fake Entities creation should be called once since its REALTIME.
+        Mockito.verify(fakeEntityCreator, times(1)).createFakeTopologyEntityDTOs(ImmutableMap.of(), true, false);
 
         //Change Analysis object to plan
         TopologyInfo planTopologyType = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.PLAN)
                 .addAnalysisType(AnalysisType.MARKET_ANALYSIS)
                 .build();
-        analysis = Mockito.spy(getAnalysis(analysisConfig, Collections.emptySet(), planTopologyType));
+        reset(fakeEntityCreator);
+        analysis = Mockito.spy(getAnalysis(analysisConfig, Collections.emptySet(), planTopologyType, Optional.of(fakeEntityCreator)));
         when(cloudTopology.getEntities()).thenReturn(ImmutableMap.of());
+
         analysis.execute();
 
         // Fake Entities creation should not be called since its a PLAN.
-        Mockito.verify(analysis, times(0)).createFakeTopologyEntityDTOsForSuspensionThrottling();
+        Mockito.verify(fakeEntityCreator, times(0)).createFakeTopologyEntityDTOs(ImmutableMap.of(), true, false);
     }
 
     /**
@@ -715,9 +734,54 @@ public class AnalysisTest {
         when(csm.getScalingGroupUsage(any())).thenReturn(Optional.empty());
 
         // disable unquoted commodities
-        final AnalysisConfig analysisConfig = createAnalysisConfigWithOverprovisioningSetting(false);
+        final AnalysisConfig analysisConfig = createAnalysisConfigWithOverprovisioningSetting(false, false);
 
         Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts();
+
+        final Analysis analysis = getAnalysis(analysisConfig, topologySet, topologyInfo);
+        analysis.execute();
+
+        // assert that no move actions are generated, because both PMs have over-provisioned CPU.
+        final ActionPlan actionPlan = analysis.getActionPlan().get();
+        assertFalse(actionPlan.getActionList().stream()
+                .anyMatch(action -> action.getInfo().hasMove()));
+    }
+
+    /**
+     * Test that when the hosts are over-provisioned, move actions are generated for the VM when OP is enabled.
+     */
+    @Test
+    public void testMoveActionWithOverProvisionedHostsAndEnableOP() {
+        when(csm.getScalingGroupId(any())).thenReturn(Optional.empty());
+        when(csm.getScalingGroupUsage(any())).thenReturn(Optional.empty());
+
+        // disable unquoted commodities
+        final AnalysisConfig analysisConfig = createAnalysisConfigWithOverprovisioningSetting(false, true);
+
+        Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts();
+
+        final Analysis analysis = getAnalysis(analysisConfig, topologySet, topologyInfo);
+        analysis.execute();
+
+        // assert that no move actions are generated, because both PMs have over-provisioned CPU.
+        final ActionPlan actionPlan = analysis.getActionPlan().get();
+        assertTrue(actionPlan.getActionList().stream()
+                .anyMatch(action -> action.getInfo().hasMove()));
+    }
+
+    /**
+     * Test that when the hosts are very over-provisioned (200%), move actions are NOT generated for the VM
+     * even when OP is enabled.
+     */
+    @Test
+    public void testNoMoveActionWithVeryOverProvisionedHostsAndEnableOP() {
+        when(csm.getScalingGroupId(any())).thenReturn(Optional.empty());
+        when(csm.getScalingGroupUsage(any())).thenReturn(Optional.empty());
+
+        // disable unquoted commodities
+        final AnalysisConfig analysisConfig = createAnalysisConfigWithOverprovisioningSetting(false, true);
+
+        Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts(200);
 
         final Analysis analysis = getAnalysis(analysisConfig, topologySet, topologyInfo);
         analysis.execute();
@@ -738,7 +802,7 @@ public class AnalysisTest {
         when(csm.getScalingGroupUsage(any())).thenReturn(Optional.empty());
 
         // enable unquoted commodities
-        final AnalysisConfig analysisConfig = createAnalysisConfigWithOverprovisioningSetting(true);
+        final AnalysisConfig analysisConfig = createAnalysisConfigWithOverprovisioningSetting(true, false);
 
         Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts();
 
@@ -823,7 +887,7 @@ public class AnalysisTest {
      * @param settingValue the setting value.
      * @return the analysis config.
      */
-    private AnalysisConfig createAnalysisConfigWithOverprovisioningSetting(boolean settingValue) {
+    private AnalysisConfig createAnalysisConfigWithOverprovisioningSetting(boolean settingValue, boolean enableOP) {
         return AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
                 SuspensionsThrottlingConfig.DEFAULT,
                 ImmutableMap.of(GlobalSettingSpecs.AllowUnlimitedHostOverprovisioning.getSettingName(),
@@ -831,7 +895,7 @@ public class AnalysisTest {
                                 .setBooleanSettingValue(BooleanSettingValue.newBuilder()
                                         .setValue(settingValue)
                                         .build())
-                                .build()), false, LICENSE_PRICE_WEIGHT_SCALE, false)
+                                .build()), false, LICENSE_PRICE_WEIGHT_SCALE, enableOP)
                 .setIncludeVDC(settingValue)
                 .build();
     }
@@ -842,8 +906,17 @@ public class AnalysisTest {
      * @return a set of the created entities.
      */
     private Set<TopologyEntityDTO> createTopologyWithOverProvisionedHosts() {
-        TopologyDTO.TopologyEntityDTO pm1 = createCpuProvisionedPM(PM1_ID, 10);
-        TopologyDTO.TopologyEntityDTO pm2 = createCpuProvisionedPM(PM2_ID, 2);
+        return createTopologyWithOverProvisionedHosts(100);
+    }
+
+    /**
+     * Create a topology with 2 PMs with over-provisioned CPU and one VM.
+     *
+     * @return a set of the created entities.
+     */
+    private Set<TopologyEntityDTO> createTopologyWithOverProvisionedHosts(double cpuProvUsed) {
+        TopologyDTO.TopologyEntityDTO pm1 = createCpuProvisionedPM(PM1_ID, 10, cpuProvUsed);
+        TopologyDTO.TopologyEntityDTO pm2 = createCpuProvisionedPM(PM2_ID, 2, cpuProvUsed);
 
         // create a VM that is currently hosted on pm1.
         TopologyDTO.TopologyEntityDTO vm = TopologyEntityDTO.newBuilder()
@@ -871,14 +944,15 @@ public class AnalysisTest {
      *
      * @param oid the oid of the PM.
      * @param usedCPU the used CPU value.
+     * @param usedCPUProv the used CPU Provisioned.
      * @return the PM entity.
      */
-    private TopologyDTO.TopologyEntityDTO createCpuProvisionedPM(long oid, double usedCPU) {
+    private TopologyDTO.TopologyEntityDTO createCpuProvisionedPM(long oid, double usedCPU, double usedCPUProv) {
         return TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                 .setOid(oid)
                 .addCommoditySoldList(createCommoditySoldDTO(
-                        CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE, 100, 100))
+                        CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE, usedCPUProv, 100))
                 .addCommoditySoldList(createCommoditySoldDTO(
                         CommodityDTO.CommodityType.CPU_VALUE, usedCPU, 10))
                 .addCommoditySoldList(createCommoditySoldDTO(

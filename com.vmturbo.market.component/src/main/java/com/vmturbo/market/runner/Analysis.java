@@ -22,17 +22,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.print.attribute.HashDocAttributeSet;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
-import io.grpc.StatusRuntimeException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.units.qual.C;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -47,17 +43,13 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmoun
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentMapping;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
@@ -143,7 +135,6 @@ import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -326,6 +317,8 @@ public class Analysis {
     // RelatedActionInterpreter is to interpret relations between 2 actions.
     private final RelatedActionInterpreter relatedActionInterpreter;
 
+    private final FakeEntityCreator fakeEntityCreator;
+
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
      * apply, and a flag determining whether guaranteed buyers (VDC, VPod, DPod) are included
@@ -370,7 +363,8 @@ public class Analysis {
                     @Nonnull final JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory,
                     @Nonnull final ExternalReconfigureActionEngine externalReconfigureActionEngine,
                     @Nonnull final IDiagnosticsCleaner diagnosticsCleaner,
-                    @Nonnull final AnalysisDiagnosticsCollectorFactory analysisDiagsCollectorFactory) {
+                    @Nonnull final AnalysisDiagnosticsCollectorFactory analysisDiagsCollectorFactory,
+                    @Nonnull final FakeEntityCreator fakeEntityCreator) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -405,6 +399,7 @@ public class Analysis {
         this.diagnosticsCleaner = diagnosticsCleaner;
         this.analysisDiagsCollectorFactory = analysisDiagsCollectorFactory;
         this.relatedActionInterpreter = new RelatedActionInterpreter(topologyInfo);
+        this.fakeEntityCreator = fakeEntityCreator;
     }
 
     /**
@@ -464,8 +459,8 @@ public class Analysis {
         try (TracingScope scope = Tracing.trace("convert_to_market")) {
 
             // construct fake entities which can be used to form markets based on cluster/storage cluster
-            if (enableThrottling) {
-                createFakeTopologyEntityDTOsForSuspensionThrottling().forEach((id, e) -> {
+            if (enableThrottling || config.isEnableOP()) {
+                fakeEntityCreator.createFakeTopologyEntityDTOs(topologyDTOs, enableThrottling, config.isEnableOP()).forEach((id, e) -> {
                     fakeEntityDTOs.put(e.getOid(), e);
                     topologyDTOs.put(id, e);
                 });
@@ -552,7 +547,7 @@ public class Analysis {
         this.converter = new TopologyConverter(topologyInfo, marketCloudRateExtractor,
                 null, topologyCostCalculator.getCloudCostData(),
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
-                originalCloudTopology, reversibilitySettingFetcher, config);
+                originalCloudTopology, reversibilitySettingFetcher, config, fakeEntityCreator);
         this.smaConverter = new SMAConverter(converter);
         DataMetricTimer processResultTime = null;
         AnalysisResults results = null;
@@ -718,13 +713,16 @@ public class Analysis {
                     try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.labels(contextType).startTimer()) {
                         try (TracingScope tracingScope = Tracing.trace("convert_from_traders")) {
                             if (isM2AnalysisEnabled) { // Includes the case of both Market and BuyRiImpactAnalysis running in real-time
-                                if (enableThrottling) {
+                                if (enableThrottling || config.isEnableOP()) {
                                     // remove the fake entities used in suspension throttling
                                     // we need to remove it both from the projected topology and the source topology
 
                                     // source, non scoped topology
                                     for (long fakeEntityOid : convertedTopology.fakeEntityDTOs.keySet()) {
                                         topologyDTOs.remove(fakeEntityOid);
+                                    }
+                                    if (config.isEnableOP()) {
+                                        fakeEntityCreator.removeClusterCommBoughtGroupingOfHosts(topologyDTOs);
                                     }
 
                                     // projected topology
@@ -1348,55 +1346,6 @@ public class Analysis {
     }
 
     /**
-     *
-     * <p>Construct fake buying TopologyEntityDTOS to help form markets with sellers bundled by cluster/storage
-     * cluster.</p>
-     *
-     * <p>This is to ensure each cluster/storage cluster will form a unique market regardless of
-     * segmentation constraint which may divided the cluster/storage cluster.
-     * </p>
-     * @return a set of fake TopologyEntityDTOS with only cluster/storage cluster commodity in the
-     * commodity bought list
-     */
-    protected Map<Long, TopologyEntityDTO> createFakeTopologyEntityDTOsForSuspensionThrottling() {
-        // create fake entities to help construct markets in which sellers of a compute
-        // or a storage cluster serve as market sellers
-        Set<TopologyEntityDTO> fakeEntityDTOs = new HashSet<>();
-        try {
-            Set<TopologyEntityDTO> pmEntityDTOs = getEntityDTOsInCluster(GroupType.COMPUTE_HOST_CLUSTER);
-            Set<TopologyEntityDTO> dsEntityDTOs = getEntityDTOsInCluster(GroupType.STORAGE_CLUSTER);
-            Set<String> clusterCommKeySet = new HashSet<>();
-            Set<String> dsClusterCommKeySet = new HashSet<>();
-            pmEntityDTOs.forEach(dto -> {
-                dto.getCommoditySoldListList().forEach(commSold -> {
-                    if (commSold.getCommodityType().getType() == CommodityType.CLUSTER_VALUE) {
-                        clusterCommKeySet.add(commSold.getCommodityType().getKey());
-                    }
-                });
-            });
-            dsEntityDTOs.forEach(dto -> {
-                dto.getCommoditySoldListList().forEach(commSold -> {
-                    if (commSold.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE
-                            && isRealStorageClusterCommodity(commSold)) {
-                        dsClusterCommKeySet.add(commSold.getCommodityType().getKey());
-                    }
-                });
-            });
-            clusterCommKeySet.forEach(key -> fakeEntityDTOs
-                .add(creatFakeDTOs(CommodityType.CLUSTER_VALUE, key)));
-            dsClusterCommKeySet.forEach(key -> fakeEntityDTOs
-                .add(creatFakeDTOs(CommodityType.STORAGE_CLUSTER_VALUE, key)));
-        } catch (StatusRuntimeException e) {
-            logger.error("Failed to get cluster members from group component due to: {}." +
-                " Not creating fake entity DTOs for suspension throttling.", e.getMessage());
-        }
-
-        return fakeEntityDTOs.stream()
-                .collect(Collectors.toMap(TopologyEntityDTO::getOid,
-                        Function.identity()));
-    }
-
-    /**
      * Runs buy RI impact analysis, if the projected topology is not empty. Currently, analysis is not
      * stitched back to cost calculation (TODO: OM-51388)
      * @param projectedCloudTopology The projected cloud topology
@@ -1551,58 +1500,6 @@ public class Analysis {
                 .filter(e -> e.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
                 .filter(e -> e.getConnectedEntityListList().stream().anyMatch(ce -> ce.getConnectedEntityId() == vmOid))
                 .findFirst();
-    }
-
-    /**
-     * Create fake VM TopologyEntityDTOs to buy cluster/storage cluster commodity only.
-     *
-     * @param clusterValue cluster or storage cluster
-     * @param key the commodity's key
-     * @return a VM TopologyEntityDTO
-     */
-    private TopologyEntityDTO creatFakeDTOs(int clusterValue, String key) {
-        final CommodityBoughtDTO clusterCommBought = CommodityBoughtDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                        .setType(clusterValue).setKey(key).build())
-                .build();
-        return TopologyEntityDTO.newBuilder()
-               .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-               .setOid(IdentityGenerator.next())
-               .setDisplayName("Fake-" + clusterValue + key)
-               .setEntityState(EntityState.POWERED_ON)
-               .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(false).build())
-               .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                       .addCommodityBought(clusterCommBought).build())
-               .build();
-    }
-
-    protected Set<TopologyEntityDTO> getEntityDTOsInCluster(GroupType groupType) {
-        Set<TopologyEntityDTO> entityDTOs = new HashSet<>();
-        groupMemberRetriever.getGroupsWithMembers(GetGroupsRequest.newBuilder()
-                .setGroupFilter(GroupFilter.newBuilder()
-                        .setGroupType(groupType))
-                .build())
-                .forEach(groupAndMembers -> {
-                    for (long memberId : groupAndMembers.members()) {
-                        if (topologyDTOs.containsKey(memberId)) {
-                            entityDTOs.add(topologyDTOs.get(memberId));
-                        }
-                    }
-                });
-        return entityDTOs;
-    }
-
-    /**
-     * Check if the commoditySoldDTO is a storage cluster commodity for real storage cluster.
-     * <p>
-     * Real storage cluster is a storage cluster that is physically exits in the data center.
-     * </p>
-     * @param comm commoditySoldDTO
-     * @return true if it is for real cluster
-     */
-    private boolean isRealStorageClusterCommodity(TopologyDTO.CommoditySoldDTO comm) {
-        return comm.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE
-            && TopologyDTOUtil.isRealStorageClusterCommodityKey(comm.getCommodityType().getKey());
     }
 
     /**

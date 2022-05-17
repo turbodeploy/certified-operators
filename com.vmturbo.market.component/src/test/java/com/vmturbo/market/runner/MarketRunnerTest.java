@@ -192,8 +192,8 @@ public class MarketRunnerTest {
 
             final ExternalReconfigureActionEngine externalReconfigureActionEngine = mock(
                     ExternalReconfigureActionEngine.class);
-
-            return new Analysis(topologyInfo, entities, new GroupMemberRetriever(groupServiceGrpc),
+            GroupMemberRetriever groupMemberRetriever = new GroupMemberRetriever(groupServiceGrpc);
+            return new Analysis(topologyInfo, entities, groupMemberRetriever,
                     Clock.systemUTC(), configBuilder.build(),
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
                     wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisFactory,
@@ -202,7 +202,7 @@ public class MarketRunnerTest {
                     reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
                     new CommodityIdUpdater(), actionSavingsCalculatorFactory,
                     externalReconfigureActionEngine, new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
-                    Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
+                    Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class), new FakeEntityCreator(groupMemberRetriever));
         }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
     }
 

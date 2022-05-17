@@ -190,7 +190,8 @@ public class MarketTimeoutTest {
                     final ExternalReconfigureActionEngine externalReconfigureActionEngine = mock(
                             ExternalReconfigureActionEngine.class);
                         Set<TopologyEntityDTO> entities = invocation.getArgumentAt(1, Set.class);
-                        return new Analysis(rtTopologyInfo, entities, new GroupMemberRetriever(groupServiceGrpc),
+                    GroupMemberRetriever groupMemberRetriever = new GroupMemberRetriever(groupServiceGrpc);
+                        return new Analysis(rtTopologyInfo, entities, groupMemberRetriever,
                                         Clock.systemUTC(), configBuilder.build(),
                                         cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
                                         wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisFactory,
@@ -200,7 +201,7 @@ public class MarketTimeoutTest {
                                         new CommodityIdUpdater(), actionSavingsCalculatorFactory,
                                         externalReconfigureActionEngine,
                                         mock(AnalysisDiagnosticsCleaner.class),
-                                        defaultAnalysisDiagnosticsCollectorFactory);
+                                        defaultAnalysisDiagnosticsCollectorFactory, new FakeEntityCreator(groupMemberRetriever));
                     }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
             }
 

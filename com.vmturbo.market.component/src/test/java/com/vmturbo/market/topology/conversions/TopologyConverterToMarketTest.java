@@ -2808,7 +2808,7 @@ public class TopologyConverterToMarketTest {
         final Collection<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
             marketCloudRateExtractor,commodityConverter, ccd,
             CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
-            mock(TopologyEntityCloudTopology.class), reversibilitySettingFetcher, analysisConfig)
+            mock(TopologyEntityCloudTopology.class), reversibilitySettingFetcher, analysisConfig, null)
             .convertToMarket(topologyDTOs);
         // We don't create TraderTO for volume.
         assertEquals(3, traderTOs.size());

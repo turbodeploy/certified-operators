@@ -104,6 +104,7 @@ import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
+import com.vmturbo.market.runner.FakeEntityCreator;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
@@ -124,6 +125,7 @@ import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator;
 import com.vmturbo.mediation.hybrid.cloud.utils.StorageTier;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
@@ -465,6 +467,8 @@ public class TopologyConverter {
      */
     private float customUtilizationThreshold;
 
+    private FakeEntityCreator fakeEntityCreator;
+
     /**
      * Constructor with includeGuaranteedBuyer parameter. Entry point from Analysis.
      *
@@ -505,7 +509,8 @@ public class TopologyConverter {
                              final boolean enableOP,
                              final boolean useVMReservationAsUsed,
                              final boolean singleVMonHost,
-                             final float customUtilizationThreshold) {
+                             final float customUtilizationThreshold,
+                             final FakeEntityCreator fakeEntityCreator) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.cloudTopology = cloudTopology;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
@@ -545,6 +550,7 @@ public class TopologyConverter {
         this.useVMReservationAsUsed = useVMReservationAsUsed;
         this.singleVMonHost = singleVMonHost;
         this.customUtilizationThreshold = customUtilizationThreshold;
+        this.fakeEntityCreator = fakeEntityCreator;
     }
 
     /**
@@ -573,7 +579,7 @@ public class TopologyConverter {
                 marketCloudRateExtractor, null, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 null, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, true, false, 0.5f);
+                false, true, false, 0.5f, null);
     }
 
     /**
@@ -604,7 +610,7 @@ public class TopologyConverter {
                 marketCloudRateExtractor, null, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 cloudTopology, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, true, false, 0.5f);
+                false, true, false, 0.5f, null);
     }
 
 
@@ -632,14 +638,15 @@ public class TopologyConverter {
                              @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
                              @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
                              @Nonnull final ReversibilitySettingFetcher reversibilitySettingFetcher,
-                             @Nonnull final AnalysisConfig analysisConfig) {
+                             @Nonnull final AnalysisConfig analysisConfig,
+                             @Nonnull final FakeEntityCreator fakeEntityCreator) {
         this(topologyInfo, analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor(),
                 analysisConfig.getMarketMode(), analysisConfig.getLiveMarketMoveCostFactor(),
                 marketCloudRateExtractor, incomingCommodityConverter, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 cloudTopology, reversibilitySettingFetcher, analysisConfig.getLicensePriceWeightScale(),
                 analysisConfig.isEnableOP(), analysisConfig.useVMReservationAsUsed(),
-                analysisConfig.isSingleVMonHost(), analysisConfig.getCustomUtilizationThreshold());
+                analysisConfig.isSingleVMonHost(), analysisConfig.getCustomUtilizationThreshold(), fakeEntityCreator);
         this.unquotedCommoditiesEnabled = isUnquotedCommoditiesEnabled(analysisConfig);
     }
 
@@ -666,7 +673,7 @@ public class TopologyConverter {
                 marketCloudRateExtractor, incomingCommodityConverter, null,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 null, reversibilitySettingFetcher, licensePriceWeightScale, enableOP, useVMReservationAsUsed,
-                singleVMonHost, customUtilizationThreshold);
+                singleVMonHost, customUtilizationThreshold, null);
     }
 
     /**
@@ -704,7 +711,7 @@ public class TopologyConverter {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
             marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, null, reversibilitySettingFetcher, licensePriceWeightScale,
-            enableOP, true, false, 0.5f);
+            enableOP, true, false, 0.5f, null);
     }
 
     /**
@@ -748,7 +755,7 @@ public class TopologyConverter {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
                 marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
                 consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher, licensePriceWeightScale,
-                enableOP, useVMReservationAsUsed, singleVMonHost, customUtilizationThreshold);
+                enableOP, useVMReservationAsUsed, singleVMonHost, customUtilizationThreshold, null);
     }
 
 
@@ -1475,8 +1482,10 @@ public class TopologyConverter {
                 ? projTraders.get(traderTO.getCloneOf()).getShoppingListsList()
                 : traderTO.getShoppingListsList();
             for (EconomyDTOs.ShoppingListTO sl : shoppingLists) {
+                if (isShoppingListToSkipForProjectedEntity(sl)) {
+                    continue;
+                }
                 List<TopologyDTO.CommodityBoughtDTO> commList = new ArrayList<>();
-
                 // Map to keep timeslot commodities from the generated timeslot families
                 // This is needed because we need to add those timeslots coming from the market later
                 // to generated commodity DTOs
@@ -1660,6 +1669,10 @@ public class TopologyConverter {
                 traderTO.getDebugInfoNeverUseInCode(), e.getMessage(), e);
         }
         return topologyEntityDTOs;
+    }
+
+    private boolean isShoppingListToSkipForProjectedEntity(ShoppingListTO sl) {
+        return fakeEntityCreator != null && sl.hasSupplier() && fakeEntityCreator.isFakeClusterOid(sl.getSupplier());
     }
 
     /**

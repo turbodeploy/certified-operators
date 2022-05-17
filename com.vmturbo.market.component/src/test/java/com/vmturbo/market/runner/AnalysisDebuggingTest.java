@@ -301,10 +301,9 @@ public class AnalysisDebuggingTest {
         final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
         doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
 
-
+        GroupMemberRetriever groupMemberRetriever = new GroupMemberRetriever(GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
         final Analysis analysis = new Analysis(analysisInput.getTopologyInfo(),
-            Sets.newHashSet(analysisInput.getEntitiesList()),
-            new GroupMemberRetriever(GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel())),
+            Sets.newHashSet(analysisInput.getEntitiesList()), groupMemberRetriever,
             Clock.systemUTC(),
             analysisConfig.build(), cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
                 wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisFactory, tierExcluderFactory,
@@ -312,7 +311,7 @@ public class AnalysisDebuggingTest {
                         reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
                         new CommodityIdUpdater(), actionSavingsCalculatorFactory, mock(
                 ExternalReconfigureActionEngine.class), new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
-                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
+                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class), new FakeEntityCreator(groupMemberRetriever));
         return analysis;
     }
 

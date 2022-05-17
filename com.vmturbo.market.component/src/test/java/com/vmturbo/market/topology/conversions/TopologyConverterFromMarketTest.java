@@ -272,7 +272,7 @@ public class TopologyConverterFromMarketTest {
             commodityIndexFactory,
             tierExcluderFactory,
             consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher,
-            analysisConfig);
+            analysisConfig, null);
         topologyConverter.setConvertToMarketComplete();
         converter = Mockito.spy(topologyConverter);
     }
@@ -1059,7 +1059,7 @@ public class TopologyConverterFromMarketTest {
             TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(),
             marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
             tierExcluderFactory, consistentScalingHelperFactory, cloudTopology,
-            reversibilitySettingFetcher, analysisConfig);
+            reversibilitySettingFetcher, analysisConfig, null);
         topologyConverter.setConvertToMarketComplete();
         TopologyConverter converter = Mockito.spy(topologyConverter);
 
@@ -1608,7 +1608,7 @@ public class TopologyConverterFromMarketTest {
         final TopologyConverter topologyConverter = new TopologyConverter(topoInfo,
             marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
             tierExcluderFactory, consistentScalingHelperFactory, cloudTopology,
-            reversibilitySettingFetcher, analysisConfig);
+            reversibilitySettingFetcher, analysisConfig, null);
         topologyConverter.setConvertToMarketComplete();
         TopologyConverter converter = Mockito.spy(topologyConverter);
         converter.setCloudTc(mockCloudTc);
@@ -1712,7 +1712,7 @@ public class TopologyConverterFromMarketTest {
         final TopologyConverter topologyConverter = new TopologyConverter(topoInfo,
             marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
             tierExcluderFactory, consistentScalingHelperFactory, cloudTopology,
-            reversibilitySettingFetcher, analysisConfig);
+            reversibilitySettingFetcher, analysisConfig, null);
         topologyConverter.setConvertToMarketComplete();
         TopologyConverter converter = Mockito.spy(topologyConverter);
         converter.setCloudTc(mockCloudTc);
@@ -1970,7 +1970,7 @@ public class TopologyConverterFromMarketTest {
             indexFactory,
             tierExcluderFactory,
             consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher,
-            analysisConfig);
+            analysisConfig, null);
         topologyConverter.getCommodityIndex();
     }
 
@@ -3184,7 +3184,7 @@ public class TopologyConverterFromMarketTest {
         final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
             marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
             tierExcluderFactory, consistentScalingHelperFactory, cloudTopology,
-            reversibilitySettingFetcher, analysisConfig);
+            reversibilitySettingFetcher, analysisConfig, null);
         topologyConverter.setConvertToMarketComplete();
         TopologyConverter converter = Mockito.spy(topologyConverter);
         converter.setCloudTc(mockCloudTc);

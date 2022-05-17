@@ -65,7 +65,8 @@ public class EntityTypeDefinitions {
             EntityDTO.EntityType.UNKNOWN,
             EntityDTO.EntityType.VLAN,
             EntityDTO.EntityType.VM_SPEC,
-            EntityDTO.EntityType.WEB_SERVER
+            EntityDTO.EntityType.WEB_SERVER,
+            EntityDTO.EntityType.CLUSTER
     );
 
     // names for entity types that do not have corresponding ApiEntityType instances.

@@ -80,7 +80,7 @@ public class CommodityIdUpdaterTest {
             mock(MigratedWorkloadCloudCommitmentAnalysisService.class), commodityIdUpdater,
             mock(JournalActionSavingsCalculatorFactory.class), mock(ExternalReconfigureActionEngine.class),
             new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
-                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class));
+                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class), mock(FakeEntityCreator.class));
     }
 
     /**

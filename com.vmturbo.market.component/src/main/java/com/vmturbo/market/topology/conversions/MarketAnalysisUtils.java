@@ -337,6 +337,17 @@ public final class MarketAnalysisUtils {
                     .build();
 
     /**
+     * OverProvision price function used for these commodities.
+     */
+    private static final Set<Integer> OVER_PROVISION_PRICE_TYPES =
+            ImmutableSet.of(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE,
+                    CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE);
+
+    private static final PriceFunctionTO OP = PriceFunctionTO.newBuilder().setOverProvision(
+            PriceFunctionTO.OverProvision.newBuilder().setWeight(1.0f).setConstant(0.0f)
+                    .setStepOne(1.0f).setStepTwo(2.0f).build()).build();
+
+    /**
      * Create the instance of mm1 distribution {@link UpdatingFunctionTO}.
      *
      * @param dependentCommodities a list of dependent commodities required to compute MM1 distribution,
@@ -538,7 +549,8 @@ public final class MarketAnalysisUtils {
                             .setWeight(1 + additionalSoldWeight).build()).build();
         } else if (IMAGE_COMMODITY_SET.contains(commodityType)) {
             return SQRP;
-        } else if (FLOW_COMMODITY_SET.contains(commodityType)) {
+        } else if (FLOW_COMMODITY_SET.contains(commodityType)
+                || dto != null && dto.getEntityType() == EntityType.CLUSTER_VALUE) {
             if (commodityKey.equals(FLOW_ZERO_KEY)) {
                 return EXTERNAL;
             } else {
@@ -555,6 +567,9 @@ public final class MarketAnalysisUtils {
                             .setWeight(1 + additionalSoldWeight)
                             .build())
                     .build();
+        } else if (enableOP && OVER_PROVISION_PRICE_TYPES.contains(commodityType)
+                && dto != null && dto.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+            return OP;
         } else if (commodityType == CommodityDTO.CommodityType.NUM_VCORE_VALUE
                 && dto.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
             return CFPF;
