@@ -114,7 +114,7 @@ public class AccountExpensesUploaderTest {
     }
 
     private IdentityProvider identityProvider = new IdentityProviderImpl(keyValueStore,
-        new ProbeInfoCompatibilityChecker(), 0L, mock(IdentityDatabaseStore.class), 10, 0, false, mock(StaleOidManagerImpl.class),
+        new ProbeInfoCompatibilityChecker(), 0L, mock(IdentityDatabaseStore.class), 10, 0, mock(StaleOidManagerImpl.class),
             false);
 
     private final Discovery discoveryTopology =

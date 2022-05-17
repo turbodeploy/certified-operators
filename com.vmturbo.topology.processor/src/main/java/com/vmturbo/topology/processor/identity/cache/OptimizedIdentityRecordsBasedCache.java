@@ -41,9 +41,8 @@ import com.vmturbo.topology.processor.identity.storage.IdentityRecord;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 
 /**
- * Optimized version of a {@link IdentityRecordsBasedCache}. Works exactly as that cache with the
- * difference that it consumes less memory thanks to the identifyingPropertiesTable and the ability
- * to bulk remove oids in linear time. The goal is to remove both the other caches and to use this one
+ * Optimized version of a {@link DescriptorsBasedCache}. All the operations can be performed
+ * in constant time.
  */
 public class OptimizedIdentityRecordsBasedCache implements IdentityCache {
 
