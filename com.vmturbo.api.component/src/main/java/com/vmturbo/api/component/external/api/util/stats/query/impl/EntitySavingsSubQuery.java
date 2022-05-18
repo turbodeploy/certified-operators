@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -30,6 +31,7 @@ import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord.SavingsRecord;
@@ -54,6 +56,8 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
 
     private final RepositoryClient repositoryClient;
 
+    private final UserSessionContext userSessionContext;
+
     private static final Set<String> SUPPORTED_STATS = Arrays.stream(EntitySavingsStatsType.values())
             .map(EntitySavingsStatsType::name)
             .collect(Collectors.toSet());
@@ -67,10 +71,12 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
      */
     public EntitySavingsSubQuery(@Nonnull final CostServiceBlockingStub costServiceRpc,
                                  @Nonnull final GroupExpander groupExpander,
-                                 @Nonnull final RepositoryClient repositoryClient) {
+                                 @Nonnull final RepositoryClient repositoryClient,
+                                 @Nonnull final UserSessionContext userSessionContext) {
         this.costServiceRpc = costServiceRpc;
         this.groupExpander = groupExpander;
         this.repositoryClient = repositoryClient;
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     @Override
@@ -156,7 +162,7 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
                             .build();
             request.setEntityFilter(entityFilterBuilder);
             request.setEntityTypeFilter(entityTypeFilter);
-        } else if (context.getInputScope().isRealtimeMarket()) {
+        } else if (context.getInputScope().isRealtimeMarket() && !userSessionContext.isUserScoped()) {
             // If the scope is "Market", use all cloud service providers and use them as the scope.
             // This way, savings for all cloud entities will be considered.
             EntityFilter.Builder entityFilterBuilder = EntityFilter.newBuilder();
@@ -170,9 +176,9 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
         } else {
             // Set entity OIDs.
             EntityFilter entityFilter = EntityFilter.newBuilder()
-                    .addAllEntityId(context.getInputScope().getScopeOids()).build();
-            request.setEntityFilter(entityFilter);
+                    .addAllEntityId(context.getInputScope().getScopeOids(userSessionContext, stats.stream().collect(toList()))).build();
 
+            request.setEntityFilter(entityFilter);
             // Set entity types.
             Set<Integer> scopeTypes = getScopeTypes(context);
             EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder().addAllEntityTypeId(scopeTypes).build();
