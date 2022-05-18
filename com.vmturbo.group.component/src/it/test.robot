@@ -3,6 +3,7 @@ Documentation  A resource file containing the application specific keywords
 Library             Process
 Library             OperatingSystem
 Library             Telnet
+Library             String
 Resource            /libDATurbonomic.resource
 
 *** Variables ***
@@ -42,8 +43,9 @@ TCC_001_Start_Group
 
     Start Module1  group  com.vmturbo.group-%{PROJECT_VERSION}.jar
 
-    ${result} =  Inspect Test Component
+    ${result} =  Run Keyword And Return Status  Inspect Test Component
     IF  ${result} == False
+       Log Last 50  /usr/src/project/out.txt
        Fail  gRPC server not started!
     END
 
@@ -69,6 +71,17 @@ TCC_001_Start_Group
     Terminate Module
 
 *** Keywords ***
+Log Last 50
+    [Arguments]  ${file}
+    ${contents} =  Get File  ${file}  encoding=UTF-8
+    @{lines} =  Split To Lines  ${contents}
+    ${i} =  Get Length  ${lines}
+    ${i}=    Evaluate    $i - 50
+    @{logs} =  Get Slice From List  ${lines}  ${i}
+    FOR  ${line}  IN  @{logs}
+      Log to Console   ${line}
+    END
+
 Inspect Infrastructure Component
     [Arguments]  ${host}  ${port}
     [Documentation]  To check the health of a compoent, we test if the component runs in docker 
@@ -98,12 +111,10 @@ Inspect Test Component
     [return]  ${result}
 
 GRPC Server Started
-    ${FileContent}=  Get file  /usr/src/project/out.txt  encoding=UTF-8
     Log to Console   waiting for gRPC server!
-    ${errContent}=  Get file  /usr/src/project/err.txt  encoding=UTF-8
-    Log to Console   errContent ${errContent}
 
-    Should Contain  ${FileContent}  Initialized gRPC with services  msg=gRPC server not started!
+    ${lines} =  Grep File  /usr/src/project/out.txt  Initialized gRPC with services
+    Should Not Be Empty  ${lines}  msg=gRPC server not started!
 
 Start Module1
     [Arguments]  ${name}  ${module}
@@ -113,8 +124,14 @@ Start Module1
 
     Log to Console  java -Dcomponent_type\=${name} -Dinstance_id\=${name}-1 -Dinstance_ip\=127.0.0.1 -DpropertiesYamlPath\=file:${Properties_File} -DdbRootPassword\=%{DBROOT} -classpath "/usr/src/project/${module}:/usr/src/project/deps/*" com.vmturbo.group.GroupComponent
     ${handle} =  Start Process  java
-                 ...  -Dcomponent_type\=${name}  -Dinstance_id\=${name}-1  -Dinstance_ip\=127.0.0.1  -DpropertiesYamlPath\=file:${Properties_File}  -DdbRootPassword\=%{DBROOT}  -classpath  /usr/src/project/${module}:/usr/src/project/deps/*  com.vmturbo.group.GroupComponent
-                 ...  cwd=/usr/src/project  stdout=out.txt  stderr=err.txt
+                 ...  -Dcomponent_type\=${name}
+                 ...  -Dinstance_id\=${name}-1
+                 ...  -Dinstance_ip\=127.0.0.1
+                 ...  -DpropertiesYamlPath\=file:${Properties_File}
+                 ...  -DdbRootPassword\=%{DBROOT}
+                 ...  -classpath  /usr/src/project/${module}:/usr/src/project/deps/*
+                 ...  com.vmturbo.group.GroupComponent
+                 ...  cwd=/usr/src/project  stdout=out.txt  stderr=STDOUT
 
     Set Global Variable  ${HANDLE}  ${handle}
 
