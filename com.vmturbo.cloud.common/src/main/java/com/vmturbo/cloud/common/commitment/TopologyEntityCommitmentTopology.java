@@ -21,7 +21,6 @@ import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageTypeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -82,12 +81,6 @@ public class TopologyEntityCommitmentTopology implements CloudCommitmentTopology
 
     @Override
     public double getCoverageCapacityForEntity(long entityOid, @Nonnull CloudCommitmentCoverageTypeInfo coverageTypeInfo) {
-        final boolean isPoweredOnVM = cloudTopology.getEntity(entityOid)
-                                                .map(entity -> entity.getEntityState() == EntityState.POWERED_ON)
-                                                .orElse(false);
-        if (!isPoweredOnVM) {
-            return 0.0;
-        }
         switch (coverageTypeInfo.getCoverageType()) {
             case COUPONS:
                 return cloudTopology.getRICoverageCapacityForEntity(entityOid);
