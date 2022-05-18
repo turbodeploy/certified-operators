@@ -27,6 +27,11 @@ import com.vmturbo.topology.graph.TopologyGraph;
  */
 public final class TopologyEditorUtil {
 
+    /**
+     * Maximum quota capacity.
+     */
+    public static final double MAX_QUOTA_CAPACITY = 1E12;
+
     private static final Set<Integer> quotaCommodities = ImmutableSet.of(
             CommodityType.VCPU_LIMIT_QUOTA_VALUE,
             CommodityType.VCPU_REQUEST_QUOTA_VALUE,
