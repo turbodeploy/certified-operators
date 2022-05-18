@@ -85,7 +85,7 @@ public class EntitySavingsSubQueryTest {
     public void setup() {
         MockitoAnnotations.initMocks(this);
         CostServiceBlockingStub costRpc = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        query = spy(new EntitySavingsSubQuery(costRpc, groupExpander, repositoryClient,new UserSessionContext()));
+        query = spy(new EntitySavingsSubQuery(costRpc, groupExpander, repositoryClient, new UserSessionContext()));
     }
 
     /**
