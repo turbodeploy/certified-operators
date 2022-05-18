@@ -58,7 +58,7 @@ public class SpringTpFilter extends GenericFilterBean {
      */
     public SpringTpFilter(final @Nonnull JWTAuthorizationVerifier verifier) {
         verifier_ = verifier;
-        instance = EnvironmentUtils.getOptionalEnvProperty(BaseVmtComponent.PROP_INSTANCE_ID).get();
+        instance = EnvironmentUtils.getOptionalEnvProperty(BaseVmtComponent.PROP_INSTANCE_ID).orElse("topology_processor");
     }
 
     @Override

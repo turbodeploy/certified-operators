@@ -641,7 +641,7 @@ public class AuthProvider extends AuthProviderBase {
             Lists.newArrayList(), authService.getIpAddress(), PROVIDER.LDAP);
         authService.setInternalToken(authToken.getCompactRepresentation());
         AuditLogUtils.logSecurityAudit(AuditAction.AUTHORIZE_PROBE,
-            EnvironmentUtils.getOptionalEnvProperty(BaseVmtComponent.PROP_INSTANCE_ID).get()
+            EnvironmentUtils.getOptionalEnvProperty(BaseVmtComponent.PROP_INSTANCE_ID).orElse("auth")
                 + ": Successfully authorized service: " + authService.getName(), true);
         return authToken;
     }
