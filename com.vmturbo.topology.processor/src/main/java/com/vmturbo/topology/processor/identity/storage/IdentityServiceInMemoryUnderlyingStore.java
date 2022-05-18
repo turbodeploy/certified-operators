@@ -40,6 +40,7 @@ import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.identity.PropertyDescriptor;
 import com.vmturbo.topology.processor.identity.cache.DescriptorsBasedCache;
 import com.vmturbo.topology.processor.identity.cache.IdentityCache;
+import com.vmturbo.topology.processor.identity.cache.IdentityRecordsBasedCache;
 import com.vmturbo.topology.processor.identity.cache.OptimizedIdentityRecordsBasedCache;
 import com.vmturbo.topology.processor.identity.extractor.PropertyDescriptorImpl;
 import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadataStore;
@@ -96,7 +97,8 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
             final long loadIdsInterval,
             final TimeUnit loadIdsTimeUnit,
             ConcurrentMap<Long, ServiceEntityIdentityMetadataStore> perProbeMetadata,
-            boolean useDescriptorsBasedCache) {
+            boolean useIdentityRecordsCache,
+            boolean useOptimizedIdentityRecordsCache) {
         this.identityDatabaseStore = identityDatabaseStore;
         this.initializationTimeoutMin = initializationTimeoutMin;
         this.perProbeMetadata = perProbeMetadata;
@@ -110,17 +112,18 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
         // plans on old topologies - even if the Identity Service is not initialized.
         this.loadIdsInterval = loadIdsInterval;
         this.loadIdsTimeUnit = loadIdsTimeUnit;
-        initializeIdentityCache(perProbeMetadata, useDescriptorsBasedCache);
+        initializeIdentityCache(perProbeMetadata, useIdentityRecordsCache, useOptimizedIdentityRecordsCache);
     }
 
     @VisibleForTesting
     public IdentityServiceInMemoryUnderlyingStore(@Nonnull final IdentityDatabaseStore identityDatabaseStore,
-                                                  final int initializationTimeoutMin,
-                                                  @Nonnull final ConcurrentMap<Long, ServiceEntityIdentityMetadataStore> perProbeMetadata,
-                                                  boolean useDescriptorsBasedCache) {
+            final int initializationTimeoutMin,
+            ConcurrentMap<Long, ServiceEntityIdentityMetadataStore> perProbeMetadata,
+            boolean useIdentityRecordsCache, boolean useOptimizedIdentityRecordsCache) {
         this.identityDatabaseStore = identityDatabaseStore;
         this.initializationTimeoutMin = initializationTimeoutMin;
-        this.identityCache = useDescriptorsBasedCache ? new DescriptorsBasedCache() : new OptimizedIdentityRecordsBasedCache(perProbeMetadata);
+        this.identityCache = useOptimizedIdentityRecordsCache ? new OptimizedIdentityRecordsBasedCache(perProbeMetadata)
+                : useIdentityRecordsCache ? new IdentityRecordsBasedCache(perProbeMetadata) : new DescriptorsBasedCache();
         addRestoredIds(Collections.emptySet());
     }
 
@@ -461,17 +464,24 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
     }
 
     /**
-     * Initialize the cache based on the config parameter useIdentityRecordsCache.
+     * Inizialize the cache based on the config parameter useIdentityRecordsCache. The
+     * {@link IdentityRecordsBasedCache} is a faster cached optimized to lookup entities by non
+     * volatile oids. It consumes more memory, and in the first stage it will only be used at
+     * customers that are dealing with slow discovery ingestion see OM-63916 for more context.
      * @param perProbeMetadata probes with their metadata
-     * @param useDescriptorsBasedCache whether to use the {@link DescriptorsBasedCache} or
-     * the {@link OptimizedIdentityRecordsBasedCache}
+     * @param useIdentityRecordsCache whether to use the {@link IdentityRecordsBasedCache} or
+     * {@link DescriptorsBasedCache}
+     * @param useOptimizedIdentityRecordsCache use the optimized {@link OptimizedIdentityRecordsBasedCache}
      *
      */
-    private void initializeIdentityCache(ConcurrentMap<Long, ServiceEntityIdentityMetadataStore> perProbeMetadata, boolean useDescriptorsBasedCache) {
-        if (useDescriptorsBasedCache) {
-            this.identityCache = new DescriptorsBasedCache();
-        } else {
+    private void initializeIdentityCache(ConcurrentMap<Long, ServiceEntityIdentityMetadataStore> perProbeMetadata,
+            boolean useIdentityRecordsCache, boolean useOptimizedIdentityRecordsCache) {
+        if (useOptimizedIdentityRecordsCache) {
             this.identityCache = new OptimizedIdentityRecordsBasedCache(perProbeMetadata);
+        } else if (useIdentityRecordsCache) {
+            this.identityCache = new IdentityRecordsBasedCache(perProbeMetadata);
+        } else {
+            this.identityCache = new DescriptorsBasedCache();
         }
         LOGGER.info("Chosen the following Identity Cache: {}", this.identityCache.getClass().getSimpleName());
     }

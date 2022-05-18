@@ -62,7 +62,7 @@ public class IdentityServiceTest {
                             PropertyMetadata.newBuilder().setName("tag").build()).addHeuristicProperties(
                             PropertyMetadata.newBuilder().setName("heuristics").build()).build())));
         IdentityServiceInMemoryUnderlyingStore store = new IdentityServiceInMemoryUnderlyingStore(
-            Mockito.mock(IdentityDatabaseStore.class), 10, perProbeMetadata, false);
+            Mockito.mock(IdentityDatabaseStore.class), 10, perProbeMetadata, true, false);
         idSvc = new IdentityService(store,
                     new HeuristicsMatcher());
         store.initialize();

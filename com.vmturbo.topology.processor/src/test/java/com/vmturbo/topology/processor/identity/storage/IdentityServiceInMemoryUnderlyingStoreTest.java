@@ -75,9 +75,14 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
     EntityDTO vmDTO;
 
     Object[] generateTestData() {
+        final StoreParameters optimizedIdentityCacheParameters = new StoreParameters(true, false, false);
+        final StoreParameters IdentityCacheParameters = new StoreParameters(false, true, false);
+        final StoreParameters EntityDescriptorsParameters = new StoreParameters(false, false, true);
+
         return $(
-                $(true),
-                $(false));
+                $(optimizedIdentityCacheParameters),
+                $(IdentityCacheParameters),
+                $(EntityDescriptorsParameters));
     }
 
     @BeforeClass
@@ -97,9 +102,8 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
 
     @Test
     @Parameters(method = "generateTestData")
-    public void testLookup(boolean useEntityDescriptorsBasedCache) throws Exception {
-        final IdentityServiceUnderlyingStore store = new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10,
-                perProbeMetadata, useEntityDescriptorsBasedCache);
+    public void testLookup(StoreParameters storeParameters) throws Exception {
+        final IdentityServiceUnderlyingStore store = initializeDefaultIdentityStore(storeParameters);
         EntityDescriptor entityDescriptor = new EntityDescriptorMock(Arrays.asList("VM"),
                                                                            new ArrayList<String>(), new ArrayList<String>());
         try (IdentityRecordsOperation transaction = store.createTransaction()) {
@@ -120,9 +124,8 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
      */
     @Test
     @Parameters(method = "generateTestData")
-    public void testLookupInverted(boolean useEntityDescriptorsBasedCache) throws Exception {
-        final IdentityServiceUnderlyingStore store = new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10,
-                perProbeMetadata, useEntityDescriptorsBasedCache);
+    public void testLookupInverted(StoreParameters storeParameters) throws Exception {
+        final IdentityServiceUnderlyingStore store = initializeDefaultIdentityStore(storeParameters);
         final List<PropertyDescriptor> nonVolatileProperties = new ArrayList<>();
         nonVolatileProperties.add(new PropertyDescriptorImpl("VM", 1));
         nonVolatileProperties.add(new PropertyDescriptorImpl("Tag", 1));
@@ -147,9 +150,8 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
 
     @Test
     @Parameters(method = "generateTestData")
-    public void testAddEntry(boolean useEntityDescriptorsBasedCache) throws Exception {
-        final IdentityServiceUnderlyingStore store = new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10,
-                perProbeMetadata, useEntityDescriptorsBasedCache);
+    public void testAddEntry(StoreParameters storeParameters) throws Exception {
+        final IdentityServiceUnderlyingStore store = initializeDefaultIdentityStore(storeParameters);
         Field identityCacheClass = store.getClass().getDeclaredField("identityCache");
         identityCacheClass.setAccessible(true);
         IdentityCache identityCache = (IdentityCache)identityCacheClass.get(store);
@@ -171,9 +173,8 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
 
     @Test
     @Parameters(method = "generateTestData")
-    public void testRemoveEntry(boolean useEntityDescriptorsBasedCache) throws Exception {
-        final IdentityServiceUnderlyingStore store = new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10,
-                perProbeMetadata, useEntityDescriptorsBasedCache);
+    public void testRemoveEntry(StoreParameters storeParameters) throws Exception {
+        final IdentityServiceUnderlyingStore store = initializeDefaultIdentityStore(storeParameters);
         Field identityCacheClass = store.getClass().getDeclaredField("identityCache");
         identityCacheClass.setAccessible(true);
         IdentityCache identityCache = (IdentityCache)identityCacheClass.get(store);
@@ -194,9 +195,8 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
 
     @Test
     @Parameters(method = "generateTestData")
-    public void testRemoveNonExistentEntry(boolean useEntityDescriptorsBasedCache) throws Exception {
-        final IdentityServiceUnderlyingStore store = new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10,
-                perProbeMetadata, useEntityDescriptorsBasedCache);
+    public void testRemoveNonExistentEntry(StoreParameters storeParameters) throws Exception {
+        final IdentityServiceUnderlyingStore store = initializeDefaultIdentityStore(storeParameters);
         Field identityCacheClass = store.getClass().getDeclaredField("identityCache");
         identityCacheClass.setAccessible(true);
         IdentityCache identityCache = (IdentityCache)identityCacheClass.get(store);
@@ -225,9 +225,10 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
      */
     @Test
     @Parameters(method = "generateTestData")
-    public void testRemove(boolean useEntityDescriptorsBasedCache) throws Exception {
-        final IdentityServiceUnderlyingStore store = new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10,
-                perProbeMetadata, useEntityDescriptorsBasedCache);
+    public void testRemove(StoreParameters storeParameters)
+            throws IdentityServiceStoreOperationException, IdentityUninitializedException,
+            IdentityDatabaseException {
+        final IdentityServiceUnderlyingStore store = initializeDefaultIdentityStore(storeParameters);
         EntityDescriptor entityDescriptor = new EntityDescriptorMock(Arrays.asList("VM"),
                 new ArrayList<String>(), new ArrayList<String>());
         try (IdentityRecordsOperation transaction = store.createTransaction()) {
@@ -245,9 +246,8 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
 
     @Test
     @Parameters(method = "generateTestData")
-    public void testUpsertEntries(boolean useEntityDescriptorsBasedCache) throws Exception {
-        final IdentityServiceUnderlyingStore store = new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10,
-                perProbeMetadata, useEntityDescriptorsBasedCache);
+    public void testUpsertEntries(StoreParameters storeParameters) throws Exception {
+        final IdentityServiceUnderlyingStore store = initializeDefaultIdentityStore(storeParameters);
         EntryData data1 = mock(EntryData.class);
         EntityDTO entityDTO =
                 EntityDTO.newBuilder().setId("999").setEntityType(EntityType.VIRTUAL_MACHINE).build();
@@ -283,9 +283,8 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
 
     @Test
     @Parameters(method = "generateTestData")
-    public void testUpsertFail(boolean useEntityDescriptorsBasedCache) throws Exception {
-        final IdentityServiceUnderlyingStore store = new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10,
-                perProbeMetadata, useEntityDescriptorsBasedCache);
+    public void testUpsertFail(StoreParameters storeParameters) throws Exception {
+        final IdentityServiceUnderlyingStore store = initializeDefaultIdentityStore(storeParameters);
         doThrow(IdentityDatabaseException.class).when(databaseStore).saveDescriptors(any());
         EntryData data = mock(EntryData.class);
         EntityDTO entityDTO =
@@ -312,7 +311,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
 
     @Test
     @Parameters(method = "generateTestData")
-    public void testInitialLoad(boolean useEntityDescriptorsBasedCache) throws Exception {
+    public void testInitialLoad(StoreParameters storeParameters) throws Exception {
         final EntityInMemoryProxyDescriptor descriptor = mock(EntityInMemoryProxyDescriptor.class);
         final long entityId = 7L;
         final ConcurrentMap<Long, ServiceEntityIdentityMetadataStore> perProbeMetadata =
@@ -333,7 +332,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
 
         final IdentityServiceInMemoryUnderlyingStore store =
                 new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10, 50,
-                    TimeUnit.MILLISECONDS, perProbeMetadata, useEntityDescriptorsBasedCache);
+                    TimeUnit.MILLISECONDS, perProbeMetadata, storeParameters.isUseIdentityRecordsCache(), storeParameters.isUseOptimizedIdentityRecordsCache());
         store.initialize();
         verify(databaseStore, timeout(60000).atLeast(2)).getDescriptors();
         store.waitForInitializedStore();
@@ -343,7 +342,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
 
     @Test
     @Parameters(method = "generateTestData")
-    public void testLoadNonVolatilePropertiesCache(boolean useEntityDescriptorsBasedCache) throws Exception {
+    public void testLoadNonVolatilePropertiesCache(StoreParameters storeParameters) throws Exception {
         final EntityInMemoryProxyDescriptor descriptor = mock(EntityInMemoryProxyDescriptor.class);
         final long probeId = 1L;
         final long entityId = 7L;
@@ -380,7 +379,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         doReturn(identityRecords).when(databaseStore).getDescriptors();
         final IdentityServiceInMemoryUnderlyingStore store =
                 new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10,  50,
-                        TimeUnit.MILLISECONDS, perProbeMetadata, useEntityDescriptorsBasedCache);
+                        TimeUnit.MILLISECONDS, perProbeMetadata, storeParameters.isUseIdentityRecordsCache(), storeParameters.isUseOptimizedIdentityRecordsCache());
         store.initialize();
         verify(databaseStore, timeout(60000).only()).getDescriptors();
         store.checkInitialized();
@@ -402,9 +401,8 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
      */
     @Test
     @Parameters(method = "generateTestData")
-    public void testBackupRestore(boolean useEntityDescriptorsBasedCache) throws Exception {
-        final IdentityServiceUnderlyingStore store = new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10,
-                perProbeMetadata, useEntityDescriptorsBasedCache);
+    public void testBackupRestore(StoreParameters storeParameters) throws Exception {
+        final IdentityServiceUnderlyingStore store = initializeDefaultIdentityStore(storeParameters);
         final EntryData data1 = mock(EntryData.class);
         EntityDTO entityDTO =
                 EntityDTO.newBuilder().setId("999").setEntityType(EntityType.VIRTUAL_MACHINE).build();
@@ -434,14 +432,40 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         final StringWriter writer = new StringWriter();
         store.backup(writer);
 
-        final IdentityServiceInMemoryUnderlyingStore newStore = new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10,
-                perProbeMetadata, useEntityDescriptorsBasedCache);
-        if (useEntityDescriptorsBasedCache) {
-            newStore.restoreOldDiags(new StringReader(writer.toString()));
-        } else {
+        final IdentityServiceInMemoryUnderlyingStore newStore = new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10, perProbeMetadata,
+                storeParameters.isUseIdentityRecordsCache(), storeParameters.isUseOptimizedIdentityRecordsCache());
+        if (storeParameters.isUseIdentityRecordsCache() || storeParameters.isUseOptimizedIdentityRecordsCache()) {
             newStore.restore(new StringReader(writer.toString()), null);
+        } else {
+            newStore.restoreOldDiags(new StringReader(writer.toString()));
         }
         assertTrue(store.containsOID(firstOID));
         assertTrue(store.containsOID(secondOID));
+    }
+
+    private IdentityServiceUnderlyingStore initializeDefaultIdentityStore(StoreParameters storeParameters) {
+        return new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10,  perProbeMetadata, storeParameters.isUseIdentityRecordsCache(),
+                storeParameters.isUseOptimizedIdentityRecordsCache());
+    }
+
+    private static class StoreParameters {
+        final boolean useOptimizedIdentityRecordsCache;
+        final boolean useIdentityRecordsCache;
+        final boolean useEntityDescriptorsCache;
+
+        public StoreParameters(boolean useOptimizedIdentityRecordsCache,
+                boolean useIdentityRecordsCache, boolean useEntityDescriptorsCache) {
+            this.useOptimizedIdentityRecordsCache = useOptimizedIdentityRecordsCache;
+            this.useIdentityRecordsCache = useIdentityRecordsCache;
+            this.useEntityDescriptorsCache = useEntityDescriptorsCache;
+        }
+
+        public boolean isUseOptimizedIdentityRecordsCache() {
+            return useOptimizedIdentityRecordsCache;
+        }
+
+        public boolean isUseIdentityRecordsCache() {
+            return useIdentityRecordsCache;
+        }
     }
 }

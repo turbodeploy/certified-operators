@@ -67,7 +67,7 @@ public class RemoteMediationServerTest {
     private final IdentityProvider identityProvider = new IdentityProviderImpl(
         new MapKeyValueStore(),
         new ProbeInfoCompatibilityChecker(),
-        0L, mock(IdentityDatabaseStore.class), 10, 0, mock(StaleOidManagerImpl.class), false);
+        0L, mock(IdentityDatabaseStore.class), 10, 0, false, mock(StaleOidManagerImpl.class), false);
 
     private final ProbeStore probeStore = new TestProbeStore(identityProvider);
 

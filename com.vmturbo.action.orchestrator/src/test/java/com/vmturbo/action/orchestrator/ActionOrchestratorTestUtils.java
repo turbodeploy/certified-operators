@@ -169,12 +169,6 @@ public class ActionOrchestratorTestUtils {
                 2, actionModeCalculator, IdentityGenerator.next());
     }
 
-    @Nonnull
-    public static Action createResizeAction(final long actionId, final int resizeCommodity, final long targetEntityId, final int targetEntityType) {
-        return new Action(createResizeRecommendation(actionId, targetEntityId, resizeCommodity, 1.0, 2.0, targetEntityType),
-                2, actionModeCalculator, IdentityGenerator.next());
-    }
-
     /**
      * Creates action from serialized state.
      *

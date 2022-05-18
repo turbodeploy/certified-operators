@@ -163,8 +163,8 @@ public class TargetControllerTest {
         @Bean
         public IdentityProvider identityService() {
             return new IdentityProviderImpl(new MapKeyValueStore(),
-                new ProbeInfoCompatibilityChecker(), 0L, mock(IdentityDatabaseStore.class), 10, 0,
-                    mock(StaleOidManagerImpl.class), false);
+                new ProbeInfoCompatibilityChecker(), 0L, mock(IdentityDatabaseStore.class), 10, 0
+                , false, mock(StaleOidManagerImpl.class), false);
         }
 
         @Bean

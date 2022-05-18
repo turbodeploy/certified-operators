@@ -43,6 +43,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.cache.DescriptorsBasedCache;
+import com.vmturbo.topology.processor.identity.cache.IdentityRecordsBasedCache;
 import com.vmturbo.topology.processor.identity.cache.OptimizedIdentityRecordsBasedCache;
 import com.vmturbo.topology.processor.identity.extractor.EntityDescriptorImpl;
 import com.vmturbo.topology.processor.identity.extractor.IdentifyingPropertyExtractor;
@@ -147,9 +148,10 @@ public class IdentityProviderImpl implements IdentityProvider {
      * @param identityStoreinitializationTimeoutMin the maximum time that threads will wait for
 * the store to be ready
      * @param assignedIdReloadReattemptIntervalSeconds The interval at which to attempt to reload assigned IDs
+     * @param useIdentityRecordsCache whether to use the {@link IdentityRecordsBasedCache} or
 * {@link DescriptorsBasedCache}
      * @param staleOidManager used to expire stale oids
-     * @param useDescriptorsBasedCache whether to use a {@link DescriptorsBasedCache} or a {@link OptimizedIdentityRecordsBasedCache}
+     * @param useOptimizedIdentityRecordsCache whether to use the optimized verion of the {@link OptimizedIdentityRecordsBasedCache}
      */
     public IdentityProviderImpl(@Nonnull final KeyValueStore keyValueStore,
                                 @Nonnull final ProbeInfoCompatibilityChecker compatibilityChecker,
@@ -157,12 +159,13 @@ public class IdentityProviderImpl implements IdentityProvider {
                                 @Nonnull IdentityDatabaseStore identityDatabaseStore,
                                 int identityStoreinitializationTimeoutMin,
                                 long assignedIdReloadReattemptIntervalSeconds,
-                                @Nonnull final StaleOidManager staleOidManager,
-                                final boolean useDescriptorsBasedCache) {
+                                boolean useIdentityRecordsCache, final StaleOidManager staleOidManager,
+                                final boolean useOptimizedIdentityRecordsCache) {
         IdentityGenerator.initPrefix(identityGeneratorPrefix);
         this.identityServiceInMemoryUnderlyingStore =
             new IdentityServiceInMemoryUnderlyingStore(identityDatabaseStore, identityStoreinitializationTimeoutMin,
-            assignedIdReloadReattemptIntervalSeconds, TimeUnit.SECONDS, perProbeMetadata, useDescriptorsBasedCache);
+            assignedIdReloadReattemptIntervalSeconds, TimeUnit.SECONDS, perProbeMetadata, useIdentityRecordsCache,
+                    useOptimizedIdentityRecordsCache);
         this.identityService = new IdentityService(identityServiceInMemoryUnderlyingStore,
             new HeuristicsMatcher());
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
