@@ -612,7 +612,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     private void recordOnDemandVmCost(CostJournal.Builder<ENTITY_CLASS> journal, TraxNumber unitsBought,
                                       ComputeTierConfigPrice basePrice, ENTITY_CLASS computeTier, ComputeConfig computeConfig,
                                       ENTITY_CLASS entity) {
-        if (basePrice.getConsumerCommodityPricesList().size() > 0) {
+        if (basePrice.getConsumerCommodityPricesList().size() > 0
+                && !FuzzyDouble.newFuzzy(unitsBought.getValue()).isZero()) {
             // Use the Compute Config priced commodities if present. This will be available for real time pricing.
             // If not available, as in the case of projected topologies retrieve pricing commodities based on
             // the compute tier.
