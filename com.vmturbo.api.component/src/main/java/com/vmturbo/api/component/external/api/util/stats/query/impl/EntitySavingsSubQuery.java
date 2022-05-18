@@ -162,21 +162,27 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
                             .build();
             request.setEntityFilter(entityFilterBuilder);
             request.setEntityTypeFilter(entityTypeFilter);
-        } else if (context.getInputScope().isRealtimeMarket() && !userSessionContext.isUserScoped()) {
-            // If the scope is "Market", use all cloud service providers and use them as the scope.
-            // This way, savings for all cloud entities will be considered.
-            EntityFilter.Builder entityFilterBuilder = EntityFilter.newBuilder();
-            repositoryClient.getEntitiesByType(ImmutableList.of(EntityType.SERVICE_PROVIDER))
-                    .forEach(sp -> entityFilterBuilder.addEntityId(sp.getOid()));
-            request.setEntityFilter(entityFilterBuilder);
-            EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder()
-                    .addEntityTypeId(EntityType.SERVICE_PROVIDER_VALUE)
-                    .build();
-            request.setEntityTypeFilter(entityTypeFilter);
+        } else if (context.getInputScope().isRealtimeMarket()) {
+            // If the scope is "Market" but is user coped, get the entities needed
+            if (userSessionContext.isUserScoped()) {
+                EntityFilter entityFilter = EntityFilter.newBuilder()
+                        .addAllEntityId(userSessionContext.getUserAccessScope().getScopeGroupMembers().toSet()).build();
+                request.setEntityFilter(entityFilter);
+                Set<Integer> scopeTypes = getScopeTypes(context);
+                EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder().addAllEntityTypeId(scopeTypes).build();
+                request.setEntityTypeFilter(entityTypeFilter);
+            } else { // If the scope is "Market" but not user scoped, use all cloud service providers and use them as the scope.
+                EntityFilter.Builder entityFilterBuilder = EntityFilter.newBuilder();
+                repositoryClient.getEntitiesByType(ImmutableList.of(EntityType.SERVICE_PROVIDER)).forEach(sp -> entityFilterBuilder.addEntityId(sp.getOid()));
+                request.setEntityFilter(entityFilterBuilder);
+                EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder().addEntityTypeId(
+                        EntityType.SERVICE_PROVIDER_VALUE).build();
+                request.setEntityTypeFilter(entityTypeFilter);
+            }
         } else {
             // Set entity OIDs.
             EntityFilter entityFilter = EntityFilter.newBuilder()
-                    .addAllEntityId(context.getInputScope().getScopeOids(userSessionContext, stats.stream().collect(toList()))).build();
+                    .addAllEntityId(context.getInputScope().getScopeOids()).build();
 
             request.setEntityFilter(entityFilter);
             // Set entity types.
