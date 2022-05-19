@@ -1,7 +1,8 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.sql.SQLException;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -21,8 +22,10 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.DbAccessConfig;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsStore;
+import com.vmturbo.action.orchestrator.action.ActionChangeWindowUpdater;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
+import com.vmturbo.action.orchestrator.action.ActionStateMachine.ActionEventListener;
 import com.vmturbo.action.orchestrator.action.ExecutedActionsChangeWindowDao;
 import com.vmturbo.action.orchestrator.action.ExecutedActionsChangeWindowDaoImpl;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
@@ -56,6 +59,7 @@ import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.RteLoggingRunnable;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
@@ -179,15 +183,29 @@ public class ActionStoreConfig {
 
     @Bean
     public IActionFactory actionFactory() {
-        return new ActionFactory(actionModeCalculator(),
-                Arrays.asList(
-                        loggingActionEventListener(),
-                        affectedEntitiesManager()));
+        final List<ActionEventListener> listeners = new ArrayList<>();
+        listeners.add(loggingActionEventListener());
+        listeners.add(affectedEntitiesManager());
+        if (FeatureFlags.EXECUTED_ACTIONS_CHANGE_WINDOW.isEnabled()) {
+            listeners.add(actionChangeWindowUpdater());
+        }
+        return new ActionFactory(actionModeCalculator(), listeners);
     }
 
     @Bean
     public LoggingActionEventListener loggingActionEventListener() {
         return new LoggingActionEventListener();
+    }
+
+    /**
+     * Creates the change window updater as a listener. Updates that change window table when
+     * it detects successful executed actions. Added as listener only if feature flag is enabled.
+     *
+     * @return Updater instance.
+     */
+    @Bean
+    public ActionChangeWindowUpdater actionChangeWindowUpdater() {
+        return new ActionChangeWindowUpdater(executedActionsChangeWindowDao());
     }
 
     /**
@@ -302,8 +320,7 @@ public class ActionStoreConfig {
                 actionExecutionConfig.failedCloudVMGroupProcessor(),
                 auditCommunicationConfig.actionAuditSender(),
                 approvalCommunicationConfig.actionStateUpdatesSender(),
-                actionTranslationConfig.actionTranslator(),
-                executedActionsChangeWindowDao());
+                actionTranslationConfig.actionTranslator());
         tpConfig.topologyProcessor().addActionListener(executionListener);
         return executionListener;
     }
@@ -499,7 +516,8 @@ public class ActionStoreConfig {
     public ExecutedActionsChangeWindowDao executedActionsChangeWindowDao() {
         try {
             return new ExecutedActionsChangeWindowDaoImpl(dbAccessConfig.dsl(),
-                    actionOrchestratorGlobalConfig.actionOrchestratorClock());
+                    actionOrchestratorGlobalConfig.actionOrchestratorClock(),
+                    actionIdentityModelRequestChunkSize);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();

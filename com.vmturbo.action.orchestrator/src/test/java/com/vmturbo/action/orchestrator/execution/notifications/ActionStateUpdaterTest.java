@@ -15,8 +15,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -30,10 +28,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameter;
-import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
@@ -46,7 +40,6 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
-import com.vmturbo.action.orchestrator.action.ExecutedActionsChangeWindowDao;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
@@ -87,27 +80,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost.Actio
 /**
  * Tests for the {@link ActionStateUpdater}.
  */
-@RunWith(Parameterized.class)
 public class ActionStateUpdaterTest {
-
-    /**
-     * Parameterized test data.
-     *
-     * @return whether to enable TEM.
-     */
-    @Parameters(name = "{index}: Test with enableExecActChgWindow = {0}")
-    public static Collection<Object[]> data() {
-        Object[][] data = new Object[][] {{true}, {false}};
-        return Arrays.asList(data);
-    }
-
-    /**
-     * Test parameter.
-     */
-    @Parameter(0)
-    public boolean
-            enableExecActChgWindow;
-
     private final ActionStorehouse actionStorehouse = mock(ActionStorehouse.class);
     private final ActionStore actionStore = mock(ActionStore.class);
     private final ActionOrchestratorNotificationSender notificationSender = mock(ActionOrchestratorNotificationSender.class);
@@ -116,7 +89,6 @@ public class ActionStateUpdaterTest {
     private final ActionExecutionStore actionExecutionStore = mock(ActionExecutionStore.class);
     private final WorkflowStore workflowStoreMock = mock(WorkflowStore.class);
     private final ActionTranslator actionTranslator = mock(ActionTranslator.class);
-    private final ExecutedActionsChangeWindowDao executedActionsChangeWindowDao = mock(ExecutedActionsChangeWindowDao.class);
     private final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor = mock(FailedCloudVMGroupProcessor.class);
     private final long realtimeTopologyContextId = 0;
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
@@ -163,19 +135,13 @@ public class ActionStateUpdaterTest {
      */
     @Before
     public void setup() throws Exception {
-        if (enableExecActChgWindow) {
-            featureFlagTestRule.enable(FeatureFlags.EXECUTED_ACTIONS_CHANGE_WINDOW);
-        } else {
-            featureFlagTestRule.disable(FeatureFlags.EXECUTED_ACTIONS_CHANGE_WINDOW);
-        }
         actionAuditSender = Mockito.mock(ActionAuditSender.class);
         actionStateUpdatesSender = Mockito.mock(IMessageSender.class);
         actionStateUpdater =
                 new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao,
                         acceptedActionsStore, actionExecutorMock, actionExecutionStore,
                         workflowStoreMock, realtimeTopologyContextId, failedCloudVMGroupProcessor,
-                        actionAuditSender, actionStateUpdatesSender, actionTranslator,
-                        executedActionsChangeWindowDao);
+                        actionAuditSender, actionStateUpdatesSender, actionTranslator);
         when(entitySettingsCache.getSettingsForEntity(eq(actionTargetId1))).thenReturn(
                 makeActionModeSetting(ActionMode.EXTERNAL_APPROVAL));
         when(entitySettingsCache.getSettingsForEntity(eq(actionTargetId2))).thenReturn(
@@ -327,49 +293,6 @@ public class ActionStateUpdaterTest {
                 .setActionOid(externalApprovalAction.getRecommendationOid())
                 .setActionResponseState(ActionResponseState.SUCCEEDED)
                 .build());
-    }
-
-    /**
-     * Tests action success reported for cloud scale action.
-     *
-     * @throws Exception on exceptions occurred.
-     */
-    @Test
-    public void testCloudScaleOnActionSuccess() throws Exception {
-        ActionSuccess success = ActionSuccess.newBuilder()
-                .setActionId(cloudScaleId)
-                .setSuccessDescription("Success!")
-                .setActionSpec(cloudScaleSpec)
-                .build();
-
-        actionStateUpdater.onActionSuccess(success);
-        assertEquals(ActionState.SUCCEEDED, cloudScaleAction.getState());
-        assertEquals(Status.SUCCESS, cloudScaleAction.getCurrentExecutableStep().get().getStatus());
-        verify(notificationSender).notifyActionSuccess(success);
-        SerializationState serializedAction = new SerializationState(cloudScaleAction);
-
-        verify(actionHistoryDao).persistActionHistory(cloudScaleSpec.getRecommendation().getId(),
-                cloudScaleSpec.getRecommendation(),
-                realtimeTopologyContextId,
-                serializedAction.getRecommendationTime(),
-                serializedAction.getActionDecision(),
-                serializedAction.getExecutionStep(),
-                serializedAction.getCurrentState().getNumber(),
-                serializedAction.getActionDetailData(),
-                serializedAction.getAssociatedAccountId(),
-                serializedAction.getAssociatedResourceGroupId(),
-                2244L);
-        verify(acceptedActionsStore, Mockito.never()).deleteAcceptedAction(
-                cloudScaleAction.getRecommendationOid());
-        Mockito.verify(actionAuditSender).sendAfterExecutionEvents(cloudScaleAction);
-
-        if (enableExecActChgWindow) {
-            verify(executedActionsChangeWindowDao).persistExecutedActionsChangeWindow(cloudScaleSpec.getRecommendation().getId(),
-                    actionTargetId4,
-                    serializedAction.getExecutionStep().getCompletionTime());
-        } else {
-            verifyZeroInteractions(executedActionsChangeWindowDao);
-        }
     }
 
     /**
