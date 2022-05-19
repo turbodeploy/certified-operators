@@ -52,6 +52,7 @@ import com.vmturbo.api.dto.reservation.ReservationInvalidInfoApiDTO.InvalidReaso
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
+import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.enums.ReservationGrouping;
 import com.vmturbo.api.enums.ReservationMode;
 import com.vmturbo.api.exceptions.ConversionException;
@@ -582,7 +583,8 @@ public class ReservationMapper {
         PlacementInfoDTO placementInfoApiDTO = new PlacementInfoDTO();
         addReservationFailureInfoDTO(placementInfo.getUnpalcementReasons(),
                 placementInfoApiDTO,
-                serviceEntityApiDTOMap);
+                serviceEntityApiDTOMap,
+                clusterMap);
 
         for (ProviderInfo providerInfo : placementInfo.getProviderInfos()) {
             if (providerInfo.getProviderId().isPresent()) {
@@ -620,10 +622,12 @@ public class ReservationMapper {
      * @param reasons                 list of unplacement reasons.
      * @param placementInfoApiDTO    {@link PlacementInfoDTO}.
      * @param serviceEntityApiDTOMap a Map which key is oid, value is {@link ServiceEntityApiDTO}.
+     * @param clusterMap a map which key is cluster id, value is {@link BaseApiDTO}.
      */
     private void addReservationFailureInfoDTO(List<UnplacementReason> reasons,
                                               PlacementInfoDTO placementInfoApiDTO,
-                                              @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap) {
+                                              @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap,
+                                              final Map<Long, BaseApiDTO> clusterMap) {
         for (UnplacementReason reason : reasons) {
             Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional
                     .ofNullable(serviceEntityApiDTOMap
@@ -645,12 +649,16 @@ public class ReservationMapper {
                     failedResource.getCommType().getType()) == null
                     ? Pair.of(CommodityType.UNKNOWN.name(), CommodityType.UNKNOWN.name())
                     : COMMODITY_TYPE_NAME_UNIT_MAP.get(failedResource.getCommType().getType());
+            BaseApiDTO clusterApiDTO = clusterMap.containsKey(reason.getClosestSellerClusterOid())
+                    ? clusterMap.get(reason.getClosestSellerClusterOid()) : new BaseApiDTO();
             placementInfoApiDTO.getFailureInfos().add(new ReservationFailureInfoDTO(
                     resource.getLeft(),
                     providerBaseApiDTO,
                     failedResource.getMaxAvailable(),
                     failedResource.getRequestedAmount(),
-                    resource.getRight()));
+                    resource.getRight(),
+                    reason.getIsCurrent() ? Epoch.CURRENT : Epoch.HISTORICAL,
+                    clusterApiDTO));
         }
     }
 
@@ -759,6 +767,9 @@ public class ReservationMapper {
                     providerInfo.getClusterId().ifPresent(clusterIds::add);
                 }
 
+            }
+            for (UnplacementReason reason : placementInfo.getUnpalcementReasons()) {
+                clusterIds.add(reason.getClosestSellerClusterOid());
             }
         }
         GetGroupsRequest request =

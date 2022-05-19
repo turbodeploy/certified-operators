@@ -217,7 +217,7 @@ public class EconomyCachePersistenceTest extends MultiDbTestBase {
         }};
         pf.buyerPlacements = new HashMap() {{
             put(buyer1Oid, Arrays.asList(new InitialPlacementDecision(buyerSl1Oid,
-                    Optional.of(1112L), new ArrayList(), Optional.empty())));
+                    Optional.of(1112L), new ArrayList(), Optional.empty(), false)));
         }};
 
         pf.updateCachedEconomy(EconomyCachesTest.economyWithCluster(
@@ -240,7 +240,7 @@ public class EconomyCachePersistenceTest extends MultiDbTestBase {
 
         pf.buyerPlacements = new HashMap() {{
             put(buyer2Oid, Arrays.asList(
-                    new InitialPlacementDecision(buyerSl2Oid, Optional.of(1114L), new ArrayList(), Optional.empty())));
+                    new InitialPlacementDecision(buyerSl2Oid, Optional.of(1114L), new ArrayList(), Optional.empty(), false)));
         }};
         pf.existingReservations = new HashMap() {{
             put(reservation2Oid, PlanUtils.setupInitialPlacement(newBuyerList, reservation2Oid));

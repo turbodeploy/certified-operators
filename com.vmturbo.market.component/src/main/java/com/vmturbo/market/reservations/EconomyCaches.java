@@ -462,7 +462,7 @@ public class EconomyCaches {
             logger.debug(logPrefix + "Replaying reservation {} with buyers {} on historical economy cache",
                     existingReservations.keySet(), buyerOidToPlacement.keySet());
             newResult = replayReservationBuyers(clonedEconomy, HashBiMap.create(commTypeToSpecMap),
-                    buyerOidToPlacement, existingReservations);
+                    buyerOidToPlacement, existingReservations, false);
         } catch (Exception exception) { // Return old placement decisions if update has exceptions.
             historicalCacheEndUpdateTime = clock.instant();
             logger.error(logPrefix + "Skip refresh historical economy cache because of exception {}", exception);
@@ -557,13 +557,14 @@ public class EconomyCaches {
      * @param commTypeToSpecMap the commodity type to commodity specification mapping.
      * @param buyerOidToPlacement a map of buyer oid to its placement decisions.
      * @param existingReservations a map of existing reservations by oid.
+     * @param isRealtimeCache true if the failure occurs in the real time cache, false in the historical cache.
      * @return a map of buyer oid to its placement decisions after replay.
      */
     private @Nonnull Map<Long, List<InitialPlacementDecision>> replayReservationBuyers(
             @Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
-            @Nonnull final Map<Long, InitialPlacementDTO> existingReservations) {
+            @Nonnull final Map<Long, InitialPlacementDTO> existingReservations, final boolean isRealtimeCache) {
         if (existingReservations.isEmpty() || buyerOidToPlacement.isEmpty()) {
             return new HashMap<>();
         }
@@ -579,7 +580,7 @@ public class EconomyCaches {
             Map<Long, List<InitialPlacementDecision>> newPlacementResult =
                 placeBuyerInCachedEconomy(tradersOfRes.getValue(), economy, commTypeToSpecMap,
                     ReservationMode.NO_GROUPING, ReservationGrouping.NONE, 1,
-                    existingReservations.get(tradersOfRes.getKey()).getProvidersList());
+                    existingReservations.get(tradersOfRes.getKey()).getProvidersList(), isRealtimeCache);
             if (newPlacementResult.values().stream().flatMap(List::stream)
                     .allMatch(i -> i.supplier.isPresent())) {
                 // All buyers in a given reservation can still find providers in the chosen cluster.
@@ -770,7 +771,7 @@ public class EconomyCaches {
                 }
             }
             firstRoundPlacement = placeBuyerInCachedEconomy(traderTOs, historicalCachedEconomy,
-                    historicalCachedCommTypeMap, mode, grouping, maxGroupingRetry, scopeIds);
+                    historicalCachedCommTypeMap, mode, grouping, maxGroupingRetry, scopeIds, false);
             logger.info(logPrefix + "Placing reservation buyers on historical economy cache");
             InitialPlacementUtils.printPlacementDecisions(firstRoundPlacement);
             clusterCommPerSl.putAll(InitialPlacementUtils.extractClusterBoundary(historicalCachedEconomy,
@@ -810,7 +811,7 @@ public class EconomyCaches {
         Map<Long, List<InitialPlacementDecision>> secondRoundPlacement
             = placeBuyerInCachedEconomy(placedBuyerTOs, realtimeCachedEconomy,
                 realtimeCachedCommTypeMap, historicalReady ? ReservationMode.NO_GROUPING : mode,
-                historicalReady ? ReservationGrouping.NONE : grouping, maxGroupingRetry, scopeIds);
+                historicalReady ? ReservationGrouping.NONE : grouping, maxGroupingRetry, scopeIds, true);
         logger.info(logPrefix + "Placing reservation buyers on realtime economy cache");
         InitialPlacementUtils.printPlacementDecisions(secondRoundPlacement);
         Set<Long> failedBuyerOids = new HashSet<>();
@@ -924,6 +925,7 @@ public class EconomyCaches {
      * @param maxGroupingRetry The max number of attempts to fit all buyers of a reservation
      *          within a certain grouping.
      * @param scopeIds ids of entities that the buyers should place on of those entity types.
+     * @param isRealtimeCache true if the failure occurs in the real time cache, false in the historical cache.
      * @return a map of reservation buyer oid to its placement decisions.
      */
     @Nonnull
@@ -931,7 +933,7 @@ public class EconomyCaches {
             @Nonnull final List<TraderTO> traderTOs, @Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull ReservationMode mode, @Nonnull ReservationGrouping grouping,
-            final int maxGroupingRetry, @Nonnull final List<Long> scopeIds) {
+            final int maxGroupingRetry, @Nonnull final List<Long> scopeIds, final boolean isRealtimeCache) {
         Set<Long> unplacedBuyer = new HashSet<>();
         Map<Long, List<InitialPlacementDecision>> traderIdToPlacement = new HashMap<>();
         Set<Long> updateCanAcceptEntities = new HashSet<>();
@@ -960,7 +962,7 @@ public class EconomyCaches {
                 long slOid = economy.getTopology().getShoppingListOids().get(exp.shoppingList);
                 List<InitialPlacementDecision> pl = placementPerSl.get(slOid);
                 pl.forEach(p -> {
-                    p.failureInfos = InitialPlacementUtils.populateFailureInfos(exp, commTypeToSpecMap);
+                    p.failureInfos = InitialPlacementUtils.populateFailureInfos(exp, commTypeToSpecMap, isRealtimeCache);
                 });
             }
         }
@@ -1019,7 +1021,7 @@ public class EconomyCaches {
                 InitialPlacementDecision resPlacement = new InitialPlacementDecision(
                     economy.getTopology().getShoppingListOids().get(sl), sl.getSupplier() == null
                     ? Optional.empty() : Optional.of(sl.getSupplier().getOid()), new ArrayList<>(),
-                        reconfigureSls.contains(sl) ? Optional.of(InvalidConstraints.getDefaultInstance()) : Optional.empty());
+                        reconfigureSls.contains(sl) ? Optional.of(InvalidConstraints.getDefaultInstance()) : Optional.empty(), false);
                 if (!traderIdToPlacement.containsKey(oid)) {
                     traderIdToPlacement.put(oid, new ArrayList<>(Arrays.asList(resPlacement)));
                 } else {

@@ -67,6 +67,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
@@ -438,14 +439,17 @@ public class ReservationManager implements ReservationDeletedListener {
                         .getInitialPlacementSuccess().getProviderOid()
                         + " found for entity: " + reservationInstance.getEntityId()
                         + " of reservation: " + updatedReservation.getId());
+
             } else if (initialPlacementBuyerPlacementInfo.hasInitialPlacementFailure()) {
-                reservationInstance
-                        .addAllUnplacedReason(
-                                initialPlacementBuyerPlacementInfo.getInitialPlacementFailure()
-                                        .getUnplacedReasonList());
-                // When there is an existing reservation, every night we retry to make sure the reservation still
-                // can be placed. If for some reason that reservation which was placed, now becomes invalid/failed,
-                // we need to clear the provider id.
+                for(UnplacementReason reason : initialPlacementBuyerPlacementInfo.getInitialPlacementFailure()
+                        .getUnplacedReasonList()) {
+                    Long clusterOid = clusterCommodityKeyToClusterID.get(reason.getClosestSellerClusterName());
+                    if (clusterOid != null) {
+                        reservationInstance.addUnplacedReason(reason.toBuilder().setClosestSellerClusterOid(clusterOid).build());
+                    } else {
+                        reservationInstance.addUnplacedReason(reason);
+                    }
+                }
                 placementInfo.clearProviderId();
                 logger.info(logPrefix + "entity: " + reservationInstance.getEntityId()
                         + " of reservation: " + updatedReservation.getId() + " failed to get placed.");
