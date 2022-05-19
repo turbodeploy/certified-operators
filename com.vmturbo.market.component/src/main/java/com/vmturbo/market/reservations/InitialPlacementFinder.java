@@ -362,7 +362,7 @@ public class InitialPlacementFinder {
                 b.getInitialPlacementCommoditiesBoughtFromProviderList().stream()
                         .map(sl -> sl.getCommoditiesBoughtFromProviderId())
                         .forEach(id -> emptyDecisions.add(new InitialPlacementDecision(
-                                b.getBuyerId(), Optional.empty(), new ArrayList<>(), Optional.empty())));
+                                b.getBuyerId(), Optional.empty(), new ArrayList<>(), Optional.empty(), false)));
                 initialPlacements.put(b.getBuyerId(), emptyDecisions);
             });
         }
@@ -413,9 +413,9 @@ public class InitialPlacementFinder {
                                 + " commodities", buyerPlacement.getKey(), placement.slOid);
                         for (FailureInfo failureData : placement.failureInfos) {
                             logger.debug(logPrefix + "commodity type {}, requested amount {}, max quantity"
-                                    + " available {}, closest seller oid {}", failureData.getCommodityType(),
+                                    + " available {}, closest seller oid {}, closest seller cluster oid list {}", failureData.getCommodityType(),
                                     failureData.getRequestedAmount(), failureData.getMaxQuantity(),
-                                    failureData.getClosestSellerOid());
+                                    failureData.getClosestSellerOid(), failureData.getClosestSellerCluster().toString());
                         }
                     }
                 } else { // the sl could be placed, but it has to be rolled back due to a partial
@@ -539,7 +539,7 @@ public class InitialPlacementFinder {
                     Optional<Long> supplier = sl.getCommoditiesBoughtFromProvider().hasProviderId()
                             ? Optional.of(sl.getCommoditiesBoughtFromProvider().getProviderId())
                             : Optional.empty();
-                    decisions.add(new InitialPlacementDecision(slOid, supplier, new ArrayList<>(), Optional.empty()));
+                    decisions.add(new InitialPlacementDecision(slOid, supplier, new ArrayList<>(), Optional.empty(), false));
                 });
                 buyerPlacements.put(buyer.getBuyerId(), decisions);
                 if (!existingReservations.containsKey(initialPlacement.getId())) {

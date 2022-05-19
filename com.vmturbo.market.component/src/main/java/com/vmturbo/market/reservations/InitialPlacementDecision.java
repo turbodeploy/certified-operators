@@ -27,6 +27,11 @@ public class InitialPlacementDecision {
     public List<FailureInfo> failureInfos;
 
     /**
+     * Whether the failure is in real time or historical cache.
+     */
+    public boolean isFailedInRealtimeCache;
+
+    /**
      * The invalid constraints info of the buyer.
      */
     public final Optional<InvalidConstraints> invalidConstraints;
@@ -37,13 +42,17 @@ public class InitialPlacementDecision {
      * @param slOid the shopping list oid.
      * @param supplier the supplier oid of a shopping list, it could be empty.
      * @param failureInfos a list of {@link FailureInfo}s
+     * @param invalidConstraints the list of invalid constraints
+     * @param isFailedInRealtimeCache whether the failure is in real time or historical cache.
      */
     public InitialPlacementDecision(final long slOid, final Optional<Long> supplier,
                                     final List<FailureInfo> failureInfos,
-                                    final Optional<InvalidConstraints> invalidConstraints) {
+                                    final Optional<InvalidConstraints> invalidConstraints,
+                                    final boolean isFailedInRealtimeCache) {
         this.slOid = slOid;
         this.supplier = supplier;
         this.failureInfos = failureInfos;
         this.invalidConstraints = invalidConstraints;
+        this.isFailedInRealtimeCache = isFailedInRealtimeCache;
     }
 }

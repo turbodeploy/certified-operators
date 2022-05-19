@@ -70,6 +70,9 @@ public class InitialPlacementFinderTest {
     private static final int PM_TYPE = EntityType.PHYSICAL_MACHINE_VALUE;
     private static final int VM_TYPE = EntityType.VIRTUAL_MACHINE_VALUE;
     private static final int MEM_TYPE = CommodityType.MEM_VALUE;
+    private static final int CLUSTER_TYPE = CommodityType.CLUSTER_VALUE;
+    private static final int CLUSTER1_COMM_SPEC_TYPE = 300;
+    private static final String cluster1Key = "cluster1";
     private static final long pm1Oid = 32L;
     private static final long pm2Oid = 33L;
     private static final long vm1Oid = 30L;
@@ -94,6 +97,8 @@ public class InitialPlacementFinderTest {
     @BeforeClass
     public static void setUp() {
         commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.MEM_VALUE).build(), MEM_TYPE);
+        commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CLUSTER_VALUE)
+                .setKey(cluster1Key).build(), CLUSTER_TYPE);
     }
 
     /**
@@ -155,7 +160,7 @@ true, 1, 5, diagsCollectorFactory,  5);
         pf.existingReservations.put(1L, PlanUtils.setupInitialPlacement(new ArrayList(Arrays
                     .asList(getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 10))), 1L));
         pf.buyerPlacements.put(vmID, new ArrayList(Arrays.asList(new InitialPlacementDecision(pmSlOid,
-                    Optional.of(pm1Oid), new ArrayList(), Optional.empty()))));
+                    Optional.of(pm1Oid), new ArrayList(), Optional.empty(), false))));
         handler.buyersToBeDeleted(Arrays.asList(vmID), false);
         assertTrue(pf.existingReservations.isEmpty());
         assertTrue(pf.buyerPlacements.isEmpty());
@@ -253,7 +258,7 @@ true, 1, 5, diagsCollectorFactory,  5);
      * Test initial placement finder failed. The original economy has two hosts.
      * PM1 mem used 110, capacity 100. PM2 mem used 120, capacity 100.
      * Expected: reservation failed with a new reservation VM requesting 100 mem.
-     * Failure info  has maxquantity non negative
+     * Failure info has max quantity non negative
      *
      * @throws InterruptedException        if we're interrupted
      * @throws ExecutionException          if failure in asynchronous updation
@@ -278,6 +283,7 @@ true, 1, 5, diagsCollectorFactory,  5);
         assertEquals(failureInfo.get(0).getRequestedAmount(), 100, 0.000001);
         assertTrue(failureInfo.get(0).getClosestSellerOid() == pm1Oid);
         assertEquals(failureInfo.get(0).getMaxQuantity(), 0, 0.000001);
+        assertEquals(cluster1Key, failureInfo.get(0).getClosestSellerCluster());
     }
 
     /**
@@ -319,14 +325,16 @@ true, 1, 5, diagsCollectorFactory,  5);
         Topology t = new Topology();
         Economy economy = t.getEconomyForTesting();
 
-        Basket basketSoldByPM = new Basket(new CommoditySpecification(MEM_TYPE));
+        Basket basketSoldByPM = new Basket(new CommoditySpecification(MEM_TYPE),
+                new CommoditySpecification(CLUSTER_TYPE));
         List<Long> cliques = new ArrayList<>();
         cliques.add(455L);
         Trader pm1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, basketSoldByPM, cliques);
         pm1.setDebugInfoNeverUseInCode("PM1");
         pm1.getSettings().setCanAcceptNewCustomers(true);
         pm1.setOid(pm1Oid);
-        CommoditySold commSold = pm1.getCommoditiesSold().get(0);
+        int memIndex = basketSoldByPM.indexOf(MEM_TYPE);
+        CommoditySold commSold = pm1.getCommoditiesSold().get(memIndex);
         commSold.setCapacity(100);
         commSold.setQuantity(110);
         commSold.setPeakQuantity(110);
@@ -336,7 +344,7 @@ true, 1, 5, diagsCollectorFactory,  5);
         pm2.setDebugInfoNeverUseInCode("PM2");
         pm2.getSettings().setCanAcceptNewCustomers(true);
         pm2.setOid(pm2Oid);
-        CommoditySold commSold2 = pm2.getCommoditiesSold().get(0);
+        CommoditySold commSold2 = pm2.getCommoditiesSold().get(memIndex);
         commSold2.setCapacity(100);
         commSold2.setQuantity(120);
         commSold2.setPeakQuantity(120);
