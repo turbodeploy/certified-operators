@@ -302,7 +302,7 @@ public class IngestersConfig {
                                     groupServiceBlockingStub()
                             ),
                             new VolumeAttachmentHistoryWriter.Factory(
-                                volumeAttachmentHistoryIntervalBetweenInsertsInHours)
+                                volumeAttachmentHistoryIntervalBetweenInsertsInHours, apiConfig.historyVolumeNotificationSender())
                     ),
                     ingesterConfig(TopologyIngesterType.sourceRealtime),
                     bulkLoaderFactorySupplier()

@@ -6,6 +6,8 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.history.component.api.impl.HistorySubscription;
+import com.vmturbo.topology.processor.listeners.HistoryVolumesListener;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -301,7 +303,8 @@ public class TopologyConfig {
                 entityConfig.entityCustomTagsMerger(groupConfig.entityCustomTagsService()),
                 staleDataManager(),
                 supplyChainValidationFrequency,
-                stitchingConfig.getEnableConsistentScalingOnHeterogeneousProviders()
+                stitchingConfig.getEnableConsistentScalingOnHeterogeneousProviders(),
+                historyVolumeListener()
         );
     }
 
@@ -364,6 +367,19 @@ public class TopologyConfig {
             startupDiscoveryMaxDiscoveryWaitMinutes,
             TimeUnit.MINUTES,
             new ComponentRestartHelper(pipelineFailureHours));
+    }
+
+    /**
+     * Used to create listener for history component.
+     *
+     * @return history volumes listener.
+     */
+    @Bean
+    public HistoryVolumesListener historyVolumeListener() {
+        final HistoryVolumesListener listener = new HistoryVolumesListener();
+        historyClientConfig.histComponent(HistorySubscription.forTopic(HistorySubscription.Topic.HISTORY_VOL_NOTIFICATION))
+                .addVolumeHistoryNotificationListener(listener);
+        return listener;
     }
 
     /**

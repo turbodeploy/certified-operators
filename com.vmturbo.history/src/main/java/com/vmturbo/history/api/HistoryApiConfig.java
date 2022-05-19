@@ -6,6 +6,11 @@ import java.util.concurrent.ThreadFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.common.protobuf.history.VolAttachmentHistoryOuterClass;
+import com.vmturbo.history.component.api.impl.HistoryComponentImpl;
+import com.vmturbo.history.notifications.VolAttachmentDaysSender;
+import com.vmturbo.history.stats.StatsConfig;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,6 +29,9 @@ public class HistoryApiConfig {
     @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
 
+    @Autowired
+    private StatsConfig statsConfig;
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService historyApiServerThreadPool() {
         final ThreadFactory threadFactory =
@@ -37,9 +45,21 @@ public class HistoryApiConfig {
     }
 
     @Bean
+    public VolAttachmentDaysSender historyVolumeNotificationSender() {
+        return new VolAttachmentDaysSender(historyVolumeMessageSender(), statsConfig.volumeAttachmentHistoryReader(),
+                                           historyApiServerThreadPool());
+    }
+
+    @Bean
     public IMessageSender<HistoryComponentNotification> historyMessageSender() {
         return kafkaProducerConfig.kafkaMessageSender()
                 .messageSender(HistoryComponentNotificationReceiver.NOTIFICATION_TOPIC);
+    }
+
+    @Bean
+    public IMessageSender<VolAttachmentHistoryOuterClass.VolAttachmentHistory> historyVolumeMessageSender() {
+        return kafkaProducerConfig.kafkaMessageSender()
+                .messageSender(HistoryComponentImpl.HISTORY_VOL_NOTIFICATIONS);
     }
 
     @Bean

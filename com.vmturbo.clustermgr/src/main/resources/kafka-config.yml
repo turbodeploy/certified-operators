@@ -120,3 +120,6 @@ topics:
   - topic: tp-plan-export
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
+  - topic: volume-notifications
+    properties:
+      retention.ms: 86400000 # 86400k ms = 24 hr
