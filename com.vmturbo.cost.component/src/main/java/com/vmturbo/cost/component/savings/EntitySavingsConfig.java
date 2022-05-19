@@ -562,7 +562,8 @@ public class EntitySavingsConfig {
         try {
             return new SavingsTracker(new SqlBillingRecordStore(dbAccessConfig.dsl()),
                     new GrpcActionChainStore(actionsService()),
-                    (SavingsStore)entitySavingsStore(), supportedProviderTypes);
+                    (SavingsStore)entitySavingsStore(), supportedProviderTypes,
+                    getEntitySavingsRetentionConfig().getVolumeDeleteRetentionMs(), getClock());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();

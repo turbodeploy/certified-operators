@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.savings.calculator;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -25,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.savings.BillingRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -33,9 +35,19 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class Calculator {
     private static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
-    private static final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger();
+    private final long deleteActionExpiryMs;
+    private final Clock clock;
 
-    private Calculator() {
+    /**
+     * Constructor.
+     *
+     * @param deleteActionExpiryMs Volume expiry time in milliseconds
+     * @param clock clock
+     */
+    public Calculator(long deleteActionExpiryMs, Clock clock) {
+        this.deleteActionExpiryMs = deleteActionExpiryMs;
+        this.clock = clock;
     }
 
     /**
@@ -47,13 +59,16 @@ public class Calculator {
      *                    for the entity on that day must be included.
      * @param actionChain all actions that were executed on this entity that lead up to current
      *                    provider. Assume action chain is valid.
+     * @param lastProcessedDate the timestamp of the day that was last processed for savings
+     * @param periodEndTime end of the processing period. Normally it is the current time.
      * @return result of the calculation
      */
     @Nonnull
-    public static List<SavingsValues> calculate(long entityOid, Set<BillingRecord> billRecords,
-            NavigableSet<ActionSpec> actionChain) {
-        if (actionChain.isEmpty() || billRecords.isEmpty()) {
-            logger.error("Savings calculator invoked for an entity {} with no actions or has no bill records.",
+    public List<SavingsValues> calculate(long entityOid, @Nonnull Set<BillingRecord> billRecords,
+            @Nonnull NavigableSet<ActionSpec> actionChain, long lastProcessedDate,
+            @Nonnull LocalDateTime periodEndTime) {
+        if (actionChain.isEmpty()) {
+            logger.error("Savings calculator invoked for an entity {} with no actions.",
                     entityOid);
             return Collections.emptyList();
         }
@@ -73,8 +88,8 @@ public class Calculator {
         }
 
         // Create the high-low graph from the action chain.
-        WatermarkGraph watermarkGraph = new WatermarkGraph(actionChain);
-        logger.debug(() -> watermarkGraph);
+        SavingsGraph savingsGraph = new SavingsGraph(actionChain);
+        logger.debug(() -> savingsGraph);
 
         // Create a map of bill records associated for each day.
         final Map<LocalDateTime, Set<BillingRecord>> billRecordsByDay = new HashMap<>();
@@ -85,8 +100,39 @@ public class Calculator {
 
         final List<SavingsValues> results = new ArrayList<>();
         for (Entry<LocalDateTime, Set<BillingRecord>> dailyRecords: billRecordsByDay.entrySet()) {
-            results.add(calculateDay(entityOid, dailyRecords.getKey(), watermarkGraph,
+            results.add(calculateDay(entityOid, dailyRecords.getKey(), savingsGraph,
                     dailyRecords.getValue()));
+        }
+
+        // Calculate savings for delete actions.
+        // Start on the day after a delete action, there will not be bill records for the deleted
+        // entity. We want to claim savings for the delete action every day after the action until
+        // the action expires.
+        if (actionChain.last().getRecommendation().getInfo().hasDelete()
+                && actionChain.last().getExecutionStep().hasCompletionTime()) {
+            logger.debug("Delete action exists for entity OID {}.", entityOid);
+            // Start processing on the day after the last processed day.
+            LocalDateTime processDay = TimeUtil.millisToLocalDateTime(lastProcessedDate, clock).plusDays(1);
+            // We expect a bill record for the deleted entity for the day on which the delete action
+            // was executed. So start on the day after the delete action execution if start day is
+            // before the delete action execution day.
+            long deleteActionTime = actionChain.last().getExecutionStep().getCompletionTime();
+            LocalDateTime deleteActionDateTime = TimeUtil.millisToLocalDateTime(deleteActionTime, clock);
+            if (processDay.isBefore(deleteActionDateTime)) {
+                // Start processing on the day after the day when the delete action was executed.
+                processDay = deleteActionDateTime.plusDays(1).truncatedTo(ChronoUnit.DAYS);
+            }
+            final LocalDateTime periodEnd = periodEndTime.truncatedTo(ChronoUnit.DAYS);
+            final LocalDateTime volumeActionExpiryDate =
+                    TimeUtil.millisToLocalDateTime(deleteActionTime + deleteActionExpiryMs, clock);
+            // Process savings from the first day that require processing to period end time and
+            // before the volume action expires. Period end time is normally the current time.
+            // If we run a test scenario, the period end time can be set to a specific date.
+            // We stop accruing savings for delete actions after a predefined period of time. (e.g. 1 year)
+            while (processDay.isBefore(periodEnd) && processDay.isBefore(volumeActionExpiryDate)) {
+                results.add(calculateDay(entityOid, processDay, savingsGraph, Collections.emptySet()));
+                processDay = processDay.plusDays(1);
+            }
         }
         return results;
     }
@@ -95,18 +141,18 @@ public class Calculator {
      * Calculate the savings/investments of an entity for a specific day.
      *
      * @param entityOid entity OID
-     * @param date The date
-     * @param watermarkGraph the watermark graph
+     * @param date The date (the beginning of the day at 00:00)
+     * @param savingsGraph the watermark graph
      * @param billRecords bill records
      * @return savings/investments of this day
      */
     @Nonnull
-    private static SavingsValues calculateDay(long entityOid, LocalDateTime date,
-            WatermarkGraph watermarkGraph, Set<BillingRecord> billRecords) {
+    private SavingsValues calculateDay(long entityOid, LocalDateTime date,
+            SavingsGraph savingsGraph, Set<BillingRecord> billRecords) {
         logger.debug("Calculating savings for entity {} for date {}.", entityOid, date);
         // Use the high-low graph and the bill records to determine the billing segments in the day.
         List<Segment> segments = createBillingSegments(
-                date.toInstant(ZoneOffset.UTC).toEpochMilli(), watermarkGraph);
+                date.toInstant(ZoneOffset.UTC).toEpochMilli(), savingsGraph);
         if (logger.isDebugEnabled()) {
             StringBuilder debugText = new StringBuilder();
             debugText.append("Number of segments: ").append(segments.size());
@@ -119,31 +165,36 @@ public class Calculator {
         double totalDailySavings = 0;
         double totalDailyInvestments = 0;
         for (Segment segment : segments) {
-            Watermark watermark = segment.watermark;
-            long providerOid = watermark.getDestinationProviderOid();
-            // Get all bill records of this provider and sum up the cost
-            Set<BillingRecord> recordsForProvider = billRecords.stream()
-                    .filter(r -> r.getProviderId() == providerOid).collect(Collectors.toSet());
-            double costOfProvider = recordsForProvider.stream()
-                    .map(BillingRecord::getCost)
-                    .reduce(0d, Double::sum);
-            double usageAmount = getUsageAmount(recordsForProvider);
-            double investments = Math.max(0,
-                    (costOfProvider - watermark.getLowWatermark() * usageAmount) * segment.multiplier);
-            double savings = Math.max(0,
-                    (watermark.getHighWatermark() * usageAmount - costOfProvider) * segment.multiplier);
-            totalDailyInvestments += investments;
-            totalDailySavings += savings;
+            if (segment.actionDataPoint instanceof ScaleActionDataPoint) {
+                ScaleActionDataPoint watermark = (ScaleActionDataPoint)segment.actionDataPoint;
+                long providerOid = watermark.getDestinationProviderOid();
+                // Get all bill records of this provider and sum up the cost
+                Set<BillingRecord> recordsForProvider = billRecords.stream()
+                        .filter(r -> r.getProviderId() == providerOid).collect(Collectors.toSet());
+                double costOfProvider = recordsForProvider.stream()
+                        .map(BillingRecord::getCost)
+                        .reduce(0d, Double::sum);
+                double usageAmount = getUsageAmount(recordsForProvider);
+                double investments = Math.max(0,
+                        (costOfProvider - watermark.getLowWatermark() * usageAmount) * segment.multiplier);
+                double savings = Math.max(0,
+                        (watermark.getHighWatermark() * usageAmount - costOfProvider) * segment.multiplier);
+                totalDailyInvestments += investments;
+                totalDailySavings += savings;
+            } else if (segment.actionDataPoint instanceof DeleteActionDataPoint) {
+                DeleteActionDataPoint deleteActionDataPoint = (DeleteActionDataPoint)segment.actionDataPoint;
+                double savingsPerHour = deleteActionDataPoint.savingsPerHour();
+                totalDailySavings += savingsPerHour * TimeUnit.MILLISECONDS.toHours(segment.duration);
+            }
         }
 
         // Return the total savings/investment for the day.
-        SavingsValues result = new SavingsValues.Builder()
+        return new SavingsValues.Builder()
                 .savings(totalDailySavings)
                 .investments(totalDailyInvestments)
                 .timestamp(date)
                 .entityOid(entityOid)
                 .build();
-        return result;
     }
 
     /**
@@ -151,7 +202,7 @@ public class Calculator {
      * the entity spent on this provider.
      *
      * @param recordsForProvider set of bill records for a provider for an entity for one day
-     * @return usage amount
+     * @return usage amount (in hours)
      */
     private static double getUsageAmount(Set<BillingRecord> recordsForProvider) {
         int entityType = recordsForProvider.stream()
@@ -167,26 +218,27 @@ public class Calculator {
         // than February.
         // TODO Normalize all usage amount to hourly in the probe.
         if (entityType == EntityType.VIRTUAL_VOLUME_VALUE) {
-            usageAmount = 730 * usageAmount;
+            // Cap value to 24 (number of hours in a day).
+            usageAmount = Math.min(24, 730 * usageAmount);
         }
         return usageAmount;
     }
 
-    private static List<Segment> createBillingSegments(long datestamp, WatermarkGraph watermarkGraph) {
+    private List<Segment> createBillingSegments(long datestamp, SavingsGraph savingsGraph) {
         long segmentStart = datestamp;
         long segmentEnd;
 
-        // Find all watermark data points in this day
-        final SortedSet<Watermark> dataPointsInDay = watermarkGraph.getDataPointsInDay(datestamp);
-        // Find watermark data point with timestamp at or before the start of the day.
-        Watermark watermark = watermarkGraph.getWatermark(datestamp);
+        // Find all watermark data points on this day
+        final SortedSet<ActionDataPoint> dataPointsInDay = savingsGraph.getDataPointsInDay(datestamp);
+        // Find data point with timestamp at or before the start of the day.
+        ActionDataPoint dataPoint = savingsGraph.getDataPoint(datestamp);
         boolean noActionBeforeStartOfDay = false;
 
-        if (watermark == null) {
+        if (dataPoint == null) {
             if (!dataPointsInDay.isEmpty()) {
                 noActionBeforeStartOfDay = true;
-                watermark = dataPointsInDay.first();
-                segmentStart = watermark.getTimestamp();
+                dataPoint = dataPointsInDay.first();
+                segmentStart = dataPoint.getTimestamp();
             } else {
                 // No action happened before this day or on this day. Should not happen.
                 logger.error("When creating segments for {}, found no watermark data points at or "
@@ -197,33 +249,35 @@ public class Calculator {
         }
 
         final List<Segment> segments = new ArrayList<>();
+        // Provider OID mapped to a list segment durations (in milliseconds).
         final Map<Long, List<Long>> segmentDurationMap = new HashMap<>();
 
         // If there are one or more actions executed on this day, loop through the points.
-        for (Watermark datapoint : dataPointsInDay) {
+        for (ActionDataPoint actionDatapoint : dataPointsInDay) {
             // If first point is at exactly the beginning of day (edge case), or no actions were
             // executed before start of the day, skip to next point.
-            if (datapoint.getTimestamp() == datestamp || noActionBeforeStartOfDay) {
+            if (actionDatapoint.getTimestamp() == datestamp || noActionBeforeStartOfDay) {
                 continue;
             }
-            segmentEnd = datapoint.getTimestamp();
+            segmentEnd = actionDatapoint.getTimestamp();
             final long segmentDuration = segmentEnd - segmentStart;
             // Put segment in a list and add duration in map.
-            segments.add(new Segment(segmentDuration, watermark));
-            segmentDurationMap.computeIfAbsent(watermark.getDestinationProviderOid(), d -> new ArrayList<>())
+            segments.add(new Segment(segmentDuration, dataPoint));
+            segmentDurationMap.computeIfAbsent(dataPoint.getDestinationProviderOid(), d -> new ArrayList<>())
                     .add(segmentDuration);
-            watermark = datapoint;
-            segmentStart = datapoint.getTimestamp();
+            dataPoint = actionDatapoint;
+            segmentStart = actionDatapoint.getTimestamp();
         }
 
         // Close the last segment.
         segmentEnd = datestamp + MILLIS_IN_DAY;
         final long segmentDuration = segmentEnd - segmentStart;
-        segments.add(new Segment(segmentDuration, watermark));
+        segments.add(new Segment(segmentDuration, dataPoint));
         // The check for duration is non-zero is a defensive logic which should not happen because
         // value of segmentStart comes from action times which excludes the end of the day.
         if (segmentDuration > 0) {
-            segmentDurationMap.computeIfAbsent(watermark.getDestinationProviderOid(), d -> new ArrayList<>()).add(segmentDuration);
+            segmentDurationMap.computeIfAbsent(dataPoint.getDestinationProviderOid(),
+                    d -> new ArrayList<>()).add(segmentDuration);
         }
 
         // Loop through the segment list and assign value for the multiplier.
@@ -231,7 +285,7 @@ public class Calculator {
         // e.g. p1 -> 3hr, 6hr
         // multiplier for first segment = 3 / (3 + 6)
         for (Segment segment : segments) {
-            final Long sum = segmentDurationMap.get(segment.watermark.getDestinationProviderOid()).stream()
+            final Long sum = segmentDurationMap.get(segment.actionDataPoint.getDestinationProviderOid()).stream()
                     .reduce(0L, Long::sum);
             segment.multiplier = (double)segment.duration / (double)sum;
         }
@@ -244,18 +298,18 @@ public class Calculator {
      */
     private static class Segment {
         private final long duration;
-        private final Watermark watermark;
+        private final ActionDataPoint actionDataPoint;
         private double multiplier;
 
-        Segment(long duration, Watermark watermark) {
+        Segment(long duration, ActionDataPoint actionDataPoint) {
             this.duration = duration;
-            this.watermark = watermark;
+            this.actionDataPoint = actionDataPoint;
         }
 
         @Override
         public String toString() {
             return "Segment{" + "duration(hours)=" + TimeUnit.MILLISECONDS.toHours(duration)
-                    + ", watermark=" + watermark + ", multiplier=" + multiplier + '}';
+                    + ", actionDataPoint=" + actionDataPoint + ", multiplier=" + multiplier + '}';
         }
     }
 }

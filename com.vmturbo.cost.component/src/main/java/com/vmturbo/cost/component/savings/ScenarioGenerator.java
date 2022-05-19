@@ -17,6 +17,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,6 +29,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.TierCostDetails;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -36,13 +38,17 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.savings.BillingDataInjector.BillingScriptEvent;
 import com.vmturbo.cost.component.savings.BillingRecord.Builder;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTOREST;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingDataPoint.CostCategory;
 
 /**
  * ScenarioGenerator is used for generating action chains and bill records from script events.
+ * The logic in this class can be called only if the ENABLE_SAVINGS_TEST_INPUT feature flag is
+ * enabled.
  */
 public class ScenarioGenerator {
     private static final Logger logger = LogManager.getLogger();
@@ -63,22 +69,30 @@ public class ScenarioGenerator {
         final Map<Long, NavigableSet<ActionSpec>> actionChains = new HashMap<>();
         logger.info("Generating actions from script events:");
         for (BillingScriptEvent event : events) {
+            Long oid = uuidMap.getOrDefault(event.uuid, 0L);
+            long actionTime = event.timestamp != null ? event.timestamp : 0;
+            if (actionTime == 0) {
+                logger.error("Action time is missing in event: {}", event);
+                continue;
+            }
+            LocalDateTime actionDateTime = TimeUtil.millisToLocalDateTime(actionTime, clock);
             if ("RESIZE".equals(event.eventType)) {
-                Long oid = uuidMap.getOrDefault(event.uuid, 0L);
-                long actionTime = event.timestamp != null ? event.timestamp : 0;
-                if (oid == 0 || actionTime == 0) {
-                    logger.error("Malformed script event: {}", event);
-                    continue;
-                }
-                LocalDateTime actionDateTime = TimeUtil.millisToLocalDateTime(actionTime, clock);
-                ActionSpec action = createActionSpec(actionDateTime, oid, event.sourceOnDemandRate,
+                ActionSpec action = createVMActionSpec(oid, actionDateTime, event.sourceOnDemandRate,
                         event.destinationOnDemandRate, generateProviderIdFromRate(event.sourceOnDemandRate),
                         generateProviderIdFromRate(event.destinationOnDemandRate));
-                logger.info("action time: {}, entity OID: {}, source rate: {}, "
+                logger.info("Scale action time: {}, entity OID: {}, source rate: {}, "
                                 + "destination rate: {} source provider: {}, destination provider: {}",
                         actionDateTime, oid, event.sourceOnDemandRate, event.destinationOnDemandRate,
                         generateProviderIdFromRate(event.sourceOnDemandRate),
                         generateProviderIdFromRate(event.destinationOnDemandRate));
+                actionChains.computeIfAbsent(oid, c -> new TreeSet<>(GrpcActionChainStore.specComparator))
+                        .add(action);
+            } else if ("DELVOL".equals(event.eventType)) {
+                long dummyStorageTierOid = 34343434343L;
+                ActionSpec action = createVolumeDeleteActionSpec(oid, actionDateTime,
+                        event.sourceOnDemandRate, dummyStorageTierOid);
+                logger.info("Delete action time: {}, entity OID: {}, source rate: {}",
+                        actionDateTime, oid, event.sourceOnDemandRate);
                 actionChains.computeIfAbsent(oid, c -> new TreeSet<>(GrpcActionChainStore.specComparator))
                         .add(action);
             }
@@ -99,22 +113,32 @@ public class ScenarioGenerator {
             Map<String, Long> uuidMap, LocalDateTime startTime, LocalDateTime endTime) {
         final Map<Long, NavigableSet<BillingScriptEvent>> scaleEventsByEntity = new HashMap<>();
         final Map<Long, NavigableSet<BillingScriptEvent>> powerEventsByEntity = new HashMap<>();
+        final Map<Long, BillingScriptEvent> deleteEventsByEntity = new HashMap<>();
         for (BillingScriptEvent event : events) {
+            Long oid = uuidMap.getOrDefault(event.uuid, 0L);
             if ("RESIZE".equals(event.eventType)) {
-                Long oid = uuidMap.getOrDefault(event.uuid, 0L);
                 scaleEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
                         .add(event);
             } else if ("POWER_STATE".equals(event.eventType)) {
-                Long oid = uuidMap.getOrDefault(event.uuid, 0L);
                 powerEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
                         .add(event);
+            } else if ("DELVOL".equals(event.eventType)) {
+                deleteEventsByEntity.put(oid, event);
             }
         }
         final Map<Long, Set<BillingRecord>> billRecords = new HashMap<>();
-        scaleEventsByEntity.forEach((oid, scaleEvents) -> billRecords.put(oid,
-                generateBillRecordForEntity(scaleEvents,
-                        powerEventsByEntity.getOrDefault(oid, Collections.emptyNavigableSet()), oid,
-                        startTime, endTime)));
+        scaleEventsByEntity.forEach((oid, scaleEvents) ->
+            billRecords.put(oid, generateBillRecordForEntity(scaleEvents,
+                        powerEventsByEntity.getOrDefault(oid, Collections.emptyNavigableSet()),
+                        deleteEventsByEntity.get(oid), oid, startTime, endTime)));
+        deleteEventsByEntity.forEach((oid, event) -> {
+            if (!scaleEventsByEntity.containsKey(oid)) {
+                billRecords.put(oid, generateBillRecordForEntity(new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)),
+                        powerEventsByEntity.getOrDefault(oid, Collections.emptyNavigableSet()),
+                        event, oid, startTime, endTime));
+            }
+        });
+        // TODO Generate bill records for entities that only have delete actions
         billRecords.forEach((oid, records) -> {
             logger.info("Generated bill records for entity {}:", oid);
             records.stream().sorted(Comparator.comparing(BillingRecord::getSampleTime))
@@ -124,18 +148,13 @@ public class ScenarioGenerator {
     }
 
     private static Set<BillingRecord> generateBillRecordForEntity(NavigableSet<BillingScriptEvent> scaleEvents,
-            NavigableSet<BillingScriptEvent> powerEvents, long entityOid, LocalDateTime startTime,
-            LocalDateTime endTime) {
-        if (scaleEvents.isEmpty()) {
-            return Collections.emptySet();
-        }
-        // Start with the day of the first scale action because the days before that won't have any
-        // savings/investments anyways.
-        LocalDateTime dayStart = TimeUtil.millisToLocalDateTime(scaleEvents.first().timestamp, clock)
-                .truncatedTo(ChronoUnit.DAYS);
+            NavigableSet<BillingScriptEvent> powerEvents, @Nullable BillingScriptEvent deleteEvent,
+            long entityOid, LocalDateTime startTime, LocalDateTime endTime) {
+        // Start from the first day of the scenario.
+        LocalDateTime dayStart = startTime.truncatedTo(ChronoUnit.DAYS);
 
         // Create powered off intervals, which can span over more than 1 day.
-        List<Interval> poweredOffIntervals = createPoweredOffIntervals(startTime, endTime, powerEvents);
+        List<Interval> poweredOffIntervals = createPoweredOffIntervals(startTime, endTime, powerEvents, deleteEvent);
 
         // Loop through each day between the first event and the end time of the scenario.
         Set<BillingRecord> generatedRecords = new HashSet<>();
@@ -143,7 +162,7 @@ public class ScenarioGenerator {
             // Create segments for the day. Each segment has one provider.
             LocalDateTime dayEnd = endTime.isBefore(dayStart.plusDays(1)) ? endTime
                     : dayStart.plusDays(1);
-            List<Segment> segments = createSegments(dayStart, dayEnd, scaleEvents, poweredOffIntervals);
+            List<Segment> segments = createSegments(dayStart, dayEnd, scaleEvents, deleteEvent, poweredOffIntervals);
 
             // Find usage amount and cost for each provider for the day.
             // If there are multiple segments for the same provider, combine them.
@@ -158,18 +177,30 @@ public class ScenarioGenerator {
                 }
             }
 
+            int entityType = EntityType.VIRTUAL_MACHINE_VALUE;
+            CostCategory costCategory = CostCategory.COMPUTE;
+            int providerType = EntityType.COMPUTE_TIER_VALUE;
+            if (deleteEvent != null) {
+                entityType = EntityType.VIRTUAL_VOLUME_VALUE;
+                costCategory = CostCategory.STORAGE;
+                providerType = EntityType.STORAGE_TIER_VALUE;
+            }
             // Create bill records for each provider for the day.
             for (Segment segment : providerToSegment.values()) {
+                double duration = segment.durationInHours;
+                if (entityType == EntityType.VIRTUAL_VOLUME_VALUE) {
+                    duration = duration / 730;
+                }
                 generatedRecords.add(new Builder()
                         .cost(segment.cost)
                         .providerId(segment.providerId)
                         .sampleTime(dayStart)
                         .entityId(entityOid)
-                        .entityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .entityType(entityType)
                         .priceModel(PriceModel.ON_DEMAND)
-                        .costCategory(CostCategory.COMPUTE)
-                        .providerType(EntityType.COMPUTE_TIER_VALUE)
-                        .usageAmount(segment.durationInHours)
+                        .costCategory(costCategory)
+                        .providerType(providerType)
+                        .usageAmount(duration)
                         .build());
             }
 
@@ -179,12 +210,15 @@ public class ScenarioGenerator {
     }
 
     private static List<Interval> createPoweredOffIntervals(LocalDateTime startTime,
-            LocalDateTime endTime, NavigableSet<BillingScriptEvent> powerEvents) {
+            LocalDateTime endTime, NavigableSet<BillingScriptEvent> powerEvents, BillingScriptEvent deleteEvent) {
         long scenarioStartMillis = TimeUtil.localTimeToMillis(startTime, Clock.systemUTC());
         long scenarioEndMillis = TimeUtil.localTimeToMillis(endTime, Clock.systemUTC());
 
         List<Interval> poweredOffIntervals = new ArrayList<>();
         long intervalStart = scenarioStartMillis;
+        // If there is no power events, assume the entity is always powered on. Otherwise, the entity
+        // is powered on at the beginning of the scenario if the first power is a power off event,
+        // and vice versa.
         boolean poweredOn = powerEvents.size() == 0
                 || (powerEvents.first().timestamp >= scenarioStartMillis && !powerEvents.first().state);
         for (BillingScriptEvent powerEvent : powerEvents) {
@@ -199,6 +233,10 @@ public class ScenarioGenerator {
         if (!poweredOn) {
             poweredOffIntervals.add(new Interval(intervalStart, scenarioEndMillis));
         }
+
+        if (deleteEvent != null) {
+            poweredOffIntervals.add(new Interval(deleteEvent.timestamp, scenarioEndMillis));
+        }
         return poweredOffIntervals;
     }
 
@@ -210,11 +248,12 @@ public class ScenarioGenerator {
 
     private static List<Segment> createSegments(@Nonnull LocalDateTime dayStart,
             @Nonnull LocalDateTime dayEnd,
-            NavigableSet<BillingScriptEvent> events, List<Interval> poweredOffIntervals) {
+            NavigableSet<BillingScriptEvent> scaleEvents, BillingScriptEvent deleteEvent,
+            List<Interval> poweredOffIntervals) {
         final long dayStartMillis = TimeUtil.localTimeToMillis(dayStart, clock);
         final long dayEndMillis = TimeUtil.localTimeToMillis(dayEnd, clock);
         // Find all script events on the day.
-        SortedSet<BillingScriptEvent> eventsForDay = events.subSet(
+        SortedSet<BillingScriptEvent> eventsForDay = scaleEvents.subSet(
                 eventAtTime(dayStart), eventAtTime(dayStart.plusDays(1)));
 
         final List<Segment> segments = new ArrayList<>();
@@ -223,13 +262,17 @@ public class ScenarioGenerator {
             // 1 segment for the whole day at most.
             BillingScriptEvent referenceEvent = eventAtTime(dayStart);
             // find the closest event before the start of the day.
-            BillingScriptEvent event = events.floor(referenceEvent);
+            BillingScriptEvent event = scaleEvents.floor(referenceEvent);
             if (event == null) {
                 // Find the closest event after the day.
-                event = events.higher(referenceEvent);
+                event = scaleEvents.higher(referenceEvent);
             }
             if (event == null) {
-                return segments;
+                if (deleteEvent != null && deleteEvent.timestamp > dayStartMillis) {
+                    event = deleteEvent;
+                } else {
+                    return segments;
+                }
             }
             if (event.timestamp < dayStartMillis) {
                 Segment segment = new Segment(dayStartMillis, dayEndMillis,
@@ -259,7 +302,7 @@ public class ScenarioGenerator {
             segmentStart = segmentEnd;
         }
         // last segment
-        if (segmentStart < dayEndMillis) {
+        if (segmentStart < dayEndMillis && !"DELVOL".equals(eventsForDay.last().eventType)) {
             Segment segment = new Segment(segmentStart, dayEndMillis,
                     eventsForDay.last().destinationOnDemandRate,
                     generateProviderIdFromRate(eventsForDay.last().destinationOnDemandRate));
@@ -274,45 +317,70 @@ public class ScenarioGenerator {
         return (long)(rate * 10000);
     }
 
-    private static ActionSpec createActionSpec(LocalDateTime actionTime, long entityOid,
-            double sourceOnDemandRate, double destOnDemandRate, long sourceProviderId, long destProviderId) {
+    private static ActionInfo createScaleActionInfo(long entityOid, double sourceOnDemandRate, double destOnDemandRate,
+            long sourceProviderId, long destProviderId, int entityType, int tierType) {
+        return ActionInfo.newBuilder()
+                .setScale(Scale.newBuilder()
+                        .addChanges(ChangeProvider.newBuilder()
+                                .setDestination(ActionEntity.newBuilder()
+                                        .setId(destProviderId)
+                                        .setType(tierType)
+                                        .build())
+                                .setSource(ActionEntity.newBuilder()
+                                        .setId(sourceProviderId)
+                                        .setType(EntityDTO.EntityType.COMPUTE_TIER_VALUE)
+                                        .build())
+                                .build())
+                        .setCloudSavingsDetails(CloudSavingsDetails.newBuilder()
+                                .setSourceTierCostDetails(TierCostDetails.newBuilder()
+                                        .setOnDemandRate(CurrencyAmount.newBuilder()
+                                                .setAmount(sourceOnDemandRate)
+                                                .build())
+                                        .build())
+                                .setProjectedTierCostDetails(TierCostDetails.newBuilder()
+                                        .setOnDemandRate(CurrencyAmount.newBuilder()
+                                                .setAmount(destOnDemandRate)
+                                                .build())
+                                        .build())
+                                .build())
+                        .setTarget(ActionEntity.newBuilder()
+                                .setId(entityOid)
+                                .setType(entityType)
+                                .build())
+                        .build())
+                .build();
+    }
+
+    private static ActionInfo createDeleteActionInfo(long entityOid, long sourceTierOid) {
+        return ActionInfo.newBuilder()
+                .setDelete(Delete.newBuilder()
+                        .setTarget(ActionEntity.newBuilder()
+                                .setId(entityOid)
+                                .setType(EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE)
+                                .build())
+                        .setSource(ActionEntity.newBuilder()
+                                .setId(sourceTierOid) // dummy value
+                                .setType(CommonDTOREST.EntityDTO.EntityType.STORAGE_TIER.getValue())
+                                .build())
+                        .build())
+                .build();
+    }
+
+    private static ActionSpec createActionSpec(LocalDateTime actionTime, ActionInfo actionInfo) {
+        // Set savings per hour value to a dummy value of 0. The value is not used.
+        return createActionSpec(actionTime, actionInfo, 0);
+    }
+
+    private static ActionSpec createActionSpec(LocalDateTime actionTime, ActionInfo actionInfo, double savingsPerHour) {
         return ActionSpec.newBuilder()
                 .setExecutionStep(ExecutionStep.newBuilder()
                         .setStatus(Status.SUCCESS)
                         .setCompletionTime(actionTime.toInstant(ZoneOffset.UTC).toEpochMilli())
                         .build())
                 .setRecommendation(Action.newBuilder()
-                        .setInfo(ActionInfo.newBuilder()
-                                .setScale(Scale.newBuilder()
-                                        .addChanges(ChangeProvider.newBuilder()
-                                                .setDestination(ActionEntity.newBuilder()
-                                                        .setId(destProviderId)
-                                                        .setType(EntityType.COMPUTE_TIER_VALUE)
-                                                        .build())
-                                                .setSource(ActionEntity.newBuilder()
-                                                        .setId(sourceProviderId)
-                                                        .setType(EntityType.COMPUTE_TIER_VALUE)
-                                                        .build())
-                                                .build())
-                                        .setCloudSavingsDetails(CloudSavingsDetails.newBuilder()
-                                                .setSourceTierCostDetails(TierCostDetails.newBuilder()
-                                                        .setOnDemandRate(CurrencyAmount.newBuilder()
-                                                                .setAmount(sourceOnDemandRate)
-                                                                .build())
-                                                        .build())
-                                                .setProjectedTierCostDetails(TierCostDetails.newBuilder()
-                                                        .setOnDemandRate(CurrencyAmount.newBuilder()
-                                                                .setAmount(destOnDemandRate)
-                                                                .build())
-                                                        .build())
-                                                .build())
-                                        .setTarget(ActionEntity.newBuilder()
-                                                .setId(entityOid)
-                                                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                                                .build())
-                                        .build())
-                                .build())
-                        .setId(67676767676L)
+                        .setInfo(actionInfo)
+                        .setId(67676767676L) // dummy value
+                        .setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(savingsPerHour).build())
                         .setDeprecatedImportance(1d)
                         .setExplanation(Explanation.newBuilder()
                                 .setScale(ScaleExplanation.newBuilder()
@@ -320,6 +388,40 @@ public class ScenarioGenerator {
                                 .build())
                         .build())
                 .build();
+    }
+
+    /**
+     * Create VM ActionSpec object.
+     *
+     * @param entityOid entity OID
+     * @param actionTime action time
+     * @param sourceOnDemandRate source on-demand rate
+     * @param destOnDemandRate destination on-demand rate
+     * @param sourceProviderId source provider ID
+     * @param destProviderId destination provider ID
+     * @return ActionSpec object
+     */
+    public static ActionSpec createVMActionSpec(long entityOid, LocalDateTime actionTime, double sourceOnDemandRate,
+            double destOnDemandRate, long sourceProviderId, long destProviderId) {
+        ActionInfo scaleActionInfo = createScaleActionInfo(entityOid, sourceOnDemandRate, destOnDemandRate,
+                sourceProviderId, destProviderId,
+                CommonDTOREST.EntityDTO.EntityType.COMPUTE_TIER.getValue(), CommonDTOREST.EntityDTO.EntityType.VIRTUAL_MACHINE.getValue());
+        return createActionSpec(actionTime, scaleActionInfo);
+    }
+
+    /**
+     * Create volume ActionSpec object.
+     *
+     * @param entityOid entity OID
+     * @param actionTime action time
+     * @param sourceOnDemandRate source on-demand rate
+     * @param sourceTierOid source tier OID
+     * @return ActionSpec object
+     */
+    public static ActionSpec createVolumeDeleteActionSpec(long entityOid, LocalDateTime actionTime,
+            double sourceOnDemandRate, long sourceTierOid) {
+        ActionInfo deleteActionInfo = createDeleteActionInfo(entityOid, sourceTierOid);
+        return createActionSpec(actionTime, deleteActionInfo, sourceOnDemandRate);
     }
 
     /**
