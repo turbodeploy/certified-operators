@@ -20,6 +20,9 @@ public interface ScenarioDataHandler {
      * @param participatingUuids list of UUIDs involved in the injected scenario
      * @param startTime starting time of the injected scenario
      * @param endTime ending time of the injected scenario
+     * @param actionChains action chains
+     * @param billRecordsByEntity bill records of each entity
+     * @throws EntitySavingsException Errors with generating or writing stats
      */
     void processStates(@Nonnull Set<Long> participatingUuids, @Nonnull LocalDateTime startTime,
             @Nonnull LocalDateTime endTime, @Nonnull Map<Long, NavigableSet<ActionSpec>> actionChains,
