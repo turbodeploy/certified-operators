@@ -54,13 +54,11 @@ public class IdentityCacheTest {
             new ServiceEntityIdentityMetadataStore(Collections.singletonList(EntityIdentityMetadata
                 .newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE).addVolatileProperties(
                             PropertyMetadata.newBuilder().setName("tag").build()).build())));
-        IdentityRecordsBasedCache identityRecordsBasedCache = new IdentityRecordsBasedCache(perProbeMetadata);
         DescriptorsBasedCache descriptorsBasedCache =
             new DescriptorsBasedCache();
         OptimizedIdentityRecordsBasedCache optimizedIdentityRecordsBasedCache = new OptimizedIdentityRecordsBasedCache(perProbeMetadata);
         return $(
             $(optimizedIdentityRecordsBasedCache),
-            $(identityRecordsBasedCache),
             $(descriptorsBasedCache));
     }
 
@@ -206,7 +204,7 @@ public class IdentityCacheTest {
      * Tests that we can correctly reload the records from the JSON file generated in the diags,
      * and correctly serialize them.
      * This is the only place where the two caches implementations differ. The
-     * {@link IdentityRecordsBasedCache} will read {@link IdentityRecord}, while the
+     * {@link OptimizedIdentityRecordsBasedCache} will read {@link IdentityRecord}, while the
      * {@link DescriptorsBasedCache} will read {@link EntityInMemoryProxyDescriptor}.
      * @param identityCache the instance of the identity cache
      */
@@ -222,7 +220,7 @@ public class IdentityCacheTest {
         identityCache.toJson(writer);
         EntityInMemoryProxyDescriptor descriptor;
 
-        if (identityCache instanceof IdentityRecordsBasedCache || identityCache instanceof OptimizedIdentityRecordsBasedCache) {
+        if (identityCache instanceof OptimizedIdentityRecordsBasedCache) {
             List<IdentityRecord> identityRecords = constructGson()
                 .fromJson(writer.toString(), new TypeToken<List<IdentityRecord>>() {
                 }.getType());
