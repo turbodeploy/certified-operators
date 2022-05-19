@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.ServiceInfoView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualMachineInfoView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualVolumeInfoView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.WorkloadControllerInfoView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoView;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -257,6 +258,14 @@ public class ThickSearchableProps implements SearchableProps {
         @Override
         public boolean isDeletable() {
             return entity.getAnalysisSettings().getDeletable();
+        }
+
+        @Override
+        @Nonnull
+        public Optional<Integer> daysUnattached() {
+            VirtualVolumeInfoView volumeInfoView = entity.getTypeSpecificInfo().getVirtualVolume();
+            return volumeInfoView.hasDaysUnattached()
+                    ? Optional.of(volumeInfoView.getDaysUnattached()) : Optional.empty();
         }
     }
 

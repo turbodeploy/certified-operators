@@ -718,6 +718,15 @@ public class TopologyFilterFactoryTest {
     }
 
     /**
+     * Checks that number of days unattached for volume are correctly filtered.
+     */
+    @Test
+    public void testSearchFilterNumDaysUnattached() {
+        checkObjectIntegerFilterForVolumes(VirtualVolumeInfo.Builder::setDaysUnattached,
+                SearchableProperties.VOLUME_UNATTACHED_DAYS);
+    }
+
+    /**
      * Checks that number of CPUs value for VM correctly filtered.
      */
     @Test
@@ -805,6 +814,54 @@ public class TopologyFilterFactoryTest {
         });
     }
 
+    private void checkObjectIntegerFilterForVolumes(
+            BiFunction<VirtualVolumeInfo.Builder, Integer, VirtualVolumeInfo.Builder> builderConfigurator,
+            String property) {
+        final TestGraphEntity vol1 = createVolWithProperty(1L, builderConfigurator, 1);
+        final TestGraphEntity vol2 = createVolWithProperty(2L, builderConfigurator, 2);
+        final TestGraphEntity vol3 = createVolWithProperty(3L, builderConfigurator, 3);
+        final ImmutableTable.Builder<ComparisonOperator, TestGraphEntity, Boolean> dataBuilder =
+                ImmutableTable.builder();
+        dataBuilder.put(ComparisonOperator.EQ, vol1, false);
+        dataBuilder.put(ComparisonOperator.EQ, vol2, true);
+        dataBuilder.put(ComparisonOperator.EQ, vol3, false);
+        dataBuilder.put(ComparisonOperator.LT, vol1, true);
+        dataBuilder.put(ComparisonOperator.LT, vol2, false);
+        dataBuilder.put(ComparisonOperator.LT, vol3, false);
+        dataBuilder.put(ComparisonOperator.GT, vol1, false);
+        dataBuilder.put(ComparisonOperator.GT, vol2, false);
+        dataBuilder.put(ComparisonOperator.GT, vol3, true);
+        dataBuilder.put(ComparisonOperator.LTE, vol1, true);
+        dataBuilder.put(ComparisonOperator.LTE, vol2, true);
+        dataBuilder.put(ComparisonOperator.LTE, vol3, false);
+        dataBuilder.put(ComparisonOperator.GTE, vol1, false);
+        dataBuilder.put(ComparisonOperator.GTE, vol2, true);
+        dataBuilder.put(ComparisonOperator.GTE, vol3, true);
+        final Table<ComparisonOperator, TestGraphEntity, Boolean> data = dataBuilder.build();
+        data.rowMap().forEach((operator, entityToFilterResult) -> {
+            final SearchFilter searchFilter = createSearchFilterForVolIntegerProperty(property, operator, 2);
+            final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+            assertTrue(filter instanceof PropertyFilter);
+            final PropertyFilter<TestGraphEntity> propertyFilter =
+                    (PropertyFilter<TestGraphEntity>)filter;
+            entityToFilterResult.forEach((entity, result) -> Assert.assertThat(
+                    propertyFilter.test(entity, graph), CoreMatchers.is(result)));
+        });
+    }
+
+    private static SearchFilter createSearchFilterForVolIntegerProperty(String property,
+                                                                       ComparisonOperator operator, int comparisonValue) {
+        final Search.PropertyFilter numericPropertyFilter =
+                Search.PropertyFilter.newBuilder().setPropertyName(property)
+                        .setNumericFilter(NumericFilter.newBuilder()
+                                .setComparisonOperator(operator).setValue(comparisonValue)
+                                .build()).build();
+        return SearchFilter.newBuilder().setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.VOLUME_REPO_DTO)
+                .setObjectFilter(ObjectFilter.newBuilder().addFilters(numericPropertyFilter)
+                        .build()).build()).build();
+    }
+
     private static SearchFilter createSearchFilterForVmIntegerProperty(String property,
             ComparisonOperator operator, int comparisonValue) {
         final Search.PropertyFilter numericPropertyFilter =
@@ -825,6 +882,15 @@ public class TopologyFilterFactoryTest {
                         TypeSpecificInfo.newBuilder().setVirtualMachine(
                                         propertySetter.apply(VirtualMachineInfo.newBuilder(), value)
                                                         .build()).build()).build();
+    }
+
+    private static TestGraphEntity createVolWithProperty(long oid,
+                                                        @Nonnull BiFunction<VirtualVolumeInfo.Builder, Integer, VirtualVolumeInfo.Builder> propertySetter,
+                                                        int value) {
+        return TestGraphEntity.newBuilder(oid, ApiEntityType.VIRTUAL_VOLUME).setTypeSpecificInfo(
+                TypeSpecificInfo.newBuilder().setVirtualVolume(
+                        propertySetter.apply(VirtualVolumeInfo.newBuilder(), value)
+                                .build()).build()).build();
     }
 
     /**
