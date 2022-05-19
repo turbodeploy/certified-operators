@@ -1217,16 +1217,37 @@ public class ActionSpecMapper {
                                                  @Nonnull final ActionApiDTO wrapperDto,
                                                  @Nonnull final ActionSpecMappingContext context) {
         final Map<Long, PolicyApiDTO> policyApiDtoMap = context.getPolicyIdToApiDtoMap();
-        if (policyApiDtoMap.isEmpty()) {
+        final Map<Long, BaseApiDTO> settingPolicyIdToBaseApiDto = context.getSettingPolicyIdToBaseApiDto();
+        if (policyApiDtoMap.isEmpty() && settingPolicyIdToBaseApiDto.isEmpty()) {
             return;
-        } else {
-            RiskUtil.extractPolicyIds(action)
-                    .stream()
-                    .map(policyApiDtoMap::get)
-                    .filter(Objects::nonNull)
-                    .findAny()
-                    .ifPresent(wrapperDto::setPolicy);
         }
+        RiskUtil.extractPolicyIds(action)
+                .stream()
+                .map(aLong -> {
+                    PolicyApiDTO policyApiDTO = policyApiDtoMap.get(aLong);
+                    return policyApiDTO != null ? policyApiDTO : convertToPolicyApiDTO(settingPolicyIdToBaseApiDto.get(aLong));
+                })
+                .filter(Objects::nonNull)
+                .findAny()
+                .ifPresent(wrapperDto::setPolicy);
+    }
+
+    /**
+     * Create a minimal policy api dto with the provided information from the baseApiDTO.
+     *
+     * @param baseApiDTO base api DTO
+     * @return a minimal PolicyApiDTO
+     */
+    private PolicyApiDTO convertToPolicyApiDTO(@Nullable BaseApiDTO baseApiDTO) {
+        if (baseApiDTO == null) {
+            return null;
+        }
+
+        final PolicyApiDTO policyApiDTO = new PolicyApiDTO();
+        policyApiDTO.setDisplayName(baseApiDTO.getDisplayName());
+        policyApiDTO.setClassName(baseApiDTO.getClassName());
+        policyApiDTO.setUuid(baseApiDTO.getUuid());
+        return policyApiDTO;
     }
 
     private ActionApiDTO singleMove(ActionType actionType, ActionApiDTO compoundDto,
