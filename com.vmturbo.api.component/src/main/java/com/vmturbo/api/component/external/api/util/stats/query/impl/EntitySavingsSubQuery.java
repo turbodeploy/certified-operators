@@ -127,68 +127,65 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
         request.addAllStatsTypes(requestedStatsTypes);
 
         // Set scope entity IDs.
-        if (context.getInputScope().isResourceGroupOrGroupOfResourceGroups()) {
-            // Resource groups are handled differently because they are a kind of group and members
-            // are already determined. However, we want to send the resource OID(s) in the
-            // request for entity savings and use the entity_cloud_scope table to look up its members.
-            // Doing the scope expansion by using the entity_cloud_scope table will include entities
-            // that have been deleted, and allow savings to be calculated more correctly.
-            ResourceGroupFilter.Builder resourceGroupFilterBuilder = ResourceGroupFilter.newBuilder();
-            long scopeOid = context.getInputScope().oid();
-            Optional<GroupType> groupType = context.getInputScope().getGroupType();
-            if (groupType.isPresent() && groupType.get() == GroupType.REGULAR) {
-                // Scope is a group of resource groups.
-                Optional<GroupAndMembers> groupAndMembers =
-                        groupExpander.getGroupWithImmediateMembersOnly(Long.toString(scopeOid));
-                groupAndMembers.ifPresent(g -> resourceGroupFilterBuilder.addAllResourceGroupOid(g.members()));
-            } else {
-                // Scope is a single resource group.
-                resourceGroupFilterBuilder.addResourceGroupOid(scopeOid);
-            }
-            request.setResourceGroupFilter(resourceGroupFilterBuilder);
-        } else if (context.getInputScope().isBillingFamilyOrGroupOfBillingFamilies()) {
-            // Add all related accounts to the filter builder.
-            EntityFilter.Builder entityFilterBuilder = EntityFilter.newBuilder();
-            long scopeOid = context.getInputScope().oid();
-            Optional<GroupType> groupType = context.getInputScope().getGroupType();
-            Optional<GroupAndMembers> groupAndMembers = groupExpander
-                            .getGroupWithMembersAndEntities(Long
-                                            .toString(scopeOid));
-            if (groupAndMembers.isPresent()) {
-                entityFilterBuilder.addAllEntityId(groupAndMembers.get().entities());
-            }
-            EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder()
-                            .addEntityTypeId(EntityType.BUSINESS_ACCOUNT_VALUE)
-                            .build();
-            request.setEntityFilter(entityFilterBuilder);
+        if (userSessionContext.isUserScoped()) {
+            EntityFilter entityFilter = EntityFilter.newBuilder()
+                    .addAllEntityId(userSessionContext.getUserAccessScope().getScopeGroupMembers().toSet()).build();
+            request.setEntityFilter(entityFilter);
+            Set<Integer> scopeTypes = getScopeTypes(context);
+            EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder().addAllEntityTypeId(scopeTypes).build();
             request.setEntityTypeFilter(entityTypeFilter);
-        } else if (context.getInputScope().isRealtimeMarket()) {
-            // If the scope is "Market" but is user coped, get the entities needed
-            if (userSessionContext.isUserScoped()) {
-                EntityFilter entityFilter = EntityFilter.newBuilder()
-                        .addAllEntityId(userSessionContext.getUserAccessScope().getScopeGroupMembers().toSet()).build();
-                request.setEntityFilter(entityFilter);
-                Set<Integer> scopeTypes = getScopeTypes(context);
-                EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder().addAllEntityTypeId(scopeTypes).build();
+        } else {
+            if (context.getInputScope().isResourceGroupOrGroupOfResourceGroups()) {
+                // Resource groups are handled differently because they are a kind of group and members
+                // are already determined. However, we want to send the resource OID(s) in the
+                // request for entity savings and use the entity_cloud_scope table to look up its members.
+                // Doing the scope expansion by using the entity_cloud_scope table will include entities
+                // that have been deleted, and allow savings to be calculated more correctly.
+                ResourceGroupFilter.Builder resourceGroupFilterBuilder = ResourceGroupFilter.newBuilder();
+                long scopeOid = context.getInputScope().oid();
+                Optional<GroupType> groupType = context.getInputScope().getGroupType();
+                if (groupType.isPresent() && groupType.get() == GroupType.REGULAR) {
+                    // Scope is a group of resource groups.
+                    Optional<GroupAndMembers> groupAndMembers =
+                            groupExpander.getGroupWithImmediateMembersOnly(Long.toString(scopeOid));
+                    groupAndMembers.ifPresent(g -> resourceGroupFilterBuilder.addAllResourceGroupOid(g.members()));
+                } else {
+                    // Scope is a single resource group.
+                    resourceGroupFilterBuilder.addResourceGroupOid(scopeOid);
+                }
+                request.setResourceGroupFilter(resourceGroupFilterBuilder);
+            } else if (context.getInputScope().isBillingFamilyOrGroupOfBillingFamilies()) {
+                // Add all related accounts to the filter builder.
+                EntityFilter.Builder entityFilterBuilder = EntityFilter.newBuilder();
+                long scopeOid = context.getInputScope().oid();
+                Optional<GroupAndMembers> groupAndMembers = groupExpander
+                        .getGroupWithMembersAndEntities(Long.toString(scopeOid));
+                if (groupAndMembers.isPresent()) {
+                    entityFilterBuilder.addAllEntityId(groupAndMembers.get().entities());
+                }
+                EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder()
+                        .addEntityTypeId(EntityType.BUSINESS_ACCOUNT_VALUE).build();
+                request.setEntityFilter(entityFilterBuilder);
                 request.setEntityTypeFilter(entityTypeFilter);
-            } else { // If the scope is "Market" but not user scoped, use all cloud service providers and use them as the scope.
+            } else if (context.getInputScope().isRealtimeMarket()) {
+                // If the scope is "Market" but not user scoped, use all cloud service providers and use them as the scope.
                 EntityFilter.Builder entityFilterBuilder = EntityFilter.newBuilder();
                 repositoryClient.getEntitiesByType(ImmutableList.of(EntityType.SERVICE_PROVIDER)).forEach(sp -> entityFilterBuilder.addEntityId(sp.getOid()));
                 request.setEntityFilter(entityFilterBuilder);
                 EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder().addEntityTypeId(
                         EntityType.SERVICE_PROVIDER_VALUE).build();
                 request.setEntityTypeFilter(entityTypeFilter);
-            }
-        } else {
-            // Set entity OIDs.
-            EntityFilter entityFilter = EntityFilter.newBuilder()
-                    .addAllEntityId(context.getInputScope().getScopeOids()).build();
+            } else {
+                // Set entity OIDs.
+                EntityFilter entityFilter = EntityFilter.newBuilder()
+                        .addAllEntityId(context.getInputScope().getScopeOids()).build();
 
-            request.setEntityFilter(entityFilter);
-            // Set entity types.
-            Set<Integer> scopeTypes = getScopeTypes(context);
-            EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder().addAllEntityTypeId(scopeTypes).build();
-            request.setEntityTypeFilter(entityTypeFilter);
+                request.setEntityFilter(entityFilter);
+                // Set entity types.
+                Set<Integer> scopeTypes = getScopeTypes(context);
+                EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder().addAllEntityTypeId(scopeTypes).build();
+                request.setEntityTypeFilter(entityTypeFilter);
+            }
         }
 
         // Call cost component api to get the list of stats

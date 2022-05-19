@@ -805,7 +805,7 @@ public class UuidMapper implements RepositoryListener {
             if (isRealtimeMarket()) {
                 if (userSessionContext != null && userSessionContext.isUserScoped()) {
                     result = userSessionContext
-                            .getUserAccessScope().accessibleOids().toSet();
+                        .getUserAccessScope().accessibleOids().toSet();
                 } else {
                     // There is not a point of getting all market oids
                     result = Collections.emptySet();

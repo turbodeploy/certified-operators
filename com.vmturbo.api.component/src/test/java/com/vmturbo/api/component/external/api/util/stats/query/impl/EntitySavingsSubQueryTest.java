@@ -75,6 +75,8 @@ public class EntitySavingsSubQueryTest {
 
     private RepositoryClient repositoryClient = mock(RepositoryClient.class);
 
+    private UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
     private final long realtimeTopologyContextId = 777777L;
     private EntitySavingsSubQuery query;
 
@@ -85,7 +87,7 @@ public class EntitySavingsSubQueryTest {
     public void setup() {
         MockitoAnnotations.initMocks(this);
         CostServiceBlockingStub costRpc = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        query = spy(new EntitySavingsSubQuery(costRpc, groupExpander, repositoryClient, new UserSessionContext()));
+        query = spy(new EntitySavingsSubQuery(costRpc, groupExpander, repositoryClient, userSessionContext));
     }
 
     /**
