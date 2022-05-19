@@ -555,7 +555,7 @@ public class ActionsRpcServiceTest {
         LocalDateTime firstActionTimeEntity2 = LocalDateTime.of(2022, 3, 15, 10, 30);
         recordsByEntity.put(entityId2, createExecutedActionsChangeWindowList(entityId2, Arrays.asList(300L, 301L, 302L),
                 firstActionTimeEntity2));
-        when(executedActionsChangeWindowDao.getExecutedActionsChangeWindowMap(request.getEntityOidList()))
+        when(executedActionsChangeWindowDao.getActionsByEntityOid(request.getEntityOidList()))
                 .thenReturn(recordsByEntity);
 
         List<ActionView> actionViewList = new ArrayList<>();

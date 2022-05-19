@@ -51,6 +51,7 @@ import com.vmturbo.action.orchestrator.action.ExecutedActionsChangeWindowDao;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
+import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
 import com.vmturbo.action.orchestrator.execution.ActionCombiner;
@@ -88,6 +89,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
@@ -95,6 +97,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.Actio
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionChainsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionChangeWindowRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.ActionCountsByDateEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.Builder;
@@ -119,6 +122,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
+import com.vmturbo.common.protobuf.action.ActionDTO.UpdateActionChangeWindowRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.UpdateActionChangeWindowRequest.ActionLivenessInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.UpdateActionChangeWindowResponse;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplBase;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
@@ -1012,7 +1018,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             StreamObserver<ActionChain> responseObserver) {
         // Get all executedActionsChangeWindow records for the specified entities.
         Map<Long, List<ExecutedActionsChangeWindow>> recordsByEntity =
-                executedActionsChangeWindowDao.getExecutedActionsChangeWindowMap(request.getEntityOidList());
+                executedActionsChangeWindowDao.getActionsByEntityOid(request.getEntityOidList());
 
         // Get all action OIDs for all actions referenced by the executedActionsChangeWindowDao records.
         List<Long> actionIds = recordsByEntity.values().stream()
@@ -1032,6 +1038,57 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     a.toBuilder().setActionSpec(actionSpecMap.get(a.getActionOid()))
                             .build()));
             responseObserver.onNext(actionChain.build());
+        }
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getActionChangeWindows(GetActionChangeWindowRequest request,
+            StreamObserver<ExecutedActionsChangeWindow> responseObserver) {
+        try {
+            final Set<LivenessState> states = new HashSet<>(request.getLivenessStatesList());
+            final List<ExecutedActionsChangeWindow> windowEntries = new ArrayList<>();
+            executedActionsChangeWindowDao.getActionsByLivenessState(states,
+                    new HashSet<>(request.getActionOidsList()), windowEntries::add);
+
+            // Get the list of ActionSpec entries from history table and set it in response.
+            final Set<Long> actionIds = windowEntries.stream()
+                    .map(ExecutedActionsChangeWindow::getActionOid)
+                    .collect(Collectors.toSet());
+            final Map<Long, ActionSpec> actionSpecMap = actionHistoryDao
+                    .getActionHistoryByIds(new ArrayList<>(actionIds))
+                    .stream()
+                    .collect(Collectors.toMap(ActionView::getId, actionTranslator::translateToSpec));
+            windowEntries
+                    .stream()
+                    .map(cw -> {
+                        final ActionSpec spec = actionSpecMap.get(cw.getActionOid());
+                        if (spec != null) {
+                            // If spec is available for this action oid, then set it.
+                            return cw.toBuilder()
+                                    .setActionSpec(spec)
+                                    .build();
+                        }
+                        return cw;
+                    })
+                    .forEach(responseObserver::onNext);
+        } catch (ActionStoreOperationException e) {
+            logger.error("Unable to fetch action change window for request {}.", request, e);
+            responseObserver.onError(e);
+        }
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void updateActionChangeWindows(UpdateActionChangeWindowRequest request,
+            StreamObserver<UpdateActionChangeWindowResponse> responseObserver) {
+        try {
+            final Set<ActionLivenessInfo> infoSet = new HashSet<>(request.getLivenessInfoList());
+            executedActionsChangeWindowDao.updateActionLivenessInfo(infoSet);
+            responseObserver.onNext(UpdateActionChangeWindowResponse.getDefaultInstance());
+        } catch (ActionStoreOperationException e) {
+            logger.error("Unable to update action change window.", e);
+            responseObserver.onError(e);
         }
         responseObserver.onCompleted();
     }

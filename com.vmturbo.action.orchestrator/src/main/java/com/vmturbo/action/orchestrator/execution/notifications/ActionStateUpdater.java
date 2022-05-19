@@ -2,8 +2,6 @@ package com.vmturbo.action.orchestrator.execution.notifications;
 
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -22,7 +20,6 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
-import com.vmturbo.action.orchestrator.action.ExecutedActionsChangeWindowDao;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
@@ -36,24 +33,17 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
@@ -90,14 +80,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
 
     private final ActionHistoryDao actionHistoryDao;
 
-    private final ExecutedActionsChangeWindowDao executedActionsChangeWindowDao;
-
     private final AcceptedActionsDAO acceptedActionsStore;
-
-    private static final Set<Integer> WORKLOAD_TYPE_VALUES = Stream.concat(
-                    TopologyDTOUtil.WORKLOAD_TYPES.stream(),
-                    Stream.of(EntityType.VIRTUAL_VOLUME)).map(EntityType::getNumber)
-            .collect(Collectors.toSet());
 
     /**
      * Used to execute actions (by sending them to Topology Processor).
@@ -141,8 +124,6 @@ public class ActionStateUpdater implements ActionExecutionListener {
      * @param auditSender audit events message sender to report for finished actions
      * @param actionStateUpdatesSender action state updates sender
      * @param actionTranslator the action translator
-     * @param executedActionsChangeWindowDao dao layer that persists information about successfully
-     *                                      executed actions' change window
      */
     public ActionStateUpdater(@Nonnull final ActionStorehouse actionStorehouse,
             @Nonnull final ActionOrchestratorNotificationSender notificationSender,
@@ -155,8 +136,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
             final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor,
             @Nonnull final ActionAuditSender auditSender,
             @Nonnull final IMessageSender<ActionResponse> actionStateUpdatesSender,
-            @Nonnull final ActionTranslator actionTranslator,
-            @Nonnull final ExecutedActionsChangeWindowDao executedActionsChangeWindowDao) {
+            @Nonnull final ActionTranslator actionTranslator) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
         this.acceptedActionsStore = acceptedActionsStore;
@@ -169,7 +149,6 @@ public class ActionStateUpdater implements ActionExecutionListener {
         this.auditSender = Objects.requireNonNull(auditSender);
         this.actionUpdatesSender = Objects.requireNonNull(actionStateUpdatesSender);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
-        this.executedActionsChangeWindowDao = Objects.requireNonNull(executedActionsChangeWindowDao);
     }
 
 
@@ -425,11 +404,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
             @Nonnull final TransitionResult<ActionState> transitionResult, boolean isSuccessful) {
         if (action.isFinished()) {
             actionExecutor.onActionUpdate(action, transitionResult.getAfterState());
-            boolean actionSaved = saveToDb(action);
-            if (actionSaved  && transitionResult.getAfterState() == ActionState.SUCCEEDED
-                && FeatureFlags.EXECUTED_ACTIONS_CHANGE_WINDOW.isEnabled()) {
-                saveExecutedActionsChangeWindowToDb(action);
-            }
+            saveToDb(action);
         } else {
             final String stateCompleteResult = isSuccessful ? "successfully" : "failed";
             logger.debug("Action {} {} completed state {} and transitioned to state {}.",
@@ -541,9 +516,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
      * Persist executed action to DB.
      *
      * @param action the executed action.
-     * @return true if the record was saved, false otherwise.
      */
-    private boolean saveToDb(final Action action) {
+    private void saveToDb(final Action action) {
         try {
             SerializationState serializedAction = new SerializationState(action);
             actionHistoryDao.persistActionHistory(
@@ -559,50 +533,9 @@ public class ActionStateUpdater implements ActionExecutionListener {
                     serializedAction.getAssociatedResourceGroupId(),
                     serializedAction.getRecommendationOid()
             );
-            return true;
         } catch (Exception e) {
             logger.error("Error occurred when saving record for action {} to the action_history table",
                     action.getRecommendation().getId(), e);
-            return false;
-        }
-    }
-
-    /**
-     * Persist certain timeframe related information of successfully executed action to DB.
-     *
-     * @param action the executed action.
-     * @return true if the record was saved, false otherwise.
-     */
-    private boolean saveExecutedActionsChangeWindowToDb(final Action action) {
-        final long actionId = action.getRecommendation().getId();
-        long entityId = 0L;
-        ActionEntity actionEntity;
-        try {
-            actionEntity = ActionDTOUtil.getPrimaryEntity(action.getRecommendation());
-            entityId = actionEntity.getId();
-        } catch (UnsupportedActionException uae) {
-            logger.error("Unsupported action type for action {}, entity id could not be retrieved", actionId, uae);
-            return false;
-        }
-
-        try {
-            if (actionEntity.getEnvironmentType() != EnvironmentTypeEnum.EnvironmentType.CLOUD) {
-                return false;
-            }
-            if (!WORKLOAD_TYPE_VALUES.contains(actionEntity.getType())) {
-                return false;
-            }
-            SerializationState serializedAction = new SerializationState(action);
-            executedActionsChangeWindowDao.persistExecutedActionsChangeWindow(
-                    actionId,
-                    entityId,
-                    serializedAction.getExecutionStep().getCompletionTime()
-            );
-            return true;
-        } catch (Exception e) {
-            logger.error("Error saving executed action's change window to db for action {}, entity {} ",
-                    actionId, entityId, e);
-            return false;
         }
     }
 
