@@ -1,6 +1,7 @@
 package com.vmturbo.topology.graph;
 
 import java.util.Collection;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -242,6 +243,12 @@ public interface SearchableProps {
          * @return True if it is deletable.
          */
         boolean isDeletable();
+
+        /**
+         * Number of days unattached.
+         */
+        @Nonnull
+        Optional<Integer> daysUnattached();
     }
 
     /**
