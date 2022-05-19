@@ -206,6 +206,8 @@ public class EntitySavingsSubQueryTest {
         long startTime = 1609527257000L;
         long endTime = 1610996057000L;
 
+        when(userSessionContext.isUserScoped()).thenReturn(false);
+
         TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
                 .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
 
@@ -250,6 +252,7 @@ public class EntitySavingsSubQueryTest {
         long startTime = 1609527257000L;
         long endTime = 1610996057000L;
 
+        when(userSessionContext.isUserScoped()).thenReturn(false);
         TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
                 .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
 
@@ -301,7 +304,7 @@ public class EntitySavingsSubQueryTest {
         long bfId = 10000L;
         long startTime = 1609527257000L;
         long endTime = 1610996057000L;
-
+        when(userSessionContext.isUserScoped()).thenReturn(false);
         TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
                 .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
 
@@ -351,7 +354,7 @@ public class EntitySavingsSubQueryTest {
         long groupId = 10000L;
         long startTime = 1609527257000L;
         long endTime = 1610996057000L;
-
+        when(userSessionContext.isUserScoped()).thenReturn(false);
         TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
                 .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
 
@@ -560,7 +563,7 @@ public class EntitySavingsSubQueryTest {
     public void testGetAggregateStatsMarketScope() throws Exception {
         long startTime = 1609527257000L;
         long endTime = 1610996057000L;
-
+        when(userSessionContext.isUserScoped()).thenReturn(false);
         TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
                 .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
 
