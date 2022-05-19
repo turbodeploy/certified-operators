@@ -1,11 +1,16 @@
 package com.vmturbo.history.component.api.impl;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.common.protobuf.history.VolAttachmentHistoryOuterClass;
+import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import io.grpc.Channel;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +24,8 @@ import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
+
+import javax.annotation.Nonnull;
 
 /**
  * Spring configuration to import to connecto to History component instance.
@@ -42,6 +49,7 @@ public class HistoryClientConfig {
     @Autowired
     private BaseKafkaConsumerConfig kafkaConsumerConfig;
 
+
     @Bean(destroyMethod = "shutdownNow")
     protected ExecutorService historyClientThreadPool() {
         final ThreadFactory threadFactory =
@@ -58,6 +66,48 @@ public class HistoryClientConfig {
     public HistoryComponentNotificationReceiver historyComponent() {
         return new HistoryComponentNotificationReceiver(historyClientMessageReceiver(),
                 historyClientThreadPool(), kafkaReceiverTimeoutSeconds);
+    }
+
+    @Bean(destroyMethod = "shutdownNow")
+    protected ExecutorService HistoryNotificationClientThreadPool() {
+        final ThreadFactory threadFactory =
+                new ThreadFactoryBuilder().setNameFormat("hist-client-%d").build();
+        return Executors.newCachedThreadPool(threadFactory);
+    }
+    @Bean
+    protected IMessageReceiver<VolAttachmentHistoryOuterClass.VolAttachmentHistory> historyNotificationReceiver(
+            @Nonnull final Optional<KafkaMessageConsumer.TopicSettings.StartFrom> startFromOverride) {
+        return startFromOverride
+                .map(startFrom -> kafkaConsumerConfig.kafkaConsumer().messageReceiverWithSettings(
+                        new KafkaMessageConsumer.TopicSettings(HistoryComponentImpl.HISTORY_VOL_NOTIFICATIONS, startFrom),
+                        VolAttachmentHistoryOuterClass.VolAttachmentHistory::parseFrom))
+                .orElseGet(() -> kafkaConsumerConfig.kafkaConsumer().messageReceiver(
+                        HistoryComponentImpl.HISTORY_VOL_NOTIFICATIONS,
+                        VolAttachmentHistoryOuterClass.VolAttachmentHistory::parseFrom));
+    }
+
+    /**
+     * The returns the history component for adding listeners.
+     *
+     * @param subscriptions The set of {@link HistorySubscription}s to add receivers for
+     * @return The history component
+     */
+    public HistoryComponentImpl histComponent(@Nonnull HistorySubscription... subscriptions) {
+
+        final Map<HistorySubscription.Topic, Optional<KafkaMessageConsumer.TopicSettings.StartFrom>> topicsAndOverrides = new HashMap<>();
+        for (HistorySubscription sub : subscriptions) {
+            topicsAndOverrides.put(sub.getTopic(), sub.getStartFrom());
+        }
+
+        final IMessageReceiver<VolAttachmentHistoryOuterClass.VolAttachmentHistory> historyNotificationReceiver =
+                topicsAndOverrides.containsKey(HistorySubscription.Topic.HISTORY_VOL_NOTIFICATION) ?
+                        historyNotificationReceiver(topicsAndOverrides.get(HistorySubscription.Topic.HISTORY_VOL_NOTIFICATION)) :
+                        null;
+
+        return new HistoryComponentImpl(
+                historyNotificationReceiver,
+                HistoryNotificationClientThreadPool(),
+                kafkaReceiverTimeoutSeconds);
     }
 
     @Bean

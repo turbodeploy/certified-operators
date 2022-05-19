@@ -46,6 +46,7 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicySca
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
+import com.vmturbo.topology.processor.listeners.HistoryVolumesListener;
 import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
@@ -208,7 +209,8 @@ public class TopologyPipelineFactoryTest {
             mock(EntityCustomTagsMerger.class),
             mock(StalenessInformationProvider.class),
             10,
-            true);
+            true,
+            mock(HistoryVolumesListener.class));
     }
 
     private PlanPipelineFactory planPipelineFactory() {

@@ -27,6 +27,7 @@ import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
 import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.ingesters.common.writers.TopologyWriterBase;
+import com.vmturbo.history.notifications.VolAttachmentDaysSender;
 import com.vmturbo.history.schema.abstraction.tables.VolumeAttachmentHistory;
 import com.vmturbo.history.schema.abstraction.tables.records.VolumeAttachmentHistoryRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -67,9 +68,11 @@ public class VolumeAttachmentHistoryWriter extends TopologyWriterBase {
     private final BulkLoader<VolumeAttachmentHistoryRecord> unattachedVolumeLoader;
     private final TopologyInfo topologyInfo;
     private LongSet volumesNotVisitedFromVms = new LongArraySet();
+    private final VolAttachmentDaysSender sender;
 
     private VolumeAttachmentHistoryWriter(@Nonnull TopologyInfo topologyInfo,
-                                          @Nonnull SimpleBulkLoaderFactory loaders) {
+                                          @Nonnull SimpleBulkLoaderFactory loaders,
+                                          @Nonnull VolAttachmentDaysSender volAttachmentDaysSender) {
         this.attachedVolumeLoader = loaders
             .getLoader(VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY, Collections.emptySet());
         this.unattachedVolumeLoader =
@@ -77,6 +80,7 @@ public class VolumeAttachmentHistoryWriter extends TopologyWriterBase {
                 Collections.singleton(VolumeAttachmentHistory
                     .VOLUME_ATTACHMENT_HISTORY.LAST_ATTACHED_DATE));
         this.topologyInfo = topologyInfo;
+        this.sender = volAttachmentDaysSender;
     }
 
     @Override
@@ -125,6 +129,7 @@ public class VolumeAttachmentHistoryWriter extends TopologyWriterBase {
             () -> volumesNotVisitedFromVms);
         unattachedVolumeLoader.insertAll(createRecords(volumesNotVisitedFromVms,
             VM_OID_VALUE_FOR_UNATTACHED_VOLS));
+        sender.sendNotification(volumesNotVisitedFromVms.stream().collect(Collectors.toList()), topologyInfo.getTopologyId());
     }
 
     /**
@@ -136,6 +141,7 @@ public class VolumeAttachmentHistoryWriter extends TopologyWriterBase {
 
         private final long intervalBetweenInsertsInMillis;
         private long lastInsertTopologyCreationTime;
+        private final VolAttachmentDaysSender volAttachmentDaysSender;
 
         /**
          * Creates a VolumeAttachmentHistoryWriter.Factory.
@@ -143,9 +149,11 @@ public class VolumeAttachmentHistoryWriter extends TopologyWriterBase {
          * @param intervalBetweenInsertsInHours interval between inserts to
          *                                      VolumeAttachmentHistory table.
          */
-        public Factory(final long intervalBetweenInsertsInHours) {
+        public Factory(final long intervalBetweenInsertsInHours,
+                @Nonnull  VolAttachmentDaysSender volAttachmentDaysSender) {
             this.intervalBetweenInsertsInMillis =
                 TimeUnit.HOURS.toMillis(intervalBetweenInsertsInHours);
+            this.volAttachmentDaysSender = volAttachmentDaysSender;
         }
 
         @Override
@@ -158,7 +166,8 @@ public class VolumeAttachmentHistoryWriter extends TopologyWriterBase {
             if (currentTopologyCreationTime >= lastInsertTopologyCreationTime
                 + intervalBetweenInsertsInMillis) {
                 lastInsertTopologyCreationTime = currentTopologyCreationTime;
-                return Optional.of(new VolumeAttachmentHistoryWriter(topologyInfo, state.getLoaders()));
+                return Optional.of(new VolumeAttachmentHistoryWriter(topologyInfo, state.getLoaders(),
+                        volAttachmentDaysSender));
             } else {
                 return Optional.empty();
             }

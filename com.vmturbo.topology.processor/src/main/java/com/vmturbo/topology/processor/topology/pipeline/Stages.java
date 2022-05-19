@@ -8,8 +8,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -21,6 +23,7 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.AbstractMessage;
 
+import com.vmturbo.topology.processor.listeners.HistoryVolumesListener;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
@@ -52,6 +55,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualVolumeInfoImpl;
 import com.vmturbo.common.protobuf.topology.ncm.MatrixDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.InvertedIndex;
@@ -813,6 +817,38 @@ public class Stages {
         }
     }
 
+    /**
+     * This stage is to update entity controllable flag.
+     */
+    public static class VolumesDaysUnAttachedCalcStage extends PassthroughStage<GraphWithSettings> {
+        HashMap<Long, Long> volIdToDaysUnattached = new HashMap<>();
+        public  VolumesDaysUnAttachedCalcStage(@Nonnull final HistoryVolumesListener listener){
+            volIdToDaysUnattached.putAll(listener.getVolIdToLastAttachmentTime());
+        }
+
+
+        @NotNull
+        @Override
+        public Status passthrough(GraphWithSettings graph) throws PipelineStageException, InterruptedException {
+            TopologyGraph<TopologyEntity> topologyGraph = graph.getTopologyGraph();
+            final long currentTime = System.currentTimeMillis();
+            volIdToDaysUnattached.forEach((entityId,lastAttachmentTime) -> {
+                Optional<TopologyEntity> entityOptional = topologyGraph.getEntity(entityId);
+                if(entityOptional.isPresent()) {
+                    TopologyEntityImpl entityBuilder = entityOptional.get().getTopologyEntityImpl();
+                    VirtualVolumeInfoImpl volumeInfo = entityBuilder.getOrCreateTypeSpecificInfo().getOrCreateVirtualVolume();
+                    if (volumeInfo.getAttachmentState().getNumber() == 1) {
+                        Integer days;
+                        if (currentTime > lastAttachmentTime) {
+                            days = (int) (TimeUnit.MILLISECONDS.toDays(currentTime - lastAttachmentTime));
+                            volumeInfo.setDaysUnattached(days);
+                        }
+                    }
+                }
+            });
+            return Status.success("Updated volume Unattached Days");
+        }
+    }
     /**
      * This stage is to update entity controllable flag.
      */

@@ -408,6 +408,9 @@ message TypeSpecificInfo {
 
         // If present, info about any locks that might prevent Volume action execution.
         optional string locks = 15;
+
+        //number of days volume is unattached
+        optional int32 days_unattached = 16;
     }
 
     // specific data for a Storage entity

@@ -6,6 +6,7 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.topology.processor.listeners.HistoryVolumesListener;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -83,6 +84,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingGroupAna
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SupplyChainValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopSortStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.VolumesDaysUnAttachedCalcStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadActionConstraintsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadAtomicActionSpecsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadCloudCostDataStage;
@@ -181,6 +183,8 @@ public class LivePipelineFactory {
 
     private long broadcastCount = 0;
 
+    private HistoryVolumesListener histListener;
+
     public LivePipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
             @Nonnull final PolicyManager policyManager,
             @Nonnull final StitchingManager stitchingManager,
@@ -218,7 +222,8 @@ public class LivePipelineFactory {
             @Nonnull final EntityCustomTagsMerger entityCustomTagsMerger,
             @Nonnull StalenessInformationProvider stalenessProvider,
             final int supplyChainValidationFrequency,
-            final boolean enableConsistentScalingOnHeterogeneousProviders) {
+            final boolean enableConsistentScalingOnHeterogeneousProviders,
+            final HistoryVolumesListener histListener) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -257,6 +262,7 @@ public class LivePipelineFactory {
         this.enableConsistentScalingOnHeterogeneousProviders = enableConsistentScalingOnHeterogeneousProviders;
         this.entityCustomTagsMerger = entityCustomTagsMerger;
         this.stalenessProvider = stalenessProvider;
+        this.histListener = histListener;
     }
 
     /**
@@ -372,6 +378,7 @@ public class LivePipelineFactory {
                 .addStage(new Stages.MatrixUpdateStage(mi))
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new ControllableStage(controllableManager))
+                .addStage(new VolumesDaysUnAttachedCalcStage(histListener))
                 .addStage(new EntityValidationStage(entityValidator, false))
                 .addStage(new SupplyChainValidationStage(supplyChainValidator,
                     supplyChainValidationFrequency, broadcastCount))
