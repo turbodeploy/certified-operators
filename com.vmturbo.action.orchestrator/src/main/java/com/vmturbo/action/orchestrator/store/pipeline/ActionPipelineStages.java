@@ -883,25 +883,24 @@ public class ActionPipelineStages {
 
         // The related actions blocking the atomic actions
         Map<Long, List<ActionDTO.MarketRelatedAction>> blockedAtomicActionRelations =  new HashMap<>();
+        // Pre-created RelatedAction data containing the atomic action id and commodity data
+        //namespace action id -> {map of wc atomic action id  -> wc related action containing wc action id }
+        Map<Long, Map<Long, ActionDTO.RelatedAction>> reverseBlockingRelations =  new HashMap<>();
         atomicActionResults.stream()
                 .filter(result -> result.nonExecutableAtomicAction().isPresent())
                 .forEach(result -> {
                     Long blockedActionId = result.nonExecutableAtomicAction().get().getId();
                     blockedAtomicActionRelations.computeIfAbsent(blockedActionId,  value -> new ArrayList<>())
                             .addAll(result.relatedActions());
-                }
-        );
 
-        Map<Long, Map<Long, ActionDTO.RelatedAction>> reverseBlockingRelations =  new HashMap<>();
-        atomicActionResults.stream()
-                .filter(result -> result.nonExecutableAtomicAction().isPresent())
-                .forEach(result -> {
+                    // {map of blocking(namespace) action id  -> wc related action containing wc action id
                     for (Long blockingActionId : result.relatedActionsByImpactingActionId().keySet()) {
                         ActionDTO.RelatedAction ra = result.relatedActionsByImpactingActionId().get(blockingActionId);
                         reverseBlockingRelations.computeIfAbsent(blockingActionId,  value -> new HashMap<>())
                                 .put(ra.getRecommendationId(), ra);
                     }
-                });
+                }
+        );
 
         // List of all the Action DTOs for the atomic actions that will be created
         // The aggregated atomic actions that will be executed by the aggregation target
@@ -1170,13 +1169,33 @@ public class ActionPipelineStages {
         @Override
         public Status passthrough(@Nonnull final LiveActionStore actionStore)  {
             // We have Recommendation OIDs for all the actions at this stage,
-            // so convert the MarketRelatedAction to RelatedAction containing the durable Recommendation OID for the actions
-            // In addition, the reversed RelatedActions that block actions are also created
+            // so convert the MarketRelatedAction to RelatedAction for the 'impacted' market and atomic actions.
+            // These RelatedAction contain the durable Recommendation OID for the actions
+            // In addition, the reversed RelatedActions for the 'impacting actions' are also created
+            final long actionPlanId = getContext().getActionPlanId();
             RelatedActionsInjector relatedActionsInjector =
-                    new RelatedActionsInjector(marketActionsRelations.get(), atomicActionsRelations.get(),
+                    new RelatedActionsInjector(actionPlanId, marketActionsRelations.get(), atomicActionsRelations.get(),
                             atomicActionsReverseRelations.get(), actionStore, entitiesAndSettingsSnapshot.get());
-            relatedActionsInjector.injectSymmetricRelatedActions();
-            return Status.success();
+            RelatedActionsInjector.InjectorSummary injectorSummary
+                    = relatedActionsInjector.injectSymmetricRelatedActions();
+
+            final StringBuilder statusSummary = new StringBuilder();
+
+            return Status.success(statusSummary.append("Action Plan: ")
+                            .append(injectorSummary.getActionPlanId())
+                            .append("\nInitial Impacted market actions: ")
+                            .append(injectorSummary.getInitialImpactedMarketActions())
+                            .append("\nInitial Impacted atomic actions:")
+                            .append(injectorSummary.getInitialImpactedAtomicActions())
+                            .append("\nImpacted market actions with RelatedActions: ")
+                            .append(injectorSummary.getMarketImpactedActionsWithRelatedActions())
+                            .append("\nImpacted atomic actions with RelatedActions: ")
+                            .append(injectorSummary.getAtomicImpactedActionsWithRelatedActions())
+                            .append("\nMissing Impacted actions ids: ")
+                            .append(injectorSummary.getMissingImpactedActionIds())
+                            .append("\nMissing Impacting action ids: ")
+                            .append(injectorSummary.getMissingImpactingActionIds())
+                            .toString());
         }
     }
 
