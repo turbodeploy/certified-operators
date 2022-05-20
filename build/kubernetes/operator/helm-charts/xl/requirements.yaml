@@ -189,6 +189,10 @@ dependencies:
     repository: file://../probes/mediation-awsbilling
     version: 0.1.0
     condition: aws.enabled
+  - name: mediation-awscloudbilling
+    repository: file://../probes/mediation-awscloudbilling
+    version: 0.1.0
+    condition: aws.enabled
   - name: mediation-awscost
     repository: file://../probes/mediation-awscost
     version: 0.1.0
