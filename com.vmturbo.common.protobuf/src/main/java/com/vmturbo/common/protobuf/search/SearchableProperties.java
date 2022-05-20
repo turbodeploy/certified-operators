@@ -99,6 +99,11 @@ public class SearchableProperties {
     public static final String VOLUME_ATTACHMENT_STATE = "attachmentState";
 
     /**
+     * Attachment state of a storage volume.
+     */
+    public static final String VOLUME_UNATTACHED_DAYS = "numDaysUnattached";
+
+    /**
      * DTO containing storage volume information.
      */
     public static final String VOLUME_REPO_DTO = "virtualVolumeInfoRepoDTO";

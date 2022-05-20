@@ -2440,26 +2440,42 @@ message ExecutedActionsChangeWindow {
     // Action ID
     required int64 action_oid = 1;
 
-    // Information and state of an action
-    optional ActionSpec action_spec = 2;
-
     // Entity OID
-    required int64 entity_oid = 3;
+    required int64 entity_oid = 2;
+
+    // Information and state of an action
+    optional ActionSpec action_spec = 3;
 
     // The time the action starts to have an impact on the entity
-    required int64 start_time = 4;
+    optional int64 start_time = 4;
 
     // The time when the change window ends
     optional int64 end_time = 5;
 
-    // The reason for the change window to end
-    optional TerminationReason termination_reason = 6;
+    // State of the action change, tells whether it is live or not.
+    optional LivenessState liveness_state = 6;
 
-    enum TerminationReason {
-        // Another action was executed for this entity.
-        SUPERSEDED = 1;
-        // The provider of the entity was changed back to the original one.
-        REVERTED = 2;
+    // Action change state enum options.
+    enum LivenessState {
+        // Just executed, but we haven't detected yet, not live yet, start time is null.
+        NEW = 1;
+
+        // We detected change as a result of just executed action, start time is set.
+        LIVE = 2;
+
+        // Action ended, with older action now superseded with a newer action.
+        SUPERSEDED = 3;
+
+        // Action ended with a revert.
+        REVERTED = 4;
+
+        // Action ended with an external modification. User outside of Turbo scaled the VM to
+        // another tier that we didn't recommend. E.g we scaled from tier A -> tier B, but
+        // customer instead scaled to maybe another tier C instead.
+        EXTERNAL_MODIFICATION = 5;
+
+        // Action ended after we detected that entity has been removed.
+        DELETED = 6;
     }
 }
 
@@ -2586,6 +2602,38 @@ message GetActionChainsRequest {
     repeated int64 entity_oid = 1;
 }
 
+// Action change window query request.
+message GetActionChangeWindowRequest {
+    // Liveness states for which actions need to be queried.
+    repeated ExecutedActionsChangeWindow.LivenessState liveness_states = 1;
+
+    // Optionally restrict records to only action oids specified in this list. By default, will
+    // get all specified states for all actions, if this action_oids list is empty.
+    repeated int64 action_oids = 2;
+}
+
+// Action change window update request.
+message UpdateActionChangeWindowRequest {
+    // Keeps request info that is used to update 1 action change window record.
+    message ActionLivenessInfo {
+        // Action id for which updates need to be made.
+        required int64 action_oid = 1;
+
+        // If making action live, then this is the start time, else this is used as end time.
+        required int64 timestamp = 2;
+
+        // Liveness state to set the change window record to.
+        required ExecutedActionsChangeWindow.LivenessState liveness_state = 3;
+    }
+
+    // Timing info about what to update.
+    repeated ActionLivenessInfo liveness_info = 1;
+}
+
+// Placeholder for action change window update response.
+message UpdateActionChangeWindowResponse {
+}
+
 // A service responsible for getting information about accepting actions and getting action information.
 service ActionsService {
     // Accepts a list of actions. Each action is queued for execution.
@@ -2675,4 +2723,10 @@ service ActionsService {
 
     // Get action chains.
     rpc GetActionChains (GetActionChainsRequest) returns (stream ActionChain);
+
+    // Get all action change window records matching the input request criteria.
+    rpc GetActionChangeWindows (GetActionChangeWindowRequest) returns (stream ExecutedActionsChangeWindow);
+
+    // Updates action change window records.
+    rpc UpdateActionChangeWindows (UpdateActionChangeWindowRequest) returns (UpdateActionChangeWindowResponse);
 }

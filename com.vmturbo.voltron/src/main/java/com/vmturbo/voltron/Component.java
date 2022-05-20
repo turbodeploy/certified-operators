@@ -200,6 +200,11 @@ public enum Component {
     MEDIATION_AWS_BILLING("aws-billing", "com.vmturbo.mediation.aws.billing.component"),
 
     /**
+     * AWS Cloud Billing.
+     */
+    MEDIATION_AWS_CLOUD_BILLING("aws-cloudbilling", "com.vmturbo.mediation.aws.cloudbilling.component"),
+
+    /**
      * AWS.
      */
     MEDIATION_AWS("aws", "com.vmturbo.mediation.aws.component"),

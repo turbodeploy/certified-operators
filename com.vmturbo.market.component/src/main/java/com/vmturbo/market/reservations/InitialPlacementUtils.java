@@ -440,20 +440,74 @@ public final class InitialPlacementUtils {
     }
 
     /**
+     * A helper method to find the cluster or storage cluster commodity the closest seller bounded with.
+     * When there is no cluster or storage cluster commodity sold by the closest seller, return an empty
+     * string.
+     *
+     * @param closestSeller a closest seller.
+     * @param commTypeToSpecMap the commodity type to commodity specification mapping.
+     * @param clusterCommType cluster commodity type or storage cluster commodity type.
+     * @return the key of the cluster or storage cluster commodity the closest seller bounded with.
+     */
+    private static String findClosestSellerClusterCommodity(@Nonnull final Trader closestSeller,
+            @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
+            @Nonnull final int clusterCommType) {
+        for (CommoditySpecification cs : closestSeller.getBasketSold()) {
+            if (commTypeToSpecMap.inverse().get(cs.getType()).getType() == clusterCommType) {
+                return commTypeToSpecMap.inverse().get(cs.getType()).getKey();
+            }
+        }
+        return "";
+    }
+
+    /**
      * Populate {@link FailureInfo}s based on {@link InfiniteQuoteExplanation}s.
      *
      * @param exp the {@link InfiniteQuoteExplanation} for unplacement.
      * @param commTypeToSpecMap the commodity type to commodity specification mapping.
+     * @param isRealtimeCache true if the failure occurs in the real time cache, false in the historical cache.
      * @return a list of {@link FailureInfo}s.
      */
     public static List<FailureInfo> populateFailureInfos(@Nonnull final InfiniteQuoteExplanation exp,
-            @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap) {
+            @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap, final boolean isRealtimeCache) {
         List<FailureInfo> failureInfos = new ArrayList<>();
         for (CommodityBundle bundle : exp.commBundle) {
             CommodityType commType = commTypeToSpecMap.inverse().get(bundle.commSpec.getType());
             double maxQuantity = MarketAnalysisUtils.getMaxAvailableForUnplacementReason(commType, bundle);
-            failureInfos.add(new FailureInfo(commType, exp.seller.isPresent()
-                    ? exp.seller.get().getOid() : 0, maxQuantity, bundle.requestedAmount));
+            if (exp.seller.isPresent()) {
+                Trader closestSeller = exp.seller.get();
+                String clusterKey = "";
+                if (closestSeller.getType() == EntityType.STORAGE_VALUE) {
+                    // When the closest seller is a storage, the reservation buyer's shopping list is
+                    // first used to pick up the constraining cluster.
+                    List<CommoditySpecification> storageClusterCommSpec = exp.shoppingList.getBasket()
+                                    .stream()
+                                    .filter(commbought -> commTypeToSpecMap.inverse().get(commbought.getType()).getType()
+                                            == CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE)
+                                    .collect(Collectors.toList());
+                    if (!storageClusterCommSpec.isEmpty()) {
+                        // Populate the storage cluster constraint enforced by the reservation shopping list.
+                        clusterKey = commTypeToSpecMap.inverse().get(storageClusterCommSpec.get(0).getType()).getKey();
+                    } else {
+                        // If the reservation buyer does not have a storage cluster constraint, pick up any storage
+                        // cluster among the commodities sold by the closest seller. When the closest storage seller
+                        // has no storage cluster commsold, return an empty string.
+                        clusterKey = findClosestSellerClusterCommodity(closestSeller, commTypeToSpecMap,
+                                CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE);
+                    }
+                } else if (closestSeller.getType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+                    // Iterate the commodities sold by closest seller and collect cluster or storage cluster
+                    // commodities, populate them in the failureInfos.
+                    clusterKey = findClosestSellerClusterCommodity(closestSeller, commTypeToSpecMap,
+                            CommodityDTO.CommodityType.CLUSTER_VALUE);
+                }
+                failureInfos.add(new FailureInfo(commType, closestSeller.getOid(), maxQuantity,
+                        bundle.requestedAmount, clusterKey, isRealtimeCache));
+            } else {
+                // no closest seller
+                failureInfos.add(new FailureInfo(commType, 0, maxQuantity, bundle.requestedAmount,
+                        "", isRealtimeCache));
+            }
         }
         return failureInfos;
     }

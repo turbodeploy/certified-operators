@@ -177,9 +177,54 @@ public class SecurityConstant {
     public static final String HYDRA_INTROSPECT_PATH = "/oauth2/introspect";
 
     /**
+     * Hydra clients path.
+     */
+    public static final String HYDRA_CLIENTS_PATH = "/clients";
+
+    /**
      * Client id.
      */
     public static final String CLIENT_ID = "client_id";
+
+    /**
+     * Client secret.
+     */
+    public static final String CLIENT_SECRET = "client_secret";
+
+    /**
+     * Client name.
+     */
+    public static final String CLIENT_NAME = "client_name";
+
+    /**
+     * Client credentials.
+     */
+    public static final String CLIENT_CREDENTIALS = "client_credentials";
+
+    /**
+     * Client secret post.
+     */
+    public static final String CLIENT_SECRET_POST = "client_secret_post";
+
+    /**
+     * Client grants.
+     */
+    public static final String CLIENT_GRANTS = "grant_types";
+
+    /**
+     * Client scope.
+     */
+    public static final String CLIENT_SCOPE = "scope";
+
+    /**
+     * Default client scope.
+     */
+    public static final String DEFAULT_CLIENT_SCOPE = "offline_access offline openid";
+
+    /**
+     * Client auth method.
+     */
+    public static final String CLIENT_AUTH_METHOD = "token_endpoint_auth_method";
 
     /**
      * Token.

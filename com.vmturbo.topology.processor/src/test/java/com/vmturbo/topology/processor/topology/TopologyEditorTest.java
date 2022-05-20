@@ -113,6 +113,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 import com.vmturbo.topology.processor.topology.clone.DefaultEntityCloneEditor;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
+import com.vmturbo.topology.processor.util.TopologyEditorUtil;
 
 /**
  * Unit tests for {@link ScenarioChange}.
@@ -1830,6 +1831,19 @@ public class TopologyEditorTest {
         // Verify that the original VM is not scoped
         assertFalse(result.getEntity(vmId).isPresent());
         assertTrue(result.getEntity(destVMId).isPresent());
+        // Verify that quota capacity is removed (i.e., set to maximum)]
+        assertTrue(clonedWorkloadControllers.stream()
+                           .map(TopologyEntity::getTopologyEntityImpl)
+                           .map(TopologyEntityImpl::getCommoditySoldListList)
+                           .flatMap(List::stream)
+                           .map(CommoditySoldView::getCapacity)
+                           .allMatch(capacity -> capacity.equals(TopologyEditorUtil.MAX_QUOTA_CAPACITY)));
+        assertTrue(clonedNamespaces.stream()
+                           .map(TopologyEntity::getTopologyEntityImpl)
+                           .map(TopologyEntityImpl::getCommoditySoldListList)
+                           .flatMap(List::stream)
+                           .map(CommoditySoldView::getCapacity)
+                           .allMatch(capacity -> capacity.equals(TopologyEditorUtil.MAX_QUOTA_CAPACITY)));
     }
 
     /**

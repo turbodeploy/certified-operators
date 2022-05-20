@@ -592,6 +592,11 @@ public class VoltronConfiguration {
         MEDIATION_AWS_BILLING(Component.MEDIATION_AWS_BILLING),
 
         /**
+         * AWS Cloud Billing.
+         */
+        MEDIATION_AWS_CLOUD_BILLING(Component.MEDIATION_AWS_CLOUD_BILLING),
+
+        /**
          * AWS.
          */
         MEDIATION_AWS(Component.MEDIATION_AWS),

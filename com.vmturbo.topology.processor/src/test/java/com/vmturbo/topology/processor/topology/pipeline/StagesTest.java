@@ -21,10 +21,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -81,6 +83,7 @@ import com.vmturbo.components.common.pipeline.Stage;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricGauge.GaugeData;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -107,6 +110,7 @@ import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
+import com.vmturbo.topology.processor.listeners.HistoryVolumesListener;
 import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -196,6 +200,29 @@ public class StagesTest {
         stage.setContext(context);
         stage.passthrough(topology);
         verify(uploader).uploadDiscoveredGroups(topology);
+    }
+
+    @Test
+    public void testVolumesDaysUnAttachedCalcStage() throws PipelineStageException, InterruptedException {
+        HistoryVolumesListener listener = mock(HistoryVolumesListener.class);
+
+        final TopologyEntityImpl entityImpl = new TopologyEntityImpl()
+                .setEntityType(60)
+                .setOid(1L);
+
+        HashMap<Long, Long> volIdToLastAttachmentTime = new HashMap<>();
+        volIdToLastAttachmentTime.put(1L,System.currentTimeMillis()-259200000);
+        when(listener.getVolIdToLastAttachmentTime()).thenReturn(volIdToLastAttachmentTime);
+        final TopologyGraph<TopologyEntity> graph = mock(TopologyGraph.class);
+        final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
+        when(graphWithSettings.getTopologyGraph()).thenReturn(graph);
+        final TopologyEntity entity = mock(TopologyEntity.class);
+        when(graph.getEntity(1L)).thenReturn(Optional.of(entity));
+        entityImpl.getOrCreateTypeSpecificInfo().getOrCreateVirtualVolume().setAttachmentState(AttachmentState.UNATTACHED);
+        when(entity.getTopologyEntityImpl()).thenReturn(entityImpl);
+        final Stages.VolumesDaysUnAttachedCalcStage stage = new Stages.VolumesDaysUnAttachedCalcStage(listener);
+        assertThat(stage.passthrough(graphWithSettings).getType(), is(Status.Type.SUCCEEDED));
+        assertEquals(entityImpl.getOrCreateTypeSpecificInfo().getOrCreateVirtualVolume().getDaysUnattached(),3);
     }
 
     /**

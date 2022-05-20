@@ -26,7 +26,7 @@
         <ux.mt.branch.version>8.5.4-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.3.9-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.3.11-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.5.4</cpu.capacity.version>
@@ -312,6 +312,7 @@
             <modules>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.cost.calculation</module>
                 <module>../com.vmturbo.market.component.api</module>
                 <module>../com.vmturbo.market.component</module>

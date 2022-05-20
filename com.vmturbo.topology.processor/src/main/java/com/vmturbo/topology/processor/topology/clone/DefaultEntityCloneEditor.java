@@ -25,6 +25,7 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.topology.processor.util.TopologyEditorUtil;
 
 /**
  * A class for the topology entity clone function.
@@ -162,6 +163,10 @@ public class DefaultEntityCloneEditor {
             final CommodityTypeView commodityType = commSold.getCommodityType();
             if (shouldReplaceSoldKey(commodityType)) {
                 commSold.setCommodityType(newCommodityTypeWithClonedKey(commodityType, cloneCounter));
+            }
+            if (TopologyEditorUtil.isQuotaCommodity(commodityType.getType())) {
+                // Remove any existing quota for cloned entity
+                commSold.setCapacity(TopologyEditorUtil.MAX_QUOTA_CAPACITY);
             }
         }
 

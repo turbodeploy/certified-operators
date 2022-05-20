@@ -758,6 +758,14 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                         final Predicate<String> stringPredicate = stringPredicate(stringFilter);
                         return PropertyFilter.typeSpecificFilter(vol ->
                             stringPredicate.test(vol.attachmentState().name()), VolumeProps.class);
+                    case SearchableProperties.VOLUME_UNATTACHED_DAYS:
+                        if (filter.getPropertyTypeCase() != PropertyTypeCase.NUMERIC_FILTER) {
+                            throw new IllegalArgumentException("Expecting NumericFilter for " +
+                                    filter.getPropertyName() + ", but got " + filter);
+                        }
+                        IntPredicate predicate = intPredicate(filter.getNumericFilter());
+                        return PropertyFilter.typeSpecificFilter(volProps ->
+                                volProps.daysUnattached().isPresent() && predicate.test(volProps.daysUnattached().get()), VolumeProps.class);
                     default:
                         throw new IllegalArgumentException("Unknown property: " +
                             filter.getPropertyName() + " on " + propertyName);

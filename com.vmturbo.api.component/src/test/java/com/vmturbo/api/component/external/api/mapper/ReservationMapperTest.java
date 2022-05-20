@@ -37,6 +37,7 @@ import com.vmturbo.api.dto.reservation.DemandReservationParametersDTO;
 import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
 import com.vmturbo.api.dto.reservation.ReservationFailureInfoDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
+import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
@@ -455,6 +456,7 @@ public class ReservationMapperTest {
     @Test
     public void testConvertReservationToApiDTOFailure() throws Exception {
         final Date today = new Date();
+        final long closestClusterOid = 22L;
         LocalDateTime ldt = today.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
         final Date nextMonth = Date.from(ldt.plusMonths(1).atOffset(ZoneOffset.UTC).toInstant());
         Reservation.Builder reservationBuider = Reservation.newBuilder();
@@ -493,6 +495,8 @@ public class ReservationMapperTest {
                         .setEntityId(1L)
                         .addUnplacedReason(UnplacementReason.newBuilder()
                                 .setClosestSeller(2L)
+                                .setIsCurrent(true)
+                                .setClosestSellerClusterOid(closestClusterOid)
                                 .addFailedResources(FailedResources.newBuilder()
                                         .setCommType(TopologyDTO.CommodityType
                                         .newBuilder().setType(CommodityType.MEM_PROVISIONED_VALUE))
@@ -516,6 +520,9 @@ public class ReservationMapperTest {
         MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(
                 Lists.newArrayList(vmServiceEntity, pmServiceEntity, stServiceEntity));
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+        Grouping cluster = Grouping.newBuilder().setId(closestClusterOid).setDefinition(
+                GroupDefinition.newBuilder().setType(GroupType.COMPUTE_HOST_CLUSTER).build()).build();
+        when(groupServiceMole.getGroups(any())).thenReturn(Collections.singletonList(cluster));
 
         final DemandReservationApiDTO reservationApiDTO =
                 reservationMapper.convertReservationToApiDTO(reservation);
@@ -547,6 +554,8 @@ public class ReservationMapperTest {
                 failureInfo.getResource());
         assertEquals(1000, Math.round(failureInfo.getMaxQuantityAvailable()));
         assertEquals(1200, Math.round(failureInfo.getQuantityRequested()));
+        assertEquals(String.valueOf(closestClusterOid), failureInfo.getClosestSellerCluster().getUuid());
+        assertEquals(Epoch.CURRENT, failureInfo.getTimespan());
     }
 
     /**

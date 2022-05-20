@@ -54,7 +54,7 @@ public class SpringAuthFilter extends GenericFilterBean {
      */
     public SpringAuthFilter(final @Nonnull JWTAuthorizationVerifier verifier) {
         verifier_ = verifier;
-        instance = EnvironmentUtils.getOptionalEnvProperty(BaseVmtComponent.PROP_INSTANCE_ID).get();
+        instance = EnvironmentUtils.getOptionalEnvProperty(BaseVmtComponent.PROP_INSTANCE_ID).orElse("auth");
     }
 
     @Override

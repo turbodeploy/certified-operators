@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -266,7 +267,9 @@ public class SavingsProcessorTest extends MultiDbTestBase {
                         new SqlBillingRecordStore(dsl),
                         actionChainStore,
                         savingsStore,
-                        supportedProviderTypes),
+                        supportedProviderTypes,
+                        TimeUnit.DAYS.toMillis(365),
+                        clock),
                 mock(DataRetentionProcessor.class));
     }
 

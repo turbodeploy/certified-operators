@@ -1,11 +1,21 @@
 package com.vmturbo.history.ingesters.live.writers;
 
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import java.sql.Date;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -13,21 +23,27 @@ import java.util.stream.Stream;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.history.VolAttachmentHistoryOuterClass;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.history.db.bulk.BulkLoaderMock;
 import com.vmturbo.history.db.bulk.DbMock;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor.ChunkDisposition;
 import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.ingesters.live.writers.VolumeAttachmentHistoryWriter.Factory;
+import com.vmturbo.history.notifications.VolAttachmentDaysSender;
 import com.vmturbo.history.schema.abstraction.tables.VolumeAttachmentHistory;
 import com.vmturbo.history.schema.abstraction.tables.records.VolumeAttachmentHistoryRecord;
+import com.vmturbo.history.stats.readers.VolumeAttachmentHistoryReader;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -61,7 +77,8 @@ public class VolumeAttachmentHistoryWriterTest {
         dbMock = new DbMock();
         loaderFactory = new BulkLoaderMock(dbMock).getFactory();
         ingesterState = new IngesterState(loaderFactory, null, null);
-        writer = (VolumeAttachmentHistoryWriter)new VolumeAttachmentHistoryWriter.Factory(1)
+        writer = (VolumeAttachmentHistoryWriter)new VolumeAttachmentHistoryWriter.Factory(1,
+                mock(VolAttachmentDaysSender.class))
             .getChunkProcessor(TOPOLOGY_INFO, ingesterState).orElse(null);
         Assert.assertNotNull(writer);
     }
@@ -207,6 +224,27 @@ public class VolumeAttachmentHistoryWriterTest {
     }
 
     /**
+     * Test that notification related to unattached volume is interacted.
+     *
+     * @throws InterruptedException if sendMessage is interrupted.
+     */
+    @Test
+    public void testUnattachedVolumeNotification() throws InterruptedException, CommunicationException {
+
+        IMessageSender<VolAttachmentHistoryOuterClass.VolAttachmentHistory> messageSender = mock(IMessageSender.class);
+        VolumeAttachmentHistoryReader reader =  mock(VolumeAttachmentHistoryReader.class);
+        ExecutorService executorService = mock(ExecutorService.class);
+        VolAttachmentDaysSender sender = new VolAttachmentDaysSender(messageSender, reader, executorService);
+        doNothing().when(messageSender).sendMessage(any());
+        ArgumentCaptor<List> listArgumentCaptor = ArgumentCaptor.forClass(List.class);
+        when(reader.getVolumeAttachmentHistory(listArgumentCaptor.capture())).thenReturn(anyList());
+        sender.readAndSendVolumeNotification(Collections.singletonList(VOLUME_1_OID), 2L);
+
+        verify(messageSender).sendMessage(any());
+        assertEquals(Collections.singletonList(VOLUME_1_OID), listArgumentCaptor.getValue());
+    }
+
+    /**
      * Test that Factory returns an empty Optional if the difference between last insert topology
      * creation time and current topology creation time is less than the defined interval between
      * inserts.
@@ -214,7 +252,8 @@ public class VolumeAttachmentHistoryWriterTest {
     @Test
     public void testFactoryGetChunkProcessorWithinInsertInterval() {
         final long intervalBetweenInserts = 1;
-        final VolumeAttachmentHistoryWriter.Factory factory = new Factory(intervalBetweenInserts);
+        final VolumeAttachmentHistoryWriter.Factory factory = new Factory(intervalBetweenInserts,
+                mock(VolAttachmentDaysSender.class));
         // first topology always results in Writer being returned
         Assert.assertTrue(factory.getChunkProcessor(TOPOLOGY_INFO, ingesterState).isPresent());
         // next topology after ten minutes, with interval defined as 1 hour should return empty
@@ -233,7 +272,9 @@ public class VolumeAttachmentHistoryWriterTest {
     @Test
     public void testFactoryGetChunkProcessorOutsideInsertInterval() {
         final long intervalBetweenInserts = 1;
-        final VolumeAttachmentHistoryWriter.Factory factory = new Factory(intervalBetweenInserts);
+
+        final VolumeAttachmentHistoryWriter.Factory factory = new Factory(intervalBetweenInserts,
+                mock(VolAttachmentDaysSender.class));
         // first topology always results in Writer being returned
         Assert.assertTrue(factory.getChunkProcessor(TOPOLOGY_INFO, ingesterState).isPresent());
         // next topology after 1 hour, with interval defined as 1 hour result should not return

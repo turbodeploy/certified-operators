@@ -1,0 +1,14 @@
+syntax = "proto2";
+package history;
+
+option java_package = "com.vmturbo.common.protobuf.history";
+
+// volume unattached days message
+message VolAttachmentHistory  {
+
+    optional int64 topology_id = 1;
+    // map for volume IDs to number of days unattached.
+    map<int64, int64> vol_id_to_last_attached_date = 2;
+
+}
+

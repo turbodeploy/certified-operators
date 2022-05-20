@@ -408,6 +408,9 @@ message TypeSpecificInfo {
 
         // If present, info about any locks that might prevent Volume action execution.
         optional string locks = 15;
+
+        //number of days volume is unattached
+        optional int32 days_unattached = 16;
     }
 
     // specific data for a Storage entity
@@ -1297,7 +1300,14 @@ message TopologyEntityDTO {
 
             // Entity is not controllable and it was not processed for placement.
             NOT_CONTROLLABLE = 1;
-      }
+        }
+        // Whether the reservation is failed in current timespan or historical timespan.
+        optional bool is_current = 6;
+        // The cluster or storage cluster name of the closest seller. It can be obtained in analysis.
+        optional string closest_seller_cluster_name = 7;
+        // The cluster or storage cluster oid of the closest seller. It can not be obtained in
+        // analysis.
+        optional int64 closest_seller_cluster_oid = 8;
     }
 
     repeated .common_dto.EntityDTO.EntityDetail details = 17;

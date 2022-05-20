@@ -84,6 +84,10 @@ public class InitialPlacementFinderResult {
         private final long closestSellerOid;
         // the requested amount
         private final double requestedAmount;
+        // the closest seller's cluster name
+        private final String closestSellerCluster;
+        // whether the failure occurs in real time cache.
+        private final boolean isFailedInRealtimeCache;
 
         /**
          * Constructor for FailureInfo.
@@ -91,13 +95,19 @@ public class InitialPlacementFinderResult {
          * @param closestSellerOid seller with the most resources of the commodity of type commodityType.
          * @param maxQuantity quantity of commodity of type commodityType available in closestSellerOid.
          * @param requestedAmount quantity of commodity of type commodityType requested by buyer.
+         * @param closestSellerCluster the key of the closest seller's cluster.
+         * @param isFailedInRealtimeCache true if the failure occurs in the real time cache, false in the historical cache.
          */
         public FailureInfo(final CommodityType commodityType, final long closestSellerOid,
-                           final double maxQuantity, final double requestedAmount) {
+                           final double maxQuantity, final double requestedAmount,
+                           final String closestSellerCluster,
+                           final boolean isFailedInRealtimeCache) {
             this.commodityType = commodityType;
             this.closestSellerOid = closestSellerOid;
             this.maxQuantity = maxQuantity;
             this.requestedAmount = requestedAmount;
+            this.closestSellerCluster = closestSellerCluster;
+            this.isFailedInRealtimeCache = isFailedInRealtimeCache;
         }
 
         /**
@@ -107,6 +117,15 @@ public class InitialPlacementFinderResult {
          */
         public CommodityType getCommodityType() {
             return commodityType;
+        }
+
+        /**
+         * Returns the closest seller's cluster name, if placement failed.
+         *
+         * @return closest seller's cluster name
+         */
+        public String getClosestSellerCluster() {
+            return closestSellerCluster;
         }
 
         /**
@@ -135,6 +154,14 @@ public class InitialPlacementFinderResult {
          */
         public double getRequestedAmount() {
             return requestedAmount;
+        }
+
+        /**
+         * Returns true if the failure occurs in the real time cache, false in the historical cache.
+         * @return
+         */
+        public boolean isFailedInRealtimeCache() {
+            return isFailedInRealtimeCache;
         }
     }
 }

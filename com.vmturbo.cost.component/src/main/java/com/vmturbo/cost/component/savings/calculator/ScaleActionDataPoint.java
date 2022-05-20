@@ -3,17 +3,12 @@ package com.vmturbo.cost.component.savings.calculator;
 import org.immutables.value.Value;
 
 /**
- * Immutable object definition for holding values of a data point in the watermark graph.
+ * Immutable object definition for holding values to be used for savings calculations in a data
+ * point in the savings graph for scale actions.
  */
 @Value.Style(visibility = Value.Style.ImplementationVisibility.PACKAGE, overshadowImplementation = true)
 @Value.Immutable(lazyhash = true)
-public interface Watermark {
-    /**
-     * Get the timestamp.
-     *
-     * @return timestamp
-     */
-    long getTimestamp();
+public interface ScaleActionDataPoint extends ActionDataPoint {
 
     /**
      * High watermark: the highest before-action cost of the entity between the beginning of the
@@ -32,15 +27,7 @@ public interface Watermark {
     double getLowWatermark();
 
     /**
-     * The destination provider OID. (i.e. the provider of the entity after the timestamp of this
-     * data point.)
-     *
-     * @return destination provider OID
-     */
-    long getDestinationProviderOid();
-
-    /**
      * Creates a new builder.
      */
-    class Builder extends ImmutableWatermark.Builder {}
+    class Builder extends ImmutableScaleActionDataPoint.Builder {}
 }

@@ -109,11 +109,16 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
                 InitialPlacementFailure.Builder failureBuilder = InitialPlacementFailure.newBuilder();
                 for (FailureInfo info: triplet.getValue().getFailureInfoList()) {
                     CommodityType commodityType = info.getCommodityType();
+                    // The closest seller's cluster oid can not be retrieved by the commodity solely.
+                    // Once the UnplacementReason is returned to plan orchestrator, populate cluster
+                    // oid there.
                     UnplacementReason reason = UnplacementReason.newBuilder()
                             .addFailedResources(FailedResources.newBuilder().setCommType(commodityType)
                                     .setRequestedAmount(info.getRequestedAmount())
                                     .setMaxAvailable(info.getMaxQuantity()).build())
                             .setClosestSeller(info.getClosestSellerOid())
+                            .setIsCurrent(info.isFailedInRealtimeCache())
+                            .setClosestSellerClusterName(info.getClosestSellerCluster())
                             .build();
                     failureBuilder.addUnplacedReason(reason);
                 }

@@ -1,7 +1,10 @@
 package com.vmturbo.cost.component.savings;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.savings.calculator.Calculator;
 import com.vmturbo.cost.component.savings.calculator.SavingsValues;
 
@@ -50,6 +54,16 @@ public class SavingsTracker implements ScenarioDataHandler {
     private final Set<Integer> supportedProviderTypes;
 
     /**
+     * Clock.
+     */
+    private final Clock clock;
+
+    /**
+     * Bill-based savings calculator.
+     */
+    private final Calculator calculator;
+
+    /**
      * Creates a new tracker.
      *
      * @param billingRecordStore Store for billing records.
@@ -60,11 +74,15 @@ public class SavingsTracker implements ScenarioDataHandler {
     public SavingsTracker(@Nonnull final BillingRecordStore billingRecordStore,
             @Nonnull ActionChainStore actionChainStore,
             @Nonnull final SavingsStore savingsStore,
-            @Nonnull final Set<Integer> supportedProviderTypes) {
+            @Nonnull final Set<Integer> supportedProviderTypes,
+            long deleteActionRetentionMs,
+            @Nonnull Clock clock) {
         this.billingRecordStore = billingRecordStore;
         this.actionChainStore = actionChainStore;
         this.savingsStore = savingsStore;
         this.supportedProviderTypes = supportedProviderTypes;
+        this.clock = clock;
+        this.calculator = new Calculator(deleteActionRetentionMs, clock);
     }
 
     /**
@@ -105,7 +123,11 @@ public class SavingsTracker implements ScenarioDataHandler {
         final Map<Long, NavigableSet<ActionSpec>> actionChains = actionChainStore
                 .getActionChains(entityIds);
 
-        final Set<Long> statTimes = processStates(entityIds, billingRecords, actionChains);
+        // Get the timestamp of the day (beginning of the day) that was last processed.
+        // Need this date for delete action savings calculation.
+        long lastProcessedDate = savingsTimes.getLastRollupTimes().getLastTimeByDay();
+        final Set<Long> statTimes = processStates(entityIds, billingRecords, actionChains,
+                lastProcessedDate, LocalDateTime.now(clock));
 
         // Save off the day stats timestamps for all stats written this time, used for rollups.
         savingsTimes.addAllDayStatsTimes(statTimes);
@@ -113,17 +135,18 @@ public class SavingsTracker implements ScenarioDataHandler {
 
     private Set<Long> processStates(@Nonnull final Set<Long> entityOids,
             Map<Long, Set<BillingRecord>> billingRecords,
-            Map<Long, NavigableSet<ActionSpec>> actionChains) throws EntitySavingsException {
+            Map<Long, NavigableSet<ActionSpec>> actionChains,
+            long lastProcessedDate, LocalDateTime periodEndTime) throws EntitySavingsException {
         final List<SavingsValues> allSavingsValues = new ArrayList<>();
         entityOids.forEach(entityId -> {
-            Set<BillingRecord> entityBillingRecords = billingRecords.get(entityId);
+            Set<BillingRecord> entityBillingRecords = billingRecords.getOrDefault(entityId,
+                    Collections.emptySet());
             NavigableSet<ActionSpec> entityActionChain = actionChains.get(entityId);
-            if (SetUtils.emptyIfNull(entityBillingRecords).isEmpty()
-                    || SetUtils.emptyIfNull(entityActionChain).isEmpty()) {
+            if (SetUtils.emptyIfNull(entityActionChain).isEmpty()) {
                 return;
             }
-            final List<SavingsValues> values = Calculator.calculate(entityId, entityBillingRecords,
-                    entityActionChain);
+            final List<SavingsValues> values = calculator.calculate(entityId, entityBillingRecords,
+                    entityActionChain, lastProcessedDate, periodEndTime);
             logger.trace("{} savings values for entity {}, {} bill records, {} actions.",
                     values::size, () -> entityId, entityBillingRecords::size,
                     entityActionChain::size);
@@ -148,6 +171,9 @@ public class SavingsTracker implements ScenarioDataHandler {
      * @param participatingUuids list of UUIDs involved in the injected scenario
      * @param startTime starting time of the injected scenario
      * @param endTime ending time of the injected scenario
+     * @param actionChains action chain
+     * @param billRecordsByEntity bill records of each entity
+     * @throws EntitySavingsException Errors with generating or writing stats
      */
     @Override
     public void processStates(@Nonnull Set<Long> participatingUuids,
@@ -172,7 +198,9 @@ public class SavingsTracker implements ScenarioDataHandler {
             actions.putAll(actionChainStore.getActionChains(participatingUuids));
         }
 
-        processStates(participatingUuids, billRecords, actions);
+        processStates(participatingUuids, billRecords, actions,
+                TimeUtil.localTimeToMillis(startTime.truncatedTo(ChronoUnit.DAYS).minusDays(1),
+                        Clock.systemUTC()), endTime);
     }
 
     /**

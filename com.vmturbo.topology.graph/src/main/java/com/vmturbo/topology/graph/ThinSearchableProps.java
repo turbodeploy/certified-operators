@@ -308,6 +308,7 @@ public class ThinSearchableProps implements SearchableProps {
         private final boolean encrypted;
         private final boolean ephemeral;
         private final boolean deletable;
+        private final Integer daysUnattached;
 
         private ThinVolumeProps(@Nonnull final TagIndex tagIndex,
                 @Nonnull final CommodityValueFetcher commodities,
@@ -315,6 +316,8 @@ public class ThinSearchableProps implements SearchableProps {
             super(tagIndex, commodities);
             VirtualVolumeInfo vvInfo = entity.getTypeSpecificInfo().getVirtualVolume();
             this.attachmentState = vvInfo.getAttachmentState();
+            this.daysUnattached = vvInfo.hasDaysUnattached()
+                    ? vvInfo.getDaysUnattached() : null;
             this.encrypted = vvInfo.getEncryption();
             this.ephemeral = vvInfo.getIsEphemeral();
             this.deletable = entity.getAnalysisSettings().getDeletable();
@@ -339,6 +342,12 @@ public class ThinSearchableProps implements SearchableProps {
         @Override
         public boolean isDeletable() {
             return deletable;
+        }
+
+        @Override
+        @Nonnull
+        public Optional<Integer> daysUnattached() {
+            return Optional.ofNullable(daysUnattached);
         }
     }
 

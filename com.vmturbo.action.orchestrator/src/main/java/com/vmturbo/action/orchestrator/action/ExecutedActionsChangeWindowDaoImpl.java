@@ -3,29 +3,35 @@ package com.vmturbo.action.orchestrator.action;
 import static com.vmturbo.action.orchestrator.db.tables.ExecutedActionsChangeWindow.EXECUTED_ACTIONS_CHANGE_WINDOW;
 
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ExecutedActionsChangeWindowRecord;
+import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
+import com.vmturbo.common.protobuf.action.ActionDTO.UpdateActionChangeWindowRequest.ActionLivenessInfo;
 import com.vmturbo.components.common.utils.TimeUtil;
 
 /**
  * DAO backed by RDBMS to hold executed actions' change window.
  */
 public class ExecutedActionsChangeWindowDaoImpl implements ExecutedActionsChangeWindowDao {
-
-    private final Logger logger = LogManager.getLogger();
-
     /**
      * Database access context.
      */
@@ -33,37 +39,103 @@ public class ExecutedActionsChangeWindowDaoImpl implements ExecutedActionsChange
 
     private final Clock clock;
 
+    private final int chunkSize;
+
     /**
      * Constructs executed actions change window DAO.
      * @param dsl database access context.
+     * @param clock System clock.
+     * @param chunkSize Chunk sizes when applicable for DB read/write.
      */
-    public ExecutedActionsChangeWindowDaoImpl(@Nonnull final DSLContext dsl, Clock clock) {
+    public ExecutedActionsChangeWindowDaoImpl(@Nonnull final DSLContext dsl, Clock clock,
+            int chunkSize) {
         this.dsl = Objects.requireNonNull(dsl);
         this.clock = clock;
+        this.chunkSize = chunkSize;
     }
 
-    /**
-     * Persist an executed action change window record, based on Action {@link Action} and execution details.
-     *
-     * <p>It's intended to persist action change window details of Succeeded actions. It should be added to, and not updated.
-     * @param actionId the action id.
-     * @param entityId the entityId.
-     * @param completionTime the change window's satrt time is the time that the action completed successfully.
-     */
     @Override
-    public void persistExecutedActionsChangeWindow(final long actionId, final long entityId,
-                                                   final long completionTime) {
-        final com.vmturbo.action.orchestrator.db.tables.pojos.ExecutedActionsChangeWindow
-                executedActionsChangeWindow = new com.vmturbo.action.orchestrator.db.tables.pojos.ExecutedActionsChangeWindow(actionId,
-                entityId,
-                TimeUtil.millisToLocalDateTime(completionTime, clock),
-                null, null);
-        dsl.newRecord(EXECUTED_ACTIONS_CHANGE_WINDOW, executedActionsChangeWindow).store();
+    public void saveExecutedAction(final long actionId, final long entityId)
+            throws ActionStoreOperationException {
+        try {
+            dsl.insertInto(EXECUTED_ACTIONS_CHANGE_WINDOW)
+                    .set(EXECUTED_ACTIONS_CHANGE_WINDOW.ENTITY_OID, entityId)
+                    .set(EXECUTED_ACTIONS_CHANGE_WINDOW.ACTION_OID, actionId)
+                    .set(EXECUTED_ACTIONS_CHANGE_WINDOW.LIVENESS_STATE, LivenessState.NEW_VALUE)
+                    .onDuplicateKeyIgnore()
+                    .execute();
+        } catch (DataAccessException dae) {
+            throw new ActionStoreOperationException("Could not save executed action "
+                    + actionId + " for entity " + entityId, dae);
+        }
+    }
+
+    @Override
+    public void updateActionLivenessInfo(@Nonnull Set<ActionLivenessInfo> actionLivenessInfo)
+            throws ActionStoreOperationException {
+        try {
+            dsl.batchUpdate(actionLivenessInfo
+                            .stream()
+                            .map(alInfo -> {
+                                final ExecutedActionsChangeWindowRecord record =
+                                        new ExecutedActionsChangeWindowRecord();
+                                record.setLivenessState(alInfo.getLivenessState().getNumber());
+
+                                final LocalDateTime updateTime = TimeUtil.millisToLocalDateTime(
+                                        alInfo.getTimestamp(), clock);
+                                // If it is a live action, then we update the start time.
+                                if (alInfo.getLivenessState() == LivenessState.LIVE) {
+                                    record.setStartTime(updateTime);
+                                } else {
+                                    record.setEndTime(updateTime);
+                                }
+                                record.setActionOid(alInfo.getActionOid());
+                                record.changed(EXECUTED_ACTIONS_CHANGE_WINDOW.ACTION_OID, false);
+                                return record;
+                            })
+                            .collect(Collectors.toList()))
+                    .execute();
+        } catch (DataAccessException dae) {
+            throw new ActionStoreOperationException("Could not make " + actionLivenessInfo.size()
+                    + " action liveness info updates.", dae);
+        }
+    }
+
+    @Override
+    public void getActionsByLivenessState(@Nonnull final Set<LivenessState> livenessStates,
+            @Nonnull final Set<Long> actionIds,
+            @Nonnull Consumer<ExecutedActionsChangeWindow> consumer)
+            throws ActionStoreOperationException {
+        try {
+            final Set<Integer> livenessCodes = livenessStates.stream()
+                    .map(LivenessState::getNumber)
+                    .collect(Collectors.toSet());
+            final Condition stateCondition = EXECUTED_ACTIONS_CHANGE_WINDOW.LIVENESS_STATE
+                    .in(livenessCodes);
+            final Condition wholeCondition = actionIds.isEmpty() ? stateCondition
+                    : stateCondition.and(EXECUTED_ACTIONS_CHANGE_WINDOW.ACTION_OID.in(actionIds));
+            dsl.connection(conn -> {
+                conn.setAutoCommit(false);
+                try (Stream<ExecutedActionsChangeWindow> savingsEventStream =
+                             DSL.using(conn, dsl.settings())
+                                     .selectFrom(EXECUTED_ACTIONS_CHANGE_WINDOW)
+                                     .where(wholeCondition)
+                                     .fetchSize(chunkSize)
+                                     .fetchLazy()
+                                     .stream()
+                                     .map(this::toProtobuf)) {
+                    savingsEventStream.forEach(consumer);
+                }
+            });
+        } catch (DataAccessException dae) {
+            throw new ActionStoreOperationException("Could not fetch actions in " + livenessStates
+                    + " states.", dae);
+        }
     }
 
     @Nonnull
     @Override
-    public Map<Long, List<ExecutedActionsChangeWindow>> getExecutedActionsChangeWindowMap(List<Long> entityOids) {
+    public Map<Long, List<ExecutedActionsChangeWindow>> getActionsByEntityOid(List<Long> entityOids) {
         // Turn result into a map that maps entity OIDs to lists of ExecutedActionsChangeWindow protobuf objects.
         List<ExecutedActionsChangeWindowRecord> records =
                 dsl.selectFrom(EXECUTED_ACTIONS_CHANGE_WINDOW)
@@ -72,15 +144,28 @@ public class ExecutedActionsChangeWindowDaoImpl implements ExecutedActionsChange
                         .fetch();
         final Map<Long, List<com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow>> result = new HashMap<>();
         records.forEach(record ->
-                result.computeIfAbsent(record.getEntityOid(), r -> new ArrayList<>()).add(toProtobuf(record)));
+                result.computeIfAbsent(record.getEntityOid(), r -> new ArrayList<>()).add(
+                        toProtobuf(record)));
         return result;
     }
 
+    /**
+     * Converts from DB record to protobuf. Sets the ActionSpec optionally if entry is available.
+     *
+     * @param record DB record for change window.
+     * @return Change window protobuf object.
+     */
     private ExecutedActionsChangeWindow toProtobuf(ExecutedActionsChangeWindowRecord record) {
-        return ExecutedActionsChangeWindow.newBuilder()
-                .setActionOid(record.getActionOid())
+        final ExecutedActionsChangeWindow.Builder builder = ExecutedActionsChangeWindow.newBuilder();
+        builder.setActionOid(record.getActionOid())
                 .setEntityOid(record.getEntityOid())
-                .setStartTime(TimeUtil.localTimeToMillis(record.getStartTime(), clock))
-                .build();
+                .setLivenessState(LivenessState.forNumber(record.getLivenessState()));
+        if (record.getStartTime() != null) {
+            builder.setStartTime(TimeUtil.localTimeToMillis(record.getStartTime(), clock));
+        }
+        if (record.getEndTime() != null) {
+            builder.setEndTime(TimeUtil.localTimeToMillis(record.getEndTime(), clock));
+        }
+        return builder.build();
     }
 }

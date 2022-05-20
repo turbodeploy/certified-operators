@@ -63,7 +63,8 @@ public enum AuditAction {
     ENABLE_PROBE_SECURITY("External probe authentication is enabled"),
     AUTHENTICATE_PROBE("Authenticate Probe"),
     AUTHORIZE_PROBE("Authorize Probe"),
-    SET_SECURITY_CONTEXT("Set Security Context");
+    SET_SECURITY_CONTEXT("Set Security Context"),
+    CREATE_CLIENT("Create Client");
 
     private String displayName;
 

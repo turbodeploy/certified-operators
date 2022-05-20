@@ -52,6 +52,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -204,16 +205,6 @@ public class ActionSpecMappingContextFactory {
         }
         return  buyRIIdToRIBoughtandRISpec;
     }
-    /**
-     * @param action the {@link Action}
-     * @return Whether the action is cloud-reconfigure
-     * */
-    private boolean isCloudReconfigure(@Nonnull Action action) {
-        if(action.getInfo().hasReconfigure() && action.getInfo().getReconfigure().hasTarget()) {
-            return (action.getInfo().getReconfigure().getTarget().getEnvironmentType() == EnvironmentType.CLOUD);
-        }
-        return false;
-    }
 
     /**
      * Create ActionSpecMappingContext for provided actions, which contains information for mapping
@@ -245,7 +236,7 @@ public class ActionSpecMappingContextFactory {
         final Map<Long, PolicyApiDTO> policyIdToPolicyApiDto;
          Map<Long, BaseApiDTO> settingPolicyIdToBaseApiDTO = Collections.emptyMap();
         if (!involvedPolicies.isEmpty()) {
-            if(actions.stream().filter(a -> isCloudReconfigure(a)).findFirst().isPresent()) {
+            if(actions.stream().anyMatch(this::isReconfigure)) {
                 settingPolicyIdToBaseApiDTO = executorService.submit(() -> settingsMapper
                                 .convertSettingPoliciesToBaseDTO(getSettingsPolicies(involvedPolicies))
                                 .stream()
@@ -380,6 +371,14 @@ public class ActionSpecMappingContextFactory {
             }
         }
         return context;
+    }
+
+    private boolean isReconfigure(@Nonnull Action a) {
+        final Explanation explanation = a.getExplanation();
+        if (explanation.hasReconfigure()) {
+            return explanation.getReconfigure().getReasonSettingsList().size() > 0;
+        }
+        return false;
     }
 
     @Nonnull

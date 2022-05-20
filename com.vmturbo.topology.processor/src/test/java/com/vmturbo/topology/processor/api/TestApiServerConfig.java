@@ -207,7 +207,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     protected IdentityService identityService() {
         return new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
-                mock(IdentityDatabaseStore.class), 10, new ConcurrentHashMap<>(), true, false),
+                mock(IdentityDatabaseStore.class), 10, new ConcurrentHashMap<>(), false),
                         new HeuristicsMatcher());
     }
 
@@ -224,7 +224,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public IdentityProvider identityProvider() {
             return Mockito.spy(new IdentityProviderImpl(keyValueStore(), compatibilityChecker(),
-                0L, mock(IdentityDatabaseStore.class), 10, 0, false,  mock(StaleOidManagerImpl.class),
+                0L, mock(IdentityDatabaseStore.class), 10, 0,  mock(StaleOidManagerImpl.class),
                     false));
     }
 

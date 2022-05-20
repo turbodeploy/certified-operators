@@ -490,7 +490,7 @@ public class StatsConfig {
     }
 
     @Bean
-    VolumeAttachmentHistoryReader volumeAttachmentHistoryReader() {
+    public VolumeAttachmentHistoryReader volumeAttachmentHistoryReader() {
         try {
             return new VolumeAttachmentHistoryReader(dbAccessConfig.dsl());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
