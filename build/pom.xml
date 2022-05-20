@@ -312,6 +312,7 @@
             <modules>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.cost.calculation</module>
                 <module>../com.vmturbo.market.component.api</module>
                 <module>../com.vmturbo.market.component</module>

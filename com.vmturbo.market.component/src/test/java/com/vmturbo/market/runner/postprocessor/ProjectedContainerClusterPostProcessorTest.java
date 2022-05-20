@@ -278,7 +278,7 @@ public class ProjectedContainerClusterPostProcessorTest {
      * Test {@link ProjectedContainerClusterPostProcessor#appliesTo}.
      */
     @Test
-    public void testAppliesToTrue() {
+    public void testAppliesToTrueOptimizeContainerClusterPlan() {
         topologyInfo = TopologyInfo.newBuilder()
             .setTopologyId(1234L)
             .setTopologyContextId(5678L)
@@ -286,6 +286,23 @@ public class ProjectedContainerClusterPostProcessorTest {
             .setPlanInfo(PlanTopologyInfo.newBuilder()
                 .setPlanType(StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN))
             .build();
+        Map<Integer, List<ProjectedTopologyEntity>> entityTypeToProjectedEntities = new HashMap<>();
+        entityTypeToProjectedEntities.put(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE, Collections.emptyList());
+        assertTrue(postProcessor.appliesTo(topologyInfo, entityTypeToProjectedEntities));
+    }
+
+    /**
+     * Test {@link ProjectedContainerClusterPostProcessor#appliesTo}.
+     */
+    @Test
+    public void testAppliesToTrueMigrateContainerWorkloadsPlan() {
+        topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyId(1234L)
+                .setTopologyContextId(5678L)
+                .setTopologyType(TopologyType.PLAN)
+                .setPlanInfo(PlanTopologyInfo.newBuilder()
+                        .setPlanType(StringConstants.MIGRATE_CONTAINER_WORKLOADS_PLAN))
+                .build();
         Map<Integer, List<ProjectedTopologyEntity>> entityTypeToProjectedEntities = new HashMap<>();
         entityTypeToProjectedEntities.put(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE, Collections.emptyList());
         assertTrue(postProcessor.appliesTo(topologyInfo, entityTypeToProjectedEntities));

@@ -73,21 +73,22 @@ public class ProjectedContainerClusterPostProcessor extends ProjectedEntityPostP
             topologyInfo.getTopologyType(), topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId());
         // Post process projected ContainerPlatformCluster entities only in "Optimize Container Cluster"
         // plan.
-        if (isOptimizeContainerClusterPlan(topologyInfo)) {
+        if (isContainerPlan(topologyInfo)) {
             if (!entityTypeToEntitiesMap.containsKey(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)) {
                 logger.error("{}Optimize Container Cluster plan does not have any ContainerPlatformCluster entities.", logPrefix);
                 return false;
             }
             return true;
         }
-        // Return false if it's not "Optimize Container Cluster" plan.
+        // Return false if it's not a container plan.
         return false;
     }
 
-    private boolean isOptimizeContainerClusterPlan(@Nonnull final TopologyInfo topologyInfo) {
+    private boolean isContainerPlan(@Nonnull final TopologyInfo topologyInfo) {
         return topologyInfo.hasPlanInfo()
             && topologyInfo.getPlanInfo().hasPlanType()
-            && StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN.equals(topologyInfo.getPlanInfo().getPlanType());
+            && (StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN.equals(topologyInfo.getPlanInfo().getPlanType())
+                || StringConstants.MIGRATE_CONTAINER_WORKLOADS_PLAN.equals(topologyInfo.getPlanInfo().getPlanType()));
     }
 
     /**
