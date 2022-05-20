@@ -29,6 +29,7 @@ volumes:
   reporting: *localdriver
 #  mediation-aws: *localdriver
 #  mediation-awsbilling: *localdriver
+#  mediation-awscloudbilling: *localdriver
 #  mediation-awscost: *localdriver
 #  mediation-azure: *localdriver
 #  mediation-azurecost: *localdriver
@@ -352,6 +353,13 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-awsbilling-prod
+#    mem_limit: 1200M
+#    depends_on: *clustermgrdep
+#
+#  mediation-awscloudbilling:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-awscloudbilling-prod
 #    mem_limit: 1200M
 #    depends_on: *clustermgrdep
 #
