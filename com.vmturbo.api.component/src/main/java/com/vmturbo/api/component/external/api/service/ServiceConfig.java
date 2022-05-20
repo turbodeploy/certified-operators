@@ -384,6 +384,14 @@ public class ServiceConfig {
     }
 
     @Bean
+    public ClientsService clientsService() {
+        return new ClientsService(authConfig.getClientServiceHost(),
+                authConfig.getClientServicePort(),
+                authConfig.getClientServiceScheme(),
+                authConfig.getClientServicePath());
+    }
+
+    @Bean
     public CloudTypeMapper cloudTypeMapper() {
         return new CloudTypeMapper();
     }

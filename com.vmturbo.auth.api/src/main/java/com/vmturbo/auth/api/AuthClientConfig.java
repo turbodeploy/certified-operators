@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 
 /**
@@ -33,6 +34,18 @@ public class AuthClientConfig {
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
 
+    @Value("${clientServiceHost:" + SecurityConstant.HYDRA_ADMIN + "}")
+    private String clientServiceHost;
+
+    @Value("${clientServicePort:" + SecurityConstant.HYDRA_ADMIN_PORT + "}")
+    private Integer clientServicePort;
+
+    @Value("${clientServiceScheme:" + SecurityConstant.HTTP + "}")
+    private String clientServiceScheme;
+
+    @Value("${clientServicePath:" + SecurityConstant.HYDRA_CLIENTS_PATH + "}")
+    private String clientServicePath;
+
     @Bean
     public Channel authClientChannel() {
         return ComponentGrpcServer.newChannelBuilder(authHost, grpcPort)
@@ -53,5 +66,21 @@ public class AuthClientConfig {
     @Nonnull
     public Integer getAuthPort() {
         return authPort;
+    }
+
+    public String getClientServiceHost() {
+        return clientServiceHost;
+    }
+
+    public Integer getClientServicePort() {
+        return clientServicePort;
+    }
+
+    public String getClientServiceScheme() {
+        return clientServiceScheme;
+    }
+
+    public String getClientServicePath() {
+        return clientServicePath;
     }
 }

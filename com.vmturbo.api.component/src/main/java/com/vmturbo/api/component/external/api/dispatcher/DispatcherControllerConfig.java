@@ -24,6 +24,7 @@ import com.vmturbo.api.controller.AdminController;
 import com.vmturbo.api.controller.AuthenticationController;
 import com.vmturbo.api.controller.BusinessUnitsController;
 import com.vmturbo.api.controller.ClassicMigrationController;
+import com.vmturbo.api.controller.ClientsController;
 import com.vmturbo.api.controller.EntitiesController;
 import com.vmturbo.api.controller.GeneralController;
 import com.vmturbo.api.controller.GroupsController;
@@ -110,6 +111,11 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public AuthenticationController authenticationController() {
         return new AuthenticationController(serviceConfig.authenticationService());
+    }
+
+    @Bean
+    public ClientsController clientsController() {
+        return new ClientsController();
     }
 
     @Bean
