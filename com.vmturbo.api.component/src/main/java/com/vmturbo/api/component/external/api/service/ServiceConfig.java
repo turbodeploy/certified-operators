@@ -927,7 +927,7 @@ public class ServiceConfig {
     public EntitySavingsSubQuery entitySavingsSubQuery() {
         final EntitySavingsSubQuery entitySavingsSubQuery =
                 new EntitySavingsSubQuery(communicationConfig.costServiceBlockingStub(),
-                        communicationConfig.groupExpander(), repositoryClient);
+                        communicationConfig.groupExpander(), repositoryClient, userSessionContext());
         if (enableEntitySavings) {
             statsQueryExecutor().addSubquery(entitySavingsSubQuery);
         }

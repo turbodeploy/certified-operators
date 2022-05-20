@@ -40,6 +40,8 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord.SavingsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
@@ -54,6 +56,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
+import com.vmturbo.oid.identity.OidSet;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -74,6 +77,8 @@ public class EntitySavingsSubQueryTest {
 
     private RepositoryClient repositoryClient = mock(RepositoryClient.class);
 
+    private UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
     private final long realtimeTopologyContextId = 777777L;
     private EntitySavingsSubQuery query;
 
@@ -84,7 +89,7 @@ public class EntitySavingsSubQueryTest {
     public void setup() {
         MockitoAnnotations.initMocks(this);
         CostServiceBlockingStub costRpc = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        query = spy(new EntitySavingsSubQuery(costRpc, groupExpander, repositoryClient));
+        query = spy(new EntitySavingsSubQuery(costRpc, groupExpander, repositoryClient, userSessionContext));
     }
 
     /**
@@ -130,6 +135,11 @@ public class EntitySavingsSubQueryTest {
      */
     @Test
     public void testGetAggregateStats() throws Exception {
+        when(userSessionContext.isUserScoped()).thenReturn(false);
+        getAggregateStats();
+    }
+
+    private void getAggregateStats() throws Exception {
         long vm1Id = 123456L;
         long vm2Id = 234543L;
         long startTime = 1609527257000L;
@@ -150,7 +160,7 @@ public class EntitySavingsSubQueryTest {
 
         when(costServiceMole.getEntitySavingsStats(any(GetEntitySavingsStatsRequest.class)))
                 .thenReturn(createEntityStatsResponse(responseValues));
-
+        setUserScopeOid(scopeIds);
         List<StatSnapshotApiDTO> response = query.getAggregateStats(createStatApiInputDTOs(), context);
 
         // Verify the input for the cost getEntitySavingsStats API.
@@ -203,6 +213,8 @@ public class EntitySavingsSubQueryTest {
         long startTime = 1609527257000L;
         long endTime = 1610996057000L;
 
+        when(userSessionContext.isUserScoped()).thenReturn(false);
+
         TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
                 .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
 
@@ -247,6 +259,7 @@ public class EntitySavingsSubQueryTest {
         long startTime = 1609527257000L;
         long endTime = 1610996057000L;
 
+        when(userSessionContext.isUserScoped()).thenReturn(false);
         TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
                 .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
 
@@ -298,7 +311,7 @@ public class EntitySavingsSubQueryTest {
         long bfId = 10000L;
         long startTime = 1609527257000L;
         long endTime = 1610996057000L;
-
+        when(userSessionContext.isUserScoped()).thenReturn(false);
         TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
                 .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
 
@@ -348,7 +361,7 @@ public class EntitySavingsSubQueryTest {
         long groupId = 10000L;
         long startTime = 1609527257000L;
         long endTime = 1610996057000L;
-
+        when(userSessionContext.isUserScoped()).thenReturn(false);
         TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
                 .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
 
@@ -557,7 +570,7 @@ public class EntitySavingsSubQueryTest {
     public void testGetAggregateStatsMarketScope() throws Exception {
         long startTime = 1609527257000L;
         long endTime = 1610996057000L;
-
+        when(userSessionContext.isUserScoped()).thenReturn(false);
         TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
                 .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
 
@@ -609,4 +622,73 @@ public class EntitySavingsSubQueryTest {
         when(context.getPlanInstance()).thenReturn(Optional.empty());
         return context;
     }
+
+    /**
+     * Test calling aggregateState for resource groups by a scoped user.
+     *
+     * @throws Exception any exception
+     */
+    @Test
+    public void testGetAggregateStatsResourceGroupsForScopedUser() throws Exception {
+        long rgId = 10000L;
+        long startTime = 1609527257000L;
+        long endTime = 1610996057000L;
+        long vmId = 30000L;
+
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        Set<Long> scopeIds = ImmutableSet.of(vmId);
+        setUserScopeOid(scopeIds);
+
+        TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
+                .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
+
+        StatsQueryContext context = createResourceGroupStatsQueryContextMock(rgId, GroupType.RESOURCE, timeWindow);
+
+        List<EntityStatsResponseValues> responseValues = Arrays.asList(
+                new EntityStatsResponseValues(1610960400000L, 10.0f, 1.0f),
+                new EntityStatsResponseValues(1610964000000L, 20.0f, 2.0f),
+                new EntityStatsResponseValues(1610967600000L, 30.0f, 3.0f));
+
+        when(costServiceMole.getEntitySavingsStats(any(GetEntitySavingsStatsRequest.class)))
+                .thenReturn(createEntityStatsResponse(responseValues));
+
+        List<StatSnapshotApiDTO> response = query.getAggregateStats(createStatApiInputDTOs(), context);
+
+        ArgumentCaptor<GetEntitySavingsStatsRequest> requestArgumentCaptor
+                = ArgumentCaptor.forClass(GetEntitySavingsStatsRequest.class);
+        verify(costServiceMole).getEntitySavingsStats(requestArgumentCaptor.capture());
+
+        // Verify the request for the cost protobuf api for getting entity savings stats.
+        assertEquals(startTime, requestArgumentCaptor.getValue().getStartDate());
+        assertEquals(endTime, requestArgumentCaptor.getValue().getEndDate());
+
+        assertEquals(2, requestArgumentCaptor.getValue().getStatsTypesCount());
+        assertTrue(requestArgumentCaptor.getValue().getStatsTypesList().contains(EntitySavingsStatsType.REALIZED_SAVINGS));
+        assertTrue(requestArgumentCaptor.getValue().getStatsTypesList().contains(EntitySavingsStatsType.REALIZED_INVESTMENTS));
+
+        assertEquals(1, requestArgumentCaptor.getValue().getEntityFilter().getEntityIdList().size());
+        assertTrue(requestArgumentCaptor.getValue().getEntityFilter().getEntityIdList().contains(vmId));
+        assertTrue(requestArgumentCaptor.getValue().getEntityTypeFilter().getEntityTypeIdList().isEmpty());
+        assertTrue(requestArgumentCaptor.getValue().getResourceGroupFilter().getResourceGroupOidList().isEmpty());
+    }
+
+    /**
+     * Test calling aggregateState for Scoped groups.
+     *
+     * @throws Exception any exception
+     */
+    @Test
+    public void testGetAggregateStatsForScopedUser() throws Exception {
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        getAggregateStats();
+    }
+
+    private void setUserScopeOid(Set<Long> oId) {
+        EntityAccessScope accessScope = mock(EntityAccessScope.class);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        OidSet oidSet = mock(OidSet.class);
+        when(accessScope.getScopeGroupMembers()).thenReturn(oidSet);
+        when(oidSet.toSet()).thenReturn(oId);
+    }
+
 }
