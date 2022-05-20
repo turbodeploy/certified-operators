@@ -136,10 +136,10 @@ public class EntitySavingsSubQueryTest {
     @Test
     public void testGetAggregateStats() throws Exception {
         when(userSessionContext.isUserScoped()).thenReturn(false);
-        getAggreateStats();
+        getAggregateStats();
     }
 
-    private void getAggreateStats() throws Exception {
+    private void getAggregateStats() throws Exception {
         long vm1Id = 123456L;
         long vm2Id = 234543L;
         long startTime = 1609527257000L;
@@ -624,6 +624,55 @@ public class EntitySavingsSubQueryTest {
     }
 
     /**
+     * Test calling aggregateState for resource groups by a scoped user.
+     *
+     * @throws Exception any exception
+     */
+    @Test
+    public void testGetAggregateStatsResourceGroupsForScopedUser() throws Exception {
+        long rgId = 10000L;
+        long startTime = 1609527257000L;
+        long endTime = 1610996057000L;
+        long vmId = 30000L;
+
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        Set<Long> scopeIds = ImmutableSet.of(vmId);
+        setUserScopeOid(scopeIds);
+
+        TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
+                .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
+
+        StatsQueryContext context = createResourceGroupStatsQueryContextMock(rgId, GroupType.RESOURCE, timeWindow);
+
+        List<EntityStatsResponseValues> responseValues = Arrays.asList(
+                new EntityStatsResponseValues(1610960400000L, 10.0f, 1.0f),
+                new EntityStatsResponseValues(1610964000000L, 20.0f, 2.0f),
+                new EntityStatsResponseValues(1610967600000L, 30.0f, 3.0f));
+
+        when(costServiceMole.getEntitySavingsStats(any(GetEntitySavingsStatsRequest.class)))
+                .thenReturn(createEntityStatsResponse(responseValues));
+
+        List<StatSnapshotApiDTO> response = query.getAggregateStats(createStatApiInputDTOs(), context);
+
+        ArgumentCaptor<GetEntitySavingsStatsRequest> requestArgumentCaptor
+                = ArgumentCaptor.forClass(GetEntitySavingsStatsRequest.class);
+        verify(costServiceMole).getEntitySavingsStats(requestArgumentCaptor.capture());
+
+        // Verify the request for the cost protobuf api for getting entity savings stats.
+        assertEquals(startTime, requestArgumentCaptor.getValue().getStartDate());
+        assertEquals(endTime, requestArgumentCaptor.getValue().getEndDate());
+
+        assertEquals(2, requestArgumentCaptor.getValue().getStatsTypesCount());
+        assertTrue(requestArgumentCaptor.getValue().getStatsTypesList().contains(EntitySavingsStatsType.REALIZED_SAVINGS));
+        assertTrue(requestArgumentCaptor.getValue().getStatsTypesList().contains(EntitySavingsStatsType.REALIZED_INVESTMENTS));
+
+        assertEquals(1, requestArgumentCaptor.getValue().getEntityFilter().getEntityIdList().size());
+        assertTrue(requestArgumentCaptor.getValue().getEntityFilter().getEntityIdList().contains(vmId));
+        assertTrue(requestArgumentCaptor.getValue().getEntityTypeFilter().getEntityTypeIdList().isEmpty());
+        assertTrue(requestArgumentCaptor.getValue().getResourceGroupFilter().getResourceGroupOidList().isEmpty());
+    }
+
+    /**
      * Test calling aggregateState for Scoped groups.
      *
      * @throws Exception any exception
@@ -631,7 +680,7 @@ public class EntitySavingsSubQueryTest {
     @Test
     public void testGetAggregateStatsForScopedUser() throws Exception {
         when(userSessionContext.isUserScoped()).thenReturn(true);
-        getAggreateStats();
+        getAggregateStats();
     }
 
     private void setUserScopeOid(Set<Long> oId) {
