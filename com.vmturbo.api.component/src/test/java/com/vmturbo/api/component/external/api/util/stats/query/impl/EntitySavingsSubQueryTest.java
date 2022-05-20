@@ -41,6 +41,7 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord.SavingsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
@@ -55,6 +56,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
+import com.vmturbo.oid.identity.OidSet;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -133,6 +135,11 @@ public class EntitySavingsSubQueryTest {
      */
     @Test
     public void testGetAggregateStats() throws Exception {
+        when(userSessionContext.isUserScoped()).thenReturn(false);
+        getAggreateStats();
+    }
+
+    private void getAggreateStats() throws Exception {
         long vm1Id = 123456L;
         long vm2Id = 234543L;
         long startTime = 1609527257000L;
@@ -153,7 +160,7 @@ public class EntitySavingsSubQueryTest {
 
         when(costServiceMole.getEntitySavingsStats(any(GetEntitySavingsStatsRequest.class)))
                 .thenReturn(createEntityStatsResponse(responseValues));
-
+        setUserScopeOid(scopeIds);
         List<StatSnapshotApiDTO> response = query.getAggregateStats(createStatApiInputDTOs(), context);
 
         // Verify the input for the cost getEntitySavingsStats API.
@@ -615,4 +622,24 @@ public class EntitySavingsSubQueryTest {
         when(context.getPlanInstance()).thenReturn(Optional.empty());
         return context;
     }
+
+    /**
+     * Test calling aggregateState for Scoped groups.
+     *
+     * @throws Exception any exception
+     */
+    @Test
+    public void testGetAggregateStatsForScopedUser() throws Exception {
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        getAggreateStats();
+    }
+
+    private void setUserScopeOid(Set<Long> oId) {
+        EntityAccessScope accessScope = mock(EntityAccessScope.class);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        OidSet oidSet = mock(OidSet.class);
+        when(accessScope.getScopeGroupMembers()).thenReturn(oidSet);
+        when(oidSet.toSet()).thenReturn(oId);
+    }
+
 }
