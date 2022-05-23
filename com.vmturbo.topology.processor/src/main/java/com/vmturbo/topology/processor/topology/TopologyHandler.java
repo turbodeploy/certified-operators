@@ -97,8 +97,12 @@ public class TopologyHandler {
             .setCreationTime(clock.millis())
             .addAnalysisType(AnalysisType.MARKET_ANALYSIS)
             .addAnalysisType(AnalysisType.BUY_RI_IMPACT_ANALYSIS);
+
         if (includesWastedFiles()) {
             tinfo.addAnalysisType(AnalysisType.WASTED_FILES);
+        }
+        if(includesWastedASPs()){
+            tinfo.addAnalysisType(AnalysisType.WASTED_APP_SERVICE_PLANS);
         }
 
         try {
@@ -129,5 +133,20 @@ public class TopologyHandler {
             .map(Optional::get)
             .map(ProbeInfo::getProbeType)
             .anyMatch(str -> wastedFilesProbeTypes.contains(str));
+    }
+
+    /**
+     * If any targets are probe types that contain wasted App Service Plans (ASPs), return true.
+     *
+     * @return true if any targets may contain unused azure app service plans.
+     */
+    public boolean includesWastedASPs(){
+        return targetStore.getAll().stream()
+                .map(Target::getProbeId)
+                .map(probeStore::getProbe)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(ProbeInfo::getProbeType)
+                .anyMatch(str -> Objects.equals(SDKProbeType.AZURE.getProbeType(), str));
     }
 }

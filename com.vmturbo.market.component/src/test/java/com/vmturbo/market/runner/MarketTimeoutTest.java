@@ -66,6 +66,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
+import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -191,17 +192,19 @@ public class MarketTimeoutTest {
                             ExternalReconfigureActionEngine.class);
                         Set<TopologyEntityDTO> entities = invocation.getArgumentAt(1, Set.class);
                     GroupMemberRetriever groupMemberRetriever = new GroupMemberRetriever(groupServiceGrpc);
-                        return new Analysis(rtTopologyInfo, entities, groupMemberRetriever,
-                                        Clock.systemUTC(), configBuilder.build(),
-                                        cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-                                        wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisFactory,
-                                        tierExcluderFactory, mock(AnalysisRICoverageListener.class),
-                                        consistentScalingHelperFactory, initialPlacementHandler,
-                                        reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
-                                        new CommodityIdUpdater(), actionSavingsCalculatorFactory,
-                                        externalReconfigureActionEngine,
-                                        mock(AnalysisDiagnosticsCleaner.class),
-                                        defaultAnalysisDiagnosticsCollectorFactory, new FakeEntityCreator(groupMemberRetriever));
+                    return new Analysis(rtTopologyInfo, entities, groupMemberRetriever,
+                            Clock.systemUTC(), configBuilder.build(), cloudTopologyFactory,
+                            cloudCostCalculatorFactory, priceTableFactory,
+                            wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory,
+                            namespaceQuotaAnalysisFactory, tierExcluderFactory,
+                            mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory,
+                            initialPlacementHandler, reversibilitySettingFetcherFactory,
+                            migratedWorkloadCloudCommitmentAnalysisService,
+                            new CommodityIdUpdater(), actionSavingsCalculatorFactory,
+                            externalReconfigureActionEngine, mock(AnalysisDiagnosticsCleaner.class),
+                            defaultAnalysisDiagnosticsCollectorFactory,
+                            mock(WastedAppServicePlanAnalysisEngine.class),
+                            new FakeEntityCreator(groupMemberRetriever));
                     }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
             }
 

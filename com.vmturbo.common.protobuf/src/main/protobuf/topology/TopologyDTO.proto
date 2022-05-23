@@ -1481,6 +1481,7 @@ enum AnalysisType {
     MARKET_ANALYSIS = 0;
     WASTED_FILES = 1;
     BUY_RI_IMPACT_ANALYSIS = 2;
+    WASTED_APP_SERVICE_PLANS = 3;
 }
 
 // Information specific to a topology generated for the purpose of a plan.

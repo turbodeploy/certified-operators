@@ -54,6 +54,7 @@ import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisSer
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisServiceImpl;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
+import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.TopologyProcessorConfig;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -267,7 +268,7 @@ public class MarketRunnerConfig {
                 customUtilizationThreshold,
                 saveAnalysisDiagsTimeoutSecs,
                 numRealTimeAnalysisDiagsToRetain,
-                marketRpcConfig.analysisDiagnosticsCollectorFactory());
+                marketRpcConfig.analysisDiagnosticsCollectorFactory(), wastedAppServicePlanAnalysisEngineFactory());
     }
 
     /**
@@ -319,6 +320,12 @@ public class MarketRunnerConfig {
     public WastedFilesAnalysisEngine wastedFilesAnalysisFactory() {
         return new WastedFilesAnalysisEngine();
     }
+
+    @Bean
+    public WastedAppServicePlanAnalysisEngine wastedAppServicePlanAnalysisEngineFactory() {
+        return new WastedAppServicePlanAnalysisEngine();
+    }
+
 
     /**
      * Create the instance of {@link NamespaceQuotaAnalysisFactory}.
