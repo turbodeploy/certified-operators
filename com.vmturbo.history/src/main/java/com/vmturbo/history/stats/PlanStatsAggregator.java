@@ -10,6 +10,7 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_STORAGES;
 import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS;
 import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_HOST;
 import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_STORAGE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_WORKLOAD_CONTROLLERS;
 import static com.vmturbo.common.protobuf.utils.StringConstants.VCPU_OVERCOMMITMENT;
 import static com.vmturbo.common.protobuf.utils.StringConstants.VMEM_OVERCOMMITMENT;
 
@@ -345,10 +346,11 @@ public class PlanStatsAggregator implements MemReporter {
         int numContainers = entityTypeCounts.getOrDefault(EntityType.CONTAINER_VALUE, 0);
         int numStorages = entityTypeCounts.getOrDefault(EntityType.STORAGE_VALUE, 0);
         int numContainerPods = entityTypeCounts.getOrDefault(EntityType.CONTAINER_POD_VALUE, 0);
+        final int numWorkloadControllers = entityTypeCounts.getOrDefault(EntityType.WORKLOAD_CONTROLLER_VALUE, 0);
         logger.debug("Entity type counts for topology id {} and context id {} :"
-                        + " {} PMs, {} VMs, {} containers, {} containerPods, {} storages.",
+                        + " {} PMs, {} VMs, {} containers, {} containerPods, {} workload controllers, {} storages.",
                         topologyId, topologyContextId,
-                        numPMs, numVMs, numContainers, numContainerPods, numStorages);
+                        numPMs, numVMs, numContainers, numContainerPods, numWorkloadControllers, numStorages);
         entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
                 snapshotTimestamp, numPMs, null /*capacity*/,
                 HistoryStatsUtils.addPrefix(NUM_HOSTS, dbCommodityPrefix),
@@ -385,6 +387,10 @@ public class PlanStatsAggregator implements MemReporter {
                 snapshotTimestamp, numContainerPods, null /*capacity*/,
                 HistoryStatsUtils.addPrefix(NUM_CONTAINERPODS, dbCommodityPrefix),
                 null /* propertySubtype*/, topologyContextId, EntityType.CONTAINER_POD_VALUE));
+        entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
+                snapshotTimestamp, numWorkloadControllers, null /*capacity*/,
+                HistoryStatsUtils.addPrefix(NUM_WORKLOAD_CONTROLLERS, dbCommodityPrefix),
+                null /* propertySubtype*/, topologyContextId, EntityType.WORKLOAD_CONTROLLER_VALUE));
 
         return entityTypeCountRecords;
     }
