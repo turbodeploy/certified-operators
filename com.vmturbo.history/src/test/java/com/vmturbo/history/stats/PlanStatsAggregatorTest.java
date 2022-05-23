@@ -122,7 +122,7 @@ public class PlanStatsAggregatorTest {
             PREFIX + "NumHosts", PREFIX + "NumVMsPerHost", PREFIX + "NumContainersPerHost",
             PREFIX + "NumVMs", PREFIX + "NumStorages", PREFIX + "NumVMsPerStorage",
             PREFIX + "NumContainersPerStorage", PREFIX + "NumContainers",
-            PREFIX + "NumContainerPods", PREFIX + "NumCPUs", PREFIX + "CPU",
+            PREFIX + "NumContainerPods", PREFIX + "NumWorkloadControllers", PREFIX + "NumCPUs", PREFIX + "CPU",
             // "currentStorageAmount" should appear twice: once with relatedEntityType storage
             // and once with relatedEntityType disk array.
             PREFIX + "StorageAmount", PREFIX + "StorageAmount",
