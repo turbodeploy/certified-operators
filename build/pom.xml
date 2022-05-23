@@ -188,6 +188,11 @@
 
         <!-- timescaledb image tag pulled by builds of extractor and extractor-schema -->
         <timescaledb-image-tag>2.0.1-pg12</timescaledb-image-tag>
+        <timescaledbHost>localhost</timescaledbHost>
+        <timescaledbPort>5432</timescaledbPort>
+        <timescaledbUserName>postgres</timescaledbUserName>
+        <timescaledbPassword>vmturbo</timescaledbPassword>
+
         <!-- For spinning up a postgres container for testing during maven build-->
         <postgres-image>registry.turbonomic.com/turbonomic/postgres:1.0</postgres-image>
         <!-- this is needed so postgres container is created locally rather than remote machine,

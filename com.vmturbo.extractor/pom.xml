@@ -85,10 +85,10 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <systemPropertyVariables>
-                        <dbs.postgresDefault.host>${postgresHost}</dbs.postgresDefault.host>
-                        <dbs.postgresDefault.port>${postgresPort}</dbs.postgresDefault.port>
-                        <dbs.postgresDefault.userName>${postgresUserName}</dbs.postgresDefault.userName>
-                        <dbs.postgresDefault.password>${postgresPassword}</dbs.postgresDefault.password>
+                        <dbs.postgresDefault.host>${timescaledbHost}</dbs.postgresDefault.host>
+                        <dbs.postgresDefault.port>${timescaledbPort}</dbs.postgresDefault.port>
+                        <dbs.postgresDefault.userName>${timescaledbUserName}</dbs.postgresDefault.userName>
+                        <dbs.postgresDefault.password>${timescaledbPassword}</dbs.postgresDefault.password>
                         <dbs.mysqlDefault.rootUserName>${mysqlUsername}</dbs.mysqlDefault.rootUserName>
                         <dbs.mysqlDefault.password>${mysqlPassword}</dbs.mysqlDefault.password>
                     </systemPropertyVariables>
@@ -114,7 +114,7 @@
                 </property>
             </activation>
             <properties>
-                <postgresPort>5432</postgresPort>
+                <timescaledbPort>5432</timescaledbPort>
             </properties>
         </profile>
         <profile>
@@ -157,11 +157,11 @@
                                                 -->
                                                 <containerNamePattern>maven-%a-%t-%i</containerNamePattern>
                                                 <ports>
-                                                    <port>postgresPort:5432</port>
+                                                    <port>timescaledbPort:5432</port>
                                                 </ports>
                                                 <env>
-                                                    <POSTGRES_USER>${postgresUserName}</POSTGRES_USER>
-                                                    <POSTGRES_PASSWORD>${postgresPassword}</POSTGRES_PASSWORD>
+                                                    <POSTGRES_USER>${timescaledbUserName}</POSTGRES_USER>
+                                                    <POSTGRES_PASSWORD>${timescaledbPassword}</POSTGRES_PASSWORD>
                                                 </env>
                                                 <wait>
                                                     <log>
