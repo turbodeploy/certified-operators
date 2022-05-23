@@ -596,7 +596,7 @@ services:
     volumes:
       - timescale-data:/var/lib/postresql/data
     ports:
-      - 5432:5432
+      - ${TIMESCALE_PORT}
     mem_limit: ${TIMESCALE_MEM_LIMIT_BYTE}
 
   postgres:
@@ -607,7 +607,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postresql/data
     ports:
-      - 5432:5432
+      - ${POSTGRES_PORT}
     mem_limit: ${POSTGRES_MEM_LIMIT_BYTE}
 
   grafana:
