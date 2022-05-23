@@ -998,10 +998,19 @@ public class ActionModeCalculator {
             case DELETE:
                 final EntityType targetType = EntityType.forNumber(
                         action.getInfo().getDelete().getTarget().getType());
-                return Stream
-                        .of(ConfigurableActionSettings.Delete, ConfigurableActionSettings.DeleteVolume)
-                        .filter(setting -> setting.getEntityTypeScope().contains(targetType))
-                        .map(ActionSpecifications::new);
+                if (targetType == EntityType.APPLICATION_COMPONENT) {
+                    // App Service Plans (Note: These will migrate to VMSpecs in the future).
+                    return Stream.of(ConfigurableActionSettings.DeleteAppServicePlan).filter(
+                            setting -> setting.getEntityTypeScope().contains(targetType)).map(
+                            ActionSpecifications::new);
+                } else {
+                    // Some form of volume
+                    return Stream.of(ConfigurableActionSettings.Delete,
+                            ConfigurableActionSettings.DeleteVolume).filter(
+                            setting -> setting.getEntityTypeScope().contains(targetType)).map(
+                            ActionSpecifications::new);
+                }
+
             case ALLOCATE: // Allocate actions are not executable and are not configurable by the user
             case ACTIONTYPE_NOT_SET:
             default:

@@ -109,6 +109,9 @@ public class TopologyRpcService extends TopologyServiceImplBase {
             if (topologyHandler.includesWastedFiles()) {
                 topologyInfo.addAnalysisType(AnalysisType.WASTED_FILES);
             }
+            if (topologyHandler.includesWastedASPs()){
+                topologyInfo.addAnalysisType(AnalysisType.WASTED_APP_SERVICE_PLANS);
+            }
 
             // Because this RPC triggers a broadcast, be sure to reset the broadcast schedule
             // so that we don't send too many in close succession.

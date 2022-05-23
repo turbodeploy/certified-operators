@@ -164,10 +164,14 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
             //   - OCP Option 2 (Optimize Only)
             //   - OCP Option 1 (Buy RI + Optimize) when allowBoughtRiInAnalysis == true
             analysisTypes.add(AnalysisType.MARKET_ANALYSIS);
-            // do not run wasted files analysis for Cloud Migration plan or if no related targets
-            if (!StringConstants.CLOUD_MIGRATION_PLAN.equals(planType) &&
-                    topologyHandler.includesWastedFiles()) {
-                analysisTypes.add(AnalysisType.WASTED_FILES);
+            // do not run wasted files analysis & wasted app service plan analysis for Cloud Migration plan or if no related targets
+            if (!StringConstants.CLOUD_MIGRATION_PLAN.equals(planType)) {
+                if (topologyHandler.includesWastedFiles()) {
+                    analysisTypes.add(AnalysisType.WASTED_FILES);
+                }
+                if (topologyHandler.includesWastedASPs()) {
+                    analysisTypes.add(AnalysisType.WASTED_APP_SERVICE_PLANS);
+                }
             }
         }
 

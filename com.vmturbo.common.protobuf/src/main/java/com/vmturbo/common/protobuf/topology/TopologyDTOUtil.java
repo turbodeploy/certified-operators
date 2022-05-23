@@ -817,6 +817,26 @@ public final class TopologyDTOUtil {
     }
 
     /**
+     * Get compute tier provider ID.
+     *
+     * @param appServicePlan Virtual volume.
+     * @return optional OID of compute tier provider
+     */
+    @Nullable
+    public static Optional<Long> getAppServicePlanComputeTierProviderID(@Nonnull final TopologyEntityDTO appServicePlan) {
+        return Optional.ofNullable(
+                appServicePlan.getCommoditiesBoughtFromProvidersList()
+                        .stream()
+                        .filter(commoditiesBoughtFromProvider ->
+                                commoditiesBoughtFromProvider.getProviderEntityType()
+                                        == EntityType.COMPUTE_TIER_VALUE)
+                        .findAny()
+                        .map(CommoditiesBoughtFromProvider::getProviderId)
+                        .orElse(null));
+    }
+
+
+    /**
      * Check the given entity to see whether it is a configuration volume. Disk volume populates storage amount
      * and storage provisioned commodities but not storage access nor storage latency.
      * TODO: Currently we rely on commodity types to determine a configuration volume.

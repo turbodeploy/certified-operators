@@ -41,6 +41,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
+import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
@@ -161,6 +162,8 @@ public interface AnalysisFactory {
 
         private final AnalysisDiagnosticsCollectorFactory analysisDiagsCollectorFactory;
 
+        private final WastedAppServicePlanAnalysisEngine wastedAppServicePlanAnalysisEngine;
+
         public DefaultAnalysisFactory(@Nonnull final GroupMemberRetriever groupMemberRetriever,
                                       @Nonnull final SettingServiceBlockingStub settingServiceClient,
                                       @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
@@ -194,7 +197,9 @@ public interface AnalysisFactory {
                                       final float customUtilizationThreshold,
                                       final int saveAnalysisDiagsTimeoutSecs,
                                       final int numRealTimeAnalysisDiagsToRetain,
-                                      final AnalysisDiagnosticsCollectorFactory analysisDiagsCollectorFactory) {
+                                      final AnalysisDiagnosticsCollectorFactory analysisDiagsCollectorFactory,
+                @Nonnull final WastedAppServicePlanAnalysisEngine wastedAppServicePlanAnalysisEngine
+                ) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -234,6 +239,7 @@ public interface AnalysisFactory {
             this.saveAnalysisDiagsTimeoutSecs = saveAnalysisDiagsTimeoutSecs;
             this.numRealTimeAnalysisDiagsToRetain = numRealTimeAnalysisDiagsToRetain;
             this.analysisDiagsCollectorFactory = analysisDiagsCollectorFactory;
+            this.wastedAppServicePlanAnalysisEngine = wastedAppServicePlanAnalysisEngine;
         }
 
         /**
@@ -256,15 +262,16 @@ public interface AnalysisFactory {
             final IDiagnosticsCleaner diagsCleaner = new AnalysisDiagnosticsCleaner(saveAnalysisDiagsTimeoutSecs,
                     numRealTimeAnalysisDiagsToRetain, new DiagsFileSystem());
             FakeEntityCreator fakeEntityCreator = new FakeEntityCreator(groupMemberRetriever);
-            return new Analysis(topologyInfo, topologyEntities,
-                groupMemberRetriever, clock,
-                configBuilder.build(), cloudTopologyFactory,
-                topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisEngine,
-                buyRIImpactAnalysisFactory, namespaceQuotaAnalysisFactory, tierExcluderFactory, listener,
-                consistentScalingHelperFactory, initialPlacementHandler, reversibilitySettingFetcherFactory,
-                migratedWorkloadCloudCommitmentAnalysisService, commodityIdUpdater,
-                actionSavingsCalculatorFactory, externalReconfigureActionEngine, diagsCleaner,
-                analysisDiagsCollectorFactory, fakeEntityCreator);
+            return new Analysis(topologyInfo, topologyEntities, groupMemberRetriever, clock,
+                    configBuilder.build(), cloudTopologyFactory, topologyCostCalculatorFactory,
+                    priceTableFactory, wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory,
+                    namespaceQuotaAnalysisFactory, tierExcluderFactory, listener,
+                    consistentScalingHelperFactory, initialPlacementHandler,
+                    reversibilitySettingFetcherFactory,
+                    migratedWorkloadCloudCommitmentAnalysisService, commodityIdUpdater,
+                    actionSavingsCalculatorFactory, externalReconfigureActionEngine, diagsCleaner,
+                    analysisDiagsCollectorFactory, wastedAppServicePlanAnalysisEngine,
+                    fakeEntityCreator);
         }
 
         /**

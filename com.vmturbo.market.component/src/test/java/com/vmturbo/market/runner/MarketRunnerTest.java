@@ -73,6 +73,7 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
+import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
@@ -193,16 +194,18 @@ public class MarketRunnerTest {
             final ExternalReconfigureActionEngine externalReconfigureActionEngine = mock(
                     ExternalReconfigureActionEngine.class);
             GroupMemberRetriever groupMemberRetriever = new GroupMemberRetriever(groupServiceGrpc);
-            return new Analysis(topologyInfo, entities, groupMemberRetriever,
-                    Clock.systemUTC(), configBuilder.build(),
-                    cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-                    wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, namespaceQuotaAnalysisFactory,
-                    tierExcluderFactory, mock(AnalysisRICoverageListener.class),
-                    consistentScalingHelperFactory, initialPlacementHandler,
-                    reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
-                    new CommodityIdUpdater(), actionSavingsCalculatorFactory,
-                    externalReconfigureActionEngine, new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
-                    Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class), new FakeEntityCreator(groupMemberRetriever));
+            return new Analysis(topologyInfo, entities, groupMemberRetriever, Clock.systemUTC(),
+                    configBuilder.build(), cloudTopologyFactory, cloudCostCalculatorFactory,
+                    priceTableFactory, wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory,
+                    namespaceQuotaAnalysisFactory, tierExcluderFactory,
+                    mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory,
+                    initialPlacementHandler, reversibilitySettingFetcherFactory,
+                    migratedWorkloadCloudCommitmentAnalysisService, new CommodityIdUpdater(),
+                    actionSavingsCalculatorFactory, externalReconfigureActionEngine,
+                    new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
+                    Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class),
+                    Mockito.mock(WastedAppServicePlanAnalysisEngine.class),
+                    new FakeEntityCreator(groupMemberRetriever));
         }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
     }
 

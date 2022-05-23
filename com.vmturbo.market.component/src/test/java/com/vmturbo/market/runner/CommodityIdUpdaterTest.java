@@ -33,6 +33,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
+import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.CommodityTypeAllocator;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -68,19 +69,25 @@ public class CommodityIdUpdaterTest {
     public void setup() {
         IdentityGenerator.initPrefix(0);
         commodityIdUpdater = new CommodityIdUpdater();
-        analysis = new Analysis(TopologyInfo.getDefaultInstance(), Collections.emptySet(), mock(GroupMemberRetriever.class),
-            Clock.systemUTC(), AnalysisConfig.newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
-            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false,
-            MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false).build(),
-            mock(TopologyEntityCloudTopologyFactory.class), mock(TopologyCostCalculatorFactory.class),
-            mock(MarketPriceTableFactory.class), mock(WastedFilesAnalysisEngine.class),
-            mock(BuyRIImpactAnalysisFactory.class), mock(NamespaceQuotaAnalysisFactory.class), mock(TierExcluderFactory.class),
-            mock(AnalysisRICoverageListener.class), mock(ConsistentScalingHelperFactory.class),
-            mock(InitialPlacementHandler.class), mock(ReversibilitySettingFetcherFactory.class),
-            mock(MigratedWorkloadCloudCommitmentAnalysisService.class), commodityIdUpdater,
-            mock(JournalActionSavingsCalculatorFactory.class), mock(ExternalReconfigureActionEngine.class),
-            new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
-                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class), mock(FakeEntityCreator.class));
+        analysis = new Analysis(TopologyInfo.getDefaultInstance(), Collections.emptySet(),
+                mock(GroupMemberRetriever.class), Clock.systemUTC(),
+                AnalysisConfig.newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
+                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                        SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false,
+                        MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false).build(),
+                mock(TopologyEntityCloudTopologyFactory.class),
+                mock(TopologyCostCalculatorFactory.class), mock(MarketPriceTableFactory.class),
+                mock(WastedFilesAnalysisEngine.class), mock(BuyRIImpactAnalysisFactory.class),
+                mock(NamespaceQuotaAnalysisFactory.class), mock(TierExcluderFactory.class),
+                mock(AnalysisRICoverageListener.class), mock(ConsistentScalingHelperFactory.class),
+                mock(InitialPlacementHandler.class), mock(ReversibilitySettingFetcherFactory.class),
+                mock(MigratedWorkloadCloudCommitmentAnalysisService.class), commodityIdUpdater,
+                mock(JournalActionSavingsCalculatorFactory.class),
+                mock(ExternalReconfigureActionEngine.class),
+                new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
+                Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class),
+                Mockito.mock(WastedAppServicePlanAnalysisEngine.class),
+                mock(FakeEntityCreator.class));
     }
 
     /**
