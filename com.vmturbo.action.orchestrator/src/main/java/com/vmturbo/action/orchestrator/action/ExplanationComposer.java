@@ -40,6 +40,7 @@ import org.apache.logging.log4j.util.Strings;
 import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -113,6 +114,7 @@ public class ExplanationComposer {
         "Zero nodes match Pod's node affinity";
     private static final String REASON_SETTINGS_EXPLANATION =
         "{0} doesn''t comply with {1}";
+    private static final String REASON_SETTINGS_VCPU_RECONFIG_EXPLANATION = "{0} out of compliance";
     private static final String SINGLE_DELETED_POLICY_MSG = "a compliance policy that used to exist";
     private static final String MULTIPLE_DELETED_POLICY_MSG = "compliance policies that used to exist";
     private static final String ACTION_TYPE_ERROR =
@@ -1097,7 +1099,7 @@ public class ExplanationComposer {
         final StringBuilder sb = new StringBuilder();
         if (!reconfigExplanation.getReasonSettingsList().isEmpty()) {
             sb.append(ActionDTOUtil.TRANSLATION_PREFIX)
-                .append(buildReasonSettingsExplanation(action.getInfo().getReconfigure().getTarget(),
+                .append(buildReasonSettingsExplanation(action.getInfo(), action.getInfo().getReconfigure().getTarget(),
                     reconfigExplanation.getReasonSettingsList(),
                     settingPolicyIdToSettingPolicyName, topology, false));
         } else {
@@ -1153,12 +1155,21 @@ public class ExplanationComposer {
                                                          @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
                                                          @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
                                                          final boolean keepItShort) {
+        return buildReasonSettingsExplanation(null, target, reasonSettings, settingPolicyIdToSettingPolicyName, topology, keepItShort);
+    }
+
+    private static String buildReasonSettingsExplanation(@Nullable final ActionInfo actionInfo,
+                                                         @Nonnull final ActionEntity target,
+                                                         @Nonnull final List<Long> reasonSettings,
+                                                         @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
+                                                         @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
+                                                         final boolean keepItShort) {
         if (keepItShort) {
             return REASON_SETTING_EXPLANATION_CATEGORY;
         }
-        return evaluateAndFormatReasonSettingsExplanation(target, reasonSettings,
-                                                          settingPolicyIdToSettingPolicyName,
-                                                          topology);
+
+        return evaluateAndFormatReasonSettingsExplanation(actionInfo, target, reasonSettings,
+                settingPolicyIdToSettingPolicyName, topology);
     }
 
     /**
@@ -1171,7 +1182,9 @@ public class ExplanationComposer {
      *                 May be empty if no relevant topology is available.
      * @return the explanation sentence
      */
-    private static String evaluateAndFormatReasonSettingsExplanation(@Nonnull final ActionEntity target, @Nonnull final List<Long> reasonSettings,
+    private static String evaluateAndFormatReasonSettingsExplanation(@Nullable final ActionInfo actionInfo,
+                                                                     @Nonnull final ActionEntity target,
+                                                                     @Nonnull final List<Long> reasonSettings,
                                                                      @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
                                                                      @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology) {
         Set policyNamesForAction = new HashSet<>();
@@ -1211,14 +1224,19 @@ public class ExplanationComposer {
             }
             return MessageFormat.format(REASON_SETTINGS_EXPLANATION,
                                         entityInformation, explanation.toString());
-
         } else {
-            return MessageFormat
-                            .format(REASON_SETTINGS_EXPLANATION,
-                                    entityInformation,
-                                    reasonSettings.stream()
-                                                    .map(settingPolicyIdToSettingPolicyName::get)
-                                                    .collect(Collectors.joining(", ")));
+            String reasonSettingsString = reasonSettings.stream().map(
+                    settingPolicyIdToSettingPolicyName::get).collect(Collectors.joining(", "));
+            boolean isVCPUReconfigure =
+                    actionInfo != null && target.getType() == EntityType.VIRTUAL_MACHINE_VALUE
+                            && actionInfo.hasReconfigure()
+                            && actionInfo.getReconfigure().getSettingChangeCount() > 0;
+            if (isVCPUReconfigure) {
+                return MessageFormat.format(REASON_SETTINGS_VCPU_RECONFIG_EXPLANATION,
+                        reasonSettingsString);
+            }
+            return MessageFormat.format(REASON_SETTINGS_EXPLANATION, entityInformation,
+                    reasonSettingsString);
         }
     }
 
