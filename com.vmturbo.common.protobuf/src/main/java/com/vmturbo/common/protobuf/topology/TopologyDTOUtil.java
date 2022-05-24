@@ -952,4 +952,14 @@ public final class TopologyDTOUtil {
         }
         return value;
     }
+
+    /**
+     * Return whether a topology entity DTO is flagged for removal.
+     *
+     * @param dto topology entity DTO to check
+     * @return true if the entity is flagged for removal.
+     */
+    public static boolean isFlaggedForRemoval(TopologyEntityDTO dto) {
+        return dto.hasEdit() && (dto.getEdit().hasRemoved() || dto.getEdit().hasReplaced());
+    }
 }

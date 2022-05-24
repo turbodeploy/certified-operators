@@ -261,15 +261,12 @@ public class TemplateConverterFactory {
         final TopologyEntityImpl entityFromTemplate = converterMap.get(templateEntityType)
                 .createTopologyEntityFromTemplate(template, topology, originalTopologyEntity,
                         actionType, identityProvider, nameSuffix);
-
         // entity added in plan are marked with a plan origin
-        final PlanScenarioOriginImpl planOrigin =
-                new PlanScenarioOriginImpl().setPlanId(topologyId);
+        final PlanScenarioOriginImpl planOrigin = new PlanScenarioOriginImpl().setPlanId(topologyId);
         if (originalTopologyEntity != null) {
             planOrigin.setOriginalEntityId(originalTopologyEntity.getOid());
         }
-        entityFromTemplate.setOrigin(
-                new OriginImpl().setPlanScenarioOrigin(planOrigin));
+        entityFromTemplate.setOrigin(new OriginImpl().setPlanScenarioOrigin(planOrigin));
         return entityFromTemplate;
     }
 }

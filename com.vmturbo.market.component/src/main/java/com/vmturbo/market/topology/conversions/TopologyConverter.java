@@ -1615,9 +1615,25 @@ public class TopologyConverter {
             if (originalEntity == null) {
                 // this is a clone trader
                 originalEntity = traderOidToEntityDTO.get(traderTO.getCloneOf());
+                long originalEntityOid = originalEntity.getOid();
+                /*
+                 * If the original entity is a plan entity, we need to use that original entity's
+                 * original (realtime) entity instead. We need to do this for cases where the plan
+                 * topology edit clones an entity but does not reuse the original entity's OID (for
+                 * example, HCI template expansion does this). In these cases, these new entities
+                 * are not accessible via the API.  To be compatible with existing plan output, we
+                 * want the clones to link back to the original realtime entity.
+                 */
+                if (originalEntity.hasOrigin()) {
+                    Origin originalEntityOrigin = originalEntity.getOrigin();
+                    if (originalEntityOrigin.hasPlanScenarioOrigin()) {
+                        originalEntityOid = originalEntityOrigin.getPlanScenarioOrigin()
+                                .getOriginalEntityId();
+                    }
+                }
                 entityDTOBuilder.setOrigin(Origin.newBuilder()
                     .setAnalysisOrigin(AnalysisOrigin.newBuilder()
-                        .setOriginalEntityId(originalEntity.getOid())));
+                        .setOriginalEntityId(originalEntityOid)));
             } else {
                 // copy the origin from the original entity
                 if (originalEntity.hasOrigin()) {
