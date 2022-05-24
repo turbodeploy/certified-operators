@@ -29,9 +29,11 @@ public class EntityStatsRollups {
     private final Table<?> rollup;
     private final Timestamp snapshotTime;
     private final Timestamp rollupTime;
+    private final RollupType rollupType;
     private final String low;
     private final String high;
-    private final RollupType rollupType;
+    private final DSLContext dsl;
+
     private Field<Timestamp> fSnapshotTime;
     private Field<String> fUuid;
     private Field<String> fProducerUuid;
@@ -46,8 +48,31 @@ public class EntityStatsRollups {
     private Field<Double> fAvgValue;
     private Field<Integer> fSamples;
     private Field<Integer> fSourceSamples;
+
+    // Record key fields (hour_key, day_key, month_key) are handled differently for Postgres than
+    // for MariaDB. The reason is that we took advantage of the opportunity to switch to a simpler
+    // and more efficient approach for Postgres, having no customers with existing data that we
+    // would need to accommodate.
+    //
+    // In MariaDB, we have all three key columns in latest and hourly tables, day_key and month_key
+    // in daily tables, and just month_key in monthlies. In each rollup, we copy all keys that
+    // appear in the rollup table from the source table (leaving out, e.g. hour_key when performing
+    // rollups from hourly to daily).
+    //
+    // In Postgres we have just one key field in each table - hour_key in latest and hourlies,
+    // day_key in dailies, and month_key in monthlies. When rolling up, we copy whichever key field
+    // exists in the source table to whichever key field exists in the rollup table. (It would
+    // have been nicer to be left with one less-specific key field name across all tables, but our
+    // transitional jOOQ strategy could not accommodate that.)
+
+    // This array will be populated with all the rollup-table fields that will receive keys from
+    // the source table in this rollup operation. For Postgres this will always be a singleton
+    // array.
+    private Field<String>[] fRollupKeys;
+    // This is the key field in the source table that will be copied to the rollup table in
+    // the case of Postgres rollups. It's also needed for MariaDB, since it's the field that is
+    // compared to key bounds to determine which source records will participate in the rollup.
     private Field<String> fSourceKey;
-    private Field<String> fRollupKey;
 
     /**
      * Create a new instance for a rollup operation.
@@ -59,9 +84,10 @@ public class EntityStatsRollups {
      * @param rollupType   type of rollup (hourly, daily, monthly)
      * @param low          lower bound for source rollup keys to participate in this operation
      * @param high         upper bound for source rollup keys to participate in this operation
+     * @param dsl          Db access
      */
     public EntityStatsRollups(Table<?> source, Table<?> rollup, Timestamp snapshotTime,
-            Timestamp rollupTime, RollupType rollupType, String low, String high) {
+            Timestamp rollupTime, RollupType rollupType, String low, String high, DSLContext dsl) {
         this.source = source;
         this.rollup = rollup;
         this.snapshotTime = snapshotTime;
@@ -69,6 +95,7 @@ public class EntityStatsRollups {
         this.rollupType = rollupType;
         this.low = low;
         this.high = high;
+        this.dsl = dsl;
         computeFields();
     }
 
@@ -78,31 +105,34 @@ public class EntityStatsRollups {
      * @param dsl {@link DSLContext} with access to the database
      */
     public void execute(DSLContext dsl) {
-        getUpsert(dsl).execute();
+        getUpsert().execute();
     }
 
     /**
      * Build an UPSERT statement and return the resulting jOOQ query object, ready to execute.
      *
-     * @param dsl DSLContext to use when building (and ultimately executing) the upsert
      * @return the jOOQ Query object representing the UPSERT
      */
-    public Query getUpsert(DSLContext dsl) {
+    public Query getUpsert() {
         return new UpsertBuilder().withSourceTable(source).withTargetTable(rollup)
                 .withInsertFields(fSnapshotTime, fUuid, fProducerUuid,
                         fPropertyType, fPropertySubtype, fRelation, fCommodityKey,
                         fCapacity, fEffectiveCapacity, fMaxValue, fMinValue, fAvgValue,
-                        fSamples, fRollupKey)
+                        fSamples)
+                .withInsertFields(fRollupKeys)
+                .conditionally(dsl.dialect() == SQLDialect.POSTGRES,
+                        builder -> builder.withInsertValue(fRollupKeys[0], fSourceKey))
                 .withInsertValue(fSnapshotTime, DSL.inline(rollupTime))
                 .withInsertValue(fSamples, fSourceSamples)
-                .withInsertValue(fRollupKey, fSourceKey)
                 // for hourly rollups we need to guard against the possibilities of duplicates
-                // hte latest table, which can happen if an ingestion is restarted after a crash
+                // the latest table, which can happen if an ingestion is restarted after a crash
                 .withDistinctSelect(rollupType == RollupType.BY_HOUR)
                 .withSourceCondition(
                         UpsertBuilder.getSameNamedField(fSnapshotTime, source).eq(snapshotTime))
-                .withSourceCondition(low != null ? fSourceKey.ge(low) : DSL.trueCondition())
-                .withSourceCondition(high != null ? fSourceKey.le(high) : DSL.trueCondition())
+                .withSourceCondition(
+                        low != null ? fSourceKey.ge(low) : DSL.trueCondition())
+                .withSourceCondition(
+                        high != null ? fSourceKey.le(high) : DSL.trueCondition())
                 // we have an index on the first 8 chars of the hour_key, which is in the form of
                 // a MariaDB "partial index" or a Postgres "expression index". For MariaDB, that
                 // index will be used based on the above conditions. But for Postgres we must use
@@ -146,22 +176,39 @@ public class EntityStatsRollups {
         this.fSourceSamples = source == latestTable
                               ? DSL.inline(1)
                               : JooqUtils.getIntField(source, StringConstants.SAMPLES);
-        this.fSourceKey = getTableKey(source);
-        this.fRollupKey = getTableKey(rollup);
+        //noinspection unchecked
+        this.fRollupKeys = (Field<String>[])getTableKeys(source);
+        this.fSourceKey = hourKeyField(source);
     }
 
-    private Field<String> getTableKey(Table<?> table) {
+    private Field<?>[] getTableKeys(Table<?> table) {
         Optional<EntityType> entityType = EntityType.fromTable(table);
-        if (entityType.flatMap(EntityType::getLatestTable).orElse(null) == table
-                || entityType.flatMap(EntityType::getHourTable).orElse(null) == table) {
-            return JooqUtils.getStringField(table, HOUR_KEY_NAME);
-        } else if (entityType.flatMap(EntityType::getDayTable).orElse(null) == table) {
-            return JooqUtils.getStringField(table, DAY_KEY_NAME);
-        } else if (entityType.flatMap(EntityType::getMonthTable).orElse(null) == table) {
-            return JooqUtils.getStringField(table, MONTH_KEY_NAME);
+        boolean isPostgres = dsl.dialect() == SQLDialect.POSTGRES;
+        if (entityType.flatMap(EntityType::getHourTable).orElse(null) == rollup) {
+            return isPostgres
+                   ? new Field[]{hourKeyField(table)}
+                   : new Field[]{hourKeyField(table), dayKeyField(table), monthKeyfield(table)};
+        } else if (entityType.flatMap(EntityType::getDayTable).orElse(null) == rollup) {
+            return isPostgres
+                   ? new Field[]{dayKeyField(table)}
+                   : new Field[]{dayKeyField(table), monthKeyfield(table)};
+        } else if (entityType.flatMap(EntityType::getMonthTable).orElse(null) == rollup) {
+            return new Field[]{monthKeyfield(table)};
         } else {
             throw new IllegalArgumentException(
-                    String.format("Unknown entity-stats table %s", table.getName()));
+                    String.format("Unknown rollup table %s", rollup.getName()));
         }
+    }
+
+    private Field<String> hourKeyField(Table<?> table) {
+        return JooqUtils.getStringField(table, HOUR_KEY_NAME);
+    }
+
+    private Field<String> dayKeyField(Table<?> table) {
+        return JooqUtils.getStringField(table, DAY_KEY_NAME);
+    }
+
+    private Field<String> monthKeyfield(Table<?> table) {
+        return JooqUtils.getStringField(table, MONTH_KEY_NAME);
     }
 }
