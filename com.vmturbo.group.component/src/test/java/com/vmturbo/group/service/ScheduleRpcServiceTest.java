@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
@@ -35,6 +36,8 @@ import com.vmturbo.common.protobuf.schedule.ScheduleProto.GetScheduleResponse;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.GetSchedulesRequest;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.OneTime;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Perpetual;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.RecurrenceStart;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.UpdateScheduleRequest;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.UpdateScheduleResponse;
 import com.vmturbo.group.common.DuplicateNameException;
@@ -42,6 +45,7 @@ import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemDeleteException.ScheduleInUseDeleteException;
 import com.vmturbo.group.common.ItemNotFoundException.ScheduleNotFoundException;
 import com.vmturbo.group.schedule.ScheduleStore;
+import com.vmturbo.group.schedule.ScheduleUtils;
 
 /**
  * Unit test for {@link ScheduleRpcService}.
@@ -72,7 +76,7 @@ public class ScheduleRpcServiceTest {
      */
     @Before
     public void setup() {
-        scheduleRpcService = new ScheduleRpcService(scheduleStore);
+        scheduleRpcService = new ScheduleRpcService(scheduleStore, new ScheduleUtils(true));
     }
 
     private void verifyResults(final Schedule expected, final Schedule actual) {
@@ -509,7 +513,7 @@ public class ScheduleRpcServiceTest {
      * @throws Exception If any unexpected exception
      */
     @Test
-    public void tesDeleteScheduleMissingId() throws Exception {
+    public void testDeleteScheduleMissingId() throws Exception {
         final StreamObserver<DeleteScheduleResponse> responseObserver =
             (StreamObserver<DeleteScheduleResponse>)mock(StreamObserver.class);
 
@@ -527,7 +531,7 @@ public class ScheduleRpcServiceTest {
      * @throws Exception If any unexpected exception
      */
     @Test
-    public void tesDeleteMissingSchedule() throws Exception {
+    public void testDeleteMissingSchedule() throws Exception {
         when(scheduleStore.deleteSchedule(SCHEDULE_ID)).thenThrow(ScheduleNotFoundException.class);
         final StreamObserver<DeleteScheduleResponse> responseObserver =
             (StreamObserver<DeleteScheduleResponse>)mock(StreamObserver.class);
@@ -546,7 +550,7 @@ public class ScheduleRpcServiceTest {
      * @throws Exception If any unexpected exception
      */
     @Test
-    public void tesDeleteScheduleInUse() throws Exception {
+    public void testDeleteScheduleInUse() throws Exception {
         when(scheduleStore.deleteSchedule(SCHEDULE_ID)).thenThrow(ScheduleInUseDeleteException.class);
         final StreamObserver<DeleteScheduleResponse> responseObserver =
             (StreamObserver<DeleteScheduleResponse>)mock(StreamObserver.class);
@@ -620,5 +624,84 @@ public class ScheduleRpcServiceTest {
         final ArgumentCaptor<StatusException> exceptionCaptor =
             ArgumentCaptor.forClass(StatusException.class);
         verify(responseObserver).onError(exceptionCaptor.capture());
+    }
+
+
+
+    /**
+     * Test for daylight savings issue discovered in OM-82886.
+     * <pre>
+     *       284674011001872,
+     *       "Daily 2 Hour Maintenance Window",
+     *       FROM_UNIXTIME(1595919600), // 2020-07-28 07:00:00 UTC which is 2020-07-28 02:00:00.0 in America/Chicago (Central time)
+     *       FROM_UNIXTIME(1595926800), // 2020-07-28 09:00:00 UTC which is 2020-07-28 04:00:00.0 in America/Chicago
+     *       null,
+     *       "FREQ=DAILY;INTERVAL=1;",
+     *       "America/Chicago",
+     *       FROM_UNIXTIME(1595919660), // 2020-07-28 07:00:00 UTC which is 2020-07-28 02:00:00.0 in America/Chicago
+     *       false
+     * </pre>
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testDaylightSavings() {
+        final Schedule daylightSavingsSchedule = Schedule.newBuilder()
+                .setId(284674011001872L)
+                .setDisplayName("Daily 2 Hour Maintenance Window")
+                .setStartTime(1595919600000L)
+                .setEndTime(1595926800000L)
+                .setPerpetual(Perpetual.getDefaultInstance())
+                .setRecurRule("FREQ=DAILY;INTERVAL=1;")
+                .setTimezoneId("America/Chicago") // central time
+                .setRecurrenceStart(RecurrenceStart.newBuilder()
+                        .setRecurrenceStartTime(1595919600000L)
+                        .build())
+                .build();
+        when(scheduleStore.getSchedule(284674011001872L)).thenReturn(Optional.of(daylightSavingsSchedule));
+        final StreamObserver<GetScheduleResponse> responseObserver =
+                (StreamObserver<GetScheduleResponse>)mock(StreamObserver.class);
+
+        scheduleRpcService.getSchedule(
+                GetScheduleRequest.newBuilder()
+                    .setOid(284674011001872L)
+                    .setRefTime(1652730122000L) // May 16th, 2022 3:42:02 EST
+                    .build(),
+                responseObserver);
+
+        final ArgumentCaptor<GetScheduleResponse> responseCaptor =
+                ArgumentCaptor.forClass(GetScheduleResponse.class);
+        verify(responseObserver).onNext(responseCaptor.capture());
+        verify(responseObserver).onCompleted();
+
+        // Calculation for the expected time:
+        // description              epoch           UTC                     America/Chicago           America/New York
+        // start time               1595919600      2020-07-28 07:00:00     2020-07-28 02:00:00       2020-07-28 03:00:00
+        // end time                 1595926800      2020-07-28 09:00:00     2020-07-28 04:00:00       2020-07-28 05:00:00
+        // recurrence_start_time    1595919660      2020-07-28 07:00:00     2020-07-28 02:00:00       2020-07-28 02:00:00
+        // ref time                 1652730122      2022-05-16 19:42:02     2022-05-16 14:42:02       2022-05-16 15:42:02
+        // next occurrence          1652770800      2022-05-17 07:00:00     2022-05-17 02:00:00       2022-05-17 03:00:00
+        // before fix               1652767200      2022-05-17 06:00:00     2022-05-17 01:00:00       2022-05-17 02:00:00
+        assertEquals(
+                generateExplanation(
+                        1652770800000L,
+                    responseCaptor.getValue().getSchedule().getNextOccurrence().getStartTime(),
+                    "America/Chicago"
+                ),
+                1652770800000L,
+                responseCaptor.getValue().getSchedule().getNextOccurrence().getStartTime());
+    }
+
+    private static String generateExplanation(
+            long expected,
+            long actual,
+            String timezone
+    ) {
+        final String actualStr = ZonedDateTime.ofInstant(Instant.ofEpochMilli(actual), ZoneId.of(timezone)).toString();
+        final String expectedStr = ZonedDateTime.ofInstant(Instant.ofEpochMilli(expected), ZoneId.of(timezone)).toString();
+        return "expected epoch=" + expected
+                + "\nactual epoch  =" + actual
+                + "\nexpected =" + expectedStr
+                + "\nactual   =" + actualStr;
     }
 }

@@ -292,7 +292,7 @@ public class RpcConfig {
 
     @Bean
     public ScheduleRpcService scheduleService() {
-        return new ScheduleRpcService(scheduleConfig.scheduleStore());
+        return new ScheduleRpcService(scheduleConfig.scheduleStore(), scheduleConfig.scheduleUtils());
     }
 
     @Bean

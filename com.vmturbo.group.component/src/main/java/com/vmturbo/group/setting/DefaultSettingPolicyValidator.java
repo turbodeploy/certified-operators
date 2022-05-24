@@ -25,6 +25,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Ordering;
 
 import org.apache.commons.lang3.StringUtils;
+import org.dmfs.rfc5545.recur.InvalidRecurrenceRuleException;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 
@@ -61,6 +62,7 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
     private final IGroupStore groupStore;
     private final ScheduleStore scheduleStore;
     private final Clock clock;
+    private final ScheduleUtils scheduleUtils;
 
     /**
      * Constructs setting policy validator.
@@ -72,11 +74,14 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
     public DefaultSettingPolicyValidator(@Nonnull final SettingSpecStore settingSpecStore,
                                          @Nonnull final IGroupStore groupStore,
                                          @Nonnull final ScheduleStore scheduleStore,
-                                         @Nonnull final Clock clock) {
+                                         @Nonnull final Clock clock,
+                                         @Nonnull final ScheduleUtils scheduleUtils
+            ) {
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.groupStore = Objects.requireNonNull(groupStore);
         this.scheduleStore = scheduleStore;
         this.clock = clock;
+        this.scheduleUtils = Objects.requireNonNull(scheduleUtils);
 
         final Map<SettingValueTypeCase, BiFunction<SettingPolicy, SettingSpec, Collection<String>>>
                 processors = new EnumMap<>(SettingValueTypeCase.class);
@@ -211,9 +216,9 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                 } else {
                     try {
                         schedule =
-                            ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+                            scheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
                                 schedule.toBuilder(), clock.millis());
-                    } catch (ParseException ex) {
+                    } catch (ParseException | InvalidRecurrenceRuleException ex) {
                         errors.add("The schedule " + schedule.getDisplayName() + " that has been "
                             + "associated to policy and cannot be parsed.");
                     }

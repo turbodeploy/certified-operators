@@ -93,7 +93,8 @@ public class SettingConfig {
     @Bean
     public SettingPolicyValidator settingPolicyValidator() {
         return new DefaultSettingPolicyValidator(settingSpecsStore(), groupConfig.groupStore(),
-            scheduleConfig.scheduleStore(), Clock.systemDefaultZone());
+            scheduleConfig.scheduleStore(), Clock.systemDefaultZone(),
+            scheduleConfig.scheduleUtils());
     }
 
     @Bean

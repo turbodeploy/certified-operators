@@ -4,6 +4,7 @@ import java.sql.SQLException;
 
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -18,6 +19,10 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 @Configuration
 @Import({DbAccessConfig.class,  IdentityProviderConfig.class})
 public class ScheduleConfig {
+
+    @Value("${useLibRecur:true}")
+    private boolean useLibRecur;
+
     /** Database config. */
     @Autowired
     private DbAccessConfig databaseConfig;
@@ -54,4 +59,13 @@ public class ScheduleConfig {
         }
     }
 
+    /**
+     * The ScheduleUtils used for calculating recurrences.
+     *
+     * @return the ScheduleUtils used for calculating recurrences.
+     */
+    @Bean
+    public ScheduleUtils scheduleUtils() {
+        return new ScheduleUtils(useLibRecur);
+    }
 }

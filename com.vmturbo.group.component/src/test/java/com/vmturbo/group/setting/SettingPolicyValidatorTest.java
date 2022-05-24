@@ -60,6 +60,7 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.schedule.ScheduleStore;
+import com.vmturbo.group.schedule.ScheduleUtils;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
@@ -94,6 +95,8 @@ public class SettingPolicyValidatorTest {
 
     private Clock clock;
 
+    private ScheduleUtils scheduleUtils = new ScheduleUtils(true);
+
     /**
      * Expected exception.
      */
@@ -104,7 +107,7 @@ public class SettingPolicyValidatorTest {
     public void setup() throws Exception {
         clock = mock(Clock.class);
         groupStore = mock(IGroupStore.class);
-        validator = new DefaultSettingPolicyValidator(specStore, groupStore, scheduleStore, clock);
+        validator = new DefaultSettingPolicyValidator(specStore, groupStore, scheduleStore, clock, scheduleUtils);
         when(groupStore.getGroupsById(Collections.singleton(GROUP_ID))).thenReturn(
                 Collections.singleton(Grouping.newBuilder()
                         .addExpectedTypes(MemberType.newBuilder().setEntity(ENTITY_TYPE))
@@ -772,7 +775,7 @@ public class SettingPolicyValidatorTest {
         final ThinTargetCache thinTargetCache = Mockito.mock(ThinTargetCache.class);
         DefaultSettingPolicyValidator validator = new DefaultSettingPolicyValidator(
                 new EnumBasedSettingSpecStore(false, false, thinTargetCache),
-                mock(IGroupStore.class), scheduleStore, clock);
+                mock(IGroupStore.class), scheduleStore, clock, scheduleUtils);
 
             List<InvalidItemException> exceptions = Lists.newArrayList();
         List<SettingSpec> settings = Arrays.stream(EntitySettingSpecs.values()).map(
