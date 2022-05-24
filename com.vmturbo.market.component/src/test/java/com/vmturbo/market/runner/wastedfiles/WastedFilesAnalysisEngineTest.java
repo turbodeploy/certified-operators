@@ -17,6 +17,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap.Builder;
 import com.google.common.collect.ImmutableSet;
 
 import org.junit.Before;
@@ -30,12 +31,16 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Replaced;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -66,11 +71,22 @@ public class WastedFilesAnalysisEngineTest {
     private final long topologyId = 2222;
     private final TopologyType topologyType = TopologyType.REALTIME;
 
-    private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
-        .setTopologyContextId(topologyContextId)
-        .setTopologyId(topologyId)
-        .setTopologyType(topologyType)
-        .build();
+    private TopologyInfo createTopologyInfo(boolean isPlan) {
+        TopologyInfo.Builder builder = TopologyInfo.newBuilder()
+                .setTopologyContextId(topologyContextId)
+                .setTopologyId(topologyId)
+                .setTopologyType(topologyType);
+        if (isPlan) {
+            builder.setPlanInfo(PlanTopologyInfo.newBuilder()
+                            .setPlanProjectType(PlanProjectType.USER)
+                            .setPlanType("RECONFIGURE_HARDWARE"));
+        }
+        return builder.build();
+    }
+
+    private final TopologyInfo topologyInfo = createTopologyInfo(false);
+
+    private final TopologyInfo planTopologyInfo = createTopologyInfo(true);
 
     private final WastedFilesAnalysisEngine wastedFilesAnalysisEngine = new WastedFilesAnalysisEngine();
 
@@ -151,7 +167,7 @@ public class WastedFilesAnalysisEngineTest {
         volume.setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualVolume(volumeInfo));
     }
 
-    private static Map<Long, TopologyEntityDTO> createTestOnPremTopology() {
+    private static Map<Long, TopologyEntityDTO> createTestOnPremTopology(boolean isPlan) {
         final long vmOid = 1L;
         final long storOid = 2L;
         final long wastedFileVolumeOid = 3L;
@@ -173,14 +189,38 @@ public class WastedFilesAnalysisEngineTest {
         connectEntities(wastedFileVolume2, storage2);
         addFilesToOnpremVolume(wastedFileVolume, filePathsWastedOnPrem, wastedSizesKbOnPrem, wastedModTimeMsOnPrem);
         addFilesToOnpremVolume(connectedVolume, filePathsUsedOnPrem, usedSizesKbOnPrem, usedModTimeMsOnPrem);
-        return new ImmutableMap.Builder<Long, TopologyEntityDTO>()
+        Builder<Long, TopologyEntityDTO> result = new Builder<Long, TopologyEntityDTO>()
             .put(vm.getOid(), vm.build())
             .put(storage.getOid(), storage.build())
             .put(storage2.getOid(), storage2.build())
             .put(wastedFileVolume.getOid(), wastedFileVolume.build())
             .put(wastedFileVolume2.getOid(), wastedFileVolume2.build())
-            .put(connectedVolume.getOid(), connectedVolume.build())
-            .build();
+            .put(connectedVolume.getOid(), connectedVolume.build());
+        if (isPlan) {
+            final long orphanFileVolumeOid = 7L;
+            final long wastedFileVolumeRemovedStorageOid = 8L;
+            final long removedStorageOid = 9L;
+            final TopologyEntityDTO.Builder removedStorage =
+                    createOnPremEntity(removedStorageOid, EntityType.STORAGE);
+            // Add an edit/replace to the removed storage.
+            removedStorage.setEdit(Edit.newBuilder()
+                    .setReplaced(Replaced.newBuilder()
+                            .setPlanId(1L)
+                            .setReplacementId(100L)));
+            final TopologyEntityDTO.Builder orphanFileVolume = createOnPremEntity(orphanFileVolumeOid,
+                    EntityType.VIRTUAL_VOLUME);
+            final TopologyEntityDTO.Builder wastedFileVolumeRemovedStorage =
+                    createOnPremEntity(wastedFileVolumeRemovedStorageOid, EntityType.VIRTUAL_VOLUME);
+            connectEntities(wastedFileVolumeRemovedStorage, removedStorage);
+            addFilesToOnpremVolume(orphanFileVolume, filePathsUsedOnPrem, usedSizesKbOnPrem,
+                    usedModTimeMsOnPrem);
+            addFilesToOnpremVolume(wastedFileVolumeRemovedStorage, filePathsUsedOnPrem,
+                    usedSizesKbOnPrem, usedModTimeMsOnPrem);
+            result.put(orphanFileVolumeOid, orphanFileVolume.build())
+                    .put(wastedFileVolumeRemovedStorageOid, wastedFileVolumeRemovedStorage.build())
+                    .put(removedStorageOid, removedStorage.build());
+        }
+        return result.build();
     }
 
     private static Map<Long, TopologyEntityDTO> createTestCloudTopology(final boolean includeNondeletable) {
@@ -229,9 +269,20 @@ public class WastedFilesAnalysisEngineTest {
         final CloudTopology<TopologyEntityDTO> originalCloudTopology = mock(CloudTopology.class);
         when(cloudCostCalculatorFactory.newCalculator(topologyInfo, originalCloudTopology)).thenReturn(cloudCostCalculator);
 
-        final WastedFilesResults analysis = wastedFilesAnalysisEngine.analyzeWastedFiles(topologyInfo,
-            createTestOnPremTopology(), cloudCostCalculator, originalCloudTopology);
+        Map<Long, TopologyEntityDTO> topology = createTestOnPremTopology(false);
+        WastedFilesResults analysis = wastedFilesAnalysisEngine.analyzeWastedFiles(topologyInfo,
+                topology, cloudCostCalculator, originalCloudTopology);
+        verifyResults(analysis);
 
+        // Test wasted files analysis for On Prem plans. Ensure that invalid or removed storages are
+        // not generating invalid wasted file deletion actions.
+        topology = createTestOnPremTopology(true);
+        analysis = wastedFilesAnalysisEngine.analyzeWastedFiles(planTopologyInfo,
+                topology, cloudCostCalculator, originalCloudTopology);
+        verifyResults(analysis);
+    }
+
+    private void verifyResults(WastedFilesResults analysis) {
         // expect 3 actions since we no longer filter files by size here
         assertEquals(3, analysis.getActions().size());
         // make sure actions have the correct files in them
@@ -262,11 +313,10 @@ public class WastedFilesAnalysisEngineTest {
             assertEquals(EnvironmentType.ON_PREM, target.getEnvironmentType());
             assertEquals(2L, target.getId());
         });
-
         // Verify total storage amount released for this oid
         assertTrue(analysis.getMbReleasedOnProvider(2L).isPresent());
         assertEquals(Arrays.stream(wastedSizesKbOnPrem).sum() / Units.NUM_OF_KB_IN_MB,
-            analysis.getMbReleasedOnProvider(2L).getAsLong());
+                analysis.getMbReleasedOnProvider(2L).getAsLong());
     }
 
     /**

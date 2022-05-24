@@ -28,6 +28,8 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.PlanScenarioOriginImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.StorageInfoImpl;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.builders.SDKConstants;
@@ -78,7 +80,6 @@ public class HCIPhysicalMachineEntityConstructor {
     public Collection<TopologyEntityImpl> replaceEntitiesFromTemplate(
             @Nonnull Collection<TopologyEntity.Builder> hostsToReplace)
             throws TopologyEntityConstructorException {
-        List<TopologyEntityImpl> result = new ArrayList<>();
 
         if (hostsToReplace.isEmpty()) {
             throw new TopologyEntityConstructorException(
@@ -88,6 +89,7 @@ public class HCIPhysicalMachineEntityConstructor {
 
         // Get plan ID from any plan entity
         TopologyEntityImpl anyPlanEntity = hostsToReplace.iterator().next().getTopologyEntityImpl();
+        long anyPlanEntityOid = anyPlanEntity.getOid();
         long planId = anyPlanEntity.getEdit().getReplaced().getPlanId();
 
         // Create new storage
@@ -107,6 +109,7 @@ public class HCIPhysicalMachineEntityConstructor {
         setResizable(newStorage, CommodityType.STORAGE_AMOUNT);
         setResizable(newStorage, CommodityType.STORAGE_PROVISIONED);
         setStoragePolicy(newStorage);
+        List<TopologyEntityImpl> result = new ArrayList<>();
         result.add(newStorage);
 
         int reservedHostsCount = (int)getStorageSettingValue(
@@ -146,6 +149,14 @@ public class HCIPhysicalMachineEntityConstructor {
             TopologyEntityConstructor.addStorageCommoditiesSold(newHost, templateValues, true);
             TopologyEntityConstructor.addStorageCommoditiesBought(newStorage, newHost.getOid(),
                     templateValues);
+        }
+
+        for (TopologyEntityImpl entity : result) {
+            // entity added in plan are marked with a plan origin
+            final PlanScenarioOriginImpl planOrigin = new PlanScenarioOriginImpl()
+                    .setOriginalEntityId(anyPlanEntityOid)
+                    .setPlanId(planId);
+            entity.setOrigin(new OriginImpl().setPlanScenarioOrigin(planOrigin));
         }
 
         return result;

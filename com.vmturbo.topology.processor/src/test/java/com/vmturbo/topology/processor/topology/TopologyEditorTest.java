@@ -16,6 +16,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -25,10 +26,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
@@ -40,9 +44,30 @@ import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesResponse;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
+import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
+import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
+import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.tag.TagPOJO.TagValuesImpl;
 import com.vmturbo.common.protobuf.tag.TagPOJO.TagsImpl;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -111,6 +136,7 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -132,6 +158,7 @@ public class TopologyEditorTest {
 
     private static final long vmId = 10;
     private static final long pmId = 20;
+    private static final long pm2Id = 21;
     private static final long stId = 30;
     private static final long podId = 40;
     private static final long podId_1 = 41;
@@ -300,16 +327,21 @@ public class TopologyEditorTest {
                                     .setUsed(USED)))
     );
 
-    private static final TopologyEntity.Builder pm = TopologyEntityUtils.topologyEntityBuilder(
-        new TopologyEntityImpl()
-            .setOid(pmId)
-            .setDisplayName("PM")
-            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-            .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(MEM).setUsed(USED))
-            .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(CPU).setUsed(USED))
-            .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(DATASTORE)
-                            .setAccesses(stId))
-    );
+    private static final Builder createPM(long oid, @Nonnull String name) {
+        return TopologyEntityUtils.topologyEntityBuilder(
+                new TopologyEntityImpl()
+                        .setOid(oid)
+                        .setDisplayName(name)
+                        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(MEM).setUsed(USED))
+                        .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(CPU).setUsed(USED))
+                        .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(DATASTORE)
+                                .setAccesses(stId))
+        );
+    }
+
+    private static final TopologyEntity.Builder pm = createPM(pmId, "PM");
+    private static final TopologyEntity.Builder pm2 = createPM(pm2Id, "PM-2");
 
     private final TopologyEntity.Builder st = TopologyEntityUtils.topologyEntityBuilder(
         new TopologyEntityImpl()
@@ -537,6 +569,7 @@ public class TopologyEditorTest {
     private static final int NUM_CLONES = 5;
 
     private static final long TEMPLATE_ID = 123;
+    private static final long HCI_TEMPLATE_ID = 2116;
 
     private static final ScenarioChange ADD_VM = ScenarioChange.newBuilder()
                     .setTopologyAddition(TopologyAddition.newBuilder()
@@ -568,6 +601,72 @@ public class TopologyEditorTest {
                             .setRemoveEntityId(pmId))
                     .build();
 
+    private static final ScenarioChange HCI_REPLACE = ScenarioChange.newBuilder()
+            .setTopologyReplace(TopologyReplace.newBuilder()
+                    .setAddTemplateId(HCI_TEMPLATE_ID)
+                    .setRemoveEntityId(pm2Id))
+            .build();
+
+    private static final TemplateResource INFRASTRUCTURE_RESOURCE = TemplateResource.newBuilder()
+            .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Infrastructure))
+            .addFields(TemplateField.newBuilder().setName("powerSize").setValue("1.0"))
+            .addFields(TemplateField.newBuilder().setName("spaceSize").setValue("1.0"))
+            .addFields(TemplateField.newBuilder().setName("coolingSize").setValue("1.0"))
+            .build();
+
+    private static final TemplateResource COMPUTE_RESOURCE = TemplateResource.newBuilder()
+            .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Compute))
+            .addFields(TemplateField.newBuilder().setName("numOfCores").setValue("100.0"))
+            .addFields(TemplateField.newBuilder().setName("cpuSpeed").setValue("2500.0"))
+            .addFields(TemplateField.newBuilder().setName("ioThroughputSize").setValue("1.024E7"))
+            .addFields(TemplateField.newBuilder().setName("memorySize").setValue("1.07374182E9"))
+            .addFields(TemplateField.newBuilder().setName("networkThroughputSize").setValue("1.024E7"))
+            .build();
+
+    private static final TemplateResource STORAGE_RESOURCE = TemplateResource.newBuilder()
+            .setCategory(ResourcesCategory.newBuilder()
+                    .setName(ResourcesCategoryName.Storage)
+                    .setType("disk"))
+            .addFields(TemplateField.newBuilder().setName("diskIops").setValue("5000.0"))
+            .addFields(TemplateField.newBuilder().setName("diskSize").setValue("3.072E7"))
+            .addFields(TemplateField.newBuilder().setName("failuresToTolerate").setValue("1.0"))
+            .addFields(TemplateField.newBuilder().setName("redundancyMethod").setValue("1.0"))
+            .build();
+
+    private static final String HCI_TEMPLATE_NAME = "btc 100 cores 1TB RAM 30TB Storage";
+    private static final SingleTemplateResponse SINGLE_HCI_TEMPLATE_RESPONSE =
+            SingleTemplateResponse.newBuilder()
+                    .setTemplate(Template.newBuilder()
+                            .setId(HCI_TEMPLATE_ID)
+                            .setType(Type.USER)
+                            .setTemplateInfo(TemplateInfo.newBuilder()
+                                    .setEntityType(EntityType.HCI_PHYSICAL_MACHINE_VALUE)
+                                    .setName(HCI_TEMPLATE_NAME)
+                                    .setTemplateSpecId(4)
+                                    .addResources(INFRASTRUCTURE_RESOURCE)
+                                    .addResources(COMPUTE_RESOURCE)
+                                    .addResources(STORAGE_RESOURCE)))
+                    .build();
+    private static final List<GetTemplatesResponse> HCI_TEMPLATE_RESPONSE =
+            ImmutableList.of(GetTemplatesResponse.newBuilder()
+                    .addTemplates(SINGLE_HCI_TEMPLATE_RESPONSE)
+                    .build());
+
+    private static final List<SettingPolicy> SETTING_POLICY_RESPONSE = ImmutableList.of(
+            SettingPolicy.newBuilder()
+                    .setSettingPolicyType(SettingPolicy.Type.DEFAULT)
+                    .setInfo(SettingPolicyInfo.newBuilder()
+                            .setEntityType(EntityType.STORAGE_VALUE)
+                            .setEnabled(true)
+                            .setName("Storage Defaults")
+                            .setDisplayName("Storage Defaults")
+                            .addSettings(Setting.newBuilder()
+                                    .setSettingSpecName("hciHostCapacityReservation")
+                                    .setNumericSettingValue(NumericSettingValue.newBuilder()
+                                            .setValue(1f))))
+                    .build()
+    );
+
     private static final ScenarioChange ADD_POD = ScenarioChange.newBuilder()
         .setTopologyAddition(TopologyAddition.newBuilder()
             .setAdditionCount(NUM_CLONES)
@@ -587,15 +686,20 @@ public class TopologyEditorTest {
     private long cloneId = 1000L;
 
     private TemplateConverterFactory templateConverterFactory = mock(TemplateConverterFactory.class);
+    private TemplateConverterFactory liveTemplateConverterFactory = null;
 
     private GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
+    private TemplateServiceMole templateServiceRpc = spy(new TemplateServiceMole());
+    private SettingPolicyServiceMole settingPolicyServiceRpc = spy(new SettingPolicyServiceMole());
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceSpy);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceSpy, templateServiceRpc,
+            settingPolicyServiceRpc);
 
     private TopologyEditor topologyEditor;
 
     private GroupResolver groupResolver = mock(GroupResolver.class);
+    private TemplateServiceBlockingStub templateService = null;
 
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
             .setTopologyContextId(1)
@@ -633,7 +737,8 @@ public class TopologyEditorTest {
     private PlanTopologyScopeEditor planTopologyScopeEditor;
 
     @Before
-    public void setup() {
+    public void setup() throws IOException {
+        templateService = TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(identityProvider.getCloneId(any(TopologyEntityView.class)))
             .thenAnswer(invocation -> cloneId++);
         context = new TopologyPipelineContext(topologyInfo);
@@ -646,6 +751,10 @@ public class TopologyEditorTest {
         scope = PlanScope.newBuilder().build();
         planTopologyScopeEditor = new PlanTopologyScopeEditor(
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+        this.liveTemplateConverterFactory = new TemplateConverterFactory(
+                templateService, identityProvider,
+                SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                CpuCapacityServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }
 
     /**
@@ -1927,5 +2036,58 @@ public class TopologyEditorTest {
         assertEquals(4, workloadsInDc.size());
         assertTrue(workloadsInDc.contains(vmId111) && workloadsInDc.contains(vmId112)
                 && workloadsInDc.contains(vmId121) && workloadsInDc.contains(vmId211));
+    }
+
+    /**
+     * Ensure that HCI resources are successfully added to the plan scope.
+     *
+     * @throws GroupResolutionException on error
+     */
+    @Test
+    public void testTopologyReplaceWithHCI() throws GroupResolutionException {
+        Map<Long, TopologyEntity.Builder> topology = Stream.of(vm, pm2, st)
+                .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
+        List<ScenarioChange> changes = Lists.newArrayList(HCI_REPLACE);
+        final Multimap<Long, Long> templateToReplacedEntity = ArrayListMultimap.create();
+        templateToReplacedEntity.put(HCI_TEMPLATE_ID, pm2Id);
+
+        TopologyEditor liveTopologyEditor = new TopologyEditor(identityProvider,
+                liveTemplateConverterFactory,
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+
+        when(settingPolicyServiceRpc.listSettingPolicies(any(ListSettingPoliciesRequest.class)))
+                .thenReturn(SETTING_POLICY_RESPONSE);
+        when(templateServiceRpc.getTemplates(any(GetTemplatesRequest.class)))
+                .thenReturn(HCI_TEMPLATE_RESPONSE);
+
+        liveTopologyEditor.editTopology(topology, scope, changes,
+                context, groupResolver, sourceEntities, destinationEntities);
+        assertEquals(4, topology.size());
+
+        // Verify that the PM is marked for removal and there is a new HCI host that is flagged
+        // for inclusion in the plan.
+        AtomicInteger numSourcePMsFound = new AtomicInteger(0);
+        AtomicInteger numHCIsFound = new AtomicInteger(0);
+
+        topology.entrySet().stream()
+                .map(Entry::getValue)
+                .map(Builder::getTopologyEntityImpl)
+                .forEach(entity -> {
+                    if (entity.hasEdit() && entity.getEdit().hasReplaced()) {
+                        if (entity.getOid() == pm2Id) {
+                            numSourcePMsFound.incrementAndGet();
+                        } else {
+                            Assert.fail("Wrong entity was replaced");
+                        }
+                    }
+                    if (entity.getDisplayName().startsWith(HCI_TEMPLATE_NAME)) {
+                        numHCIsFound.incrementAndGet();
+                    }
+                });
+
+        // verify that the PM is marked for removal
+        assertEquals(1, numSourcePMsFound.get());
+        // Verify that the HCI template was added and flagged for inclusion into the plan.
+        assertEquals(1, numHCIsFound.get());
     }
 }

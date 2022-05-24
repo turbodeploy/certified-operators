@@ -339,11 +339,10 @@ public class TopologyEditor {
                         .setPlanId(topologyInfo.getTopologyContextId()));
         prepareEntitiesForRemoval(entitiesToReplace, topology, replacementEdit);
 
-        // Mark added entities with the Plan Origin so they aren't counted in "before" plan
-        // stats
         addTemplateTopologyEntities(templateToAdd, templateToReplacedEntity, topology,
-                topologyInfo.getTopologyContextId()).forEach(
-                entity -> topology.put(entity.getOid(), TopologyEntity.newBuilder(entity)));
+               topologyInfo.getTopologyContextId()).forEach(entity -> {
+                   topology.put(entity.getOid(), TopologyEntity.newBuilder(entity));
+        });
     }
 
     /**
