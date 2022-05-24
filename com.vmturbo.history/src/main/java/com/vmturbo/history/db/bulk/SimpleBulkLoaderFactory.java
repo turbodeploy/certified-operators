@@ -291,7 +291,7 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
      *
      * @param <R> Type of stats record
      */
-    static class RollupKeyTransfomer<R extends Record> implements RecordTransformer<R, R> {
+    class RollupKeyTransfomer<R extends Record> implements RecordTransformer<R, R> {
         @Override
         public Optional<R> transform(final R record, final Table<R> inTable,
                 final Table<R> outTable) {
@@ -303,10 +303,23 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
                     String key = getMarketStatsKey(record);
                     rollupKeyMap.put(MARKET_STATS_LATEST.TIME_SERIES_KEY.getName(), key);
                 }
-            } else {
-                // and entity-stats tables only get a single key stored in latest.hour_key
+            } else if (dsl.dialect() == SQLDialect.POSTGRES) {
+                // and entity-stats tables only get a single key stored in latest.hour_key if we're
+                // using Postgres
                 String key = getEntityStatsKey(record, inTable, null);
                 rollupKeyMap.put(HOUR_KEY_FIELD_NAME, key);
+            } else {
+                // entity stats tables in MariaDB get hour_key, day_key, and month_key that include
+                // a timestamp, because they've always been that way, and we can't safely change
+                // up key calculations. If we did that, then records upserted before and after
+                // an upgrade would have different keys, so they wouldn't map to the same rollup
+                // records as required.
+                rollupKeyMap.put(HOUR_KEY_FIELD_NAME,
+                        getEntityStatsKey(record, inTable, HOUR_KEY_FIELD_NAME));
+                rollupKeyMap.put(DAY_KEY_FIELD_NAME,
+                        getEntityStatsKey(record, inTable, DAY_KEY_FIELD_NAME));
+                rollupKeyMap.put(MONTH_KEY_FIELD_NAME,
+                        getEntityStatsKey(record, inTable, MONTH_KEY_FIELD_NAME));
             }
             record.fromMap(rollupKeyMap.build());
             return Optional.of(record);
