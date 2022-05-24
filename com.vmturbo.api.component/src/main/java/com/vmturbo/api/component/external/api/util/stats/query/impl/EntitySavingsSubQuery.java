@@ -130,8 +130,9 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
         if (userSessionContext.isUserScoped()) {
 
             EntityFilter entityFilter = EntityFilter.newBuilder()
-                    .addAllEntityId(userSessionContext.getUserAccessScope().getAccessibleOidsByEntityTypes(ApiEntityType.ENTITY_TYPES_WITH_COST.stream()
-                            .map(s -> ApiEntityType.fromString(s))
+                    .addAllEntityId(userSessionContext.getUserAccessScope()
+                            .getAccessibleOidsByEntityTypes(ApiEntityType.ENTITY_TYPES_WITH_COST
+                            .stream().map(s -> ApiEntityType.fromString(s))
                             .collect(Collectors.toSet())).toSet()).build();
             request.setEntityFilter(entityFilter);
 
