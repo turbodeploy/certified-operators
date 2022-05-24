@@ -1,0 +1,426 @@
+guid: d73b05a0-42f9-4e28-ab34-f21e46a819d6
+worksheet:
+  name: Turbonomic Sandbox Worksheet
+  tables:
+  - name: Compute Cluster View
+  - name: ENTITY
+  - name: ENTITY_ORIGIN
+  - name: ENTITY_RELATED
+  - name: ENTITY_TAG
+  - name: GROUP
+  - name: METRIC
+  joins:
+  - name: ENTITY_RELATED_to_Compute Cluster View
+    source: Compute Cluster View
+    destination: ENTITY_RELATED
+    type: INNER
+    is_one_to_one: false
+  - name: ENTITY_ORIGIN_to_ENTITY
+    source: ENTITY_ORIGIN
+    destination: ENTITY
+    type: INNER
+    is_one_to_one: false
+  - name: ENTITY_RELATED_to_ENTITY
+    source: ENTITY_RELATED
+    destination: ENTITY
+    type: INNER
+    is_one_to_one: false
+  - name: GROUP_to_ENTITY_RELATED
+    source: ENTITY_RELATED
+    destination: GROUP
+    type: INNER
+    is_one_to_one: false
+  - name: ENTITY_TAG_to_ENTITY
+    source: ENTITY_TAG
+    destination: ENTITY
+    type: INNER
+    is_one_to_one: false
+  - name: METRIC_to_ENTITY
+    source: METRIC
+    destination: ENTITY
+    type: INNER
+    is_one_to_one: false
+  table_paths:
+  - id: Compute Cluster View_1
+    table: Compute Cluster View
+    join_path:
+    - {}
+  - id: ENTITY_1
+    table: ENTITY
+    join_path:
+    - join:
+      - ENTITY_ORIGIN_to_ENTITY
+    - join:
+      - ENTITY_TAG_to_ENTITY
+    - join:
+      - ENTITY_RELATED_to_Compute Cluster View
+      - ENTITY_RELATED_to_ENTITY
+    - join:
+      - METRIC_to_ENTITY
+  - id: ENTITY_2
+    table: ENTITY
+    join_path:
+    - join:
+      - ENTITY_RELATED_to_Compute Cluster View
+      - ENTITY_RELATED_to_ENTITY
+    - join:
+      - METRIC_to_ENTITY
+  - id: ENTITY_3
+    table: ENTITY
+    join_path:
+    - join:
+      - METRIC_to_ENTITY
+  - id: ENTITY_ORIGIN_1
+    table: ENTITY_ORIGIN
+    join_path:
+    - {}
+  - id: ENTITY_RELATED_1
+    table: ENTITY_RELATED
+    join_path:
+    - join:
+      - ENTITY_RELATED_to_Compute Cluster View
+  - id: ENTITY_TAG_1
+    table: ENTITY_TAG
+    join_path:
+    - {}
+  - id: GROUP_1
+    table: GROUP
+    join_path:
+    - join:
+      - ENTITY_RELATED_to_Compute Cluster View
+      - GROUP_to_ENTITY_RELATED
+  - id: METRIC_1
+    table: METRIC
+    join_path:
+    - {}
+  formulas:
+  - name: CPUs
+    expr: "average ( group_aggregate ( sum ( [num_cpus] ) , query_groups ( ) + { [ENTITY_2::TIME] } - { [Metric] , [Datacenter / Cluster] } , query_filters ( ) - { [Metric] } ) )"
+  - name: Cumulative Utilization Average
+    expr: "[Cumulative Used Average] / [Cumulative Capacity Average]"
+  - name: Cumulative Capacity Average
+    expr: "average ( group_aggregate ( sum ( if ( [Metric] = 'cpu' or [Metric] = 'vcpu' ) then [METRIC_1::CAPACITY] / 1000 else if ( [Metric] = 'mem' or [Metric] = 'vmem' ) then [METRIC_1::CAPACITY] / 1024 / 1024 else if ( [Metric] = 'storage_amount' or [Metric] = 'storage_provisioned' ) then [METRIC_1::CAPACITY] / 1024 else [METRIC_1::CAPACITY] ) , query_groups ( ) + { [ENTITY_3::TIME] } , query_filters ( ) ) )"
+  - name: Cumulative Used Average
+    expr: "average ( group_aggregate ( sum ( if ( [Metric] = 'cpu' or [Metric] = 'vcpu' ) then [METRIC_1::USED] / 1000 else if ( [Metric] = 'mem' or [Metric] = 'vmem' ) then [METRIC_1::USED] / 1024 / 1024 else if ( [Metric] = 'storage_amount' or [Metric] = 'storage_provisioned' ) then [METRIC_1::USED] / 1024 else [METRIC_1::USED] ) , query_groups ( ) + { [ENTITY_3::TIME] } , query_filters ( ) ) )"
+  - name: Cumulative Utilization Max
+    expr: "[Cumulative Used Max] / [Cumulative Capacity Max]"
+  - name: Cumulative Capacity Max
+    expr: "max ( group_aggregate ( sum ( if ( [Metric] = 'cpu' or [Metric] = 'vcpu' ) then [METRIC_1::CAPACITY] / 1000 else if ( [Metric] = 'mem' or [Metric] = 'vmem' ) then [METRIC_1::CAPACITY] / 1024 / 1024 else if ( [Metric] = 'storage_amount' or [Metric] = 'storage_provisioned' ) then [METRIC_1::CAPACITY] / 1024 else [METRIC_1::CAPACITY] ) , query_groups ( ) + { [ENTITY_3::TIME] } , query_filters ( ) ) )"
+  - name: Cumulative Used Max
+    expr: "max ( group_aggregate ( sum ( if ( [Metric] = 'cpu' or [Metric] = 'vcpu' ) then [METRIC_1::USED] / 1000 else if ( [Metric] = 'mem' or [Metric] = 'vmem' ) then [METRIC_1::USED] / 1024 / 1024 else if ( [Metric] = 'storage_amount' or [Metric] = 'provisioned' ) then [METRIC_1::USED] / 1024 else [METRIC_1::USED] ) , query_groups ( ) + { [ENTITY_3::TIME] } , query_filters ( ) ) )"
+  - name: Datacenter / Cluster
+    expr: "[Compute Cluster View_1::RELATED_NAME]"
+  - name: Entity count
+    expr: "group_aggregate ( unique count ( [ENTITY_1::OID] ) , query_groups ( ) , query_filters ( ) )"
+  - name: Global Time Filter
+    expr: "if ( [ENTITY_1::TIME] >= add_days ( now ( ) , - 90 ) ) then true else false"
+  - name: Utilization Average
+    expr: "[Used Average] / [Capacity Average]"
+  - name: Capacity Average
+    expr: "group_aggregate ( average ( if ( [Metric] = 'cpu' or [Metric] = 'vcpu' ) then [METRIC_1::CAPACITY] / 1000 else if ( [Metric] = 'mem' or [Metric] = 'vmem' ) then [METRIC_1::CAPACITY] / 1024 / 1024 else if ( [Metric] = 'storage_amount' or [Metric] = 'storage_provisioned' ) then [METRIC_1::CAPACITY] / 1024 else [METRIC_1::CAPACITY] ) , query_groups ( ) - { [ENTITY_3::TIME] } , query_filters ( ) )"
+  - name: Used Average
+    expr: "group_aggregate ( average ( if ( [Metric] = 'cpu' or [Metric] = 'vcpu' ) then [METRIC_1::USED] / 1000 else if ( [Metric] = 'mem' or [Metric] = 'vmem' ) then [METRIC_1::USED] / 1024 / 1024 else if ( [Metric] = 'storage_amount' or [Metric] = 'storage_provisioned' ) then [METRIC_1::USED] / 1024 else [METRIC_1::USED] ) , query_groups ( ) - { [ENTITY_3::TIME] } , query_filters ( ) )"
+  - name: Utilization Average by Time
+    expr: "[Used Average by Time] / [Capacity Average by Time]"
+  - name: Capacity Average by Time
+    expr: "group_aggregate ( average ( if ( [Metric] = 'cpu' or [Metric] = 'vcpu' ) then [METRIC_1::CAPACITY] / 1000 else if ( [Metric] = 'mem' or [Metric] = 'vmem' ) then [METRIC_1::CAPACITY] / 1024 / 1024 else if ( [Metric] = 'storage_amount' or [Metric] = 'provisioned' ) then [METRIC_1::CAPACITY] / 1024 else [METRIC_1::CAPACITY] ) , query_groups ( ) + { [ENTITY_3::TIME] } , query_filters ( ) )"
+  - name: Used Average by Time
+    expr: "group_aggregate ( average ( if ( [Metric] = 'cpu' or [Metric] = 'vcpu' ) then [METRIC_1::USED] / 1000 else if ( [Metric] = 'mem' or [Metric] = 'vmem' ) then [METRIC_1::USED] / 1024 / 1024 else if ( [Metric] = 'storage_amount' or [Metric] = 'provisioned' ) then [METRIC_1::USED] / 1024 else [METRIC_1::USED] ) , query_groups ( ) + { [ENTITY_3::TIME] } , query_filters ( ) )"
+  - name: Utilization Max
+    expr: "[Used Max] / [Capacity Max]"
+  - name: Capacity Max
+    expr: "group_aggregate ( max ( if ( [Metric] = 'cpu' or [Metric] = 'vcpu' ) then [METRIC_1::CAPACITY] / 1000 else if ( [Metric] = 'mem' or [Metric] = 'vmem' ) then [METRIC_1::CAPACITY] / 1024 / 1024 else if ( [Metric] = 'storage_amount' or [Metric] = 'provisioned' ) then [METRIC_1::CAPACITY] / 1024 else [METRIC_1::CAPACITY] ) , query_groups ( ) - { [ENTITY_3::TIME] } , query_filters ( ) )"
+  - name: Used Max
+    expr: "group_aggregate ( max ( if ( [Metric] = 'cpu' or [Metric] = 'vcpu' ) then [METRIC_1::USED] / 1000 else if ( [Metric] = 'mem' or [Metric] = 'vmem' ) then [METRIC_1::USED] / 1024 / 1024 else if ( [Metric] = 'storage_amount' or [Metric] = 'storage_provisioned' ) then [METRIC_1::USED] / 1024 else [METRIC_1::USED] ) , query_groups ( ) - { [ENTITY_3::TIME] } , query_filters ( ) )"
+  - name: Utilization Max by Time
+    expr: "[Used Max by Time] / [Capacity Max by Time]"
+  - name: Capacity Max by Time
+    expr: "group_aggregate ( max ( if ( [Metric] = 'cpu' or [Metric] = 'vcpu' ) then [METRIC_1::CAPACITY] / 1000 else if ( [Metric] = 'mem' or [Metric] = 'vmem' ) then [METRIC_1::CAPACITY] / 1024 / 1024 else if ( [Metric] = 'storage_amount' or [Metric] = 'provisioned' ) then [METRIC_1::CAPACITY] / 1024 else [METRIC_1::CAPACITY] ) , query_groups ( ) + { [ENTITY_3::TIME] } , query_filters ( ) )"
+  - name: Used Max by Time
+    expr: "group_aggregate ( max ( if ( [Metric] = 'cpu' or [Metric] = 'vcpu' ) then [METRIC_1::USED] / 1000 else if ( [Metric] = 'mem' or [Metric] = 'vmem' ) then [METRIC_1::USED] / 1024 / 1024 else if ( [Metric] = 'storage_amount' or [Metric] = 'storage_provisioned' ) then [METRIC_1::USED] / 1024 else [METRIC_1::USED] ) , query_groups ( ) + { [ENTITY_3::TIME] } , query_filters ( ) )"
+  - name: Metric
+    expr: "[METRIC_1::TYPE]"
+  - name: num_cpus
+    expr: sql_int_op ( 'attrs:num_cpus' )
+  filters:
+  - column:
+    - Global Time Filter
+    oper: in
+    values:
+    - "true"
+  worksheet_columns:
+  - name: Oid
+    column_id: ENTITY_1::OID
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+  - name: Timestamp
+    column_id: ENTITY_1::TIME
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+      calendar: calendar
+  - name: Name
+    column_id: ENTITY_1::NAME
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+  - name: Entity Type
+    column_id: ENTITY_1::TYPE
+    properties:
+      column_type: ATTRIBUTE
+  - name: Environment
+    column_id: ENTITY_1::ENVIRONMENT
+    properties:
+      column_type: ATTRIBUTE
+  - name: Attrs
+    column_id: ENTITY_1::ATTRS
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+      index_priority: 0.0
+  - name: Target Oid
+    column_id: ENTITY_ORIGIN_1::TARGET_OID
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+  - name: Target Name
+    column_id: ENTITY_ORIGIN_1::TARGET_NAME
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+  - name: Target Category
+    column_id: ENTITY_ORIGIN_1::TARGET_CATEGORY
+    properties:
+      column_type: ATTRIBUTE
+  - name: Target Type
+    column_id: ENTITY_ORIGIN_1::TARGET_TYPE
+    properties:
+      column_type: ATTRIBUTE
+  - name: Metric Type
+    column_id: METRIC_1::TYPE
+    properties:
+      column_type: ATTRIBUTE
+      synonyms:
+      - metric
+  - name: Capacity
+    column_id: METRIC_1::CAPACITY
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Used
+    column_id: METRIC_1::USED
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Utilization
+    column_id: METRIC_1::UTILIZATION
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Consumed
+    column_id: METRIC_1::CONSUMED
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Related Type
+    column_id: ENTITY_RELATED_1::RELATED_TYPE
+    properties:
+      column_type: ATTRIBUTE
+  - name: Related Name
+    column_id: ENTITY_RELATED_1::RELATED_NAME
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+  - name: Related Oid
+    column_id: ENTITY_RELATED_1::RELATED_OID
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+  - name: Tag
+    column_id: ENTITY_TAG_1::TAG
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+  - name: Group Type
+    column_id: GROUP_1::TYPE
+    properties:
+      column_type: ATTRIBUTE
+  - name: Member Types
+    column_id: GROUP_1::MEMBER_TYPES
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+  - name: Origin
+    column_id: GROUP_1::ORIGIN
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+  - name: Dynamic
+    column_id: GROUP_1::DYNAMIC
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+  - name: Group Tags
+    column_id: GROUP_1::TAGS
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+  - name: Group Targets
+    column_id: GROUP_1::TARGETS
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+  - name: Global Time Filter
+    formula_id: Global Time Filter
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+      is_hidden: true
+  - name: Entity count
+    formula_id: Entity count
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: CPUs
+    formula_id: CPUs
+    properties:
+      column_type: MEASURE
+      aggregation: SUM
+      index_type: DONT_INDEX
+  - name: Group Oid
+    column_id: GROUP_1::OID
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+  - name: Group Name
+    column_id: GROUP_1::NAME
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+  - name: Used Average
+    formula_id: Used Average
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Used Max
+    formula_id: Used Max
+    properties:
+      column_type: MEASURE
+      aggregation: MAX
+      index_type: DONT_INDEX
+  - name: Cumulative Used Average
+    formula_id: Cumulative Used Average
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Cumulative Used Max
+    formula_id: Cumulative Used Max
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Capacity Average
+    formula_id: Capacity Average
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Capacity Max
+    formula_id: Capacity Max
+    properties:
+      column_type: MEASURE
+      aggregation: MAX
+      index_type: DONT_INDEX
+  - name: Cumulative Capacity Average
+    formula_id: Cumulative Capacity Average
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Cumulative Capacity Max
+    formula_id: Cumulative Capacity Max
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Utilization Average
+    formula_id: Utilization Average
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Utilization Max
+    formula_id: Utilization Max
+    properties:
+      column_type: MEASURE
+      aggregation: MAX
+      index_type: DONT_INDEX
+  - name: Cumulative Utilization Average
+    formula_id: Cumulative Utilization Average
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Cumulative Utilization Max
+    formula_id: Cumulative Utilization Max
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Used Average by Time
+    formula_id: Used Average by Time
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Used Max by Time
+    formula_id: Used Max by Time
+    properties:
+      column_type: MEASURE
+      aggregation: MAX
+      index_type: DONT_INDEX
+  - name: Capacity Average by Time
+    formula_id: Capacity Average by Time
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Capacity Max by Time
+    formula_id: Capacity Max by Time
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Utilization Average by Time
+    formula_id: Utilization Average by Time
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Utilization Max by Time
+    formula_id: Utilization Max by Time
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Datacenter / Cluster
+    formula_id: Datacenter / Cluster
+    properties:
+      column_type: ATTRIBUTE
+  - name: Metric
+    formula_id: Metric
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+      is_hidden: true
+  properties:
+    is_bypass_rls: false
+    join_progressive: true
