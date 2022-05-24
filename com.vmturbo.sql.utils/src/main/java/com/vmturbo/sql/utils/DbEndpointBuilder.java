@@ -150,7 +150,7 @@ public class DbEndpointBuilder {
     }
 
     /**
-     * Specify a access property value for this endpoint.
+     * Specify an access property value for this endpoint.
      *
      * @param access property value
      * @return this endpoint
@@ -324,7 +324,7 @@ public class DbEndpointBuilder {
     }
 
     /**
-     * Specify that this endpoint should be configured like another used as a template..
+     * Specify that this endpoint should be configured like another used as a template.
      *
      * <p>See {@link DbEndpoint} for a list of the template properties that are used in for
      * the endpoint being constructed, where those properties have not been specified in this
@@ -400,6 +400,19 @@ public class DbEndpointBuilder {
      */
     public DbEndpointBuilder withRootDatabaseName(String rootDatabaseName) {
         config.setRootDatabaseName(rootDatabaseName);
+        return this;
+    }
+
+    /**
+     * Specify a provisioning prefix that will be added to certain endpoint properties.
+     *
+     * <p>This might be used for multi-tenant scenarios, or with Kibitzer activities.</p>
+     *
+     * @param provisioningPrefix prefix to be used
+     * @return this endpoint builder
+     */
+    public DbEndpointBuilder withProvisioningPrefix(String provisioningPrefix) {
+        config.setProvisioningPrefix(provisioningPrefix);
         return this;
     }
 }

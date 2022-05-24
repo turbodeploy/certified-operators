@@ -10,10 +10,12 @@ import org.apache.logging.log4j.util.Strings;
 import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.DSLContext;
 import org.jooq.impl.DefaultDSLContext;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 import com.vmturbo.history.flyway.MigrationCallbackForVersion121;
 import com.vmturbo.history.flyway.ResetChecksumsForMyIsamInfectedMigrations;
@@ -27,17 +29,18 @@ import com.vmturbo.sql.utils.flyway.ForgetMigrationCallback;
  **/
 @Configuration
 @Conditional(SQLDatabaseConfigCondition.class)
+@Import(HistoryDbPropertyConfig.class)
 public class HistoryDbConfig extends SQLDatabaseConfig {
-    private static Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
-    @Value("${historyDbUsername:history}")
-    private String historyDbUsername;
+    @Autowired
+    private HistoryDbPropertyConfig dbPropertyConfig;
 
-    @Value("${historyDbPassword:}")
-    private String historyDbPassword;
+    private final String historyDbUsername = dbPropertyConfig.getUserName();
 
-    @Value("${dbSchemaName:vmtdb}")
-    private String dbSchemaName;
+    private final String historyDbPassword = dbPropertyConfig.getPassword();
+
+    private final String dbSchemaName = dbPropertyConfig.getSchemaName();
 
     @Value("${authHost}")
     private String authHost;
@@ -104,7 +107,7 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
 
     /**
      * Get a {@link DSLContext} that uses unpooled connections to perform database operations.
-     * This may be advisable when performing potentially long-running DB operaitions to avoid
+     * This may be advisable when performing potentially long-running DB operations to avoid
      * tying up limited pool connections.
      *
      * @return DSLContext that uses unpooled connections

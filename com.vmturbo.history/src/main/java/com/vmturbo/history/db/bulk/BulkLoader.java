@@ -64,4 +64,11 @@ public interface BulkLoader<R extends Record> {
      * @throws InterruptedException if interrupted
      */
     void flush(boolean awaitCompletion) throws InterruptedException;
+
+    /**
+     * Get the insertion stats from this loader.
+     *
+     * @return insertion stats structure
+     */
+    BulkInserterStats getStats();
 }

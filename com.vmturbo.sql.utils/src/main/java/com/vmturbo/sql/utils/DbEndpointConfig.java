@@ -55,6 +55,7 @@ public class DbEndpointConfig {
     private Boolean shouldProvisionUser;
     private List<DbPlugin> plugins;
     private boolean isAbstract;
+    private String provisioningPrefix;
 
     DbEndpointConfig(final String name) {
         this.name = name;
@@ -340,6 +341,15 @@ public class DbEndpointConfig {
 
     public void setRootDatabaseName(@Nullable String rootDatabaseName) {
         this.rootDatabaseName = rootDatabaseName;
+    }
+
+    @Nullable
+    public String getProvisioningPrefix() {
+        return provisioningPrefix;
+    }
+
+    public void setProvisioningPrefix(@Nullable String provisioningPrefix) {
+        this.provisioningPrefix = provisioningPrefix;
     }
 
     @Override

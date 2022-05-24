@@ -64,7 +64,7 @@ import com.vmturbo.sql.utils.pool.HikariPoolMonitor;
  * </p>
  *
  * <p>Some provisioning operations are performed by a "root" or "super" user login, whose
- * credenetials must be supplied via endpoint configuration. Others are performed by the user
+ * credentials must be supplied via endpoint configuration. Others are performed by the user
  * associated with an endpoint configured for `ALL` access after it has been provisioned. The
  * main reason to disable provisioning is to avoid the need to make a root user available to
  * the Turbonomic appliance.</p>
@@ -219,10 +219,10 @@ public abstract class DbAdapter {
             final DataSource dataSource = DbConnectionPoolConfig.getPooledDataSource(
                     url, user, password, minPoolSize, maxPoolSize, keepAliveIntervalMinutes, poolName, config.getDialect());
             if (config.getUseConnectionPool() && poolMonitorIntervalSec > 0 && dataSource instanceof HikariDataSource) {
-                final HikariDataSource hikariDataSourceataSource = (HikariDataSource)dataSource;
+                final HikariDataSource hikariDataSource = (HikariDataSource)dataSource;
                 final String schemaName = config.getSchemaName();
                 final HikariPoolMonitor poolMonitor = new HikariPoolMonitor(poolName, poolMonitorIntervalSec, schemaName, poolMonitorExecutorService(schemaName));
-                hikariDataSourceataSource.setMetricRegistry(poolMonitor.getMetricRegistry());
+                hikariDataSource.setMetricRegistry(poolMonitor.getMetricRegistry());
             }
             return dataSource;
         } else {
@@ -261,7 +261,7 @@ public abstract class DbAdapter {
      * javadoc for details. Other adapters currently just use the normal datasource method.</p>
      *
      * @return data source
-     * @throws UnsupportedDialectException for an unsuppported dialect
+     * @throws UnsupportedDialectException for an  unsuppported dialect
      * @throws SQLException                if there's a problem creating the data source
      */
     protected DataSource getDataSourceForFlyway() throws UnsupportedDialectException, SQLException {
@@ -274,7 +274,7 @@ public abstract class DbAdapter {
      * @param database database to connect to, or null ot use endpoint's configured database
      * @return new datasource object, if the endpoint has root access enabled
      * @throws UnsupportedDialectException   for an unsupported dialect
-     * @throws UnsupportedOperationException if this endpoint is not configured forroot access
+     * @throws UnsupportedOperationException if this endpoint is not configured for root access
      * @throws SQLException                  if the datasource could not be created
      */
     DataSource getRootDataSource(String database)
@@ -470,7 +470,7 @@ public abstract class DbAdapter {
      * Install any plugins required for this endpoint.
      *
      * @throws SQLException if there's a problem performing the installations
-     * @throws UnsupportedDialectException if this endpoint is misconfigured
+     * @throws UnsupportedDialectException if this endpoint is mis-configured
      */
     protected void createPlugins() throws SQLException, UnsupportedDialectException {
         if (!config.getPlugins().isEmpty()) {
@@ -636,7 +636,7 @@ public abstract class DbAdapter {
      *
      * <p>This method is used by the test rule at the end of test class execution.</p>
      */
-    protected abstract void tearDown();
+    public abstract void tearDown();
 
     /**
      * Quote the given name (table, database, etc.) and quote it as appropriate for this endpoint's
@@ -654,7 +654,7 @@ public abstract class DbAdapter {
      * contain sensitive information like passwords.</p>
      *
      * @param msg message to appear in new exception
-     * @param e   orginal exception
+     * @param e   original exception
      * @return new exception partially copied from original
      */
     protected static SQLException copySQLExceptionWithoutStack(String msg, SQLException e) {

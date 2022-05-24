@@ -128,7 +128,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
      * @param dsl                    basic database methods, including connection creation
      * @param key                    object to use as a key for this inserter's stats (typically the
      *                               output table)
-     * @param inTable                table for records of RI type, that will sent to this instance
+     * @param inTable                table for records of RI type, that will be sent to this instance
      * @param outTable               table for records of RO type, which will be stored to the
      *                               database
      * @param config                 config parameters
@@ -301,7 +301,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         synchronized (executingBatches) {
             executingBatches.remove(future);
             pendingExecutionCount.decrementAndGet();
-            // close processing does a timed wait loop for `executingaBatches` to drain, so we
+            // close processing does a timed wait loop for `executingBatches` to drain, so we
             // need to notify in case we're in that state, to allow the close to progress
             executingBatches.notifyAll();
         }
@@ -480,7 +480,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
     /*
      * Compute a schedule of backoff times between retry attempts for a failing batch.
      *
-     * <p>The times will increase in roughly exponential fashion up to the maximum confiugred
+     * <p>The times will increase in roughly exponential fashion up to the maximum configured
      * by {@link #maxRetryBackoffMsec} config option, and the overall schedule length will be as
      * configured by {@link #maxBatchRetries}.</p>
      *
@@ -489,11 +489,11 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
     private int[] computeBatchRetryBackoffs(int maxBatchRetries, int maxBatchRetryBackoffMsec) {
         int[] backoffs = new int[maxBatchRetries];
 
-        // prior lengths are progressively halfed
+        // prior lengths are progressively halved
         int i = backoffs.length - 1;
         backoffs[i] = maxBatchRetryBackoffMsec;
 
-        // prior lengths are progressively halfed
+        // prior lengths are progressively halved
         while (--i > 0) {
             backoffs[i] = backoffs[i + 1] / 2;
         }
@@ -509,14 +509,21 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
     /**
      * POJO to represent statistics relating to the execution of a single batch.
      */
-    static class BatchStats {
+    public static class BatchStats {
 
         private final boolean failed;
         private final int records;
         private final long workTimeNanos;
         private final long lostTimeNanos;
 
-        BatchStats(boolean failed, int records, long workTimeNanos, long lostTimeNanos) {
+        /**
+         * Create a new instance.
+         * @param failed true if the batch failed in its execution
+         * @param records nubmer of records inserted
+         * @param workTimeNanos amount of time spent performing insertion
+         * @param lostTimeNanos time spent waiting for retry or exeucting a failed insertion
+         */
+        public BatchStats(boolean failed, int records, long workTimeNanos, long lostTimeNanos) {
             this.failed = failed;
             this.records = records;
             this.workTimeNanos = workTimeNanos;
@@ -564,7 +571,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         }
 
         /**
-         * Get nanonseconds of work time executing this batch.
+         * Get nanoseconds of work time executing this batch.
          *
          * @return amount of work spent executing this batch
          */

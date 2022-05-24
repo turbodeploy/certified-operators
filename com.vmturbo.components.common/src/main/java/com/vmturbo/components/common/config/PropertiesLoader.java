@@ -77,11 +77,28 @@ public class PropertiesLoader {
      * properties into PropertySources and add those to the given {@link Environment}.
      *
      * @param environment spring environment where properties should be loaded
-     * @throws ContextConfigurationException if there is an error reading any of the
-     *         property configuration sources
+     * @throws ContextConfigurationException if there is an error reading any of the property
+     *                                       configuration sources
      */
     public static void addConfigurationPropertySources(
             @Nonnull final ConfigurableEnvironment environment)
+            throws ContextConfigurationException {
+        String componentType = environment.getRequiredProperty(PROP_COMPONENT_TYPE);
+        addConfigurationPropertySources(environment, componentType);
+    }
+
+    /**
+     * Load the configuration properties from "properties.yaml" and the "other" configuration
+     * properties for the given component type into PropertySources and add those to the given {@link
+     * Environment}.
+     *
+     * @param environment   spring environment where properties should be loaded
+     * @param componentType component type whose component-specific properties should be loaded
+     * @throws ContextConfigurationException if there is an error reading any of the property
+     *                                       configuration sources
+     */
+    public static void addConfigurationPropertySources(
+            @Nonnull final ConfigurableEnvironment environment, @Nonnull final String componentType)
             throws ContextConfigurationException {
         // Fetch external configuration properties from  to add to context
         String propertiesYamlFilePath = EnvironmentUtils
@@ -95,7 +112,6 @@ public class PropertiesLoader {
                 .getOptionalEnvProperty(PROP_TLS_SECRETS_YAML_PATH)
                 .orElse(DEFAULT_TLS_SECRETS_YAML_FILE_PATH);
 
-        final String componentType = environment.getRequiredProperty(PROP_COMPONENT_TYPE);
         final PropertySource<?> mergedPropertyConfiguration =
                 fetchConfigurationProperties(componentType, propertiesYamlFilePath,
                         secretYamlFilePath, tlsSecretYamlFilePath);

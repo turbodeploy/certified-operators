@@ -118,7 +118,7 @@ public class BulkInserterFactoryStats {
         // add data from each contained stats object
         statsByKey.values().forEach(stat ->
             result.update(stat.getWritten(), stat.getBatches(), stat.getFailedBatches(),
-                stat.getWritten(), stat.getLostTimeNanos()));
+                stat.getWritten(), stat.getLostTimeNanos(), stat.getElapsedTimeNanos()));
         return result;
     }
 }

@@ -34,6 +34,12 @@ public class BulkInserterStats {
     private long workTimeNanos = 0L;
     // total nanoseconds spent
     private long lostTimeNanos;
+    // total elapsed time
+    private Long elapsedTimeNanos;
+    // start is time that first batch is added, minus its work + lost times. finish time is
+    // time that final batch is added.
+    private Long startNanos;
+    private long finishNanos;
     // indicates that the stats may not represent all saved records due to timeout during
     // flush operation
     private boolean mayBePartial = false;
@@ -43,7 +49,7 @@ public class BulkInserterStats {
      *
      * @param key      the inserter's key value
      * @param inTable  the inserter's inTable
-     * @param outTable the inseter's outTable
+     * @param outTable the inserter's outTable
      */
     public BulkInserterStats(Object key, Table<?> inTable, Table<?> outTable) {
         this.key = key;
@@ -117,6 +123,10 @@ public class BulkInserterStats {
         return lostTimeNanos;
     }
 
+    public synchronized long getElapsedTimeNanos() {
+        return elapsedTimeNanos != null ? elapsedTimeNanos : finishNanos - startNanos;
+    }
+
     /**
      * Check if these stats may not be complete (due to a timeout when flushing pending batches at
      * close).
@@ -139,7 +149,7 @@ public class BulkInserterStats {
      *
      * @param batchStats {@link BulkInserter.BatchStats} object
      */
-    synchronized void updateForBatch(BatchStats batchStats) {
+    public synchronized void updateForBatch(BatchStats batchStats) {
         if (batchStats.isFailed()) {
             failedBatches += 1;
         } else {
@@ -148,27 +158,41 @@ public class BulkInserterStats {
         this.written += batchStats.getRecords();
         this.workTimeNanos += batchStats.getWorkTimeNanos();
         this.lostTimeNanos += batchStats.getLostTimeNanos();
+        updateElapsedTimeBoundaries(workTimeNanos + lostTimeNanos);
     }
 
     /**
      * Incorporate new data into this stats object.
      *
-     * @param written       addition to written records count
-     * @param batches       addition to batch count
-     * @param failedBatches addition to failed batch count
-     * @param workTimeNanos addition to work time
-     * @param lostTimeNanos addition to lost time
+     * @param written          addition to written records count
+     * @param batches          addition to batch count
+     * @param failedBatches    addition to failed batch count
+     * @param workTimeNanos    addition to work time
+     * @param lostTimeNanos    addition to lost time
+     * @param elapsedTimeNanos addition to elapsed time
      */
     public synchronized void update(final long written,
             final int batches,
             final int failedBatches,
             final long workTimeNanos,
-            final long lostTimeNanos) {
+            final long lostTimeNanos, long elapsedTimeNanos) {
         this.written += written;
         this.batches += batches;
         this.failedBatches += failedBatches;
         this.workTimeNanos += workTimeNanos;
         this.lostTimeNanos += lostTimeNanos;
+        this.elapsedTimeNanos = this.elapsedTimeNanos != null
+                                ? this.elapsedTimeNanos + elapsedTimeNanos
+                                : elapsedTimeNanos;
+        updateElapsedTimeBoundaries(workTimeNanos + lostTimeNanos);
+    }
+
+    private void updateElapsedTimeBoundaries(long thisBatchNanos) {
+        long now = System.nanoTime();
+        if (startNanos == null) {
+            this.startNanos = now - thisBatchNanos;
+        }
+        this.finishNanos = now;
     }
 
     /**
@@ -185,15 +209,17 @@ public class BulkInserterStats {
      */
     public synchronized void logStats(Logger logger) {
         double workSecs = TimeUnit.NANOSECONDS.toSeconds(workTimeNanos);
+        double elapsedSecs = TimeUnit.NANOSECONDS.toSeconds(getElapsedTimeNanos());
         final String ratePerSec = String.format("%.1f",
-                // don't go with written / secs cuz latter is often rounded to zero
-                (double)written * TimeUnit.SECONDS.toNanos(1) / workTimeNanos);
+                // don't compute ratio from seconds since that's often rounded to zero
+                (double)written * TimeUnit.SECONDS.toNanos(1) / getElapsedTimeNanos());
+        String elapsedTimeString = formatNanos(getElapsedTimeNanos());
         String workTimeString = formatNanos(workTimeNanos);
         String lostTimeString = formatNanos(lostTimeNanos);
-        logger.info("Table {}: wrote {} recs ({}/sec) in {} batches in {}; "
+        logger.info("Table {}: wrote {} recs ({}/sec) in {} batches in {} ({} parallel); "
                         + "{} lost in retries; {} failed batches",
                 inTable != null ? inTable.getName() : "(unknown)", written, ratePerSec, batches,
-                workTimeString, lostTimeString, failedBatches);
+                elapsedTimeString, workTimeString, lostTimeString, failedBatches);
     }
 
     private @Nonnull
