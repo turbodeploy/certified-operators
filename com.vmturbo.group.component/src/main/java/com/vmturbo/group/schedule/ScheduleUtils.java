@@ -7,7 +7,6 @@ import java.util.GregorianCalendar;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import net.fortuna.ical4j.model.Date;
 import net.fortuna.ical4j.model.DateList;
 import net.fortuna.ical4j.model.DateTime;
 import net.fortuna.ical4j.model.Recur;
@@ -15,6 +14,13 @@ import net.fortuna.ical4j.model.TimeZone;
 import net.fortuna.ical4j.model.TimeZoneRegistry;
 import net.fortuna.ical4j.model.TimeZoneRegistryFactory;
 import net.fortuna.ical4j.model.parameter.Value;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.dmfs.rfc5545.recur.InvalidRecurrenceRuleException;
+import org.dmfs.rfc5545.recur.RecurrenceRule;
+import org.dmfs.rfc5545.recur.RecurrenceRule.RfcMode;
+import org.dmfs.rfc5545.recur.RecurrenceRuleIterator;
 
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Active;
@@ -30,8 +36,19 @@ public class ScheduleUtils {
             .getTimeInMillis();
     private static final DateTime MAX_END_DATE_TIME = new DateTime(MAX_END_DATE);
     private static final TimeZoneRegistry TZ_REGISTRY = TimeZoneRegistryFactory.getInstance().createRegistry();
+    private static final Logger logger = LogManager.getLogger();
 
-    private ScheduleUtils() {}
+    private final boolean useLibRecur;
+
+    /**
+     * Creates an instance of ScheduleUtils for calculating recurrences.
+     *
+     * @param useLibRecur true if this utility should use the lib-recur library.
+     *                    False if this utility should use the iCal4j library.
+     */
+    public ScheduleUtils(boolean useLibRecur) {
+        this.useLibRecur = useLibRecur;
+    }
 
     /**
      * Calculate next schedule occurrence and remaining active time relative to the specified period
@@ -42,13 +59,19 @@ public class ScheduleUtils {
      * @return Schedule with next occurrence populated, if any
      * @throws ParseException If recurrence pattern is invalid
      */
-    public static Schedule calculateNextOccurrenceAndRemainingTimeActive(
-        @Nonnull final Schedule.Builder schedule, final long periodStartTime) throws ParseException {
-        final Date nextOccurrence = getFirstOcurrenceInPeriod(schedule, periodStartTime);
+    public Schedule calculateNextOccurrenceAndRemainingTimeActive(
+        @Nonnull final Schedule.Builder schedule, final long periodStartTime)
+            throws ParseException, InvalidRecurrenceRuleException {
+        final Long nextOccurrence;
+        if (useLibRecur) {
+            nextOccurrence = getFirstOccurrenceInPeriodUsingLibRecur(schedule, periodStartTime);
+        } else {
+            nextOccurrence = getFirstOccurrenceInPeriodUsingICal4J(schedule, periodStartTime);
+        }
         if (nextOccurrence != null) {
             schedule.setNextOccurrence(
                 NextOccurrence.newBuilder()
-                    .setStartTime(nextOccurrence.getTime())
+                    .setStartTime(nextOccurrence)
                     .build());
         }
         final long remainingTimeActive = calculateRemainingTimeActiveInMs(schedule, periodStartTime);
@@ -69,8 +92,9 @@ public class ScheduleUtils {
      * @return Remaining time active in milliseconds, or 0 is schedule is inactive at this time
      * @throws ParseException If recurrence pattern is invalid
      */
-    public static long calculateRemainingTimeActiveInMs(@Nonnull final Schedule.Builder schedule,
-                                                final long periodStartTime) throws ParseException {
+    public long calculateRemainingTimeActiveInMs(@Nonnull final Schedule.Builder schedule,
+                                                final long periodStartTime)
+            throws ParseException, InvalidRecurrenceRuleException {
         if (schedule.hasOneTime()) {
             if (periodStartTime < schedule.getStartTime()
                     || periodStartTime >= schedule.getEndTime()) {
@@ -86,11 +110,17 @@ public class ScheduleUtils {
 
         // if there was an occurrence in the past slice of time equal of duration,
         // it means that the recurring event can still be active
-        final Date recentOccurrence = getFirstOcurrenceInPeriod(schedule,
-            periodStartTime - eventDuration);
+        final Long recentOccurrence;
+        if (useLibRecur) {
+            recentOccurrence = getFirstOccurrenceInPeriodUsingLibRecur(schedule,
+                    periodStartTime - eventDuration);
+        } else {
+            recentOccurrence = getFirstOccurrenceInPeriodUsingICal4J(schedule,
+                    periodStartTime - eventDuration);
+        }
 
-        if (recentOccurrence != null && recentOccurrence.getTime() <= periodStartTime) {
-            final long expectedEndTime = recentOccurrence.getTime() + eventDuration;
+        if (recentOccurrence != null && recentOccurrence <= periodStartTime) {
+            final long expectedEndTime = recentOccurrence + eventDuration;
             final long endTime = Math.min(expectedEndTime,
                     schedule.getLastDate() > 0L ? schedule.getLastDate() : MAX_END_DATE);
             return endTime - periodStartTime;
@@ -99,11 +129,11 @@ public class ScheduleUtils {
     }
 
     @Nullable
-    private static Date getFirstOcurrenceInPeriod(@Nonnull  final Schedule.Builder schedule,
+    private static Long getFirstOccurrenceInPeriodUsingICal4J(@Nonnull  final Schedule.Builder schedule,
               final long periodStartTime) throws ParseException {
         if (schedule.hasOneTime()) { //No recurrence pattern
             if (schedule.getStartTime() > periodStartTime && schedule.getStartTime() < MAX_END_DATE) {
-                return new DateTime(schedule.getStartTime());
+                return schedule.getStartTime();
             }
         } else {
             /*
@@ -126,9 +156,56 @@ public class ScheduleUtils {
             final Recur recur = new Recur(schedule.getRecurRule());
             final DateList dates = recur.getDates(new DateTime(new java.util.Date(schedule.getStartTime()),
                     timeZone), recurStartDateTime, recurEndDateTime, Value.DATE_TIME, 1);
-            return dates.isEmpty() ? null : dates.get(0);
+
+            return dates.isEmpty() ? null : dates.get(0).getTime();
         }
 
+        return null;
+    }
+
+    @Nullable
+    private static Long getFirstOccurrenceInPeriodUsingLibRecur(@Nonnull  final Schedule.Builder schedule,
+            final long refTime) throws InvalidRecurrenceRuleException {
+        if (schedule.hasOneTime()) { //No recurrence pattern
+            if (schedule.getStartTime() > refTime && schedule.getStartTime() < MAX_END_DATE) {
+                return schedule.getStartTime();
+            }
+        } else {
+            final RecurrenceRule rr = new RecurrenceRule(schedule.getRecurRule(), RfcMode.RFC2445_STRICT);
+
+            final long iteratorInstantSeed = schedule.getStartTime();
+            final long occurrenceStartInstant;
+            if (schedule.hasRecurrenceStart()) {
+                occurrenceStartInstant = schedule.getRecurrenceStart().getRecurrenceStartTime();
+            } else {
+                occurrenceStartInstant = iteratorInstantSeed;
+            }
+            RecurrenceRuleIterator iterator = rr.iterator(iteratorInstantSeed, java.util.TimeZone.getTimeZone(schedule.getTimezoneId()));
+            while (iterator.hasNext()) {
+                long next = iterator.nextMillis();
+                if (!schedule.hasPerpetual() && next > schedule.getLastDate()) {
+                    logger.trace("no next occurrence for schedule.getId()={}"
+                                    + " schedule.getDisplayName()={}"
+                                    + " schedule.hasPerpetual()={}"
+                                    + " because next={} exceeds schedule.getLastDate()={}",
+                            schedule.getId(),
+                            schedule.getDisplayName(),
+                            schedule.hasPerpetual(),
+                            next,
+                            schedule.getLastDate());
+                    return null;
+                }
+                if (next >= occurrenceStartInstant && next > refTime) {
+                    return next;
+                }
+            }
+        }
+
+        logger.trace("no next occurrence for"
+                + " schedule.getId()={}"
+                + " schedule.getDisplayName()={}",
+                schedule.getId(),
+                schedule.getDisplayName());
         return null;
     }
 }

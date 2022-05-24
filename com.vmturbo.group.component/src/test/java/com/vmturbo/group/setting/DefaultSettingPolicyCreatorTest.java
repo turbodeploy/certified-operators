@@ -46,6 +46,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.schedule.ScheduleStore;
+import com.vmturbo.group.schedule.ScheduleUtils;
 import com.vmturbo.group.service.MockTransactionProvider;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -65,6 +66,7 @@ public class DefaultSettingPolicyCreatorTest {
     private SettingSpec defaultSetting;
     private MockTransactionProvider transactionProvider;
     private DSLContext context;
+    private ScheduleUtils scheduleUtils = new ScheduleUtils(true);
 
     /**
      * Initialises the tests.
@@ -287,7 +289,7 @@ public class DefaultSettingPolicyCreatorTest {
         when(settingSpecStore.getSettingSpec(spec2.getName())).thenReturn(Optional.of(spec2));
         DefaultSettingPolicyValidator validator =
                 new DefaultSettingPolicyValidator(settingSpecStore, groupStore, scheduleStore,
-                Clock.systemDefaultZone());
+                Clock.systemDefaultZone(), scheduleUtils);
         validator.validateSettingPolicy(context, info, Type.DEFAULT);
     }
 
@@ -407,7 +409,7 @@ public class DefaultSettingPolicyCreatorTest {
         when(settingSpecStore.getSettingSpec(spec1.getName())).thenReturn(Optional.of(spec1));
         DefaultSettingPolicyValidator validator =
                 new DefaultSettingPolicyValidator(settingSpecStore, groupStore, scheduleStore,
-                    Clock.systemDefaultZone());
+                    Clock.systemDefaultZone(), scheduleUtils);
         validator.validateSettingPolicy(context, info1, Type.DEFAULT);
         validator.validateSettingPolicy(context, info2, Type.DEFAULT);
     }

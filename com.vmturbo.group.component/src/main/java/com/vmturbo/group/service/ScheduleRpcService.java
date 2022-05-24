@@ -15,6 +15,7 @@ import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.dmfs.rfc5545.recur.InvalidRecurrenceRuleException;
 
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.CreateScheduleRequest;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.CreateScheduleResponse;
@@ -49,14 +50,19 @@ public class ScheduleRpcService extends ScheduleServiceImplBase {
     private static final Logger logger = LogManager.getLogger();
 
     private final ScheduleStore scheduleStore;
+    private final ScheduleUtils scheduleUtils;
 
     /**
      * Construct ScheduleRpcService instance.
      *
      * @param scheduleStore {@link ScheduleStore} instance
      */
-    public ScheduleRpcService(@Nonnull final ScheduleStore scheduleStore) {
+    public ScheduleRpcService(
+            @Nonnull final ScheduleStore scheduleStore,
+            @Nonnull final ScheduleUtils scheduleUtils
+    ) {
         this.scheduleStore = Objects.requireNonNull(scheduleStore);
+        this.scheduleUtils = Objects.requireNonNull(scheduleUtils);
     }
 
     /**
@@ -73,9 +79,9 @@ public class ScheduleRpcService extends ScheduleServiceImplBase {
         }
         scheduleStore.getSchedules(scheduleIds).forEach(schedule -> {
             try {
-                responseObserver.onNext(ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+                responseObserver.onNext(scheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
                     schedule.toBuilder(), periodStartTime));
-            } catch (ParseException e) {
+            } catch (ParseException | InvalidRecurrenceRuleException e) {
                 logger.error(PARSE_ERROR_MESSAGE, e);
                 responseObserver.onError(Status.INTERNAL
                     .withDescription(e.getMessage()).asException());
@@ -104,7 +110,7 @@ public class ScheduleRpcService extends ScheduleServiceImplBase {
             final Optional<Schedule> foundSchedule = scheduleStore.getSchedule(request.getOid());
             if (foundSchedule.isPresent()) {
                 final Schedule schedule = foundSchedule.get();
-                final Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+                final Schedule updatedSchedule = scheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
                     schedule.toBuilder(), periodStartTime);
                 response = GetScheduleResponse.newBuilder()
                     .setSchedule(updatedSchedule)
@@ -117,7 +123,7 @@ public class ScheduleRpcService extends ScheduleServiceImplBase {
             }
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-        } catch (ParseException e) {
+        } catch (ParseException | InvalidRecurrenceRuleException e) {
             logger.error(PARSE_ERROR_MESSAGE, e);
             responseObserver.onError(Status.INTERNAL
                 .withDescription(e.getMessage()).asException());
@@ -139,7 +145,7 @@ public class ScheduleRpcService extends ScheduleServiceImplBase {
         try {
             final Schedule createdSchedule = scheduleStore.createSchedule(request.getSchedule());
             responseObserver.onNext(CreateScheduleResponse.newBuilder()
-                .setSchedule(ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+                .setSchedule(scheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
                     createdSchedule.toBuilder(), Instant.now().toEpochMilli()))
                 .build());
             responseObserver.onCompleted();
@@ -151,7 +157,7 @@ public class ScheduleRpcService extends ScheduleServiceImplBase {
             logger.error(e);
             responseObserver.onError(Status.ALREADY_EXISTS
                 .withDescription(e.getMessage()).asException());
-        } catch (ParseException e) {
+        } catch (ParseException | InvalidRecurrenceRuleException e) {
             logger.error(PARSE_ERROR_MESSAGE, e);
             responseObserver.onError(Status.INTERNAL
                 .withDescription(e.getMessage()).asException());
@@ -173,7 +179,7 @@ public class ScheduleRpcService extends ScheduleServiceImplBase {
             final Schedule updatedSchedule = scheduleStore.updateSchedule(request.getOid(),
                 request.getUpdatedSchedule());
             responseObserver.onNext(UpdateScheduleResponse.newBuilder()
-                .setSchedule(ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+                .setSchedule(scheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
                     updatedSchedule.toBuilder(), Instant.now().toEpochMilli()))
                 .build());
             responseObserver.onCompleted();
@@ -189,7 +195,7 @@ public class ScheduleRpcService extends ScheduleServiceImplBase {
             logger.error(e);
             responseObserver.onError(Status.ALREADY_EXISTS
                 .withDescription(e.getMessage()).asException());
-        } catch (ParseException e) {
+        } catch (ParseException | InvalidRecurrenceRuleException e) {
             logger.error(PARSE_ERROR_MESSAGE, e);
             responseObserver.onError(Status.INTERNAL
                 .withDescription(e.getMessage()).asException());
