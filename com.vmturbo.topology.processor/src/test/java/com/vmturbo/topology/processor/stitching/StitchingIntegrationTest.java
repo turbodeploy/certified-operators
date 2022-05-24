@@ -106,7 +106,7 @@ public abstract class StitchingIntegrationTest {
                 new PostStitchingOperationLibrary(
                         new CommodityPostStitchingOperationConfig(
                                 statsServiceClient, 30, 0),  //meaningless values
-                        diskCapacityCalculator, cpuCapacityStore, clock, 0, mock(MaxCapacityCache.class), true);
+                        diskCapacityCalculator, cpuCapacityStore, clock, 0, mock(MaxCapacityCache.class));
         when(probeStore.getProbeIdForType(anyString())).thenReturn(Optional.<Long>empty());
         when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets

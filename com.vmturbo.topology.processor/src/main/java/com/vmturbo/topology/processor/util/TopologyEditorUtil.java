@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.PerTargetEntityInformationView;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -37,6 +38,11 @@ public final class TopologyEditorUtil {
             CommodityType.VCPU_REQUEST_QUOTA_VALUE,
             CommodityType.VMEM_LIMIT_QUOTA_VALUE,
             CommodityType.VMEM_REQUEST_QUOTA_VALUE
+    );
+
+    private static final Set<Integer> cpuQuotaCommodities = ImmutableSet.of(
+            CommodityType.VCPU_LIMIT_QUOTA_VALUE,
+            CommodityType.VCPU_REQUEST_QUOTA_VALUE
     );
 
     private TopologyEditorUtil() {}
@@ -138,5 +144,29 @@ public final class TopologyEditorUtil {
      */
     public static boolean isQuotaCommodity(final int commodityType) {
         return quotaCommodities.contains(commodityType);
+    }
+
+    /**
+     * Compute the consistent scaling factor for the given entity.
+     *
+     * @param entity the entity to compute the consistent scaling factor for
+     * @return the computed consistent scaling factor
+     */
+    public static Optional<Float> computeConsistentScalingFactor(@Nonnull TopologyEntity.Builder entity) {
+        return entity.getTopologyEntityImpl().getCommoditySoldListList().stream()
+                .filter(TopologyEditorUtil::isCPUQuotaCommodity)
+                .findAny()
+                .flatMap(TopologyEditorUtil::getMillicorePerMHz)
+                .map(Double::floatValue);
+    }
+
+    private static boolean isCPUQuotaCommodity(@Nonnull final CommoditySoldView commoditySoldView) {
+        return cpuQuotaCommodities.contains(commoditySoldView.getCommodityType().getType());
+    }
+
+    private static Optional<Double> getMillicorePerMHz(@Nonnull CommoditySoldView commSold) {
+        return commSold.getScalingFactor() > 0
+                ? Optional.of(1 / commSold.getScalingFactor())
+                : Optional.empty();
     }
 }

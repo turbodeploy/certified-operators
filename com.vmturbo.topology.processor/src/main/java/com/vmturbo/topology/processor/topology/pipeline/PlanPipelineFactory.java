@@ -165,8 +165,6 @@ public class PlanPipelineFactory {
 
     private final ActionMergeSpecsUploader actionMergeSpecsUploader;
 
-    private final boolean enableConsistentScalingOnHeterogeneousProviders;
-
     private boolean firstPlanOverLive = true;
 
     private boolean firstPlanOverPlan = true;
@@ -200,8 +198,7 @@ public class PlanPipelineFactory {
                                @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver,
                                @Nonnull final CloudMigrationPlanHelper cloudMigrationPlanHelper,
                                @Nonnull final ControllableManager controllableManager,
-                               @Nonnull final ActionMergeSpecsUploader actionMergeSpecsUploader,
-                               final boolean enableConsistentScalingOnHeterogeneousProviders) {
+                               @Nonnull final ActionMergeSpecsUploader actionMergeSpecsUploader) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -232,7 +229,6 @@ public class PlanPipelineFactory {
         this.cloudMigrationPlanHelper = Objects.requireNonNull(cloudMigrationPlanHelper);
         this.controllableManager = Objects.requireNonNull(controllableManager);
         this.actionMergeSpecsUploader = Objects.requireNonNull(actionMergeSpecsUploader);
-        this.enableConsistentScalingOnHeterogeneousProviders = enableConsistentScalingOnHeterogeneousProviders;
     }
 
     /**
@@ -329,7 +325,7 @@ public class PlanPipelineFactory {
             .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
             .addStage(new OverrideWorkLoadDemandStage(demandOverriddenCommodityEditor, searchResolver, groupServiceClient, changes, searchFilterResolver))
             .addStage(new RequestAndLimitCommodityThresholdsStage(requestAndLimitCommodityThresholdsInjector))
-            .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor, enableConsistentScalingOnHeterogeneousProviders))
+            .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
             .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
             .addStage(new UploadAtomicActionSpecsStage(actionMergeSpecsUploader))
             .addStage(new TopSortStage())

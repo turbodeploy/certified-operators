@@ -302,7 +302,7 @@ public class SetCommodityMaxQuantityPostStitchingOperationTest {
                         new com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig(
                                 statsServiceClient, 30, 0), //meaningless values
                         Mockito.mock(DiskCapacityCalculator.class), mock(CpuCapacityStore.class),  Mockito.mock(Clock.class), 0,
-                        mock(SetAutoSetCommodityCapacityPostStitchingOperation.MaxCapacityCache.class), true);
+                        mock(SetAutoSetCommodityCapacityPostStitchingOperation.MaxCapacityCache.class));
         List<PostStitchingOperation> postStitchingOperations = postStitchingOperationLibrary.getPostStitchingOperations();
         List<String> operations = postStitchingOperations.stream().map(op -> op.getClass().getSimpleName()).collect(Collectors.toList());
         int operation1Index = operations.indexOf(SetResizeDownAnalysisSettingPostStitchingOperation.class.getSimpleName());

@@ -303,7 +303,6 @@ public class TopologyConfig {
                 entityConfig.entityCustomTagsMerger(groupConfig.entityCustomTagsService()),
                 staleDataManager(),
                 supplyChainValidationFrequency,
-                stitchingConfig.getEnableConsistentScalingOnHeterogeneousProviders(),
                 historyVolumeListener()
         );
     }
@@ -344,8 +343,7 @@ public class TopologyConfig {
                 topologyProcessorRpcConfig.groupResolverSearchFilterResolver(),
                 cloudMigrationPlanHelper(),
                 controllableConfig.controllableManager(),
-                actionsConfig.actionMergeSpecsUploader(),
-                stitchingConfig.getEnableConsistentScalingOnHeterogeneousProviders()
+                actionsConfig.actionMergeSpecsUploader()
         );
     }
 

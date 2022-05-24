@@ -88,8 +88,6 @@ public class PostStitchingOperationLibrary {
      * @param diskCapacityCalculator The {@link DiskCapacityCalculator}.
      * @param maxCapacityCache The {@link MaxCapacityCache}.
      * @param resizeDownWarmUpIntervalHours See: {@link SetResizeDownAnalysisSettingPostStitchingOperation}.
-     * @param enableConsistentScalingOnHeterogeneousProviders Whether to enable consistent scaling for containers
-     *                                                        on heterogeneous providers.
      */
     public PostStitchingOperationLibrary(
             @Nonnull CommodityPostStitchingOperationConfig commodityPostStitchingOperationConfig,
@@ -97,8 +95,7 @@ public class PostStitchingOperationLibrary {
             @Nonnull final CpuCapacityStore cpuCapacityStore,
             @Nonnull final Clock clock,
             final double resizeDownWarmUpIntervalHours,
-            @Nonnull final MaxCapacityCache maxCapacityCache,
-            final boolean enableConsistentScalingOnHeterogeneousProviders) {
+            @Nonnull final MaxCapacityCache maxCapacityCache) {
         postStitchingOperations = ImmutableList.of(
             new PropagateStorageAccessAndLatencyPostStitchingOperation(),
             new MemoryProvisionedPostStitchingOperation(),
@@ -132,14 +129,10 @@ public class PostStitchingOperationLibrary {
             new UseHypervisorVmemForResizingPostStitchingOperation(),
             new ComputedQxVcpuUsedValuePostStitchingOperation(),
             new ComputedNumVCoreUsedValuePostStitchingOperation(),
-            new HostCpuScalingFactorPostStitchingOperation(cpuCapacityStore,
-                enableConsistentScalingOnHeterogeneousProviders),
-            new CloudNativeVMCpuScalingFactorPostStitchingOperation(
-                enableConsistentScalingOnHeterogeneousProviders),
-            new VirtualMachineConsistentScalingFactorPostStitchingOperation(
-                enableConsistentScalingOnHeterogeneousProviders),
-            new CloudNativeEntityConsistentScalingFactorPostStitchingOperation(
-                enableConsistentScalingOnHeterogeneousProviders),
+            new HostCpuScalingFactorPostStitchingOperation(cpuCapacityStore),
+            new CloudNativeVMCpuScalingFactorPostStitchingOperation(),
+            new VirtualMachineConsistentScalingFactorPostStitchingOperation(),
+            new CloudNativeEntityConsistentScalingFactorPostStitchingOperation(),
             new CloudNativeAppCPUFrequencyPostStitchingOperation(),
             new ServiceResponseTimePostStitchingOperation(),
             // Set capacity from settings for entities coming from public cloud

@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -101,9 +102,11 @@ public class EphemeralEntityEditorTest {
 
         when(container.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
         when(container.getTopologyEntityImpl()).thenReturn(ephemeralBuilder);
+        when(container.getClonedFromEntity()).thenReturn(Optional.empty());
 
         when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
         when(container2.getTopologyEntityImpl()).thenReturn(ephemeralBuilder2);
+        when(container2.getClonedFromEntity()).thenReturn(Optional.empty());
     }
 
     /**
@@ -112,7 +115,7 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testEmptyGraph() {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.empty());
-        editor.applyEdits(graph, true);
+        editor.applyEdits(graph);
     }
 
     /**
@@ -124,7 +127,7 @@ public class EphemeralEntityEditorTest {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
         when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.emptyList());
 
-        editor.applyEdits(graph, true);
+        editor.applyEdits(graph);
     }
 
     /**
@@ -137,7 +140,7 @@ public class EphemeralEntityEditorTest {
         when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(Collections.emptyMap());
 
-        editor.applyEdits(graph, true);
+        editor.applyEdits(graph);
     }
 
     /**
@@ -155,7 +158,7 @@ public class EphemeralEntityEditorTest {
         final CommoditySoldView beforeEdits = ephemeralCommSold.copy();
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
-        editor.applyEdits(graph, true);
+        editor.applyEdits(graph);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(beforeEdits));
     }
 
@@ -173,7 +176,7 @@ public class EphemeralEntityEditorTest {
             .setCommodityType(new CommodityTypeImpl().setType(COMM_1_TYPE));
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
-        editor.applyEdits(graph, true);
+        editor.applyEdits(graph);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(sold1));
     }
 
@@ -192,7 +195,7 @@ public class EphemeralEntityEditorTest {
         final CommoditySoldView beforeEdits = ephemeralCommSold.copy();
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
-        editor.applyEdits(graph, true);
+        editor.applyEdits(graph);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(beforeEdits));
     }
 
@@ -210,7 +213,7 @@ public class EphemeralEntityEditorTest {
             .setCommodityType(new CommodityTypeImpl().setType(COMM_2_TYPE).setKey("foo"));
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
-        editor.applyEdits(graph, true);
+        editor.applyEdits(graph);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(sold2WithKey));
     }
 
@@ -230,7 +233,7 @@ public class EphemeralEntityEditorTest {
             .setIsResizeable(false);
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
-        editor.applyEdits(graph, true);
+        editor.applyEdits(graph);
         assertThat(ephemeralBuilder.getCommoditySoldList(0).getIsResizeable(), is(false));
     }
 
@@ -249,7 +252,7 @@ public class EphemeralEntityEditorTest {
             .setIsResizeable(true);
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
-        editor.applyEdits(graph, true);
+        editor.applyEdits(graph);
         assertThat(ephemeralBuilder.getCommoditySoldList(0).getIsResizeable(), is(false));
     }
 
@@ -270,7 +273,7 @@ public class EphemeralEntityEditorTest {
         ephemeralBuilder.addCommoditySoldList(first);
         ephemeralBuilder.addCommoditySoldList(second);
 
-        editor.applyEdits(graph, true);
+        editor.applyEdits(graph);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(sold1));
         assertThat(ephemeralBuilder.getCommoditySoldList(1), matchesHistory(sold2NoKey));
     }
@@ -294,7 +297,7 @@ public class EphemeralEntityEditorTest {
         ephemeralBuilder2.addCommoditySoldList(new CommoditySoldImpl()
             .setCommodityType(new CommodityTypeImpl().setType(COMM_2_TYPE).setKey("foo")));
 
-        editor.applyEdits(graph, true);
+        editor.applyEdits(graph);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(sold1));
         assertThat(ephemeralBuilder.getCommoditySoldList(1), matchesHistory(sold2NoKey));
         assertThat(ephemeralBuilder2.getCommoditySoldList(0), matchesHistory(sold2WithKey));
@@ -323,7 +326,7 @@ public class EphemeralEntityEditorTest {
         ephemeralBuilder2.addCommoditySoldList(vcpuSold.setCapacity(11.0));
         ephemeralBuilder2.addCommoditySoldList(vcpuRequestSold.setCapacity(9.0));
 
-        editor.applyEdits(graph, true);
+        editor.applyEdits(graph);
         assertCommoditiesNotResizable(ephemeralBuilder);
         assertCommoditiesNotResizable(ephemeralBuilder2);
     }
@@ -343,7 +346,7 @@ public class EphemeralEntityEditorTest {
         ephemeralBuilder2.addCommoditySoldList(vcpuSold().setScalingFactor(11.0));
         ephemeralBuilder2.addCommoditySoldList(vcpuRequestSold().setCapacity(9.0));
 
-        editor.applyEdits(graph, true);
+        editor.applyEdits(graph);
         assertCommoditiesNotResizable(ephemeralBuilder);
         assertCommoditiesNotResizable(ephemeralBuilder2);
     }
@@ -361,6 +364,7 @@ public class EphemeralEntityEditorTest {
 
         when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
         when(container2.getTopologyEntityImpl()).thenReturn(ephemeralBuilder2);
+        when(container2.getClonedFromEntity()).thenReturn(Optional.empty());
         setupVmProvider(container, 111L, 1.0, 6, 1.0f);
         setupVmProvider(container2, 222L, 2.0, 3, 0.5f);
 
@@ -376,44 +380,13 @@ public class EphemeralEntityEditorTest {
         assertFalse(ephemeralBuilder.getAnalysisSettings().hasConsistentScalingFactor());
         assertFalse(ephemeralBuilder2.getAnalysisSettings().hasConsistentScalingFactor());
 
-        final EditSummary editSummary = editor.applyEdits(graph, true);
+        final EditSummary editSummary = editor.applyEdits(graph);
         assertCommoditiesResizable(ephemeralBuilder);
         assertCommoditiesResizable(ephemeralBuilder2);
         assertEquals(2, editSummary.getContainerConsistentScalingFactorSet());
         assertTrue(ephemeralBuilder.getAnalysisSettings().hasConsistentScalingFactor());
         assertTrue(ephemeralBuilder2.getAnalysisSettings().hasConsistentScalingFactor());
         assertEquals(0.5f, ephemeralBuilder2.getAnalysisSettings().getConsistentScalingFactor(), 0);
-    }
-
-    /**
-     * Check that with the consistent scaling feature flag disabled we always get a value of
-     * 1.0 for the CSF.
-     */
-    @Test
-    public void testSetConsistentScalingFeatureFlagDisabled() {
-        final TopologyEntity container2 = mock(TopologyEntity.class);
-        final TopologyEntityImpl ephemeralBuilder2 = new TopologyEntityImpl()
-            .setEntityType(EntityType.CONTAINER.getNumber());
-
-        when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
-        when(container2.getTopologyEntityImpl()).thenReturn(ephemeralBuilder2);
-        setupVmProvider(container, 111L, 1.0, 6, 1.0f);
-        setupVmProvider(container2, 222L, 2.0, 3, 0.5f);
-
-        when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Arrays.asList(container, container2));
-        when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
-
-        ephemeralBuilder.addCommoditySoldList(vcpuSold().setScalingFactor(1.0));
-        ephemeralBuilder.addCommoditySoldList(vcpuRequestSold().setScalingFactor(1.0));
-        ephemeralBuilder2.addCommoditySoldList(vcpuSold().setScalingFactor(2.0));
-        ephemeralBuilder2.addCommoditySoldList(vcpuRequestSold().setScalingFactor(2.0));
-
-        editor.applyEdits(graph, false);
-        assertCommoditiesNotResizable(ephemeralBuilder);
-        assertCommoditiesNotResizable(ephemeralBuilder2);
-        assertEquals(1.0f, ephemeralBuilder.getAnalysisSettings().getConsistentScalingFactor(), 0);
-        assertEquals(1.0f, ephemeralBuilder2.getAnalysisSettings().getConsistentScalingFactor(), 0);
     }
 
     /**
@@ -429,6 +402,7 @@ public class EphemeralEntityEditorTest {
 
         when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
         when(container2.getTopologyEntityImpl()).thenReturn(ephemeralBuilder2);
+        when(container2.getClonedFromEntity()).thenReturn(Optional.empty());
         setupVmProvider(container, 111L, 1.0, 6, 1.0f);
         setupVmProvider(container2, 222L, 3.0, 3, 1.0f);
 
@@ -441,7 +415,7 @@ public class EphemeralEntityEditorTest {
         ephemeralBuilder2.addCommoditySoldList(vcpuSold().setScalingFactor(3.0));
         ephemeralBuilder2.addCommoditySoldList(vcpuRequestSold().setScalingFactor(3.0));
 
-        editor.applyEdits(graph, true);
+        editor.applyEdits(graph);
         assertCommoditiesNotResizable(ephemeralBuilder);
         assertCommoditiesNotResizable(ephemeralBuilder2);
     }

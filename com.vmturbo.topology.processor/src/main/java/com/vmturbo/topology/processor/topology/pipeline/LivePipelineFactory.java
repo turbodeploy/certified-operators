@@ -179,8 +179,6 @@ public class LivePipelineFactory {
 
     private final int supplyChainValidationFrequency;
 
-    private final boolean enableConsistentScalingOnHeterogeneousProviders;
-
     private long broadcastCount = 0;
 
     private HistoryVolumesListener histListener;
@@ -222,7 +220,6 @@ public class LivePipelineFactory {
             @Nonnull final EntityCustomTagsMerger entityCustomTagsMerger,
             @Nonnull StalenessInformationProvider stalenessProvider,
             final int supplyChainValidationFrequency,
-            final boolean enableConsistentScalingOnHeterogeneousProviders,
             final HistoryVolumesListener histListener) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
@@ -259,7 +256,6 @@ public class LivePipelineFactory {
         this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
         this.groupScopeResolver = Objects.requireNonNull(groupScopeResolver);
         this.supplyChainValidationFrequency = supplyChainValidationFrequency;
-        this.enableConsistentScalingOnHeterogeneousProviders = enableConsistentScalingOnHeterogeneousProviders;
         this.entityCustomTagsMerger = entityCustomTagsMerger;
         this.stalenessProvider = stalenessProvider;
         this.histListener = histListener;
@@ -386,7 +382,7 @@ public class LivePipelineFactory {
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor))
                 .addStage(new RequestAndLimitCommodityThresholdsStage(requestAndLimitCommodityThresholdsInjector))
-                .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor, enableConsistentScalingOnHeterogeneousProviders))
+                .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new UploadAtomicActionSpecsStage(actionMergeSpecsUploader))
                 .addStage(new TopSortStage())
