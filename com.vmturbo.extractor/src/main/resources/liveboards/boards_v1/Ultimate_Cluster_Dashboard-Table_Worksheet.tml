@@ -1,0 +1,1184 @@
+guid: 727ef375-d9a0-48ef-9a40-ae310bfd6fda
+pinboard:
+  name: Ultimate 2.5
+  visualizations:
+  - id: Viz_1
+    answer:
+      name: CPUs of Hosts vs VMs
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      formulas:
+      - id: CPUs
+        name: CPUs
+        expr: "average ( group_aggregate ( sum ( sql_int_op ( 'attrs:num_cpus' ) ) , { [Entity Type] , [Time] } , query_filters ( ) ) )"
+      search_query: "[Entity Type] [Entity Type].virtual_machine [Entity Type].physical_machine [Time].'last 3 days' [Time].today [CPUs]"
+      answer_columns:
+      - name: CPUs
+      - name: Entity Type
+      table:
+        table_columns:
+        - column_id: Entity Type
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: CPUs
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Entity Type
+        - CPUs
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: COLUMN
+        chart_columns:
+        - column_id: Entity Type
+        - column_id: CPUs
+        axis_configs:
+        - x:
+          - Entity Type
+          "y":
+          - CPUs
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {\"xGridlineEnabled\": false,\"yGridlineEnabled\": true},\"responsiveLayoutPreference\": \"USER_PREFERRED_ON\",\"chartSpecific\": {},\"allLabels\": true},\"columnProperties\": [{\"columnId\": \"fc3486d5-fb7b-4b7d-8f82-9ea9eaa50eec\",\"columnProperty\": {}},{\"columnId\": \"CPUs\",\"columnProperty\": {\"dataLabels\": true}}],\"axisProperties\": [{\"id\": \"06a8a19b-aaf6-488d-88cc-5a5ede6c3ae3\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"CPUs\"],\"isOpposite\": false}},{\"id\": \"e95ef5cc-f259-42d4-ad89-36bf99b57240\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Entity Type\"]}}],\"systemSeriesColors\": [{\"serieName\": \"CPUs\",\"color\": \"#06BF7F\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_2
+    answer:
+      name: Mem Capacity vs vMem Provisioned
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      table_paths:
+      - id: Blank Worksheet_1
+        table: Blank Worksheet
+        join_path:
+        - {}
+      formulas:
+      - id: Capacity
+        name: Capacity
+        expr: "average ( group_aggregate ( sum ( [Blank Worksheet_1::Capacity] / 1024 / 1024 ) , { [Blank Worksheet_1::Time] , [Blank Worksheet_1::Metric Type] } , query_filters ( ) ) )"
+      search_query: "[Blank Worksheet_1::Metric Type] [Blank Worksheet_1::Metric Type].mem [Blank Worksheet_1::Metric Type].vmem [Blank Worksheet_1::Time].'last 3 days' [Blank Worksheet_1::Time].today [Blank Worksheet_1::Related Name].'acm/acm cluster' [Capacity]"
+      answer_columns:
+      - name: Metric Type
+      - name: Capacity
+      table:
+        table_columns:
+        - column_id: Metric Type
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Capacity
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Metric Type
+        - Capacity
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: COLUMN
+        chart_columns:
+        - column_id: Metric Type
+        - column_id: Capacity
+        axis_configs:
+        - x:
+          - Metric Type
+          "y":
+          - Capacity
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {\"yGridlineEnabled\": true},\"responsiveLayoutPreference\": \"AUTO_ON\",\"chartSpecific\": {},\"allLabels\": true},\"columnProperties\": [{\"columnId\": \"70265ffc-61b9-4e01-9066-1d92f2770808\",\"columnProperty\": {}},{\"columnId\": \"204e17b5-31ae-4149-bc37-7727b09c5e4e\",\"columnProperty\": {}},{\"columnId\": \"afcbf97b-fca9-4368-bbf8-1974812e89fd\",\"columnProperty\": {\"dataLabels\": true}},{\"columnId\": \"Capacity\",\"columnProperty\": {\"dataLabels\": true}}],\"axisProperties\": [{\"id\": \"dc2051d5-f31c-4cd0-9f9a-ed9d19ae4cd7\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Capacity\"],\"isOpposite\": false}},{\"id\": \"fcbb1301-7ed2-4d0f-8d72-4a438db05e9e\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Metric Type\"]}}],\"systemSeriesColors\": [{\"serieName\": \"Capacity\",\"color\": \"#2E75F0\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_3
+    answer:
+      name: Global Storage Total vs Available
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      table_paths:
+      - id: Blank Worksheet_1
+        table: Blank Worksheet
+        join_path:
+        - {}
+      formulas:
+      - id: Available
+        name: Available
+        expr: "[Capacity] - ( average ( group_aggregate ( sum ( [Blank Worksheet_1::Used] / 1024 ) , { [Blank Worksheet_1::Time] } , query_filters ( ) ) ) )"
+      - id: Capacity
+        name: Capacity
+        expr: "average ( group_aggregate ( sum ( [Blank Worksheet_1::Capacity] / 1024 ) , { [Blank Worksheet_1::Time] , [Blank Worksheet_1::Metric Type] } , query_filters ( ) ) )"
+      search_query: "[Blank Worksheet_1::Metric Type] [Blank Worksheet_1::Metric Type].storage_amount [Blank Worksheet_1::Entity Type].storage [Blank Worksheet_1::Time].'last 3 days' [Blank Worksheet_1::Time].today [Capacity] [Available]"
+      answer_columns:
+      - name: Metric Type
+      - name: Capacity
+      - name: Available
+      table:
+        table_columns:
+        - column_id: Metric Type
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Capacity
+          headline_aggregation: TABLE_AGGR
+        - column_id: Available
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Metric Type
+        - Capacity
+        - Available
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: COLUMN
+        chart_columns:
+        - column_id: Metric Type
+        - column_id: Capacity
+        - column_id: Available
+        axis_configs:
+        - x:
+          - Metric Type
+          "y":
+          - Capacity
+          - Available
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {\"yGridlineEnabled\": true},\"responsiveLayoutPreference\": \"AUTO_ON\",\"chartSpecific\": {},\"allLabels\": true},\"columnProperties\": [{\"columnId\": \"Metric Type\",\"columnProperty\": {}},{\"columnId\": \"Capacity\",\"columnProperty\": {\"dataLabels\": true}},{\"columnId\": \"Available\",\"columnProperty\": {\"dataLabels\": true}}],\"axisProperties\": [{\"id\": \"4a98f7b2-6b65-41ec-bb80-a2fc5e0ba9d9\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Capacity\",\"Available\"],\"isOpposite\": false}},{\"id\": \"7000678d-4dde-4cec-a940-7c06f6dc81ba\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Metric Type\"]}}],\"systemSeriesColors\": [{\"serieName\": \"storage_amount\",\"color\": \"#8C62F5\"},{\"serieName\": \"Capacity\",\"color\": \"#48D1E0\"},{\"serieName\": \"Available\",\"color\": \"#2E75F0\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_4
+    answer:
+      name: Global Storage Used vs Provisioned
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      table_paths:
+      - id: Blank Worksheet_1
+        table: Blank Worksheet
+        join_path:
+        - {}
+      formulas:
+      - id: Storage
+        name: Storage
+        expr: "average ( group_aggregate ( sum ( [Blank Worksheet_1::Used] / 1024 ) , { [Blank Worksheet_1::Time] , [Blank Worksheet_1::Metric Type] } , query_filters ( ) ) )"
+      - id: Capacity
+        name: Capacity
+        expr: "average ( group_aggregate ( sum ( [Blank Worksheet_1::Capacity] / 1024 ) , { [Blank Worksheet_1::Time] , [Blank Worksheet_1::Metric Type] } , query_filters ( ) ) )"
+      - id: Used
+        name: Used
+        expr: "average ( group_aggregate ( sum ( [Blank Worksheet_1::Used] / 1024 ) , { [Blank Worksheet_1::Time] } , query_filters ( ) ) )"
+      search_query: "[Blank Worksheet_1::Metric Type] [Blank Worksheet_1::Metric Type].storage_amount [Blank Worksheet_1::Metric Type].storage_provisioned [Blank Worksheet_1::Entity Type].storage [Blank Worksheet_1::Time].'last 3 days' [Blank Worksheet_1::Time].today [Storage]"
+      answer_columns:
+      - name: Metric Type
+      - name: Storage
+      table:
+        table_columns:
+        - column_id: Metric Type
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Storage
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Metric Type
+        - Storage
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: COLUMN
+        chart_columns:
+        - column_id: Metric Type
+        - column_id: Storage
+        axis_configs:
+        - x:
+          - Metric Type
+          "y":
+          - Storage
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {\"yGridlineEnabled\": true},\"responsiveLayoutPreference\": \"AUTO_ON\",\"chartSpecific\": {},\"allLabels\": true},\"columnProperties\": [{\"columnId\": \"Metric Type\",\"columnProperty\": {}},{\"columnId\": \"Storage\",\"columnProperty\": {\"dataLabels\": true}}],\"axisProperties\": [{\"id\": \"af100763-5d03-44db-bfbc-4bca20ab1c64\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Storage\"],\"isOpposite\": false}},{\"id\": \"151b083b-27a2-4875-b13b-809565148d3c\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Metric Type\"]}}],\"systemSeriesColors\": [{\"serieName\": \"Storage\",\"color\": \"#2E75F0\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_5
+    answer:
+      name: All VMs
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      search_query: "unique count [Oid] [Time].'last 3 days' [Time].today [Entity Type].virtual_machine"
+      answer_columns:
+      - name: Unique Number of Oid
+      table:
+        table_columns:
+        - column_id: Unique Number of Oid
+          headline_aggregation: AVERAGE
+        ordered_column_ids:
+        - Unique Number of Oid
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      display_mode: TABLE_MODE
+      client_state: "{\"version\":\"V2\"}"
+    display_headline_column: Unique Number of Oid
+  - id: Viz_6
+    answer:
+      name: Current VMs
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      search_query: "unique count [Oid] [Entity Type].virtual_machine [Time].'last 30 minutes'"
+      answer_columns:
+      - name: Unique Number of Oid
+      table:
+        table_columns:
+        - column_id: Unique Number of Oid
+          headline_aggregation: AVERAGE
+        ordered_column_ids:
+        - Unique Number of Oid
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      display_mode: TABLE_MODE
+      client_state: "{\"version\":\"V2\"}"
+    display_headline_column: Unique Number of Oid
+  - id: Viz_7
+    answer:
+      name: Added VMs
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      search_query: "unique count [Oid] [Time].'last 3 days' [Time].today [Entity Type].virtual_machine [Oid] not in ( [Oid] [Time].'3 days ago' [Time].'hour of day' = '0' )"
+      answer_columns:
+      - name: Unique Number of Oid
+      table:
+        table_columns:
+        - column_id: Unique Number of Oid
+          headline_aggregation: AVERAGE
+        ordered_column_ids:
+        - Unique Number of Oid
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      display_mode: TABLE_MODE
+      client_state: "{\"version\":\"V2\"}"
+    display_headline_column: Unique Number of Oid
+  - id: Viz_8
+    answer:
+      name: Removed VMs
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      search_query: "unique count [Oid] [Time].'last 3 days' [Time].today [Entity Type].virtual_machine [Oid] not in ( [Oid] [Time].'last 30 minutes' )"
+      answer_columns:
+      - name: Unique Number of Oid
+      table:
+        table_columns:
+        - column_id: Unique Number of Oid
+          headline_aggregation: AVERAGE
+        ordered_column_ids:
+        - Unique Number of Oid
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      display_mode: TABLE_MODE
+      client_state: "{\"version\":\"V2\"}"
+    display_headline_column: Unique Number of Oid
+  - id: Viz_9
+    answer:
+      name: Global CPU Stats
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      table_paths:
+      - id: Blank Worksheet_1
+        table: Blank Worksheet
+        join_path:
+        - {}
+      formulas:
+      - id: Capacity
+        name: Capacity
+        expr: "average ( group_aggregate ( sum ( [Blank Worksheet_1::Capacity] / 1000 ) , { [Blank Worksheet_1::Time] } , query_filters ( ) ) )"
+      - id: Used Avg
+        name: Used Avg
+        expr: "average ( group_aggregate ( sum ( [Blank Worksheet_1::Used] / 1000 ) , { [Blank Worksheet_1::Time] } , query_filters ( ) ) )"
+      - id: Used Max
+        name: Used Max
+        expr: "max ( group_aggregate ( sum ( [Blank Worksheet_1::Used] / 1000 ) , { [Blank Worksheet_1::Time] } , query_filters ( ) ) )"
+      search_query: "[Blank Worksheet_1::Metric Type] [Blank Worksheet_1::Metric Type].cpu [Blank Worksheet_1::Time].'last 3 days' [Blank Worksheet_1::Time].today [Capacity] [Used Avg] [Used Max]"
+      answer_columns:
+      - name: Capacity
+      - name: Metric Type
+      - name: Used Max
+      - name: Used Avg
+      table:
+        table_columns:
+        - column_id: Metric Type
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Capacity
+          headline_aggregation: TABLE_AGGR
+        - column_id: Used Avg
+          headline_aggregation: TABLE_AGGR
+        - column_id: Used Max
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Metric Type
+        - Capacity
+        - Used Avg
+        - Used Max
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: COLUMN
+        chart_columns:
+        - column_id: Metric Type
+        - column_id: Capacity
+        - column_id: Used Avg
+        - column_id: Used Max
+        axis_configs:
+        - x:
+          - Metric Type
+          "y":
+          - Capacity
+          - Used Avg
+          - Used Max
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {\"yGridlineEnabled\": true},\"responsiveLayoutPreference\": \"AUTO_ON\",\"chartSpecific\": {},\"allLabels\": true},\"columnProperties\": [{\"columnId\": \"Metric Type\",\"columnProperty\": {}},{\"columnId\": \"Capacity\",\"columnProperty\": {\"dataLabels\": true}},{\"columnId\": \"Used Avg\",\"columnProperty\": {\"dataLabels\": true}},{\"columnId\": \"Used Max\",\"columnProperty\": {\"dataLabels\": true}}],\"axisProperties\": [{\"id\": \"6e7b998f-88ed-49bf-832b-4088bb65939f\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Capacity\",\"Used Avg\",\"Used Max\"],\"isOpposite\": false}},{\"id\": \"ce8914f0-2433-496d-8fac-aff7ebdc47bd\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Metric Type\"]}}],\"systemSeriesColors\": [{\"serieName\": \"Capacity\",\"color\": \"#FCC838\"},{\"serieName\": \"Used Avg\",\"color\": \"#48D1E0\"},{\"serieName\": \"Used Max\",\"color\": \"#2E75F0\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_10
+    answer:
+      name: Global Mem Stats
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      table_paths:
+      - id: Blank Worksheet_1
+        table: Blank Worksheet
+        join_path:
+        - {}
+      formulas:
+      - id: Capacity
+        name: Capacity
+        expr: "average ( group_aggregate ( sum ( [Blank Worksheet_1::Capacity] / 1024 / 1024 ) , { [Blank Worksheet_1::Time] } , query_filters ( ) ) )"
+      - id: Used Avg
+        name: Used Avg
+        expr: "average ( group_aggregate ( sum ( [Blank Worksheet_1::Used] / 1024 / 1024 ) , { [Blank Worksheet_1::Time] } , query_filters ( ) ) )"
+      - id: Used Max
+        name: Used Max
+        expr: "max ( group_aggregate ( sum ( [Blank Worksheet_1::Used] / 1024 / 1024 ) , { [Blank Worksheet_1::Time] } , query_filters ( ) ) )"
+      search_query: "[Blank Worksheet_1::Metric Type] [Blank Worksheet_1::Metric Type].mem [Blank Worksheet_1::Time].'last 3 days' [Blank Worksheet_1::Time].today [Capacity] [Used Avg] [Used Max]"
+      answer_columns:
+      - name: Capacity
+      - name: Metric Type
+      - name: Used Max
+      - name: Used Avg
+      table:
+        table_columns:
+        - column_id: Metric Type
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Capacity
+          headline_aggregation: TABLE_AGGR
+        - column_id: Used Avg
+          headline_aggregation: TABLE_AGGR
+        - column_id: Used Max
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Metric Type
+        - Capacity
+        - Used Avg
+        - Used Max
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: COLUMN
+        chart_columns:
+        - column_id: Metric Type
+        - column_id: Capacity
+        - column_id: Used Avg
+        - column_id: Used Max
+        axis_configs:
+        - x:
+          - Metric Type
+          "y":
+          - Capacity
+          - Used Avg
+          - Used Max
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {\"yGridlineEnabled\": true},\"responsiveLayoutPreference\": \"AUTO_ON\",\"chartSpecific\": {},\"allLabels\": true},\"columnProperties\": [{\"columnId\": \"Metric Type\",\"columnProperty\": {}},{\"columnId\": \"Capacity\",\"columnProperty\": {\"dataLabels\": true}},{\"columnId\": \"Used Avg\",\"columnProperty\": {\"dataLabels\": true}},{\"columnId\": \"Used Max\",\"columnProperty\": {\"dataLabels\": true}}],\"axisProperties\": [{\"id\": \"6e7b998f-88ed-49bf-832b-4088bb65939f\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Capacity\",\"Used Avg\",\"Used Max\"],\"isOpposite\": false}},{\"id\": \"ce8914f0-2433-496d-8fac-aff7ebdc47bd\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Metric Type\"]}}],\"systemSeriesColors\": [{\"serieName\": \"Capacity\",\"color\": \"#FCC838\"},{\"serieName\": \"Used Avg\",\"color\": \"#48D1E0\"},{\"serieName\": \"Used Max\",\"color\": \"#2E75F0\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_11
+    answer:
+      name: Global Utilization Stats (%)
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      formulas:
+      - id: Util Avg
+        name: Util Avg
+        expr: "average ( group_aggregate ( sum ( if ( [Metric Type] = 'cpu' ) then [Used] / 1000 else [Used] / 1024 / 1024 ) , { [Time] , [Metric Type] } , query_filters ( ) ) ) / average ( group_aggregate ( sum ( if ( [Metric Type] = 'cpu' ) then [Capacity] / 1000 else [Capacity] / 1024 / 1024 ) , { [Time] , [Metric Type] } , query_filters ( ) ) )"
+      - id: Util Max
+        name: Util Max
+        expr: "max ( group_aggregate ( sum ( if ( [Metric Type] = 'cpu' ) then [Used] / 1000 else [Used] / 1024 / 1024 ) , { [Time] , [Metric Type] } , query_filters ( ) ) ) / max ( group_aggregate ( sum ( if ( [Metric Type] = 'cpu' ) then [Capacity] / 1000 else [Capacity] / 1024 / 1024 ) , { [Time] , [Metric Type] } , query_filters ( ) ) )"
+      search_query: "[Metric Type] [Metric Type].cpu [Metric Type].mem [Time].'last 3 days' [Time].today [Util Avg] [Util Max]"
+      answer_columns:
+      - name: Metric Type
+      - name: Util Avg
+        format:
+          category: PERCENTAGE
+          percentageFormatConfig:
+            decimals: 2.0
+          isCategoryEditable: true
+      - name: Util Max
+        format:
+          category: PERCENTAGE
+          percentageFormatConfig:
+            decimals: 2.0
+          isCategoryEditable: true
+      table:
+        table_columns:
+        - column_id: Metric Type
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Util Avg
+          headline_aggregation: TABLE_AGGR
+        - column_id: Util Max
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Metric Type
+        - Util Avg
+        - Util Max
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: COLUMN
+        chart_columns:
+        - column_id: Metric Type
+        - column_id: Util Avg
+        - column_id: Util Max
+        axis_configs:
+        - x:
+          - Metric Type
+          "y":
+          - Util Avg
+          - Util Max
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {\"yGridlineEnabled\": true},\"responsiveLayoutPreference\": \"AUTO_ON\",\"chartSpecific\": {},\"allLabels\": true},\"columnProperties\": [{\"columnId\": \"Metric Type\",\"columnProperty\": {}},{\"columnId\": \"Util Avg\",\"columnProperty\": {\"dataLabels\": true}},{\"columnId\": \"Util Max\",\"columnProperty\": {\"dataLabels\": true}}],\"axisProperties\": [{\"id\": \"e5ea47e1-570a-488d-9c6a-59107ba145d2\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Util Avg\",\"Util Max\"],\"isOpposite\": false}},{\"id\": \"ab128bdf-a0be-4a74-b8b1-dd3f727b90f0\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Metric Type\"]}}],\"systemSeriesColors\": [{\"serieName\": \"cpu\",\"color\": \"#48D1E0\"},{\"serieName\": \"mem\",\"color\": \"#2E75F0\"},{\"serieName\": \"Util Avg\",\"color\": \"#48D1E0\"},{\"serieName\": \"Util Max\",\"color\": \"#2E75F0\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_12
+    answer:
+      name: Average Storage Total vs Used
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      table_paths:
+      - id: Blank Worksheet_1
+        table: Blank Worksheet
+        join_path:
+        - {}
+      formulas:
+      - id: Available
+        name: Available
+        expr: "[Capacity] - group_aggregate ( average ( [Blank Worksheet_1::Used] / 1024 ) , { } , query_filters ( ) )"
+      - id: Capacity
+        name: Capacity
+        expr: "group_aggregate ( average ( [Blank Worksheet_1::Capacity] / 1024 ) , { } , query_filters ( ) )"
+      search_query: "[Blank Worksheet_1::Metric Type] [Blank Worksheet_1::Entity Type].storage [Blank Worksheet_1::Metric Type].storage_amount [Blank Worksheet_1::Time].'last 3 days' [Blank Worksheet_1::Time].today [Capacity] [Available]"
+      answer_columns:
+      - name: Metric Type
+      - name: Capacity
+      - name: Available
+      table:
+        table_columns:
+        - column_id: Metric Type
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Capacity
+          headline_aggregation: TABLE_AGGR
+        - column_id: Available
+          headline_aggregation: SUM
+        ordered_column_ids:
+        - Metric Type
+        - Capacity
+        - Available
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: COLUMN
+        chart_columns:
+        - column_id: Metric Type
+        - column_id: Capacity
+        - column_id: Available
+        axis_configs:
+        - x:
+          - Metric Type
+          "y":
+          - Capacity
+          - Available
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {\"yGridlineEnabled\": true},\"responsiveLayoutPreference\": \"AUTO_ON\",\"chartSpecific\": {},\"allLabels\": true},\"columnProperties\": [{\"columnId\": \"Metric Type\",\"columnProperty\": {}},{\"columnId\": \"Capacity\",\"columnProperty\": {\"dataLabels\": true}},{\"columnId\": \"Available\",\"columnProperty\": {\"dataLabels\": true}}],\"axisProperties\": [{\"id\": \"72aa8f1c-fec0-4095-aac0-6227939d103e\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Capacity\",\"Available\"],\"isOpposite\": false}},{\"id\": \"fbeb75e3-4628-4393-bfde-7938a924c293\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Metric Type\"]}}],\"systemSeriesColors\": [{\"serieName\": \"storage_amount\",\"color\": \"#747E8C\"},{\"serieName\": \"Capacity\",\"color\": \"#48D1E0\"},{\"serieName\": \"Available\",\"color\": \"#2E75F0\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_13
+    answer:
+      name: Average Storage Used vs Provisioned
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      table_paths:
+      - id: Blank Worksheet_1
+        table: Blank Worksheet
+        join_path:
+        - {}
+      formulas:
+      - id: Used
+        name: Used
+        expr: "group_aggregate ( average ( [Blank Worksheet_1::Used] / 1024 ) , { [Blank Worksheet_1::Metric Type] } , query_filters ( ) )"
+      search_query: "[Blank Worksheet_1::Metric Type] [Blank Worksheet_1::Entity Type].storage [Blank Worksheet_1::Metric Type].storage_amount [Blank Worksheet_1::Metric Type].storage_provisioned [Blank Worksheet_1::Time].'last 3 days' [Blank Worksheet_1::Time].today [Used]"
+      answer_columns:
+      - name: Metric Type
+      - name: Used
+      table:
+        table_columns:
+        - column_id: Metric Type
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Used
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Metric Type
+        - Used
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: COLUMN
+        chart_columns:
+        - column_id: Metric Type
+        - column_id: Used
+        axis_configs:
+        - x:
+          - Metric Type
+          "y":
+          - Used
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {\"yGridlineEnabled\": true},\"responsiveLayoutPreference\": \"AUTO_ON\",\"chartSpecific\": {},\"allLabels\": true},\"columnProperties\": [{\"columnId\": \"Metric Type\",\"columnProperty\": {}},{\"columnId\": \"Used\",\"columnProperty\": {\"dataLabels\": true}}],\"axisProperties\": [{\"id\": \"d80f159b-1028-421d-ab70-fc34a9003f6d\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Used\"],\"isOpposite\": false}},{\"id\": \"f04b811b-36ee-4373-8ae4-40af9a7ebbb2\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Metric Type\"]}}],\"systemSeriesColors\": [{\"serieName\": \"Used\",\"color\": \"#48D1E0\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_14
+    answer:
+      name: Hourly Datastore Performance & Latency
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      table_paths:
+      - id: Blank Worksheet_1
+        table: Blank Worksheet
+        join_path:
+        - {}
+      formulas:
+      - id: Used
+        name: Used
+        expr: "group_aggregate ( average ( [Blank Worksheet_1::Used] ) , { [Blank Worksheet_1::Time] , [Blank Worksheet_1::Metric Type] } , query_filters ( ) )"
+      search_query: "[Blank Worksheet_1::Metric Type] [Blank Worksheet_1::Metric Type].storage_latency [Blank Worksheet_1::Metric Type].storage_access [Blank Worksheet_1::Entity Type].storage [Blank Worksheet_1::Time].'last 3 days' [Blank Worksheet_1::Time].today [Blank Worksheet_1::Time] [Blank Worksheet_1::Time].hourly [Used]"
+      answer_columns:
+      - name: Hour(Time)
+      - name: Metric Type
+      - name: Used
+      table:
+        table_columns:
+        - column_id: Metric Type
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Hour(Time)
+          headline_aggregation: MIN-MAX
+        - column_id: Used
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Metric Type
+        - Hour(Time)
+        - Used
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: LINE
+        chart_columns:
+        - column_id: Metric Type
+        - column_id: Hour(Time)
+        - column_id: Used
+        axis_configs:
+        - x:
+          - Hour(Time)
+          "y":
+          - Used
+          color:
+          - Metric Type
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {\"yGridlineEnabled\": true},\"responsiveLayoutPreference\": \"AUTO_ON\",\"chartSpecific\": {\"markersEnabled\": false}},\"columnProperties\": [{\"columnId\": \"f59e80cb-cad2-491c-be68-299d29920bea\",\"columnProperty\": {}},{\"columnId\": \"e1f6e056-19b0-41c3-a21e-fd171409fdce\",\"columnProperty\": {}}],\"axisProperties\": [{\"id\": \"a07a9f7c-1843-4a6d-b057-2ca75104a23d\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Used\"],\"isOpposite\": false}},{\"id\": \"8337217f-40e0-4c4e-9483-5cd9f11c5371\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Hour(Time)\"]}}],\"systemSeriesColors\": [{\"serieName\": \"storage_access\",\"color\": \"#2E75F0\"},{\"serieName\": \"storage_latency\",\"color\": \"#48D1E0\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_15
+    answer:
+      name: Storage Latency
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      formulas:
+      - id: Used Avg
+        name: Used Avg
+        expr: "group_aggregate ( average ( [Used] ) , { } , query_filters ( ) )"
+      - id: Used Max
+        name: Used Max
+        expr: "group_aggregate ( max ( [Used] ) , { } , query_filters ( ) )"
+      search_query: "[Metric Type] [Metric Type].storage_latency [Entity Type].storage [Time].'last 3 days' [Time].today [Used Avg] [Used Max]"
+      answer_columns:
+      - name: Metric Type
+      - name: Used Avg
+      - name: Used Max
+      table:
+        table_columns:
+        - column_id: Metric Type
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Used Avg
+          headline_aggregation: TABLE_AGGR
+        - column_id: Used Max
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Metric Type
+        - Used Avg
+        - Used Max
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: COLUMN
+        chart_columns:
+        - column_id: Metric Type
+        - column_id: Used Avg
+        - column_id: Used Max
+        axis_configs:
+        - x:
+          - Metric Type
+          "y":
+          - Used Avg
+          - Used Max
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {\"yGridlineEnabled\": true},\"responsiveLayoutPreference\": \"AUTO_ON\",\"chartSpecific\": {},\"allLabels\": true},\"columnProperties\": [{\"columnId\": \"Metric Type\",\"columnProperty\": {}},{\"columnId\": \"Used Avg\",\"columnProperty\": {\"dataLabels\": true}},{\"columnId\": \"Used Max\",\"columnProperty\": {\"dataLabels\": true}}],\"axisProperties\": [{\"id\": \"a18e6e7d-1bdd-4ec3-8754-c13d0bd91a48\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Used Avg\",\"Used Max\"],\"isOpposite\": false}},{\"id\": \"98496624-729f-418d-b3f8-a158c7981e83\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Metric Type\"]}}],\"systemSeriesColors\": [{\"serieName\": \"storage_latency\",\"color\": \"#48D1E0\"},{\"serieName\": \"Used Avg\",\"color\": \"#48D1E0\"},{\"serieName\": \"Used Max\",\"color\": \"#2E75F0\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_16
+    answer:
+      name: Storage IOPS
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      formulas:
+      - id: Used Avg
+        name: Used Avg
+        expr: "group_aggregate ( average ( [Used] ) , { } , query_filters ( ) )"
+      - id: Used Max
+        name: Used Max
+        expr: "group_aggregate ( max ( [Used] ) , { } , query_filters ( ) )"
+      search_query: "[Metric Type] [Metric Type].storage_access [Entity Type].storage [Time].'last 3 days' [Time].today [Used Avg] [Used Max]"
+      answer_columns:
+      - name: Metric Type
+      - name: Used Avg
+      - name: Used Max
+      table:
+        table_columns:
+        - column_id: Metric Type
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Used Avg
+          headline_aggregation: TABLE_AGGR
+        - column_id: Used Max
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Metric Type
+        - Used Avg
+        - Used Max
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: COLUMN
+        chart_columns:
+        - column_id: Metric Type
+        - column_id: Used Avg
+        - column_id: Used Max
+        axis_configs:
+        - x:
+          - Metric Type
+          "y":
+          - Used Avg
+          - Used Max
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {\"yGridlineEnabled\": true},\"responsiveLayoutPreference\": \"AUTO_ON\",\"chartSpecific\": {},\"allLabels\": true},\"columnProperties\": [{\"columnId\": \"Metric Type\",\"columnProperty\": {}},{\"columnId\": \"Used Avg\",\"columnProperty\": {\"dataLabels\": true}},{\"columnId\": \"Used Max\",\"columnProperty\": {\"dataLabels\": true}}],\"axisProperties\": [{\"id\": \"a18e6e7d-1bdd-4ec3-8754-c13d0bd91a48\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Used Avg\",\"Used Max\"],\"isOpposite\": false}},{\"id\": \"98496624-729f-418d-b3f8-a158c7981e83\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Metric Type\"]}}],\"systemSeriesColors\": [{\"serieName\": \"storage_latency\",\"color\": \"#48D1E0\"},{\"serieName\": \"Used Avg\",\"color\": \"#48D1E0\"},{\"serieName\": \"Used Max\",\"color\": \"#2E75F0\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_17
+    answer:
+      name: Top 20 Most Consumed vMem by Virtual Machine
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      formulas:
+      - id: Util
+        name: Util
+        expr: "group_aggregate ( average ( [Used] / 1024 / 1024 ) , { [Name] } , query_filters ( ) ) / group_aggregate ( average ( [Capacity] / 1024 / 1024 ) , { [Name] } , query_filters ( ) )"
+      search_query: "top 20 [Name] by [Util] for [Metric Type].vmem [Entity Type].virtual_machine [Time].'last 3 days' [Time].today"
+      answer_columns:
+      - name: Util
+      - name: Name
+      table:
+        table_columns:
+        - column_id: Name
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Util
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Name
+        - Util
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: BAR
+        chart_columns:
+        - column_id: Name
+        - column_id: Util
+        axis_configs:
+        - x:
+          - Name
+          "y":
+          - Util
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {},\"responsiveLayoutPreference\": \"AUTO_ON\",\"chartSpecific\": {}},\"columnProperties\": [{\"columnId\": \"74415dc7-7708-4d05-a6b0-585baeb29960\",\"columnProperty\": {}},{\"columnId\": \"b37394bc-b09d-449b-9815-1d01a0ab726c\",\"columnProperty\": {}}],\"axisProperties\": [{\"id\": \"2bcc40e8-ed9c-4b1b-9f13-426f63dd7781\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Util\"],\"isOpposite\": false}},{\"id\": \"c5472791-2200-4597-9cd5-fac4f46af491\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Name\"]}}],\"systemSeriesColors\": [{\"serieName\": \"Util\",\"color\": \"#06BF7F\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_18
+    answer:
+      name: Top 20 Most Consumed vCPU by Virtual Machine
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      formulas:
+      - id: Util
+        name: Util
+        expr: "group_aggregate ( average ( [Used] / 1024 / 1024 ) , { [Name] } , query_filters ( ) ) / group_aggregate ( average ( [Capacity] / 1024 / 1024 ) , { [Name] } , query_filters ( ) )"
+      search_query: "top 20 [Name] by [Util] for [Metric Type].vcpu [Entity Type].virtual_machine [Time].'last 3 days' [Time].today"
+      answer_columns:
+      - name: Util
+      - name: Name
+      table:
+        table_columns:
+        - column_id: Name
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Util
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Name
+        - Util
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: BAR
+        chart_columns:
+        - column_id: Name
+        - column_id: Util
+        axis_configs:
+        - x:
+          - Name
+          "y":
+          - Util
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {},\"responsiveLayoutPreference\": \"AUTO_ON\",\"chartSpecific\": {}},\"columnProperties\": [{\"columnId\": \"74415dc7-7708-4d05-a6b0-585baeb29960\",\"columnProperty\": {}},{\"columnId\": \"b37394bc-b09d-449b-9815-1d01a0ab726c\",\"columnProperty\": {}}],\"axisProperties\": [{\"id\": \"2bcc40e8-ed9c-4b1b-9f13-426f63dd7781\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Util\"],\"isOpposite\": false}},{\"id\": \"c5472791-2200-4597-9cd5-fac4f46af491\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Name\"]}}],\"systemSeriesColors\": [{\"serieName\": \"Util\",\"color\": \"#FCC838\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_19
+    answer:
+      name: "Host Utilization by Mem, CPU"
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      formulas:
+      - id: Util Avg
+        name: Util Avg
+        expr: "[Used Avg] / [Capacity Avg]"
+        properties:
+          aggregation: AVERAGE
+      - id: Used Avg
+        name: Used Avg
+        expr: "average ( group_aggregate ( sum ( if ( [Metric Type] = 'cpu' ) then [Used] / 1000 else [Used] / 1024 / 1024 ) , { [Time] , [Metric Type] , [Name] , [Related Name] } , query_filters ( ) ) )"
+        properties:
+          aggregation: AVERAGE
+      - id: Util Max
+        name: Util Max
+        expr: "[Used Max] / [Capacity Max]"
+        properties:
+          aggregation: MAX
+      - id: Capacity Max
+        name: Capacity Max
+        expr: "max ( group_aggregate ( sum ( if ( [Metric Type] = 'cpu' ) then [Capacity] / 1000 else [Capacity] / 1024 / 1024 ) , { [Time] , [Metric Type] , [Name] , [Related Name] } , query_filters ( ) ) )"
+        properties:
+          aggregation: MAX
+      - id: Used Max
+        name: Used Max
+        expr: "max ( group_aggregate ( sum ( if ( [Metric Type] = 'cpu' ) then [Used] / 1000 else [Used] / 1024 / 1024 ) , { [Time] , [Metric Type] , [Name] , [Related Name] } , query_filters ( ) ) )"
+        properties:
+          aggregation: MAX
+      - id: Capacity Avg
+        name: Capacity Avg
+        expr: "average ( group_aggregate ( sum ( if ( [Metric Type] = 'cpu' ) then [Capacity] / 1000 else [Capacity] / 1024 / 1024 ) , { [Time] , [Metric Type] , [Name] , [Related Name] } , query_filters ( ) ) )"
+        properties:
+          aggregation: AVERAGE
+      search_query: "[Blank Worksheet_1::Name] [Blank Worksheet_1::Entity Type].physical_machine [Blank Worksheet_1::Related Name] [Blank Worksheet_1::Time].'last 3 days' [Blank Worksheet_1::Time].today [Blank Worksheet_1::Metric Type] [Blank Worksheet_1::Metric Type].cpu [Blank Worksheet_1::Metric Type].mem [Capacity Max] [Used Avg] [Used Max] [Util Avg] [Util Max] [Blank Worksheet_1::Related Type] = 'compute_cluster'"
+      answer_columns:
+      - name: Capacity Max
+      - name: Used Avg
+      - name: Used Max
+      - name: Related Name
+      - name: Util Max
+        format:
+          category: PERCENTAGE
+          percentageFormatConfig:
+            decimals: 2.0
+          isCategoryEditable: true
+      - name: Name
+      - name: Metric Type
+      - name: Util Avg
+        format:
+          category: PERCENTAGE
+          percentageFormatConfig:
+            decimals: 2.0
+          isCategoryEditable: true
+      table:
+        table_columns:
+        - column_id: Name
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Related Name
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Metric Type
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Capacity Max
+          headline_aggregation: TABLE_AGGR
+        - column_id: Used Avg
+          headline_aggregation: TABLE_AGGR
+        - column_id: Used Max
+          headline_aggregation: TABLE_AGGR
+        - column_id: Util Avg
+          headline_aggregation: TABLE_AGGR
+        - column_id: Util Max
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Name
+        - Related Name
+        - Metric Type
+        - Capacity Max
+        - Used Avg
+        - Used Max
+        - Util Avg
+        - Util Max
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: PIVOT_TABLE
+        chart_columns:
+        - column_id: Name
+        - column_id: Related Name
+        - column_id: Metric Type
+        - column_id: Capacity Max
+        - column_id: Used Avg
+        - column_id: Used Max
+        - column_id: Util Avg
+        - column_id: Util Max
+        axis_configs:
+        - x:
+          - Related Name
+          - Name
+          "y":
+          - Util Max
+          - Util Avg
+          - Capacity Max
+          - Used Max
+          - Used Avg
+          color:
+          - Metric Type
+        - "y":
+          - Util Max
+          - Util Avg
+          - Capacity Max
+          - Used Max
+          - Used Avg
+        - x:
+          - Related Name
+          "y":
+          - Util Max
+          - Util Avg
+          - Capacity Max
+          - Used Max
+          - Used Avg
+        - "y":
+          - Util Max
+          - Util Avg
+          - Capacity Max
+          - Used Max
+          - Used Avg
+          color:
+          - Metric Type
+        - x:
+          - Related Name
+          "y":
+          - Util Max
+          - Util Avg
+          - Capacity Max
+          - Used Max
+          - Used Avg
+          color:
+          - Metric Type
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {},\"responsiveLayoutPreference\": \"AUTO_OFF\",\"chartSpecific\": {\"pivotState\": {},\"hidePivotSummaries\": true,\"isHeatmapOverlayed\": true}},\"columnProperties\": [{\"columnId\": \"74415dc7-7708-4d05-a6b0-585baeb29960\",\"columnProperty\": {}},{\"columnId\": \"b37394bc-b09d-449b-9815-1d01a0ab726c\",\"columnProperty\": {}}],\"axisProperties\": [{\"id\": \"839e9f16-5bd1-475c-b04e-543f94eb7af7\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Capacity Max\"],\"isOpposite\": false}},{\"id\": \"e080f137-1857-47f9-ad8b-fe0f66f13e9d\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Name\",\"Related Name\"]}},{\"id\": \"95697480-2d2b-48ee-a6aa-ad158109f4ba\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Used Avg\"],\"isOpposite\": true}},{\"id\": \"b6c835cd-4bef-4be7-b35f-a5d470d77b04\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Used Max\"],\"isOpposite\": true}},{\"id\": \"21caff1b-5960-491b-b160-3a86a0cc2e1e\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Util Max\"],\"isOpposite\": true}},{\"id\": \"b660aa25-4bc1-4e0d-9f0f-c1a38f511246\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Util Avg\"],\"isOpposite\": true}}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_20
+    answer:
+      name: All Hosts
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      search_query: "unique count [Oid] [Time].'last 3 days' [Time].today [Entity Type].physical_machine"
+      answer_columns:
+      - name: Unique Number of Oid
+      table:
+        table_columns:
+        - column_id: Unique Number of Oid
+          headline_aggregation: AVERAGE
+        ordered_column_ids:
+        - Unique Number of Oid
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      display_mode: TABLE_MODE
+      client_state: "{\"version\":\"V2\"}"
+    display_headline_column: Unique Number of Oid
+  - id: Viz_21
+    answer:
+      name: Current Hosts
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      search_query: "unique count [Oid] [Entity Type].physical_machine [Time].'last 30 minutes'"
+      answer_columns:
+      - name: Unique Number of Oid
+      table:
+        table_columns:
+        - column_id: Unique Number of Oid
+          headline_aggregation: AVERAGE
+        ordered_column_ids:
+        - Unique Number of Oid
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      display_mode: TABLE_MODE
+      client_state: "{\"version\":\"V2\"}"
+    display_headline_column: Unique Number of Oid
+  - id: Viz_22
+    answer:
+      name: Added Hosts
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      search_query: "unique count [Oid] [Time].'last 3 days' [Time].today [Entity Type].physical_machine [Oid] not in ( [Oid] [Time].'3 days ago' [Time].'hour of day' = '0' )"
+      answer_columns:
+      - name: Unique Number of Oid
+      table:
+        table_columns:
+        - column_id: Unique Number of Oid
+          headline_aggregation: AVERAGE
+        ordered_column_ids:
+        - Unique Number of Oid
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      display_mode: TABLE_MODE
+      client_state: "{\"version\":\"V2\"}"
+    display_headline_column: Unique Number of Oid
+  - id: Viz_23
+    answer:
+      name: Removed Hosts
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      search_query: "unique count [Oid] [Time].'last 3 days' [Time].today [Entity Type].physical_machine [Oid] not in ( [Oid] [Time].'last 30 minutes' )"
+      answer_columns:
+      - name: Unique Number of Oid
+      table:
+        table_columns:
+        - column_id: Unique Number of Oid
+          headline_aggregation: AVERAGE
+        ordered_column_ids:
+        - Unique Number of Oid
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      display_mode: TABLE_MODE
+      client_state: "{\"version\":\"V2\"}"
+    display_headline_column: Unique Number of Oid
+  - id: Viz_24
+    answer:
+      name: Datastore Usage by Metric
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      formulas:
+      - id: Used Avg
+        name: Used Avg
+        expr: "group_aggregate ( average ( if ( [Metric Type] = 'storage_amount' or [Metric Type] = 'storage_provisioned' ) then [Used] / 1024 else [Used] ) , { [Metric Type] , [Name] , [Related Name] } , query_filters ( ) )"
+        properties:
+          aggregation: AVERAGE
+      - id: Used Max
+        name: Used Max
+        expr: "group_aggregate ( max ( if ( [Metric Type] = 'storage_amount' or [Metric Type] = 'storage_provisioned' ) then [Used] / 1024 else [Used] ) , { [Metric Type] , [Name] , [Related Name] } , query_filters ( ) )"
+        properties:
+          aggregation: MAX
+      - id: Storage Metric
+        name: Storage Metric
+        expr: "if ( [Metric Type] = 'storage_amount' ) then 'amount' else if ( [Metric Type] = 'storage_latency' ) then 'latency' else if ( [Metric Type] = 'storage_access' ) then 'iops' else 'provisioned'"
+      search_query: "[Name] [Entity Type].storage [Related Name] [Related Type].compute_cluster [Metric Type] [Metric Type].storage_amount [Metric Type].storage_latency [Metric Type].storage_access [Metric Type].storage_provisioned [Time].'last 3 days' [Time].today [Used Max] [Used Avg]"
+      answer_columns:
+      - name: Name
+      - name: Used Max
+      - name: Used Avg
+      - name: Metric Type
+      - name: Related Name
+      table:
+        table_columns:
+        - column_id: Name
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Related Name
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Metric Type
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: Used Max
+          headline_aggregation: TABLE_AGGR
+        - column_id: Used Avg
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Name
+        - Related Name
+        - Metric Type
+        - Used Max
+        - Used Avg
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: PIVOT_TABLE
+        chart_columns:
+        - column_id: Name
+        - column_id: Related Name
+        - column_id: Metric Type
+        - column_id: Used Max
+        - column_id: Used Avg
+        axis_configs:
+        - x:
+          - Related Name
+          - Name
+          "y":
+          - Used Max
+          - Used Avg
+          color:
+          - Metric Type
+        - "y":
+          - Used Max
+          - Used Avg
+        - x:
+          - Related Name
+          "y":
+          - Used Max
+          - Used Avg
+        - x:
+          - Related Name
+          - Name
+          "y":
+          - Used Max
+          - Used Avg
+        - "y":
+          - Used Max
+          - Used Avg
+          color:
+          - Metric Type
+        - x:
+          - Related Name
+          "y":
+          - Used Max
+          - Used Avg
+          color:
+          - Metric Type
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {},\"responsiveLayoutPreference\": \"AUTO_ON\",\"chartSpecific\": {\"pivotState\": {\"rowExpandedPaths\": [{\"paths\": [\"3Par-test-volume-oneview-51\"]}]},\"hidePivotSummaries\": true,\"isHeatmapOverlayed\": true}},\"columnProperties\": [{\"columnId\": \"Name\",\"columnProperty\": {}},{\"columnId\": \"Related Name\",\"columnProperty\": {}},{\"columnId\": \"Metric Type\",\"columnProperty\": {}}],\"axisProperties\": [{\"id\": \"156abe09-19dc-449b-9638-7cefa766895e\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Used Max\"],\"isOpposite\": false}},{\"id\": \"486e2148-44c7-4640-85fe-6e153e152f01\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Name\",\"Related Name\"]}},{\"id\": \"67a7d175-d5ee-428d-bdfa-40937bbb0f39\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"Used Avg\"],\"isOpposite\": true}}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  - id: Viz_25
+    answer:
+      name: CPU Cores by Cluster
+      tables:
+      - id: Blank Worksheet
+        name: Blank Worksheet
+      formulas:
+      - id: CPU Cores
+        name: CPU Cores
+        expr: "average ( group_aggregate ( sum ( sql_int_op ( 'attrs:num_cpus' ) ) , { [Time] , [Related Name] } , query_filters ( ) ) )"
+      search_query: "[Entity Type].physical_machine [Related Name] [Related Type].compute_cluster [Time].'last 3 days' [Time].today [CPU Cores]"
+      answer_columns:
+      - name: Related Name
+      - name: CPU Cores
+      table:
+        table_columns:
+        - column_id: Related Name
+          headline_aggregation: COUNT_DISTINCT
+        - column_id: CPU Cores
+          headline_aggregation: TABLE_AGGR
+        ordered_column_ids:
+        - Related Name
+        - CPU Cores
+        client_state: ""
+        client_state_v2: "{\"tableVizPropVersion\": \"V1\",\"wrapTableHeader\": true}"
+      chart:
+        type: PIE
+        chart_columns:
+        - column_id: Related Name
+        - column_id: CPU Cores
+        axis_configs:
+        - x:
+          - Related Name
+          "y":
+          - CPU Cores
+        client_state: ""
+        client_state_v2: "{\"version\": \"V4DOT1\",\"chartProperties\": {\"gridLines\": {},\"responsiveLayoutPreference\": \"AUTO_OFF\",\"chartSpecific\": {},\"allLabels\": false},\"columnProperties\": [{\"columnId\": \"Related Name\",\"columnProperty\": {}},{\"columnId\": \"CPU Cores\",\"columnProperty\": {\"dataLabels\": false}}],\"axisProperties\": [{\"id\": \"41b3f7b4-f84a-4fe8-81c3-bab61396b545\",\"properties\": {\"axisType\": \"Y\",\"linkedColumns\": [\"CPU Cores\"],\"isOpposite\": false}},{\"id\": \"25d387de-b777-4853-9b69-b63f4eee1f6e\",\"properties\": {\"axisType\": \"X\",\"linkedColumns\": [\"Related Name\"]}}],\"systemSeriesColors\": [{\"serieName\": \"CPU Cores\",\"color\": \"#FF8142\"},{\"serieName\": \"acm/acm cluster\",\"color\": \"#721F27\"},{\"serieName\": \"cloud/development\",\"color\": \"#F47E89\"},{\"serieName\": \"cloud/physical\",\"color\": \"#B6313E\"},{\"serieName\": \"cloud/physical2\",\"color\": \"#F9B3B9\"},{\"serieName\": \"dc0/dc0_c0\",\"color\": \"#F04152\"},{\"serieName\": \"dc0/dc0_c1\",\"color\": \"#2F3947\"},{\"serieName\": \"dc1/dc1_c0\",\"color\": \"#A2ACBA\"},{\"serieName\": \"dc1/dc1_c1\",\"color\": \"#47515F\"},{\"serieName\": \"dc10/dc10_c0\",\"color\": \"#BEC6D0\"},{\"serieName\": \"dc10/dc10_c1\",\"color\": \"#747E8C\"},{\"serieName\": \"dc11/dc11_c0\",\"color\": \"#7A3D1F\"},{\"serieName\": \"dc11/dc11_c1\",\"color\": \"#FFA97E\"},{\"serieName\": \"dc12/dc12_c0\",\"color\": \"#C26232\"},{\"serieName\": \"dc12/dc12_c1\",\"color\": \"#FFCCB3\"},{\"serieName\": \"dc13/dc13-cluster\",\"color\": \"#FF8142\"},{\"serieName\": \"dc13/dc13_c0\",\"color\": \"#422E75\"},{\"serieName\": \"dc13/dc13_c1\",\"color\": \"#B094F8\"},{\"serieName\": \"dc13/physical hosts_cluster2 - intel\",\"color\": \"#6A4ABA\"},{\"serieName\": \"dc14/dc14-cluster\",\"color\": \"#D1C0FB\"},{\"serieName\": \"dc14/dc14-cluster2\",\"color\": \"#8C62F5\"},{\"serieName\": \"dc14/dc14_c0\",\"color\": \"#025B3C\"},{\"serieName\": \"dc14/dc14_c1\",\"color\": \"#56D3A8\"},{\"serieName\": \"dc15/dc15_c0\",\"color\": \"#049160\"},{\"serieName\": \"dc15/dc15_c1\",\"color\": \"#9BE5CB\"},{\"serieName\": \"dc2/dc2_c0\",\"color\": \"#06BF7F\"},{\"serieName\": \"dc2/dc2_c1\",\"color\": \"#785F1A\"},{\"serieName\": \"dc23-datacenter/dc23-cluster1\",\"color\": \"#FCD977\"},{\"serieName\": \"dc23-datacenter/dc23-cluster2\",\"color\": \"#BF982A\"},{\"serieName\": \"dc24-datacenter/dc24-cluster1\",\"color\": \"#FDE9AF\"},{\"serieName\": \"dc24-datacenter/dc24-cluster2\",\"color\": \"#FCC838\"},{\"serieName\": \"dc3/dc3_c0\",\"color\": \"#22636B\"},{\"serieName\": \"dc3/dc3_c1\",\"color\": \"#82DFE9\"},{\"serieName\": \"dc4/dc4_c0\",\"color\": \"#369FAA\"},{\"serieName\": \"dc4/dc4_c1\",\"color\": \"#B5ECF2\"},{\"serieName\": \"dc5/dc5_c0\",\"color\": \"#48D1E0\"},{\"serieName\": \"dc5/dc5_c1\",\"color\": \"#163772\"},{\"serieName\": \"dc6/dc6_c0\",\"color\": \"#71A1F4\"},{\"serieName\": \"dc6/dc6_c1\",\"color\": \"#2359B6\"},{\"serieName\": \"dc7/dc7_c0\",\"color\": \"#ABC7F9\"},{\"serieName\": \"dc7/dc7_c1\",\"color\": \"#2E75F0\"},{\"serieName\": \"dc8/dc8_c0\",\"color\": \"#721F27\"},{\"serieName\": \"dc8/dc8_c1\",\"color\": \"#F47E89\"},{\"serieName\": \"dc9/dc2_c1\",\"color\": \"#B6313E\"},{\"serieName\": \"dc9/dc9_c0\",\"color\": \"#F9B3B9\"},{\"serieName\": \"dc9/dc9_c1\",\"color\": \"#F04152\"},{\"serieName\": \"datacenter / dc7/cluster\\\\01\",\"color\": \"#2F3947\"},{\"serieName\": \"datacenter-dc5/dc5-cluster1\",\"color\": \"#A2ACBA\"},{\"serieName\": \"datacenter-dc6/dc6-cluster1-automationonly\",\"color\": \"#47515F\"},{\"serieName\": \"datacenter-dc6/dc6-cluster2\",\"color\": \"#BEC6D0\"},{\"serieName\": \"datacenter-dc18/dc18-cluster1\",\"color\": \"#747E8C\"},{\"serieName\": \"datacenter-dc18/dc18-cluster2\",\"color\": \"#7A3D1F\"},{\"serieName\": \"datacenter-dc18/vcd cluster - do not use\",\"color\": \"#FFA97E\"},{\"serieName\": \"datacenter-dc18/vcd cluster2 - do not use\",\"color\": \"#C26232\"},{\"serieName\": \"datacenter-dc22/autodeploy\",\"color\": \"#FFCCB3\"},{\"serieName\": \"datacenter-dc22/dc22-cluster1\",\"color\": \"#FF8142\"},{\"serieName\": \"datacenter-dc22/dc22-cluster2\",\"color\": \"#422E75\"},{\"serieName\": \"datacenter-dc9/dc9-cluster1 (vsan)\",\"color\": \"#B094F8\"},{\"serieName\": \"datacenter-dc9/dc9-vsan cluster (astra)\",\"color\": \"#6A4ABA\"},{\"serieName\": \"datacenter01/cluster01\",\"color\": \"#D1C0FB\"},{\"serieName\": \"development dc1/cluster1\",\"color\": \"#8C62F5\"},{\"serieName\": \"development dc1/cluster2\",\"color\": \"#025B3C\"},{\"serieName\": \"development dc2/cluster3\",\"color\": \"#56D3A8\"},{\"serieName\": \"development67/cluster1\",\"color\": \"#049160\"},{\"serieName\": \"development67/cluster2\",\"color\": \"#9BE5CB\"},{\"serieName\": \"hawthornehc/pt applications\",\"color\": \"#06BF7F\"},{\"serieName\": \"hawthornehc/pt automation only\",\"color\": \"#785F1A\"},{\"serieName\": \"ACM/ACM Cluster\",\"color\": \"#721F27\"},{\"serieName\": \"Cloud/Development\",\"color\": \"#F47E89\"},{\"serieName\": \"Cloud/Physical\",\"color\": \"#B6313E\"},{\"serieName\": \"Cloud/Physical2\",\"color\": \"#F9B3B9\"},{\"serieName\": \"DC0/DC0_C0\",\"color\": \"#F04152\"},{\"serieName\": \"DC0/DC0_C1\",\"color\": \"#2F3947\"},{\"serieName\": \"DC1/DC1_C0\",\"color\": \"#A2ACBA\"},{\"serieName\": \"DC1/DC1_C1\",\"color\": \"#47515F\"},{\"serieName\": \"DC10/DC10_C0\",\"color\": \"#BEC6D0\"},{\"serieName\": \"DC10/DC10_C1\",\"color\": \"#747E8C\"},{\"serieName\": \"DC11/DC11_C0\",\"color\": \"#7A3D1F\"},{\"serieName\": \"DC11/DC11_C1\",\"color\": \"#FFA97E\"},{\"serieName\": \"DC12/DC12_C0\",\"color\": \"#C26232\"},{\"serieName\": \"DC12/DC12_C1\",\"color\": \"#FFCCB3\"},{\"serieName\": \"DC13/DC13-Cluster\",\"color\": \"#FF8142\"},{\"serieName\": \"DC13/DC13_C0\",\"color\": \"#422E75\"},{\"serieName\": \"DC13/DC13_C1\",\"color\": \"#B094F8\"},{\"serieName\": \"DC13/Physical Hosts_Cluster2 - Intel\",\"color\": \"#6A4ABA\"},{\"serieName\": \"DC14/DC14-Cluster\",\"color\": \"#D1C0FB\"},{\"serieName\": \"DC14/DC14-Cluster2\",\"color\": \"#8C62F5\"},{\"serieName\": \"DC14/DC14_C0\",\"color\": \"#025B3C\"},{\"serieName\": \"DC14/DC14_C1\",\"color\": \"#56D3A8\"},{\"serieName\": \"DC15/DC15_C0\",\"color\": \"#049160\"},{\"serieName\": \"DC15/DC15_C1\",\"color\": \"#9BE5CB\"},{\"serieName\": \"DC2/DC2_C0\",\"color\": \"#06BF7F\"},{\"serieName\": \"DC2/DC2_C1\",\"color\": \"#785F1A\"},{\"serieName\": \"DC23-Datacenter/DC23-cluster1\",\"color\": \"#FCD977\"},{\"serieName\": \"DC23-Datacenter/DC23-cluster2\",\"color\": \"#BF982A\"},{\"serieName\": \"DC24-Datacenter/DC24-Cluster1\",\"color\": \"#FDE9AF\"},{\"serieName\": \"DC24-Datacenter/DC24-Cluster2\",\"color\": \"#FCC838\"},{\"serieName\": \"DC3/DC3_C0\",\"color\": \"#22636B\"},{\"serieName\": \"DC3/DC3_C1\",\"color\": \"#82DFE9\"},{\"serieName\": \"DC4/DC4_C0\",\"color\": \"#369FAA\"},{\"serieName\": \"DC4/DC4_C1\",\"color\": \"#B5ECF2\"},{\"serieName\": \"DC5/DC5_C0\",\"color\": \"#48D1E0\"},{\"serieName\": \"DC5/DC5_C1\",\"color\": \"#163772\"},{\"serieName\": \"DC6/DC6_C0\",\"color\": \"#71A1F4\"},{\"serieName\": \"DC6/DC6_C1\",\"color\": \"#2359B6\"},{\"serieName\": \"DC7/DC7_C0\",\"color\": \"#ABC7F9\"},{\"serieName\": \"DC7/DC7_C1\",\"color\": \"#2E75F0\"},{\"serieName\": \"DC8/DC8_C0\",\"color\": \"#721F27\"},{\"serieName\": \"DC8/DC8_C1\",\"color\": \"#F47E89\"},{\"serieName\": \"DC9/DC2_C1\",\"color\": \"#B6313E\"},{\"serieName\": \"DC9/DC9_C0\",\"color\": \"#F9B3B9\"},{\"serieName\": \"DC9/DC9_C1\",\"color\": \"#F04152\"},{\"serieName\": \"Datacenter / DC7/Cluster\\\\01\",\"color\": \"#2F3947\"},{\"serieName\": \"Datacenter-DC5/DC5-Cluster1\",\"color\": \"#A2ACBA\"},{\"serieName\": \"Datacenter-DC6/DC6-Cluster1-AutomationOnly\",\"color\": \"#47515F\"},{\"serieName\": \"Datacenter-DC6/DC6-Cluster2\",\"color\": \"#BEC6D0\"},{\"serieName\": \"Datacenter-dc18/DC18-Cluster1\",\"color\": \"#747E8C\"},{\"serieName\": \"Datacenter-dc18/DC18-Cluster2\",\"color\": \"#7A3D1F\"},{\"serieName\": \"Datacenter-dc18/VCD Cluster - DO NOT USE\",\"color\": \"#FFA97E\"},{\"serieName\": \"Datacenter-dc18/VCD Cluster2 - DO NOT USE\",\"color\": \"#C26232\"},{\"serieName\": \"Datacenter-dc22/Autodeploy\",\"color\": \"#FFCCB3\"},{\"serieName\": \"Datacenter-dc22/dc22-cluster1\",\"color\": \"#FF8142\"},{\"serieName\": \"Datacenter-dc22/dc22-cluster2\",\"color\": \"#422E75\"},{\"serieName\": \"Datacenter-dc9/DC9-Cluster1 (vSAN)\",\"color\": \"#B094F8\"},{\"serieName\": \"Datacenter-dc9/DC9-vSAN Cluster (Astra)\",\"color\": \"#6A4ABA\"},{\"serieName\": \"Datacenter01/Cluster01\",\"color\": \"#D1C0FB\"},{\"serieName\": \"Development DC1/Cluster1\",\"color\": \"#8C62F5\"},{\"serieName\": \"Development DC1/Cluster2\",\"color\": \"#025B3C\"},{\"serieName\": \"Development DC2/Cluster3\",\"color\": \"#56D3A8\"},{\"serieName\": \"Development67/Cluster1\",\"color\": \"#049160\"},{\"serieName\": \"Development67/Cluster2\",\"color\": \"#9BE5CB\"},{\"serieName\": \"HawthorneHC/PT Applications\",\"color\": \"#06BF7F\"},{\"serieName\": \"HawthorneHC/PT Automation ONLY\",\"color\": \"#785F1A\"}]}"
+      display_mode: CHART_MODE
+      client_state: "{\"version\":\"V2\"}"
+  layout:
+    tiles:
+    - visualization_id: Viz_20
+      size: EXTRA_SMALL
+    - visualization_id: Viz_21
+      size: EXTRA_SMALL
+    - visualization_id: Viz_22
+      size: EXTRA_SMALL
+    - visualization_id: Viz_23
+      size: EXTRA_SMALL
+    - visualization_id: Viz_1
+      size: SMALL
+    - visualization_id: Viz_2
+      size: SMALL
+    - visualization_id: Viz_3
+      size: SMALL
+    - visualization_id: Viz_4
+      size: SMALL
+    - visualization_id: Viz_5
+      size: EXTRA_SMALL
+    - visualization_id: Viz_6
+      size: EXTRA_SMALL
+    - visualization_id: Viz_7
+      size: EXTRA_SMALL
+    - visualization_id: Viz_8
+      size: EXTRA_SMALL
+    - visualization_id: Viz_9
+      size: MEDIUM_SMALL
+    - visualization_id: Viz_10
+      size: MEDIUM_SMALL
+    - visualization_id: Viz_11
+      size: MEDIUM_SMALL
+    - visualization_id: Viz_12
+      size: SMALL
+    - visualization_id: Viz_13
+      size: SMALL
+    - visualization_id: Viz_15
+      size: SMALL
+    - visualization_id: Viz_16
+      size: SMALL
+    - visualization_id: Viz_14
+      size: MEDIUM_SMALL
+    - visualization_id: Viz_17
+      size: MEDIUM
+    - visualization_id: Viz_18
+      size: MEDIUM
+    - visualization_id: Viz_24
+      size: MEDIUM
+    - visualization_id: Viz_25
+      size: MEDIUM
+    - visualization_id: Viz_19
+      size: LARGE
