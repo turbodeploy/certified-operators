@@ -194,31 +194,37 @@ public class OptimizedIdentityRecordsBasedCache implements IdentityCache {
     private IdentifyingProperties extractIdentifyingProperties(IdentityRecord identityRecord) {
         List<PropertyDescriptor> nonVolatileProperties = new ArrayList<>();
         List<PropertyDescriptor> volatileProperties = new ArrayList<>();
-        final ServiceEntityIdentityMetadataStore probeMetadata = perProbeMetadata.get(
-                identityRecord.getProbeId());
-        ServiceEntityIdentityMetadata entityMetadata = probeMetadata.getMetadata(
-                identityRecord.getEntityType());
-        if (entityMetadata != null) {
-            List<PropertyDescriptor> identifyingProperties = new ArrayList<>(
-                    identityRecord.getDescriptor().getIdentifyingProperties());
-            if (identifyingProperties.size() == 0) {
-                logger.error("No identifying properties for the following entity {},"
-                        + "this will result in a new OID assigned after each discovery", identityRecord.getDescriptor().getOID());
-            }
-            Set<Integer> nonVolatileRanks = new HashSet<>(entityMetadata.getNonVolatilePropertyRanks());
-            Collection<Integer> volatileRanks = new HashSet<>(entityMetadata.getVolatilePropertyRanks());
-
-            for (PropertyDescriptor identifyingProp: identifyingProperties) {
-                if (nonVolatileRanks.contains(identifyingProp.getPropertyTypeRank())) {
-                    nonVolatileProperties.add(identifyingProp);
-                } else if (volatileRanks.contains(identifyingProp.getPropertyTypeRank())) {
-                    volatileProperties.add(identifyingProp);
+        if (perProbeMetadata.containsKey(identityRecord.getProbeId())) {
+            final ServiceEntityIdentityMetadataStore probeMetadata = perProbeMetadata.get(
+                    identityRecord.getProbeId());
+            ServiceEntityIdentityMetadata entityMetadata = probeMetadata.getMetadata(
+                    identityRecord.getEntityType());
+            if (entityMetadata != null) {
+                List<PropertyDescriptor> identifyingProperties = new ArrayList<>(
+                        identityRecord.getDescriptor().getIdentifyingProperties());
+                if (identifyingProperties.size() == 0) {
+                    logger.error("No identifying properties for the following entity {},"
+                            + "this will result in a new OID assigned after each discovery", identityRecord.getDescriptor().getOID());
                 }
+                Set<Integer> nonVolatileRanks = new HashSet<>(entityMetadata.getNonVolatilePropertyRanks());
+                Collection<Integer> volatileRanks = new HashSet<>(entityMetadata.getVolatilePropertyRanks());
+
+                for (PropertyDescriptor identifyingProp : identifyingProperties) {
+                    if (nonVolatileRanks.contains(identifyingProp.getPropertyTypeRank())) {
+                        nonVolatileProperties.add(identifyingProp);
+                    } else if (volatileRanks.contains(identifyingProp.getPropertyTypeRank())) {
+                        volatileProperties.add(identifyingProp);
+                    }
+                }
+            } else {
+                logger.warn("Could not find entity metadata for the following entity type {}, "
+                                + "this can happen if the entity type has been changed on the following probe {}",
+                        identityRecord.getEntityType(), identityRecord.getProbeId());
             }
         } else {
-            logger.warn("Could not find entity metadata for the following entity type {}, "
-                            + "this can happen if the entity type has been changed on the following probe {}",
-                    identityRecord.getEntityType(), identityRecord.getProbeId());
+            final String error = String.format("Could not find the probe metadata for probe {} needed by the following entity {}", identityRecord.getProbeId(),
+                    identityRecord.getDescriptor());
+            throw new IllegalStateException(error);
         }
         return new IdentifyingProperties(nonVolatileProperties, volatileProperties);
     }
