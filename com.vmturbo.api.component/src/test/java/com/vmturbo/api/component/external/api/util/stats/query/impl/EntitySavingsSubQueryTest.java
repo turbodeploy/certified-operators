@@ -687,13 +687,8 @@ public class EntitySavingsSubQueryTest {
         EntityAccessScope accessScope = mock(EntityAccessScope.class);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
         OidSet oidSet = mock(OidSet.class);
-        ImmutableSet<ApiEntityType> entityTypes = ImmutableSet.of(
-                ApiEntityType.VIRTUAL_MACHINE,
-                ApiEntityType.DATABASE,
-                ApiEntityType.DATABASE_SERVER,
-                ApiEntityType.VIRTUAL_VOLUME
-        );
-        when(accessScope.getAccessibleOidsByEntityTypes(entityTypes)).thenReturn(oidSet);
+        when(accessScope.getAccessibleOidsByEntityTypes(ApiEntityType.ENTITY_TYPES_WITH_COST.stream().map(s -> ApiEntityType.fromString(s))
+                .collect(Collectors.toSet()))).thenReturn(oidSet);
         when(oidSet.toSet()).thenReturn(oId);
     }
 
