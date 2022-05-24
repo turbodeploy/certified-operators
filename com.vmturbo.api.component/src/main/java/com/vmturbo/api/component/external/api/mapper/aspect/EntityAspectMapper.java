@@ -130,7 +130,8 @@ public class EntityAspectMapper {
             .put(EntityType.BUSINESS_USER_VALUE, ImmutableList.of(
                     businessUserAspectMapper))
             .put(EntityType.CLOUD_COMMITMENT_VALUE, ImmutableList.of(cloudCommitmentAspectMapper))
-                .build();
+            .put(EntityType.APPLICATION_COMPONENT_VALUE, ImmutableList.of(cloudAspectMapper))  //TODO: Convert to VM_SPEC_VALUE via OM-83212
+            .build();
     }
 
     /**
