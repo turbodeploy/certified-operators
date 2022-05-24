@@ -41,11 +41,13 @@ import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.web.context.ConfigurableWebApplicationContext;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
+import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.Operation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.components.api.ServerStartedNotifier;
 import com.vmturbo.components.api.ServerStartedNotifier.ServerStartedListener;
+import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.sql.utils.dbmonitor.DbMonitor;
 import com.vmturbo.sql.utils.dbmonitor.DbMonitorConfig;
@@ -142,6 +144,12 @@ import com.vmturbo.sql.utils.dbmonitor.PostgresDbMonitor;
 public class DbEndpoint {
     private static final Logger logger = LogManager.getLogger();
 
+    private static final String KIBITZER_COMPONENT_TYPE = "kibitzer";
+
+    private static final boolean isKibitzer =
+            EnvironmentUtils.getOptionalEnvProperty(BaseVmtComponent.PROP_COMPONENT_TYPE)
+                    .map(component -> component.equals(KIBITZER_COMPONENT_TYPE))
+                    .orElse(false);
     private final DbEndpointConfig config;
     private CompletableFuture<Void> future;
     private DbAdapter adapter;
@@ -502,8 +510,8 @@ public class DbEndpoint {
         }
 
         @Override
-        public void setEnvironment(Environment environment) {
-            if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()) {
+        public void setEnvironment(@Nonnull Environment environment) {
+            if (FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled() || isKibitzer) {
                 logger.info("Eager endpoint completion underway");
                 startCompletion();
             }

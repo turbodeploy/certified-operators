@@ -95,9 +95,11 @@ public class DbEndpointResolver {
     public static final String MIN_POOL_SIZE_PROPERTY = "conPoolInitialSize";
     /** DB connection pool maximum size property. */
     public static final String MAX_POOL_SIZE_PROPERTY = "conPoolMaxActive";
+    /** provisioningPrefix property. */
+    public static final String PROVISIONING_PREFIX_PROPERTY = "provisioningPrefix";
+
     /** DB connection pool keep alive interval (in minutes). */
     public static final String POOL_KEEP_ALIVE_INTERVAL_MINUTES = "conPoolKeepAliveIntervalMinutes";
-
     /** system property name for retrieving component name for certain property defaults. */
     public static final String COMPONENT_TYPE_PROPERTY = "component_type";
 
@@ -165,6 +167,8 @@ public class DbEndpointResolver {
     }
 
     void resolve() throws UnsupportedDialectException {
+        // N.B. provisioning must resolve prior to several other properties
+        resolveProvisioingPrefix();
         resolveHost();
         resolvePort();
         resolveDatabaseName();
@@ -226,8 +230,9 @@ public class DbEndpointResolver {
      */
     public void resolveDatabaseName() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getDatabaseName);
-        config.setDatabaseName(firstNonEmpty(configuredPropValue(DATABASE_NAME_PROPERTY),
-                config.getDatabaseName(), fromTemplate, getComponentName()));
+        config.setDatabaseName(config.getProvisioningPrefix() + firstNonEmpty(
+                configuredPropValue(DATABASE_NAME_PROPERTY), config.getDatabaseName(), fromTemplate,
+                getComponentName()));
     }
 
     /**
@@ -251,8 +256,9 @@ public class DbEndpointResolver {
      */
     public void resolveSchemaName() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getSchemaName);
-        config.setSchemaName(firstNonEmpty(configuredPropValue(SCHEMA_NAME_PROPERTY),
-                config.getSchemaName(), fromTemplate, getComponentName()));
+        config.setSchemaName(config.getProvisioningPrefix() + firstNonEmpty(
+                configuredPropValue(SCHEMA_NAME_PROPERTY), config.getSchemaName(), fromTemplate,
+                getComponentName()));
     }
 
     /**
@@ -262,8 +268,9 @@ public class DbEndpointResolver {
      */
     public void resolveUserName() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getUserName);
-        config.setUserName(firstNonEmpty(configuredPropValue(USER_NAME_PROPERTY),
-                config.getUserName(), fromTemplate, getComponentName()));
+        config.setUserName(config.getProvisioningPrefix() + firstNonEmpty(
+                configuredPropValue(USER_NAME_PROPERTY), config.getUserName(), fromTemplate,
+                getComponentName()));
     }
 
     /**
@@ -522,6 +529,13 @@ public class DbEndpointResolver {
         }
     }
 
+    private void resolveProvisioingPrefix() throws UnsupportedDialectException {
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getProvisioningPrefix);
+        config.setProvisioningPrefix(
+                firstNonNull(configuredPropValue(PROVISIONING_PREFIX_PROPERTY),
+                        config.getProvisioningPrefix(), fromTemplate, ""));
+    }
+
     private String configuredPropValue(String propertyName) throws UnsupportedDialectException {
         // top priority choices are the property name prefixed with all the dot-boundary prefixes
         // of the endpoint name, from longest to shortest; after that come dialect-specific
@@ -675,7 +689,7 @@ public class DbEndpointResolver {
     }
 
     /**
-     * Get the default migation locations string for this endpoint.
+     * Get the default migration locations string for this endpoint.
      *
      * <p>If the POSTGRES_PRIMARY_DB feature flag is enabled, this will take the form
      * "db.migrations.&lt;component-name&gt;.&lt;dialect&gt;". Otherwise, the prior default,

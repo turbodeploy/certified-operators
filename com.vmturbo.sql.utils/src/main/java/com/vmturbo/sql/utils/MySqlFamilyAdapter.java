@@ -126,7 +126,7 @@ class MySqlFamilyAdapter extends DbAdapter {
     }
 
     @Override
-    protected void tearDown() {
+    public void tearDown() {
         try (Connection conn = getPrivilegedConnection()) {
             execute(conn, String.format("DROP USER `%s`@`%%`", config.getUserName()));
         } catch (UnsupportedDialectException | SQLException e) {
