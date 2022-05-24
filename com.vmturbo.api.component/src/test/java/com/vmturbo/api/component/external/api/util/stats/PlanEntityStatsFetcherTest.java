@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -195,7 +196,24 @@ public class PlanEntityStatsFetcherTest {
                                 .addAllStatRecords(
                                         Collections.singletonList(storageStatRecord))
                                 .build()));
-
+        final EntityStatsApiDTO sourceEntityStatsApiDTO = new EntityStatsApiDTO();
+        sourceEntityStatsApiDTO.setStats(Collections.singletonList(sourceStatSnapshotApiDTO));
+        sourceEntityStatsApiDTO.setUuid(String.valueOf(7L));
+        final EntityStatsApiDTO planEntityStatsApiDTO = new EntityStatsApiDTO();
+        planEntityStatsApiDTO.setStats(Collections.singletonList(projectedStatSnapshotApiDTO));
+        planEntityStatsApiDTO.setUuid(String.valueOf(8L));
+        final EntityStatsApiDTO combinedEntityStatsApiDTO = new EntityStatsApiDTO();
+        combinedEntityStatsApiDTO.setStats(Arrays.asList(sourceStatSnapshotApiDTO, projectedStatSnapshotApiDTO));
+        combinedEntityStatsApiDTO.setUuid(String.valueOf(9L));
+        when(statsMapper.toEntityStatsApiDTO(sourceOnlyEntityStats.getPlanSourceEntity().getApi(),
+                                             sourceOnlyEntityStats.getPlanCombinedStats().getStatSnapshotsList()))
+                .thenReturn(sourceEntityStatsApiDTO);
+        when(statsMapper.toEntityStatsApiDTO(projectedOnlyEntityStats.getPlanProjectedEntity().getApi(),
+                                             projectedOnlyEntityStats.getPlanCombinedStats().getStatSnapshotsList()))
+                .thenReturn(planEntityStatsApiDTO);
+        when(statsMapper.toEntityStatsApiDTO(combinedEntityStats.getPlanProjectedEntity().getApi(),
+                                             combinedEntityStats.getPlanCombinedStats().getStatSnapshotsList()))
+                .thenReturn(combinedEntityStatsApiDTO);
         // Act
         final EntityStatsPaginationResponse response =
             planEntityStatsFetcher.getPlanEntityStats(planInstance, inputDto, paginationRequest);
@@ -204,14 +222,13 @@ public class PlanEntityStatsFetcherTest {
         verify(repositoryServiceSpy).getPlanCombinedStats(any(), any());
         verify(serviceEntityMapper).getCloudCostStatRecords(any(), any(), any(), any());
         final java.util.Optional<StatSnapshotApiDTO> cloudEntityStatistics = response.getRawResults().stream()
-                .filter(entityStatsApiDTO -> Long.valueOf(entityStatsApiDTO.getUuid()) == cloudEntityOid)
+                .filter(entityStatsApiDTO -> Long.parseLong(entityStatsApiDTO.getUuid()) == cloudEntityOid)
                 .flatMap(entityStatsApiDTO -> entityStatsApiDTO.getStats().stream())
                 .filter(statSnapshotApiDTO -> CollectionUtils.isNotEmpty(statSnapshotApiDTO.getStatistics()))
                 .findFirst();
         Assert.assertTrue(cloudEntityStatistics.isPresent());
-        Assert.assertTrue(
-                cloudEntityStatistics.get().getStatistics().get(0).getValue()
-                        == storageStatRecord.getValues().getAvg());
+        Assert.assertEquals(cloudEntityStatistics.get().getStatistics().get(0).getValue(),
+                            storageStatRecord.getValues().getAvg(), 0.0);
         final List<EntityStatsApiDTO> rawResults = response.getRawResults();
         Assert.assertEquals(3, rawResults.size());
         final long countWithSource = getCountWithEpoch(rawResults, Epoch.PLAN_SOURCE);
@@ -286,7 +303,12 @@ public class PlanEntityStatsFetcherTest {
         final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
         statSnapshotApiDTO.setEpoch(Epoch.PLAN_SOURCE);
         when(statsMapper.toStatSnapshotApiDTO(statSnapshot)).thenReturn(statSnapshotApiDTO);
-
+        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+        entityStatsApiDTO.setDisplayName("foo");
+        entityStatsApiDTO.setStats(Collections.singletonList(statSnapshotApiDTO));
+        when(statsMapper.toEntityStatsApiDTO(returnedEntityAndStats.getPlanEntity().getApi(),
+                                             Collections.singletonList(statSnapshot)))
+                .thenReturn(entityStatsApiDTO);
         // Act
         final EntityStatsPaginationResponse response =
             planEntityStatsFetcher.getPlanEntityStats(planInstance, inputDto, paginationRequest);
@@ -295,9 +317,9 @@ public class PlanEntityStatsFetcherTest {
         verify(repositoryServiceSpy).getPlanTopologyStats(any(), any());
         final List<EntityStatsApiDTO> rawResults = response.getRawResults();
         Assert.assertEquals(1, rawResults.size());
-        final EntityStatsApiDTO entityStatsApiDTO = rawResults.get(0);
-        Assert.assertEquals("foo", entityStatsApiDTO.getDisplayName());
-        final List<StatSnapshotApiDTO> stats = entityStatsApiDTO.getStats();
+        final EntityStatsApiDTO returnedEntityStatsApiDTO = rawResults.get(0);
+        Assert.assertEquals("foo", returnedEntityStatsApiDTO.getDisplayName());
+        final List<StatSnapshotApiDTO> stats = returnedEntityStatsApiDTO.getStats();
         Assert.assertEquals(1, stats.size());
         final StatSnapshotApiDTO returnedStatSnapshotApiDTO = stats.get(0);
         Assert.assertEquals(statSnapshotApiDTO, returnedStatSnapshotApiDTO);
@@ -352,7 +374,12 @@ public class PlanEntityStatsFetcherTest {
         final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
         statSnapshotApiDTO.setEpoch(Epoch.PLAN_PROJECTED);
         when(statsMapper.toStatSnapshotApiDTO(statSnapshot)).thenReturn(statSnapshotApiDTO);
-
+        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+        entityStatsApiDTO.setDisplayName("foo");
+        entityStatsApiDTO.setStats(Collections.singletonList(statSnapshotApiDTO));
+        when(statsMapper.toEntityStatsApiDTO(returnedEntityAndStats.getPlanEntity().getApi(),
+                                             Collections.singletonList(statSnapshot)))
+                .thenReturn(entityStatsApiDTO);
         // Act
         final EntityStatsPaginationResponse response =
             planEntityStatsFetcher.getPlanEntityStats(planInstance, inputDto, paginationRequest);
@@ -361,9 +388,9 @@ public class PlanEntityStatsFetcherTest {
         verify(repositoryServiceSpy).getPlanTopologyStats(any(), any());
         final List<EntityStatsApiDTO> rawResults = response.getRawResults();
         Assert.assertEquals(1, rawResults.size());
-        final EntityStatsApiDTO entityStatsApiDTO = rawResults.get(0);
-        Assert.assertEquals("foo", entityStatsApiDTO.getDisplayName());
-        final List<StatSnapshotApiDTO> stats = entityStatsApiDTO.getStats();
+        final EntityStatsApiDTO returnedEntityStatsApiDTO = rawResults.get(0);
+        Assert.assertEquals("foo", returnedEntityStatsApiDTO.getDisplayName());
+        final List<StatSnapshotApiDTO> stats = returnedEntityStatsApiDTO.getStats();
         Assert.assertEquals(1, stats.size());
         final StatSnapshotApiDTO returnedStatSnapshotApiDTO = stats.get(0);
         Assert.assertEquals(statSnapshotApiDTO, returnedStatSnapshotApiDTO);

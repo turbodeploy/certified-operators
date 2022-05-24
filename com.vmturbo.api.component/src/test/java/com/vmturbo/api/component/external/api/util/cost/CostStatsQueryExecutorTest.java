@@ -22,6 +22,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.cost.CostInputApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
@@ -82,7 +83,8 @@ public class CostStatsQueryExecutorTest {
         final CostServiceBlockingStub costServiceRpc = CostServiceGrpc.newBlockingStub(
                 testServer.getChannel());
         final PaginationMapper paginationMapper = mock(PaginationMapper.class);
-        final StatsMapper statsMapper = new StatsMapper(paginationMapper);
+        final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
+        final StatsMapper statsMapper = new StatsMapper(paginationMapper, serviceEntityMapper);
         costStatsQueryExecutor = new CostStatsQueryExecutor(costServiceRpc, statsMapper);
     }
 

@@ -4,8 +4,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
@@ -28,7 +30,7 @@ public class UpsertBuilder {
 
     private Table<?> source;
     private Table<?> target;
-    private Field<?>[] insertFields;
+    private final LinkedHashSet<Field<?>> insertFields = new LinkedHashSet<>();
     private final List<Field<?>> sourceGroupByFields = new ArrayList<>();
     private final List<Condition> conditions = new ArrayList<>();
     private final Map<Field<?>, Field<?>> insertValues = new HashMap<>();
@@ -90,7 +92,7 @@ public class UpsertBuilder {
      * @return this builder
      */
     public UpsertBuilder withInsertFields(Field<?>... insertFields) {
-        this.insertFields = insertFields;
+        this.insertFields.addAll(Arrays.asList(insertFields));
         return this;
     }
 
@@ -212,15 +214,27 @@ public class UpsertBuilder {
     }
 
     /**
+     * Invoke builder operations conditionally.
+     *
+     * @param condition true if the oeprations should be applied to the builder
+     * @param op        builder operations to apply if condition is ture
+     * @return this builder
+     */
+    public UpsertBuilder conditionally(boolean condition, UnaryOperator<UpsertBuilder> op) {
+        return condition ? op.apply(this) : this;
+    }
+
+    /**
      * Retrieve a jOOQ {@link Query} object encpasulating the constructed upsert operation.
      *
      * @param dsl {@link DSLContext} to use when creating the query
      * @return upsert query object, ready to be executed
      */
     public Query getUpsert(DSLContext dsl) {
-        Field<?>[] selectList = new Field<?>[insertFields.length];
-        for (int i = 0; i < insertFields.length; i++) {
-            Field<?> field = insertFields[i];
+        Field<?>[] selectList = new Field<?>[insertFields.size()];
+        Field<?>[] fields = insertFields.toArray(new Field<?>[0]);
+        for (int i = 0; i < fields.length; i++) {
+            Field<?> field = fields[i];
             if (insertValues.containsKey(field)) {
                 selectList[i] = insertValues.get(field);
             } else {
@@ -342,18 +356,15 @@ public class UpsertBuilder {
      * @param <T>    field type
      * @return field that will compute the weighted average
      */
-    public static <T> UpsertValue avg(Field<? extends Number> weight) {
-        return new UpsertValue<T>() {
-            @Override
-            public Field<T> resolve(Field<T> field, SQLDialect dialect) {
-                Field<T> sumOfProducts =
-                        field.times(weight).plus(
-                                JooqUtil.upsertValue(field, dialect)
-                                        .times(JooqUtil.upsertValue(weight, dialect)));
-                Field<? extends Number> sumOfWeights
-                        = weight.plus(JooqUtil.upsertValue(weight, dialect));
-                return sumOfProducts.divide(sumOfWeights);
-            }
+    public static <T> UpsertValue<T> avg(Field<? extends Number> weight) {
+        return (UpsertValue<T>)(field, dialect) -> {
+            Field<T> sumOfProducts =
+                    field.times(weight).plus(
+                            JooqUtil.upsertValue(field, dialect)
+                                    .times(JooqUtil.upsertValue(weight, dialect)));
+            Field<? extends Number> sumOfWeights
+                    = weight.plus(JooqUtil.upsertValue(weight, dialect));
+            return sumOfProducts.divide(sumOfWeights);
         };
     }
 

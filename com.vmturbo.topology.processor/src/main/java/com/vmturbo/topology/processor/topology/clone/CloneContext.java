@@ -8,13 +8,19 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.utilities.CPUScalingFactorUpdater;
+import com.vmturbo.stitching.utilities.CPUScalingFactorUpdater.CloudNativeCPUScalingFactorUpdater;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.topology.ConsistentScalingCache;
 import com.vmturbo.topology.processor.util.K8sProcessingUtil;
 import com.vmturbo.topology.processor.util.TopologyEditorUtil;
 
@@ -23,12 +29,16 @@ import com.vmturbo.topology.processor.util.TopologyEditorUtil;
  * The context is immutable, but objects inside it may be mutable.
  */
 public class CloneContext {
-    @Nonnull private final IdentityProvider idProvider;
-    @Nonnull private final Map<Long, TopologyEntity.Builder> topology;
+    @Nonnull
+    private final IdentityProvider idProvider;
+    @Nonnull
+    private final Map<Long, TopologyEntity.Builder> topology;
     private final String planType;
     private final long planId;
-    @Nullable private final TopologyEntity.Builder planCluster;
-    @Nullable private String planClusterVendorId;
+    @Nullable
+    private final TopologyEntity.Builder planCluster;
+    @Nullable
+    private String planClusterVendorId;
 
     /**
      * Editor-wise flag to indicate whether to apply constraints.  True only if the corresponding
@@ -49,8 +59,21 @@ public class CloneContext {
      */
     private final Map<Long, Map<Long, Long>> origToClonedIdMap = new HashMap<>();
 
-    private CloneContext(@Nonnull final String planType,
-                         final long planId,
+    private static final CPUScalingFactorUpdater cpuScalingFactorUpdater =
+            new CloudNativeCPUScalingFactorUpdater();
+
+    /**
+     * A map that caches the clusters that have already updated cpuScalingFactor for the current
+     * plan instance.
+     */
+    private final Map<TopologyEntity, Boolean> clustersWithCPUScalingFactorUpdated = new HashMap<>();
+
+    /**
+     * A cache of consistent scaling values.
+     */
+    private final ConsistentScalingCache consistentScalingCache;
+
+    private CloneContext(@Nonnull final String planType, final long planId,
                          @Nonnull final IdentityProvider idProvider,
                          @Nonnull final Map<Long, TopologyEntity.Builder> topology,
                          @Nullable final TopologyEntity.Builder planCluster) {
@@ -61,12 +84,14 @@ public class CloneContext {
         this.planCluster = planCluster;
         if (planCluster != null) {
             nodeCommodities.putAll(K8sProcessingUtil.collectNodeCommodities(planCluster));
-            planClusterVendorId = TopologyEditorUtil.getContainerClusterVendorId(planCluster).orElse(null);
+            planClusterVendorId = TopologyEditorUtil.getContainerClusterVendorId(planCluster)
+                    .orElse(null);
         }
         this.shouldApplyConstraints = FeatureFlags.APPLY_CONSTRAINTS_IN_CONTAINER_CLUSTER_PLAN.isEnabled()
                 && StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN.equals(planType);
         this.isMigrateContainerWorkloadPlan = FeatureFlags.MIGRATE_CONTAINER_WORKLOAD_PLAN.isEnabled()
                 && StringConstants.MIGRATE_CONTAINER_WORKLOADS_PLAN.equals(planType);
+        this.consistentScalingCache = new ConsistentScalingCache();
     }
 
     /**
@@ -74,7 +99,7 @@ public class CloneContext {
      *
      * @param topologyInfo the topology info
      * @param idProvider the identity provider
-     * @param topology the topology map
+     * @param topology the topology builder map
      * @return a clone context
      */
     public static CloneContext createContext(@Nonnull final TopologyInfo topologyInfo,
@@ -201,8 +226,38 @@ public class CloneContext {
         return idProvider;
     }
 
+    /**
+     * Get the topology map.
+     *
+     * @return the topology map
+     */
     @Nonnull
     final Map<Long, TopologyEntity.Builder> getTopology() {
         return topology;
+    }
+
+    /**
+     * Get the consistent scaling cache.
+     *
+     * @return the consistent scaling cache
+     */
+    @Nonnull
+    final ConsistentScalingCache getConsistentScalingCache() {
+        return consistentScalingCache;
+    }
+
+    /**
+     * Update the cpu scaling factor for entities in a container cluster.
+     * The operations are performed only once for each unique cluster for each plan instance.
+     *
+     * @param cluster the container cluster to update cpuScalingFactor
+     */
+    void updateCPUScalingFactor(@Nonnull final TopologyEntity cluster) {
+        clustersWithCPUScalingFactorUpdated.computeIfAbsent(cluster, c -> {
+            cluster.getAggregatedEntities().stream()
+                    .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                    .forEach(vm -> cpuScalingFactorUpdater.update(vm, 1d, new LongOpenHashSet()));
+            return true;
+        });
     }
 }

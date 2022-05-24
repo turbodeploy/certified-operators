@@ -476,8 +476,8 @@ public class RollupProcessor {
             String low = lowBound > 0 ? String.format("%016x", lowBound << 1) : null;
             String high = highBound > 0 ? String.format("%016x", highBound << 1) : null;
             Query upsert = new EntityStatsRollups(
-                    source, rollup, snapshotTime, rollupTime, rollupType, low, high)
-                    .getUpsert(unpooledDsl);
+                    source, rollup, snapshotTime, rollupTime, rollupType, low, high, unpooledDsl)
+                    .getUpsert();
             RollupTask task = new RollupTask(table, upsert, cs);
             tasks.add(task);
             lowBound = highBound;

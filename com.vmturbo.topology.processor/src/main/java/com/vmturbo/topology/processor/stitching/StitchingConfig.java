@@ -93,13 +93,6 @@ public class StitchingConfig {
     private int journalsPerRecording;
 
     /**
-     * Feature flag for whether to enable consistent scaling of containers when they are running on
-     * nodes with different speeds (see OM-65078).
-     */
-    @Value("${enableConsistentScalingOnHeterogeneousProviders:true}")
-    private boolean enableConsistentScalingOnHeterogeneousProviders;
-
-    /**
      * Feature flag for caching stitching operations for kubernetes probes
      */
     @Value("${stitchingMergeKubernetesProbeTypes:true}")
@@ -189,8 +182,7 @@ public class StitchingConfig {
                 cpuCapacityConfig.cpucCapacityStore(),
                 clockConfig.clock(),
                 resizeDownWarmUpIntervalHours,
-                maxCapacityCache(),
-                enableConsistentScalingOnHeterogeneousProviders);
+                maxCapacityCache());
         maxCapacityCache().initializeFromStitchingOperations(postStitchingOperationLibrary);
         return postStitchingOperationLibrary;
     }
@@ -212,15 +204,5 @@ public class StitchingConfig {
         } else {
             return StitchingJournalFactory.emptyStitchingJournalFactory();
         }
-    }
-
-    /**
-     * Feature flag for whether to enable consistent scaling of containers when they are running on
-     * nodes with different speeds (see OM-65078).
-     *
-     * @return The feature flag value.
-     */
-    public boolean getEnableConsistentScalingOnHeterogeneousProviders() {
-        return enableConsistentScalingOnHeterogeneousProviders;
     }
 }

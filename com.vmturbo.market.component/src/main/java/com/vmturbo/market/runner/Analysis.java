@@ -98,6 +98,8 @@ import com.vmturbo.market.runner.postprocessor.ProjectedEntityPostProcessor;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityAnalysisEngine;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
+import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanAnalysisEngine;
+import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanResults;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
 import com.vmturbo.market.topology.MarketTier;
@@ -316,7 +318,7 @@ public class Analysis {
 
     // RelatedActionInterpreter is to interpret relations between 2 actions.
     private final RelatedActionInterpreter relatedActionInterpreter;
-
+    private final WastedAppServicePlanAnalysisEngine wastedAppServicePlanAnalysisEngine;
     private final FakeEntityCreator fakeEntityCreator;
 
     /**
@@ -341,6 +343,7 @@ public class Analysis {
      * @param reversibilitySettingFetcherFactory factory for {@link ReversibilitySettingFetcher}.
      * @param migratedWorkloadCloudCommitmentAnalysisService cloud migration analysis
      * @param commodityIdUpdater commodity id updater
+     * @param wastedAppServicePlanAnalysisEngine used to identify unused azure app service plans.
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Collection<TopologyEntityDTO> topologyDTOs,
@@ -364,6 +367,7 @@ public class Analysis {
                     @Nonnull final ExternalReconfigureActionEngine externalReconfigureActionEngine,
                     @Nonnull final IDiagnosticsCleaner diagnosticsCleaner,
                     @Nonnull final AnalysisDiagnosticsCollectorFactory analysisDiagsCollectorFactory,
+                    @Nonnull final WastedAppServicePlanAnalysisEngine wastedAppServicePlanAnalysisEngine,
                     @Nonnull final FakeEntityCreator fakeEntityCreator) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
@@ -399,6 +403,7 @@ public class Analysis {
         this.diagnosticsCleaner = diagnosticsCleaner;
         this.analysisDiagsCollectorFactory = analysisDiagsCollectorFactory;
         this.relatedActionInterpreter = new RelatedActionInterpreter(topologyInfo);
+        this.wastedAppServicePlanAnalysisEngine = wastedAppServicePlanAnalysisEngine;
         this.fakeEntityCreator = fakeEntityCreator;
     }
 
@@ -565,6 +570,17 @@ public class Analysis {
             }
         } else {
             wastedFilesAnalysis = WastedFilesResults.EMPTY;
+        }
+
+        // Execute wasted App Service Plan analysis
+        final WastedAppServicePlanResults wastedAppServicePlanResults;
+        if (topologyInfo.getAnalysisTypeList().contains(AnalysisType.WASTED_APP_SERVICE_PLANS)) {
+            try (TracingScope ignored = Tracing.trace("wasted_app_service_plan_analysis")) {
+                wastedAppServicePlanResults = wastedAppServicePlanAnalysisEngine.analyzeWastedAppServicePlans(
+                        topologyInfo, topologyDTOs, topologyCostCalculator, originalCloudTopology);
+            }
+        } else {
+            wastedAppServicePlanResults = WastedAppServicePlanResults.EMPTY;
         }
 
         // Calculate reservedCapacity and generate resize actions
@@ -926,6 +942,7 @@ public class Analysis {
                     // TODO move wasted files action out of main analysis once we have a framework
                     // to support multiple analyses for the same topology ID
                     actionPlanBuilder.addAllAction(wastedFilesAnalysis.getActions());
+                    actionPlanBuilder.addAllAction(wastedAppServicePlanResults.getActions());
                     actionPlanBuilder.addAllAction(reservedCapacityResults.getActions());
 
                     //Execute ReconfigureActionAnalysis, need to consider existing actions to avoid duplicates.

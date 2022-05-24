@@ -22,6 +22,7 @@ import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.schedule.ScheduleStore;
+import com.vmturbo.group.schedule.ScheduleUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -43,6 +44,7 @@ public class DefaultSettingPolicyValidatorTest {
         );
 
     private DefaultSettingPolicyValidator defaultSettingPolicyValidator;
+    private ScheduleUtils scheduleUtils = new ScheduleUtils(true);
 
     /**
      * Setup the mocks used by DefaultSettingPolicyValidator.
@@ -61,7 +63,8 @@ public class DefaultSettingPolicyValidatorTest {
             settingSpecStore,
             mock(IGroupStore.class),
             mock(ScheduleStore.class),
-            mock(Clock.class)
+            mock(Clock.class),
+            scheduleUtils
         );
     }
 

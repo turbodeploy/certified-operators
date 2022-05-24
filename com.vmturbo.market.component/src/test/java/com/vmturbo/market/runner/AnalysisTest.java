@@ -98,6 +98,8 @@ import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisResult;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
+import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanAnalysisEngine;
+import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanResults;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
@@ -139,6 +141,7 @@ public class AnalysisTest {
             .addAnalysisType(AnalysisType.MARKET_ANALYSIS)
             .addAnalysisType(AnalysisType.BUY_RI_IMPACT_ANALYSIS)
             .addAnalysisType(AnalysisType.WASTED_FILES)
+            .addAnalysisType(AnalysisType.WASTED_APP_SERVICE_PLANS)
             .build();
 
     private TopologyEntityCloudTopology cloudTopology;
@@ -165,6 +168,17 @@ public class AnalysisTest {
             .setDelete(DeleteExplanation.getDefaultInstance()))
         .setDeprecatedImportance(0.0d)
         .setId(1234L).build();
+
+    // Note: Azure App Service Plans will migrate from App Components to VMSPEC entity types in the future.
+    private final Action wastedASPAction = Action.newBuilder()
+            .setInfo(ActionInfo.newBuilder()
+                    .setDelete(Delete.newBuilder()
+                            .setTarget(ActionEntity.newBuilder().setId(3333L)
+                                    .setType(EntityType.APPLICATION_COMPONENT_VALUE))))
+            .setExplanation(Explanation.newBuilder()
+                    .setDelete(DeleteExplanation.getDefaultInstance()))
+            .setDeprecatedImportance(0.0d)
+            .setId(4343L).build();
 
     private final Action namespaceResizeAction = Action.newBuilder()
         .setInfo(ActionInfo.newBuilder()
@@ -261,6 +275,8 @@ public class AnalysisTest {
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(cloudTopology);
         final WastedFilesAnalysisEngine wastedFilesAnalysisEngine =
             mock(WastedFilesAnalysisEngine.class);
+        final WastedAppServicePlanAnalysisEngine wastedAppServicePlanAnalysisEngine =
+                mock(WastedAppServicePlanAnalysisEngine.class);
         final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
                 mock(BuyRIImpactAnalysisFactory.class);
         final WastedFilesResults wastedFilesAnalysis = mock(WastedFilesResults.class);
@@ -287,15 +303,23 @@ public class AnalysisTest {
         final AnalysisDiagnosticsCollectorFactory analysisCollectorFactory =
                 mock(AnalysisDiagnosticsCollectorFactory.class);
         when(analysisCollectorFactory.newDiagsCollector(any(), any())).thenReturn(Optional.empty());
+        final WastedAppServicePlanResults wastedAppServicePlanResults = mock(WastedAppServicePlanResults.class);
+        when(wastedAppServicePlanAnalysisEngine.analyzeWastedAppServicePlans(any(), any(), any(), any()))
+                .thenReturn(wastedAppServicePlanResults);
+        when(wastedAppServicePlanResults.getActions())
+                .thenReturn(Collections.singletonList(wastedASPAction));
         GroupMemberRetriever groupMemberRetriever = new GroupMemberRetriever(groupServiceClient);
         return new Analysis(topoInfo, topologySet, groupMemberRetriever, mockClock, analysisConfig,
-            cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-            wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, nsQuotaAnalysisFactory,
-            tierExcluderFactory, listener, consistentScalingHelperFactory, initialPlacementHandler,
-            reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
-            new CommodityIdUpdater(), actionSavingsCalculatorFactory,
-                externalReconfigureActionEngine, new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
-                analysisCollectorFactory, fakeEntityCreator.isPresent() ? fakeEntityCreator.get() : new FakeEntityCreator(groupMemberRetriever));
+                cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
+                wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, nsQuotaAnalysisFactory,
+                tierExcluderFactory, listener, consistentScalingHelperFactory,
+                initialPlacementHandler, reversibilitySettingFetcherFactory,
+                migratedWorkloadCloudCommitmentAnalysisService, new CommodityIdUpdater(),
+                actionSavingsCalculatorFactory, externalReconfigureActionEngine,
+                new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
+                analysisCollectorFactory, wastedAppServicePlanAnalysisEngine,
+                fakeEntityCreator.isPresent() ? fakeEntityCreator.get()
+                        : new FakeEntityCreator(groupMemberRetriever));
     }
 
     /**
@@ -371,6 +395,7 @@ public class AnalysisTest {
         assertTrue(analysis.getActionPlan().isPresent());
         assertTrue(analysis.getProjectedTopology().isPresent());
         assertTrue(analysis.getActionPlan().get().getActionList().contains(wastedFileAction));
+        assertTrue(analysis.getActionPlan().get().getActionList().contains(wastedASPAction));
     }
 
     /**

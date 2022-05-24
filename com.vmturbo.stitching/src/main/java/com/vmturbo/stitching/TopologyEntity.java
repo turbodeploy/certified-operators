@@ -596,6 +596,16 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
             return this;
         }
 
+        /**
+         * Get the source entity of the current entity.
+         *
+         * @return the source entity of the current entity
+         */
+        @Nonnull
+        public Optional<TopologyEntityImpl> getClonedFromEntity() {
+            return associatedTopologyEntity.getClonedFromEntity();
+        }
+
         @Nonnull
         @Override
         public Set<Long> getProviderIds() {

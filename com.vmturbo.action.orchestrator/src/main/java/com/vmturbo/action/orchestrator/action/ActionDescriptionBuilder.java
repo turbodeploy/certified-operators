@@ -93,6 +93,11 @@ public class ActionDescriptionBuilder {
         EntityType.CONTAINER_SPEC_VALUE, EntityType.WORKLOAD_CONTROLLER_VALUE, EntityType.NAMESPACE_VALUE);
     private static final String COMMA_SPACE = ", ";
 
+    private static final String UNKNOWN = "UNKNOWN";
+
+    private static final String AZURE = "Azure";
+
+
     // Static patterns used for dynamically-constructed message contents.
     //
     // We're going to model these pattern strings as an enum, containing a set of
@@ -118,6 +123,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_DELETE("Delete wasted file ''{0}'' from {1} to free up {2}"),
         ACTION_DESCRIPTION_DELETE_CLOUD_NO_ACCOUNT("Delete Unattached {0} Volume {1}"),
         ACTION_DESCRIPTION_DELETE_CLOUD("Delete Unattached {0} Volume {1} from {2}"),
+        ACTION_DESCRIPTION_DELETE_ASP("Delete Empty {0} App Service Plan {1} from {2}"),
         ACTION_DESCRIPTION_ATOMIC_RESIZE("Resize {0} for {1}"),
         ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT("Remove {0} limit on entity {1}"),
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
@@ -926,12 +932,34 @@ public class ActionDescriptionBuilder {
     private static String getDeleteActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
                                                      @Nonnull final ActionDTO.Action recommendation)  {
 
+        int targetEntityType = recommendation.getInfo().getDelete().getTarget().getType();
         long targetEntityId = recommendation.getInfo().getDelete().getTarget().getId();
         if (!entitiesSnapshot.getEntityFromOid(targetEntityId).isPresent()) {
-            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getDeleteActionDescription", "targetEntityId", targetEntityId);
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getDeleteActionDescription", "targetEntityId",
+                    targetEntityId);
             return "";
         }
 
+        // If it got to delete stage as an app component, it's an App Service Plan.
+        // App component will migrate to VMSpec in the future.
+        if (targetEntityType == EntityType.APPLICATION_COMPONENT_VALUE) {
+            ActionPartialEntity targetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId)
+                    .get();
+            long sourceEntityId = recommendation.getInfo().getDelete().getSource().getId();
+            // TODO: Replace "Azure" with subscription name ie PT2 when that data is ready.
+            String family = UNKNOWN, subscription = AZURE;
+            if (entitiesSnapshot.getEntityFromOid(sourceEntityId).isPresent()) {
+                family = entitiesSnapshot.getEntityFromOid(sourceEntityId)
+                        .get()
+                        .getTypeSpecificInfo()
+                        .getComputeTier()
+                        .getFamily();
+            }
+            return ActionMessageFormat.ACTION_DESCRIPTION_DELETE_ASP.format(
+                    targetEntity.getDisplayName(), family, subscription);
+        }
+
+        // Handle volumes
         if (recommendation.getInfo().getDelete().getTarget().getEnvironmentType() == EnvironmentType.CLOUD) {
             ActionPartialEntity targetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId).get();
 

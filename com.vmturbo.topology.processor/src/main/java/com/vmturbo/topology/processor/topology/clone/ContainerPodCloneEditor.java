@@ -10,10 +10,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.topology.TopologyEditorException;
 import com.vmturbo.topology.processor.util.TopologyEditorUtil;
 
@@ -25,13 +27,15 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
 
     @Override
     public TopologyEntity.Builder clone(@Nonnull final TopologyEntityImpl podImpl,
+                                        @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                                         @Nonnull final CloneContext cloneContext,
                                         @Nonnull final CloneInfo cloneInfo) {
         final TopologyEntity.Builder origPod = cloneContext.getTopology().get(podImpl.getOid());
         // Clone myself
-        final TopologyEntity.Builder clonedPod = super.clone(podImpl, cloneContext, cloneInfo);
+        final TopologyEntity.Builder clonedPod = super.clone(podImpl, topologyGraph,
+                                                             cloneContext, cloneInfo);
         // Clone consumer containers
-        cloneRelatedEntities(origPod, cloneContext, cloneInfo, Relation.Consumer,
+        cloneRelatedEntities(origPod, topologyGraph, cloneContext, cloneInfo, Relation.Consumer,
                              EntityType.CONTAINER_VALUE);
         // Update aggregatedBy relationship for workload migration plan
         if (cloneContext.isMigrateContainerWorkloadPlan()) {
@@ -115,5 +119,17 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
     protected boolean shouldReplaceSoldKey(@Nonnull final CommodityTypeView commodityType) {
         return Objects.requireNonNull(commodityType).hasKey()
                 && CommodityType.VMPM_ACCESS_VALUE == commodityType.getType();
+    }
+
+    @Override
+    protected void updateAnalysisSettings(@Nonnull final TopologyEntity.Builder clonedPod,
+                                          @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
+                                          @Nonnull final CloneContext cloneContext) {
+        final AnalysisSettingsImpl analysisSettings =
+                clonedPod.getTopologyEntityImpl().getOrCreateAnalysisSettings();
+        if (!analysisSettings.hasConsistentScalingFactor()) {
+            TopologyEditorUtil.computeConsistentScalingFactor(clonedPod)
+                    .ifPresent(analysisSettings::setConsistentScalingFactor);
+        }
     }
 }

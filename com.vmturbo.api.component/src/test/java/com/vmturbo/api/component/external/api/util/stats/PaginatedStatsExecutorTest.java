@@ -44,6 +44,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -97,7 +98,9 @@ public class PaginatedStatsExecutorTest {
 
     private PaginationMapper mockPaginationMapper = mock(PaginationMapper.class);
 
-    private StatsMapper statsMapper = spy(new StatsMapper(mockPaginationMapper));
+    final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
+
+    private StatsMapper statsMapper = spy(new StatsMapper(mockPaginationMapper, serviceEntityMapper));
 
     private UuidMapper mockUuidMapper = Mockito.mock(UuidMapper.class);
 

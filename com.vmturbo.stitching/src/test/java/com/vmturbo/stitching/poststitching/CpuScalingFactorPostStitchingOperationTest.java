@@ -50,6 +50,8 @@ import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation.CloudNativeVMCpuScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation.HostCpuScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
+import com.vmturbo.stitching.utilities.CPUScalingFactorUpdater;
+import com.vmturbo.stitching.utilities.CPUScalingFactorUpdater.CloudNativeCPUScalingFactorUpdater;
 
 public class CpuScalingFactorPostStitchingOperationTest {
 
@@ -61,11 +63,15 @@ public class CpuScalingFactorPostStitchingOperationTest {
     private static final double CPU_SCALE_FACTOR = 1.3;
     private static final String TEST_CPU_MODEL = "cpu-model-1";
 
-    private CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
+    private final CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
     private final HostCpuScalingFactorPostStitchingOperation hostOperation =
-        spy(new HostCpuScalingFactorPostStitchingOperation(cpuCapacityStore, true));
+        spy(new HostCpuScalingFactorPostStitchingOperation(cpuCapacityStore));
     private final CloudNativeVMCpuScalingFactorPostStitchingOperation vmOperation =
-        spy(new CloudNativeVMCpuScalingFactorPostStitchingOperation(true));
+        spy(new CloudNativeVMCpuScalingFactorPostStitchingOperation());
+    private final CPUScalingFactorUpdater hostCpuScalingFactorUpdater =
+            spy(new CPUScalingFactorUpdater());
+    private final CPUScalingFactorUpdater vmCpuScalingFactorUpdater =
+            spy(new CloudNativeCPUScalingFactorUpdater());
     private EntityChangesBuilder<TopologyEntity> resultBuilder;
 
     private final EntitySettingsCollection settingsMock = mock(EntitySettingsCollection.class);
@@ -76,10 +82,10 @@ public class CpuScalingFactorPostStitchingOperationTest {
             CPU_PROVISIONED_CAPACITY);
     final List<CommoditySoldView> pmCommoditiesSoldList = Lists.newArrayList(
             cpuSoldCommodity, cpuProvisionedSoldCommodity);
-    private TopologyEntity.Builder pm1 = makeTopologyEntityBuilder(PM_OID,
-            EntityType.PHYSICAL_MACHINE.getNumber(),
-            pmCommoditiesSoldList,
-            Collections.emptyList());
+    private final TopologyEntity.Builder pm1 = makeTopologyEntityBuilder(PM_OID,
+                                                                         EntityType.PHYSICAL_MACHINE.getNumber(),
+                                                                         pmCommoditiesSoldList,
+                                                                         Collections.emptyList());
 
     // Set up the VCPU commodity for the test VM
     final CommodityBoughtView cpuBoughtCommodity = makeCommodityBought(CommodityType.CPU);
@@ -90,19 +96,19 @@ public class CpuScalingFactorPostStitchingOperationTest {
     final CommoditySoldView vcpuSoldCommodity = makeCommoditySold(CommodityType.VCPU, CPU_CAPACITY);
     final List<CommoditySoldView> vmCommoditiesSoldList = Lists.newArrayList(
             vcpuSoldCommodity);
-    private TopologyEntity.Builder vm1 = makeTopologyEntityBuilder(VM_OID,
-            EntityType.VIRTUAL_MACHINE.getNumber(),
-            vmCommoditiesSoldList,
-            vmCommoditiesBoughtList);
+    private final TopologyEntity.Builder vm1 = makeTopologyEntityBuilder(VM_OID,
+                                                                         EntityType.VIRTUAL_MACHINE.getNumber(),
+                                                                         vmCommoditiesSoldList,
+                                                                         vmCommoditiesBoughtList);
 
     // Set up the VCPU commodity for the test App
     final CommodityBoughtView vcpuBoughtCommodity = makeCommodityBought(CommodityType.VCPU);
     final List<CommodityBoughtView> appCommoditiesBoughtList = Lists.newArrayList(
             vcpuBoughtCommodity);
-    private TopologyEntity.Builder app1 = makeTopologyEntityBuilder(APP_OID,
-            EntityType.APPLICATION_COMPONENT.getNumber(),
-            Collections.emptyList(),
-            appCommoditiesBoughtList);
+    private final TopologyEntity.Builder app1 = makeTopologyEntityBuilder(APP_OID,
+                                                                          EntityType.APPLICATION_COMPONENT.getNumber(),
+                                                                          Collections.emptyList(),
+                                                                          appCommoditiesBoughtList);
 
     @SuppressWarnings("unchecked")
     private final IStitchingJournal<TopologyEntity> journal =
@@ -135,7 +141,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
         vm1.addConsumer(app1);
 
         // Ensure we can handle scenario where have consumer loop, and don't have
-        // innfinite recursion.
+        // infinite recursion.
         app1.addConsumer(vm1);
 
         // Set up the mock for the cpuCapacityStore
@@ -153,9 +159,9 @@ public class CpuScalingFactorPostStitchingOperationTest {
         final CommodityBoughtView expectedVmCpuProvisionedCommodity = cpuProvisionedBoughtCommodity
                 .copy()
                 .setScalingFactor(CPU_SCALE_FACTOR);
-        final CommoditySoldView expectedvCpuSoldCommodity = vcpuSoldCommodity.copy()
+        final CommoditySoldView expectedVCpuSoldCommodity = vcpuSoldCommodity.copy()
                 .setScalingFactor(CPU_SCALE_FACTOR);
-        final CommodityBoughtView expectedvCpuBoughtCommodity = vcpuBoughtCommodity.copy()
+        final CommodityBoughtView expectedVCpuBoughtCommodity = vcpuBoughtCommodity.copy()
                 .setScalingFactor(CPU_SCALE_FACTOR);
 
         // Act
@@ -182,13 +188,13 @@ public class CpuScalingFactorPostStitchingOperationTest {
         final List<CommoditySoldView> soldVmCommodities = vm1.getTopologyEntityImpl()
                 .getCommoditySoldListList();
         assertEquals(1, soldVmCommodities.size());
-        assertThat(soldVmCommodities, containsInAnyOrder(expectedvCpuSoldCommodity));
+        assertThat(soldVmCommodities, containsInAnyOrder(expectedVCpuSoldCommodity));
         final List<CommoditiesBoughtFromProviderView> boughtAppCommoditiesFrom = app1.getTopologyEntityImpl()
                 .getCommoditiesBoughtFromProvidersList();
         assertEquals(1, boughtAppCommoditiesFrom.size());
         final List<CommodityBoughtView> boughtAppCommodities = boughtAppCommoditiesFrom
                 .iterator().next().getCommodityBoughtList();
-        assertThat(boughtAppCommodities, containsInAnyOrder(expectedvCpuBoughtCommodity));
+        assertThat(boughtAppCommodities, containsInAnyOrder(expectedVCpuBoughtCommodity));
     }
 
     /**
@@ -215,7 +221,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
             .setScalingFactor(CPU_SCALE_FACTOR);
         final CommoditySoldView expectedPodVcpuComm = vcpuComm.copy();
 
-        hostOperation.updateScalingFactorForEntity(container.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
+        hostCpuScalingFactorUpdater.update(container.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
 
         List<CommoditySoldView> containerCommSoldList = container.getTopologyEntityImpl().getCommoditySoldListList();
         assertEquals(1, containerCommSoldList.size());
@@ -295,7 +301,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
         final CommodityBoughtView expectedVcpuRequestQuotaBoughtComm = vcpuRequestQuotaBoughtComm.copy()
                 .setScalingFactor(CPU_SCALE_FACTOR);
 
-        hostOperation.updateScalingFactorForEntity(pod.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
+        hostCpuScalingFactorUpdater.update(pod.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
 
         assertSelling(container, expectedVcpuComm, expectedVcpuRequestComm);
         assertBuying(container, expectedVcpuBoughtComm, expectedVcpuRequestBoughtComm);
@@ -369,18 +375,17 @@ public class CpuScalingFactorPostStitchingOperationTest {
         });
 
         final LongOpenHashSet visited = new LongOpenHashSet();
-        hostOperation.updateScalingFactorForEntity(pod1.build(), 2.0, visited);
-        hostOperation.updateScalingFactorForEntity(pod2.build(), 3.0, visited);
-        hostOperation.updateScalingFactorForEntity(pod3.build(), 1.0, visited);
+        hostCpuScalingFactorUpdater.update(pod1.build(), 2.0, visited);
+        hostCpuScalingFactorUpdater.update(pod2.build(), 3.0, visited);
+        hostCpuScalingFactorUpdater.update(pod3.build(), 1.0, visited);
         assertSelling(ns, vcpuLimitQuotaComm.copy().setScalingFactor(3.0));
 
         // Verify that we do not propagate multiple updates back to the pods or workload
         // controllers. Doing so can cause a big performance hit in large topologies
         // with lots of container entities.
-        Stream.of(pod1, wc1, pod2, wc2, pod3, wc3).forEach(entity -> {
-            verify(hostOperation, times(1))
-                .updateScalingFactorForEntity(eq(entity.build()), anyDouble(), any());
-        });
+        Stream.of(pod1, wc1, pod2, wc2, pod3, wc3)
+                .forEach(entity -> verify(hostCpuScalingFactorUpdater, times(1))
+                        .update(eq(entity.build()), anyDouble(), any()));
     }
 
     /**
@@ -420,17 +425,6 @@ public class CpuScalingFactorPostStitchingOperationTest {
             ns.addConsumer(wc);
             wc.addProvider(ns);
         });
-
-        // Test with consistentScalingOnHeterogenousSuppliers disabled. We should still early
-        // exit after the first update.
-        final LongOpenHashSet visited = new LongOpenHashSet();
-        final CpuScalingFactorPostStitchingOperation disabledOperation =
-            new HostCpuScalingFactorPostStitchingOperation(cpuCapacityStore, false);
-        visited.clear();
-        disabledOperation.updateScalingFactorForEntity(wc1.build(), 2.0, visited);
-        disabledOperation.updateScalingFactorForEntity(wc2.build(), 3.0, visited);
-        disabledOperation.updateScalingFactorForEntity(wc3.build(), 1.0, visited);
-        assertSelling(ns, vcpuLimitQuotaComm.copy().setScalingFactor(2.0));
     }
 
     /**
@@ -458,7 +452,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
         pod.addProvider(wc);
         pod.addProvider(vm);
 
-        hostOperation.updateScalingFactorForEntity(pod.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
+        hostCpuScalingFactorUpdater.update(pod.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
         // WorkloadController scalingFactor is updated because it's a supported provider of ContainerPod.
         assertSelling(wc, vcpuLimitQuotaComm.copy().setScalingFactor(CPU_SCALE_FACTOR));
         // VM scalingFactor is not updated because it's not a supported provider to update from ContainerPod.
@@ -476,7 +470,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
             .build();
         final TopologicalChangelog<TopologyEntity> changeLog =
             vmOperation.performOperation(Stream.of(vm),settingsMock, resultBuilder);
-        // No changes needs to be applied in changeLog.
+        // No changes need to be applied in changeLog.
         assertEquals(0, changeLog.getChanges().size());
     }
 
@@ -499,7 +493,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
     }
 
     /**
-     * Test {@link CpuScalingFactorPostStitchingOperation#updateScalingFactorForEntity} for cloud
+     * Test {@link CPUScalingFactorUpdater#update} for cloud
      * native entities.
      */
     @Test
@@ -542,7 +536,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
             Lists.newArrayList(vCPUBought.copy()));
         vm.addConsumer(appComponent);
 
-        vmOperation.updateScalingFactorForEntity(vm.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
+        vmCpuScalingFactorUpdater.update(vm.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
         // VM VCPU commodity bought has CPU_SCALE_FACTOR updated
         assertBuying(vm, vCPUBought.copy().setScalingFactor(CPU_SCALE_FACTOR));
         // VM VCPU commodity sold has CPU_SCALE_FACTOR updated
@@ -559,7 +553,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
     }
 
     /**
-     * Test {@link CpuScalingFactorPostStitchingOperation#updateScalingFactorForEntity} for cloud
+     * Test {@link CPUScalingFactorUpdater#update} for cloud
      * entity which is not cloud native entity.
      */
     @Test
@@ -578,7 +572,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
             Lists.newArrayList(vCPUBought));
         app.getTopologyEntityImpl().setEnvironmentType(EnvironmentType.CLOUD);
         vm.addConsumer(app);
-        vmOperation.updateScalingFactorForEntity(vm.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
+        vmCpuScalingFactorUpdater.update(vm.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
         // Commodity of cloud AppComponent commodity doesn't have scalingFactor set up.
         assertBuying(app, vCPUBought.copy());
     }

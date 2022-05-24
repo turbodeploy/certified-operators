@@ -25,6 +25,7 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.util.TopologyEditorUtil;
 
 /**
@@ -45,11 +46,13 @@ public class DefaultEntityCloneEditor {
      * The function to clone a topology entity.
      *
      * @param entityImpl the builder of the source topology entity
+     * @param topologyGraph the topology graph
      * @param cloneContext the clone context
      * @param cloneInfo the clone info related to this clone
      * @return the builder of the cloned topology entity
      */
     public TopologyEntity.Builder clone(@Nonnull final TopologyEntityImpl entityImpl,
+                                        @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                                         @Nonnull final CloneContext cloneContext,
                                         @Nonnull final CloneInfo cloneInfo) {
         final long cloneCounter = cloneInfo.getCloneCounter();
@@ -73,6 +76,7 @@ public class DefaultEntityCloneEditor {
         final TopologyEntity.Builder entityBuilder = TopologyEntity
                 .newBuilder(clonedEntityImpl.setOrigin(entityOrigin))
                 .setClonedFromEntity(entityImpl);
+        updateAnalysisSettings(entityBuilder, topologyGraph, cloneContext);
         cloneContext.getTopology().put(entityBuilder.getOid(), entityBuilder);
         cloneContext.cacheClonedEntityId(cloneCounter, entityImpl.getOid(), clonedEntityImpl.getOid());
         return entityBuilder;
@@ -312,12 +316,14 @@ public class DefaultEntityCloneEditor {
      * Clone entities related to the given entity.
      *
      * @param origEntity the original entity
+     * @param topologyGraph the topology graph
      * @param cloneContext the clone context
      * @param cloneInfo the clone change info
      * @param relation the relation to the original entity
      * @param entityType the entity type to clone
      */
     protected void cloneRelatedEntities(@Nonnull final Builder origEntity,
+                                        @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                                         @Nonnull final CloneContext cloneContext,
                                         @Nonnull final CloneInfo cloneInfo,
                                         @Nonnull final Relation relation,
@@ -340,7 +346,8 @@ public class DefaultEntityCloneEditor {
         sourceEntities.stream()
                 .map(TopologyEntity::getTopologyEntityImpl)
                 .filter(entity -> entity.getEntityType() == entityType)
-                .forEach(entity -> entityCloneEditor.clone(entity, cloneContext, cloneInfo));
+                .forEach(entity -> entityCloneEditor.clone(entity, topologyGraph,
+                                                           cloneContext, cloneInfo));
     }
 
     /**
@@ -366,5 +373,10 @@ public class DefaultEntityCloneEditor {
                         connectedEntityImpl.setConnectedEntityId(clonedEntityId);
                     }
                 });
+    }
+
+    protected void updateAnalysisSettings(@Nonnull final TopologyEntity.Builder entity,
+                                          @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
+                                          @Nonnull final CloneContext cloneContext) {
     }
 }

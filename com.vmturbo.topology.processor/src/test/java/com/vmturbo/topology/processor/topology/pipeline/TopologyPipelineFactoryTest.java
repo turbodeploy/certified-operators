@@ -209,7 +209,6 @@ public class TopologyPipelineFactoryTest {
             mock(EntityCustomTagsMerger.class),
             mock(StalenessInformationProvider.class),
             10,
-            true,
             mock(HistoryVolumesListener.class));
     }
 
@@ -245,8 +244,7 @@ public class TopologyPipelineFactoryTest {
             mock(GroupResolverSearchFilterResolver.class),
             mock(CloudMigrationPlanHelper.class),
             mock(ControllableManager.class),
-            mock(ActionMergeSpecsUploader.class),
-            true);
+            mock(ActionMergeSpecsUploader.class));
 
         return ppf;
     }

@@ -46,6 +46,10 @@ public class CloneInfo {
                 .findFirst()
                 .orElse(null)
                 : null;
+        if (sourceCluster != null) {
+            // Update cpuScalingFactor for entities in source cluster
+            topologyGraph.getEntity(sourceCluster.getOid()).ifPresent(cloneContext::updateCPUScalingFactor);
+        }
         return new CloneInfo(entitiesWithReplicas.get(entityBuilder.getOid()), sourceCluster);
     }
 

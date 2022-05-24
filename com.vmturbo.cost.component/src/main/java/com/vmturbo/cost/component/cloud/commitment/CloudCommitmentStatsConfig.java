@@ -82,9 +82,6 @@ public class CloudCommitmentStatsConfig {
     @Autowired
     private MarketComponent marketComponent;
 
-    @Autowired
-    private ProjectedCommitmentMappingProcessor projectedCommitmentMappingProcessor;
-
     @Value("${cloudCommitment.maxStatRecordsPerChunk:100}")
     private int maxStatRecordsPerChunk;
 
@@ -474,7 +471,8 @@ public class CloudCommitmentStatsConfig {
      * @return The projected cloud commitment mapping listener.
      */
     @Bean
-    public CostComponentProjectedCommitmentMappingListener projectedEntityCommitmentMappingsListener() {
+    public CostComponentProjectedCommitmentMappingListener projectedEntityCommitmentMappingsListener(
+            @Nonnull ProjectedCommitmentMappingProcessor projectedCommitmentMappingProcessor) {
         final CostComponentProjectedCommitmentMappingListener projectedEntityCommitmentMappingsListener =
                 new CostComponentProjectedCommitmentMappingListener(projectedCommitmentMappingProcessor);
         marketComponent.addProjectedCommitmentMappingListener(projectedEntityCommitmentMappingsListener);

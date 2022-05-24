@@ -1,0 +1,103 @@
+guid: 8969f500-32a7-4cac-badf-a745680903b1
+worksheet:
+  name: Blank Worksheet
+  tables:
+  - name: ENTITY
+  - name: ENTITY_RELATED
+  - name: METRIC
+  joins:
+  - name: ENTITY_RELATED_to_ENTITY
+    source: ENTITY_RELATED
+    destination: ENTITY
+    type: INNER
+    is_one_to_one: false
+  - name: METRIC_to_ENTITY
+    source: METRIC
+    destination: ENTITY
+    type: INNER
+    is_one_to_one: false
+  table_paths:
+  - id: ENTITY_1
+    table: ENTITY
+    join_path:
+    - join:
+      - ENTITY_RELATED_to_ENTITY
+    - join:
+      - METRIC_to_ENTITY
+  - id: ENTITY_RELATED_1
+    table: ENTITY_RELATED
+    join_path:
+    - {}
+  - id: METRIC_1
+    table: METRIC
+    join_path:
+    - {}
+  formulas:
+  - name: Datacenter / Cluster
+    expr: "if ( [ENTITY_RELATED_1::RELATED_TYPE] = 'compute_cluster' ) then [ENTITY_RELATED_1::RELATED_NAME] else null"
+  worksheet_columns:
+  - name: Oid
+    column_id: ENTITY_1::OID
+    properties:
+      column_type: ATTRIBUTE
+  - name: Time
+    column_id: ENTITY_1::TIME
+    properties:
+      column_type: ATTRIBUTE
+      index_type: DONT_INDEX
+      calendar: calendar
+  - name: Name
+    column_id: ENTITY_1::NAME
+    properties:
+      column_type: ATTRIBUTE
+  - name: Entity Type
+    column_id: ENTITY_1::TYPE
+    properties:
+      column_type: ATTRIBUTE
+  - name: Environment
+    column_id: ENTITY_1::ENVIRONMENT
+    properties:
+      column_type: ATTRIBUTE
+  - name: State
+    column_id: ENTITY_1::STATE
+    properties:
+      column_type: ATTRIBUTE
+  - name: Attrs
+    column_id: ENTITY_1::ATTRS
+    properties:
+      column_type: ATTRIBUTE
+  - name: Related Type
+    column_id: ENTITY_RELATED_1::RELATED_TYPE
+    properties:
+      column_type: ATTRIBUTE
+  - name: Related Name
+    column_id: ENTITY_RELATED_1::RELATED_NAME
+    properties:
+      column_type: ATTRIBUTE
+  - name: Related Oid
+    column_id: ENTITY_RELATED_1::RELATED_OID
+    properties:
+      column_type: ATTRIBUTE
+  - name: Metric Type
+    column_id: METRIC_1::TYPE
+    properties:
+      column_type: ATTRIBUTE
+  - name: Capacity
+    column_id: METRIC_1::CAPACITY
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Used
+    column_id: METRIC_1::USED
+    properties:
+      column_type: MEASURE
+      aggregation: AVERAGE
+      index_type: DONT_INDEX
+  - name: Datacenter / Cluster
+    formula_id: Datacenter / Cluster
+    properties:
+      column_type: ATTRIBUTE
+  properties:
+    is_bypass_rls: false
+    join_progressive: true

@@ -156,9 +156,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
         //TODO: support multiple scopes.
         final ApiId scope = uuidMapper.fromUuid(inputDto.getScopes().get(0));
-        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
         // Populate basic entity data in the output dto based on the scope
-        StatsMapper.populateEntityDataEntityStatsApiDTO(scope, entityStatsApiDTO);
+        final EntityStatsApiDTO entityStatsApiDTO = StatsMapper.toEntityStatsApiDTO(scope);
         entityStatsApiDTO.setStats(statsQueryExecutor.getAggregateStats(scope, inputDto.getPeriod()));
         return paginationRequest.allResultsResponse(Lists.newArrayList(entityStatsApiDTO));
     }

@@ -785,8 +785,8 @@ public class Stages {
             final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient,
                     searchFilterResolver);
             try {
-                topologyEditor.editTopology(input, scope, changes, getContext(),
-                    groupResolver, sourceEntities.get(), destinationEntities.get());
+                topologyEditor.editTopology(input, scope, changes, getContext(), groupResolver,
+                                            sourceEntities.get(), destinationEntities.get());
             } catch (GroupResolutionException | TopologyEditorException e) {
                 throw new PipelineStageException(e);
             }
@@ -1969,27 +1969,19 @@ public class Stages {
     public static class EphemeralEntityHistoryStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
         private final EphemeralEntityEditor ephemeralEntityEditor;
 
-        private final boolean enableConsistentScalingOnHeterogeneousProviders;
-
         /**
          * Create a new {@link EphemeralEntityHistoryStage}.
          * @param ephemeralEntityEditor The {@link EphemeralEntityEditor} to be run in this stage.
-         * @param enableConsistentScalingOnHeterogeneousProviders Whether to enable consistent scaling on
-         *                                                        heterogeneous providers.
          */
-        public EphemeralEntityHistoryStage(@Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
-                                           final boolean enableConsistentScalingOnHeterogeneousProviders) {
+        public EphemeralEntityHistoryStage(@Nonnull final EphemeralEntityEditor ephemeralEntityEditor) {
             this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
-            this.enableConsistentScalingOnHeterogeneousProviders =
-                enableConsistentScalingOnHeterogeneousProviders;
         }
 
         @NotNull
         @Override
         @Nonnull
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
-            final EditSummary editSummary = ephemeralEntityEditor.applyEdits(graph,
-                enableConsistentScalingOnHeterogeneousProviders);
+            final EditSummary editSummary = ephemeralEntityEditor.applyEdits(graph);
 
             final StringBuilder statusBuilder = new StringBuilder();
             if (editSummary.getCommoditiesAdjusted() > 0) {
