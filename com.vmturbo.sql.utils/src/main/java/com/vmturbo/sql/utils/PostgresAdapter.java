@@ -52,8 +52,7 @@ public class PostgresAdapter extends DbAdapter {
     }
 
     @Override
-    protected DataSource createUnpooledDataSource(String url, String user, String password)
-            throws SQLException {
+    protected DataSource createUnpooledDataSource(String url, String user, String password) {
         final PGSimpleDataSource dataSource = new PGSimpleDataSource();
         dataSource.setUrl(url);
         dataSource.setUser(user);
@@ -380,7 +379,7 @@ public class PostgresAdapter extends DbAdapter {
     }
 
     @Override
-    protected void tearDown() {
+    public void tearDown() {
         try (Connection conn = getRootConnection("postgres")) {
             execute(conn, String.format("DROP DATABASE IF EXISTS \"%s\"",
                     config.getDatabaseName()));
