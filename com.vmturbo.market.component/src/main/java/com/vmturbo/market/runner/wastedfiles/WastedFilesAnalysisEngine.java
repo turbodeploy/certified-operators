@@ -82,6 +82,7 @@ public class WastedFilesAnalysisEngine {
             + topologyInfo.getTopologyId() + " : ";
 
         logger.info("{} Started", logPrefix);
+        final boolean isPlan = TopologyDTOUtil.isPlan(topologyInfo);
         final Long2LongMap storageToStorageAmountReleasedMap = new Long2LongOpenHashMap();
         final List<Action> actions;
         try {
@@ -105,7 +106,9 @@ public class WastedFilesAnalysisEngine {
                         .forEach(virtualMachine -> getAttachedVolumesIds(virtualMachine)
                                 .forEach(wastedFilesMap::remove));
                 actions = wastedFilesMap.values().stream()
-                        .flatMap(volume -> createActionsFromVolume(volume, topologyCostCalculator, originalCloudTopology, storageToStorageAmountReleasedMap).stream())
+                        .flatMap(volume -> createActionsFromVolume(volume, topologyEntities,
+                                topologyCostCalculator, originalCloudTopology,
+                                storageToStorageAmountReleasedMap, isPlan).stream())
                         .collect(Collectors.toList());
 
                 durationSec = scopingTimer.getTimeElapsedSecs();
@@ -235,17 +238,19 @@ public class WastedFilesAnalysisEngine {
      * or CLOUD virtual volume.
      *
      * @param volume {@link TopologyEntityDTO} representing a wasted files virtual volume.
+     * @param topologyEntities The entities in the topology.
      * @param topologyCostCalculator The {@link TopologyCostCalculator} for this topology.
      * @param originalCloudTopology The {@link CloudTopology} for the input topology.
      * @param storageToKbReleased Running map of storage released per by tier as part of this analysis.
      *                                Modified by the method.
+     * @param isPlan true if running any type of plan.
      * @return {@link java.util.Collection}{@link Action} based on the wasted file(s) associated
      * with the volume.
      */
     private Collection<Action> createActionsFromVolume(final TopologyEntityDTO volume,
-            TopologyCostCalculator topologyCostCalculator,
+            Map<Long, TopologyEntityDTO> topologyEntities, TopologyCostCalculator topologyCostCalculator,
             CloudTopology<TopologyEntityDTO> originalCloudTopology,
-            Long2LongMap storageToKbReleased) {
+            Long2LongMap storageToKbReleased, boolean isPlan) {
         if (volume.hasTypeSpecificInfo() && volume.getTypeSpecificInfo().hasVirtualVolume()
                 && volume.getTypeSpecificInfo().getVirtualVolume().hasAttachmentState()
                 && volume.getTypeSpecificInfo().getVirtualVolume().getAttachmentState()
@@ -260,7 +265,20 @@ public class WastedFilesAnalysisEngine {
             return Collections.emptyList();
         }
         final long storageOrStorageTierOid = optStorageOrStorageTierOid.get();
-
+        if (isPlan) {
+            // If the storage is marked for removal, then do not create an action.
+            TopologyEntityDTO storageOrStorageTier = topologyEntities.get(storageOrStorageTierOid);
+            if (storageOrStorageTier == null) {
+                logger.trace("Cannot locate backing storage for volume '{}' - not generating delete actions",
+                        () -> volume.getDisplayName());
+                return Collections.emptyList();
+            }
+            if (TopologyDTOUtil.isFlaggedForRemoval(storageOrStorageTier)) {
+                logger.trace("Storage for volume '{}' is flagged for removal - not generating delete actions",
+                        () -> volume.getDisplayName());
+                return Collections.emptyList();
+            }
+        }
         if (volume.getEnvironmentType() != EnvironmentType.ON_PREM) {
             // handle cloud case
             Optional<CostJournal<TopologyEntityDTO>> costJournalOpt =

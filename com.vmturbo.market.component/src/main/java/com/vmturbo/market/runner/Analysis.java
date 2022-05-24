@@ -33,6 +33,8 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
+import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
@@ -65,12 +67,10 @@ import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
@@ -450,15 +450,11 @@ public class Analysis {
         // here, the effect on the analysis is exactly equivalent if we had unplaced them
         // (as of 4/6/2016) because attempting to buy from a non-existing trader results in
         // an infinite quote which is exactly the same as not having a provider.
-        final Set<Long> oidsToRemove = new HashSet<>();
+        final Set<Long> oidsToRemove = topologyDTOs.values().stream()
+                .filter(TopologyDTOUtil::isFlaggedForRemoval)
+                .map(TopologyEntityDTO::getOid)
+                .collect(Collectors.toSet());
         final Long2ObjectMap<TopologyEntityDTO> fakeEntityDTOs = new Long2ObjectOpenHashMap<>();
-        for (TopologyEntityDTO dto : topologyDTOs.values()) {
-            if (dto.hasEdit()) {
-                if (dto.getEdit().hasRemoved() || dto.getEdit().hasReplaced()) {
-                    oidsToRemove.add(dto.getOid());
-                }
-            }
-        }
         final Long2ObjectMap<TraderTO> traderTOs = new Long2ObjectOpenHashMap<>();
         final Set<TraderTO> fakeTraderTOs = new HashSet<>();
         try (TracingScope scope = Tracing.trace("convert_to_market")) {
