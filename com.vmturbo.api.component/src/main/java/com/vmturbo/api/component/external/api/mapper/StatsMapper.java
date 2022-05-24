@@ -168,8 +168,12 @@ public class StatsMapper {
 
     private final PaginationMapper paginationMapper;
 
-    public StatsMapper(@Nonnull final PaginationMapper paginationMapper) {
+    private final ServiceEntityMapper serviceEntityMapper;
+
+    public StatsMapper(@Nonnull final PaginationMapper paginationMapper,
+                       @Nonnull final ServiceEntityMapper serviceEntityMapper) {
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
     }
 
     /**
@@ -1112,19 +1116,16 @@ public class StatsMapper {
      * in the output EntityStatsApiDTO.
      * @param apiId an api id which contains basic info about an entity
      *              this is the input
-     * @param entityStatsApiDTO the output entity stats api dto to copy data into.
      * @return the output entity stats api dto.
      */
-    public static EntityStatsApiDTO populateEntityDataEntityStatsApiDTO(ApiId apiId,
-            EntityStatsApiDTO entityStatsApiDTO) {
+    public static EntityStatsApiDTO toEntityStatsApiDTO(ApiId apiId) {
+        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
         entityStatsApiDTO.setUuid(apiId.uuid());
         entityStatsApiDTO.setDisplayName(apiId.getDisplayName());
         entityStatsApiDTO.setClassName(apiId.getClassName());
         final Optional<EnvironmentType> envType =
                 Optional.of(EnvironmentTypeMapper.fromXLToApi(apiId.getEnvironmentType()));
-        if (envType.isPresent()) {
-            entityStatsApiDTO.setEnvironmentType(envType.get());
-        }
+        envType.ifPresent(entityStatsApiDTO::setEnvironmentType);
         return entityStatsApiDTO;
     }
 
@@ -1133,11 +1134,10 @@ public class StatsMapper {
      * in the output EntityStatsApiDTO.
      * @param minimalEntity a minimal entity dto which contains basic info about an entity
      *                      this is the input
-     * @param entityStatsApiDTO the output entity stats api dto to copy data into.
      * @return the output entity stats api dto.
      */
-    public static EntityStatsApiDTO populateEntityDataEntityStatsApiDTO(MinimalEntity minimalEntity,
-            EntityStatsApiDTO entityStatsApiDTO) {
+    public static EntityStatsApiDTO toEntityStatsApiDTO(MinimalEntity minimalEntity) {
+        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
         entityStatsApiDTO.setUuid(Long.toString(minimalEntity.getOid()));
         entityStatsApiDTO.setClassName(
                 ApiEntityType.fromType(minimalEntity.getEntityType()).apiStr());
@@ -1145,34 +1145,45 @@ public class StatsMapper {
         if (minimalEntity.hasEnvironmentType()) {
             final Optional<EnvironmentType> envType = Optional.of(
                     EnvironmentTypeMapper.fromXLToApi(minimalEntity.getEnvironmentType()));
-            if (envType.isPresent()) {
-                entityStatsApiDTO.setEnvironmentType(envType.get());
-            }
+            envType.ifPresent(entityStatsApiDTO::setEnvironmentType);
         }
+        entityStatsApiDTO.setStats(new ArrayList<>());
         return entityStatsApiDTO;
     }
 
     /**
-     * This method uses data from an api entity and populates data
-     * in the output EntityStatsApiDTO.
+     * This method maps api entity to {@link EntityStatsApiDTO}.
      * @param apiPartialEntity a partial entity dto which contains basic info about an entity
      *                         this is the input
-     * @param entityStatsApiDTO the output entity stats api dto to copy data into.
+     * @param statSnapshots the list of stat snapshots
      * @return the output entity stats api dto.
      */
-    public static EntityStatsApiDTO populateEntityDataEntityStatsApiDTO(ApiPartialEntity apiPartialEntity,
-            EntityStatsApiDTO entityStatsApiDTO) {
+    public EntityStatsApiDTO toEntityStatsApiDTO(@Nonnull final ApiPartialEntity apiPartialEntity,
+                                                 @Nonnull final List<Stats.StatSnapshot> statSnapshots) {
+        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
         entityStatsApiDTO.setUuid(Long.toString(apiPartialEntity.getOid()));
         entityStatsApiDTO.setClassName(
                 ApiEntityType.fromType(apiPartialEntity.getEntityType()).apiStr());
         entityStatsApiDTO.setDisplayName(apiPartialEntity.getDisplayName());
         if (apiPartialEntity.hasEnvironmentType()) {
-            final Optional<EnvironmentType> envType = Optional.of(
-                    EnvironmentTypeMapper.fromXLToApi(apiPartialEntity.getEnvironmentType()));
-            if (envType.isPresent()) {
-                entityStatsApiDTO.setEnvironmentType(envType.get());
-            }
+            Optional.of(EnvironmentTypeMapper.fromXLToApi(apiPartialEntity.getEnvironmentType()))
+                    .ifPresent(entityStatsApiDTO::setEnvironmentType);
         }
+        // Set realTimeMarketReference for cloned entity in a plan
+        if (apiPartialEntity.hasOrigin()
+                && apiPartialEntity.getOrigin().hasPlanScenarioOrigin()) {
+            final ApiPartialEntity origEntity = apiPartialEntity
+                    .toBuilder()
+                    .setOid(apiPartialEntity.getOrigin().getPlanScenarioOrigin().getOriginalEntityId())
+                    .build();
+            entityStatsApiDTO.setRealtimeMarketReference(
+                    serviceEntityMapper.toServiceEntityApiDTO(origEntity));
+        }
+        final List<StatSnapshotApiDTO> statSnapshotApiDTOs = new ArrayList<>();
+        statSnapshots.stream()
+                .map(this::toStatSnapshotApiDTO)
+                .forEach(statSnapshotApiDTOs::add);
+        entityStatsApiDTO.setStats(statSnapshotApiDTOs);
         return entityStatsApiDTO;
     }
 }

@@ -78,6 +78,11 @@ public class PlanStatsService {
             topologyEntityDTO -> topologyEntityDTO.hasOrigin()
                     && topologyEntityDTO.getOrigin().hasPlanScenarioOrigin();
 
+    private static final Predicate<TopologyEntityDTO> ENTITY_TO_EXCLUDE_FROM_PLAN_COMBINED_STATS =
+            topologyEntityDTO -> topologyEntityDTO.getEntityType() != EntityType.CONTAINER_SPEC.getValue()
+                    && topologyEntityDTO.hasOrigin()
+                    && topologyEntityDTO.getOrigin().hasPlanScenarioOrigin();
+
     /**
      * A predicate to test whether a given {@link TopologyEntityDTO} is suspended.
      */
@@ -299,7 +304,7 @@ public class PlanStatsService {
                 .and(UNPLACED_VM.negate());
         // Filter entities added via scenario changes from the source topology response
         final Predicate<TopologyEntityDTO> sourceEntityPredicate = updatedEntityPredicate
-                .and(ENTITY_ADDED_BY_SCENARIO.negate());
+                .and(ENTITY_TO_EXCLUDE_FROM_PLAN_COMBINED_STATS.negate());
         // Retrieve the entities and their stats from the data store
         final Map<Long, EntityAndStats> sourceEntities =
                 retrieveTopologyEntitiesAndStats(sourceReader, sourceEntityPredicate, statsFilter,

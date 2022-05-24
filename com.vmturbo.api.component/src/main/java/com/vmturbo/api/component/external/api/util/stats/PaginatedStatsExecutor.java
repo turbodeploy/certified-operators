@@ -556,9 +556,7 @@ public class PaginatedStatsExecutor {
         private EntityStatsApiDTO constructEntityStatsDto(MinimalEntity serviceEntity, final boolean projectedStatsRequest,
                                                           final EntityStats entityStats, @Nonnull final StatScopesApiInputDTO inputDto,
                                                           @Nonnull final Map<Long, List<StatApiDTO>> entityCostStats) {
-            final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-            StatsMapper.populateEntityDataEntityStatsApiDTO(serviceEntity, entityStatsApiDTO);
-            entityStatsApiDTO.setStats(new ArrayList<>());
+            final EntityStatsApiDTO entityStatsApiDTO = StatsMapper.toEntityStatsApiDTO(serviceEntity);
             if (projectedStatsRequest && entityStats.getStatSnapshotsCount() > 0) {
                 // we expect either zero or one snapshot for each entity
                 if (entityStats.getStatSnapshotsCount() > 1) {
@@ -1268,8 +1266,7 @@ public class PaginatedStatsExecutor {
         Optional<EntityStatsApiDTO> constructEntityStatsApiDTOFromMinimalEntity(Long entityUuid,
                 @Nonnull final Map<Long, MinimalEntity> minimalEntityMap) {
             return Optional.ofNullable(minimalEntityMap.get(entityUuid))
-                    .map(minimalEntity -> StatsMapper.populateEntityDataEntityStatsApiDTO(
-                            minimalEntity, new EntityStatsApiDTO()));
+                    .map(StatsMapper::toEntityStatsApiDTO);
         }
 
         /**

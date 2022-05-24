@@ -256,7 +256,7 @@ public class MapperConfig {
 
     @Bean
     public StatsMapper statsMapper() {
-        return new StatsMapper(paginationMapper());
+        return new StatsMapper(paginationMapper(), communicationConfig.serviceEntityMapper());
     }
 
     @Bean
