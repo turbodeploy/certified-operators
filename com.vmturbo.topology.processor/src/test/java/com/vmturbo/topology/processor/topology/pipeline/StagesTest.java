@@ -966,13 +966,13 @@ public class StagesTest {
     public void testEphemeralEntityHistoryStage() throws PipelineStageException {
         final EphemeralEntityEditor ephemeralEntityEditor = mock(EphemeralEntityEditor.class);
         final EphemeralEntityHistoryStage eeHistoryStage =
-            new EphemeralEntityHistoryStage(ephemeralEntityEditor, true);
+            new EphemeralEntityHistoryStage(ephemeralEntityEditor);
         @SuppressWarnings("unchecked")
         final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
-        when(ephemeralEntityEditor.applyEdits(eq(topologyGraph), eq(true))).thenReturn(new EditSummary());
+        when(ephemeralEntityEditor.applyEdits(eq(topologyGraph))).thenReturn(new EditSummary());
 
         eeHistoryStage.passthrough(topologyGraph);
-        verify(ephemeralEntityEditor).applyEdits(topologyGraph, true);
+        verify(ephemeralEntityEditor).applyEdits(topologyGraph);
     }
 
     /**

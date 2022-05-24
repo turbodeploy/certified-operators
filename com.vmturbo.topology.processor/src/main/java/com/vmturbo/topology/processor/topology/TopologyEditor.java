@@ -317,7 +317,8 @@ public class TopologyEditor {
                     LongStream.range(0, addCount)
                             .mapToObj(cloneInfo::withCloneCounter)
                             .forEach(cInfo -> cloneFunction
-                                    .clone(entityBuilder.getTopologyEntityImpl(), cloneContext, cInfo));
+                                    .clone(entityBuilder.getTopologyEntityImpl(), topologyGraph,
+                                           cloneContext, cInfo));
         }));
 
         // Prepare any entities that are getting removed as part of the plan, for removal from the

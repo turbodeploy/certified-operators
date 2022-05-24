@@ -39,6 +39,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
@@ -69,6 +70,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Topolo
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -93,6 +95,8 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.Edit
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.PlanScenarioOriginImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualMachineInfoImpl;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvertedIndex;
@@ -140,8 +144,8 @@ public class TopologyEditorTest {
     private static final long destClusterId = 74327977713718L;
     private static final long destVMId = 101;
     private static final double USED = 100;
-    private static final double VCPU_CAPACITY = 1000;
-    private static final double VMEM_CAPACITY = 1000;
+    private static final double VCPU_CAPACITY = 24257.928;
+    private static final double VMEM_CAPACITY = 3.2460604E7;
 
     private static final CommodityTypeView MEM = new CommodityTypeImpl().setType(21);
     private static final CommodityTypeView CPU = new CommodityTypeImpl().setType(40);
@@ -224,6 +228,10 @@ public class TopologyEditorTest {
             .setOid(vmId)
             .setDisplayName("VM")
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .setEntityState(EntityState.POWERED_ON)
+            .setTypeSpecificInfo(new TypeSpecificInfoImpl().setVirtualMachine(
+                    new VirtualMachineInfoImpl().setNumCpus(8)))
             .addConnectedEntityList(new ConnectedEntityImpl()
                 .setConnectedEntityId(clusterId)
                 .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
@@ -344,7 +352,8 @@ public class TopologyEditorTest {
             .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(VCPU)
                 .setUsed(USED)
-                .setCapacity(VCPU_CAPACITY))
+                .setCapacity(VCPU_CAPACITY)
+                .setCapacityIncrement(100f))
             .addCommoditySoldList(new CommoditySoldImpl()
                 .setCommodityType(VMEM)
                 .setUsed(USED)
@@ -454,10 +463,10 @@ public class TopologyEditorTest {
                                     .setProviderId(clusterId)
                                     .setProviderEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
                                     .addCommodityBought(new CommodityBoughtImpl()
-                                        .setCommodityType(VMEM)
+                                        .setCommodityType(VCPU_LIMIT_QUOTA)
                                         .setUsed(USED))
                                     .addCommodityBought(new CommodityBoughtImpl()
-                                        .setCommodityType(VCPU)
+                                        .setCommodityType(VCPU_REQUEST_QUOTA)
                                         .setUsed(USED))
                                     .addCommodityBought(new CommodityBoughtImpl()
                                         .setCommodityType(CLUSTER_KEYED.copy()

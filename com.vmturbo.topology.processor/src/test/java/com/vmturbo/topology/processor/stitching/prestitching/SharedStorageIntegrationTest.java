@@ -131,7 +131,7 @@ public class SharedStorageIntegrationTest {
                 new CommodityPostStitchingOperationConfig(
                     statsServiceClient, 30, 0), //meaningless values
                 diskCapacityCalculator, cpuCapacityStore, clock, 0,
-                    mock(MaxCapacityCache.class), true);
+                    mock(MaxCapacityCache.class));
         when(targetA.getId()).thenReturn(targetAId);
         when(targetB.getId()).thenReturn(targetBId);
         when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));

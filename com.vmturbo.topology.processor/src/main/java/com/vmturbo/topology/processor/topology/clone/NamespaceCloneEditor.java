@@ -9,8 +9,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.topology.TopologyEditorException;
 import com.vmturbo.topology.processor.util.TopologyEditorUtil;
 
@@ -21,10 +23,12 @@ public class NamespaceCloneEditor extends DefaultEntityCloneEditor {
 
     @Override
     public TopologyEntity.Builder clone(@Nonnull final TopologyEntityImpl nsImpl,
+                                        @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                                         @Nonnull final CloneContext cloneContext,
                                         @Nonnull final CloneInfo cloneInfo) {
         // Clone myself
-        final TopologyEntity.Builder clonedNS = super.clone(nsImpl, cloneContext, cloneInfo);
+        final TopologyEntity.Builder clonedNS = super.clone(nsImpl, topologyGraph,
+                                                            cloneContext, cloneInfo);
         // Update aggregatedBy entities
         replaceAggregatedByEntities(clonedNS.getTopologyEntityImpl(), cloneContext);
         return clonedNS;
@@ -59,6 +63,18 @@ public class NamespaceCloneEditor extends DefaultEntityCloneEditor {
     protected boolean shouldReplaceSoldKey(@Nonnull final CommodityTypeView commodityType) {
         return Objects.requireNonNull(commodityType).hasKey()
                 && TopologyEditorUtil.isQuotaCommodity(commodityType.getType());
+    }
+
+    @Override
+    protected void updateAnalysisSettings(@Nonnull final TopologyEntity.Builder clonedNS,
+                                          @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
+                                          @Nonnull final CloneContext cloneContext) {
+        final AnalysisSettingsImpl analysisSettings =
+                clonedNS.getTopologyEntityImpl().getOrCreateAnalysisSettings();
+        if (!analysisSettings.hasConsistentScalingFactor()) {
+            TopologyEditorUtil.computeConsistentScalingFactor(clonedNS)
+                    .ifPresent(analysisSettings::setConsistentScalingFactor);
+        }
     }
 
     private void replaceAggregatedByEntities(@Nonnull final TopologyEntityImpl clonedNSImpl,

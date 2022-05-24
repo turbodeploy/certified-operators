@@ -54,17 +54,6 @@ public abstract class CpuConsistentScalingFactorPostStitchingOperation implement
     private static final float DEFAULT_CONSISTENT_SCALING_FACTOR = AnalysisSettingsView.getDefaultInstance()
         .getConsistentScalingFactor();
 
-    private final boolean enableConsistentScalingOnHeterogeneousProviders;
-
-    /**
-     * Create a new CpuConsistentScalingFactorPostStitchingOperation.
-     *
-     * @param enableConsistentScalingOnHeterogeneousProviders If disabled, this operation does nothing.
-     */
-    protected CpuConsistentScalingFactorPostStitchingOperation(final boolean enableConsistentScalingOnHeterogeneousProviders) {
-        this.enableConsistentScalingOnHeterogeneousProviders = enableConsistentScalingOnHeterogeneousProviders;
-    }
-
     @Nonnull
     @Override
     public TopologicalChangelog<TopologyEntity> performOperation(
@@ -94,10 +83,6 @@ public abstract class CpuConsistentScalingFactorPostStitchingOperation implement
      */
     @Nonnull
     protected Optional<ConsistentScalingFactorSetter> getCsfData(@Nonnull final TopologyEntity entity) {
-        if (!enableConsistentScalingOnHeterogeneousProviders) {
-            return Optional.empty();
-        }
-
         final TopologyEntityImpl entityBuilder = entity.getTopologyEntityImpl();
         return getCfsCommoditySold(entityBuilder).flatMap(commSold ->
             getMillicorePerMHz(entityBuilder, commSold)
@@ -147,11 +132,9 @@ public abstract class CpuConsistentScalingFactorPostStitchingOperation implement
         /**
          * Create a new VirtualMachineConsistentScalingFactorPostStitchingOperation.
          *
-         * @param enableConsistentScalingOnHeterogeneousProviders If disabled, this operation does nothing.
          */
-        public VirtualMachineConsistentScalingFactorPostStitchingOperation(
-            final boolean enableConsistentScalingOnHeterogeneousProviders) {
-            super(enableConsistentScalingOnHeterogeneousProviders);
+        public VirtualMachineConsistentScalingFactorPostStitchingOperation() {
+            super();
         }
 
         @Nonnull
@@ -195,16 +178,6 @@ public abstract class CpuConsistentScalingFactorPostStitchingOperation implement
      */
     public static class CloudNativeEntityConsistentScalingFactorPostStitchingOperation extends
         CpuConsistentScalingFactorPostStitchingOperation {
-
-        /**
-         * Create a new CloudNativeEntityConsistentScalingFactorPostStitchingOperation.
-         *
-         * @param enableConsistentScalingOnHeterogeneousProviders If disabled, this operation does nothing.
-         */
-        public CloudNativeEntityConsistentScalingFactorPostStitchingOperation(
-            final boolean enableConsistentScalingOnHeterogeneousProviders) {
-            super(enableConsistentScalingOnHeterogeneousProviders);
-        }
 
         @Nonnull
         @Override

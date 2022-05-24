@@ -61,7 +61,10 @@ import com.vmturbo.topology.graph.TopologyGraph;
  */
 public class EphemeralEntityEditor {
     private static final Logger logger = LogManager.getLogger();
-    private static final float DEFAULT_CONSISTENT_SCALING_FACTOR = new AnalysisSettingsImpl()
+    /**
+     * The default consistent scaling factor.
+     */
+    public static final float DEFAULT_CONSISTENT_SCALING_FACTOR = new AnalysisSettingsImpl()
         .getConsistentScalingFactor();
 
     /**
@@ -100,18 +103,12 @@ public class EphemeralEntityEditor {
      *
      * @param graph The {@link TopologyGraph} containing all the entities in
      *              the topology and their relationships.
-     * @param enableConsistentScalingOnHeterogeneousProviders Whether to enable consistent scaling on
-     *                                                        heterogeneous providers. If enabled,
-     *                                                        set consistentScalingFactor on ephemeral
-     *                                                        entities.
      * @return a summary of the edits made to the topology by applying edits.
      */
-    public EditSummary applyEdits(@Nonnull final TopologyGraph<TopologyEntity> graph,
-                                  final boolean enableConsistentScalingOnHeterogeneousProviders) {
+    public EditSummary applyEdits(@Nonnull final TopologyGraph<TopologyEntity> graph) {
         final EditSummary editSummary = new EditSummary();
-        final ConsistentScalingCache consistentScalingCache = new ConsistentScalingCache(
-            enableConsistentScalingOnHeterogeneousProviders);
-        ROOT_PERSISTENT_ENTITY_TYPES.stream().forEach(entityType ->
+        final ConsistentScalingCache consistentScalingCache = new ConsistentScalingCache();
+        ROOT_PERSISTENT_ENTITY_TYPES.forEach(entityType ->
             graph.entitiesOfType(entityType)
                 .forEach(persistentEntity -> applyEdits(persistentEntity, editSummary, consistentScalingCache)));
 
@@ -145,6 +142,10 @@ public class EphemeralEntityEditor {
             copyCommodityHistory(persistentSoldCommodities,
                 ephemeralEntity.getTopologyEntityImpl().getCommoditySoldListImplList(),
                 editSummary);
+            if (ephemeralEntity.getClonedFromEntity().isPresent()) {
+                // Do not set consistent scaling factor for cloned ephemeral entities
+                return;
+            }
             handleHeterogeneousProviders(requiredConsistentCommodityValues,
                 inconsistentCommodities, ephemeralEntity, consistentScalingCache, editSummary);
         });
@@ -303,64 +304,6 @@ public class EphemeralEntityEditor {
                 .filter(persistent -> Objects.equals(
                     persistent.getCommodityType().getKey(), ephemeralCommodity.getCommodityType().getKey()))
                 .findFirst());
-    }
-
-    /**
-     * A cache of consistent scaling values. It will also set the ConsistentScalingFactor on the
-     * AnalysisSettings of the nodes (VMs) hosting containers.
-     * <p/>
-     * A new cache is created each time the editor is run (once per pipeline).
-     */
-    public static class ConsistentScalingCache {
-        private final HashMap<Long, Float> cache;
-
-        private final boolean enableConsistentScalingOnHeterogeneousProviders;
-
-        /**
-         * Create a new {@link ConsistentScalingCache}.
-         *
-         * @param enableConsistentScalingOnHeterogeneousProviders Whether or not to enable consistent scaling.
-         *                                                        If disabled, the consistent scaling factor will be
-         *                                                        set to 1.
-         */
-        public ConsistentScalingCache(final boolean enableConsistentScalingOnHeterogeneousProviders) {
-            cache = new HashMap<>();
-            this.enableConsistentScalingOnHeterogeneousProviders =
-                enableConsistentScalingOnHeterogeneousProviders;
-        }
-
-        /**
-         * Lookup the consistent scaling factor to use for a particular container entity.
-         * If the node (VM) entity hosting this entity does not already have a consistent scaling factor,
-         * set the value on the node as well.
-         * <p/>
-         * When multiplying (VCPU capacity * scalingFactor) on the container by the CSF should yield
-         * the VCPU capacity of the container in millicores.
-         *
-         * @param container The container entity whose CSF was calculated.
-         * @return The consistent scaling factor for the container.
-         */
-        public float lookupConsistentScalingFactor(@Nonnull final TopologyEntity container) {
-            if (!enableConsistentScalingOnHeterogeneousProviders) {
-                // If we don't want to enable consistent scaling, just return a CSF of 1.0 to
-                // retain the behavior without CSF.
-                return DEFAULT_CONSISTENT_SCALING_FACTOR;
-            }
-
-            final Optional<TopologyEntity> vmProvider = container.getProviders().stream()
-                .filter(containerProvider -> containerProvider.getEntityType() == EntityType.CONTAINER_POD_VALUE)
-                .flatMap(pod -> pod.getProviders().stream()
-                    .filter(podProvider -> podProvider.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE))
-                .findAny();
-
-            return vmProvider.map(vm -> cache.computeIfAbsent(vm.getOid(), vmOid -> {
-                final AnalysisSettingsImpl analysisSettingsBuilder =
-                    vm.getTopologyEntityImpl().getOrCreateAnalysisSettings();
-                // The CSF on the VM's analysis settings should have been set in PostStitching by
-                // {@link VirtualMachineConsistentScalingFactorPostStitchingOperation}.
-                return analysisSettingsBuilder.getConsistentScalingFactor();
-            })).orElse(DEFAULT_CONSISTENT_SCALING_FACTOR);
-        }
     }
 
     /**

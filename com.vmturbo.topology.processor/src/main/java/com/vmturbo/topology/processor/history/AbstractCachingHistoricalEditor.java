@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginView;
 import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
@@ -280,11 +281,28 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
                 field.getProviderOid())));
     }
 
+    /**
+     * Check if an entity is applicable for historical editor.
+     * Applicable entities are discovered by at least one target, or are created by plan scenarios.
+     * Non-applicable entities include proxy entities and non-controllable entities.
+     *
+     * @param entity topology entity
+     * @return true if the entity is applicable
+     */
     @Override
     public boolean isEntityApplicable(TopologyEntity entity) {
         final TopologyEntityImpl entityImpl = entity.getTopologyEntityImpl();
         // check the entity origin from all entity targets
-        if (!entityImpl.hasOrigin() || entityImpl.getOrigin()
+        if (!entityImpl.hasOrigin()) {
+            // entity does not have an origin
+            return false;
+        }
+        final OriginView origin = entityImpl.getOrigin();
+        if (!origin.hasDiscoveryOrigin() && !origin.hasPlanScenarioOrigin()) {
+            // entity has neither discovery nor plan origin
+            return false;
+        }
+        if (origin.hasDiscoveryOrigin() && origin
                 .getDiscoveryOrigin()
                 .getDiscoveredTargetDataMap()
                 .values()

@@ -33,9 +33,9 @@ import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestRe
  */
 public class CpuConsistentScalingFactorPostStitchingOperationTest {
     private final CpuConsistentScalingFactorPostStitchingOperation vmOperation =
-        new VirtualMachineConsistentScalingFactorPostStitchingOperation(true);
+        new VirtualMachineConsistentScalingFactorPostStitchingOperation();
     private final CpuConsistentScalingFactorPostStitchingOperation cnEntityOperation =
-        new CloudNativeEntityConsistentScalingFactorPostStitchingOperation(true);
+        new CloudNativeEntityConsistentScalingFactorPostStitchingOperation();
 
     private EntityChangesBuilder<TopologyEntity> resultBuilder = new UnitTestResultBuilder();
 

@@ -3,8 +3,8 @@ package com.vmturbo.topology.processor.topology.clone;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * The {@link VirtualMachineCloneEditor} implements the clone function for the virtual machine
@@ -13,14 +13,12 @@ import com.vmturbo.stitching.TopologyEntity;
 public class VirtualMachineCloneEditor extends DefaultEntityCloneEditor {
 
     @Override
-    public TopologyEntity.Builder clone(@Nonnull final TopologyEntityImpl vmImpl,
-                                        @Nonnull final CloneContext cloneContext,
-                                        @Nonnull final CloneInfo cloneInfo) {
-        final TopologyEntity.Builder clonedVM = super.clone(vmImpl, cloneContext, cloneInfo);
+    protected void updateAnalysisSettings(@Nonnull final TopologyEntity.Builder clonedVM,
+                                          @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
+                                          @Nonnull final CloneContext cloneContext) {
         // a temporary fix for MPC to work.
         final boolean isCloudMigrationPlan =
                 PlanProjectType.CLOUD_MIGRATION.name().equals(cloneContext.getPlanType());
         clonedVM.getTopologyEntityImpl().getOrCreateAnalysisSettings().setShopTogether(!isCloudMigrationPlan);
-        return clonedVM;
     }
 }
