@@ -19,8 +19,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
-
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
@@ -253,7 +251,7 @@ public class MarketPricingResolver extends ResolverPricing {
     @Override
     public Map<Long, ReservedInstancePriceTable> getRIPriceTablesByAccount(
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     private void logPriceTableProps(PriceTable priceTable, Long businessAccountOid, Long priceTableOid) {

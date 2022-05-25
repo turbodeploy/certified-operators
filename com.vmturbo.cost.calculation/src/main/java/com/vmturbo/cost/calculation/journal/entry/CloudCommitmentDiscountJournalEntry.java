@@ -9,10 +9,9 @@ import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
-
-import jdk.nashorn.internal.ir.annotations.Immutable;
 
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.jetbrains.annotations.NotNull;
