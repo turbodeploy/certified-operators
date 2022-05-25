@@ -36,12 +36,6 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
     @Autowired
     private HistoryDbPropertyConfig dbPropertyConfig;
 
-    private final String historyDbUsername = dbPropertyConfig.getUserName();
-
-    private final String historyDbPassword = dbPropertyConfig.getPassword();
-
-    private final String dbSchemaName = dbPropertyConfig.getSchemaName();
-
     @Value("${authHost}")
     private String authHost;
 
@@ -63,8 +57,7 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
     @Bean
     @Override
     public DataSource dataSource() {
-        return getDataSource(dbSchemaName, historyDbUsername, Optional.ofNullable(
-                !Strings.isEmpty(historyDbPassword) ? historyDbPassword : null));
+        return getDataSource(getDbSchemaName(), getDbUsername(), getDbPassword());
     }
 
     /**
@@ -76,8 +69,7 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
      */
     @Bean
     public DataSource unpooledDataSource() {
-        return getUnpooledDataSource(dbSchemaName, historyDbUsername, Optional.ofNullable(
-                !Strings.isEmpty(historyDbPassword) ? historyDbPassword : null));
+        return getUnpooledDataSource(getDbSchemaName(), getDbUsername(), getDbPassword());
     }
 
     @Override
@@ -97,18 +89,23 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
 
     @Override
     public String getDbSchemaName() {
-        return dbSchemaName;
+        return dbPropertyConfig.getSchemaName();
     }
 
     @Override
     public String getDbUsername() {
-        return historyDbUsername;
+        return dbPropertyConfig.getUserName();
+    }
+
+    private Optional<String> getDbPassword() {
+        String password = dbPropertyConfig.getPassword();
+        return Strings.isEmpty(password) ? Optional.empty() : Optional.of(password);
     }
 
     /**
-     * Get a {@link DSLContext} that uses unpooled connections to perform database operations.
-     * This may be advisable when performing potentially long-running DB operations to avoid
-     * tying up limited pool connections.
+     * Get a {@link DSLContext} that uses unpooled connections to perform database operations. This
+     * may be advisable when performing potentially long-running DB operations to avoid tying up
+     * limited pool connections.
      *
      * @return DSLContext that uses unpooled connections
      */
