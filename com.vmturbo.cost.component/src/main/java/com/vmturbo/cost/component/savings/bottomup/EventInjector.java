@@ -19,9 +19,9 @@ import com.vmturbo.cost.component.savings.BillingRecord;
 import com.vmturbo.cost.component.savings.DataInjectionMonitor;
 import com.vmturbo.cost.component.savings.ScenarioDataInjector;
 import com.vmturbo.cost.component.savings.bottomup.TopologyEvent.EventType;
-import com.vmturbo.cost.component.savings.tem.ProviderInfo;
-import com.vmturbo.cost.component.savings.tem.VirtualMachineProviderInfo;
-import com.vmturbo.cost.component.savings.tem.VolumeProviderInfo;
+import com.vmturbo.cost.component.savings.temold.ProviderInfo;
+import com.vmturbo.cost.component.savings.temold.VirtualMachineProviderInfo;
+import com.vmturbo.cost.component.savings.temold.VolumeProviderInfo;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**

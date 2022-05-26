@@ -2,7 +2,7 @@ package com.vmturbo.cost.component.savings.bottomup;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.cost.component.savings.tem.ProviderInfo;
+import com.vmturbo.cost.component.savings.temold.ProviderInfo;
 
 /**
  * Represents an entity that is being monitored by the Topology Events Monitor (TEM).

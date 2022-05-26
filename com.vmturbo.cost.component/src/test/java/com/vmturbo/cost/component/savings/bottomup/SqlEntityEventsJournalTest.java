@@ -29,7 +29,7 @@ import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.savings.bottomup.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.bottomup.TopologyEvent.EventType;
-import com.vmturbo.cost.component.savings.tem.VolumeProviderInfo;
+import com.vmturbo.cost.component.savings.temold.VolumeProviderInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;

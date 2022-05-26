@@ -17,12 +17,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.cost.component.savings.bottomup.SerializableSavingsEvent.SerializableActionEvent;
 import com.vmturbo.cost.component.savings.bottomup.SerializableSavingsEvent.SerializableEntityPriceChange;
 import com.vmturbo.cost.component.savings.bottomup.SerializableSavingsEvent.SerializableTopologyEvent;
-import com.vmturbo.cost.component.savings.tem.DatabaseProviderInfo;
-import com.vmturbo.cost.component.savings.tem.DatabaseServerProviderInfo;
-import com.vmturbo.cost.component.savings.tem.ProviderInfo;
-import com.vmturbo.cost.component.savings.tem.ProviderInfoSerializer;
-import com.vmturbo.cost.component.savings.tem.VirtualMachineProviderInfo;
-import com.vmturbo.cost.component.savings.tem.VolumeProviderInfo;
+import com.vmturbo.cost.component.savings.temold.DatabaseProviderInfo;
+import com.vmturbo.cost.component.savings.temold.DatabaseServerProviderInfo;
+import com.vmturbo.cost.component.savings.temold.ProviderInfo;
+import com.vmturbo.cost.component.savings.temold.ProviderInfoSerializer;
+import com.vmturbo.cost.component.savings.temold.VirtualMachineProviderInfo;
+import com.vmturbo.cost.component.savings.temold.VolumeProviderInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
 

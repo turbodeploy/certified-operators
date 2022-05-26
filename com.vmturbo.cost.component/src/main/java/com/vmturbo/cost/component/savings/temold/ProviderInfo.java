@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.savings.tem;
+package com.vmturbo.cost.component.savings.temold;
 
 /**
  * Interface for implementations of ProviderInfo objects.

@@ -9,8 +9,8 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.cost.component.savings.EntityState;
-import com.vmturbo.cost.component.savings.tem.ProviderInfo;
-import com.vmturbo.cost.component.savings.tem.ProviderInfoFactory;
+import com.vmturbo.cost.component.savings.temold.ProviderInfo;
+import com.vmturbo.cost.component.savings.temold.ProviderInfoFactory;
 
 /**
  * Implementation of algorithm-2.

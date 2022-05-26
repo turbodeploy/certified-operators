@@ -26,11 +26,11 @@ import com.vmturbo.cost.component.savings.bottomup.EntityStateStore;
 import com.vmturbo.cost.component.savings.bottomup.GsonAdaptersActionEntry;
 import com.vmturbo.cost.component.savings.bottomup.GsonAdaptersEntityPriceChange;
 import com.vmturbo.cost.component.savings.bottomup.MonitoredEntity;
-import com.vmturbo.cost.component.savings.tem.ProviderInfo;
-import com.vmturbo.cost.component.savings.tem.ProviderInfoFactory;
-import com.vmturbo.cost.component.savings.tem.ProviderInfoSerializer;
-import com.vmturbo.cost.component.savings.tem.TopologyEventsMonitor;
-import com.vmturbo.cost.component.savings.tem.TopologyEventsMonitor.ChangeResult;
+import com.vmturbo.cost.component.savings.temold.ProviderInfo;
+import com.vmturbo.cost.component.savings.temold.ProviderInfoFactory;
+import com.vmturbo.cost.component.savings.temold.ProviderInfoSerializer;
+import com.vmturbo.cost.component.savings.temold.TopologyEventsMonitor;
+import com.vmturbo.cost.component.savings.temold.TopologyEventsMonitor.ChangeResult;
 
 /**
  * Class to encapsulate the entity states that need to be persisted or to be passed from the

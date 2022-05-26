@@ -8,8 +8,8 @@ import org.junit.Test;
 
 import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.cost.component.savings.bottomup.Algorithm.Delta;
-import com.vmturbo.cost.component.savings.tem.ProviderInfo;
-import com.vmturbo.cost.component.savings.tem.VirtualMachineProviderInfo;
+import com.vmturbo.cost.component.savings.temold.ProviderInfo;
+import com.vmturbo.cost.component.savings.temold.VirtualMachineProviderInfo;
 
 /**
  * Entity state tests.
