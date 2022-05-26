@@ -65,6 +65,7 @@ import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PricingConfig;
+import com.vmturbo.cost.component.savings.tem.TopologyEntityMonitor;
 import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
@@ -188,7 +189,13 @@ public class TopologyListenerConfig {
         List<LiveCloudTopologyListener> cloudTopologyListenerList =
                 new ArrayList<>(Arrays.asList(entityCostWriter, riBuyRunner(), ccaDemandCollector()));
         if (FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()) {
+            if (entitySavingsConfig.isBillSavingsEnabled()) {
+                logger.info("Registered Billed Savings Topology Monitor");
+                cloudTopologyListenerList.add(entityBilledSavingsTopologyMonitor());
+            } else {
+                logger.info("Registered bottomup Savings Topology Monitor");
                 cloudTopologyListenerList.add(entitySavingsTopologyMonitor());
+            }
         }
         final LiveTopologyEntitiesListener entitiesListener =
                 new LiveTopologyEntitiesListener(
@@ -434,6 +441,16 @@ public class TopologyListenerConfig {
     public EntitySavingsTopologyMonitor entitySavingsTopologyMonitor() {
         return new EntitySavingsTopologyMonitor(entitySavingsConfig.topologyEventsMonitor(),
                 entitySavingsConfig.entityStateStore(), entitySavingsConfig.entityEventsJournal());
+    }
+
+    /**
+     * Bean for the Entity savings topology monitor used in bill based savings.
+     *
+     * @return An instance of the entity savings topology monitor.
+     */
+    @Bean
+    public TopologyEntityMonitor entityBilledSavingsTopologyMonitor() {
+        return new TopologyEntityMonitor(entitySavingsConfig.actionsService());
     }
 
     /**

@@ -9,7 +9,7 @@ import org.immutables.value.Value.Immutable;
 import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
-import com.vmturbo.cost.component.savings.tem.ProviderInfo;
+import com.vmturbo.cost.component.savings.temold.ProviderInfo;
 
 /**
  * Sole purpose of this class is to help efficiently serialize only the required fields out of

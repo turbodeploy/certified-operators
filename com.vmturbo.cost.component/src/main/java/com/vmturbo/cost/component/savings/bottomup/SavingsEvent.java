@@ -15,8 +15,8 @@ import com.vmturbo.cost.component.savings.bottomup.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.bottomup.SerializableSavingsEvent.SerializableActionEvent;
 import com.vmturbo.cost.component.savings.bottomup.SerializableSavingsEvent.SerializableEntityPriceChange;
 import com.vmturbo.cost.component.savings.bottomup.SerializableSavingsEvent.SerializableTopologyEvent;
-import com.vmturbo.cost.component.savings.tem.ProviderInfo;
-import com.vmturbo.cost.component.savings.tem.ProviderInfoSerializer;
+import com.vmturbo.cost.component.savings.temold.ProviderInfo;
+import com.vmturbo.cost.component.savings.temold.ProviderInfoSerializer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**

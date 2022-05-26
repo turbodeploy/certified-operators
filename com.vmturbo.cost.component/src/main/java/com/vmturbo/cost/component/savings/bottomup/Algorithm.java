@@ -10,7 +10,7 @@ import com.google.common.math.DoubleMath;
 import com.google.gson.annotations.SerializedName;
 
 import com.vmturbo.cost.component.savings.EntityState;
-import com.vmturbo.cost.component.savings.tem.ProviderInfo;
+import com.vmturbo.cost.component.savings.temold.ProviderInfo;
 
 /**
  * Algorithm interface.
