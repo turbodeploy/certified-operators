@@ -26,7 +26,7 @@
         <ux.mt.branch.version>8.5.5-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.3.12-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.3.13-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.5.4</cpu.capacity.version>
@@ -36,7 +36,7 @@
 
         <spring.version>5.3.20</spring.version>
         <spring.retry.version>1.2.4.RELEASE</spring.retry.version>
-        <spring.security.version>5.5.5</spring.security.version>
+        <spring.security.version>5.5.8</spring.security.version>
         <spring.session.jdbc.version>2.5.0</spring.session.jdbc.version>
         <guava.version>31.1-jre</guava.version>
         <units.of.measure.version>1.0.2</units.of.measure.version>
