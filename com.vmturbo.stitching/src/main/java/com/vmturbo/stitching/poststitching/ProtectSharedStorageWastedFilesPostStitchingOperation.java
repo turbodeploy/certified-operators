@@ -1,6 +1,7 @@
 package com.vmturbo.stitching.poststitching;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -57,15 +58,17 @@ public class ProtectSharedStorageWastedFilesPostStitchingOperation
         // The scope will ensure that only shared storages that we can't definitively identify
         // wasted files on are passed in.
         entities.forEach(storage -> {
-            WastedFiles.getWastedFilesVirtualVolume(storage).ifPresent(wastedFilesVolume -> {
-                // Just for logging purposes, collect a set of storages for which we will be
-                // removing wasted files from their wasted files volumes
+            final List<TopologyEntity> wastedFilesVolumes =
+                WastedFiles.getWastedFilesVirtualVolume(storage);
+            wastedFilesVolumes.forEach( wastedFilesVolume -> {
+            // Just for logging purposes, collect a set of storages for which we will be
+            // removing wasted files from their wasted files volumes
                 storagesBrowsingDisabled.add(storage);
                 resultBuilder.queueUpdateEntityAlone(wastedFilesVolume, toUpdate ->
-                        toUpdate.getTopologyEntityImpl()
-                                .getOrCreateTypeSpecificInfo()
-                                .getOrCreateVirtualVolume()
-                                .clearFiles());
+                    toUpdate.getTopologyEntityImpl()
+                            .getOrCreateTypeSpecificInfo()
+                            .getOrCreateVirtualVolume()
+                            .clearFiles());
             });
         });
         if (!storagesBrowsingDisabled.isEmpty()) {

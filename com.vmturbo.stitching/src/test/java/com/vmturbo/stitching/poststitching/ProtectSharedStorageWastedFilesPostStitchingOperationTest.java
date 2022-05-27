@@ -96,13 +96,13 @@ public class ProtectSharedStorageWastedFilesPostStitchingOperationTest {
    public void testProtectSharedStorageWastedFilesPostStitchingOperation() {
        UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
        // before operation, wasted volume files are not empty
-       assertEquals(3, WastedFiles.getWastedFilesVirtualVolume(sharedStorageEntity).get()
+       assertEquals(3, WastedFiles.getWastedFilesVirtualVolume(sharedStorageEntity).get(0)
                .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
        protectWastedFilesPostOp.performOperation(
            Stream.of(sharedStorageEntity), settingsCollection, resultBuilder);
        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
        // after the operation, wasted volume files are cleared
-       assertEquals(0, WastedFiles.getWastedFilesVirtualVolume(sharedStorageEntity).get()
+       assertEquals(0, WastedFiles.getWastedFilesVirtualVolume(sharedStorageEntity).get(0)
                .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
-   }
+      }
 }
