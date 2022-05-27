@@ -128,17 +128,12 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
 
         // Set scope entity IDs.
         if (userSessionContext.isUserScoped()) {
-
             EntityFilter entityFilter = EntityFilter.newBuilder()
                     .addAllEntityId(userSessionContext.getUserAccessScope()
                             .getAccessibleOidsByEntityTypes(ApiEntityType.ENTITY_TYPES_WITH_COST
                             .stream().map(s -> ApiEntityType.fromString(s))
                             .collect(Collectors.toSet())).toSet()).build();
             request.setEntityFilter(entityFilter);
-
-            Set<Integer> scopeTypes = getScopeTypes(context);
-            EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder().addAllEntityTypeId(scopeTypes).build();
-            request.setEntityTypeFilter(entityTypeFilter);
         } else {
             if (context.getInputScope().isResourceGroupOrGroupOfResourceGroups()) {
                 // Resource groups are handled differently because they are a kind of group and members

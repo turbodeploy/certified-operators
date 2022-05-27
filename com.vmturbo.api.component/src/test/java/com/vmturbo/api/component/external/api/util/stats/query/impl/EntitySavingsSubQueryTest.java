@@ -136,10 +136,11 @@ public class EntitySavingsSubQueryTest {
     @Test
     public void testGetAggregateStats() throws Exception {
         when(userSessionContext.isUserScoped()).thenReturn(false);
-        getAggregateStats();
+        Set<ApiEntityType> entityType = ImmutableSet.of(ApiEntityType.VIRTUAL_MACHINE);
+        getAggregateStats(entityType);
     }
 
-    private void getAggregateStats() throws Exception {
+    private void getAggregateStats(Set<ApiEntityType> entityTypes) throws Exception {
         long vm1Id = 123456L;
         long vm2Id = 234543L;
         long startTime = 1609527257000L;
@@ -151,7 +152,6 @@ public class EntitySavingsSubQueryTest {
         Set<Long> scopeIds = new HashSet<>();
         scopeIds.add(vm1Id);
         scopeIds.add(vm2Id);
-        Set<ApiEntityType> entityTypes = ImmutableSet.of(ApiEntityType.VIRTUAL_MACHINE);
         StatsQueryContext context = createStatsQueryContextMock(scopeIds, timeWindow, entityTypes);
         List<EntityStatsResponseValues> responseValues = Arrays.asList(
             new EntityStatsResponseValues(1610960400000L, 10.0f, 1.0f),
@@ -680,7 +680,7 @@ public class EntitySavingsSubQueryTest {
     @Test
     public void testGetAggregateStatsForScopedUser() throws Exception {
         when(userSessionContext.isUserScoped()).thenReturn(true);
-        getAggregateStats();
+        getAggregateStats(Collections.EMPTY_SET);
     }
 
     private void setUserScopeOid(Set<Long> oId) {
