@@ -2,6 +2,7 @@ package com.vmturbo.stitching.poststitching;
 
 import java.io.File;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -78,15 +79,15 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
                     ? minFilesSizeSetting.get().getNumericSettingValue().getValue()
                     : EntitySettingSpecs.MinWastedFilesSize.getNumericDefault();
 
-            if (WastedFiles.getWastedFilesVirtualVolume(storage).isPresent()) {
-                final TopologyEntity wastedFilesVolume =
-                    WastedFiles.getWastedFilesVirtualVolume(storage).get();
+            final List<TopologyEntity> wastedFilesVolumes =
+                WastedFiles.getWastedFilesVirtualVolume(storage);
+            wastedFilesVolumes.forEach( wastedFilesVolume -> {
                 final Set<VirtualVolumeFileDescriptorView> keepFiles =
                     getFilesToKeepForVirtualVolume(wastedFilesVolume, ignoreFilesPattern,
-                            ignoreDirsPattern, minFileSize);
+                    ignoreDirsPattern, minFileSize);
                 resultBuilder.queueUpdateEntityAlone(wastedFilesVolume,
                     entityToUpdate -> updateFilesForVirtualVolume(entityToUpdate, keepFiles));
-            }
+            });                       
         });
 
         if (regexCompiler.hasCompilationErrors()) {

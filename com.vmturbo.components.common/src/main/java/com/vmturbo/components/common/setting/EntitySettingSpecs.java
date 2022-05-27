@@ -911,7 +911,7 @@ public enum EntitySettingSpecs {
         Collections.emptyList(),
         SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE),
-        string("\\.dvsData.*|\\.snapshot.*|\\.vSphere-HA.*|\\.naa.*|\\.etc.*|lost\\+found.*|stCtlVM-.*|\\.iSCSI-CONFIG.*|\\.vsan\\.stats.*|etc|targets"),
+        string("\\.dvsData.*|\\.snapshot.*|\\.vSphere-HA.*|\\.naa.*|\\.etc.*|lost\\+found.*|stCtlVM-.*|\\.iSCSI-CONFIG.*|\\.vsan\\.stats.*|etc|targets|^(\\[[^\\[]*\\] )?kubevols"),
         true),
 
     IgnoreFiles("ignoreFiles", "Files to ignore",
