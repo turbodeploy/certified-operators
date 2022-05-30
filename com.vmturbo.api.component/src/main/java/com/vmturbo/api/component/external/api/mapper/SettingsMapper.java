@@ -1002,7 +1002,7 @@ public class SettingsMapper {
         final ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
         builder.put(OperatingSystem.RHEL.name(), "RHEL");
         builder.put(OperatingSystem.SLES.name(), "SLES");
-        builder.put(VCPUScalingUnitsEnum.MHZ.name(), "Sockets (MHz legacy behavior)");
+        builder.put(VCPUScalingUnitsEnum.MHZ.name(), "MHz legacy behavior");
         builder.put(VCPUScalingUnitsEnum.CORES.name(), "Cores per socket");
         builder.put(VcpuScalingCoresPerSocketSocketModeEnum.PRESERVE_SOCKETS.name(), "Preserve existing VM sockets");
         builder.put(VcpuScalingCoresPerSocketSocketModeEnum.MATCH_HOST.name(), "Match Host sockets");

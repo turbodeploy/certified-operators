@@ -599,7 +599,7 @@ public enum EntitySettingSpecs {
     VcpuScalingUnits("vcpuScalingUnits", "VCPU Scaling Units",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            new EnumSettingDataType<>(VCPUScalingUnitsEnum.MHZ, VCPUScalingUnitsEnum.class), true),
+            new EnumSettingDataType<>(VCPUScalingUnitsEnum.SOCKETS, VCPUScalingUnitsEnum.class), true),
 
     /**
      * Cores Per Socket mode chosen when scale in sockets.
