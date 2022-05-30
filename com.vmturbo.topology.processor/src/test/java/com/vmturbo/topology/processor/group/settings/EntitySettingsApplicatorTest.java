@@ -244,6 +244,10 @@ public class EntitySettingsApplicatorTest {
                     EntitySettingSpecs.VcpuScalingUnits.getSettingSpec().getEnumSettingValueType().getDefault()))
             .build();
 
+    private static final Setting CORE_SOCKET_RATIO_MODE_MHZ =
+                    createEnumSetting(EntitySettingSpecs.VcpuScalingUnits,
+                                    VCPUScalingUnitsEnum.MHZ);
+
     private static final Setting CORE_SOCKET_RATIO_MODE_SOCKETS =
                     createEnumSetting(EntitySettingSpecs.VcpuScalingUnits,
                                     VCPUScalingUnitsEnum.SOCKETS);
@@ -1991,10 +1995,19 @@ public class EntitySettingsApplicatorTest {
     @Test
     public void testVCPUIncrementApplicatorDefault() {
         //coreSocketRatio default is ignore, so use default vmCpuIncrement
-        testVCPUIncrementApplicator(1800, 10400, 5200, new TypeSpecificInfoImpl(),
+        testVCPUIncrementApplicator(5200, 10400, 5200, new TypeSpecificInfoImpl(),
                         EntityType.VIRTUAL_MACHINE, new CpuScalingPolicyImpl(),
                         EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
                 VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
+    }
+
+    @Test
+    public void testVCPUIncrementApplicatorMhz() {
+        //coreSocketRatio default is ignore, so use default vmCpuIncrement
+        testVCPUIncrementApplicator(1800, 10400, 5200, new TypeSpecificInfoImpl(),
+                EntityType.VIRTUAL_MACHINE, new CpuScalingPolicyImpl(),
+                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_MHZ);
     }
 
     /**
@@ -2038,10 +2051,18 @@ public class EntitySettingsApplicatorTest {
 
     @Test
     public void testVCPUIncrementDefaultModeUnitSocketsIncrementSocketsNonDefault() {
-        testVCPUIncrementApplicator(1800, 10400, 5200, new TypeSpecificInfoImpl(),
+        testVCPUIncrementApplicator(5200, 10400, 5200, new TypeSpecificInfoImpl(),
                         EntityType.VIRTUAL_MACHINE, new CpuScalingPolicyImpl(),
                         EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
                 VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
+    }
+
+    @Test
+    public void testVCPUIncrementMhzModeUnitSocketsIncrementSocketsNonDefault() {
+        testVCPUIncrementApplicator(1800, 10400, 5200, new TypeSpecificInfoImpl(),
+                EntityType.VIRTUAL_MACHINE, new CpuScalingPolicyImpl(),
+                EntityType.PHYSICAL_MACHINE_VALUE, createPmTypeSpecificInfo(4), 10L, null,
+                VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_MHZ);
     }
 
     @Test

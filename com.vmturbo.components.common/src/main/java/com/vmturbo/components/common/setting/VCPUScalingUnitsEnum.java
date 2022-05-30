@@ -5,11 +5,6 @@ package com.vmturbo.components.common.setting;
  */
 public enum VCPUScalingUnitsEnum {
     /**
-     * Ignores the CSR sent from probe.
-     */
-    MHZ,
-
-    /**
      * Use the CSR sent from probe.
      */
     SOCKETS,
@@ -22,5 +17,10 @@ public enum VCPUScalingUnitsEnum {
     /**
      * Force csr to 1 and scale in sockets. specified by VcpuScaling_Vcpus_VcpusIncrementValue.
      */
-    VCPUS
+    VCPUS,
+
+    /**
+     * Ignores the CSR sent from probe.
+     */
+    MHZ,
 }
