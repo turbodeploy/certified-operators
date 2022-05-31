@@ -13,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.core.env.PropertiesPropertySource;
 
 import com.vmturbo.components.common.config.ConfigMapPropertiesReader;
+import com.vmturbo.components.common.featureflags.FeatureFlagEnablementStoreBase;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 
 /**
  * Properties (both global and component-specific).
@@ -63,15 +65,28 @@ class PropertyRegistry {
 
         props.put("postgresPort", "5432");
 
+        props.put("dbRootUsername", "root");
+        props.put("dbRootPassword", "vmturbo");
+
+        props.put("authDbUsername", "auth");
         props.put("authDbPassword", "vmturbo");
+        props.put("clustermgrDbUsername", "clustermgr");
         props.put("clustermgrDbPassword", "vmturbo");
+        props.put("repositoryDbUsername", "repository");
         props.put("repositoryDbPassword", "vmturbo");
+        props.put("actionDbUsername", "action");
         props.put("actionDbPassword", "vmturbo");
+        props.put("costDbUsername", "cost");
         props.put("costDbPassword", "vmturbo");
+        props.put("groupComponentDbUsername", "group_component");
         props.put("groupComponentDbPassword", "vmturbo");
+        props.put("historyDbUsername", "history");
         props.put("historyDbPassword", "vmturbo");
+        props.put("planDbUsername", "plan");
         props.put("planDbPassword", "vmturbo");
+        props.put("topologyProcessorDbUsername", "topology_processor");
         props.put("topologyProcessorDbPassword", "vmturbo");
+        props.put("marketDbUsername", "market");
         props.put("marketDbPassword", "vmturbo");
 
         props.put("dbs.grafana.databaseName", "grafana");
@@ -150,10 +165,9 @@ class PropertyRegistry {
         // Start with the config map properties, which take lowest priority.
         Properties props = ConfigMapPropertiesReader.readConfigMap(shortName, "file:" + Voltron.getAbsolutePath("com.vmturbo.voltron/src/main/resources/config/configmap.yaml"));
         // Apply global overrides.
-        props.putAll(getGlobalOverrides(false));
+        props.putAll(getGlobalOverrides(true));
 
         // Additional overrides.
-        props.put("migrationLocation", Voltron.migrationLocation(topFolder));
         props.put("com.vmturbo.kvdir", Paths.get(dataPath, namespace, "kvdir", topFolder).toString());
         props.put("discoveryResponsesCachePath", Paths.get(dataPath, namespace, "cached_responses", topFolder).toString());
         props.put("component_type", shortName);
@@ -168,11 +182,23 @@ class PropertyRegistry {
                 });
         }
 
+        final Object featureFlagValue = props.get(
+                FeatureFlagEnablementStoreBase.getConfigPropertyName(
+                        FeatureFlags.POSTGRES_PRIMARY_DB));
+        final Boolean isDbEndpointEnabled =
+                featureFlagValue != null && Boolean.parseBoolean((String)featureFlagValue);
+        final String sqlDialect = (String)props.get("sqlDialect");
+        props.put("migrationLocation",
+                Voltron.migrationLocation(topFolder, shortName,
+                        (String)props.get("migrationTopFolder"), isDbEndpointEnabled, sqlDialect));
+
         // User-specified overrides go last, so they override anything previously set.
         Component.forShortName(shortName).ifPresent(component -> {
             // Add any additional overrides for this component.
             props.putAll(voltronConfiguration.getComponentOverrides(component));
         });
+
+
         return new PropertiesPropertySource(topFolder, props);
     }
 }

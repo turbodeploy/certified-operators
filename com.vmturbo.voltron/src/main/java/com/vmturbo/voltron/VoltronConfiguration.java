@@ -555,6 +555,21 @@ public class VoltronConfiguration {
         public Component getComponent() {
             return component;
         }
+
+        /**
+         * Determine whether a component is a platform component.
+         *
+         * @param shortName The short name of the component.
+         * @return Whether the component is a platform component.
+         */
+        public static boolean isPlatformComponent(String shortName) {
+            for (PlatformComponent platformComponent : PlatformComponent.values()) {
+                if (shortName.equalsIgnoreCase(platformComponent.getComponent().getShortName())) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     /**

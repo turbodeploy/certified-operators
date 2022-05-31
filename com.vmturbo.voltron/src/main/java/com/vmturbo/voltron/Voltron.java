@@ -1,5 +1,9 @@
 package com.vmturbo.voltron;
 
+import static com.vmturbo.sql.utils.DbEndpointResolver.sanitizeComponentName;
+import static com.vmturbo.voltron.VoltronConfiguration.PlatformComponent.isPlatformComponent;
+import static org.apache.commons.lang3.ObjectUtils.firstNonNull;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -13,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -173,10 +178,38 @@ public class Voltron extends BaseVmtComponent {
         return tpEnvironment;
     }
 
-    static String migrationLocation(@Nonnull final String topFolder) {
+    static String migrationLocation(@Nonnull String topFolder, @Nonnull String shortName,
+            @Nullable String migrationTopFolder, @Nonnull Boolean isDbEndpointEnabled,
+            @Nonnull String sqlDialect) {
         // TODO - detect JAVA migrations. This isn't that important for now because Java migrations
         // we use don't typically modify tables.
-        return "filesystem:" + getAbsolutePath(topFolder + "/src/main/resources/");
+
+        // Some components (e.g. history) have their migrations in a different package. If the
+        // "migrationTopFolder" property is not set, then topFolder is used as a default.
+        final String finalTopFolder = firstNonNull(migrationTopFolder, topFolder);
+        AtomicReference<String> migrationLocation = new AtomicReference<>(
+                "filesystem:" + getAbsolutePath(finalTopFolder + "/src/main/resources/"));
+        Component.forShortName(shortName).ifPresent(component -> {
+            /*
+              Platform components have migrations for all three db scenarios (SQLDatabaseConfig,
+              DbEndpoint-MARIADB, DbEndpoint-POSTGRES). We have to distinguish between those scenarios
+              and come up with the correct migration location.
+              The only exception to the above is the Extractor component, but in this case we set
+              the dbMigrationLocation in the Component class (which has higher priority).
+             */
+            if (isPlatformComponent(shortName)) {
+                String migrationLocationPrefix =
+                        "filesystem:" + getAbsolutePath(finalTopFolder + "/src/main/resources/");
+                if (isDbEndpointEnabled) {
+                    migrationLocation.set(
+                            migrationLocationPrefix + "/db/migrations/" + sanitizeComponentName(
+                                    shortName) + "/" + sqlDialect.toLowerCase());
+                } else {
+                    migrationLocation.set(migrationLocationPrefix + "/db/migration/");
+                }
+            }
+        });
+        return migrationLocation.get();
     }
 
     static String getAbsolutePath(String pathInXl) {
