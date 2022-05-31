@@ -640,9 +640,12 @@ public class ActionSpecMapper {
             default:
                 throw new UnsupportedActionException(recommendation);
         }
-        if (recommendation.getInfo().hasReconfigure() && recommendation.getInfo().getReconfigure().getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
+
+        // Populate the placement and setting policies information that is related to this action.
+        if (shouldPopulateRelatedSettingsPolicy(recommendation)) {
             populateSettingsPolicyForActionApiDto(recommendation, actionApiDTO, context);
-        } else {
+        }
+        if (!isCloudReconfigure(recommendation))  {
             populatePolicyForActionApiDto(recommendation, actionApiDTO, context);
         }
 
@@ -731,6 +734,43 @@ public class ActionSpecMapper {
             return instanceId;
         }
     }
+
+    /**
+     * Determines whether we should append the automation policies to the action API DTO. This is
+     * mainly for improving performance.
+     *
+     * @param recommendedAction The recommended action
+     * @return Whether we should add the automation policies to the action API DTO
+     */
+    private boolean shouldPopulateRelatedSettingsPolicy(@Nonnull ActionDTO.Action recommendedAction) {
+        // We currently want to add the automation policies when we have cloud reconfigure actions
+        // or when you have a VM reconfigure action.
+        final ActionInfo actionInfo = recommendedAction.getInfo();
+        if (actionInfo.hasReconfigure()) {
+            final ActionEntity reconfigureEntity = actionInfo.getReconfigure().getTarget();
+            return reconfigureEntity.getEnvironmentType().equals(EnvironmentType.CLOUD)
+                    || EntityType.VIRTUAL_MACHINE_VALUE == reconfigureEntity.getType();
+        }
+        return false;
+    }
+
+    /**
+     * Determine whether the action is a cloud-reconfigure action.
+     *
+     * @param action the {@link Action}
+     * @return Whether the action is cloud-reconfigure
+     * */
+    private boolean isCloudReconfigure(@Nonnull Action action) {
+        final ActionInfo actionInfo = action.getInfo();
+        if (actionInfo.hasReconfigure()) {
+            final Reconfigure reconfigure = actionInfo.getReconfigure();
+            return reconfigure.hasTarget()
+                    && actionInfo.getReconfigure().getTarget().getEnvironmentType()
+                    == EnvironmentType.CLOUD;
+        }
+        return false;
+    }
+
 
     /**
      * Creates the API schedule object associated to the action.
@@ -1201,7 +1241,12 @@ public class ActionSpecMapper {
         List<BaseApiDTO> policies = new ArrayList<>();
         if (!settingsPolicies.isEmpty()) {
             RiskUtil.extractPolicyIds(action)
-                    .stream().forEach(p -> policies.add(settingsPolicies.get(p)));
+                    .forEach(p -> {
+                        final BaseApiDTO policy = settingsPolicies.get(p);
+                        if (policy != null) {
+                            policies.add(policy);
+                        }
+                    });
             wrapperDto.setRelatedSettingsPolicies(policies);
         }
     }
@@ -1217,37 +1262,15 @@ public class ActionSpecMapper {
                                                  @Nonnull final ActionApiDTO wrapperDto,
                                                  @Nonnull final ActionSpecMappingContext context) {
         final Map<Long, PolicyApiDTO> policyApiDtoMap = context.getPolicyIdToApiDtoMap();
-        final Map<Long, BaseApiDTO> settingPolicyIdToBaseApiDto = context.getSettingPolicyIdToBaseApiDto();
-        if (policyApiDtoMap.isEmpty() && settingPolicyIdToBaseApiDto.isEmpty()) {
+        if (policyApiDtoMap.isEmpty()) {
             return;
         }
         RiskUtil.extractPolicyIds(action)
                 .stream()
-                .map(aLong -> {
-                    PolicyApiDTO policyApiDTO = policyApiDtoMap.get(aLong);
-                    return policyApiDTO != null ? policyApiDTO : convertToPolicyApiDTO(settingPolicyIdToBaseApiDto.get(aLong));
-                })
+                .map(policyApiDtoMap::get)
                 .filter(Objects::nonNull)
                 .findAny()
                 .ifPresent(wrapperDto::setPolicy);
-    }
-
-    /**
-     * Create a minimal policy api dto with the provided information from the baseApiDTO.
-     *
-     * @param baseApiDTO base api DTO
-     * @return a minimal PolicyApiDTO
-     */
-    private PolicyApiDTO convertToPolicyApiDTO(@Nullable BaseApiDTO baseApiDTO) {
-        if (baseApiDTO == null) {
-            return null;
-        }
-
-        final PolicyApiDTO policyApiDTO = new PolicyApiDTO();
-        policyApiDTO.setDisplayName(baseApiDTO.getDisplayName());
-        policyApiDTO.setClassName(baseApiDTO.getClassName());
-        policyApiDTO.setUuid(baseApiDTO.getUuid());
-        return policyApiDTO;
     }
 
     private ActionApiDTO singleMove(ActionType actionType, ActionApiDTO compoundDto,

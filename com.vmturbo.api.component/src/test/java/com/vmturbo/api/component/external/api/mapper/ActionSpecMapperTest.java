@@ -1050,14 +1050,6 @@ public class ActionSpecMapperTest {
         assertEquals(2, output.getRelatedSettingsPolicies().stream().count());
     }
 
-    private void assertReconfigActionPolicy(ActionApiDTO actionApiDTO, @Nonnull BaseApiDTO settingPolicy) {
-        PolicyApiDTO policyApiDTO = actionApiDTO.getPolicy();
-        assertNotNull(policyApiDTO);
-        assertEquals(settingPolicy.getUuid(), policyApiDTO.getUuid());
-        assertEquals(settingPolicy.getDisplayName(), policyApiDTO.getDisplayName());
-        assertEquals(settingPolicy.getClassName(), policyApiDTO.getClassName());
-    }
-
     /**
      * Test map reconfigure action to ActionApiDTO with policy information populated.
      */
@@ -1067,18 +1059,14 @@ public class ActionSpecMapperTest {
         ApiPartialEntity entity = topologyEntityDTO("Test Entity", 3L, EntityType.VIRTUAL_MACHINE_VALUE);
         entitiesMap.put(1L, entity);
         long policyOid = 12345L;
-        long policyOid2 = 123456L;
         String policyName = "Test";
         Map<Long, PolicyApiDTO> policyApiDto = new HashMap<>();
-        Map< Long, BaseApiDTO> settingPolicies = new HashMap<>();
-        BaseApiDTO settingsPolicyDto = createPolicyBaseApiDTO(policyOid2, policyName, "");
         policyApiDto.put(policyOid, createPolicyApiDTO(policyOid, policyName));
-        settingPolicies.put(policyOid2, settingsPolicyDto);
 
         ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
             Collections.emptyMap(), Collections.emptyMap(),
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), serviceEntityMapper, false, policyApiDto, settingPolicies, Collections.emptyMap());
+            Collections.emptyMap(), serviceEntityMapper, false, policyApiDto, Collections.emptyMap(), Collections.emptyMap());
 
         final ReasonCommodity placement =
                         createReasonCommodity(CommodityDTO.CommodityType.SEGMENTATION_VALUE, String.valueOf(policyOid));
@@ -1095,30 +1083,17 @@ public class ActionSpecMapperTest {
                             .setReconfigure(ReconfigureExplanation.newBuilder()
                                     .addReconfigureCommodity(placement).build())
                             .build();
-        Set<Long> settingsPolicyIds = new HashSet<>();
-        settingsPolicyIds.add(policyOid2);
-        Explanation reconfigureReasonSettings =
-                Explanation.newBuilder()
-                        .setReconfigure(ReconfigureExplanation.newBuilder()
-                                .addAllReasonSettings(settingsPolicyIds).build())
-                        .build();
 
         Action reconfWithPlacement = Action.newBuilder().setInfo(info).setId(2222L).setExplanation(reconfigurePlacementComm)
-                .setDeprecatedImportance(1).build();
-        Action reconfWithReasonList = Action.newBuilder().setInfo(info).setId(2223L).setExplanation(reconfigureReasonSettings)
                 .setDeprecatedImportance(1).build();
         ActionApiDTO output = new ActionApiDTO();
         final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
         when(repositoryApi.entitiesRequest(Collections.emptySet()))
                 .thenReturn(dbReq);
         mapper.populatePolicyForActionApiDto(reconfWithPlacement, output, context);
+        assertNotNull(output.getPolicy());
         assertEquals(policyName, output.getPolicy().getDisplayName());
         assertEquals(String.valueOf(policyOid), output.getPolicy().getUuid());
-
-        output = new ActionApiDTO();
-        mapper.populatePolicyForActionApiDto(reconfWithReasonList, output, context);
-        // When we do not have a matching placement policy we will resort to an automation policy
-        assertReconfigActionPolicy(output, settingsPolicyDto);
     }
 
     @Test
