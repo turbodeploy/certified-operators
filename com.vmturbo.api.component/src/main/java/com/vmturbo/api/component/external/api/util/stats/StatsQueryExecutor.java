@@ -445,10 +445,18 @@ public class StatsQueryExecutor {
             if (entities.isEmpty()) {
                 return false;
             }
-            return repositoryApi.entitiesRequest(entities)
-                .getMinimalEntities()
-                .map(MinimalEntity::getDiscoveringTargetIdsList)
-                .allMatch(targetIds -> targetIds.stream().anyMatch(fabricTargets::contains));
+            // only show when all the entities does not have fabric targets and have provider type as chassis
+            if (entityTypes.contains(ApiEntityType.PHYSICAL_MACHINE)) {
+                return repositoryApi.entitiesRequest(entities).getEntities().anyMatch(relatedEntity -> relatedEntity.getProvidersList().stream().anyMatch(providerEntity ->
+                        ApiEntityType.fromType(providerEntity.getEntityType()).equals(ApiEntityType.CHASSIS)));
+            }
+            // only show if all the entities have fabric target
+            if (entityTypes.contains(ApiEntityType.DATACENTER)) {
+                return repositoryApi.entitiesRequest(entities)
+                        .getEntities()
+                        .anyMatch(entity -> entity.getConsumersList().stream().anyMatch(consumerEntity -> ApiEntityType.fromType(consumerEntity.getEntityType()).equals(ApiEntityType.CHASSIS)));
+            }
+            return false;
         } else if (scope.isTarget()) {
             // if it's target, just check if it's fabric target
             return fabricTargets.contains(scope.oid());
@@ -456,10 +464,18 @@ public class StatsQueryExecutor {
             // do not show for plan or market
             return false;
         }
-
-        // handle entity types like dc, host, chassis, etc., check if the entity contains
-        // FABRIC target in its discovery target ids
-        return scope.getDiscoveringTargetIds().stream().anyMatch(fabricTargets::contains);
+        // only show if all the entities does not match fabric target and contain list of host.
+        ApiEntityType catchedEntityType = scope.getCachedEntityInfo().get().getEntityType();
+        if(scope.getCachedEntityInfo().isPresent()) {
+            if (catchedEntityType.equals(ApiEntityType.PHYSICAL_MACHINE)) {
+                return repositoryApi.entitiesRequest(scope.getScopeOids()).getEntities().anyMatch(relatedEntity -> relatedEntity.getProvidersList().stream().anyMatch(providerEntity -> ApiEntityType.fromType(providerEntity.getEntityType()).equals(ApiEntityType.CHASSIS)));
+            }
+            if (catchedEntityType.equals(ApiEntityType.DATACENTER)) {
+                return repositoryApi.entitiesRequest(scope.getScopeOids()).getEntities().anyMatch(relatedEntity -> relatedEntity.getProvidersList().stream().anyMatch(providerEntity -> ApiEntityType.fromType(providerEntity.getEntityType()).equals(ApiEntityType.CHASSIS)));
+            }
+            return catchedEntityType.equals(ApiEntityType.CHASSIS);
+        }
+        return false;
     }
 
     /**
