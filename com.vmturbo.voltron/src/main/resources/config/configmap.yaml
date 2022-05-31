@@ -140,6 +140,8 @@ defaultProperties:
     readonlyUserName: vmtreader
     readonlyPassword: vmturbo
     queryTimeoutSeconds: 900
+    # We specify the migrationTopFolder because it differs from history's topFolder.
+    migrationTopFolder: com.vmturbo.history.schema
     # Migrations such as adding a new column to an existing huge database can take a
     # long time. So set the timeout to a high value.
     migrationTimeoutSeconds: 86400

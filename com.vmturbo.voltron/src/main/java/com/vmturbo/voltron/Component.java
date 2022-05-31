@@ -1,5 +1,7 @@
 package com.vmturbo.voltron;
 
+import static com.vmturbo.voltron.Voltron.getAbsolutePath;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -72,77 +74,53 @@ public enum Component {
     /**
      * The auth component.
      */
-    AUTH("auth", "com.vmturbo.auth.component", AuthComponent.class,
-            Optional.of(Auth.AUTH),
-            ImmutableMap.of(
-                    "migrationLocation", "filesystem:" + Voltron.getAbsolutePath("com.vmturbo.auth.component/src/main/resources/db/migration")
-            )),
+    AUTH("auth", "com.vmturbo.auth.component", AuthComponent.class, Optional.of(Auth.AUTH)),
 
     /**
      * The topology processor.
      */
-    TOPOLOGY_PROCESSOR("topology-processor",
-            "com.vmturbo.topology.processor", TopologyProcessorComponent.class,
-            Optional.of(TopologyProcessor.TOPOLOGY_PROCESSOR),
-            ImmutableMap.of(
-                    "migrationLocation", "filesystem:" + Voltron.getAbsolutePath("com.vmturbo.topology.processor/src/main/resources/db/migration")
-            )),
+    TOPOLOGY_PROCESSOR("topology-processor", "com.vmturbo.topology.processor",
+            TopologyProcessorComponent.class, Optional.of(TopologyProcessor.TOPOLOGY_PROCESSOR)),
 
     /**
      * The market.
      */
     MARKET("market", "com.vmturbo.market.component", MarketComponent.class,
-            Optional.of(Market.MARKET),
-            ImmutableMap.of("migrationLocation", "filesystem:" + Voltron.getAbsolutePath("com.vmturbo.market.component/src/main/resources/db/migration"))),
+            Optional.of(Market.MARKET)),
 
     /**
      * The action orchestrator.
      */
-    ACTION_ORCHESTRATOR("action-orchestrator",
-            "com.vmturbo.action.orchestrator", ActionOrchestratorComponent.class,
-            Optional.of(Action.ACTION),
-            ImmutableMap.of("migrationLocation", "filesystem:" + Voltron.getAbsolutePath(
-                    "com.vmturbo.action.orchestrator/src/main/resources/db/migration"))),
+    ACTION_ORCHESTRATOR("action-orchestrator", "com.vmturbo.action.orchestrator",
+            ActionOrchestratorComponent.class, Optional.of(Action.ACTION)),
 
     /**
      * The history component.
      */
-    HISTORY("history", "com.vmturbo.history", HistoryComponent.class,
-            Optional.of(Vmtdb.VMTDB),
-            ImmutableMap.of("migrationLocation", "filesystem:" + Voltron.getAbsolutePath("com.vmturbo.history.schema/src/main/resources/db/migration"))),
+    HISTORY("history", "com.vmturbo.history", HistoryComponent.class, Optional.of(Vmtdb.VMTDB)),
 
     /**
      * The plan orchestrator.
      */
     PLAN_ORCHESTRATOR("plan-orchestrator", "com.vmturbo.plan.orchestrator",
-            PlanOrchestratorComponent.class, Optional.of(Plan.PLAN),
-            ImmutableMap.of("migrationLocation", "filesystem:" + Voltron.getAbsolutePath(
-                    "com.vmturbo.plan.orchestrator/src/main/resources/db/migration"))),
+            PlanOrchestratorComponent.class, Optional.of(Plan.PLAN)),
 
     /**
      * The cost component.
      */
-    COST("cost", "com.vmturbo.cost.component", CostComponent.class,
-            Optional.of(Cost.COST),
-        ImmutableMap.of("migrationLocation", "filesystem:" + Voltron.getAbsolutePath(
-            "com.vmturbo.cost.component/src/main/resources/db/migration"))),
+    COST("cost", "com.vmturbo.cost.component", CostComponent.class, Optional.of(Cost.COST)),
 
     /**
      * The group component.
      */
-    GROUP("group", "com.vmturbo.group.component",
-            GroupComponent.class,
-            Optional.of(com.vmturbo.group.db.GroupComponent.GROUP_COMPONENT),
-            ImmutableMap.of("migrationLocation", "filesystem:" + Voltron.getAbsolutePath(
-            "com.vmturbo.group.component/src/main/resources/db/migration"))),
+    GROUP("group", "com.vmturbo.group.component", GroupComponent.class,
+            Optional.of(com.vmturbo.group.db.GroupComponent.GROUP_COMPONENT)),
 
     /**
      * The repository component.
      */
-    REPOSITORY("repository", "com.vmturbo.repository.component",
-            RepositoryComponent.class, Optional.of(Repository.REPOSITORY),
-            ImmutableMap.of("migrationLocation", "filesystem:" + Voltron.getAbsolutePath(
-                    "com.vmturbo.repository.component/src/main/resources/db/migration"))),
+    REPOSITORY("repository", "com.vmturbo.repository.component", RepositoryComponent.class,
+            Optional.of(Repository.REPOSITORY)),
 
     /**
      * The extractor component.
@@ -150,8 +128,8 @@ public enum Component {
     EXTRACTOR("extractor", "com.vmturbo.extractor",
             ExtractorComponent.class, Optional.of(Extractor.EXTRACTOR),
             ImmutableMap.<String, Object>builder()
-                .put("dbMigrationLocation", Voltron.migrationLocation("com.vmturbo.extractor.schema"))
-                .put("grafanaBuiltinDashboardPath", Voltron.getAbsolutePath("com.vmturbo.extractor/src/main/resources/dashboards"))
+                .put("dbMigrationLocation", "filesystem:" + getAbsolutePath("com.vmturbo.extractor.schema/src/main/resources"))
+                .put("grafanaBuiltinDashboardPath", getAbsolutePath("com.vmturbo.extractor/src/main/resources/dashboards"))
                 .build()),
 
     /**
@@ -161,7 +139,7 @@ public enum Component {
             Optional.empty(),
             ImmutableMap.<String, Object>builder().put("pom.name", "POMPOM")
                     // Temporary - API imports extractor schema.
-                    .put("dbMigrationLocation", Voltron.migrationLocation("com.vmturbo.extractor.schema"))
+                    .put("dbMigrationLocation", "filesystem:" + getAbsolutePath("com.vmturbo.extractor.schema/src/main/resources"))
                     .put("pom.version", "POMVERSION")
                     .put("turbo-version.commit.time", "never")
                     .put("timestamp", "future")
@@ -524,7 +502,7 @@ public enum Component {
                 configClass,
                 Optional.empty(),
                 ImmutableMap.of("probe-directory",
-                        Voltron.getAbsolutePath(probeTopFolder + "/target/probe-jars")));
+                        getAbsolutePath(probeTopFolder + "/target/probe-jars")));
     }
 
     Component(

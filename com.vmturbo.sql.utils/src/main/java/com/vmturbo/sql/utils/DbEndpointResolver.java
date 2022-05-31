@@ -720,7 +720,7 @@ public class DbEndpointResolver {
      * @param componentName the name of the component
      * @return the sanitized component name
      */
-    private static String sanitizeComponentName(String componentName) {
+    public static String sanitizeComponentName(String componentName) {
         if (componentName != null && !componentName.isEmpty()) {
             return componentName.toLowerCase().replace("-", "");
         }
