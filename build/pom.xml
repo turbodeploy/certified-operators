@@ -194,7 +194,7 @@
         <timescaledbPassword>vmturbo</timescaledbPassword>
 
         <!-- For spinning up a postgres container for testing during maven build-->
-        <postgres-image>registry.turbonomic.com/turbonomic/postgres:1.1</postgres-image>
+        <postgres-image>registry.turbonomic.com/turbonomic/postgres:1.0</postgres-image>
         <!-- this is needed so postgres container is created locally rather than remote machine,
              and the name needs to be different from DOCKER_HOST env variable, so images can be
              pushed to remote machine during team branch's nightly build -->

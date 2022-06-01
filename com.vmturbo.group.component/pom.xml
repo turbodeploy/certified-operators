@@ -441,9 +441,11 @@
                                                         CDATA prevents intellij from wrapping the search
                                                         string, which would break things.
                                                         We wait for a message that shows that timescale
-                                                        is ready.
+                                                        is ready, and we wait to see it twice, since the
+                                                        container's entry-point script includes an internal
+                                                        restart.
                                                         -->
-                                                        <![CDATA[database system is ready to accept connections]]>
+                                                        <![CDATA[(?s)database system is ready to accept connections.*database system is ready to accept connections]]>
                                                     </log>
                                                     <time>120000</time>
                                                 </wait>

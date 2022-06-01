@@ -601,7 +601,7 @@ services:
     mem_limit: ${TIMESCALE_MEM_LIMIT_BYTE}
 
   postgres:
-    image: registry.turbonomic.com/turbonomic/postgres:1.1
+    image: registry.turbonomic.com/turbonomic/postgres:1.0
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: vmturbo
