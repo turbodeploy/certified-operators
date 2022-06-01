@@ -62,6 +62,8 @@ import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
@@ -144,7 +146,7 @@ public class StatsQueryExecutorTest {
         RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
                 .mockSingleEntityRequest(vmDto);
         when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
-
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.empty());
         assertThat(executor.getAggregateStats(scope, period), is(Collections.emptyList()));
     }
 
@@ -170,7 +172,7 @@ public class StatsQueryExecutorTest {
         StatSnapshotApiDTO snapshot = snapshotWithStats(MILLIS, stat);
         when(statsSubQuery1.getAggregateStats(any(), any()))
             .thenReturn(Collections.singletonList(snapshot));
-
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.empty());
         // ACT
         List<StatSnapshotApiDTO> results = executor.getAggregateStats(scope, period);
 
@@ -225,7 +227,7 @@ public class StatsQueryExecutorTest {
         RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
                 .mockSingleEntityRequest(vmDto);
         when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
-
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.empty());
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
 
@@ -311,7 +313,7 @@ public class StatsQueryExecutorTest {
         RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
                 .mockSingleEntityRequest(vmDto);
         when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
-
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.empty());
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
 
@@ -360,7 +362,7 @@ public class StatsQueryExecutorTest {
         RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
                 .mockSingleEntityRequest(vmDto);
         when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
-
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.empty());
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
 
@@ -410,7 +412,7 @@ public class StatsQueryExecutorTest {
         RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
                 .mockSingleEntityRequest(vmDto);
         when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
-
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.empty());
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
 
@@ -450,7 +452,7 @@ public class StatsQueryExecutorTest {
         RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
                 .mockSingleEntityRequest(vmDto);
         when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
-
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.empty());
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
         assertThat(stats.size(), is(1));
@@ -485,7 +487,7 @@ public class StatsQueryExecutorTest {
         RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
                 .mockSingleEntityRequest(vmDto);
         when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
-
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.empty());
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
         assertThat(stats.size(), is(1));
@@ -553,21 +555,10 @@ public class StatsQueryExecutorTest {
         final CachedGroupInfo groupInfo = mock(CachedGroupInfo.class);
         when(groupInfo.getEntityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.PHYSICAL_MACHINE));
         when(scope.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));
-        // If not all entities in group were discovered by fabric, then don't show cooling and power.
-        when(groupInfo.getEntityIds()).thenReturn(Sets.newHashSet(host1.getOid(), host2.getOid()));
-        MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiMinEntityReq(
-            Lists.newArrayList(host1, host2));
-        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
+        // If the provider/consumer is not chassis, then don't show cooling and power.
+        when(scope.getCachedGroupInfo()).thenReturn(Optional.empty());
         stats = executor.getAggregateStats(scope, period);
         assertFalse(stats.get(0).getStatistics().stream()
-            .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
-
-        // If all entities were discovered by fabric, then show cooling and power.
-        when(groupInfo.getEntityIds()).thenReturn(Sets.newHashSet(host1.getOid()));
-        multiEntityRequest = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(host1));
-        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
-        stats = executor.getAggregateStats(scope, period);
-        assertTrue(stats.get(0).getStatistics().stream()
             .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
 
         //check for group, always show cooling and power when groups contains Chassis.
@@ -576,6 +567,35 @@ public class StatsQueryExecutorTest {
         stats = executor.getAggregateStats(scope, period);
         assertTrue(stats.get(0).getStatistics().stream()
                 .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
+
+        // if no host or DC in this group, then do not show
+        when(groupInfo.getEntityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.VIRTUAL_MACHINE));
+        when(scope.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));
+        stats = executor.getAggregateStats(scope, period);
+        assertFalse(stats.get(0).getStatistics().stream()
+                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
+
+        // If physical machine buys from a chassis, we show power and cooling
+        when(groupInfo.getEntityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.PHYSICAL_MACHINE));
+        when(groupInfo.getEntityIds()).thenReturn(Sets.newHashSet(1L));
+        final ApiPartialEntity hostBuyingFromChassis = ApiPartialEntity.newBuilder().setOid(1).setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber()).addProviders(RelatedEntity.newBuilder().setOid(2).setEntityType(ApiEntityType.CHASSIS.typeNumber())).build();
+        final ApiPartialEntity datacenterSellingToChassis = ApiPartialEntity.newBuilder().setOid(1).setEntityType(ApiEntityType.DATACENTER.typeNumber()).addConsumers(RelatedEntity.newBuilder().setOid(2).setEntityType(ApiEntityType.CHASSIS.typeNumber())).build();
+        MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiEntityReq(
+                Lists.newArrayList(hostBuyingFromChassis));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
+        stats = executor.getAggregateStats(scope, period);
+        assertTrue(stats.get(0).getStatistics().stream()
+                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
+
+        // If datacenter sells to chassis, we show power and cooling
+        when(groupInfo.getEntityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.DATACENTER));
+        MultiEntityRequest multiEntityReq = ApiTestUtils.mockMultiEntityReq(
+                Lists.newArrayList(datacenterSellingToChassis));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityReq);
+        stats = executor.getAggregateStats(scope, period);
+        assertTrue(stats.get(0).getStatistics().stream()
+                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
+
 
         /*
          * Scope is an entity
@@ -588,17 +608,40 @@ public class StatsQueryExecutorTest {
         when(scope.isEntity()).thenReturn(true);
         when(scope.getScopeTypes()).thenReturn(Optional.of(ImmutableSet.of(
             ApiEntityType.PHYSICAL_MACHINE)));
-        // if host is not stitched, then don't show cooling and power.
-        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(1L));
+        // No power and cooling when cached info is not present.
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.empty());
         stats = executor.getAggregateStats(scope, period);
         assertFalse(stats.get(0).getStatistics().stream()
             .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
 
-        // if host is stitched, then show cooling and power.
-        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(1L, 2L));
+        // If the single entity is a chassis, we show power and cooling.
+        final UuidMapper.CachedEntityInfo cachedEntity = mock(UuidMapper.CachedEntityInfo.class);
+        when(cachedEntity.getEntityType()).thenReturn(ApiEntityType.CHASSIS);
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntity));
         stats = executor.getAggregateStats(scope, period);
         assertTrue(stats.get(0).getStatistics().stream()
             .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
+
+
+        // 1) If the single entity is physical machine and buys from chassis, show power and cooling
+        when(cachedEntity.getEntityType()).thenReturn(ApiEntityType.PHYSICAL_MACHINE);
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntity));
+        multiEntityRequest = ApiTestUtils.mockMultiEntityReq(
+                Lists.newArrayList(hostBuyingFromChassis));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
+        stats = executor.getAggregateStats(scope, period);
+        assertTrue(stats.get(0).getStatistics().stream()
+                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
+
+        // 2) If the single entity is data center and sells to chassis, show power and cooling.
+        when(cachedEntity.getEntityType()).thenReturn(ApiEntityType.DATACENTER);
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntity));
+        multiEntityReq = ApiTestUtils.mockMultiEntityReq(
+                Lists.newArrayList(datacenterSellingToChassis));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityReq);
+        stats = executor.getAggregateStats(scope, period);
+        assertTrue(stats.get(0).getStatistics().stream()
+                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
 
         /*
          * Scope is market
@@ -657,20 +700,20 @@ public class StatsQueryExecutorTest {
         RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
                 .mockSingleEntityRequest(vmDto);
         when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
-
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.empty());
         // if targets is not hyperconverged or fabric, then don't show cooling and power.
-        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(2L));
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
         assertFalse(stats.get(0).getStatistics().stream()
                 .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
 
         // if targets is hyperconverged or fabric, then show cooling and power.
-        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(1L));
+        final UuidMapper.CachedEntityInfo ci = mock(UuidMapper.CachedEntityInfo.class);
+        when(ci.getEntityType()).thenReturn(ApiEntityType.CHASSIS);
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.of(ci));
         stats = executor.getAggregateStats(scope, period);
         assertTrue(stats.get(0).getStatistics().stream()
                 .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
 
-        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(5L));
         stats = executor.getAggregateStats(scope, period);
         assertTrue(stats.get(0).getStatistics().stream()
                 .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
@@ -807,7 +850,7 @@ public class StatsQueryExecutorTest {
         RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
                 .mockSingleEntityRequest(vmDto);
         when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
-
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.empty());
         // ACT
         List<StatSnapshotApiDTO> results = executor.getAggregateStats(scope, period);
 
