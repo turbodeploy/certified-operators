@@ -126,11 +126,17 @@ public class MarketCloudCostDataProvider extends AbstractCloudCostDataProvider i
                     .getAccountPricingDataByBusinessAccount(cloudTopo);
 
             // Get the existing RI bought.
+            GetReservedInstanceBoughtForAnalysisRequest.Builder riBoughtRequest =
+                    GetReservedInstanceBoughtForAnalysisRequest.newBuilder()
+                    .setTopologyInfo(topoInfo);
+            if (topoInfo.getTopologyType() == TopologyDTO.TopologyType.PLAN) {
+                // Send the VMs in the Plan scope to retrieve the correct RI Coverage
+                Set<Long> vmOids = cloudTopo.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE).stream()
+                        .map(e -> e.getOid()).collect(Collectors.toSet());
+                riBoughtRequest.addAllVmInScopeOids(vmOids);
+            }
             final GetReservedInstanceBoughtForAnalysisResponse riBoughtResponse =
-                riBoughtServiceClient.getReservedInstanceBoughtForAnalysis(
-                        GetReservedInstanceBoughtForAnalysisRequest.newBuilder()
-                                .setTopologyInfo(topoInfo)
-                                .build());
+                riBoughtServiceClient.getReservedInstanceBoughtForAnalysis(riBoughtRequest.build());
             final Map<Long, ReservedInstanceBought> riBoughtById =
                     new HashMap<>(riBoughtResponse.getReservedInstanceBoughtCount());
 

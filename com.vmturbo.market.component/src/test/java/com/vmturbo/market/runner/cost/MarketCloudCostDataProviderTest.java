@@ -7,6 +7,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -20,7 +21,9 @@ import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Matchers;
+import org.mockito.Mockito;
 
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
@@ -30,6 +33,7 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentServicesMoles;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForAnalysisRequest;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.EntityUptime;
 import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
@@ -239,6 +243,11 @@ public class MarketCloudCostDataProviderTest {
 
         MarketCloudCostDataProvider marketCloudCostDataProvider = new MarketCloudCostDataProvider(mockServer.getChannel(),
                         discountApplicatorFactory, topologyEntityInfoExtractor);
+
+        final ArgumentCaptor<GetReservedInstanceBoughtForAnalysisRequest> getRIBoughtCaptor =
+                ArgumentCaptor.forClass(GetReservedInstanceBoughtForAnalysisRequest.class);
+
+        // Call getCloudCostData
         CloudCostDataProvider.CloudCostData<TopologyDTO.TopologyEntityDTO> cloudCostData =
                         marketCloudCostDataProvider.getCloudCostData(topoInfo, cloudTopology,
                                         topologyEntityInfoExtractor);
@@ -252,6 +261,15 @@ public class MarketCloudCostDataProviderTest {
             expectedUptimeDTO.getUptimePercentage());
         verifyUptimePercentage(cloudCostData, CLOUD_VM_2.getOid(),
             EntityUptimeDTO.getDefaultInstance().getUptimePercentage());
+
+        // verify the VM scope is applied correctly
+        Mockito.verify(riBoughtService)
+                .getReservedInstanceBoughtForAnalysis(getRIBoughtCaptor.capture());
+        List<Long> getRIBoughtReqVmOids = getRIBoughtCaptor.getValue().getVmInScopeOidsList();
+        assertEquals(2, getRIBoughtReqVmOids.size());
+        assertTrue(getRIBoughtReqVmOids.contains(CLOUD_VM_1.getOid()));
+        assertTrue(getRIBoughtReqVmOids.contains(CLOUD_VM_2.getOid()));
+
         // now check real time
         topoInfo = topoInfo.toBuilder().setTopologyType(TopologyType.REALTIME).build();
         cloudCostData = marketCloudCostDataProvider.getCloudCostData(topoInfo, cloudTopology,
