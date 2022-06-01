@@ -562,6 +562,13 @@
         </profile>
 
         <profile>
+            <id>hydra</id>
+            <modules>
+                <module>../hydra</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>component-tests</id>
             <modules>
                 <module>../com.vmturbo.components.test.utilities</module>
@@ -1246,6 +1253,7 @@
                 <module>../kafka</module>
                 <module>../zookeeper</module>
                 <module>../nginx</module>
+                <module>../hydra</module>
                 <!-- Generate XL python bindings. -->
                 <module>../xl-python</module>
                 <module>../grafana</module>
@@ -1478,6 +1486,7 @@
                 <module>../zookeeper</module>
                 <module>../nginx</module>
                 <module>../grafana</module>
+                <module>../hydra</module>
                 <module>../diags</module>
             </modules>
         </profile>
