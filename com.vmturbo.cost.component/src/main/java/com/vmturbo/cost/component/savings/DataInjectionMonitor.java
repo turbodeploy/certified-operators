@@ -38,7 +38,7 @@ import com.google.gson.stream.JsonReader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
@@ -228,7 +228,7 @@ public class DataInjectionMonitor implements Runnable {
 
         // Handle the script events.
         final AtomicBoolean purgePreviousTestState = new AtomicBoolean(false);
-        final Map<Long, NavigableSet<ActionSpec>> actionChains = new HashMap<>();
+        final Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains = new HashMap<>();
         final Map<Long, Set<BillingRecord>> billRecordsByEntity = new HashMap<>();
         scenarioDataInjector.handleScriptEvents(scriptEvents, uuidMap, purgePreviousTestState,
                 actionChains, billRecordsByEntity);

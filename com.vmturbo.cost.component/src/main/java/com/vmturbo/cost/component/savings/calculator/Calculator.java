@@ -23,7 +23,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.components.common.utils.TimeUtil;
@@ -65,7 +65,7 @@ public class Calculator {
      */
     @Nonnull
     public List<SavingsValues> calculate(long entityOid, @Nonnull Set<BillingRecord> billRecords,
-            @Nonnull NavigableSet<ActionSpec> actionChain, long lastProcessedDate,
+            @Nonnull NavigableSet<ExecutedActionsChangeWindow> actionChain, long lastProcessedDate,
             @Nonnull LocalDateTime periodEndTime) {
         if (actionChain.isEmpty()) {
             logger.error("Savings calculator invoked for an entity {} with no actions.",
@@ -76,7 +76,7 @@ public class Calculator {
         // Make sure all actions in the action chain are for the same entity.
         boolean actionChainInvalid = actionChain.stream().map(a -> {
             try {
-                return ActionDTOUtil.getPrimaryEntity(a.getRecommendation()).getId();
+                return ActionDTOUtil.getPrimaryEntity(a.getActionSpec().getRecommendation()).getId();
             } catch (UnsupportedActionException e) {
                 return 0L;
             }
@@ -88,7 +88,7 @@ public class Calculator {
         }
 
         // Create the high-low graph from the action chain.
-        SavingsGraph savingsGraph = new SavingsGraph(actionChain);
+        SavingsGraph savingsGraph = new SavingsGraph(actionChain, deleteActionExpiryMs);
         logger.debug(() -> savingsGraph);
 
         // Create a map of bill records associated for each day.
@@ -108,15 +108,15 @@ public class Calculator {
         // Start on the day after a delete action, there will not be bill records for the deleted
         // entity. We want to claim savings for the delete action every day after the action until
         // the action expires.
-        if (actionChain.last().getRecommendation().getInfo().hasDelete()
-                && actionChain.last().getExecutionStep().hasCompletionTime()) {
+        if (actionChain.last().getActionSpec().getRecommendation().getInfo().hasDelete()
+                && actionChain.last().getActionSpec().getExecutionStep().hasCompletionTime()) {
             logger.debug("Delete action exists for entity OID {}.", entityOid);
             // Start processing on the day after the last processed day.
             LocalDateTime processDay = TimeUtil.millisToLocalDateTime(lastProcessedDate, clock).plusDays(1);
             // We expect a bill record for the deleted entity for the day on which the delete action
             // was executed. So start on the day after the delete action execution if start day is
             // before the delete action execution day.
-            long deleteActionTime = actionChain.last().getExecutionStep().getCompletionTime();
+            long deleteActionTime = actionChain.last().getActionSpec().getExecutionStep().getCompletionTime();
             LocalDateTime deleteActionDateTime = TimeUtil.millisToLocalDateTime(deleteActionTime, clock);
             if (processDay.isBefore(deleteActionDateTime)) {
                 // Start processing on the day after the day when the delete action was executed.

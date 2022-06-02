@@ -7,7 +7,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 
 /**
  * Interface for classes that can handle injected test data.
@@ -25,7 +25,7 @@ public interface ScenarioDataHandler {
      * @throws EntitySavingsException Errors with generating or writing stats
      */
     void processStates(@Nonnull Set<Long> participatingUuids, @Nonnull LocalDateTime startTime,
-            @Nonnull LocalDateTime endTime, @Nonnull Map<Long, NavigableSet<ActionSpec>> actionChains,
+            @Nonnull LocalDateTime endTime, @Nonnull Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains,
             @Nonnull Map<Long, Set<BillingRecord>> billRecordsByEntity) throws EntitySavingsException;
 
     /**

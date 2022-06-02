@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.cost.component.savings.DataInjectionMonitor.ScriptEvent;
 
 /**
@@ -34,6 +34,6 @@ public interface ScenarioDataInjector {
     void handleScriptEvents(@Nonnull List<ScriptEvent> scriptEvents,
             @Nonnull Map<String, Long> uuidMap,
             @Nonnull AtomicBoolean purgePreviousTestState,
-            @Nonnull Map<Long, NavigableSet<ActionSpec>> actionChains,
+            @Nonnull Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains,
             @Nonnull Map<Long, Set<BillingRecord>> billRecordsByEntity);
 }

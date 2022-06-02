@@ -1,7 +1,7 @@
 package com.vmturbo.cost.component.savings;
 
 import static com.vmturbo.cost.component.savings.EntitySavingsConfig.supportedProviderTypes;
-import static com.vmturbo.cost.component.savings.GrpcActionChainStore.specComparator;
+import static com.vmturbo.cost.component.savings.GrpcActionChainStore.changeWindowComparator;
 import static com.vmturbo.cost.component.util.TestUtils.getTimeMillis;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -55,7 +55,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.common.protobuf.cost.Cost.UploadBilledCostRequest.BillingDataPoint;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
@@ -346,8 +346,8 @@ public class SavingsProcessorTest extends MultiDbTestBase {
                 entityName);
         final CSVParser parser;
         final String templateContents;
-        final Map<Long, NavigableSet<ActionSpec>> specsByEntity = ImmutableMap.of(
-                entityId, new TreeSet<>(specComparator)
+        final Map<Long, NavigableSet<ExecutedActionsChangeWindow>> specsByEntity = ImmutableMap.of(
+                entityId, new TreeSet<>(changeWindowComparator)
         );
         try {
             parser = TestUtils.readCsvFile(actionCsvFile, getClass());
@@ -356,7 +356,7 @@ public class SavingsProcessorTest extends MultiDbTestBase {
             // For each settings record, populate the template file and load the protobuf spec.
             if (parser != null && templateContents != null) {
                 parser.forEach(csvRecord -> {
-                    final ActionSpec.Builder builder = ActionSpec.newBuilder();
+                    final ExecutedActionsChangeWindow.Builder builder = ExecutedActionsChangeWindow.newBuilder();
                     loadProtobufBuilder(entityName, templateContents, csvRecord,
                             EnumSet.allOf(ActionSettingsHeader.class), builder);
                     specsByEntity.get(entityId).add(builder.build());

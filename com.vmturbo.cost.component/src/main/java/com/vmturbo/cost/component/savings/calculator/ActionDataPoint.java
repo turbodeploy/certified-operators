@@ -17,9 +17,12 @@ public interface ActionDataPoint {
 
     /**
      * The destination provider OID. (i.e. the provider of the entity after the timestamp of this
-     * data point.)
+     * data point.) Default value is 0.
      *
      * @return destination provider OID
      */
-    long getDestinationProviderOid();
+    @Value.Default
+    default long getDestinationProviderOid() {
+        return 0;
+    }
 }

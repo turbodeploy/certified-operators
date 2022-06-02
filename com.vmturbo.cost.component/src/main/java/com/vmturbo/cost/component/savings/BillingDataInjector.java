@@ -13,7 +13,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.savings.DataInjectionMonitor.ScriptEvent;
 
@@ -79,7 +79,7 @@ public class BillingDataInjector implements ScenarioDataInjector {
     public void handleScriptEvents(@Nonnull List<ScriptEvent> scriptEvents,
             @Nonnull Map<String, Long> uuidMap,
             @Nonnull AtomicBoolean purgePreviousTestState,
-            @Nonnull Map<Long, NavigableSet<ActionSpec>> actionChains,
+            @Nonnull Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains,
             @Nonnull Map<Long, Set<BillingRecord>> billRecordsByEntity) {
         if (scriptEvents.isEmpty()) {
             return;

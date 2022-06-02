@@ -143,6 +143,63 @@ public class ScenarioGeneratorTest {
         assertTrue(CollectionUtils.isEqualCollection(expectedRecords, result.get(uuidMap.get(vm1))));
     }
 
+    /**
+     * Test the generation of bill records from script events. Both scale and power events are tested.
+     * Scenario:
+     * 1. On Apr 25, 2022, scale vm1 from tierA to tierB at 7am.
+     * 2. On Apr 26, 2022, scale vm1 from tierB to tierC at 10am.
+     * 3. On Apr 27, 2022, revert the last scale action at 1pm.
+     * Expect 2 bill records on Apr 25, for tierA and tierB respectively.
+     * Expect 2 bill records on Apr 26, for tierB and tierC respectively.
+     * Expect 2 bill records on Apr 27, for tierC and tierB respectively.
+     * Expect 1 bill records on Apr 28, for tierB.
+     */
+    @Test
+    public void testGenerateBillRecordsForRevert() {
+        final double tierARate = 2.0;
+        final double tierBRate = 1.0;
+        final double tierCRate = 3.0;
+        List<BillingScriptEvent> events = new ArrayList<>();
+
+        events.add(createScaleEvent(getMillis(2022, 4, 25, 7, 0),
+                vm1, tierARate, tierBRate));
+        events.add(createScaleEvent(getMillis(2022, 4, 26, 10, 0),
+                vm1, tierBRate, tierCRate));
+        events.add(createRevertEvent(getMillis(2022, 4, 27, 13, 0),
+                vm1));
+
+        LocalDateTime scenarioStart = LocalDateTime.of(2022, 4, 25, 0, 0);
+        LocalDateTime scenarioEnd = LocalDateTime.of(2022, 4, 29, 0, 0);
+        Map<Long, Set<BillingRecord>> result =
+                ScenarioGenerator.generateBillRecords(events, uuidMap, scenarioStart, scenarioEnd);
+        Assert.assertEquals(1, result.size());
+
+        Set<BillingRecord> expectedRecords = new HashSet<>();
+        BillingRecord record1 = createBillingRecord(scenarioStart, uuidMap.get(vm1), tierARate,
+                7, 7 * 2);
+        BillingRecord record2 = createBillingRecord(scenarioStart, uuidMap.get(vm1), tierBRate,
+                17, 17);
+        BillingRecord record3 = createBillingRecord(scenarioStart.plusDays(1), uuidMap.get(vm1), tierBRate,
+                10, 10);
+        BillingRecord record4 = createBillingRecord(scenarioStart.plusDays(1), uuidMap.get(vm1), tierCRate,
+                14, 14 * 3);
+        BillingRecord record5 = createBillingRecord(scenarioStart.plusDays(2), uuidMap.get(vm1), tierCRate,
+                13, 13 * 3);
+        BillingRecord record6 = createBillingRecord(scenarioStart.plusDays(2), uuidMap.get(vm1), tierBRate,
+                11, 11);
+        BillingRecord record7 = createBillingRecord(scenarioStart.plusDays(3), uuidMap.get(vm1), tierBRate,
+                24, 24);
+
+        expectedRecords.add(record1);
+        expectedRecords.add(record2);
+        expectedRecords.add(record3);
+        expectedRecords.add(record4);
+        expectedRecords.add(record5);
+        expectedRecords.add(record6);
+        expectedRecords.add(record7);
+        assertTrue(CollectionUtils.isEqualCollection(expectedRecords, result.get(uuidMap.get(vm1))));
+    }
+
     private BillingScriptEvent createScaleEvent(long timestamp, String uuid, double sourceOnDemandRate,
             double destinationOnDemandRate) {
         BillingScriptEvent event = new BillingScriptEvent();
@@ -160,6 +217,14 @@ public class ScenarioGeneratorTest {
         event.eventType = "POWER_STATE";
         event.uuid = uuid;
         event.state = state;
+        return event;
+    }
+
+    private BillingScriptEvent createRevertEvent(long timestamp, String uuid) {
+        BillingScriptEvent event = new BillingScriptEvent();
+        event.timestamp = timestamp;
+        event.eventType = "REVERT";
+        event.uuid = uuid;
         return event;
     }
 

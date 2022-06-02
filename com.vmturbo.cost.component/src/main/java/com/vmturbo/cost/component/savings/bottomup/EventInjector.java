@@ -13,8 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.cost.component.savings.BillingRecord;
 import com.vmturbo.cost.component.savings.DataInjectionMonitor;
 import com.vmturbo.cost.component.savings.ScenarioDataInjector;
@@ -86,7 +86,7 @@ public class EventInjector implements ScenarioDataInjector {
     public void handleScriptEvents(@Nonnull List<DataInjectionMonitor.ScriptEvent> scriptEvents,
             @Nonnull Map<String, Long> uuidMap,
             @Nonnull AtomicBoolean purgePreviousTestState,
-            @Nonnull Map<Long, NavigableSet<ActionSpec>> actionChains,
+            @Nonnull Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains,
             @Nonnull Map<Long, Set<BillingRecord>> billRecordsByEntity) {
         for (DataInjectionMonitor.ScriptEvent event : scriptEvents) {
             Long uuid = uuidMap.getOrDefault(event.uuid, 0L);

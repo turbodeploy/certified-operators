@@ -30,6 +30,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.TierCostDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -64,9 +66,9 @@ public class ScenarioGenerator {
      * @param uuidMap display name to OID map
      * @return map of entity OID to sorted (by time) set of action chains
      */
-    static Map<Long, NavigableSet<ActionSpec>> generateActionChains(List<BillingScriptEvent> events,
+    static Map<Long, NavigableSet<ExecutedActionsChangeWindow>> generateActionChains(List<BillingScriptEvent> events,
             Map<String, Long> uuidMap) {
-        final Map<Long, NavigableSet<ActionSpec>> actionChains = new HashMap<>();
+        final Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains = new HashMap<>();
         logger.info("Generating actions from script events:");
         for (BillingScriptEvent event : events) {
             Long oid = uuidMap.getOrDefault(event.uuid, 0L);
@@ -77,24 +79,36 @@ public class ScenarioGenerator {
             }
             LocalDateTime actionDateTime = TimeUtil.millisToLocalDateTime(actionTime, clock);
             if ("RESIZE".equals(event.eventType)) {
-                ActionSpec action = createVMActionSpec(oid, actionDateTime, event.sourceOnDemandRate,
+                ExecutedActionsChangeWindow action = createVMActionChangeWindow(oid, actionDateTime, event.sourceOnDemandRate,
                         event.destinationOnDemandRate, generateProviderIdFromRate(event.sourceOnDemandRate),
-                        generateProviderIdFromRate(event.destinationOnDemandRate));
+                        generateProviderIdFromRate(event.destinationOnDemandRate), null, LivenessState.LIVE);
                 logger.info("Scale action time: {}, entity OID: {}, source rate: {}, "
                                 + "destination rate: {} source provider: {}, destination provider: {}",
                         actionDateTime, oid, event.sourceOnDemandRate, event.destinationOnDemandRate,
                         generateProviderIdFromRate(event.sourceOnDemandRate),
                         generateProviderIdFromRate(event.destinationOnDemandRate));
-                actionChains.computeIfAbsent(oid, c -> new TreeSet<>(GrpcActionChainStore.specComparator))
+                actionChains.computeIfAbsent(oid, c -> new TreeSet<>(GrpcActionChainStore.changeWindowComparator))
                         .add(action);
             } else if ("DELVOL".equals(event.eventType)) {
                 long dummyStorageTierOid = 34343434343L;
-                ActionSpec action = createVolumeDeleteActionSpec(oid, actionDateTime,
+                ExecutedActionsChangeWindow action = createVolumeDeleteActionSpec(oid, actionDateTime,
                         event.sourceOnDemandRate, dummyStorageTierOid);
                 logger.info("Delete action time: {}, entity OID: {}, source rate: {}",
                         actionDateTime, oid, event.sourceOnDemandRate);
-                actionChains.computeIfAbsent(oid, c -> new TreeSet<>(GrpcActionChainStore.specComparator))
+                actionChains.computeIfAbsent(oid, c -> new TreeSet<>(GrpcActionChainStore.changeWindowComparator))
                         .add(action);
+            } else if ("REVERT".equals(event.eventType)) {
+                NavigableSet<ExecutedActionsChangeWindow> changeWindows = actionChains.get(oid);
+                if (changeWindows != null) {
+                    ExecutedActionsChangeWindow lastAction = changeWindows.pollLast();
+                    if (lastAction != null) {
+                        logger.info("Revert action time: {} entity OID: {}", event.timestamp, oid);
+                        changeWindows.add(lastAction.toBuilder()
+                                .setEndTime(event.timestamp)
+                                .setLivenessState(LivenessState.REVERTED)
+                                .build());
+                    }
+                }
             }
         }
         return actionChains;
@@ -114,7 +128,12 @@ public class ScenarioGenerator {
         final Map<Long, NavigableSet<BillingScriptEvent>> scaleEventsByEntity = new HashMap<>();
         final Map<Long, NavigableSet<BillingScriptEvent>> powerEventsByEntity = new HashMap<>();
         final Map<Long, BillingScriptEvent> deleteEventsByEntity = new HashMap<>();
-        for (BillingScriptEvent event : events) {
+
+        final NavigableSet<BillingScriptEvent> sortedEvents =
+                new TreeSet<>(Comparator.comparingLong(BillingScriptEvent::getTimestamp));
+        sortedEvents.addAll(events);
+
+        for (BillingScriptEvent event : sortedEvents) {
             Long oid = uuidMap.getOrDefault(event.uuid, 0L);
             if ("RESIZE".equals(event.eventType)) {
                 scaleEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
@@ -124,21 +143,37 @@ public class ScenarioGenerator {
                         .add(event);
             } else if ("DELVOL".equals(event.eventType)) {
                 deleteEventsByEntity.put(oid, event);
+            } else if ("REVERT".equals(event.eventType)) {
+                // Model the revert as a scale action which in the opposite direction as the previous
+                // scale action.
+                BillingScriptEvent previousEvent = sortedEvents.lower(event);
+                if (previousEvent != null) {
+                    if ("RESIZE".equals(previousEvent.eventType)) {
+                        BillingScriptEvent revertEvent = new BillingScriptEvent();
+                        revertEvent.timestamp = event.timestamp;
+                        revertEvent.sourceOnDemandRate = previousEvent.destinationOnDemandRate;
+                        revertEvent.destinationOnDemandRate = previousEvent.sourceOnDemandRate;
+                        scaleEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
+                                .add(revertEvent);
+                    } else {
+                        logger.error("Unsupported scenario: revert action is not after a scale action.");
+                    }
+                }
             }
         }
         final Map<Long, Set<BillingRecord>> billRecords = new HashMap<>();
         scaleEventsByEntity.forEach((oid, scaleEvents) ->
             billRecords.put(oid, generateBillRecordForEntity(scaleEvents,
-                        powerEventsByEntity.getOrDefault(oid, Collections.emptyNavigableSet()),
-                        deleteEventsByEntity.get(oid), oid, startTime, endTime)));
+                    powerEventsByEntity.getOrDefault(oid, Collections.emptyNavigableSet()),
+                    deleteEventsByEntity.get(oid), oid, startTime, endTime)));
+        // Generate bill records for entities that only have delete actions
         deleteEventsByEntity.forEach((oid, event) -> {
             if (!scaleEventsByEntity.containsKey(oid)) {
                 billRecords.put(oid, generateBillRecordForEntity(new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)),
-                        powerEventsByEntity.getOrDefault(oid, Collections.emptyNavigableSet()),
-                        event, oid, startTime, endTime));
+                        powerEventsByEntity.getOrDefault(oid, Collections.emptyNavigableSet()), event,
+                        oid, startTime, endTime));
             }
         });
-        // TODO Generate bill records for entities that only have delete actions
         billRecords.forEach((oid, records) -> {
             logger.info("Generated bill records for entity {}:", oid);
             records.stream().sorted(Comparator.comparing(BillingRecord::getSampleTime))
@@ -162,7 +197,8 @@ public class ScenarioGenerator {
             // Create segments for the day. Each segment has one provider.
             LocalDateTime dayEnd = endTime.isBefore(dayStart.plusDays(1)) ? endTime
                     : dayStart.plusDays(1);
-            List<Segment> segments = createSegments(dayStart, dayEnd, scaleEvents, deleteEvent, poweredOffIntervals);
+            List<Segment> segments = createSegments(dayStart, dayEnd, scaleEvents, deleteEvent,
+                    poweredOffIntervals);
 
             // Find usage amount and cost for each provider for the day.
             // If there are multiple segments for the same provider, combine them.
@@ -223,9 +259,11 @@ public class ScenarioGenerator {
                 || (powerEvents.first().timestamp >= scenarioStartMillis && !powerEvents.first().state);
         for (BillingScriptEvent powerEvent : powerEvents) {
             if (powerEvent.state && !poweredOn) {
+                // Transitioning from power OFF to power ON.
                 poweredOffIntervals.add(new Interval(intervalStart, powerEvent.timestamp));
                 poweredOn = true;
             } else if (!powerEvent.state && poweredOn) {
+                // Transitioning from power ON to power OFF.
                 intervalStart = powerEvent.timestamp;
                 poweredOn = false;
             }
@@ -366,6 +404,20 @@ public class ScenarioGenerator {
                 .build();
     }
 
+    private static ExecutedActionsChangeWindow createExecutedActionsChangeWindow(long entityOid,
+            ActionSpec actionSpec, @Nullable LocalDateTime endTime, @Nonnull LivenessState state) {
+        ExecutedActionsChangeWindow.Builder changeWindow = ExecutedActionsChangeWindow.newBuilder()
+                .setEntityOid(entityOid)
+                .setActionOid(actionSpec.getRecommendation().getId())
+                .setActionSpec(actionSpec)
+                .setLivenessState(state)
+                .setStartTime(actionSpec.getExecutionStep().getCompletionTime());
+        if (endTime != null) {
+            changeWindow.setEndTime(TimeUtil.localTimeToMillis(endTime, clock));
+        }
+        return changeWindow.build();
+    }
+
     private static ActionSpec createActionSpec(LocalDateTime actionTime, ActionInfo actionInfo) {
         // Set savings per hour value to a dummy value of 0. The value is not used.
         return createActionSpec(actionTime, actionInfo, 0);
@@ -379,7 +431,7 @@ public class ScenarioGenerator {
                         .build())
                 .setRecommendation(Action.newBuilder()
                         .setInfo(actionInfo)
-                        .setId(67676767676L) // dummy value
+                        .setId(actionTime.toInstant(ZoneOffset.UTC).toEpochMilli()) // Use the execution time to identify the action
                         .setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(savingsPerHour).build())
                         .setDeprecatedImportance(1d)
                         .setExplanation(Explanation.newBuilder()
@@ -401,12 +453,16 @@ public class ScenarioGenerator {
      * @param destProviderId destination provider ID
      * @return ActionSpec object
      */
-    public static ActionSpec createVMActionSpec(long entityOid, LocalDateTime actionTime, double sourceOnDemandRate,
-            double destOnDemandRate, long sourceProviderId, long destProviderId) {
+    public static ExecutedActionsChangeWindow createVMActionChangeWindow(long entityOid, LocalDateTime actionTime, double sourceOnDemandRate,
+            double destOnDemandRate, long sourceProviderId, long destProviderId, @Nullable LocalDateTime endTime, @Nullable LivenessState state) {
+        if (state == null) {
+            state = LivenessState.LIVE;
+        }
         ActionInfo scaleActionInfo = createScaleActionInfo(entityOid, sourceOnDemandRate, destOnDemandRate,
                 sourceProviderId, destProviderId,
                 CommonDTOREST.EntityDTO.EntityType.COMPUTE_TIER.getValue(), CommonDTOREST.EntityDTO.EntityType.VIRTUAL_MACHINE.getValue());
-        return createActionSpec(actionTime, scaleActionInfo);
+        ActionSpec actionSpec = createActionSpec(actionTime, scaleActionInfo);
+        return createExecutedActionsChangeWindow(entityOid, actionSpec, endTime, state);
     }
 
     /**
@@ -418,10 +474,11 @@ public class ScenarioGenerator {
      * @param sourceTierOid source tier OID
      * @return ActionSpec object
      */
-    public static ActionSpec createVolumeDeleteActionSpec(long entityOid, LocalDateTime actionTime,
+    public static ExecutedActionsChangeWindow createVolumeDeleteActionSpec(long entityOid, LocalDateTime actionTime,
             double sourceOnDemandRate, long sourceTierOid) {
         ActionInfo deleteActionInfo = createDeleteActionInfo(entityOid, sourceTierOid);
-        return createActionSpec(actionTime, deleteActionInfo, sourceOnDemandRate);
+        ActionSpec actionSpec = createActionSpec(actionTime, deleteActionInfo, sourceOnDemandRate);
+        return createExecutedActionsChangeWindow(entityOid, actionSpec, null, LivenessState.LIVE);
     }
 
     /**
