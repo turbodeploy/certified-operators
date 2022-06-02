@@ -160,6 +160,12 @@ public class EntitySavingsConfig {
     @Value("${billSavingsProcessorFrequencyHours:24}")
     private Integer billSavingsProcessorFrequencyHours;
 
+    /**
+     * How often to refresh internal savings action store cache, default 24 hours.
+     */
+    @Value("${savingsActionStoreCacheRefreshHours:24}")
+    private Long savingsActionStoreCacheRefreshHours;
+
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
 
@@ -195,6 +201,28 @@ public class EntitySavingsConfig {
      */
     @Value("${entitySavingsStartMinuteMark:15}")
     private int entitySavingsStartMinuteMark;
+
+    /**
+     * How long to wait after cost component startup before triggering the action cache
+     * initializer thread run for the first time. We wait a few mins after startup for things to
+     * stabilize before starting the sync with AO.
+     */
+    @Value("${savingsActionCacheInitDelayMinutes:3}")
+    private int savingsActionCacheInitDelayMinutes;
+
+    /**
+     * How often to check for action change window cache initialization. Every this many minutes,
+     * the initializer thread will check if the cache is ready (initialized successfully), if not,
+     * it will query the AO and get the cache in sync with AO.
+     */
+    @Value("${savingsActionCacheInitPeriodMinutes:5}")
+    private int savingsActionCacheInitPeriodMinutes;
+
+    /**
+     * Whether dump file option for savings action cache is enabled, default no.
+     */
+    @Value("${savingsActionCacheDumpEnabled:false}")
+    private boolean savingsActionCacheDumpEnabled;
 
     /**
      * Entity types (cloud only) for which Savings feature is currently supported.
@@ -573,6 +601,24 @@ public class EntitySavingsConfig {
     }
 
     /**
+     * Get instance of savings action store. Calls refresh first time if bill based savings is
+     * enabled and we are doing action change window tracking.
+     *
+     * @return Instance of savings action store.
+     */
+    @Bean
+    public SavingsActionStore savingsActionStore() {
+        final CachedSavingsActionStore store = new CachedSavingsActionStore(actionsService(), getClock(),
+                savingsActionStoreCacheRefreshHours, savingsDataProcessingChunkSize,
+                savingsActionCacheInitDelayMinutes, savingsActionCacheInitPeriodMinutes,
+                savingsActionCacheDumpEnabled);
+        if (isBillSavingsEnabled()) {
+            store.initialize(true);
+        }
+        return store;
+    }
+
+    /**
      * Creates bill based savings processor.
      *
      * @return Bill based savings processor.
@@ -614,7 +660,7 @@ public class EntitySavingsConfig {
     @Bean
     public ExecutedActionsListener executedActionsListener() {
         final ExecutedActionsListener listener = new ExecutedActionsListener(
-                (StateStore)entityStateStore(), supportedEntityTypes);
+                (StateStore)entityStateStore(), supportedEntityTypes, savingsActionStore());
         if (isBillSavingsEnabled()) {
             logger.info("Registered BillExecutedActionsListener for executed actions.");
             aoClientConfig.actionOrchestratorClient().addListener(listener);
