@@ -31,6 +31,10 @@ dependencies:
   - name: rsyslog
     repository: file://../base/rsyslog
     version: 0.1.0
+  - name: tunnel
+    repository: file://../base/skupper
+    version: 0.1.0
+    condition: tunnel.enabled
   - name: zookeeper
     repository: file://../base/zookeeper
     version: 0.1.0
