@@ -18,7 +18,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.history.flyway.MigrationCallbackForVersion121;
-import com.vmturbo.history.flyway.MigrationCallbacksForV1v66AndV1v4.ForMariaDBV1v66;
 import com.vmturbo.history.flyway.ResetChecksumsForMyIsamInfectedMigrations;
 import com.vmturbo.history.flyway.V1_28_1_And_V1_35_1_Callback;
 import com.vmturbo.sql.utils.ConditionalDbConfig.SQLDatabaseConfigCondition;
@@ -84,9 +83,7 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
                 // V1.28.1 formerly supplied a checksum but no longer does
                 new V1_28_1_And_V1_35_1_Callback(),
                 // V1.21 checksum has to change
-                new MigrationCallbackForVersion121(),
-                // V1.66 checksum hast to change
-                new ForMariaDBV1v66()
+                new MigrationCallbackForVersion121()
         };
     }
 
