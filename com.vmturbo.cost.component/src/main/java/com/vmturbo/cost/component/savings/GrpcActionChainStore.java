@@ -11,7 +11,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionChainsRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -26,19 +25,12 @@ public class GrpcActionChainStore implements ActionChainStore {
     private final ActionsServiceBlockingStub actionServiceStub;
 
     /**
-     * Comparator for specs, sorts by completion time.
+     * Comparator for ExecutedActionsChangeWindow, sorts by completion time.
      */
     @VisibleForTesting
-    static final Comparator<ActionSpec> specComparator = (o1, o2) -> {
-        if (o1.hasExecutionStep() && o2.hasExecutionStep()) {
-            if (o1.getExecutionStep().hasCompletionTime()
-                    && o2.getExecutionStep().hasCompletionTime()) {
-                return (int)(o1.getExecutionStep().getCompletionTime()
-                        - o2.getExecutionStep().getCompletionTime());
-            }
-        }
-        return 0;
-    };
+    public static final Comparator<ExecutedActionsChangeWindow> changeWindowComparator =
+            Comparator.comparingLong(changeWindow -> changeWindow.getActionSpec().getExecutionStep()
+                    .getCompletionTime());
 
     /**
      * Creates a new store.
@@ -51,22 +43,18 @@ public class GrpcActionChainStore implements ActionChainStore {
 
     @Override
     @Nonnull
-    public Map<Long, NavigableSet<ActionSpec>> getActionChains(@Nonnull Set<Long> entityIds) {
+    public Map<Long, NavigableSet<ExecutedActionsChangeWindow>> getActionChains(@Nonnull Set<Long> entityIds) {
         final GetActionChainsRequest request = GetActionChainsRequest.newBuilder()
                 .addAllEntityOid(entityIds)
                 .build();
-        Map<Long, NavigableSet<ActionSpec>> specsByEntity = new HashMap<>();
-        actionServiceStub.getActionChains(request)
-                .forEachRemaining(chain -> {
-                    final long entityId = chain.getEntityOid();
-                    if (!specsByEntity.containsKey(entityId)) {
-                        specsByEntity.put(entityId, new TreeSet<>(specComparator));
-                    }
-                    for (ExecutedActionsChangeWindow window
-                            : chain.getExecutedActionsChangeWindowList()) {
-                        specsByEntity.get(entityId).add(window.getActionSpec());
-                    }
-                });
-        return specsByEntity;
+        final Map<Long, NavigableSet<ExecutedActionsChangeWindow>> chainByEntity = new HashMap<>();
+        actionServiceStub.getActionChains(request).forEachRemaining(chain -> {
+            final long entityId = chain.getEntityOid();
+            NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(
+                    changeWindowComparator);
+            actionSpecs.addAll(chain.getExecutedActionsChangeWindowList());
+            chainByEntity.put(entityId, actionSpecs);
+        });
+        return chainByEntity;
     }
 }

@@ -26,7 +26,7 @@ import org.jooq.impl.DSL;
 
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -232,7 +232,7 @@ public class EntitySavingsTracker implements ScenarioDataHandler {
     @Override
     public void processStates(@Nonnull Set<Long> participatingUuids,
             @Nonnull LocalDateTime startTime, @Nonnull LocalDateTime endTime,
-            @Nonnull Map<Long, NavigableSet<ActionSpec>> actionChains,
+            @Nonnull Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains,
             @Nonnull Map<Long, Set<BillingRecord>> billRecordsByEntity) {
         processEvents(startTime, endTime, participatingUuids);
     }

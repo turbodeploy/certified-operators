@@ -6,7 +6,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 
 /**
  * Interface to get ActionChainRecords (or equivalent protobuf) from AO via gRPC.
@@ -19,5 +19,5 @@ public interface ActionChainStore {
      * @return For each entityId, the sorted action chain.
      */
     @Nonnull
-    Map<Long, NavigableSet<ActionSpec>> getActionChains(@Nonnull Set<Long> entityIds);
+    Map<Long, NavigableSet<ExecutedActionsChangeWindow>> getActionChains(@Nonnull Set<Long> entityIds);
 }

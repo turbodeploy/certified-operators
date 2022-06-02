@@ -15,8 +15,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.TierCostDetails;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverage;
@@ -34,10 +35,14 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCover
  * <p>Each data point for a delete action holds the following values:
  * - Timestamp: time of the action
  * - savingsPerHour: how much we can save per hour by executing the delete action
+ *
+ * <p>An action chain termination data point marks the end of an action chain. It only needs a
+ * timestamp.
  */
 public class SavingsGraph {
     private static final Logger logger = LogManager.getLogger();
     private final TreeSet<ActionDataPoint> dataPoints;
+    private final long deleteActionExpiryMs;
 
     private static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
 
@@ -46,20 +51,21 @@ public class SavingsGraph {
      *
      * @param actionChain action chain of an entity
      */
-    public SavingsGraph(NavigableSet<ActionSpec> actionChain) {
+    public SavingsGraph(NavigableSet<ExecutedActionsChangeWindow> actionChain, long deleteActionExpiryMs) {
         dataPoints = new TreeSet<>(Comparator.comparingLong(ActionDataPoint::getTimestamp));
+        this.deleteActionExpiryMs = deleteActionExpiryMs;
         populateDataPoints(actionChain);
     }
 
-    private void populateDataPoints(NavigableSet<ActionSpec> actionChain) {
+    private void populateDataPoints(NavigableSet<ExecutedActionsChangeWindow> actionChain) {
         double low = Double.MAX_VALUE;
         double high = Double.MIN_VALUE;
 
-        for (ActionSpec actionSpec : actionChain) {
-            final Action action = actionSpec.getRecommendation();
+        for (ExecutedActionsChangeWindow changeWindow : actionChain) {
+            final Action action = changeWindow.getActionSpec().getRecommendation();
             final long timestamp;
-            if (actionSpec.getExecutionStep().getStatus() == Status.SUCCESS) {
-                timestamp = actionSpec.getExecutionStep().getCompletionTime();
+            if (changeWindow.getActionSpec().getExecutionStep().getStatus() == Status.SUCCESS) {
+                timestamp = changeWindow.getActionSpec().getExecutionStep().getCompletionTime();
             } else {
                 // It's not an executed action. Should not happen.
                 continue;
@@ -95,10 +101,19 @@ public class SavingsGraph {
                         .highWatermark(high)
                         .destinationProviderOid(destProviderOid)
                         .build());
+
+                if (changeWindow.getLivenessState() == LivenessState.REVERTED) {
+                    dataPoints.add(new ActionChainTermination.Builder()
+                            .timestamp(changeWindow.getEndTime())
+                            .build());
+                }
             } else if (action.getInfo().hasDelete()) {
                 dataPoints.add(new DeleteActionDataPoint.Builder()
                         .timestamp(timestamp)
                         .savingsPerHour(action.getSavingsPerHour().getAmount())
+                        .build());
+                dataPoints.add(new ActionChainTermination.Builder()
+                        .timestamp(timestamp + deleteActionExpiryMs)
                         .build());
             }
         }

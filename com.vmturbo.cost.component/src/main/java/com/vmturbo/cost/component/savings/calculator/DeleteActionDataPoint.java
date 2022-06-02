@@ -18,16 +18,6 @@ public interface DeleteActionDataPoint extends ActionDataPoint {
     double savingsPerHour();
 
     /**
-     * Delete actions will be assigned a dummy provider ID of 0 as the destination provider ID.
-     *
-     * @return provider ID (always 0 for delete actions)
-     */
-    @Value.Derived
-    default long getDestinationProviderOid() {
-        return 0;
-    }
-
-    /**
      * Creates a new builder.
      */
     class Builder extends ImmutableDeleteActionDataPoint.Builder {}

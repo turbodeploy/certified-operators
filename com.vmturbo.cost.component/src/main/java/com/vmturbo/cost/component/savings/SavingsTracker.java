@@ -22,7 +22,7 @@ import org.apache.commons.collections4.SetUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.savings.calculator.Calculator;
 import com.vmturbo.cost.component.savings.calculator.SavingsValues;
@@ -120,7 +120,7 @@ public class SavingsTracker implements ScenarioDataHandler {
         savingsTimes.setCurrentLastUpdatedTime(newLastUpdated.get());
 
         // Get map of entity id to sorted list of actions for it, starting with first executed.
-        final Map<Long, NavigableSet<ActionSpec>> actionChains = actionChainStore
+        final Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains = actionChainStore
                 .getActionChains(entityIds);
 
         // Get the timestamp of the day (beginning of the day) that was last processed.
@@ -135,13 +135,13 @@ public class SavingsTracker implements ScenarioDataHandler {
 
     private Set<Long> processStates(@Nonnull final Set<Long> entityOids,
             Map<Long, Set<BillingRecord>> billingRecords,
-            Map<Long, NavigableSet<ActionSpec>> actionChains,
+            Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains,
             long lastProcessedDate, LocalDateTime periodEndTime) throws EntitySavingsException {
         final List<SavingsValues> allSavingsValues = new ArrayList<>();
         entityOids.forEach(entityId -> {
             Set<BillingRecord> entityBillingRecords = billingRecords.getOrDefault(entityId,
                     Collections.emptySet());
-            NavigableSet<ActionSpec> entityActionChain = actionChains.get(entityId);
+            NavigableSet<ExecutedActionsChangeWindow> entityActionChain = actionChains.get(entityId);
             if (SetUtils.emptyIfNull(entityActionChain).isEmpty()) {
                 return;
             }
@@ -178,12 +178,12 @@ public class SavingsTracker implements ScenarioDataHandler {
     @Override
     public void processStates(@Nonnull Set<Long> participatingUuids,
             @Nonnull LocalDateTime startTime, @Nonnull LocalDateTime endTime,
-            @Nonnull final Map<Long, NavigableSet<ActionSpec>> actionChains,
+            @Nonnull final Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains,
             @Nonnull final Map<Long, Set<BillingRecord>> billRecordsByEntity)
             throws EntitySavingsException {
         logger.info("Scenario generator invoked for the period of {} to {} on UUIDs: {}",
                 startTime, endTime, participatingUuids);
-        final Map<Long, NavigableSet<ActionSpec>> actions = new HashMap<>(actionChains);
+        final Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actions = new HashMap<>(actionChains);
         final Map<Long, Set<BillingRecord>> billRecords = new HashMap<>(billRecordsByEntity);
         if (actions.isEmpty()) {
             logger.info("No actions are defined in the scenario. Get action and bill data from the database.");
