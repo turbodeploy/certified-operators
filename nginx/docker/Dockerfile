@@ -10,8 +10,8 @@ LABEL name="nginx" \
       description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
 
 ENV NAME=nginx \
-    NGINX_VERSION=1.18 \
-    NGINX_SHORT_VER=118 \
+    NGINX_VERSION=1.20 \
+    NGINX_SHORT_VER=120 \
     VERSION=0
 
 # Required Licenses
