@@ -217,11 +217,6 @@ public class SecurityConstant {
     public static final String CLIENT_SCOPE = "scope";
 
     /**
-     * Default client scope.
-     */
-    public static final String DEFAULT_CLIENT_SCOPE = "offline_access offline openid";
-
-    /**
      * Client auth method.
      */
     public static final String CLIENT_AUTH_METHOD = "token_endpoint_auth_method";

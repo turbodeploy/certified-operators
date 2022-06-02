@@ -1,5 +1,15 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import javax.validation.ValidationException;
+
+import com.google.common.base.Strings;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import org.apache.commons.lang3.NotImplementedException;
@@ -23,7 +33,7 @@ import com.vmturbo.api.serviceinterfaces.IClientsService;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
-import com.vmturbo.components.api.ComponentRestTemplate;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
  * ClientsService.
@@ -33,6 +43,8 @@ public class ClientsService implements IClientsService {
     private final Logger logger = LogManager.getLogger();
 
     private String clientMessage = "%s client request %s for client: %s";
+
+    private final RestTemplate restTemplate;
 
     private final String clientServiceHost;
 
@@ -45,13 +57,16 @@ public class ClientsService implements IClientsService {
     /**
      * ClientsService.
      *
+     * @param restTemplate restTemplate.
      * @param clientServiceHost host.
      * @param clientServicePort port.
      * @param clientServiceScheme scheme.
      * @param clientServicePath path.
      */
-    public ClientsService(final String clientServiceHost, final Integer clientServicePort,
-            final String clientServiceScheme, final String clientServicePath) {
+    public ClientsService(RestTemplate restTemplate, final String clientServiceHost,
+            final Integer clientServicePort, final String clientServiceScheme,
+            final String clientServicePath) {
+        this.restTemplate = restTemplate;
         this.clientServiceHost = clientServiceHost;
         this.clientServicePort = clientServicePort;
         this.clientServiceScheme = clientServiceScheme;
@@ -60,16 +75,12 @@ public class ClientsService implements IClientsService {
 
     @Override
     public ClientServiceApiDTO createClientService(ClientInputDTO clientInputDTO) throws Exception {
-        final String uri = prepareClientServiceUri().toUriString();
-        final HttpEntity<String> clientRequest = prepareCreateClientServiceRequest(clientInputDTO);
+        validateClientInputDTO(clientInputDTO);
         try {
-            RestTemplate restTemplate = ComponentRestTemplate.create();
-            ResponseEntity<JsonObject> response = restTemplate.postForEntity(uri, clientRequest, JsonObject.class);
-            JsonObject respJson = response.getBody();
-            ClientServiceApiDTO client = new ClientServiceApiDTO(clientInputDTO.getSupportedServices(),
-                    respJson.get(SecurityConstant.CLIENT_SECRET).getAsString());
-            client.setClientId(respJson.get(SecurityConstant.CLIENT_ID).getAsString());
-            client.setDisplayName(clientInputDTO.getName());
+            ResponseEntity<JsonObject> response = restTemplate
+                .postForEntity(prepareClientServiceUri().toUriString(),
+                    prepareCreateClientServiceRequest(clientInputDTO), JsonObject.class);
+            ClientServiceApiDTO client = buildClientServiceApiDTO(response.getBody());
             AuditLogUtils.logSecurityAudit(AuditAction.CREATE_CLIENT,
                 String.format(clientMessage, "Create", "succeeded", clientInputDTO.getName()), true);
             return client;
@@ -81,23 +92,102 @@ public class ClientsService implements IClientsService {
         }
     }
 
-    private UriComponents prepareClientServiceUri() {
+    @Override
+    public List<ClientServiceApiDTO> getClientServices() throws Exception {
+        ResponseEntity<JsonArray> response = restTemplate
+            .getForEntity(prepareClientServiceUri().toUriString(), JsonArray.class);
+        List<ClientServiceApiDTO> clientsList = new ArrayList<>();
+        response.getBody().forEach(client -> {
+            try {
+                clientsList.add(buildClientServiceApiDTO((JsonObject)client));
+            } catch (Exception e) {
+                logger.error(e);
+            }
+        });
+        return clientsList;
+    }
+
+    @Override
+    public ClientServiceApiDTO getClientService(String clientId) throws Exception {
+        ResponseEntity<JsonObject> response = restTemplate
+            .getForEntity(prepareClientServiceUri("/" + clientId).toUriString(), JsonObject.class);
+        ClientServiceApiDTO client = buildClientServiceApiDTO(response.getBody());
+        return client;
+    }
+
+    @Override
+    public Boolean deleteClientService(String clientId) throws Exception {
+        try {
+            restTemplate.delete(prepareClientServiceUri("/" + clientId).toUri());
+            AuditLogUtils.logSecurityAudit(AuditAction.DELETE_CLIENT,
+                    String.format(clientMessage, "Delete", "succeeded", clientId), true);
+        } catch (RestClientException e) {
+            logger.error(String.format(clientMessage, "Delete", "failed", clientId), e);
+            AuditLogUtils.logSecurityAudit(AuditAction.DELETE_CLIENT,
+                String.format(clientMessage, "Delete", "failed", clientId), false);
+            throw e;
+        }
+        return true;
+    }
+
+    protected ClientServiceApiDTO buildClientServiceApiDTO(JsonObject clientJson) {
+        List<String> scopes = Arrays.asList(clientJson.get(SecurityConstant.CLIENT_SCOPE)
+            .getAsString().split(","));
+        ClientServiceApiDTO client = new ClientServiceApiDTO();
+        client.setSupportedServices(scopes);
+        if (clientJson.get(SecurityConstant.CLIENT_SECRET) != null) {
+            client.setSecret(clientJson.get(SecurityConstant.CLIENT_SECRET).getAsString());
+        }
+        client.setId(clientJson.get(SecurityConstant.CLIENT_ID).getAsString());
+        client.setName(clientJson.get(SecurityConstant.CLIENT_NAME).getAsString());
+        return client;
+    }
+
+    protected void validateClientInputDTO(ClientInputDTO clientInputDTO) throws Exception {
+        // Name not empty.
+        if (Strings.isNullOrEmpty(clientInputDTO.getName())) {
+            throw new ValidationException("Name for Client Service is required.");
+        }
+        // Supported services specified.
+        if ((clientInputDTO.getSupportedServices().isEmpty())) {
+            throw new ValidationException("Supported Service Specification is required.");
+        }
+        // Valid supported service passed. Log warn if unexpected.
+        Set<String> currentProbes = Arrays.stream(SDKProbeType.values())
+                .map(SDKProbeType::getProbeType).collect(Collectors.toSet());
+        clientInputDTO.getSupportedServices().forEach(service -> {
+            if (!currentProbes.contains(service)) {
+                logger.warn("Client service " + service + " is atypical.");
+            }
+        });
+        // Name doesn't already exist.
+        if (getClientServices().stream().anyMatch(existingService
+            -> clientInputDTO.getName().equals(existingService.getName()))) {
+                throw new ValidationException(
+                    String.format("Client name %s already exists. Must be unique.",
+                    clientInputDTO.getName()));
+        }
+    }
+
+    protected UriComponents prepareClientServiceUri() {
+        return prepareClientServiceUri("");
+    }
+
+    protected UriComponents prepareClientServiceUri(String route) {
         UriComponentsBuilder uriBuilder = UriComponentsBuilder.newInstance()
             .scheme(clientServiceScheme)
             .host(clientServiceHost)
             .port(clientServicePort)
-            .path(clientServicePath);
+            .path(clientServicePath + route);
         return uriBuilder.build();
     }
 
-    private HttpEntity<String> prepareCreateClientServiceRequest(ClientInputDTO clientInputDTO) {
+    protected HttpEntity<String> prepareCreateClientServiceRequest(ClientInputDTO clientInputDTO) {
         JSONObject payload = new JSONObject();
         payload.put(SecurityConstant.CLIENT_GRANTS, new JSONArray().put(SecurityConstant.CLIENT_CREDENTIALS));
         payload.put(SecurityConstant.CLIENT_AUTH_METHOD, SecurityConstant.CLIENT_SECRET_POST);
         payload.put(SecurityConstant.CLIENT_NAME, clientInputDTO.getName());
-        payload.put(SecurityConstant.CLIENT_SCOPE, clientInputDTO.getSupportedServices().isEmpty()
-            ? SecurityConstant.DEFAULT_CLIENT_SCOPE
-            : SecurityConstant.DEFAULT_CLIENT_SCOPE + " " + String.join(" ", clientInputDTO.getSupportedServices()));
+        payload.put(SecurityConstant.CLIENT_SCOPE, String.join(",", clientInputDTO.getSupportedServices()));
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<String> clientRequest = new HttpEntity<String>(payload.toString(), headers);
@@ -105,7 +195,7 @@ public class ClientsService implements IClientsService {
     }
 
     @Override
-    public ClientNetworkTokenApiDTO createClientNetworkToken(ClientInputDTO arg0) throws Exception {
+    public ClientNetworkTokenApiDTO createClientNetworkToken() throws Exception {
         throw new NotImplementedException();
     }
 }

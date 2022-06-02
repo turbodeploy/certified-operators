@@ -64,7 +64,8 @@ public enum AuditAction {
     AUTHENTICATE_PROBE("Authenticate Probe"),
     AUTHORIZE_PROBE("Authorize Probe"),
     SET_SECURITY_CONTEXT("Set Security Context"),
-    CREATE_CLIENT("Create Client");
+    CREATE_CLIENT("Create Client"),
+    DELETE_CLIENT("Delete Client");
 
     private String displayName;
 

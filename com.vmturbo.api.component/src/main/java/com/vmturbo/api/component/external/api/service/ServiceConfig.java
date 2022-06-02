@@ -385,7 +385,8 @@ public class ServiceConfig {
 
     @Bean
     public ClientsService clientsService() {
-        return new ClientsService(authConfig.getClientServiceHost(),
+        return new ClientsService(communicationConfig.serviceRestTemplate(),
+                authConfig.getClientServiceHost(),
                 authConfig.getClientServicePort(),
                 authConfig.getClientServiceScheme(),
                 authConfig.getClientServicePath());
