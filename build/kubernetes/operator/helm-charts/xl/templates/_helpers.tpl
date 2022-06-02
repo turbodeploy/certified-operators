@@ -75,22 +75,39 @@ Create chart name and version as used by the chart label.
 Return the proper image name
 */}}
 {{- define "image" -}}
-{{- $repositoryName := .Values.image.repository -}}
-{{- $tag := .Values.image.tag | toString -}}
+{{- $scope := dict "repository" .Values.image.repository "tag" .Values.image.tag "component" .Chart.Name "global" .Values.global}}
+{{- include "imageString" $scope }}
+{{- end -}}
+
+{{/*
+Builds the image name string for a Turbonomic image.
+
+Scope should have the following values:
+- repository
+- tag
+- component
+- global.repository
+- global.tag
+
+The global values will be used if both repository="turbonomic" and tag="latest"
+*/}}
+{{- define "imageString" -}}
+{{- $repositoryName := .repository -}}
+{{- $tag := .tag | toString -}}
 {{/*
 Helm 2.11 supports the assignment of a value to a variable defined in a different scope,
 but Helm 2.9 and 2.10 doesn't support it, so we need to implement this if-else logic.
 Also, we can't use a single if because lazy evaluation is not an option
 */}}
-{{- if .Values.global }}
-    {{- if and .Values.global.repository .Values.global.tag (eq $repositoryName "turbonomic") (eq $tag "latest") }}
-        {{- printf "%s/%s:%s" .Values.global.repository .Chart.Name .Values.global.tag -}}
-    {{- else -}}
-        {{- printf "%s/%s:%s" $repositoryName .Chart.Name $tag -}}
+{{- if .global }}
+    {{- if and .global.repository .global.tag (eq $repositoryName "turbonomic") (eq $tag "latest") -}}
+        {{- $repositoryName = .global.repository -}}
+        {{- $tag = .global.tag -}}
     {{- end -}}
-{{- else -}}
-    {{- printf "%s/%s:%s" $repositoryName .Chart.Name $tag -}}
 {{- end -}}
+
+{{- printf "%s/%s:%s" $repositoryName .component $tag -}}
+
 {{- end -}}
 
 {{/*
@@ -115,21 +132,34 @@ Also, we can't use a single if because lazy evaluation is not an option
 Return the pullPolicy
 */}}
 {{- define "pullPolicy" -}}
-{{- $pullPolicy := .Values.image.pullPolicy -}}
+{{ $scope := dict "pullPolicy" .Values.image.pullPolicy "global" .Values.global }}
+{{- include "pullPolicyString" $scope }}
+{{- end -}}
+
+{{/*
+Returns the pull policy string.
+
+Scope should have the following values:
+- pullPolicy
+- global.pullPolicy
+
+The global value will be used if pullPolicy="IfNotPresent"
+*/}}
+{{- define "pullPolicyString" -}}
+{{- $pullPolicy := .pullPolicy -}}
 {{/*
 Helm 2.11 supports the assignment of a value to a variable defined in a different scope,
 but Helm 2.9 and 2.10 doesn't support it, so we need to implement this if-else logic.
 Also, we can't use a single if because lazy evaluation is not an option
 */}}
-{{- if .Values.global }}
-    {{- if and .Values.global.pullPolicy (eq $pullPolicy "IfNotPresent") }}
-        {{- printf "%s" .Values.global.pullPolicy -}}
-    {{- else -}}
-        {{- printf "%s" $pullPolicy -}}
+{{- if .global }}
+    {{- if and .global.pullPolicy (eq $pullPolicy "IfNotPresent") -}}
+        {{- $pullPolicy = .global.pullPolicy -}}
     {{- end -}}
-{{- else -}}
-    {{- printf "%s" $pullPolicy -}}
 {{- end -}}
+
+{{- $pullPolicy -}}
+
 {{- end -}}
 
 {{/*
@@ -208,3 +238,13 @@ Also, we can't use a single if because lazy evaluation is not an option
     {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Expose a service with Skupper. Use inside an annotations block
+*/}}
+{{- define "skupperExpose" -}}
+skupper.io/proxy: {{ .proxy }}
+{{- if .address }}
+skupper.io/address: {{ .address }}
+{{- end -}}
+{{- end }}

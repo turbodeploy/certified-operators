@@ -113,6 +113,8 @@ kubeturbo:
   enabled: false
 prometurbo:
   enabled: false
+tunnel:
+  enabled: false
 training:
   enabled: false
 
