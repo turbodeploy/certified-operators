@@ -138,9 +138,10 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
 
         List<ReservedInstanceBought> unstitchedReservedInstances;
         if (topoInfo.hasTopologyContextId() && topoInfo.getTopologyContextId() != realtimeTopologyContextId) {
+            Set<Long> vmsInScope = Sets.newHashSet(request.getVmInScopeOidsList());
             unstitchedReservedInstances =
                     planReservedInstanceStore.getReservedInstanceBoughtForAnalysis(
-                            topoInfo.getTopologyContextId(), getScopedVmList(topoInfo));
+                            topoInfo.getTopologyContextId(), vmsInScope);
         } else {
             unstitchedReservedInstances = reservedInstanceBoughtStore.getReservedInstanceBoughtForAnalysis(
                     ReservedInstanceBoughtFilter.SELECT_ALL_FILTER);
@@ -176,20 +177,6 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                         .build();
         responseObserver.onNext(response);
         responseObserver.onCompleted();
-    }
-
-    private Set<Long> getScopedVmList(final TopologyInfo topoInfo) {
-        Iterator<RepositoryDTO.RetrieveTopologyResponse> retrieveTopologyResponseIterator =
-                repositoryClient.retrieveTopology(topoInfo.getTopologyId());
-        final Set<Long> aggregatedVmSet = new HashSet<>();
-        while (retrieveTopologyResponseIterator.hasNext()) {
-            RepositoryDTO.RetrieveTopologyResponse next = retrieveTopologyResponseIterator.next();
-            Set<Long> vmOidSet = next.getEntitiesList().stream()
-                    .filter(a -> a.getFullEntity().getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                    .map(vm -> vm.getFullEntity().getOid()).collect(Collectors.toSet());
-            aggregatedVmSet.addAll(vmOidSet);
-        }
-        return aggregatedVmSet;
     }
 
     @Override

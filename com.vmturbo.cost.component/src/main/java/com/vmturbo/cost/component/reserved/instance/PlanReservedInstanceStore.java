@@ -186,6 +186,7 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
      * Returns reserved instance bought list for the specified plan.
      *
      * @param planId plan ID.
+     * @param vmOidSet VMs in scope to calculate the current RI Utilization.
      * @return list of {@link ReservedInstanceBought}.
      */
     public List<ReservedInstanceBought> getReservedInstanceBoughtForAnalysis(final long planId, final Set<Long> vmOidSet) {

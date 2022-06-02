@@ -723,6 +723,9 @@ message GetReservedInstanceBoughtForAnalysisRequest {
     // If a topology context ID is not specified, the realtime context ID will be used to
     // resolve RIs in scope
     required .topology.TopologyInfo topology_info = 1;
+
+    // List of vm oids that are in scope for the Topology.
+    repeated int64 vm_in_scope_oids = 2;
 }
 
 message GetReservedInstanceBoughtForScopeRequest {
