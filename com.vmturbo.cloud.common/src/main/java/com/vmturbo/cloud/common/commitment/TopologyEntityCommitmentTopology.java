@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 
 /**
  * A {@link CloudCommitmentTopology} implementation focused on processing {@link TopologyEntityDTO} instances.
@@ -87,17 +88,20 @@ public class TopologyEntityCommitmentTopology implements CloudCommitmentTopology
                                                     .orElse(false);
         if (!isPoweredOnVM) {
             return 0.0;
-        }
-        switch (coverageTypeInfo.getCoverageType()) {
-            case COUPONS:
-                return cloudTopology.getRICoverageCapacityForEntity(entityOid);
-            case COMMODITY:
-                return cloudTopology.getEntity(entityOid)
-                        .map(entity -> extractCommodityCapacity(entity, coverageTypeInfo.getCoverageSubtype()))
-                        .orElse(0.0);
-            default:
-                throw new UnsupportedOperationException(
-                        String.format("Unsupported coverage type: %s", coverageTypeInfo.getCoverageType()));
+        } else {
+            switch (coverageTypeInfo.getCoverageType()) {
+                case COUPONS:
+                    return cloudTopology.getRICoverageCapacityForEntity(entityOid);
+                case COMMODITY:
+                    return cloudTopology.getEntity(entityOid)
+                            // Currently, only non-preemtible VMs are supported
+                            .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                                    && entity.getTypeSpecificInfo().getVirtualMachine().getBillingType() != VMBillingType.BIDDING)
+                            .map(entity -> extractCommodityCapacity(entity, coverageTypeInfo.getCoverageSubtype()))
+                            .orElse(0.0);
+                default:
+                    throw new UnsupportedOperationException(String.format("Unsupported coverage type: %s", coverageTypeInfo.getCoverageType()));
+            }
         }
     }
 
