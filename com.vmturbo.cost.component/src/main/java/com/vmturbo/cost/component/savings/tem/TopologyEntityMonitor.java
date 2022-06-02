@@ -74,7 +74,8 @@ public class TopologyEntityMonitor implements LiveCloudTopologyListener {
                 .addLivenessStates(LivenessState.LIVE)
                 .build();
         List<ExecutedActionsChangeWindow> changeWindows = new ArrayList<>();
-        actionsRpcService.getActionChangeWindows(getActionChangeWindowsRequest).forEachRemaining(changeWindows::add);
+        actionsRpcService.getActionChangeWindows(getActionChangeWindowsRequest)
+                .getChangeWindowsList().forEach(changeWindows::add);
 
         final List<ActionLivenessInfo> actionLivenessUpdates = handleScale(changeWindows, cloudTopology,
                 topologyInfo);

@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.action;
 
 import static com.vmturbo.action.orchestrator.db.tables.ExecutedActionsChangeWindow.EXECUTED_ACTIONS_CHANGE_WINDOW;
+import static junit.framework.TestCase.assertFalse;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -12,13 +13,17 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -267,14 +272,14 @@ public class ExecutedActionsChangeWindowDaoImplTest extends MultiDbTestBase {
         // 3 records were inserted, but none of them have start time set yet, so they are not
         // yet live, so expect empty results.
         List<ExecutedActionsChangeWindow> actionList = new ArrayList<>();
-        executedActionsChangeWindowDao.getActionsByLivenessState(liveState, actionList::add);
+        getAllActionsByLivenessState(liveState, Collections.emptySet(), actionList::add);
         assertTrue(actionList.isEmpty());
 
         // Now set start time for a couple of those records and thus make them live, because
         // we are not setting end time yet.
         executedActionsChangeWindowDao.updateActionLivenessInfo(startTimingInfo);
         actionList.clear();
-        executedActionsChangeWindowDao.getActionsByLivenessState(liveState, actionList::add);
+        getAllActionsByLivenessState(liveState, Collections.emptySet(), actionList::add);
         assertEquals(2, actionList.size());
 
         // Verify action ids match.
@@ -290,8 +295,7 @@ public class ExecutedActionsChangeWindowDaoImplTest extends MultiDbTestBase {
         // the live entries.
         actionList.clear();
         expectedActionIds = ImmutableSet.of(actionId2);
-        executedActionsChangeWindowDao.getActionsByLivenessState(liveState, expectedActionIds,
-                actionList::add);
+        getAllActionsByLivenessState(liveState, expectedActionIds, actionList::add);
         assertEquals(1, actionList.size());
         actualActionIds = actionList.stream()
                 .map(ExecutedActionsChangeWindow::getActionOid)
@@ -301,15 +305,260 @@ public class ExecutedActionsChangeWindowDaoImplTest extends MultiDbTestBase {
         // Verify that 2 'other' action ids that don't exist, we get empty results back.
         actionList.clear();
         expectedActionIds = ImmutableSet.of(70001L, 70002L);
-        executedActionsChangeWindowDao.getActionsByLivenessState(liveState, expectedActionIds,
-                actionList::add);
+        getAllActionsByLivenessState(liveState, expectedActionIds, actionList::add);
         assertTrue(actionList.isEmpty());
 
         // Now set end time for the 2 actions, thus making them no longer live. Verify results.
         executedActionsChangeWindowDao.updateActionLivenessInfo(endTimingInfo);
         actionList.clear();
-        executedActionsChangeWindowDao.getActionsByLivenessState(liveState, actionList::add);
+        getAllActionsByLivenessState(liveState, Collections.emptySet(), actionList::add);
         assertTrue(actionList.isEmpty());
+    }
+
+    /**
+     * Adds records to change window dir to enable testing for paged results. Also verifies count.
+     *
+     * @param recordCount How many to insert.
+     * @return initial action id that was used to insert records.
+     * @throws ActionStoreOperationException Thrown on DB error.
+     */
+    private long addPagingRecords(long recordCount) throws ActionStoreOperationException {
+        // Insert 20 records - with action ids: 1001 -> 1020.
+        long initialId = 1001;
+        for (long actionOid = initialId; actionOid < initialId + recordCount; actionOid++) {
+            long entityOid = actionOid * 10;
+            executedActionsChangeWindowDao.saveExecutedAction(actionOid, entityOid);
+        }
+        // Verify count 20.
+        assertEquals(recordCount, getAllRecords().size());
+        return initialId;
+    }
+
+    /**
+     * Tests results paging with chunk size 7, with record count being 20.
+     *
+     * @throws ActionStoreOperationException Thrown on DB error.
+     */
+    @Test
+    public void pagedResultsChunk7() throws ActionStoreOperationException {
+        long recordCount = 20;
+        long initialId = addPagingRecords(recordCount);
+
+        final Set<LivenessState> states = ImmutableSet.of(LivenessState.NEW);
+        final Set<Long> actionOids = Collections.emptySet();
+
+        // Query paged results - with chunk size 7, no specific action ids in query.
+        int chunkSize = 7;
+        ExecutedActionsChangeWindowDao dao = new ExecutedActionsChangeWindowDaoImpl(dsl, clock,
+                chunkSize);
+        final List<ExecutedActionsChangeWindow> results = new ArrayList<>();
+        int expectedResults = chunkSize;
+
+        // 1st page (1001 -> 1007). Verify we got all requested results as per the chunk size.
+        Optional<Long> nextCursor = dao.getActionsByLivenessState(states, actionOids, 0,
+                results::add);
+        long startId = initialId;
+        long endId = startId + chunkSize - 1;
+
+        assertTrue(nextCursor.isPresent());
+        checkPageResults(false, nextCursor.get(), expectedResults, results, startId, endId);
+        results.clear();
+
+        // 2nd page (1008 -> 1014). Next cursor points to 1007 (the last oid we got from previous
+        // page). We use that as the 'currentCursor' for the next page call, and we will get results
+        // with start id of 1008 onwards.
+        startId = nextCursor.get() + 1;
+        endId = startId + chunkSize - 1;
+        nextCursor = dao.getActionsByLivenessState(states, actionOids, nextCursor.get(), results::add);
+
+        assertTrue(nextCursor.isPresent());
+        checkPageResults(false, nextCursor.get(), expectedResults, results, startId, endId);
+        results.clear();
+
+        // 3rd page (1015 -> 1020), total 6 records.
+        expectedResults = 6;
+        startId = nextCursor.get() + 1;
+        endId = startId + chunkSize - 1;
+        nextCursor = dao.getActionsByLivenessState(states, actionOids, nextCursor.get(), results::add);
+
+        // No more pages, so there should not be a next cursor value.
+        assertFalse(nextCursor.isPresent());
+        checkPageResults(true, null, expectedResults, results, startId, endId);
+        results.clear();
+    }
+
+    /**
+     * Fetches 20 results with a chunk size of 20, all in a single page.
+     *
+     * @throws ActionStoreOperationException Thrown on DB error.
+     */
+    @Test
+    public void pagedResultsChunk20() throws ActionStoreOperationException {
+        long recordCount = 20;
+        long initialId = addPagingRecords(recordCount);
+
+        final Set<LivenessState> states = ImmutableSet.of(LivenessState.NEW);
+        final Set<Long> actionOids = Collections.emptySet();
+
+        // Query paged results - with chunk size 20, no specific action ids in query.
+        int chunkSize = 20;
+        ExecutedActionsChangeWindowDao dao = new ExecutedActionsChangeWindowDaoImpl(dsl, clock,
+                chunkSize);
+        final List<ExecutedActionsChangeWindow> results = new ArrayList<>();
+
+        // Query with a different chunk size: 20. First page has all 20 results.
+        dao = new ExecutedActionsChangeWindowDaoImpl(dsl, clock, chunkSize);
+        long startId = initialId;
+        long endId = startId + chunkSize - 1;
+
+        Optional<Long> nextCursor = dao.getActionsByLivenessState(states, actionOids, 0,
+                results::add);
+        assertTrue(nextCursor.isPresent());
+        checkPageResults(false, nextCursor.get(), chunkSize, results, startId, endId);
+        results.clear();
+
+        // Do another page, as we don't know yet there are no more results, this should return 0.
+        startId = nextCursor.get() + 1;
+        endId = startId + chunkSize - 1;
+        nextCursor = dao.getActionsByLivenessState(states, actionOids, nextCursor.get(),
+                results::add);
+        assertFalse(nextCursor.isPresent());
+        assertTrue(results.isEmpty());
+        checkPageResults(true, null, 0, results, startId, endId);
+        results.clear();
+    }
+
+    /**
+     * Fetches all 20 results in a single page (of chunk size 30).
+     *
+     * @throws ActionStoreOperationException Thrown on DB error.
+     */
+    @Test
+    public void pagedResultsChunk30() throws ActionStoreOperationException {
+        long recordCount = 20;
+        long initialId = addPagingRecords(recordCount);
+
+        final Set<LivenessState> states = ImmutableSet.of(LivenessState.NEW);
+        final Set<Long> actionOids = Collections.emptySet();
+
+        // Query with a larger chunk size (30), we should get all results in 1 shot.
+        int chunkSize = 30;
+        ExecutedActionsChangeWindowDao dao = new ExecutedActionsChangeWindowDaoImpl(dsl, clock,
+                chunkSize);
+        final List<ExecutedActionsChangeWindow> results = new ArrayList<>();
+        long startId = initialId;
+        long endId = startId + chunkSize - 1;
+
+        Optional<Long> nextCursor = dao.getActionsByLivenessState(states, actionOids, 0,
+                results::add);
+        assertFalse(nextCursor.isPresent());
+        checkPageResults(true, null, (int)recordCount, results, startId, endId);
+        results.clear();
+    }
+
+    /**
+     * Tests paged action results, but with optional action ids specified in query. Only records
+     * matching those action oids are returned in pages.
+     *
+     * @throws ActionStoreOperationException Thrown on DB error.
+     */
+    @Test
+    public void pagedResultsWithActionIds() throws ActionStoreOperationException {
+        long recordCount = 20;
+        long initialId = addPagingRecords(recordCount);
+
+        final Set<LivenessState> states = ImmutableSet.of(LivenessState.NEW);
+        // Query specific action oids only, even ones. 1002 -> 1020, total 10 records.
+        final Set<Long> actionOids = getAllRecords().stream()
+                .map(ExecutedActionsChangeWindowRecord::getActionOid)
+                .filter(actionOid -> actionOid % 2 == 0)
+                .collect(Collectors.toSet());
+
+        // Query with a larger chunk size (7), we should get results in 2 pages, total of 10 records.
+        // 1002, 1004, ... , 1012, 1014.
+        int chunkSize = 7;
+        ExecutedActionsChangeWindowDao dao = new ExecutedActionsChangeWindowDaoImpl(dsl, clock,
+                chunkSize);
+        final List<ExecutedActionsChangeWindow> results = new ArrayList<>();
+        long startId = initialId + 1; // 1002
+        long endId = initialId + 2 * chunkSize - 1; // 1014
+
+        Optional<Long> nextCursor = dao.getActionsByLivenessState(states, actionOids, 0,
+                results::add);
+        assertTrue(nextCursor.isPresent());
+        checkPageResults(false, nextCursor.get(), chunkSize, results, startId, endId);
+        results.clear();
+
+        // Do another page, we should get remaining 3 more records - 1016, 1018, 1020.
+        startId = nextCursor.get() + 2; // 1016
+        int expectedResults = 3;
+        endId = startId + (expectedResults - 1) * 2; // 1020
+        nextCursor = dao.getActionsByLivenessState(states, actionOids, nextCursor.get(),
+                results::add);
+        assertFalse(nextCursor.isPresent());
+        checkPageResults(true, null, expectedResults, results, startId, endId);
+        results.clear();
+    }
+
+    /**
+     * Util method to verify page results.
+     *
+     * @param isLastPage True if last page.
+     * @param nextCursor Next cursor value.
+     * @param expectedResults How many records expected.
+     * @param results DB records.
+     * @param startId Start action id.
+     * @param endId End action id.
+     */
+    private void checkPageResults(boolean isLastPage, @Nullable final Long nextCursor,
+            int expectedResults, @Nonnull final List<ExecutedActionsChangeWindow> results,
+            long startId, long endId) {
+        assertEquals(expectedResults, results.size());
+        if (isLastPage) {
+            // We don't expect a next cursor if this is the last page.
+            assertTrue(Objects.isNull(nextCursor));
+        } else {
+            // If not last page, verify that we got at least one record.
+            assertNotNull(nextCursor);
+            assertTrue(nextCursor > startId);
+            assertEquals(endId, (long)nextCursor);
+            if (expectedResults > 0) {
+                assertEquals(endId, results.get(results.size() - 1).getActionOid());
+            }
+        }
+        if (expectedResults > 0) {
+            assertEquals(startId, results.get(0).getActionOid());
+        }
+    }
+
+    /**
+     * Gets all results by paging them.
+     *
+     * @param states States to query for.
+     * @param actionIds Action ids to query for.
+     * @param consumer Receiver of results.
+     * @throws ActionStoreOperationException Thrown on DB error.
+     */
+    private void getAllActionsByLivenessState(@Nonnull final Set<LivenessState> states,
+            @Nonnull final Set<Long> actionIds,
+            @Nonnull final Consumer<ExecutedActionsChangeWindow> consumer)
+            throws ActionStoreOperationException {
+        Optional<Long> nextCursor;
+        long currentCursor = 0;
+        do {
+            if (actionIds.isEmpty()) {
+                nextCursor = executedActionsChangeWindowDao.getActionsByLivenessState(states,
+                        currentCursor, consumer);
+            } else {
+                nextCursor = executedActionsChangeWindowDao.getActionsByLivenessState(states,
+                        actionIds, currentCursor, consumer);
+            }
+            if (!nextCursor.isPresent()) {
+                // End of results.
+                break;
+            }
+            currentCursor = nextCursor.get();
+        } while (true);
     }
 
     /**
