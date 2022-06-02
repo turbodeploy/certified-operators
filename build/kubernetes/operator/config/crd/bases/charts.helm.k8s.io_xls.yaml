@@ -1056,6 +1056,12 @@ spec:
                     description: Enable prometheus
                     type: boolean
                 type: object
+              hydra:
+                properties:
+                  enabled:
+                    description: Enable hydra
+                    type: boolean
+                type: object
               prometheus-mysql-exporter:
                 properties:
                   enabled:
