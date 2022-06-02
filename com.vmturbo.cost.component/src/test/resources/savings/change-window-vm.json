@@ -1,0 +1,102 @@
+{
+  "actionOid": "${actionOid}",
+  "entityOid": "${entityOid}",
+  "actionSpec": {
+    "recommendation": {
+      "id": "${actionOid}",
+      "info": {
+        "scale": {
+          "target": {
+            "id": "${entityOid}",
+            "type": 10,
+            "environmentType": "CLOUD"
+          },
+          "changes": [{
+            "source": {
+              "id": "${sourceProviderOid}",
+              "type": 56,
+              "environmentType": "CLOUD"
+            },
+            "destination": {
+              "id": "${destinationProviderOid}",
+              "type": 56,
+              "environmentType": "CLOUD"
+            }
+          }],
+          "cloudSavingsDetails": {
+            "sourceTierCostDetails": {
+              "onDemandRate": {
+                "amount": 0.0116
+              },
+              "onDemandCost": {
+                "amount": 0.011589688888888889
+              },
+              "cloudCommitmentCoverage": {
+              }
+            },
+            "projectedTierCostDetails": {
+              "onDemandRate": {
+                "amount": 0.077
+              },
+              "onDemandCost": {
+                "amount": 0.07693155555555556
+              },
+              "cloudCommitmentCoverage": {
+              }
+            },
+            "entityUptime": {
+              "uptimeDurationMs": "242784",
+              "totalDurationMs": "243000",
+              "creationTimeMs": "1652878557000",
+              "uptimePercentage": 99.91111111111111
+            }
+          }
+        }
+      },
+      "DeprecatedImportance": 0.0,
+      "explanation": {
+        "scale": {
+          "changeProviderExplanation": [{
+            "compliance": {
+              "reasonSettings": ["285583672666880"]
+            },
+            "isPrimaryChangeProviderExplanation": true
+          }]
+        }
+      },
+      "executable": true,
+      "supportingLevel": "SUPPORTED",
+      "savingsPerHour": {
+        "amount": -0.06534186666666666
+      }
+    },
+    "executionStep": {
+      "enqueueTime": "1652880239870",
+      "startTime": "1652880239873",
+      "completionTime": "1652880292614",
+      "status": "SUCCESS",
+      "targetId": "74400778286848",
+      "progressPercentage": 100,
+      "progressDescription": "Completed successfully."
+    },
+    "recommendationTime": "1652880203000",
+    "explanation": "(^_^)~jjbosvm5-aws doesn\u0027t comply with jj aws policy",
+    "decision": {
+      "decisionTime": "1652880239873",
+      "executionDecision": {
+        "reason": "MANUALLY_ACCEPTED",
+        "userUuid": "administrator(3938323367600)"
+      }
+    },
+    "actionMode": "RECOMMEND",
+    "actionState": "SUCCEEDED",
+    "actionPlanId": "${actionOid}",
+    "isExecutable": false,
+    "category": "COMPLIANCE",
+    "description": "Scale Virtual Machine jjbosvm5-aws from t2.micro to c5a.large in Development",
+    "severity": "CRITICAL",
+    "recommendationId": "637428451496480"
+  },
+  "startTime": "${startTime}",
+  "livenessState": "${livenessState}"
+}

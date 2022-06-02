@@ -29,6 +29,7 @@ public class ExecutedActionsListener implements ActionsListener {
 
     private final StateStore stateStore;
     private final Set<Integer> supportedEntityTypes;
+    private final SavingsActionStore savingsActionStore;
 
     /**
      * Create new instance.
@@ -37,11 +38,13 @@ public class ExecutedActionsListener implements ActionsListener {
      * @param supportedEntityTypes Supported entity types to listen actions for.
      */
     public ExecutedActionsListener(@Nonnull final StateStore stateStore,
-            @Nonnull final Set<EntityType> supportedEntityTypes) {
+            @Nonnull final Set<EntityType> supportedEntityTypes,
+            @Nonnull final SavingsActionStore savingsActionStore) {
         this.stateStore = stateStore;
         this.supportedEntityTypes = supportedEntityTypes.stream()
                 .map(EntityType::getNumber)
                 .collect(Collectors.toSet());
+        this.savingsActionStore = savingsActionStore;
     }
 
     @Override
@@ -69,16 +72,17 @@ public class ExecutedActionsListener implements ActionsListener {
                 return;
             }
             long entityId = entity.getId();
+            // Notify savings store about this new action so that it can be marked dirty.
+            savingsActionStore.onNewAction(actionId, entityId);
+            logger.info("Detected executed cloud action {} for entity {}.", actionId, entityId);
+
             // Check if there is already a state
             EntityState state = stateStore.getEntityState(entityId);
+            logger.trace("State for entity {}, detected for action {} execution: {}",
+                    actionId, entityId, state);
             if (state != null) {
-                logger.trace(
-                        "State for entity {}, detected for action {} execution, already exists.",
-                        actionId, entityId);
                 return;
             }
-            logger.info("Creating state for detected executed action {} for entity {}.",
-                    actionId, entityId);
             state = new EntityState(entityId, EntityPriceChange.EMPTY);
             stateStore.updateEntityState(state);
         } catch (UnsupportedActionException | EntitySavingsException e) {

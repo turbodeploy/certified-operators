@@ -344,6 +344,22 @@ public class ActionDTOUtil {
     }
 
     /**
+     * Gets primary entity for action if present.
+     *
+     * @param action Action to check on.
+     * @return Entity info if present, empty otherwise.
+     */
+    public static Optional<ActionEntity> getPrimaryEntityIfPresent(@Nonnull final Action action) {
+        try {
+            return Optional.of(getPrimaryEntity(action, true));
+        } catch (UnsupportedActionException ue) {
+            logger.trace("Did not get primary entity for action: {}. Message: {}",
+                    () -> action, ue::getMessage);
+        }
+        return Optional.empty();
+    }
+
+    /**
      * If a move action has a volume as resource and it is moving from one storage tier to another
      * or it is moving a storage from on-prem to cloud, the volume should be treated as the target
      * of the action.
