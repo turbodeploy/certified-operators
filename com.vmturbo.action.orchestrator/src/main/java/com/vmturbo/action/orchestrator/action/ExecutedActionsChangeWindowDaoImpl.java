@@ -9,7 +9,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -102,35 +104,50 @@ public class ExecutedActionsChangeWindowDaoImpl implements ExecutedActionsChange
     }
 
     @Override
-    public void getActionsByLivenessState(@Nonnull final Set<LivenessState> livenessStates,
-            @Nonnull final Set<Long> actionIds,
+    public Optional<Long> getActionsByLivenessState(@Nonnull final Set<LivenessState> livenessStates,
+            @Nonnull final Set<Long> actionIds, long currentCursor,
             @Nonnull Consumer<ExecutedActionsChangeWindow> consumer)
             throws ActionStoreOperationException {
+        AtomicLong nextCursor = new AtomicLong();
         try {
             final Set<Integer> livenessCodes = livenessStates.stream()
                     .map(LivenessState::getNumber)
                     .collect(Collectors.toSet());
             final Condition stateCondition = EXECUTED_ACTIONS_CHANGE_WINDOW.LIVENESS_STATE
                     .in(livenessCodes);
-            final Condition wholeCondition = actionIds.isEmpty() ? stateCondition
+            final Condition idCondition = actionIds.isEmpty() ? stateCondition
                     : stateCondition.and(EXECUTED_ACTIONS_CHANGE_WINDOW.ACTION_OID.in(actionIds));
+            final Condition seekCondition = idCondition.and(
+                    EXECUTED_ACTIONS_CHANGE_WINDOW.ACTION_OID.greaterThan(currentCursor));
+            final List<ExecutedActionsChangeWindow> results = new ArrayList<>();
             dsl.connection(conn -> {
                 conn.setAutoCommit(false);
                 try (Stream<ExecutedActionsChangeWindow> savingsEventStream =
                              DSL.using(conn, dsl.settings())
                                      .selectFrom(EXECUTED_ACTIONS_CHANGE_WINDOW)
-                                     .where(wholeCondition)
+                                     .where(seekCondition)
+                                     .orderBy(EXECUTED_ACTIONS_CHANGE_WINDOW.ACTION_OID)
+                                     .limit(chunkSize)
                                      .fetchSize(chunkSize)
                                      .fetchLazy()
                                      .stream()
                                      .map(this::toProtobuf)) {
-                    savingsEventStream.forEach(consumer);
+                    savingsEventStream.forEach(results::add);
+                    if (results.size() == chunkSize) {
+                        // Set the next cursor for client only if we got all the results we
+                        // requested. Otherwise, (if results are less than the chunk requested),
+                        // this is the last page of results, so don't set the next cursor.
+                        // We are getting the last action oid here, one with the largest value.
+                        nextCursor.set(results.get(results.size() - 1).getActionOid());
+                    }
+                    results.forEach(consumer);
                 }
             });
         } catch (DataAccessException dae) {
             throw new ActionStoreOperationException("Could not fetch actions in " + livenessStates
                     + " states.", dae);
         }
+        return nextCursor.get() == 0 ? Optional.empty() : Optional.of(nextCursor.get());
     }
 
     @Nonnull

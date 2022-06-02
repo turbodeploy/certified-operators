@@ -33,6 +33,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -98,6 +99,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsReques
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionChainsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionChangeWindowRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionChangeWindowResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.ActionCountsByDateEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.Builder;
@@ -128,6 +130,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.UpdateActionChangeWindowResp
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplBase;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.TimeUtil;
@@ -1044,12 +1047,14 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     @Override
     public void getActionChangeWindows(GetActionChangeWindowRequest request,
-            StreamObserver<ExecutedActionsChangeWindow> responseObserver) {
+            StreamObserver<GetActionChangeWindowResponse> responseObserver) {
         try {
             final Set<LivenessState> states = new HashSet<>(request.getLivenessStatesList());
             final List<ExecutedActionsChangeWindow> windowEntries = new ArrayList<>();
-            executedActionsChangeWindowDao.getActionsByLivenessState(states,
-                    new HashSet<>(request.getActionOidsList()), windowEntries::add);
+
+            Optional<Long> nextCursor = executedActionsChangeWindowDao.getActionsByLivenessState(states,
+                    new HashSet<>(request.getActionOidsList()), request.hasPaginationParams()
+                            ? getCurrentCursor(request.getPaginationParams()) : 0, windowEntries::add);
 
             // Get the list of ActionSpec entries from history table and set it in response.
             final Set<Long> actionIds = windowEntries.stream()
@@ -1059,6 +1064,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     .getActionHistoryByIds(new ArrayList<>(actionIds))
                     .stream()
                     .collect(Collectors.toMap(ActionView::getId, actionTranslator::translateToSpec));
+            final GetActionChangeWindowResponse.Builder responseBuilder =
+                    GetActionChangeWindowResponse.newBuilder();
             windowEntries
                     .stream()
                     .map(cw -> {
@@ -1071,12 +1078,39 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                         }
                         return cw;
                     })
-                    .forEach(responseObserver::onNext);
+                    .forEach(responseBuilder::addChangeWindows);
+            nextCursor.ifPresent(cursor -> responseBuilder.setPaginationResponse(
+                    PaginationResponse.newBuilder()
+                            .setNextCursor(String.valueOf(cursor))
+                            .build()));
+            responseObserver.onNext(responseBuilder.build());
         } catch (ActionStoreOperationException e) {
             logger.error("Unable to fetch action change window for request {}.", request, e);
             responseObserver.onError(e);
         }
         responseObserver.onCompleted();
+    }
+
+    /**
+     * Gets current cursor value from pagination params if present, 0 otherwise.
+     *
+     * @param paginationParameters Pagination params from request.
+     * @return Cursor value sent by client or 0 if not found.
+     */
+    private long getCurrentCursor(@Nonnull final PaginationParameters paginationParameters) {
+        long currentCursor = 0;
+        try {
+            if (paginationParameters.hasCursor()) {
+                final String cursor = paginationParameters.getCursor();
+                if (!StringUtils.isBlank(cursor)) {
+                    currentCursor = Long.parseLong(cursor);
+                }
+            }
+        } catch (NumberFormatException nfe) {
+            logger.warn("Unable to parse current cursor from {}. Using default {}.",
+                    paginationParameters, currentCursor, nfe);
+        }
+        return currentCursor;
     }
 
     @Override

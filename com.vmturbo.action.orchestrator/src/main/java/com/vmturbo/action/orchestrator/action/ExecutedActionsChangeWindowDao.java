@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.action;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -38,29 +39,33 @@ public interface ExecutedActionsChangeWindowDao {
         throws ActionStoreOperationException;
 
     /**
-     * Gets a stream of actions that are currently LIVE (based on the liveness_state value).
+     * Gets a stream of action change windows that match the input liveness states set.
      *
      * @param livenessStates Action change records will be fetched that match these states.
      * @param actionIds Usually empty. If non-empty, then only records matching the specified
      *      action ids will be returned.
+     * @param nextCursor Cursor to use for next page of queries. Start with 0 first time.
      * @param consumer The one who consumes the stream of live action change window entries.
      *      Note that the returned ExecutedActionsChangeWindow entries will NOT have the ActionSpec
      *      field set, as they are not yet available.
+     * @return Optional next cursor to use for next query, if using paged results.
      * @throws ActionStoreOperationException Thrown on record store error.
      */
-    void getActionsByLivenessState(@Nonnull Set<LivenessState> livenessStates,
+    Optional<Long> getActionsByLivenessState(@Nonnull Set<LivenessState> livenessStates,
             @Nonnull Set<Long> actionIds,
+            long nextCursor,
             @Nonnull Consumer<ExecutedActionsChangeWindow> consumer)
             throws ActionStoreOperationException;
 
     /**
      * Similar to the other one, but with empty action id, so will get records for all actions.
-     * @see #getActionsByLivenessState(Set, Set, Consumer)
+     * @see #getActionsByLivenessState(Set, Set, long, Consumer)
      */
-    default void getActionsByLivenessState(@Nonnull final Set<LivenessState> livenessStates,
+    default Optional<Long> getActionsByLivenessState(@Nonnull final Set<LivenessState> livenessStates,
+            long nextCursor,
             @Nonnull Consumer<ExecutedActionsChangeWindow> consumer)
             throws ActionStoreOperationException {
-        getActionsByLivenessState(livenessStates, Collections.emptySet(), consumer);
+        return getActionsByLivenessState(livenessStates, Collections.emptySet(), nextCursor, consumer);
     }
 
     /**

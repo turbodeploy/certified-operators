@@ -2610,6 +2610,18 @@ message GetActionChangeWindowRequest {
     // Optionally restrict records to only action oids specified in this list. By default, will
     // get all specified states for all actions, if this action_oids list is empty.
     repeated int64 action_oids = 2;
+
+    // Paging related params. Specify 'cursor' from 2nd page request onwards.
+    optional common.PaginationParameters pagination_params = 3;
+}
+
+// Action change window query response page.
+message GetActionChangeWindowResponse {
+    // Change windows in this response page.
+    repeated ExecutedActionsChangeWindow change_windows = 1;
+
+    // Use the 'next_cursor' (if present) value for the next page request to be made.
+    optional common.PaginationResponse pagination_response = 2;
 }
 
 // Action change window update request.
@@ -2725,7 +2737,7 @@ service ActionsService {
     rpc GetActionChains (GetActionChainsRequest) returns (stream ActionChain);
 
     // Get all action change window records matching the input request criteria.
-    rpc GetActionChangeWindows (GetActionChangeWindowRequest) returns (stream ExecutedActionsChangeWindow);
+    rpc GetActionChangeWindows (GetActionChangeWindowRequest) returns (GetActionChangeWindowResponse);
 
     // Updates action change window records.
     rpc UpdateActionChangeWindows (UpdateActionChangeWindowRequest) returns (UpdateActionChangeWindowResponse);

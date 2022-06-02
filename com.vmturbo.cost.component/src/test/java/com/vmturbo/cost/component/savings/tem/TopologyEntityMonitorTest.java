@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionChangeWindowRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionChangeWindowResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTO.UpdateActionChangeWindowRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.UpdateActionChangeWindowRequest.ActionLivenessInfo;
@@ -102,8 +103,11 @@ public class TopologyEntityMonitorTest {
                 createExecutedActionsChangeWindow(1L, 301L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 23, 9, 30)),
                 createExecutedActionsChangeWindow(1L, 401L, LivenessState.NEW, LocalDateTime.of(2022, 5, 24, 11, 30)),
                 createExecutedActionsChangeWindow(1L, 501L, LivenessState.NEW, LocalDateTime.of(2022, 5, 25, 12, 00)));
+        final GetActionChangeWindowResponse response = GetActionChangeWindowResponse.newBuilder()
+                .addAllChangeWindows(initialChangeWindows)
+                .build();
 
-        doReturn(initialChangeWindows)
+        doReturn(response)
                 .when(actionsRpcService)
                 .getActionChangeWindows(any(GetActionChangeWindowRequest.class));
 
@@ -138,8 +142,11 @@ public class TopologyEntityMonitorTest {
         final List<ExecutedActionsChangeWindow> initialChangeWindows = Arrays.asList(
                 createExecutedActionsChangeWindow(1L, 101L, LivenessState.SUPERSEDED, LocalDateTime.of(2022, 5, 21, 10, 30)),
                 createExecutedActionsChangeWindow(1L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30)));
+        final GetActionChangeWindowResponse response = GetActionChangeWindowResponse.newBuilder()
+                .addAllChangeWindows(initialChangeWindows)
+                .build();
 
-        doReturn(initialChangeWindows)
+        doReturn(response)
                 .when(actionsRpcService)
                 .getActionChangeWindows(any(GetActionChangeWindowRequest.class));
 
