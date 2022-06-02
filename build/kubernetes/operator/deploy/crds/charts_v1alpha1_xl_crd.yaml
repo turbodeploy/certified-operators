@@ -846,6 +846,12 @@ spec:
                   description: Enable fluent log collection
                   type: boolean
               type: object
+            hydra:
+              properties:
+                enabled:
+                  description: Enable hydra
+                  type: boolean
+              type: object
             prometheus:
               properties:
                 enabled:

@@ -102,6 +102,12 @@ dependencies:
     version: 0.1.0
     condition: extractor.enabled # todo: change to platform.enabled once XLR/search is ready
 
+# Security dependencies
+  - name: hydra
+    repository: file://../base/hydra
+    version: 0.23.1
+    condition: hydra.enabled
+
 # Logging dependencies
   - name: elasticsearch
     repository: file://../base/elasticsearch
