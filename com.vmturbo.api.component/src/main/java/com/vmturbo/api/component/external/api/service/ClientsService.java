@@ -6,8 +6,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.validation.ValidationException;
-
 import com.google.common.base.Strings;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -160,13 +158,17 @@ public class ClientsService implements IClientsService {
     protected void validateClientInputDTO(ClientInputDTO clientInputDTO) throws Exception {
         // Name not empty.
         if (Strings.isNullOrEmpty(clientInputDTO.getName())) {
-            throw new ValidationException("Name for Client Service is required.");
+            throw new IllegalArgumentException("Name for Client Service is required.");
         }
         // Supported services specified.
-        if ((clientInputDTO.getSupportedServices().isEmpty())) {
-            throw new ValidationException("Supported Service Specification is required.");
+        if (clientInputDTO.getSupportedServices() == null || clientInputDTO.getSupportedServices().isEmpty()) {
+            throw new IllegalArgumentException("Supported Service Specification is required.");
         }
-        // Valid supported service passed. Log warn if unexpected.
+        // Supported service value cannot be empty.
+        if (clientInputDTO.getSupportedServices().contains("")) {
+            throw new IllegalArgumentException("Supported Service Specification cannot be empty.");
+        }
+        // Valid supported service passed. Log warn if unexpected value.
         Set<String> currentProbes = Arrays.stream(SDKProbeType.values())
                 .map(SDKProbeType::getProbeType).collect(Collectors.toSet());
         clientInputDTO.getSupportedServices().forEach(service -> {
@@ -177,7 +179,7 @@ public class ClientsService implements IClientsService {
         // Name doesn't already exist.
         if (getClientServices().stream().anyMatch(existingService
             -> clientInputDTO.getName().equals(existingService.getName()))) {
-                throw new ValidationException(
+                throw new IllegalArgumentException(
                     String.format("Client name %s already exists. Must be unique.",
                     clientInputDTO.getName()));
         }
