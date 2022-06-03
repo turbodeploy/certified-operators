@@ -188,14 +188,9 @@ public class TopologyListenerConfig {
             @Nonnull EntityCostWriter entityCostWriter) {
         List<LiveCloudTopologyListener> cloudTopologyListenerList =
                 new ArrayList<>(Arrays.asList(entityCostWriter, riBuyRunner(), ccaDemandCollector()));
-        if (FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()) {
-            if (entitySavingsConfig.isBillSavingsEnabled()) {
+        if (entitySavingsConfig.isBillSavingsEnabled()) {
                 logger.info("Registered Billed Savings Topology Monitor");
                 cloudTopologyListenerList.add(entityBilledSavingsTopologyMonitor());
-            } else {
-                logger.info("Registered bottomup Savings Topology Monitor");
-                cloudTopologyListenerList.add(entitySavingsTopologyMonitor());
-            }
         }
         final LiveTopologyEntitiesListener entitiesListener =
                 new LiveTopologyEntitiesListener(
@@ -450,7 +445,7 @@ public class TopologyListenerConfig {
      */
     @Bean
     public TopologyEntityMonitor entityBilledSavingsTopologyMonitor() {
-        return new TopologyEntityMonitor(entitySavingsConfig.actionsService());
+        return new TopologyEntityMonitor(entitySavingsConfig.savingsActionStore());
     }
 
     /**

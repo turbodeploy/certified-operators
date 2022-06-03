@@ -12,19 +12,19 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
@@ -41,7 +41,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionChangeWindowRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionChangeWindowResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
-import com.vmturbo.common.protobuf.action.ActionDTO.UpdateActionChangeWindowRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.UpdateActionChangeWindowRequest.ActionLivenessInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -55,6 +54,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.component.savings.CachedSavingsActionStore;
+import com.vmturbo.cost.component.savings.SavingsException;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
@@ -74,6 +75,7 @@ public class TopologyEntityMonitorTest {
     private static final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
             .setCreationTime(LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli()).build();
     private final ActionsServiceMole actionsRpcService = spy(new ActionsServiceMole());
+    private CachedSavingsActionStore cachedSavingsActionStore = mock(CachedSavingsActionStore.class);
     private GrpcTestServer grpcServer;
 
     /**
@@ -83,26 +85,36 @@ public class TopologyEntityMonitorTest {
 
     @Before
     public void setup() throws IOException {
+        MockitoAnnotations.initMocks(this);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        topologyMonitor = new TopologyEntityMonitor(actionOrchestratorServiceClient);
+        topologyMonitor = new TopologyEntityMonitor(cachedSavingsActionStore);
         final Map<Long, TopologyEntityDTO> entityMap = createTopologyMap();
         cloudTopology = createCloudTopology(entityMap);
+    }
+
+    private ActionLivenessInfo createLivenessInfo(@Nonnull final Long actionOid, @Nonnull final LivenessState livenessState,
+                                            final Long timeStamp) {
+        final ActionLivenessInfo actionLivenessInfo = ActionLivenessInfo.newBuilder()
+                .setActionOid(actionOid)
+                .setLivenessState(livenessState)
+                .setTimestamp(timeStamp).build();
+        return actionLivenessInfo;
     }
 
     /**
      * Test updates of Liveness states of executed actions.
      */
     @Test
-    public void testLivenessUpdates() {
-        final List<ExecutedActionsChangeWindow> initialChangeWindows = Arrays.asList(
-                createExecutedActionsChangeWindow(1L, 101L, LivenessState.SUPERSEDED, LocalDateTime.of(2022, 5, 21, 10, 30)),
+    public void testLivenessUpdates() throws SavingsException {
+        final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
                 createExecutedActionsChangeWindow(1L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30)),
                 createExecutedActionsChangeWindow(1L, 301L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 23, 9, 30)),
                 createExecutedActionsChangeWindow(1L, 401L, LivenessState.NEW, LocalDateTime.of(2022, 5, 24, 11, 30)),
                 createExecutedActionsChangeWindow(1L, 501L, LivenessState.NEW, LocalDateTime.of(2022, 5, 25, 12, 00)));
+
         final GetActionChangeWindowResponse response = GetActionChangeWindowResponse.newBuilder()
                 .addAllChangeWindows(initialChangeWindows)
                 .build();
@@ -111,35 +123,31 @@ public class TopologyEntityMonitorTest {
                 .when(actionsRpcService)
                 .getActionChangeWindows(any(GetActionChangeWindowRequest.class));
 
+        doReturn(initialChangeWindows)
+                .when(cachedSavingsActionStore)
+                .getActions(any(LivenessState.class));
+
         final TopologyEntityDTO primaryTier = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.COMPUTE_TIER_VALUE)
                 .setOid(2001L)
                 .build();
 
         when(cloudTopology.getPrimaryTier(anyLong())).thenReturn(Optional.of(primaryTier));
-
         topologyMonitor.process(cloudTopology, topologyInfo);
 
-        final List<ActionLivenessInfo> expectedLivenessUpdates = new ArrayList<>();
-        expectedLivenessUpdates.add(topologyMonitor.createLivenessUpdate(501L, LivenessState.LIVE, topologyInfo.getCreationTime()));
-        expectedLivenessUpdates.add(topologyMonitor.createLivenessUpdate(101L, LivenessState.SUPERSEDED, topologyInfo.getCreationTime()));
-        expectedLivenessUpdates.add(topologyMonitor.createLivenessUpdate(201L, LivenessState.SUPERSEDED, topologyInfo.getCreationTime()));
-        expectedLivenessUpdates.add(topologyMonitor.createLivenessUpdate(301L, LivenessState.SUPERSEDED, topologyInfo.getCreationTime()));
-        expectedLivenessUpdates.add(topologyMonitor.createLivenessUpdate(401L, LivenessState.SUPERSEDED, topologyInfo.getCreationTime()));
-
-        final UpdateActionChangeWindowRequest updateActionChangeWindowRequest = UpdateActionChangeWindowRequest.newBuilder()
-               .addAllLivenessInfo(expectedLivenessUpdates)
-        .build();
-        verify(actionsRpcService, times(1))
-                .updateActionChangeWindows(updateActionChangeWindowRequest);
+        verify(cachedSavingsActionStore,  times(1)).activateAction(501L, topologyInfo.getCreationTime());
+        verify(cachedSavingsActionStore,  times(1)).deactivateAction(201L, topologyInfo.getCreationTime(), LivenessState.SUPERSEDED);
+        verify(cachedSavingsActionStore,  times(1)).deactivateAction(301L, topologyInfo.getCreationTime(), LivenessState.SUPERSEDED);
+        verify(cachedSavingsActionStore,  times(1)).deactivateAction(401L, topologyInfo.getCreationTime(), LivenessState.SUPERSEDED);
+        verify(cachedSavingsActionStore,  times(1)).saveChanges();
     }
 
     /**
      * Test no updates required to of Liveness states of executed actions.
      */
     @Test
-    public void testNoUpdatesRequired() {
-        final List<ExecutedActionsChangeWindow> initialChangeWindows = Arrays.asList(
+    public void testNoUpdatesRequired() throws SavingsException {
+        final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
                 createExecutedActionsChangeWindow(1L, 101L, LivenessState.SUPERSEDED, LocalDateTime.of(2022, 5, 21, 10, 30)),
                 createExecutedActionsChangeWindow(1L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30)));
         final GetActionChangeWindowResponse response = GetActionChangeWindowResponse.newBuilder()
@@ -150,6 +158,10 @@ public class TopologyEntityMonitorTest {
                 .when(actionsRpcService)
                 .getActionChangeWindows(any(GetActionChangeWindowRequest.class));
 
+        doReturn(initialChangeWindows)
+                .when(cachedSavingsActionStore)
+                .getActions(any(LivenessState.class));
+
         final TopologyEntityDTO primaryTier = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.COMPUTE_TIER_VALUE)
                 .setOid(2001L)
@@ -159,16 +171,42 @@ public class TopologyEntityMonitorTest {
 
         topologyMonitor.process(cloudTopology, topologyInfo);
 
-        final List<ActionLivenessInfo> expectedLivenessUpdates = new ArrayList<>();
-        expectedLivenessUpdates.add(topologyMonitor.createLivenessUpdate(101L, LivenessState.SUPERSEDED,
-                topologyInfo.getCreationTime()));
-        expectedLivenessUpdates.add(topologyMonitor.createLivenessUpdate(201L, LivenessState.LIVE,
-                topologyInfo.getCreationTime()));
-        final UpdateActionChangeWindowRequest updateActionChangeWindowRequest = UpdateActionChangeWindowRequest.newBuilder()
-                .addAllLivenessInfo(expectedLivenessUpdates)
+        verify(cachedSavingsActionStore,  times(0)).activateAction(201L, topologyInfo.getCreationTime());
+        verify(cachedSavingsActionStore,  times(0)).deactivateAction(101L, topologyInfo.getCreationTime(), LivenessState.SUPERSEDED);
+        verify(cachedSavingsActionStore,  times(1)).saveChanges();
+    }
+
+    /**
+     * Tests external Revert of executed action.
+     */
+    @Test
+    public void testRevert() throws SavingsException {
+        final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
+                createExecutedActionsChangeWindow(1L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30)));
+
+        final GetActionChangeWindowResponse response = GetActionChangeWindowResponse.newBuilder()
+                .addAllChangeWindows(initialChangeWindows)
                 .build();
-        verify(actionsRpcService, times(0))
-                .updateActionChangeWindows(updateActionChangeWindowRequest);
+
+        doReturn(response)
+                .when(actionsRpcService)
+                .getActionChangeWindows(any(GetActionChangeWindowRequest.class));
+
+        doReturn(initialChangeWindows)
+                .when(cachedSavingsActionStore)
+                .getActions(any(LivenessState.class));
+
+        final TopologyEntityDTO primaryTier = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .setOid(1001L)
+                .build();
+
+        when(cloudTopology.getPrimaryTier(anyLong())).thenReturn(Optional.of(primaryTier));
+
+        topologyMonitor.process(cloudTopology, topologyInfo);
+
+        verify(cachedSavingsActionStore,  times(1)).deactivateAction(201L, topologyInfo.getCreationTime(), LivenessState.REVERTED);
+        verify(cachedSavingsActionStore,  times(1)).saveChanges();
     }
 
     private ExecutedActionsChangeWindow createExecutedActionsChangeWindow(final long entityOid,
