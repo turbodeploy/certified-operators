@@ -7,6 +7,8 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 
 import com.vmturbo.history.flyway.MigrationCallbackForVersion121;
+import com.vmturbo.history.flyway.MigrationCallbacksForV1v66AndV1v4;
+import com.vmturbo.history.flyway.MigrationCallbacksForV1v66AndV1v4.ForMariaDBV1v66;
 import com.vmturbo.history.flyway.ResetChecksumsForMyIsamInfectedMigrations;
 import com.vmturbo.history.flyway.V1_28_1_And_V1_35_1_Callback;
 import com.vmturbo.sql.utils.ConditionalDbConfig.DbEndpointCondition;
@@ -50,18 +52,23 @@ public class HistoryDbEndpointConfig extends DbEndpointsConfig {
         switch (sqlDialect) {
             case MARIADB:
                 return new FlywayCallback[]{
-                    // V1.27 migrations collided when 7.17 and 7.21 branches were merged
-                    new ForgetMigrationCallback("1.27"),
-                    // three migrations were changed in order to remove mention of MyISAM DB engine
-                    new ResetChecksumsForMyIsamInfectedMigrations(),
-                    // V1.28.1 and V1.35.1 java migrations needed to change
-                    // V1.28.1 formerly supplied a checksum but no longer does
-                    new V1_28_1_And_V1_35_1_Callback(),
-                    // V1.21 checksum has to change
-                    new MigrationCallbackForVersion121()
+                        // V1.27 migrations collided when 7.17 and 7.21 branches were merged
+                        new ForgetMigrationCallback("1.27"),
+                        // three migrations were changed in order to remove mention of MyISAM DB engine
+                        new ResetChecksumsForMyIsamInfectedMigrations(),
+                        // V1.28.1 and V1.35.1 java migrations needed to change
+                        // V1.28.1 formerly supplied a checksum but no longer does
+                        new V1_28_1_And_V1_35_1_Callback(),
+                        // V1.21 checksum has to change
+                        new MigrationCallbackForVersion121(),
+                        // V1.66 checksum has to change
+                        new ForMariaDBV1v66()
                 };
             case POSTGRES:
-                return new FlywayCallback[]{};
+                return new FlywayCallback[]{
+                        // V1.4 checksum has to change
+                        new MigrationCallbacksForV1v66AndV1v4.ForPostgresV1v4()
+                };
             default:
                 return new FlywayCallback[]{};
         }
