@@ -1277,7 +1277,7 @@ public class VirtualVolumeAspectMapperTest {
     @Test
     public void testUnattachedVolumeInvalidSnapshotTime() throws Exception {
         // given
-        final TopologyEntityDTO unattachedVolume = createUnattachedVolume(VOLUME_OID_1);
+        final TopologyEntityDTO unattachedVolume = createUnattachedVolume(VOLUME_OID_1, 3);
         final long currentTime = System.currentTimeMillis();
         when(statsHistoryServiceMole.getVolumeAttachmentHistory(any()))
                 .thenReturn(Collections.singletonList(GetVolumeAttachmentHistoryResponse.newBuilder()
@@ -1295,7 +1295,7 @@ public class VirtualVolumeAspectMapperTest {
         Assert.assertNotNull(aspect);
         Assert.assertFalse(aspect.getVirtualDisks().isEmpty());
         final VirtualDiskApiDTO virtualDiskApiDTO = aspect.getVirtualDisks().iterator().next();
-        Assert.assertNull(virtualDiskApiDTO.getNumDaysUnattached());
+        assertEquals(virtualDiskApiDTO.getNumDaysUnattached(),"3");
         Assert.assertNull(virtualDiskApiDTO.getLastAttachedVm());
     }
 
@@ -1312,7 +1312,7 @@ public class VirtualVolumeAspectMapperTest {
     public void testUnattachedVolumePropertiesValidData() throws Exception {
         // given
         final String lastAttachedVmName = "vm-11111";
-        final TopologyEntityDTO unattachedVolume = createUnattachedVolume(VOLUME_OID_2);
+        final TopologyEntityDTO unattachedVolume = createUnattachedVolume(VOLUME_OID_2, 3);
         final long currentTime = System.currentTimeMillis();
         when(statsHistoryServiceMole.getVolumeAttachmentHistory(any()))
             .thenReturn(
@@ -1343,7 +1343,7 @@ public class VirtualVolumeAspectMapperTest {
     @Test
     public void testUnattachedVolumeNoHistory() throws Exception {
         // given
-        final TopologyEntityDTO unattachedVolume = createUnattachedVolume(VOLUME_OID_1);
+        final TopologyEntityDTO unattachedVolume = createUnattachedVolume(VOLUME_OID_1,3);
         when(statsHistoryServiceMole.getVolumeAttachmentHistory(any()))
                 .thenReturn(Collections.emptyList());
         stubRepositoryApi();
@@ -1358,7 +1358,7 @@ public class VirtualVolumeAspectMapperTest {
         Assert.assertFalse(aspect.getVirtualDisks().isEmpty());
         final VirtualDiskApiDTO virtualDiskApiDTO = aspect.getVirtualDisks().iterator().next();
         Assert.assertNull(virtualDiskApiDTO.getLastAttachedVm());
-        Assert.assertNull(virtualDiskApiDTO.getNumDaysUnattached());
+        assertEquals(virtualDiskApiDTO.getNumDaysUnattached(), "3");
     }
 
     /**
@@ -1370,7 +1370,7 @@ public class VirtualVolumeAspectMapperTest {
     @Test
     public void testUnattachedVolumeInfoNoVmInfo() throws Exception {
         // given
-        final TopologyEntityDTO unattachedVolume = createUnattachedVolume(VOLUME_OID_2);
+        final TopologyEntityDTO unattachedVolume = createUnattachedVolume(VOLUME_OID_2, 3);
         final long currentTime = System.currentTimeMillis();
         when(statsHistoryServiceMole.getVolumeAttachmentHistory(any()))
                 .thenReturn(Collections.singletonList(GetVolumeAttachmentHistoryResponse.newBuilder()
@@ -1398,10 +1398,10 @@ public class VirtualVolumeAspectMapperTest {
     @Test
     public void testUnattachedVolumeHistoryRpcForBulk() throws Exception {
         // given
-        final TopologyEntityDTO unattachedVolume1 = createUnattachedVolume(VOLUME_OID_1);
         final int vol1NumDaysAgoDetached = 3;
-        final TopologyEntityDTO unattachedVolume2 = createUnattachedVolume(VOLUME_OID_2);
         final int vol2NumDaysAgoDetached = 4;
+        final TopologyEntityDTO unattachedVolume1 = createUnattachedVolume(VOLUME_OID_1, vol1NumDaysAgoDetached);
+        final TopologyEntityDTO unattachedVolume2 = createUnattachedVolume(VOLUME_OID_2, vol2NumDaysAgoDetached);
         final long currentTime = System.currentTimeMillis();
         when(statsHistoryServiceMole.getVolumeAttachmentHistory(any()))
                 .thenReturn(Collections.singletonList(
@@ -1429,15 +1429,13 @@ public class VirtualVolumeAspectMapperTest {
         final VirtualDiskApiDTO vol1Aspect =
             virtualDiskApiDTOs.get(Long.toString(unattachedVolume1.getOid()));
         Assert.assertNotNull(vol1Aspect);
-        Assert.assertEquals(Integer.toString(vol1NumDaysAgoDetached),
-            vol1Aspect.getNumDaysUnattached());
+        Assert.assertEquals(vol1Aspect.getNumDaysUnattached(), Integer.toString(vol1NumDaysAgoDetached));
         Assert.assertNull(vol1Aspect.getLastAttachedVm());
         // verify data related to unattachedVolume2
         final VirtualDiskApiDTO vol2Aspect =
             virtualDiskApiDTOs.get(Long.toString(unattachedVolume2.getOid()));
         Assert.assertNotNull(vol2Aspect);
-        Assert.assertEquals(Integer.toString(vol2NumDaysAgoDetached),
-            vol2Aspect.getNumDaysUnattached());
+        Assert.assertEquals(vol2Aspect.getNumDaysUnattached(), Integer.toString(vol2NumDaysAgoDetached));
         Assert.assertNull(vol1Aspect.getLastAttachedVm());
     }
 
@@ -1452,14 +1450,15 @@ public class VirtualVolumeAspectMapperTest {
         return builder.build();
     }
 
-    private TopologyEntityDTO createUnattachedVolume(final long volumeOid) {
+    private TopologyEntityDTO createUnattachedVolume(final long volumeOid, final int daysUnattached) {
         return TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                 .setOid(volumeOid)
                 .setEnvironmentType(EnvironmentType.CLOUD)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                         .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                                .setAttachmentState(AttachmentState.UNATTACHED))
+                                .setAttachmentState(AttachmentState.UNATTACHED)
+                                .setDaysUnattached(daysUnattached))
                         .build())
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                         .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
