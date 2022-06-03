@@ -12,7 +12,6 @@ import com.google.common.base.Strings;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-import org.apache.commons.lang3.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONArray;
@@ -54,6 +53,14 @@ public class ClientsService implements IClientsService {
 
     private final String clientServicePath;
 
+    private final String clientNetworkHost;
+
+    private final Integer clientNetworkPort;
+
+    private final String clientNetworkScheme;
+
+    private final String clientNetworkPath;
+
     /**
      * ClientsService.
      *
@@ -65,12 +72,19 @@ public class ClientsService implements IClientsService {
      */
     public ClientsService(RestTemplate restTemplate, final String clientServiceHost,
             final Integer clientServicePort, final String clientServiceScheme,
-            final String clientServicePath) {
+            final String clientServicePath,
+            final String clientNetworkHost,
+            final Integer clientNetworkPort, final String clientNetworkScheme,
+            final String clientNetworkPath) {
         this.restTemplate = restTemplate;
         this.clientServiceHost = clientServiceHost;
         this.clientServicePort = clientServicePort;
         this.clientServiceScheme = clientServiceScheme;
         this.clientServicePath = clientServicePath;
+        this.clientNetworkHost = clientNetworkHost;
+        this.clientNetworkPort = clientNetworkPort;
+        this.clientNetworkScheme = clientNetworkScheme;
+        this.clientNetworkPath = clientNetworkPath;
     }
 
     @Override
@@ -194,8 +208,25 @@ public class ClientsService implements IClientsService {
         return clientRequest;
     }
 
+    protected UriComponents prepareClientNetworkUri(String route) {
+        UriComponentsBuilder uriBuilder = UriComponentsBuilder.newInstance()
+            .scheme(clientNetworkScheme)
+            .host(clientNetworkHost)
+            .port(clientNetworkPort)
+            .path(clientNetworkPath + route);
+        return uriBuilder.build();
+    }
+
     @Override
     public ClientNetworkTokenApiDTO createClientNetworkToken() throws Exception {
-        throw new NotImplementedException();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            ResponseEntity<JsonObject> response = restTemplate
+                .postForEntity(prepareClientNetworkUri(SecurityConstant.TOKEN).toString(),
+                    new HttpEntity<>("", headers), JsonObject.class);
+            ClientNetworkTokenApiDTO client = new ClientNetworkTokenApiDTO();
+            client.setId(response.getBody().get("id").getAsString());
+            client.setTokenData(response.getBody().get(SecurityConstant.TOKEN).getAsString());
+            return client;
     }
 }

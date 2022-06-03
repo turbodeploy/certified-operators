@@ -242,6 +242,21 @@ public class SecurityConstant {
     public static final String AUDIT_LOG_SECURITY = "Security";
 
     /**
+     * Constant for client network.
+     */
+    public static final String CLIENT_NETWORK = "client-network";
+
+    /**
+     * Constant for client network port.
+     */
+    public static final String CLIENT_NETWORK_PORT = "8080";
+
+    /**
+     * Constant for client network path.
+     */
+    public static final String CLIENT_NETWORK_PATH = "/api/v1/";
+
+    /**
      * These are predefined external groups for all the roles in XL.
      */
     public static final Set<SecurityGroupDTO> PREDEFINED_SECURITY_GROUPS_SET =

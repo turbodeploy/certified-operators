@@ -12,11 +12,15 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
 import com.vmturbo.api.dto.client.ClientInputDTO;
+import com.vmturbo.api.dto.client.ClientNetworkTokenApiDTO;
 import com.vmturbo.api.dto.client.ClientServiceApiDTO;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 
@@ -30,6 +34,9 @@ public class ClientsServiceTest {
     private static final String clientSecret = "testSecret";
     private static final String clientId = "testId";
     private static final List<String> clientServices = Lists.newArrayList("VCENTER");
+
+    private static final String networkTokenId = "testNetworkTokenId";
+    private static final String networkTokenData = "testNetworkTokenData";
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -47,7 +54,11 @@ public class ClientsServiceTest {
             SecurityConstant.HYDRA_ADMIN,
             Integer.parseInt(SecurityConstant.HYDRA_ADMIN_PORT),
             SecurityConstant.HTTP,
-            SecurityConstant.HYDRA_CLIENTS_PATH);
+            SecurityConstant.HYDRA_CLIENTS_PATH,
+            SecurityConstant.CLIENT_NETWORK,
+            Integer.parseInt(SecurityConstant.CLIENT_NETWORK_PORT),
+            SecurityConstant.HTTP,
+            SecurityConstant.CLIENT_NETWORK_PATH);
     }
 
     /**
@@ -146,5 +157,37 @@ public class ClientsServiceTest {
         Assert.assertEquals(clientDTO.getSecret(), clientSecret);
         Assert.assertEquals(clientDTO.getId(), clientId);
         Assert.assertEquals(clientDTO.getSupportedServices(), clientServices);
+    }
+
+    private JsonObject setupNetworkTokenJsonResponse() {
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty("id", networkTokenId);
+        jsonObject.addProperty(SecurityConstant.TOKEN, networkTokenData);
+        return jsonObject;
+    }
+
+    private void assertClientNetworkTokenInfo(ClientNetworkTokenApiDTO clientDTO) {
+        Assert.assertEquals(clientDTO.getId(), networkTokenId);
+        Assert.assertEquals(clientDTO.getTokenData(), networkTokenData);
+    }
+
+    /**
+     * Test client network token create.
+     *
+     * @throws Exception exception.
+     */
+    @Test
+    public void testCreateClientNetworkToken() throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        JsonObject jsonObject = setupNetworkTokenJsonResponse();
+        ResponseEntity<JsonObject> response
+            = new ResponseEntity<JsonObject>(jsonObject, HttpStatus.OK);
+        Mockito.when(mockRestTemplate
+            .postForEntity(clientsService.prepareClientNetworkUri(SecurityConstant.TOKEN).toString(),
+                new HttpEntity<>("", headers), JsonObject.class))
+            .thenReturn(response);
+        ClientNetworkTokenApiDTO responseDTO = clientsService.createClientNetworkToken();
+        assertClientNetworkTokenInfo(responseDTO);
     }
 }

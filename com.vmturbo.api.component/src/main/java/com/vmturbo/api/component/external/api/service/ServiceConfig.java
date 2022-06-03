@@ -389,7 +389,11 @@ public class ServiceConfig {
                 authConfig.getClientServiceHost(),
                 authConfig.getClientServicePort(),
                 authConfig.getClientServiceScheme(),
-                authConfig.getClientServicePath());
+                authConfig.getClientServicePath(),
+                authConfig.getClientNetworkHost(),
+                authConfig.getClientNetworkPort(),
+                authConfig.getClientNetworkScheme(),
+                authConfig.getClientNetworkPath());
     }
 
     @Bean

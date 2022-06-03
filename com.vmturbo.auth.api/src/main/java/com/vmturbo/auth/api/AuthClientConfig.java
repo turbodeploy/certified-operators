@@ -46,6 +46,18 @@ public class AuthClientConfig {
     @Value("${clientServicePath:" + SecurityConstant.HYDRA_CLIENTS_PATH + "}")
     private String clientServicePath;
 
+    @Value("${clientNetworkHost:" + SecurityConstant.CLIENT_NETWORK + "}")
+    private String clientNetworkHost;
+
+    @Value("${clientNetworkPort:" + SecurityConstant.CLIENT_NETWORK_PORT + "}")
+    private Integer clientNetworkPort;
+
+    @Value("${clientNetworkScheme:" + SecurityConstant.HTTP + "}")
+    private String clientNetworkScheme;
+
+    @Value("${clientNetworkPath:" + SecurityConstant.CLIENT_NETWORK_PATH + "}")
+    private String clientNetworkPath;
+
     @Bean
     public Channel authClientChannel() {
         return ComponentGrpcServer.newChannelBuilder(authHost, grpcPort)
@@ -82,5 +94,21 @@ public class AuthClientConfig {
 
     public String getClientServicePath() {
         return clientServicePath;
+    }
+
+    public String getClientNetworkHost() {
+        return clientNetworkHost;
+    }
+
+    public Integer getClientNetworkPort() {
+        return clientNetworkPort;
+    }
+
+    public String getClientNetworkScheme() {
+        return clientNetworkScheme;
+    }
+
+    public String getClientNetworkPath() {
+        return clientNetworkPath;
     }
 }
