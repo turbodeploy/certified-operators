@@ -1321,12 +1321,6 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         }
         final VolumeAttachmentHistory history = volumeAttachmentHistoryMap.get(volumeId);
         if (history != null && history.hasLastAttachedDateMs()) {
-            final long currentTime = System.currentTimeMillis();
-            final long lastAttachedDate = history.getLastAttachedDateMs();
-            if (currentTime > lastAttachedDate) {
-                virtualDiskApiDTO.setNumDaysUnattached(
-                    Long.toString(TimeUnit.MILLISECONDS.toDays(currentTime - lastAttachedDate)));
-            }
             final List<String> lastAttachedVms = history.getVmNameList();
             if (!lastAttachedVms.isEmpty()) {
                 // Currently assume that a Volume can have exactly one VM name in the history.
@@ -1396,6 +1390,9 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             }
             if (volumeInfo.hasHourlyBilledOps()) {
                 apiDto.setHourlyBilledOps(volumeInfo.getHourlyBilledOps());
+            }
+            if(volumeInfo.hasDaysUnattached()) {
+                apiDto.setNumDaysUnattached(Integer.toString(volumeInfo.getDaysUnattached()));
             }
             // Get the most recent date from associated files
             apiDto.setLastModified(volumeInfo.getFilesList().stream()
