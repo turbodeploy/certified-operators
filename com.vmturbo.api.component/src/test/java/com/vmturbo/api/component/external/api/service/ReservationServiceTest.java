@@ -2,7 +2,6 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.enums.ReservationAction.RESERVATION;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,12 +37,9 @@ import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.DeleteReservationByIdRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
-import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -282,84 +278,6 @@ public class ReservationServiceTest {
         final DemandReservationApiInputDTO demandApiInputDTO =
                 getDemandReservationApiInputDTO(MAXIMUM_PLACEMENT_COUNT + 1);
         reservationsService.createReservationForDemand(false, RESERVATION, demandApiInputDTO);
-    }
-
-    /**
-     * Test deletion of non deployed reservation with forced deletion
-     */
-    @Test
-    public void testDeleteReservationWithForceDelete() throws Exception {
-        final DeleteReservationByIdRequest request = DeleteReservationByIdRequest.newBuilder()
-                .setReservationId(123)
-                .setDeployed(false)
-                .build();
-
-        boolean deletedResult = reservationsService.deleteReservationByID(String.valueOf(request.getReservationId()),request.getDeployed(),true);
-        assertTrue(deletedResult);
-    }
-
-    /**
-     * Test deletion of deployed reservation with forced deletion
-     */
-    @Test
-    public void testDeleteReservationWithForceDeleteEnabledAndIsDeployed() throws Exception {
-        final DeleteReservationByIdRequest request = DeleteReservationByIdRequest.newBuilder()
-                .setReservationId(123)
-                .setDeployed(true)
-                .build();
-        final GetReservationByIdRequest getRequest = GetReservationByIdRequest.newBuilder()
-                .setReservationId(Long.valueOf(request.getReservationId()))
-                .setApiCallBlock(false)
-                .build();
-
-        boolean deletedResult = reservationsService.deleteReservationByID(String.valueOf(request.getReservationId()),
-                request.getDeployed(),true);
-        assertTrue(deletedResult);
-    }
-
-    /**
-     * Test deletion of non-deployed reservation with non-forced deletion
-     */
-    @Test
-    public void testDeleteReservationThatIsNotDeployed() throws Exception {
-        final DeleteReservationByIdRequest request = DeleteReservationByIdRequest.newBuilder()
-                .setReservationId(123)
-                .setDeployed(false)
-                .build();
-        boolean deletedResult = reservationsService.deleteReservationByID(String.valueOf(request.getReservationId()),
-                request.getDeployed(),false);
-        assertTrue(deletedResult);
-    }
-
-    /**
-     * Test deletion of deployed reservation with non-forced deletion
-     */
-    @Test
-    public void testDeleteReservationWithIsDeployed() throws Exception {
-        final DeleteReservationByIdRequest request = DeleteReservationByIdRequest.newBuilder()
-                .setReservationId(123)
-                .setDeployed(false)
-                .build();
-
-        final GetReservationByIdRequest getRequest = GetReservationByIdRequest.newBuilder()
-                .setReservationId(Long.valueOf(request.getReservationId()))
-                .setApiCallBlock(false)
-                .build();
-
-        final Reservation returnedReservation = Reservation.newBuilder()
-                .setDeployed(true)
-                .build();
-
-        Mockito.when(reservationServiceMole
-                .getReservationById(getRequest)).thenReturn(returnedReservation);
-
-        try{
-            reservationsService.deleteReservationByID(String.valueOf(request.getReservationId()),
-                    request.getDeployed(),false);
-        } catch (OperationFailedException e){
-            assertEquals("Delete failed reservation already deleted",e.getMessage());
-        }
-
     }
 
     private DemandReservationApiInputDTO getDemandReservationApiInputDTO(final int count) {
