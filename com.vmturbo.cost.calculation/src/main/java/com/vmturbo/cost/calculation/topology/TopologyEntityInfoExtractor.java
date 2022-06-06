@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -26,6 +27,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.util.Units;
 
 /**
@@ -36,6 +39,19 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
 
     private static final Logger logger = LogManager.getLogger();
     private static final List<Integer> commodityTypesSupported = Arrays.asList(CommodityType.NUM_VCORE_VALUE, CommodityType.MEM_PROVISIONED_VALUE);
+
+    /**
+     * Name of os type entity property name.
+     * TODO : this should be removed once ASP move from ApplicationComponent to VMSpec: OM-83212.
+     */
+    public static final String OS_TYPE = "OS_TYPE";
+
+    /**
+     * Allowed OS type for Application Component.
+     * TODO : this should be removed once ASP move from ApplicationComponent to VMSpec: OM-83212.
+     */
+    public static final Collection<String> APPLICATION_COMPONENT_ALLOWED_OS =
+            Stream.of(OSType.LINUX, OSType.WINDOWS).map(Enum::name).collect(Collectors.toList());
 
     @Override
     public int getEntityType(@Nonnull final TopologyEntityDTO entity) {
@@ -80,9 +96,24 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
                     vmConfig.getNumCpus(),
                     vmConfig.getLicenseModel(),
                     pricedCommoditiesBought));
-        } else {
-            return Optional.empty();
+        } else if (entity.getEntityType() == EntityType.APPLICATION_COMPONENT_VALUE) {
+            //TODO : Roop create VMSpecInfo and add required fields.
+            Optional<Map<String, String>> entityPropertyMap =  getEntityPropertyMap(entity);
+            if (entityPropertyMap.isPresent()
+                    && APPLICATION_COMPONENT_ALLOWED_OS.contains(entityPropertyMap.get().get(OS_TYPE))) {
+                final OSType aspOsType = OSType.valueOf(entityPropertyMap.get().get(OS_TYPE));
+                return Optional.of(
+                        new ComputeConfig(aspOsType, Tenancy.DEFAULT, null, 0,
+                                null, null));
+            }
         }
+        return Optional.empty();
+    }
+
+    @Nonnull
+    @Override
+    public Optional<Map<String, String>> getEntityPropertyMap(@Nonnull final TopologyEntityDTO entityDTO) {
+        return Optional.of(entityDTO.getEntityPropertyMapMap());
     }
 
     @Nonnull

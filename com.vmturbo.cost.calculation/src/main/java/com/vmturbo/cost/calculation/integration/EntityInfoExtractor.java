@@ -12,7 +12,6 @@ import org.immutables.value.Value;
 import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -28,6 +27,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
+import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierConfigPrice;
 
 /**
@@ -159,6 +159,14 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     @Nonnull
     Optional<DatabaseTierConfig> getDatabaseTierConfig(@Nonnull ENTITY_CLASS entity);
 
+    /**
+     * Get entity property map used to lookup various properties.
+     *
+     * @param entityDTO the entity.
+     * @return an optional Map of string : the value indexed by string : the property key.
+     */
+    @Nonnull
+    Optional<Map<String, String>> getEntityPropertyMap(@Nonnull ENTITY_CLASS entityDTO);
 
     /**
      * A wrapper class around the compute configuration of an entity.
@@ -209,6 +217,10 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         @Nonnull
         public Map<CommodityType, Double> getPricedCommoditiesBought() {
             return pricedCommoditiesBought;
+        }
+
+        public boolean matchComputePriceTierAdjustmentByOS(@Nonnull ComputeTierConfigPrice computeTierConfigPrice) {
+            return computeTierConfigPrice.getGuestOsType().equals(this.getOs());
         }
     }
 
