@@ -167,7 +167,8 @@ public class WastedAppServicePlanAnalysisEngineTest {
                 createCommodityLink(app, plan);
                 connectEntities(app, plan);
             }
-            // Build everything
+            // Build everything (also set entity property map w/ total app count)
+            plan.putEntityPropertyMap("Total App Count", apps.size() + "");
             topology.put(plan.getOid(), plan.build());
             for (TopologyEntityDTO.Builder app : apps) {
                 createCommodityLink(app, plan);

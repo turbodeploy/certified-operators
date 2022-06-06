@@ -946,7 +946,6 @@ public class ActionDescriptionBuilder {
             ActionPartialEntity targetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId)
                     .get();
             long sourceEntityId = recommendation.getInfo().getDelete().getSource().getId();
-            // TODO: Replace "Azure" with subscription name ie PT2 when that data is ready.
             String family = UNKNOWN, subscription = AZURE;
             if (entitiesSnapshot.getEntityFromOid(sourceEntityId).isPresent()) {
                 family = entitiesSnapshot.getEntityFromOid(sourceEntityId)
@@ -955,8 +954,13 @@ public class ActionDescriptionBuilder {
                         .getComputeTier()
                         .getFamily();
             }
+            final Optional<EntityWithConnections> businessAccountTopologyEntityOpt =
+                    entitiesSnapshot.getOwnerAccountOfEntity(targetEntityId);
+            if(businessAccountTopologyEntityOpt.isPresent()){
+                subscription = businessAccountTopologyEntityOpt.get().getDisplayName();
+            }
             return ActionMessageFormat.ACTION_DESCRIPTION_DELETE_ASP.format(
-                    targetEntity.getDisplayName(), family, subscription);
+                    family, targetEntity.getDisplayName(), subscription);
         }
 
         // Handle volumes

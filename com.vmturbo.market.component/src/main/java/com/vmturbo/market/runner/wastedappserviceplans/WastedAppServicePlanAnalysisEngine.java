@@ -55,6 +55,12 @@ public class WastedAppServicePlanAnalysisEngine {
     private static final String WINDOWS = "Windows_AppServicePlan";
 
     /**
+     * Name of Entity Property for Azure App Service Plans that contains the number of applications
+     * running on the plan.
+     */
+    private static final String TOTAL_APP_COUNT = "Total App Count";
+
+    /**
      * Verify that a topology entity is an App Service Plan.
      *
      * @param candidateAppServicePlan candidate entity.
@@ -85,59 +91,22 @@ public class WastedAppServicePlanAnalysisEngine {
     }
 
     /**
-     * Verify that a topology entity is an App Service Application.
+     * Collect all the Azure App Service Plans (ASPs) that are running no apps.
      *
-     * @param topologyEntities graph of topology
-     * @param candidateAppServiceApp candidate entity
-     * @return true if entity is app service application
+     * @param candidateAppServicePlans list of candidate app service plans.
+     * @return set of the UUIDs of all the ASPs in the environment that have no apps running on
+     *         them.
      */
-    private boolean isAppService(Map<Long, TopologyEntityDTO> topologyEntities,
-            TopologyEntityDTO candidateAppServiceApp) {
-        // Verify app service by checking that the candidate entity buys from an app service & is expected entity type.
-        // It's not good enough to just check if commodity bought is of a certain type.
-        // Note: App -> Service and ASP -> AppComponent will migrate to AppComponentSpec and VMSpec respectively in the future.
-        return candidateAppServiceApp.getEntityType() == EntityType.SERVICE_VALUE
-                && candidateAppServiceApp.getCommoditiesBoughtFromProvidersList().stream().filter(
-                commoditiesBoughtFromProvider ->
-                        commoditiesBoughtFromProvider.getProviderEntityType()
-                                == EntityType.APPLICATION_COMPONENT_VALUE).anyMatch(
-                commoditiesBoughtFromProvider -> isAppServicePlan(
-                        topologyEntities.get(commoditiesBoughtFromProvider.getProviderId())));
-    }
-
-    /**
-     * Collect a set of the UUIDs of ASPs that are actively used by at least one application.
-     *
-     * @param topologyEntities graph of topology
-     * @param candidateAppServiceApplications list of candidate app service applications
-     * @return set of the UUIDs of the ASPS in use by at least one application
-     */
-    private Set<Long> collectUtilizedASPs(Map<Long, TopologyEntityDTO> topologyEntities,
-            List<TopologyEntityDTO> candidateAppServiceApplications) {
-        // Stream through entities (modeled as service for now but in the future these will be migrated to AppComponentSpec)
-        return candidateAppServiceApplications.stream().filter(
-                topologyEntityDTO -> isAppService(topologyEntities, topologyEntityDTO)).flatMap(
-                topologyEntityDTO -> topologyEntityDTO.getCommoditiesBoughtFromProvidersList()
-                        .stream()).filter(commoditiesBoughtFromProvider ->
-                commoditiesBoughtFromProvider.getProviderEntityType()
-                        == EntityType.APPLICATION_COMPONENT_VALUE).map(
-                CommoditiesBoughtFromProvider::getProviderId).filter(
-                providerId -> isAppServicePlan(topologyEntities.get(providerId))).collect(
-                Collectors.toSet());
-    }
-
-    /**
-     * Collect a set of the UUIDs of all ASPs in the environment.
-     *
-     * @param candidateAppServicePlans list of candidate app service plans
-     * @return set of the UUIDs of ALL the ASPS in the environment
-     */
-    private Set<Long> collectAllASPs(List<TopologyEntityDTO> candidateAppServicePlans) {
+    private Set<Long> collectAllUnutilizedASPs(List<TopologyEntityDTO> candidateAppServicePlans) {
         // In the future, we will need to switch to streaming through the new model with VMSpecs (meaning GuestLoad check will be obsolete too).
         return candidateAppServicePlans.stream()
                 .filter(topologyEntityDTO -> !topologyEntityDTO.getDisplayName()
                         .contains(SupplyChainConstants.GUEST_LOAD))
-                .filter(topologyEntityDTO -> isAppServicePlan(topologyEntityDTO))
+                .filter(this::isAppServicePlan)
+                .filter(topologyEntityDTO -> topologyEntityDTO.getEntityPropertyMapMap() != null
+                        && topologyEntityDTO.getEntityPropertyMapMap().containsKey(TOTAL_APP_COUNT)
+                        && Integer.parseInt(
+                        topologyEntityDTO.getEntityPropertyMapMap().get(TOTAL_APP_COUNT)) <= 0)
                 .map(TopologyEntityDTO::getOid)
                 .collect(Collectors.toSet());
     }
@@ -169,37 +138,29 @@ public class WastedAppServicePlanAnalysisEngine {
 
         logger.info("{} Started", logPrefix);
         final List<Action> actions;
-        // High level: Compare set of used ASPs against all ASPs to get wasted (done backwards from apps since graph is directed and ASPs don't know their apps)
-        // We don't take into account other items on unused ASPs like network/hybrid conn/custom domains.
         try {
             // Fetch entities and group by type to make it faster to use.
             // Enum value is lost so must use integer value for entity type.
             final Map<Integer, List<TopologyEntityDTO>> topologyEntitiesByEntityType =
                     topologyEntities.values().stream().collect(
                             Collectors.groupingBy(TopologyEntityDTO::getEntityType));
-            // Note that service and app component will migrate to app component spec and vmspec in the future.
 
-            // Get set of consumed ASP uuids from discovered apps (default empty list in case none in topology to not break code)
-            final Set<Long> utilizedASPs = collectUtilizedASPs(topologyEntities,
-                    topologyEntitiesByEntityType.getOrDefault(EntityType.SERVICE_VALUE,
-                            new ArrayList<>()));
+            // Find the app service plans that have no apps running on them. These are candidates for deletion.
+            // Note that service and app component will migrate to app component spec and vmspec in the future for azure app service plans.
+            Set<Long> unUtilizedAppServicePlans = collectAllUnutilizedASPs(
+                    topologyEntitiesByEntityType.getOrDefault(
+                            EntityType.APPLICATION_COMPONENT_VALUE, new ArrayList<>()));
 
-            // Get set of ASP uuids from all ASPs (default empty list in case none in topology to not break code)
-            Set<Long> activeASPs = collectAllASPs(topologyEntitiesByEntityType.getOrDefault(
-                    EntityType.APPLICATION_COMPONENT_VALUE, new ArrayList<>()));
-
-            // Remove utilized ASPs from all ASP set. This gives us the set of orphaned ASPs uuids.
-            activeASPs.removeAll(utilizedASPs);
-            logger.info("Found " + activeASPs.size() + " Wasted App Service Plans");
+            logger.info("Found " + unUtilizedAppServicePlans.size() + " Wasted App Service Plans");
             // Filter out non-controllable ASPs. Do not generate actions for controllable false.
-            activeASPs = activeASPs.stream().filter(id -> topologyEntities.get(id)
-                    .getAnalysisSettings()
-                    .getControllable()).collect(Collectors.toSet());
-            logger.info("Generating Actions for " + activeASPs.size()
+            unUtilizedAppServicePlans = unUtilizedAppServicePlans.stream().filter(
+                    id -> topologyEntities.get(id).getAnalysisSettings().getControllable()).collect(
+                    Collectors.toSet());
+            logger.info("Generating Actions for " + unUtilizedAppServicePlans.size()
                     + " Wasted App Service Plans (controllable)");
 
             // Generate actions based on wasted ASPs (activeASPs set should now contain only wasted ASP uuids).
-            actions = activeASPs.stream().flatMap(
+            actions = unUtilizedAppServicePlans.stream().flatMap(
                     aspOid -> createActionsFromAppServicePlan(topologyEntities.get(aspOid),
                             topologyCostCalculator, originalCloudTopology).stream()).collect(
                     Collectors.toList());
@@ -233,7 +194,7 @@ public class WastedAppServicePlanAnalysisEngine {
                     .setEnvironmentType(EnvironmentType.CLOUD));
         }
 
-        // TODO: set executable true when wasted ASP delete execution is implemented https://vmturbo.atlassian.net/browse/OM-84150
+        // TODO: Set executable to true when policy work is ready https://vmturbo.atlassian.net/browse/OM-85048
         final Action.Builder action = Action.newBuilder()
                 // Assign a unique ID to each generated action.
                 .setId(IdentityGenerator.next())
@@ -267,8 +228,8 @@ public class WastedAppServicePlanAnalysisEngine {
                     appServicePlan.getDisplayName());
         }
         // Fetch the ComputeTier provider ID
-        Optional<Long> computeTierProviderId = TopologyDTOUtil.getAppServicePlanComputeTierProviderID(
-                appServicePlan);
+        Optional<Long> computeTierProviderId =
+                TopologyDTOUtil.getAppServicePlanComputeTierProviderID(appServicePlan);
         if (!Objects.requireNonNull(computeTierProviderId).isPresent()) {
             // No actions if we don't have a ComputeTier.
             return Collections.emptyList();
