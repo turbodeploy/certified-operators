@@ -308,12 +308,31 @@ public class ReservationsService implements IReservationsService {
     }
 
     @Override
-    public Boolean deleteReservationByID(String reservationID, Boolean deployed) {
-        final DeleteReservationByIdRequest request = DeleteReservationByIdRequest.newBuilder()
+    public Boolean deleteReservationByID(String reservationID, Boolean deployed, Boolean forceDelete) throws Exception {
+        if(forceDelete){
+            final DeleteReservationByIdRequest deleteRequest = DeleteReservationByIdRequest.newBuilder()
+                    .setReservationId(Long.valueOf(reservationID))
+                    .setDeployed(!forceDelete)
+                    .build();
+            reservationService.deleteReservationById(deleteRequest);
+            return true;
+        }
+
+        final GetReservationByIdRequest getRequest = GetReservationByIdRequest.newBuilder()
+                .setReservationId(Long.valueOf(reservationID))
+                .setApiCallBlock(false)
+                .build();
+        final Reservation reservation =
+                reservationService.getReservationById(getRequest);
+        if(!forceDelete && (reservation.hasDeployed() && reservation.getDeployed())){
+            throw new OperationFailedException("Delete failed reservation already deleted");
+        }
+
+        final DeleteReservationByIdRequest deleteRequest = DeleteReservationByIdRequest.newBuilder()
                 .setReservationId(Long.valueOf(reservationID))
                 .setDeployed(deployed)
                 .build();
-        reservationService.deleteReservationById(request);
+        reservationService.deleteReservationById(deleteRequest);
         return true;
     }
 

@@ -210,8 +210,9 @@ public class ReservationRpcService extends ReservationServiceImplBase {
             return;
         }
         try {
-            boolean deployed = request.hasDeployed() && request.getDeployed();
-            final Reservation reservation = reservationDao.deleteReservationById(request.getReservationId(), deployed, delayedDeletionTimeInMillis);
+            boolean hasBeenDeployed = request.hasDeployed() && request.getDeployed();
+            final Reservation reservation = reservationDao.deleteReservationById(request.getReservationId(),
+                    hasBeenDeployed, delayedDeletionTimeInMillis);
             responseObserver.onNext(reservation);
             responseObserver.onCompleted();
         } catch (NoSuchObjectException e) {
