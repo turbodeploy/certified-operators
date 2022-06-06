@@ -963,6 +963,12 @@ public class ActionSpecMapper {
                 }
             }
         }
+
+        if (ApiEntityType.APPLICATION_COMPONENT.apiStr().equals(targetEntity.getClassName())) {
+            final Long actionTargetId = ActionDTOUtil.getPrimaryEntity(action, false).getId();
+            setCurrentAndNewLocation(actionTargetId, context, actionApiDTO);
+        }
+
         // For cloud changing tier actions and virtual volume SCALE/MOVE/DELETE actions,
         // set region and virtualDisks.
         // (Volume action is SCALE in real time and optimized plan, and is MOVE in migration plan.)

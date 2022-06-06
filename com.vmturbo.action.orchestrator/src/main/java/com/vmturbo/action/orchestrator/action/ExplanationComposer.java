@@ -128,6 +128,7 @@ public class ExplanationComposer {
     private static final String WASTED_COST = "Cost Reduction";
     private static final String DELETE_WASTED_FILES_EXPLANATION = "Idle or non-productive";
     private static final String DELETE_WASTED_VOLUMES_EXPLANATION = "Increase savings";
+    private static final String DELETE_WASTED_AZURE_APP_SERVICE_PLANS_EXPLANATION = "Increase savings";
     private static final String ALLOCATE_EXPLANATION = "Virtual Machine can be covered by {0} RI";
     private static final String UNDERUTILIZED_EXPLANATION = "Underutilized ";
     private static final String CONGESTION_EXPLANATION = " Congestion";
@@ -988,8 +989,14 @@ public class ExplanationComposer {
      * @return String giving the explanation for the action
      */
     private static String buildDeleteExplanation(ActionDTO.Action action) {
-        if (action.getInfo().getDelete().getTarget().getEnvironmentType() == EnvironmentType.CLOUD) {
-            return DELETE_WASTED_VOLUMES_EXPLANATION;
+        if (action.getInfo().getDelete().getTarget().getEnvironmentType()
+                == EnvironmentType.CLOUD) {
+            // Note: Application Component will migrate to VMSPEC for Azure App Service Plans ASPs in the future.
+            return EntityType.APPLICATION_COMPONENT_VALUE == action.getInfo()
+                    .getDelete()
+                    .getTarget()
+                    .getType() ? DELETE_WASTED_AZURE_APP_SERVICE_PLANS_EXPLANATION
+                    : DELETE_WASTED_VOLUMES_EXPLANATION;
         } else {
             return DELETE_WASTED_FILES_EXPLANATION;
         }
