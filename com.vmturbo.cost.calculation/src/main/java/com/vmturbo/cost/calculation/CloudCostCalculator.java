@@ -31,7 +31,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.util.CollectionUtils;
 
-import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology;
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -58,6 +57,7 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolum
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.journal.CostJournal.Builder;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
@@ -190,7 +190,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     public CostJournal<ENTITY_CLASS> calculateCost(@Nonnull final ENTITY_CLASS entity) {
         final long entityId = entityInfoExtractor.getId(entity);
         final int entityType = entityInfoExtractor.getEntityType(entity);
-        if (!ENTITY_TYPES_WITH_COST.contains(entityType)) {
+        if (!ENTITY_TYPES_WITH_COST.contains(entityType)
+                && !isAzureAppServicePlan(entity)) {
             logger.debug("Skipping cost calculation for entity {} due to unsupported entity type {}",
                 entityId, EntityType.forNumber(entityType).name());
             return CostJournal.empty(entity, entityInfoExtractor);
@@ -203,15 +204,15 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             final Optional<ENTITY_CLASS> businessAccountOpt = cloudTopology.getOwner(entityId);
 
             if (!businessAccountOpt.isPresent()) {
-                logger.warn("Unable to find business account for entity {}. Returning empty cost.", entityId);
+                logger.warn(
+                        "Unable to find business account for entity {}. Returning empty cost.",
+                        entityId);
                 return CostJournal.empty(entity, entityInfoExtractor);
             }
-
             final ENTITY_CLASS businessAccount = businessAccountOpt.get();
 
             final long businessAccountOid = entityInfoExtractor.getId(businessAccount);
-            Optional<AccountPricingData<ENTITY_CLASS>> accountPricingDataOpt =
-                    cloudCostData.getAccountPricingData(businessAccountOid);
+            Optional<AccountPricingData<ENTITY_CLASS>> accountPricingDataOpt = cloudCostData.getAccountPricingData(businessAccountOid);
             if (!accountPricingDataOpt.isPresent()) {
                 return CostJournal.empty(entity, entityInfoExtractor);
             }
@@ -224,7 +225,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             final DiscountApplicator<ENTITY_CLASS> discountApplicator = accountPricingData
                     .getDiscountApplicator();
 
-            final CostJournal.Builder<ENTITY_CLASS> journal =
+            final Builder<ENTITY_CLASS> journal =
                 CostJournal.newBuilder(entity, entityInfoExtractor, region, discountApplicator, dependentCostLookup);
 
             long regionId = entityInfoExtractor.getId(region);
@@ -260,6 +261,10 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 case EntityType.VIRTUAL_VOLUME_VALUE:
                     calculateVirtualVolumeCost(context);
                     break;
+                // TODO: Update entityType for Azure ASP when OM-83212 model refactor story is complete.
+                case EntityType.APPLICATION_COMPONENT_VALUE:
+                    calculateAppServicePlanCost(context);
+                    break;
                 default:
                     logger.error("Received invalid entity " + entity.toString());
                     break;
@@ -272,6 +277,22 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             }
             return builtJournal;
         }
+    }
+
+    /**
+     * TODO Remove this temporary helper method which differentiate between GuestLoad Application
+     * prefixed with "GuestLoad" and Azure App Services. This should be removed when
+     * Azure App Service plan transition over to {@link EntityType.VM_SPEC}.
+     *
+     * @param entity current entity.
+     * @return bool if it's a 'real' azure app service plan.
+     */
+    private boolean isAzureAppServicePlan(@Nonnull final ENTITY_CLASS entity) {
+        Optional<Map<String, String>> entityPropertyMap = entityInfoExtractor.getEntityPropertyMap(entity);
+        return EntityType.APPLICATION_COMPONENT_VALUE == entityInfoExtractor.getEntityType(entity)
+                && entityPropertyMap.isPresent()
+                && TopologyEntityInfoExtractor.APPLICATION_COMPONENT_ALLOWED_OS.contains(
+                        entityPropertyMap.get().get(TopologyEntityInfoExtractor.OS_TYPE));
     }
 
     private void calculateVirtualVolumeCost(@Nonnull CostCalculationContext<ENTITY_CLASS> context) {
@@ -292,8 +313,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 final ENTITY_CLASS storageTier = storageTierOpt.get();
                 final long regionId = context.getRegionid();
                 final long storageTierId = entityInfoExtractor.getId(storageTier);
-                final OnDemandPriceTable onDemandPriceTable = context.getOnDemandPriceTable().isPresent() ?
-                        context.getOnDemandPriceTable().get() : null;
+                final OnDemandPriceTable onDemandPriceTable = context.getOnDemandPriceTable().isPresent()
+                        ? context.getOnDemandPriceTable().get() : null;
                 if (onDemandPriceTable != null) {
                     final StorageTierPriceList storageTierPrices =
                             onDemandPriceTable.getCloudStoragePricesByTierIdMap().get(storageTierId);
@@ -471,6 +492,52 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     amount,
                     Optional.empty()));
         }
+    }
+
+    private void calculateAppServicePlanCost(@Nonnull CostCalculationContext<ENTITY_CLASS> context) {
+        final ENTITY_CLASS entity = context.getEntity();
+        final long entityId = entityInfoExtractor.getId(entity);
+        final CostJournal.Builder<ENTITY_CLASS> journal = context.getCostJournal();
+        logger.trace("Starting entity cost calculation for vm {}", entityId);
+        cloudTopology.getComputeTier(entityId).ifPresent(computeTier -> {
+            final long regionId = context.getRegionid();
+            final Optional<OnDemandPriceTable> onDemandPriceTable = context.getOnDemandPriceTable();
+            if (!onDemandPriceTable.isPresent()) {
+                logger.debug("calculateAppServicePlanCost: Global price table has no entry for region {}."
+                                + "  This means there is some inconsistency between the topology and pricing data.",
+                        regionId);
+            } else {
+                final ComputeTierPriceList computePriceList = onDemandPriceTable.get()
+                        .getComputePricesByTierIdMap()
+                        .get(entityInfoExtractor.getId(computeTier));
+                final Optional<ComputeTierConfig> computeTierConfig = entityInfoExtractor.getComputeTierConfig(computeTier);
+                if (computePriceList != null
+                        && computeTierConfig.isPresent()) {
+                    recordAppServicePlanCost(computePriceList, journal, entity);
+                }
+            }
+        });
+    }
+
+    private void recordAppServicePlanCost(final ComputeTierPriceList computePriceList,
+                                          final Builder<ENTITY_CLASS> costJournal,
+                                          final ENTITY_CLASS entity) {
+        final ComputeTierConfigPrice computeTierBasePrice = computePriceList.getBasePrice();
+        computeTierBasePrice.getPricesList().forEach(price -> {
+            costJournal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE,
+                    entity, price, FULL, Optional.empty());
+        });
+        final Optional<ComputeConfig> computeConfig = entityInfoExtractor.getComputeConfig(entity);
+        computePriceList.getPerConfigurationPriceAdjustmentsList().stream()
+                .filter(computeTierConfigPrice ->
+                        computeConfig.map(config ->
+                                        config.matchComputePriceTierAdjustmentByOS(computeTierConfigPrice))
+                                .orElse(false))
+                .forEach(priceAdjustment ->
+                        priceAdjustment.getPricesList()
+                                .forEach(price ->
+                                        costJournal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE,
+                                                entity, price, FULL, Optional.empty())));
     }
 
     /**

@@ -5,12 +5,13 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.mockito.Matchers.*;
+import static org.junit.Assert.assertNotNull;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.junit.Assert.assertNotNull;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -26,7 +27,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.cloud.common.commitment.TopologyEntityCommitmentTopology;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
@@ -53,7 +54,6 @@ import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
@@ -133,6 +133,7 @@ public class CloudCostCalculatorTest {
             VMBillingType.RESERVED, 4, EntityDTO.LicenseModel.LICENSE_INCLUDED, null);
 
     private static final double BASE_PRICE = 10.0;
+    private static final double APP_SERVICE_LINUX_PRICE = 17.0;
     private static final double MEM_PROVISIONED_PRICE = 5.0;
     private static final double NUM_VCORE_PRICE = 6.0;
     private static final double DEFAULT_RI_COVERAGE = 0.2;
@@ -178,6 +179,7 @@ public class CloudCostCalculatorTest {
     private static final long STORAGE_TIER_ID = 10;
     private static final long STORAGE_TIER_ID_2 = 13;
     private static final long COMPUTE_TIER_ID = 11;
+    private static final long APP_COMPUTE_TIER_ID = 44;
     private static final long DB_TIER_ID = 4;
     private static final long DB_SERVER_TIER_ID = 5;
     private static final long VOLUME_ID = 7;
@@ -197,13 +199,15 @@ public class CloudCostCalculatorTest {
     private static final TestEntityClass storageTier = TestEntityClass.newBuilder(STORAGE_TIER_ID)
                     .build(infoExtractor);
     private static final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
-                    .build(infoExtractor);
+            .build(infoExtractor);
+    private static final TestEntityClass appComputeTier = TestEntityClass.newBuilder(APP_COMPUTE_TIER_ID)
+            .build(infoExtractor);
     private static final TestEntityClass databaseTier = TestEntityClass.newBuilder(DB_TIER_ID)
                     .build(infoExtractor);
     private static final TestEntityClass databaseServerTier = TestEntityClass.newBuilder(DB_SERVER_TIER_ID)
         .build(infoExtractor);
 
-    private static final PriceTable PRICE_TABLE_AWS = thePriceTable(Provider.AWS_Azure);
+    private static final PriceTable PRICE_TABLE_AWS_AZURE = thePriceTable(Provider.AWS_Azure);
     private static final PriceTable PRICE_TABLE_GCP = thePriceTable(Provider.GCP);
 
     private static final CloudCostData CLOUD_COST_DATA = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
@@ -291,7 +295,7 @@ public class CloudCostCalculatorTest {
                 VMBillingType.ONDEMAND, 4,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED, null);
 
-        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS,
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS_AZURE,
                 15L, 20L, businessAccount.getId());
         final ComputeTierConfig computeTierConfig = ComputeTierConfig.builder()
                 .computeTierOid(computeTier.getId())
@@ -362,7 +366,7 @@ public class CloudCostCalculatorTest {
                 VMBillingType.ONDEMAND, 4,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED, null);
 
-        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS,
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS_AZURE,
                 15L, 20L, businessAccount.getId());
         final ComputeTierConfig computeTierConfig = ComputeTierConfig.builder()
                 .computeTierOid(computeTier.getId())
@@ -443,7 +447,7 @@ public class CloudCostCalculatorTest {
         TestEntityClass wsqlVm4Cores = createVmTestEntity(DEFAULT_VM_ID, OSType.WINDOWS_WITH_SQL_ENTERPRISE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 4,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED, null);
         // act
-        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS, 15L, 20L, 30L);
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS_AZURE, 15L, 20L, 30L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         final ComputeTierConfig computeTierConfig = ComputeTierConfig.builder()
                 .computeTierOid(computeTier.getId())
@@ -528,7 +532,7 @@ public class CloudCostCalculatorTest {
                 .isBurstableCPU(false)
                 .build();
         when(infoExtractor.getComputeTierConfig(computeTier)).thenReturn(Optional.of(computeTierConfig));
-        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS, 15L, 20L, 35L);
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS_AZURE, 15L, 20L, 35L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
 
@@ -571,7 +575,7 @@ public class CloudCostCalculatorTest {
         // Set up the discount applicator (no discount)
         DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
 
-        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE_AWS, 15L,20L, 35L);
+        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE_AWS_AZURE, 15L,20L, 35L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
 
         // Set up the RI applicator (no RI)
@@ -622,7 +626,7 @@ public class CloudCostCalculatorTest {
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
         when(topology.getStorageTier(VOLUME_ID)).thenReturn(Optional.of(storageTier));
-        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE_AWS, 15L, 20L, 35L);
+        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE_AWS_AZURE, 15L, 20L, 35L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(volume);
@@ -644,7 +648,7 @@ public class CloudCostCalculatorTest {
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
         when(topology.getStorageTier(VOLUME_ID)).thenReturn(Optional.of(storageTier));
         AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0),
-                PRICE_TABLE_AWS, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+                PRICE_TABLE_AWS_AZURE, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID,
             accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
@@ -668,7 +672,7 @@ public class CloudCostCalculatorTest {
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
         when(topology.getStorageTier(VOLUME_ID)).thenReturn(Optional.of(storageTier));
         final AccountPricingData accountPricingData = new AccountPricingData(
-                setupDiscountApplicator(0.0), PRICE_TABLE_AWS, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+                setupDiscountApplicator(0.0), PRICE_TABLE_AWS_AZURE, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
         final CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(
                 BUSINESS_ACCOUNT_ID, accountPricingData);
         final CloudCostCalculator<TestEntityClass> cloudCostCalculator = calculator(cloudCostData);
@@ -757,7 +761,7 @@ public class CloudCostCalculatorTest {
         when(topology.getStorageTier(VOLUME_ID))
             .thenReturn(Optional.of(storageTier));
         AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0),
-                PRICE_TABLE_AWS, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+                PRICE_TABLE_AWS_AZURE, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         return cloudCostCalculator.calculateCost(volume);
@@ -789,7 +793,7 @@ public class CloudCostCalculatorTest {
         when(infoExtractor.getRDBCommodityCapacity(any(), eq(CommodityType.STORAGE_AMOUNT))).thenReturn(Optional.of((float) STORAGE_RANGE));
         when(infoExtractor.getDatabaseTierConfig(any())).thenReturn(Optional.of(databaseTierConfig));
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
-        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS,
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS_AZURE,
                 ACCOUNT_PRICING_DATA_OID, 15L, 20L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
@@ -844,7 +848,7 @@ public class CloudCostCalculatorTest {
         when(infoExtractor.getRDBCommodityCapacity(any(), eq(CommodityType.STORAGE_AMOUNT)))
                 .thenReturn(Optional.of((float)STORAGE_RANGE + (extraStorageInGB * Units.KBYTE)));
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
-        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS,
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS_AZURE,
                 ACCOUNT_PRICING_DATA_OID, 15L, 20L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
@@ -889,7 +893,7 @@ public class CloudCostCalculatorTest {
         mockDBSEntityCall(dbId, storageAmount, iopsAmount);
 
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
-        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS,
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS_AZURE,
                 ACCOUNT_PRICING_DATA_OID,15L, 20L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
@@ -927,7 +931,7 @@ public class CloudCostCalculatorTest {
         mockDBSEntityCall(dbId, storageAmount, iopsAmount);
 
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
-        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS,
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS_AZURE,
                 ACCOUNT_PRICING_DATA_OID,15L, 20L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
@@ -939,6 +943,39 @@ public class CloudCostCalculatorTest {
         assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE).getValue(), is(expectedStorageCost));
         // Once for the compute, once for storage,  no license cost
         verify(discountApplicator, times(3)).getDiscountPercentage(databaseServerTier);
+    }
+
+    /**
+     * Test a on-demand calculation (no discount) for a Application Component.
+     */
+    @Test
+    public void testCalculateOnDemandCostForApplicationComponent() {
+        // arrange
+        final long appId = 11;
+        final TestEntityClass applicationComponent = TestEntityClass.newBuilder(appId)
+                .setType(EntityType.APPLICATION_COMPONENT_VALUE)
+                .setComputeConfig(new ComputeConfig(OSType.LINUX, Tenancy.DEFAULT, null, 0,
+                        null, null))
+                .build(infoExtractor);
+        mockApplicationComponentEntityCall(appId);
+        final ComputeTierConfig computeTierConfig = ComputeTierConfig.builder()
+                .computeTierOid(appComputeTier.getId())
+                .numCores(2)
+                .numCoupons(0)
+                .isBurstableCPU(false)
+                .build();
+        when(infoExtractor.getComputeTierConfig(appComputeTier)).thenReturn(Optional.of(computeTierConfig));
+        Map<String, String> entityPropertyMap = new HashMap<>();
+        entityPropertyMap.put("OS_TYPE", "LINUX");
+        when(infoExtractor.getEntityPropertyMap(any())).thenReturn(Optional.of(entityPropertyMap));
+        final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS_AZURE,
+                ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+        CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
+        CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
+        // act
+        final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(applicationComponent);
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(APP_SERVICE_LINUX_PRICE));
     }
 
     /**
@@ -960,7 +997,7 @@ public class CloudCostCalculatorTest {
         // Set up CloudCostData
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         final AccountPricingData accountPricingData = new AccountPricingData(discountApplicator,
-                PRICE_TABLE_AWS, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+                PRICE_TABLE_AWS_AZURE, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
         final CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(
                 BUSINESS_ACCOUNT_ID, accountPricingData);
 
@@ -1026,7 +1063,7 @@ public class CloudCostCalculatorTest {
 
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         final AccountPricingData accountPricingData = new AccountPricingData(discountApplicator,
-                PRICE_TABLE_AWS, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+                PRICE_TABLE_AWS_AZURE, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
         final CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(
                 BUSINESS_ACCOUNT_ID, accountPricingData);
         final CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
@@ -1058,7 +1095,7 @@ public class CloudCostCalculatorTest {
             .setType(EntityType.NETWORK_VALUE)
             .build(infoExtractor);
         AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0),
-                PRICE_TABLE_AWS, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+                PRICE_TABLE_AWS_AZURE, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(noCostEntity);
@@ -1289,6 +1326,12 @@ public class CloudCostCalculatorTest {
                         .build();
                 break;
         }
+        final ComputeTierPriceList appServiceComputePriceList = ComputeTierPriceList.newBuilder()
+                .addPerConfigurationPriceAdjustments(ComputeTierConfigPrice.newBuilder()
+                        .setGuestOsType(OSType.LINUX)
+                        .setTenancy(Tenancy.DEFAULT)
+                        .addPrices(price(Unit.HOURS, APP_SERVICE_LINUX_PRICE)))
+                .build();
 
         return PriceTable.newBuilder()
             .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
@@ -1354,6 +1397,7 @@ public class CloudCostCalculatorTest {
                 .putDbsPricesByInstanceId(DB_SERVER_TIER_ID, DbServerTierOnDemandPriceTable.newBuilder()
                     .putDbsPricesByTierId("", dbsPriceList).build())
                 .putComputePricesByTierId(COMPUTE_TIER_ID, computeTierPriceList)
+                .putComputePricesByTierId(APP_COMPUTE_TIER_ID, appServiceComputePriceList)
                 .setIpPrices(IpPriceList.newBuilder().addIpPrice(IpConfigPrice.newBuilder()
                     .setFreeIpCount(IP_COUNT)
                     .addPrices(price(Unit.HOURS, IP_RANGE, IP_PRICE_RANGE_1))
@@ -1411,6 +1455,13 @@ public class CloudCostCalculatorTest {
         when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseServerTier(dbId)).thenReturn(Optional.of(databaseServerTier));
+    }
+
+    private void mockApplicationComponentEntityCall(final long appId) {
+        when(topology.getConnectedRegion(appId)).thenReturn(Optional.of(region));
+        when(topology.getConnectedAvailabilityZone(appId)).thenReturn(Optional.of(availabilityZone));
+        when(topology.getOwner(appId)).thenReturn(Optional.of(businessAccount));
+        when(topology.getComputeTier(appId)).thenReturn(Optional.of(appComputeTier));
     }
 
     private static TestEntityClass createStorageTier(final long storageTierId) {
