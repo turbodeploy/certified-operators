@@ -177,6 +177,7 @@ public class ProbeStitchingDependencyTracker {
                 .requireThatProbeCategory(ProbeCategory.GUEST_OS_PROCESSES).stitchAfter(ProbeCategory.HYPERCONVERGED)
                 .requireThatProbeCategory(ProbeCategory.GUEST_OS_PROCESSES).stitchAfter(ProbeCategory.DATABASE_SERVER)
                 .requireThatProbeCategory(ProbeCategory.ORCHESTRATOR).stitchAfter(ProbeCategory.HYPERVISOR)
+                .requireThatProbeCategory(ProbeCategory.ORCHESTRATOR).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
                 .requireThatProbeCategory(ProbeCategory.VIRTUAL_DESKTOP_INFRASTRUCTURE).stitchAfter(ProbeCategory.HYPERVISOR)
                 .requireThatProbeCategory(ProbeCategory.BILLING).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
                 .requireThatProbeCategory(ProbeCategory.HYPERCONVERGED).stitchAfter(ProbeCategory.HYPERVISOR)
