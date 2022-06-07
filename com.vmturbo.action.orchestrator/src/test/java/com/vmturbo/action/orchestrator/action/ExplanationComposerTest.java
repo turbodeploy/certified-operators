@@ -87,7 +87,9 @@ public class ExplanationComposerTest {
     private static final ReasonCommodity NETWORK =
                     createReasonCommodity(CommodityDTO.CommodityType.NETWORK_VALUE, "testNetwork1");
     private static final ReasonCommodity LABEL =
-        createReasonCommodity(CommodityDTO.CommodityType.LABEL_VALUE, "foo=bar");
+            createReasonCommodity(CommodityDTO.CommodityType.LABEL_VALUE, "foo=bar");
+    private static final ReasonCommodity TAINT =
+            createReasonCommodity(CommodityDTO.CommodityType.TAINT_VALUE, "foo=bar");
 
     // sometimes we are creating the key in a particular way: by having a prefix with the name of the
     // commodity type, a separation, and the name of the network itself
@@ -521,6 +523,80 @@ public class ExplanationComposerTest {
             ExplanationComposer.composeExplanation(reconfigureWithPrefixCSG, Collections.emptyList()));
         assertEquals(Collections.singleton("Misconfiguration"),
             ExplanationComposer.composeRelatedRisks(reconfigureWithPrefixCSG, Collections.emptyList()));
+    }
+
+    /**
+     * Test the explanation of reconfigure action with reason commodities.
+     */
+    @Test
+    public void testReconfigurePodSingleCommodityExplanation() {
+
+        ActionDTO.Action reconfigure = ActionDTO.Action.newBuilder()
+                .setId(0).setInfo(ActionInfo.newBuilder().setReconfigure(
+                        Reconfigure.newBuilder().setTarget(ActionEntity.newBuilder()
+                                .setId(1).setType(EntityType.CONTAINER_POD_VALUE))
+                                .setIsProvider(false)))
+                .setDeprecatedImportance(0)
+                .setExplanation(Explanation.newBuilder()
+                        .setReconfigure(ReconfigureExplanation.newBuilder()
+                                .addReconfigureCommodity(LABEL)))
+                .build();
+
+        assertEquals("Zero nodes match Pod's node selector",
+                ExplanationComposer.composeExplanation(reconfigure, Collections.emptyList()));
+        assertEquals(Collections.singleton("Misconfiguration"),
+                ExplanationComposer.composeRelatedRisks(reconfigure, Collections.emptyList()));
+
+    }
+
+    /**
+     * Test the explanation of reconfigure action with reason commodities.
+     */
+    @Test
+    public void testReconfigurePodMultipleCommodityExplanation() {
+
+        ActionDTO.Action reconfigure = ActionDTO.Action.newBuilder()
+                .setId(0).setInfo(ActionInfo.newBuilder().setReconfigure(
+                        Reconfigure.newBuilder().setTarget(ActionEntity.newBuilder()
+                                .setId(1).setType(EntityType.CONTAINER_POD_VALUE))
+                                .setIsProvider(false)))
+                .setDeprecatedImportance(0)
+                .setExplanation(Explanation.newBuilder()
+                        .setReconfigure(ReconfigureExplanation.newBuilder()
+                                .addReconfigureCommodity(LABEL)
+                                .addReconfigureCommodity(TAINT)))
+                .build();
+
+        assertEquals("Configure node or pod to update resource(s) Taint, node-selector, affinity or anti-affinity",
+                ExplanationComposer.composeExplanation(reconfigure, Collections.emptyList()));
+        assertEquals(Collections.singleton("Misconfiguration"),
+                ExplanationComposer.composeRelatedRisks(reconfigure, Collections.emptyList()));
+
+    }
+
+    /**
+     * Test the explanation of reconfigure action with reason commodities other than TAINT,LABEL,VMPMACCESS.
+     */
+    @Test
+    public void testReconfigurePodOtherCommodityExplanation() {
+
+        ActionDTO.Action reconfigure = ActionDTO.Action.newBuilder()
+                .setId(0).setInfo(ActionInfo.newBuilder().setReconfigure(
+                        Reconfigure.newBuilder().setTarget(ActionEntity.newBuilder()
+                                        .setId(1).setType(EntityType.CONTAINER_POD_VALUE))
+                                .setIsProvider(false)))
+                .setDeprecatedImportance(0)
+                .setExplanation(Explanation.newBuilder()
+                        .setReconfigure(ReconfigureExplanation.newBuilder()
+                                .addReconfigureCommodity(NETWORK)))
+                                //.addReconfigureCommodity(TAINT)))
+                .build();
+
+        assertEquals("Configure supplier to update resource(s) Network testNetwork1",
+                ExplanationComposer.composeExplanation(reconfigure, Collections.emptyList()));
+        assertEquals(Collections.singleton("Misconfiguration"),
+                ExplanationComposer.composeRelatedRisks(reconfigure, Collections.emptyList()));
+
     }
 
     /**

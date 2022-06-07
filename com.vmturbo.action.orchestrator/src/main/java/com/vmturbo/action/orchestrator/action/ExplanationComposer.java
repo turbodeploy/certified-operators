@@ -30,6 +30,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
 import org.apache.commons.lang.StringUtils;
@@ -106,12 +107,16 @@ public class ExplanationComposer {
     private static final String ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM =
         "Add more resource to satisfy the increased demand";
     private static final String DEACTIVATE_EXPLANATION = "Improve infrastructure efficiency";
-    private static final String RECONFIGURE_REASON_COMMODITY_EXPLANATION =
-        "Configure supplier to update resource(s) ";
+    private static final String RECONFIGURE_REASON_COMMODITY_EXPLANATION_FOR_CONTAINER_POD =
+        "Configure node or pod to update resource(s) Taint, node-selector, affinity or anti-affinity";
     private static final String RECONFIGURE_TAINT_COMMODITY_EXPLANATION =
         "The pod does not tolerate taint(s) on any node";
     private static final String RECONFIGURE_LABEL_COMMODITY_EXPLANATION =
-        "Zero nodes match Pod's node affinity";
+        "Zero nodes match Pod's node selector";
+    private static final String RECONFIGURE_VMPMACCESS_COMMODITY_EXPLANATION =
+        "Zero nodes match Pod's affinity or anti-affinity";
+    private static final String  RECONFIGURE_REASON_COMMODITY_EXPLANATION=
+        "Configure supplier to update resource(s) ";
     private static final String REASON_SETTINGS_EXPLANATION =
         "{0} doesn''t comply with {1}";
     private static final String REASON_SETTINGS_VCPU_RECONFIG_EXPLANATION = "{0} out of compliance";
@@ -159,6 +164,12 @@ public class ExplanationComposer {
             ImmutableMap.of(
                     ChangeProviderExplanation.WastedCostCategory.COMPUTE, "Compute",
                     ChangeProviderExplanation.WastedCostCategory.STORAGE, "Storage");
+    private static final Map<Integer, String> podReconfigureExplanations =
+            ImmutableMap.of(
+                    CommodityDTO.CommodityType.TAINT_VALUE, RECONFIGURE_TAINT_COMMODITY_EXPLANATION,
+                    CommodityDTO.CommodityType.LABEL_VALUE, RECONFIGURE_LABEL_COMMODITY_EXPLANATION,
+                    CommodityDTO.CommodityType.VMPM_ACCESS_VALUE, RECONFIGURE_VMPMACCESS_COMMODITY_EXPLANATION);
+
 
     /**
      * Private to prevent instantiation.
@@ -226,32 +237,37 @@ public class ExplanationComposer {
      * Get a set of commodity keys for TAINT commodities from the given reason commodities.
      *
      * @param reasonCommodities a given list of reason commodities
-     * @return an optional set of commodity keys for TAINT commodities
+     * @param commTypeValue given commodity to match in reasoncommodities
+     * @return set of commodity keys
      */
     @Nonnull
-    static Set<String> getTaintReasons(@Nonnull final List<ReasonCommodity> reasonCommodities) {
+    static Set<String> getCommodityReasons(@Nonnull final List<ReasonCommodity> reasonCommodities,
+                                           @Nonnull final int commTypeValue) {
         return reasonCommodities.stream()
                 .map(ReasonCommodity::getCommodityType)
-                .filter(commodityType -> CommodityDTO.CommodityType.TAINT_VALUE ==
-                        commodityType.getType())
+                .filter(commodityType -> commTypeValue == commodityType.getType())
                 .map(CommodityType::getKey)
                 .collect(Collectors.toSet());
     }
 
     /**
-     * Get a set of commodity keys for LABEL commodities from the given resource commodities.
-     *
-     * @param reasonCommodities the reason commodities
-     * @return the commodity keys
-     */
+     * Create a map of commodityType and commodityKey from the reasonCommodities filtering on non null Key commodity which is either
+     * TAINT, LABEL or VMPMACCESS commodity which can impact Reconfigure action
+     * @param reasonCommodities a given list of reason commodities
+     * @return Multimap <commodityType, commodityKey>
+     * */
+
     @Nonnull
-    static Set<String> getLabelReasons(@Nonnull final List<ReasonCommodity> reasonCommodities) {
-        return reasonCommodities.stream().map(ReasonCommodity::getCommodityType)
-            .filter(commodityType -> CommodityDTO.CommodityType.LABEL_VALUE ==
-                commodityType.getType())
-            .map(CommodityType::getKey)
-            .collect(Collectors.toSet());
+    static Map<Integer, Set<String>> categorizeContainerPodCommodityReasons(@Nonnull final List<ReasonCommodity> reasonCommodities)
+    {
+
+        return reasonCommodities.stream()
+                .filter(reasonCommodity -> reasonCommodity.getCommodityType().hasKey())
+                .filter(reasonCommodity -> podReconfigureExplanations.containsKey(reasonCommodity.getCommodityType().getType()))
+                .collect(Collectors.groupingBy(reasonCommodity -> reasonCommodity.getCommodityType().getType(),
+                Collectors.mapping(reasonCommodity -> reasonCommodity.getCommodityType().getKey(), Collectors.toSet())));
     }
+
 
     /**
      * Gets explanation override string for cloud migration case if applicable.
@@ -537,7 +553,7 @@ public class ExplanationComposer {
         final String providerName = optionalSourceEntity
                 .map(e -> buildEntityNameOrType(e, topology))
                 .orElse("Current supplier");
-        final Set<String> taintReasons = getTaintReasons(reasonCommodities);
+        final Set<String> taintReasons = getCommodityReasons(reasonCommodities, CommodityDTO.CommodityType.TAINT_VALUE);
         if (!taintReasons.isEmpty()) {
             return Collections.singleton(
                     MessageFormat.format(TAINT_MOVE_COMPLIANCE_EXPLANATION_FORMATION,
@@ -545,7 +561,7 @@ public class ExplanationComposer {
                                          String.join(", ", taintReasons),
                                          providerName));
         }
-        final Set<String> labelReasons = getLabelReasons(reasonCommodities);
+        final Set<String> labelReasons = getCommodityReasons(reasonCommodities, CommodityDTO.CommodityType.LABEL_VALUE);
         if (!labelReasons.isEmpty()) {
             return Collections.singleton(
                 MessageFormat.format(LABEL_MOVE_COMPLIANCE_EXPLANATION_FORMAT, providerName));
@@ -1111,11 +1127,12 @@ public class ExplanationComposer {
                     settingPolicyIdToSettingPolicyName, topology, false));
         } else {
             sb.append(buildReconfigureReasonCommodityExplanation(
-                reconfigExplanation.getReconfigureCommodityList()));
+                reconfigExplanation.getReconfigureCommodityList(), action.getInfo().getReconfigure().getTarget().getType()));
         }
         getScalingGroupExplanation(action.getExplanation(), sb.toString()).ifPresent(sb::append);
         return sb.toString();
     }
+
 
     /**
      * Build reconfigure explanation due to reason commodities.
@@ -1127,19 +1144,23 @@ public class ExplanationComposer {
      * @return the explanation sentence
      */
     private static String buildReconfigureReasonCommodityExplanation(
-            @Nonnull final List<ReasonCommodity> reasonCommodities) {
-        final Set<String> taintReasons = getTaintReasons(reasonCommodities);
-        if (!taintReasons.isEmpty()) {
-            return RECONFIGURE_TAINT_COMMODITY_EXPLANATION;
-        }
-        final Set<String> labelReasons = getLabelReasons(reasonCommodities);
-        if (!labelReasons.isEmpty()) {
-            return RECONFIGURE_LABEL_COMMODITY_EXPLANATION;
+            @Nonnull final List<ReasonCommodity> reasonCommodities,
+            @Nonnull final Integer targetType) {
+
+        if (targetType.equals(EntityType.CONTAINER_POD_VALUE)) {
+            final Map<Integer, Set<String>> mapCommodityTypeReason = categorizeContainerPodCommodityReasons(reasonCommodities);
+            if(mapCommodityTypeReason.size() == 1){
+                return podReconfigureExplanations.get(mapCommodityTypeReason.keySet().iterator().next());
+            }
+            else if(mapCommodityTypeReason.size() > 1){
+                return RECONFIGURE_REASON_COMMODITY_EXPLANATION_FOR_CONTAINER_POD;
+            }
         }
         return RECONFIGURE_REASON_COMMODITY_EXPLANATION + reasonCommodities.stream()
                 .map(reason -> getCommodityDisplayName(reason.getCommodityType()))
                 .collect(Collectors.joining(", "));
     }
+
 
     /**
      * Build reason setting explanation.

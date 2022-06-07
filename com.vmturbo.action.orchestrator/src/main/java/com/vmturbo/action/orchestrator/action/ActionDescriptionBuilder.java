@@ -412,13 +412,13 @@ public class ActionDescriptionBuilder {
                                     beautifyEntityTypeAndName(currentEntityDTO.get())));
                 }
                 final Set<String> taintReasons = ExplanationComposer
-                        .getTaintReasons(explanation.getReconfigureCommodityList());
+                        .getCommodityReasons(explanation.getReconfigureCommodityList(), CommodityType.TAINT_VALUE);
                 if (!taintReasons.isEmpty()) {
                     return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_TAINT_COMMODITIES
                             .format(beautifyEntityTypeAndName(targetEntityDTO.get()));
                 }
-                final Set<String> labelReasons = ExplanationComposer.getLabelReasons(
-                    explanation.getReconfigureCommodityList());
+                final Set<String> labelReasons = ExplanationComposer.getCommodityReasons(
+                    explanation.getReconfigureCommodityList(), CommodityType.LABEL_VALUE);
                 if (!labelReasons.isEmpty()) {
                     return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_LABEL_COMMODITIES.format(
                         beautifyEntityTypeAndName(targetEntityDTO.get()));
