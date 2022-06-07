@@ -118,7 +118,9 @@ public class MigrationsLibrary {
             .put("V_01_01_16__GCP_Remove_Billing_Probe_Targets",
                     new V_01_01_16__GCP_Remove_Billing_Probe_Targets(keyValueStore))
             .put("V_01_01_17__AppDynamics_Add_Vm_Metrics_Flag",
-                    new V_01_01_11__AppDynamics_Add_Vm_Metrics_Flag(targetStore, probeStore));
+                    new V_01_01_11__AppDynamics_Add_Vm_Metrics_Flag(targetStore, probeStore))
+            .put("V_01_01_18__GCP_BillingProbe_RenameStandardDatasetTable_Names",
+                    new V_01_01_18__GCP_BillingProbe_RenameStandardDatasetTable_Names(keyValueStore));
         return builder.build();
     }
 }

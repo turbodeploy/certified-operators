@@ -1,0 +1,281 @@
+{
+  "probeType": "GCP Billing",
+  "probeCategory": "Billing",
+  "supplyChainDefinitionSet": [{
+    "templateClass": "BUSINESS_ACCOUNT",
+    "templateType": "BASE",
+    "templatePriority": -1,
+    "mergedEntityMetaData": {
+      "matchingMetadata": {
+        "matchingData": [{
+          "matchingField": {
+            "messagePath": ["business_account_data"],
+            "fieldName": "account_id"
+          }
+        }],
+        "externalEntityMatchingProperty": [{
+          "matchingField": {
+            "messagePath": ["business_account_data"],
+            "fieldName": "account_id"
+          }
+        }]
+      },
+      "patchedFields": [{
+        "messagePath": ["business_account_data"],
+        "fieldName": "pricing_identifiers",
+        "ignoreIfPresent": false
+      }, {
+        "messagePath": ["business_account_data"],
+        "fieldName": "price_table_keys",
+        "ignoreIfPresent": false
+      }]
+    }
+  }, {
+    "templateClass": "SERVICE_PROVIDER",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "mergedEntityMetaData": {
+      "matchingMetadata": {
+        "matchingData": [{
+          "matchingField": {
+            "fieldName": "id"
+          }
+        }],
+        "externalEntityMatchingProperty": [{
+          "matchingField": {
+            "fieldName": "id"
+          }
+        }]
+      }
+    }
+  }, {
+    "templateClass": "CLOUD_SERVICE",
+    "templateType": "BASE",
+    "templatePriority": -1
+  }],
+  "accountDefinition": [{
+    "customDefinition": {
+      "name": "address",
+      "displayName": "Display Name",
+      "description": "Enter a unique display name for this target.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "serviceAccountKey",
+      "displayName": "Service Account Key (JSON)",
+      "description": "Enter the service account key (JSON) for the service account configured with billing account access.",
+      "verificationRegex": ".*",
+      "isSecret": true,
+      "primitiveValue": "STRING",
+      "isMultiline": true
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "projectID",
+      "displayName": "GCP Project ID",
+      "description": "Enter the unique ID assigned to the project containing the cost and pricing exports. If the exports are in separate projects, multiple billing targets will be necessary.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "standardCostDataSetName",
+      "displayName": "BigQuery Standard Cost Export Data Set Name",
+      "description": "This is the dataset for the standard billed cost export.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "standardCostTableName",
+      "displayName": "BigQuery Standard Cost Export Table Name",
+      "description": "This table will store the exported data from the Standard Cost Export.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "pricingExportTableName",
+      "displayName": "BigQuery Pricing Export Table Name",
+      "description": "The BigQuery Pricing Export Table Name field is auto-populated with the table used in BigQuery, cloud_pricing_export. There is no need to modify this name, unless you use a different table for negotiated pricing.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "defaultValue": "cloud_pricing_export",
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "pricingExportDataSetName",
+      "displayName": "BigQuery Pricing Export Data Set Name",
+      "description": "This is the dataset for negotiated pricing.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "billingAccountId",
+      "displayName": "Billing Account ID",
+      "description": "Enter the Billing Account ID.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "resourceLevelCostDataSetName",
+      "displayName": "BigQuery Resource Level Cost Export Data Set Name",
+      "description": "This dataset contains the resource level billed cost export table.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "resourceLevelCostTableName",
+      "displayName": "BigQuery Resource Level Cost Export Table Name",
+      "description": "This table stores resource level cost export data.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "proxyHost",
+      "displayName": "Proxy Host",
+      "description": "Proxy host name or IP address (optional)",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "proxyPort",
+      "displayName": "Proxy Port",
+      "description": "Proxy host port (optional)",
+      "verificationRegex": "^$|(^([0-9]|[1-8][0-9]|9[0-9]|[1-8][0-9]{2}|9[0-8][0-9]|99[0-9]|[1-8][0-9]{3}|9[0-8][0-9]{2}|99[0-8][0-9]|999[0-9]|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$)",
+      "isSecret": false,
+      "primitiveValue": "NUMERIC",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "defaultValue": "8080",
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "proxyUsername",
+      "displayName": "Proxy Username",
+      "description": "User name to use to connect to a proxy",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "proxyPassword",
+      "displayName": "Proxy Password",
+      "description": "Password to use to connect to a proxy",
+      "verificationRegex": ".*",
+      "isSecret": true,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "secureProxy",
+      "displayName": "Secure Proxy Connection",
+      "description": "Use SSL to connect to the proxy host",
+      "verificationRegex": "(true|false)",
+      "isSecret": false,
+      "primitiveValue": "BOOLEAN",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "defaultValue": "false",
+    "isTargetDisplayName": false
+  }],
+  "targetIdentifierField": ["address"],
+  "fullRediscoveryIntervalSeconds": 3600,
+  "entityMetadata": [{
+    "entityType": "BUSINESS_ACCOUNT",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "CLOUD_SERVICE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "VIRTUAL_MACHINE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "SERVICE_PROVIDER",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "RESERVED_INSTANCE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }],
+  "actionPolicy": [{
+    "entityType": "UNKNOWN",
+    "policyElement": [{
+      "actionType": "NONE",
+      "actionCapability": "NOT_EXECUTABLE"
+    }]
+  }],
+  "discoversSupplyChain": true,
+  "creationMode": "STAND_ALONE",
+  "uiProbeCategory": "Public Cloud",
+  "license": "public_cloud",
+  "version": "8.5.4",
+  "displayName": "GCP Billing Probe"
+}
