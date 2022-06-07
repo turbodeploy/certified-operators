@@ -42,7 +42,6 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.ContextData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CommonCost;
 import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
@@ -451,15 +450,6 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     protected void populatedPrimaryActionAdditionalFields(List<ActionItemDTO.Builder> builders)
           throws ContextCreationException {
         ActionItemDTO.Builder primaryAction = getPrimaryActionItemBuilder(builders);
-
-        CommonCost.CurrencyAmount currencyAmount = actionSpec.getRecommendation().getSavingsPerHour();
-        if (currencyAmount != null) {
-            // Multiply by 730 to get the saving per month
-            primaryAction.setSavings((float)currencyAmount.getAmount() * 730);
-        } else {
-            logger.trace("The action with {} stable id doesn't have any savings per hour", actionSpec.getRecommendationId());
-        }
-
         // set the risk
         primaryAction.setRisk(getRisk());
         // set the description
