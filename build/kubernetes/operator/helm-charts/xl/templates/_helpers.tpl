@@ -6,6 +6,19 @@ Expand the name of the chart.
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "annotations" -}}
+  {{- if .Values.global }}
+    {{- if or .Values.annotations .Values.global.annotations }}
+      {{- with .Values.annotations }}
+  {{- toYaml . }}
+      {{- end }}
+      {{- with .Values.global.annotations }}
+  {{- toYaml . }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
 {{- define "labels" -}}
 {{- if .Values.global }}
   {{- if or .Values.labels .Values.global.labels }}
@@ -45,6 +58,21 @@ Expand the name of the chart.
 {{- end }}
 {{- end }}
 
+{{- define "imagePullSecrets" -}}
+{{ if .Values.global -}}
+{{- if .Values.global.registry -}}
+{{- if .Values.global.imagePullSecret -}}
+imagePullSecrets:
+- name: {{ .Values.global.imagePullSecret }}
+{{- else -}}
+{{- if and .Values.global.imageUsername .Values.global.imagePassword -}}
+imagePullSecrets:
+- name: turbocred
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 
 {{/*
 Create a default fully qualified app name.
