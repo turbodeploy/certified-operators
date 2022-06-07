@@ -138,17 +138,22 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
                         .collect(Collectors.groupingBy(resize -> resize.getTarget().getId()))
                         .entrySet()
                         .stream()
-                        .sorted(Map.Entry.comparingByKey())
+                        .sorted(Map.Entry.comparingByKey()) //sorted by target id
                         .map(entry -> new ResizeChangeByTarget(entry.getKey(), entry.getValue()))
                         .collect(Collectors.toList());
 
-        AtomicResizeChange resizeChange = new AtomicResizeChange(resizeChangeByTarget);
+        AtomicResizeChange resizeChange = new AtomicResizeChange(resizeChangeByTarget); //model is created by joining
+                                                            // list of [resize targetid + comm types ] strings
 
-        final String changesString = gson.toJson(resizeChange);
+        final String changesString = gson.toJson(resizeChange); //json created from the model
+
+        Set<String> detailedChangeStringSet = resizeChangeByTarget.stream()
+                    .map(change -> change.toDetailedCommChangesString())
+                    .collect(Collectors.toSet());
 
         return new ActionInfoModel(ActionTypeCase.ATOMICRESIZE,
                                     atomicResize.getExecutionTarget().getId(),
-                                    changesString, null);
+                                    changesString, detailedChangeStringSet);
     }
 
     /**
@@ -162,20 +167,60 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
     @VisibleForTesting
     static class ResizeChangeByTarget {
         private final long sourceId;
-        private final List<Integer> commTypes;
+        private Map<Integer, String> commChanges;
 
         ResizeChangeByTarget(long sourceId, List<ResizeInfo> resizeChange) {
             // Sorting the commodity type will ensure that the same ActionInfoModel is generated
             // even when order of the resize actions is different during different market recommendation plans
-            this.commTypes = resizeChange.stream()
-                                .map(resize -> resize.getCommodityType().getType())
-                                .sorted()
-                                .collect(Collectors.toList());
+
+            // To and From change details for each commodity
+            this.commChanges = resizeChange.stream()
+                                            .collect(Collectors.toMap(resize -> resize.getCommodityType().getType(),
+                                                                        resize -> toCommChangeDetails(resize)));
+
             this.sourceId = sourceId;
         }
 
-        public String toString() {
-            return "" + sourceId + commTypes;
+        private String toCommChangeDetails(ResizeInfo resizeInfo) {
+            SingleResizeModel singleResizeModel = new SingleResizeModel(resizeInfo.getCommodityType(),
+                                                            resizeInfo.getCommodityAttribute(),
+                                                            resizeInfo.getOldCapacity(), resizeInfo.getNewCapacity());
+            final String changesString = gson.toJson(singleResizeModel);
+            return changesString;
+        }
+
+        public String toCommChangesString() {
+            // Sorting the commodity type will ensure that the same ActionInfoModel is generated
+            // even when order of the resize actions is different during different market recommendation plans
+            return "" + sourceId + commChanges.keySet().stream().sorted().collect(Collectors.toList());
+        }
+
+        // take all the comm change details and create a single string, sorted by comm keys
+        public String toDetailedCommChangesString() {
+            return "" + commChanges.keySet().stream()
+                                    .sorted()
+                                    .map(key -> commChanges.get(key))
+                                    .collect(Collectors.toList());
+        }
+    }
+
+    /**
+     * Model for the single resize that is merged in an atomic action.
+     *
+     * <p>It is used to create additional details while generating the atomic action OID in order to distinguish
+     * atomic actions that merge the same commodity resizes but with different capacity values.
+     */
+    private static class SingleResizeModel {
+        private final String details;
+
+        SingleResizeModel(CommodityType commodityType, CommodityAttribute commodityAttribute,
+                    float oldCapacity, float newCapacity) {
+            StringBuffer sb = new StringBuffer();
+            sb.append(commodityType.getType())
+                    .append("::").append(commodityAttribute)
+                    .append("::").append(fixPositiveValue(oldCapacity))
+                    .append("-").append(fixPositiveValue(newCapacity));
+            this.details = sb.toString();
         }
     }
 
@@ -184,13 +229,12 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
      */
     @VisibleForTesting
     static class AtomicResizeChange {
-
         private final String id;
 
         AtomicResizeChange(List<ResizeChangeByTarget> resizeChangeByTarget) {
 
             List<String> changeStringList = resizeChangeByTarget.stream()
-                    .map(change -> change.toString())
+                    .map(change -> change.toCommChangesString())
                     .collect(Collectors.toList());
             String allChangeString = Strings.join(changeStringList, ',');
             this.id = allChangeString;

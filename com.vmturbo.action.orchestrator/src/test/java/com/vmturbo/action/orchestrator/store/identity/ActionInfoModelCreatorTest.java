@@ -173,6 +173,15 @@ public class ActionInfoModelCreatorTest {
                 .setOldCapacity(124).setNewCapacity(456);
     }
 
+    private ResizeInfo.Builder createResizeInfo(long id, int commType, float oldCapacity, float newCapacity) {
+        return ResizeInfo.newBuilder()
+                .setTarget(createActionEntity(id))
+                .setCommodityType(CommodityType.newBuilder().setType(commType))
+                .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                .setOldCapacity(oldCapacity).setNewCapacity(newCapacity);
+    }
+
+
     /**
      * Test the ActionInfoModel for atomic resize
      * with the same execution target but multiple commodity resizes in different order.
@@ -197,6 +206,74 @@ public class ActionInfoModelCreatorTest {
                 .build();
         ActionInfoModel model2 = modelCreator.apply(resize2);
         Assert.assertEquals(model2, model1);
+    }
+
+    /**
+     * Test the ActionInfoModel for atomic resize
+     * with the same execution target, multiple commodity resizes with different resize values.
+     */
+    @Test
+    public void testAtomicResizeActionModelWithSameCommodityAndDifferentResizeValues() {
+        ActionInfo resize1 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(createResizeInfo(2, 1, 100, 200))
+                        .addResizes(createResizeInfo(2, 2, 200, 300))
+                        .build())
+                .build();
+        ActionInfoModel model1 = modelCreator.apply(resize1);
+
+        ActionInfo resize2 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(createResizeInfo(2, 2, 100, 250))
+                        .addResizes(createResizeInfo(2, 1, 200, 350))
+                        .build())
+                .build();
+        ActionInfoModel model2 = modelCreator.apply(resize2);
+        Assert.assertNotEquals(model2, model1);
+
+        ActionInfo resize3 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(createResizeInfo(2, 1, 100, 200))
+                        .addResizes(createResizeInfo(3, 1, 200, 300))
+                        .build())
+                .build();
+        ActionInfoModel model3 = modelCreator.apply(resize3);
+
+        ActionInfo resize4 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(createResizeInfo(2, 1, 100, 250))
+                        .addResizes(createResizeInfo(3, 1, 200, 350))
+                        .build())
+                .build();
+        ActionInfoModel model4 = modelCreator.apply(resize4);
+        Assert.assertNotEquals(model3, model4);
+
+        ActionInfo resize5 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(createResizeInfo(2, 1, 100, 200))
+                        .addResizes(createResizeInfo(2, 2, 100, 200))
+                        .addResizes(createResizeInfo(3, 1, 200, 300))
+                        .addResizes(createResizeInfo(3, 2, 100, 200))
+                        .build())
+                .build();
+        ActionInfoModel model5 = modelCreator.apply(resize5);
+
+        ActionInfo resize6 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(createResizeInfo(2, 1, 100, 250))
+                        .addResizes(createResizeInfo(2, 2, 100, 200))
+                        .addResizes(createResizeInfo(3, 1, 200, 350))
+                        .addResizes(createResizeInfo(3, 2, 100, 200))
+                        .build())
+                .build();
+        ActionInfoModel model6 = modelCreator.apply(resize6);
+        Assert.assertNotEquals(model5, model6);
     }
 
     /**
@@ -255,7 +332,64 @@ public class ActionInfoModelCreatorTest {
 
         final String changesString = gson.toJson(resizeChange);
 
-        System.out.println(changesString + "[" + changesString.length() + "]");
+        Assert.assertEquals(changesString, model1.getDetails().get());
+    }
+
+    /**
+     * Test that the ActionInfoModel details for atomic resize
+     * are not truncated when there are multiple resizes for multiple de-duplication targets
+     * and commodities.
+     */
+    @Test
+    public void testAtomicResizeActionTypeWithManyDeDuplicationTargetsAndCommodityDetails() {
+        ActionInfo resize1 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(createResizeInfo(73617269445251L, 26, 100, 200))
+                        .addResizes(createResizeInfo(73617269445251L, 53, 100, 200))
+                        .addResizes(createResizeInfo(73617269445251L, 100, 100, 200))
+                        .addResizes(createResizeInfo(73617269445251L, 101, 100, 200))
+                        .addResizes(createResizeInfo(73617269445252L, 26, 250, 350))
+                        .addResizes(createResizeInfo(73617269445252L, 53, 250, 350))
+                        .addResizes(createResizeInfo(73617269445252L, 100, 250, 350))
+                        .addResizes(createResizeInfo(73617269445252L, 101, 250, 350))
+                        .addResizes(createResizeInfo(73617269445253L, 26, 300, 400))
+                        .addResizes(createResizeInfo(73617269445253L, 53, 300, 400))
+                        .addResizes(createResizeInfo(73617269445253L, 100, 300, 400))
+                        .addResizes(createResizeInfo(73617269445253L, 101, 300, 400))
+                        .addResizes(createResizeInfo(73617269445254L, 26, 350, 400))
+                        .addResizes(createResizeInfo(73617269445254L, 53, 350, 400))
+                        .addResizes(createResizeInfo(73617269445254L, 100, 350, 400))
+                        .addResizes(createResizeInfo(73617269445254L, 101, 350, 400))
+                        .addResizes(createResizeInfo(73617269445255L, 26, 400, 500))
+                        .addResizes(createResizeInfo(73617269445255L, 53, 400, 500))
+                        .addResizes(createResizeInfo(73617269445255L, 100, 400, 500))
+                        .addResizes(createResizeInfo(73617269445255L, 101, 400, 500))
+                        .addResizes(createResizeInfo(73617269445256L, 26, 450, 500))
+                        .addResizes(createResizeInfo(73617269445256L, 53, 450, 500))
+                        .addResizes(createResizeInfo(73617269445256L, 100, 450, 500))
+                        .addResizes(createResizeInfo(73617269445256L, 101, 450, 500))
+                        .addResizes(createResizeInfo(73617269445257L, 26, 100, 200))
+                        .addResizes(createResizeInfo(73617269445257L, 53, 100, 200))
+                        .addResizes(createResizeInfo(73617269445257L, 100, 100, 200))
+                        .addResizes(createResizeInfo(73617269445257L, 101, 100, 200))
+                        .build())
+                .build();
+        ActionInfoModel model1 = modelCreator.apply(resize1);
+
+        final List<ResizeChangeByTarget> resizeChangeByTarget
+                = resize1.getAtomicResize().getResizesList()
+                .stream()
+                .collect(Collectors.groupingBy(resize -> resize.getTarget().getId()))
+                .entrySet()
+                .stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> new ResizeChangeByTarget(entry.getKey(), entry.getValue()))
+                .collect(Collectors.toList());
+        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
+        AtomicResizeChange resizeChange = new AtomicResizeChange(resizeChangeByTarget);
+
+        final String changesString = gson.toJson(resizeChange);
 
         Assert.assertEquals(changesString, model1.getDetails().get());
     }
