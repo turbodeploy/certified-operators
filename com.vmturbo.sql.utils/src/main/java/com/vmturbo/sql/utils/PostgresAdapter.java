@@ -162,11 +162,11 @@ public class PostgresAdapter extends DbAdapter {
     protected void provisionForMigrations() throws SQLException, UnsupportedDialectException {
         try (Connection conn = getPrivilegedConnection()) {
             execute(conn, String.format("GRANT ALL ON ALL TABLES IN SCHEMA \"%s\" TO \"%s\"",
-                    config.getDatabaseName(), config.getUserName()));
+                    config.getSchemaName(), config.getUserName()));
             execute(conn, String.format("GRANT ALL ON ALL SEQUENCES IN SCHEMA \"%s\" TO \"%s\"",
-                    config.getDatabaseName(), config.getUserName()));
+                    config.getSchemaName(), config.getUserName()));
             execute(conn, String.format("GRANT ALL ON ALL FUNCTIONS IN SCHEMA \"%s\" TO \"%s\"",
-                    config.getDatabaseName(), config.getUserName()));
+                    config.getSchemaName(), config.getUserName()));
         }
     }
 
