@@ -117,6 +117,8 @@ tunnel:
   enabled: false
 training:
   enabled: false
+client-network:
+  enabled: false
 
 loki:
   enabled: false
