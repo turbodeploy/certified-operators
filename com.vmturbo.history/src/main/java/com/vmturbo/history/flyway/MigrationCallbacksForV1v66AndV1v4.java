@@ -2,6 +2,8 @@ package com.vmturbo.history.flyway;
 
 import java.util.Collections;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.sql.utils.flyway.ResetMigrationChecksumCallback;
 
 /**
@@ -38,7 +40,7 @@ public class MigrationCallbacksForV1v66AndV1v4 {
          * Create a new instance.
          */
         public ForMariaDBV1v66() {
-            super("1.66", Collections.singleton(-1677439971), -1499992363);
+            super("1.66", ImmutableSet.of(-1677439971, -1499992363), -1579115327);
         }
     }
 }

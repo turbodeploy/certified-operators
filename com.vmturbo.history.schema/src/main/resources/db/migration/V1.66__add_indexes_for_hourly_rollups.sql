@@ -20,7 +20,9 @@ CREATE PROCEDURE _create_index_if_not_exists(
     tbl_name text, idx_name text, modifiers text, defn text)
 BEGIN
   SELECT EXISTS(SELECT * FROM information_schema.statistics
-     WHERE table_schema = database() AND table_name = tbl_name AND index_name = idx_name)
+     WHERE table_schema COLLATE utf8_unicode_ci = database()
+       AND table_name COLLATE utf8_unicode_ci = tbl_name
+       AND index_name COLLATE utf8_unicode_ci = idx_name)
   INTO @exists;
 
   IF NOT @exists THEN
@@ -40,7 +42,9 @@ DELIMITER $$
 CREATE PROCEDURE _drop_index_if_exists(tbl_name text, idx_name text)
 BEGIN
   SELECT EXISTS(SELECT * FROM information_schema.statistics
-     WHERE table_schema = database() AND table_name = tbl_name AND index_name = idx_name)
+     WHERE table_schema COLLATE utf8_unicode_ci = database()
+       AND table_name COLLATE utf8_unicode_ci = tbl_name
+       AND index_name COLLATE utf8_unicode_ci = idx_name)
   INTO @exists;
 
   IF @exists THEN
