@@ -57,8 +57,8 @@
         <fabricateDockerHost>unix:///var/run/docker.sock</fabricateDockerHost>
         <pre-integration-test-phase>none</pre-integration-test-phase>
         <integration-test-phase>none</integration-test-phase>
-        <dockerRobotImage>registry.turbonomic.com/turbonomic/robot-docker:1.0.9</dockerRobotImage>
-        <it.s6.kill.finish.maxtime>30000</it.s6.kill.finish.maxtime>
+        <dockerRobotImage>registry.turbonomic.com/turbonomic/robot-docker:1.0.10</dockerRobotImage>
+        <it.s6.kill.finish.maxtime>60000</it.s6.kill.finish.maxtime>
         <it.fabric8.kill>30000</it.fabric8.kill>
         <it.fabric8.wait>600000</it.fabric8.wait>
         <it.suite.name>${artifactId}</it.suite.name>
