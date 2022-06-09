@@ -58,7 +58,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
-import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure.SettingChange;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
@@ -66,7 +65,6 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -625,43 +623,6 @@ public class ExplanationComposerTest {
                 Optional.empty(), null, Collections.emptyList()));
         assertEquals(Collections.singleton("Misconfiguration"),
             ExplanationComposer.composeRelatedRisks(reconfigureAction, Collections.emptyList()));
-    }
-
-    /**
-     * Test the explanation of reconfigure action with reason setting and setting changes.
-     */
-    @Test
-    public void testReconfigureReasonSettingsExplanationWithSettingChange() {
-        long reasonSetting1 = 1L;
-
-        ActionDTO.Action reconfigureAction = ActionDTO.Action.newBuilder()
-                .setId(0).setInfo(ActionInfo.newBuilder().setReconfigure(
-                        Reconfigure.newBuilder()
-                                .addSettingChange(SettingChange.newBuilder()
-                                        .setCurrentValue(1)
-                                        .setNewValue(2)
-                                        .setEntityAttribute(EntityAttribute.SOCKET)
-                                        .build())
-                                .addSettingChange(SettingChange.newBuilder()
-                                        .setCurrentValue(1)
-                                        .setNewValue(2)
-                                        .setEntityAttribute(EntityAttribute.CORES_PER_SOCKET)
-                                        .build())
-                                .setTarget(ActionEntity.newBuilder()
-                                        .setId(1).setType(EntityType.VIRTUAL_MACHINE_VALUE))
-                                .setIsProvider(false)))
-                .setDeprecatedImportance(0)
-                .setExplanation(Explanation.newBuilder()
-                        .setReconfigure(ReconfigureExplanation.newBuilder()
-                                .addReasonSettings(reasonSetting1)))
-                .build();
-
-        assertEquals("(^_^)~setting1 out of compliance",
-                ExplanationComposer.composeExplanation(reconfigureAction,
-                        ImmutableMap.of(reasonSetting1, "setting1"),
-                        Optional.empty(), null, Collections.emptyList()));
-        assertEquals(Collections.singleton("Required setting change"),
-                ExplanationComposer.composeRelatedRisks(reconfigureAction, Collections.emptyList()));
     }
 
     /**
