@@ -112,6 +112,12 @@ public class AnalysisDiagnosticsCollector {
          */
         public final CommodityType commodityType;
 
+        /**
+         * Instantiates a new Initial placement comm type map.
+         *
+         * @param commodityType the commodity type
+         * @param type the type
+         */
         InitialPlacementCommTypeMap(CommodityType commodityType,
                                     Integer type) {
             this.type = type;
@@ -137,7 +143,7 @@ public class AnalysisDiagnosticsCollector {
     /**
      * Save SMA and M2 cloud VM compute actions.
      *
-     * @param actionLogs   list of actions.
+     * @param actionLogs list of actions.
      * @param topologyInfo topology info
      */
     public void saveActionsIfEnabled(List<String> actionLogs,
@@ -169,13 +175,17 @@ public class AnalysisDiagnosticsCollector {
      * Save Initial Placement Diags.
      *
      * @param timeStamp unix time.
-     * @param newInitialPlacements the initialPlacements to save.
      * @param historicalCachedCommTypeMap A map that stores the TopologyDTO.CommodityType
-     *                                    to traderTO's CommoditySpecification in historical economy.
+     *                                         to traderTO's CommoditySpecification in historical
+     *         economy.
      * @param realtimeCachedCommTypeMap A map that stores the TopologyDTO.CommodityType
-     *                                  to traderTO's CommoditySpecification in realtime economy.
+     *                                     to traderTO's CommoditySpecification in realtime
+     *         economy.
+     * @param newInitialPlacements the initialPlacements to save.
      * @param historicalCachedEconomy historical cached economy.
      * @param realtimeCachedEconomy realtime cached economy.
+     * @param saveOnError the save on error
+     * @param numPlacementDiagsToRetain the num placement diags to retain
      */
     public void saveInitialPlacementDiagsIfEnabled(@Nullable String timeStamp,
                                                    @Nullable BiMap<CommodityType, Integer> historicalCachedCommTypeMap,
@@ -251,11 +261,10 @@ public class AnalysisDiagnosticsCollector {
         }
     }
 
-
     /**
      * Save SMA Input data.
      *
-     * @param smaInput     smaInput to save
+     * @param smaInput smaInput to save
      * @param topologyInfo topology info
      */
     public void saveSMAInputIfEnabled(final SMAInput smaInput,
@@ -341,12 +350,12 @@ public class AnalysisDiagnosticsCollector {
     /**
      * Save analysis data asynchronously and return future.
      *
-     * @param traderTOs                 traders
-     * @param topologyInfo              topology info
-     * @param analysisConfig            analysis config
+     * @param traderTOs traders
+     * @param topologyInfo topology info
+     * @param analysisConfig analysis config
      * @param commSpecsToAdjustOverhead commSpecsToAdjustOverhead
-     * @param numRealTimeAnalysisDiagsToRetain number of real time analysis diagnostics to retain
-     *
+     * @param numRealTimeAnalysisDiagsToRetain number of real time analysis diagnostics to
+     *         retain
      * @return future for the asynchronously running task.
      */
     public Future<?> saveAnalysisAsyncIfEnabled(final List<TraderTO> traderTOs,
@@ -435,6 +444,7 @@ public class AnalysisDiagnosticsCollector {
      * 1. debug is enabled
      * OR
      * 2. topology is for real time AND the number of diags to retain is greater than zero.
+     *
      * @param topologyInfo topology info
      * @param numRealTimeAnalysisDiagsToRetain number of real time analysis diags to retain
      * @return true if analysis diags is to be saved, false otherwise
@@ -449,6 +459,7 @@ public class AnalysisDiagnosticsCollector {
      * 1. debug is enabled
      * OR
      * 2. error occurred on initial placement
+     *
      * @param saveOnError flag to determined by whether an error occurred
      * @param numPlacementDiagsToRetain number of placement diags to retain
      * @return true if Placement diags is to be saved, false otherwise
@@ -502,15 +513,24 @@ public class AnalysisDiagnosticsCollector {
         Optional<AnalysisDiagnosticsCollector> newDiagsCollector(String zipFilenameSuffix, AnalysisMode analysisMode);
 
         /**
-         * The default implementation of {@link AnalysisDiagnosticsCollectorFactory}, for use in "real" code.
+         * The default implementation of {@link AnalysisDiagnosticsCollectorFactory}, for use in
+         * "real" code.
          */
         class DefaultAnalysisDiagnosticsCollectorFactory implements AnalysisDiagnosticsCollectorFactory {
 
+            /**
+             * The Diags writer executor service.
+             */
             /*
              * Executor service containing a single thread that handles saving of analysis diags.
              */
             final ExecutorService diagsWriterExecutorService;
 
+            /**
+             * Instantiates a new Default analysis diagnostics collector factory.
+             *
+             * @param diagsWriterExecutorService the diags writer executor service
+             */
             public DefaultAnalysisDiagnosticsCollectorFactory(ExecutorService diagsWriterExecutorService) {
                 this.diagsWriterExecutorService = diagsWriterExecutorService;
             }

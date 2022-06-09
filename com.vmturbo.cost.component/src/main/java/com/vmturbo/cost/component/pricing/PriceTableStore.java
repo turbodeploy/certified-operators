@@ -75,9 +75,10 @@ public interface PriceTableStore {
 
     /**
      * Get the reserved instance price table corresponding to the {@code priceTableOid}.
+     *
      * @param priceTableOid The price table OID.
      * @return The {@link ReservedInstancePriceTable}, if one is found corresponding to the price
-     * table OID.
+     *         table OID.
      */
     Optional<ReservedInstancePriceTable> getRiPriceTable(long priceTableOid);
 
@@ -85,14 +86,17 @@ public interface PriceTableStore {
      * Put a new collection of probe type -> price table associations into the store. This
      * completely overwrites the existing probe type -> price table associations.
      *
-     * <p>In the future we may want to have methods to update price tables as well as overwrite them.
+     * <p>In the future we may want to have methods to update price tables as well as overwrite
+     * them.
      *
-     * <p>We keep the price tables separated by probe type to make it easy to delete prices no longer
+     * <p>We keep the price tables separated by probe type to make it easy to delete prices no
+     * longer
      * offered by a particular service provider.
      *
      * @param tablesByProbeType The new {@link PriceTable}s by probe type. These will
-     *                          completely overwrite the existing price tables by probe type, and any
-     *                          existing probe types that are not found in this map will be deleted.
+     *                           completely overwrite the existing price tables by probe type, and
+     *         any                          existing probe types that are not found in this map will
+     *         be deleted.
      */
     void putProbePriceTables(@Nonnull Map<PriceTableKey, PriceTables> tablesByProbeType);
 
@@ -104,7 +108,8 @@ public interface PriceTableStore {
      * This is used to determine which pricetable data has changes and need a new upload.
      *
      * @param priceTableKeyList list of {@link PriceTableKey} used for querying DB.
-     * @return Map of {@link PriceTableKey} and long where long is checksum value of price table data.
+     * @return Map of {@link PriceTableKey} and long where long is checksum value of price table
+     *         data.
      */
     Map<PriceTableKey, Long> getChecksumByPriceTableKeys(@Nonnull Collection<PriceTableKey> priceTableKeyList);
 
@@ -117,20 +122,42 @@ public interface PriceTableStore {
         private ReservedInstancePriceTable riPriceTable;
         private Long checkSum;
 
+        /**
+         * Instantiates a new Price tables.
+         *
+         * @param priceTable the price table
+         * @param riPriceTable the ri price table
+         * @param checkSum the check sum
+         */
         public PriceTables(@Nonnull PriceTable priceTable, @Nonnull ReservedInstancePriceTable riPriceTable, Long checkSum) {
             this.priceTable = priceTable;
             this.riPriceTable = riPriceTable;
             this.checkSum = checkSum;
         }
 
+        /**
+         * Instantiates a new Price tables.
+         *
+         * @param priceTable the price table
+         */
         public PriceTables(PriceTable priceTable) {
             this.priceTable = priceTable;
         }
 
+        /**
+         * Instantiates a new Price tables.
+         *
+         * @param riPriceTable the ri price table
+         */
         public PriceTables(ReservedInstancePriceTable riPriceTable) {
             this.riPriceTable = riPriceTable;
         }
 
+        /**
+         * Gets price table.
+         *
+         * @return the price table
+         */
         public PriceTable getPriceTable() {
             if (priceTable == null) {
                 return PriceTable.getDefaultInstance();
@@ -138,6 +165,11 @@ public interface PriceTableStore {
             return priceTable;
         }
 
+        /**
+         * Gets ri price table.
+         *
+         * @return the ri price table
+         */
         public ReservedInstancePriceTable getRiPriceTable() {
             if (riPriceTable == null) {
                 return ReservedInstancePriceTable.getDefaultInstance();
@@ -145,6 +177,11 @@ public interface PriceTableStore {
             return riPriceTable;
         }
 
+        /**
+         * Gets check sum.
+         *
+         * @return the check sum
+         */
         public Long getCheckSum() {
             return checkSum;
         }

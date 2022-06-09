@@ -52,7 +52,7 @@ public interface MemReporter {
      * MyClass$Builder). For anonymous inner classes, the "$" separator is retained (these cases are
      * detected when the name following the separator is composed solely of digits).</p>
      *
-     * @return description
+     * @return description mem description
      */
     default String getMemDescription() {
         String[] parts = getClass().getName().split("\\.");
@@ -88,7 +88,7 @@ public interface MemReporter {
      *
      * @param o reporting object
      * @return entry count, or null if the reporting object is neither a {@link Collection} nor a
-     * {@link Map}
+     *         {@link Map}
      */
     static Integer defaultItemCount(Object o) {
         if (o instanceof Collection) {
@@ -147,8 +147,8 @@ public interface MemReporter {
      * Log a memory report for this reporter.
      *
      * @param memReporter reporting instance
-     * @param logger      logger to use for logging
-     * @param logLevel    log level to log at
+     * @param logger logger to use for logging
+     * @param logLevel log level to log at
      */
     static void logReport(MemReporter memReporter, Logger logger, Level logLevel) {
         logReport(memReporter, logger, logLevel, null);
@@ -158,10 +158,10 @@ public interface MemReporter {
      * Log a memory report with a tag added to the very first report item description.
      *
      * @param memReporter the reporting instance
-     * @param logger      logger to use
-     * @param logLevel    log level to log at
-     * @param tag         string to add (in [] brackets) to the description of the first logged
-     *                    {@link MemReportItem}
+     * @param logger logger to use
+     * @param logLevel log level to log at
+     * @param tag string to add (in [] brackets) to the description of the first logged
+     *         {@link MemReportItem}
      */
     static void logReport(MemReporter memReporter, Logger logger, Level logLevel, String tag) {
         if (logger.isEnabled(logLevel)) {
@@ -183,9 +183,9 @@ public interface MemReporter {
         /**
          * Create a new instance.
          *
-         * @param description    description string
+         * @param description description string
          * @param reportedObject object whose size is to be reported
-         * @param exclusions     objects to be excluded from the report for this reporter
+         * @param exclusions objects to be excluded from the report for this reporter
          */
         public SimpleMemReporter(String description, Object reportedObject,
                 Collection<Object> exclusions) {
@@ -197,7 +197,7 @@ public interface MemReporter {
         /**
          * Create a new instance with no exclusions.
          *
-         * @param description    description string
+         * @param description description string
          * @param reportedObject object whose size is to be reported
          */
         public SimpleMemReporter(String description, Object reportedObject) {
@@ -255,9 +255,9 @@ public interface MemReporter {
         /**
          * Send the report to a logger, with each {@link MemReportItem} on its own log line.
          *
-         * @param logger   logger to use
+         * @param logger logger to use
          * @param logLevel logging level to log at
-         * @param tag      tag string to be added to the first log line
+         * @param tag tag string to be added to the first log line
          */
         public void logTo(final Logger logger, final Level logLevel, String tag) {
             for (MemReportItem item : items) {
@@ -279,7 +279,7 @@ public interface MemReporter {
              * Create a new instance.
              *
              * @param memReporter memory reporter for this item
-             * @param indent      nesting level for this item
+             * @param indent nesting level for this item
              */
             MemReportItem(MemReporter memReporter, int indent) {
                 this.memReporter = memReporter;
@@ -306,9 +306,9 @@ public interface MemReporter {
             /**
              * Log this item to a logger.
              *
-             * @param logger   logger to log to
+             * @param logger logger to log to
              * @param logLevel log level to log at
-             * @param tag      tag to add in this log item, or null for none
+             * @param tag tag to add in this log item, or null for none
              */
             public void logTo(final Logger logger, final Level logLevel, String tag) {
                 logger.log(logLevel, "{}{}{}{}: {}{}{}",
@@ -342,6 +342,9 @@ public interface MemReporter {
      * during construction.
      */
     class DummyMemReport extends MemReport {
+        /**
+         * Instantiates a new Dummy mem report.
+         */
         public DummyMemReport() {
             super(new SimpleMemReporter("dummy", null));
         }

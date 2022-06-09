@@ -19,8 +19,7 @@ public class WastedFiles {
      * Private constructor.
      */
 
-    private WastedFiles(){
-    }
+    private WastedFiles() {}
 
     /**
      * Find the VirtualVolume representing wasted files for a given Storage.  The wasted files

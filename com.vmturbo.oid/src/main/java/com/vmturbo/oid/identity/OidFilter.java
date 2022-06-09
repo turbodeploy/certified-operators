@@ -214,6 +214,9 @@ public interface OidFilter {
      * The AllOidsFilter doesn't filter any oids out. It's basically a no-op filter.
      */
     class AllOidsFilter implements OidFilter {
+        /**
+         * The constant ALL_OIDS_FILTER.
+         */
         public static final AllOidsFilter ALL_OIDS_FILTER = new AllOidsFilter();
 
         @Override

@@ -19,6 +19,7 @@ public interface VirtualMachineMatcherConfig extends EntityMatcherConfig {
     /**
      * The set of tier matchers, indicating how a VM should be matched to a cloud commitment
      * through its compute tier.
+     *
      * @return The set of tier matchers.
      */
     @Nonnull
@@ -26,18 +27,21 @@ public interface VirtualMachineMatcherConfig extends EntityMatcherConfig {
 
     /**
      * Indicates whether the VM's tenancy should be included in generated coverage keys.
+     *
      * @return Whether the VM's tenancy should be included in generated coverage keys.
      */
     boolean includeTenancy();
 
     /**
      * Indicates whether the VM's platform should be included in generated coverage keys.
+     *
      * @return Whether the VM's platform should be included in generated coverage keys.
      */
     boolean includePlatform();
 
     /**
      * Constructs and returns a new {@link Builder} instance.
+     *
      * @return The newly constructed builder instance.
      */
     @Nonnull
@@ -51,12 +55,22 @@ public interface VirtualMachineMatcherConfig extends EntityMatcherConfig {
     class Builder extends ImmutableVirtualMachineMatcherConfig.Builder {}
 
     /**
-     * Represents the possible ways to match an entity's tier to a cloud commitment (through a coverage
+     * Represents the possible ways to match an entity's tier to a cloud commitment (through a
+     * coverage
      * key).
      */
     enum TierMatcher {
+        /**
+         * Family tier matcher.
+         */
         FAMILY,
+        /**
+         * Tier tier matcher.
+         */
         TIER,
+        /**
+         * None tier matcher.
+         */
         NONE
     }
 }

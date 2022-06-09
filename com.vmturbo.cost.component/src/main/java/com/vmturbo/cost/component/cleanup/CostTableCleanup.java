@@ -26,8 +26,8 @@ public interface CostTableCleanup {
         /**
          * Trims records from the table this writer is for.
          *
-         * @param trimTimeResolver Earliest time allowed in the table. All records before this time will be deleted.
-         *
+         * @param trimTimeResolver Earliest time allowed in the table. All records before
+         *         this time will be deleted.
          * @throws DataAccessException A Data access exception
          */
         void trim(@Nonnull TrimTimeResolver trimTimeResolver) throws DataAccessException;
@@ -43,6 +43,7 @@ public interface CostTableCleanup {
 
     /**
      * The {@link TableCleanupInfo} for this cleanup task.
+     *
      * @return The {@link TableCleanupInfo}.
      */
     @Nonnull
@@ -50,6 +51,7 @@ public interface CostTableCleanup {
 
     /**
      * The {@link TrimTimeResolver} for this cleanup task.
+     *
      * @return The {@link TrimTimeResolver} for this cleanup task.
      */
     TrimTimeResolver trimTimeResolver();
@@ -84,36 +86,71 @@ public interface CostTableCleanup {
             return table().getName();
         }
 
+        /**
+         * Cleanup rate duration.
+         *
+         * @return the duration
+         */
         @Default
         default Duration cleanupRate() {
             return Duration.ofHours(1);
         }
 
+        /**
+         * Retry limit int.
+         *
+         * @return the int
+         */
         @Default
         default int retryLimit() {
             return 3;
         }
 
+        /**
+         * Retry delay duration.
+         *
+         * @return the duration
+         */
         @Default
         default Duration retryDelay() {
             return Duration.ofMinutes(5);
         }
 
+        /**
+         * Long running duration duration.
+         *
+         * @return the duration
+         */
         @Default
         default Duration longRunningDuration() {
             return Duration.ofMinutes(10);
         }
 
+        /**
+         * Num rows to batch delete int.
+         *
+         * @return the int
+         */
         @Default
         default int numRowsToBatchDelete() {
             return 1000;
         }
 
+        /**
+         * Block ingestion on long running boolean.
+         *
+         * @return the boolean
+         */
         @Default
         default boolean blockIngestionOnLongRunning() {
             return false;
         }
 
+        /**
+         * Builder builder.
+         *
+         * @return the builder
+         */
         @Nonnull
         static Builder builder() {
             return new Builder();

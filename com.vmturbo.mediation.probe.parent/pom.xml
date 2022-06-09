@@ -244,7 +244,7 @@
                     <dependency>
                         <groupId>com.puppycrawl.tools</groupId>
                         <artifactId>checkstyle</artifactId>
-                        <version>8.23</version>
+                        <version>9.3</version>
                     </dependency>
                     <dependency>
                         <groupId>com.vmturbo</groupId>

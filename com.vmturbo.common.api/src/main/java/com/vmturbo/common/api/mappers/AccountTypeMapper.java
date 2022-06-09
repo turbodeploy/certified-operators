@@ -24,7 +24,7 @@ public class AccountTypeMapper {
     /**
      * Private constructor, never initialized, pattern for a utility class.
      */
-    private AccountTypeMapper(){}
+    private AccountTypeMapper() {}
 
     /**
      * Get the {@link com.vmturbo.api.enums.AccountType} associated with a {@link AccountType}.

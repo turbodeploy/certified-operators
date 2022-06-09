@@ -14,7 +14,8 @@ import com.vmturbo.proactivesupport.DataMetricSummary.SummaryData;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.ServiceProviderInfo;
 
 /**
- * Provides metrics to be collected during RI coverage allocation analysis. The metrics collected focus
+ * Provides metrics to be collected during RI coverage allocation analysis. The metrics collected
+ * focus
  * on analysis duration and per-cloud service provider metrics (such as the number of coverage
  * entries/allocations). Metrics specific to a CSP are qualified by the target CSP through a metric
  * label.
@@ -70,12 +71,12 @@ public class CoverageAllocationMetricsProvider {
         this.allocatedCoverageAmount = builder.allocatedCoverageAmount;
     }
 
-
     /**
      * A {@link DataMetricSummary} metric as a container for timing the total analysis time of
      * coverage allocation analysis.
-     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the summary
-     * metric is not present, no data should be collected.
+     *
+     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the
+     *         summary metric is not present, no data should be collected.
      */
     @Nonnull
     public Optional<DataMetricTimerProvider> totalCoverageAnalysisDuration() {
@@ -84,12 +85,14 @@ public class CoverageAllocationMetricsProvider {
     }
 
     /**
-     * A {@link DataMetricSummary} metric as a container for timing the first-pass filtering of reserved
-     * instances. The first pass filter is provider-agnostic logic for filtering out invalid or fully
+     * A {@link DataMetricSummary} metric as a container for timing the first-pass filtering of
+     * reserved
+     * instances. The first pass filter is provider-agnostic logic for filtering out invalid or
+     * fully
      * allocated RIs.
      *
-     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the summary
-     * metric is not present, no data should be collected.
+     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the
+     *         summary metric is not present, no data should be collected.
      */
     @Nonnull
     public Optional<DataMetricTimerProvider> firstPassRIFilterDuration() {
@@ -98,12 +101,14 @@ public class CoverageAllocationMetricsProvider {
     }
 
     /**
-     * A {@link DataMetricSummary} metric as a container for timing the first-pass filtering of entities.
-     * The first pass filter is provider-agnostic logic for filtering out entities which are fully covered
+     * A {@link DataMetricSummary} metric as a container for timing the first-pass filtering of
+     * entities.
+     * The first pass filter is provider-agnostic logic for filtering out entities which are fully
+     * covered
      * or have a coverage capacity of zero.
      *
-     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the summary
-     * metric is not present, no data should be collected.
+     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the
+     *         summary metric is not present, no data should be collected.
      */
     @Nonnull
     public Optional<DataMetricTimerProvider> firstPassEntityFilterDuration() {
@@ -115,8 +120,8 @@ public class CoverageAllocationMetricsProvider {
      * A {@link DataMetricSummary} metric as a container for timing the creation of contexts for
      * coverage allocation analysis of individual cloud service providers.
      *
-     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the summary
-     * metric is not present, no data should be collected.
+     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the
+     *         summary metric is not present, no data should be collected.
      */
     @Nonnull
     public Optional<DataMetricTimerProvider> contextCreationDuration() {
@@ -125,12 +130,14 @@ public class CoverageAllocationMetricsProvider {
     }
 
     /**
-     * A {@link DataMetricSummary} metric to collect the number of coverable entities, indexed by the
-     * cloud service provider. Coverable entities will be those entities that pass the first-pass filter.
+     * A {@link DataMetricSummary} metric to collect the number of coverable entities, indexed by
+     * the
+     * cloud service provider. Coverable entities will be those entities that pass the first-pass
+     * filter.
      *
      * @param csp The target cloud service provider.
-     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the summary
-     * metric is not present, no data should be collected.
+     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the
+     *         summary metric is not present, no data should be collected.
      */
     @Nonnull
     public Optional<SummaryData> coverableEntityCountForCSP(@Nonnull ServiceProviderInfo csp) {
@@ -139,12 +146,14 @@ public class CoverageAllocationMetricsProvider {
     }
 
     /**
-     * A {@link DataMetricSummary} metric to collect the number of coverable entities, indexed by the
-     * cloud service provider. Coverable entities will be those entities that pass the first-pass filter.
+     * A {@link DataMetricSummary} metric to collect the number of coverable entities, indexed by
+     * the
+     * cloud service provider. Coverable entities will be those entities that pass the first-pass
+     * filter.
      *
      * @param csp The target cloud service provider.
-     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the summary
-     * metric is not present, no data should be collected.
+     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the
+     *         summary metric is not present, no data should be collected.
      */
     @Nonnull
     public Optional<SummaryData> cloudCommitmentCount(@Nonnull ServiceProviderInfo csp) {
@@ -158,8 +167,8 @@ public class CoverageAllocationMetricsProvider {
      * RI coverage analysis.
      *
      * @param csp The target cloud service provider.
-     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the summary
-     * metric is not present, no data should be collected.
+     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the
+     *         summary metric is not present, no data should be collected.
      */
     @Nonnull
     public Optional<SummaryData> uncoveredEntityPercentage(@Nonnull ServiceProviderInfo csp) {
@@ -174,8 +183,8 @@ public class CoverageAllocationMetricsProvider {
      *
      * @param csp The target cloud service provider.
      * @param coverageTypeInfo The coverage type info.
-     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the summary
-     * metric is not present, no data should be collected.
+     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the
+     *         summary metric is not present, no data should be collected.
      */
     @Nonnull
     public Optional<SummaryData> unallocatedCommitmentCapacity(@Nonnull ServiceProviderInfo csp,
@@ -194,8 +203,8 @@ public class CoverageAllocationMetricsProvider {
      * concurrent analysis of other CSPs.
      *
      * @param csp The target cloud service provider.
-     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the summary
-     * metric is not present, no data should be collected.
+     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the
+     *         summary metric is not present, no data should be collected.
      */
     @Nonnull
     public Optional<DataMetricTimerProvider> allocationDurationForCSP(@Nonnull ServiceProviderInfo csp) {
@@ -209,8 +218,8 @@ public class CoverageAllocationMetricsProvider {
      * cloud service provider. The data is qualified by the CSP through a label.
      *
      * @param csp The target cloud service provider.
-     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the summary
-     * metric is not present, no data should be collected.
+     * @return An {@link Optional}, wrapping an instance of {@link DataMetricSummary}. If the
+     *         summary metric is not present, no data should be collected.
      */
     @Nonnull
     public Optional<SummaryData> allocationCountForCSP(@Nonnull ServiceProviderInfo csp) {
@@ -237,6 +246,7 @@ public class CoverageAllocationMetricsProvider {
 
     /**
      * Constructs and returns a new {@link Builder} instance.
+     *
      * @return A newly created instance of {@link Builder}.
      */
     @Nonnull
@@ -247,6 +257,7 @@ public class CoverageAllocationMetricsProvider {
     /**
      * Creates and returns a {@link DataMetricSummary.Builder}, configured with the correct labels
      * for metrics indexed by {@link ServiceProviderInfo}.
+     *
      * @return The newly created instance of {@link DataMetricSummary.Builder}.
      */
     @Nonnull
@@ -258,6 +269,7 @@ public class CoverageAllocationMetricsProvider {
     /**
      * Builds a new {@link DataMetricSummary.Builder} instance, with labels defined to accept
      * coverage type info metrics.
+     *
      * @return The configured {@link DataMetricSummary.Builder}.
      */
     public static DataMetricSummary.Builder newCoverageTypeMetric() {
@@ -284,10 +296,12 @@ public class CoverageAllocationMetricsProvider {
 
         /**
          * Set the total coverage analysis summary (timer).
-         * @see CoverageAllocationMetricsProvider#totalCoverageAnalysisDuration() ().
-         * @param totalCoverageAnalysisDuration The {@link DataMetricSummary} used as a timer for
-         *                                     analysis duration.
+         *
+         * @param totalCoverageAnalysisDuration The {@link DataMetricSummary} used as a
+         *         timer for                                     analysis duration.
          * @return This {@link Builder} instance for method chaining.
+         * @see CoverageAllocationMetricsProvider#totalCoverageAnalysisDuration()
+         *         CoverageAllocationMetricsProvider#totalCoverageAnalysisDuration()().
          */
         @Nonnull
         public Builder totalCoverageAnalysisDuration(@Nullable DataMetricSummary totalCoverageAnalysisDuration) {
@@ -297,10 +311,12 @@ public class CoverageAllocationMetricsProvider {
 
         /**
          * Set the first past RI filter summary (timer).
-         * @see CoverageAllocationMetricsProvider#firstPassRIFilterDuration() ().
-         * @param firstPassRIFilterDuration The {@link DataMetricSummary} used as a timer for
-         *                                  RI filtering.
+         *
+         * @param firstPassRIFilterDuration The {@link DataMetricSummary} used as a timer
+         *         for                                  RI filtering.
          * @return This {@link Builder} instance for method chaining.
+         * @see CoverageAllocationMetricsProvider#firstPassRIFilterDuration()
+         *         CoverageAllocationMetricsProvider#firstPassRIFilterDuration()().
          */
         @Nonnull
         public Builder firstPassRIFilterDuration(@Nullable DataMetricSummary firstPassRIFilterDuration) {
@@ -310,10 +326,12 @@ public class CoverageAllocationMetricsProvider {
 
         /**
          * Set the first past entity filter summary (timer).
-         * @see CoverageAllocationMetricsProvider#firstPassEntityFilterDuration() ().
-         * @param firstPassEntityFilterDuration The {@link DataMetricSummary} used as a timer for
-         *                                      entity filtering.
+         *
+         * @param firstPassEntityFilterDuration The {@link DataMetricSummary} used as a
+         *         timer for                                      entity filtering.
          * @return This {@link Builder} instance for method chaining.
+         * @see CoverageAllocationMetricsProvider#firstPassEntityFilterDuration()
+         *         CoverageAllocationMetricsProvider#firstPassEntityFilterDuration()().
          */
         @Nonnull
         public Builder firstPassEntityFilterDuration(@Nullable DataMetricSummary firstPassEntityFilterDuration) {
@@ -323,10 +341,12 @@ public class CoverageAllocationMetricsProvider {
 
         /**
          * Set the context creation summary (timer).
-         * @see CoverageAllocationMetricsProvider#contextCreationDuration() ().
-         * @param contextCreationDuration The {@link DataMetricSummary} used as a timer for per CSP
-         *                                context creation.
+         *
+         * @param contextCreationDuration The {@link DataMetricSummary} used as a timer for
+         *         per CSP                                context creation.
          * @return This {@link Builder} instance for method chaining.
+         * @see CoverageAllocationMetricsProvider#contextCreationDuration()
+         *         CoverageAllocationMetricsProvider#contextCreationDuration()().
          */
         @Nonnull
         public Builder contextCreationDuration(@Nullable DataMetricSummary contextCreationDuration) {
@@ -336,9 +356,11 @@ public class CoverageAllocationMetricsProvider {
 
         /**
          * Set the allocation duration by CSP summary (timer).
-         * @see CoverageAllocationMetricsProvider#allocationDurationForCSP(ServiceProviderInfo)
+         *
          * @param summaryMetric The summary metric (timer).
          * @return This {@link Builder} instance for method chaining.
+         * @see CoverageAllocationMetricsProvider#allocationDurationForCSP(ServiceProviderInfo)
+         *         CoverageAllocationMetricsProvider#allocationDurationForCSP(ServiceProviderInfo)
          */
         @Nonnull
         public Builder allocationDurationByCSP(@Nonnull DataMetricSummary summaryMetric) {
@@ -350,9 +372,12 @@ public class CoverageAllocationMetricsProvider {
 
         /**
          * Set the number of coverable entities per CSP summary.
-         * @see CoverageAllocationMetricsProvider#coverableEntityCountForCSP(ServiceProviderInfo)
-         * @param summaryMetric The summary metric to collect the number of coverable entities.
+         *
+         * @param summaryMetric The summary metric to collect the number of coverable
+         *         entities.
          * @return This {@link Builder} instance for method chaining.
+         * @see CoverageAllocationMetricsProvider#coverableEntityCountForCSP(ServiceProviderInfo)
+         *         CoverageAllocationMetricsProvider#coverableEntityCountForCSP(ServiceProviderInfo)
          */
         @Nonnull
         public Builder coverableEntityCountByCSP(@Nonnull DataMetricSummary summaryMetric) {
@@ -364,9 +389,12 @@ public class CoverageAllocationMetricsProvider {
 
         /**
          * Set the uncovered entity capacity by CSP summary.
-         * @see CoverageAllocationMetricsProvider#uncoveredEntityPercentage(ServiceProviderInfo)
-         * @param summaryMetric The summary metric to collect the sum of uncovered entity capacity.
+         *
+         * @param summaryMetric The summary metric to collect the sum of uncovered entity
+         *         capacity.
          * @return This {@link Builder} instance for method chaining.
+         * @see CoverageAllocationMetricsProvider#uncoveredEntityPercentage(ServiceProviderInfo)
+         *         CoverageAllocationMetricsProvider#uncoveredEntityPercentage(ServiceProviderInfo)
          */
         @Nonnull
         public Builder uncoveredEntityPercentage(@Nonnull DataMetricSummary summaryMetric) {
@@ -378,7 +406,9 @@ public class CoverageAllocationMetricsProvider {
 
         /**
          * Set the unallocated RI capacity by CSP summary.
-         * @param summaryMetric THe summary metric to collect the sum of unallocatoed RI capacity.
+         *
+         * @param summaryMetric THe summary metric to collect the sum of unallocatoed RI
+         *         capacity.
          * @return This {@link Builder} instance for method chaining.
          */
         @Nonnull
@@ -392,9 +422,11 @@ public class CoverageAllocationMetricsProvider {
         /**
          * Set the number of cloud commitments per CSP summary. This count will represent only
          * RIs that pass the first pass RI filter.
-         * @see CoverageAllocationMetricsProvider#cloudCommitmentCount(ServiceProviderInfo)
+         *
          * @param summaryMetric The summary metric to collect the number of RIs
          * @return This {@link Builder} instance for method chaining
+         * @see CoverageAllocationMetricsProvider#cloudCommitmentCount(ServiceProviderInfo)
+         *         CoverageAllocationMetricsProvider#cloudCommitmentCount(ServiceProviderInfo)
          */
         @Nonnull
         public Builder cloudCommitmentCount(@Nonnull DataMetricSummary summaryMetric) {
@@ -406,9 +438,12 @@ public class CoverageAllocationMetricsProvider {
 
         /**
          * Set the number of coverage allocations per CSP.
-         * @see CoverageAllocationMetricsProvider#allocationCountForCSP(ServiceProviderInfo)
-         * @param summaryMetric The summary metric to collect the number of coverage allocations
+         *
+         * @param summaryMetric The summary metric to collect the number of coverage
+         *         allocations
          * @return This {@link Builder} instance for method chaining
+         * @see CoverageAllocationMetricsProvider#allocationCountForCSP(ServiceProviderInfo)
+         *         CoverageAllocationMetricsProvider#allocationCountForCSP(ServiceProviderInfo)
          */
         @Nonnull
         public Builder allocationCountByCSP(@Nonnull DataMetricSummary summaryMetric) {
@@ -420,9 +455,13 @@ public class CoverageAllocationMetricsProvider {
 
         /**
          * Set the coverage amount allocated per CSP.
-         * @see CoverageAllocationMetricsProvider#allocatedCoverageAmount(ServiceProviderInfo, CloudCommitmentCoverageTypeInfo)
-         * @param summaryMetric The summary metric to collect the number of coverage allocations
+         *
+         * @param summaryMetric The summary metric to collect the number of coverage
+         *         allocations
          * @return This {@link Builder} instance for method chaining
+         * @see CoverageAllocationMetricsProvider#allocatedCoverageAmount(ServiceProviderInfo,
+         *         CloudCommitmentCoverageTypeInfo) CoverageAllocationMetricsProvider#allocatedCoverageAmount(ServiceProviderInfo,
+         *         CloudCommitmentCoverageTypeInfo)
          */
         @Nonnull
         public Builder allocatedCoverageAmount(@Nonnull DataMetricSummary summaryMetric) {
@@ -434,8 +473,9 @@ public class CoverageAllocationMetricsProvider {
 
         /**
          * Builds a new {@link CoverageAllocationMetricsProvider} instance.
-         * @return A newly built instance of {@link CoverageAllocationMetricsProvider}, based on
-         * the configuration of this builder
+         *
+         * @return A newly built instance of {@link CoverageAllocationMetricsProvider}, based on the
+         *         configuration of this builder
          */
         @Nonnull
         public CoverageAllocationMetricsProvider build() {

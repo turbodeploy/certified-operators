@@ -17,7 +17,8 @@ import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAn
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisInfo;
 
 /**
- * Represents a single analysis of cloud commitment recommendations, based on a provided configuration.
+ * Represents a single analysis of cloud commitment recommendations, based on a provided
+ * configuration.
  * The analysis encapsulates the discrete steps (stages) required to complete the analysis.
  */
 public class CloudCommitmentAnalysis {
@@ -53,11 +54,12 @@ public class CloudCommitmentAnalysis {
     }
 
     /**
-     * Runs the cloud commitment analysis, blocking until completion. The analysis can only be run once.
+     * Runs the cloud commitment analysis, blocking until completion. The analysis can only be run
+     * once.
      * Any subsequent invocation of {@link #run()} will have no effect.
      *
-     * @throws CloudCommitmentAnalysisException A wrapped exception containing an exceptions thrown by
-     * individual {@link AnalysisStage} instances.
+     * @throws CloudCommitmentAnalysisException A wrapped exception containing an exceptions
+     *         thrown by individual {@link AnalysisStage} instances.
      */
     public void run() throws CloudCommitmentAnalysisException {
 
@@ -105,6 +107,7 @@ public class CloudCommitmentAnalysis {
 
     /**
      * The {@link CloudCommitmentAnalysisInfo} for this analysis.
+     *
      * @return The {@link CloudCommitmentAnalysisInfo} for this analysis.
      */
     @Nonnull
@@ -114,6 +117,7 @@ public class CloudCommitmentAnalysis {
 
     /**
      * Creates and returns a new instance of {@link Builder}.
+     *
      * @return A newly created instance of {@link Builder}.
      */
     @Nonnull
@@ -123,6 +127,7 @@ public class CloudCommitmentAnalysis {
 
     /**
      * Provides a summary of this analysis.
+     *
      * @return A summary of this analysis.
      */
     @Override
@@ -131,23 +136,38 @@ public class CloudCommitmentAnalysis {
     }
 
     /**
-     * The status of both a {@link CloudCommitmentAnalysis} and underlying {@link AnalysisStage} instances.
+     * The status of both a {@link CloudCommitmentAnalysis} and underlying {@link AnalysisStage}
+     * instances.
      */
     @Immutable
     public interface Status {
 
         /**
-         * The possible states of both the {@link CloudCommitmentAnalysis} and {@link AnalysisStage}.
+         * The possible states of both the {@link CloudCommitmentAnalysis} and {@link
+         * AnalysisStage}*.
          */
         enum State {
+            /**
+             * Ready state.
+             */
             READY,
+            /**
+             * Running state.
+             */
             RUNNING,
+            /**
+             * Failed state.
+             */
             FAILED,
+            /**
+             * Completed state.
+             */
             COMPLETED
         }
 
         /**
          * The state of the analysis/stage.
+         *
          * @return The state of the analysis/stage.
          */
         @Nonnull
@@ -155,6 +175,7 @@ public class CloudCommitmentAnalysis {
 
         /**
          * The status message for the analysis/stage.
+         *
          * @return The status message for the analysis/stage.
          */
         @Default
@@ -165,6 +186,7 @@ public class CloudCommitmentAnalysis {
 
         /**
          * Creates and returns a status instance in the ready state with no status message.
+         *
          * @return A status instance in the ready state with no status message.
          */
         @Nonnull
@@ -176,6 +198,7 @@ public class CloudCommitmentAnalysis {
 
         /**
          * Creates and returns a status instance in the running state with no status message.
+         *
          * @return A status instance in the running state with no status message.
          */
         @Nonnull
@@ -188,6 +211,7 @@ public class CloudCommitmentAnalysis {
         /**
          * Creates and returns a status instance in the completed state with the provided
          * {@code message}.
+         *
          * @param message The status message.
          * @return A status instance in the completed state with the provided {@code message}.
          */
@@ -202,6 +226,7 @@ public class CloudCommitmentAnalysis {
         /**
          * Creates and returns a status instance in the failed state with the provided
          * {@code message}.
+         *
          * @param message The status message.
          * @return A status instance in the failed state with the provided {@code message}.
          */
@@ -222,6 +247,9 @@ public class CloudCommitmentAnalysis {
 
         private final CloseableThreadContext.Instance loggingContext;
 
+        /**
+         * Instantiates a new Analysis execution context.
+         */
         AnalysisExecutionContext() {
             final String loggingTag = String.format("%s|%s",
                     analysisInfo.getOid(), analysisInfo.getAnalysisTag());
@@ -245,6 +273,11 @@ public class CloudCommitmentAnalysis {
 
         private final CloseableThreadContext.Instance loggingContext;
 
+        /**
+         * Instantiates a new Stage execution context.
+         *
+         * @param stage the stage
+         */
         StageExecutionContext(@Nonnull AnalysisStage stage) {
             final String loggingTag = String.format("%s|%s|%s",
                     analysisInfo.getOid(),
@@ -277,6 +310,7 @@ public class CloudCommitmentAnalysis {
 
         /**
          * Set the {@link CloudCommitmentAnalysisInfo}.
+         *
          * @param analysisInfo The analysis info.
          * @return This {@link Builder} for method chaining.
          */
@@ -288,6 +322,7 @@ public class CloudCommitmentAnalysis {
 
         /**
          * Set the {@link CloudCommitmentAnalysisContext}.
+         *
          * @param analysisContext The analysis context.
          * @return This {@link Builder} for method chaining.
          */
@@ -299,6 +334,7 @@ public class CloudCommitmentAnalysis {
 
         /**
          * Set the {@link CloudCommitmentAnalysisConfig}.
+         *
          * @param analysisConfig The analysis config.
          * @return This {@link Builder} for method chaining.
          */
@@ -310,6 +346,7 @@ public class CloudCommitmentAnalysis {
 
         /**
          * Set the {@link AnalysisPipeline}.
+         *
          * @param analysisPipeline The analysis pipeline.
          * @return This {@link Builder} for method chaining.
          */
@@ -321,6 +358,7 @@ public class CloudCommitmentAnalysis {
 
         /**
          * Builds a new instance of {@link CloudCommitmentAnalysis}.
+         *
          * @return The newly created instance of {@link CloudCommitmentAnalysis}.
          */
         @Nonnull
@@ -337,6 +375,7 @@ public class CloudCommitmentAnalysis {
 
         /**
          * Construct a new {@link CloudCommitmentAnalysisException}.
+         *
          * @param error The error message.
          * @param cause The wrapped exception.
          */

@@ -31,7 +31,7 @@ public class EnvironmentTypeMapper {
     /**
      * Private constructor, never initialized, pattern for a utility class.
      */
-    private EnvironmentTypeMapper(){}
+    private EnvironmentTypeMapper() {}
 
     /**
      * Get the {@link com.vmturbo.api.enums.EnvironmentType} associated with a {@link com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType}.

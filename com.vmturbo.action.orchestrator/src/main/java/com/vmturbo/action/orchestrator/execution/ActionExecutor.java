@@ -11,7 +11,6 @@ import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -56,6 +55,9 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
  */
 public class ActionExecutor {
 
+    /**
+     * The constant TIMED_OUT_ACTION_EXECUTION_MSG.
+     */
     @VisibleForTesting
     static final String TIMED_OUT_ACTION_EXECUTION_MSG = "Failed to execute action %d timed out after %d %s";
 
@@ -97,6 +99,8 @@ public class ActionExecutor {
      * @param executionTimeoutUnit Action execution timeout unit.
      * @param licenseCheckClient the client for checking the license.
      * @param actionTemplateApplicator the action template applicator for webhook workflows.
+     * @param workflowStore the workflow store
+     * @param actionTranslator the action translator
      */
     public ActionExecutor(@Nonnull final Channel topologyProcessorChannel,
                    @Nonnull final ActionExecutionStore actionExecutionStore,
@@ -119,13 +123,13 @@ public class ActionExecutor {
     /**
      * Schedule the list of {@link ActionDTO.Action}s for execution and wait for completion.
      *
-     * @param targetId the ID of the Target which should execute the action (unless there's a
-     *                 Workflow specified - see below)
+     * @param targetId the ID of the Target which should execute the action (unless there's
+     *         a                 Workflow specified - see below)
      * @param actionList the Action list to execute
-     * @param actionExecutionListener the listener that updates the action state based on events.
+     * @param actionExecutionListener the listener that updates the action state based on
+     *         events.
      * @throws ExecutionStartException if the Action fails to start
      * @throws InterruptedException if the "wait for completion" is interrupted
-     * @throws TimeoutException if the action execution timed out
      */
     public void executeSynchronously(
             final long targetId,
@@ -237,8 +241,8 @@ public class ActionExecutor {
      * @param targetId target to execute action on
      * @param action action to execute
      * @param workflowOpt workflow associated with this target (if any)
-     * @throws ExecutionInitiationException if failed to process workflow
      * @return DTO to send request to topology processor
+     * @throws ExecutionInitiationException if failed to process workflow
      */
     @Nonnull
     public ExecuteActionRequest createRequest(final long targetId,
@@ -256,9 +260,9 @@ public class ActionExecutor {
      * @param workflowOpt workflow associated with this target (if any)
      * @param explanation the explanation string describing the action
      * @param actionId the action identifier (actionId or recommendationId used for external
-     *        audit/approve operations)
-     * @throws ExecutionInitiationException if failed to process workflow
+     *         audit/approve operations)
      * @return DTO to send request to topology processor
+     * @throws ExecutionInitiationException if failed to process workflow
      */
     @Nonnull
     public ExecuteActionRequest createRequest(final long targetId,
@@ -319,8 +323,8 @@ public class ActionExecutor {
      *
      * @param targetId Target to execute action on.
      * @param actionList Action list to execute.
-     * @throws ExecutionInitiationException If failed to process workflow.
      * @return Request DTO to be sent to Topology Processor.
+     * @throws ExecutionInitiationException If failed to process workflow.
      */
     @Nonnull
     public ExecuteActionListRequest createRequest(
@@ -344,11 +348,13 @@ public class ActionExecutor {
     /**
      * Schedule execution of the given {@link ActionDTO.Action} and return immediately.
      *
-     * @param targetId the ID of the Target which should execute the action (unless there's a
-     *                 Workflow specified - see below)
+     * @param targetId the ID of the Target which should execute the action (unless there's
+     *         a                 Workflow specified - see below)
      * @param action the Action to execute
-     * @param workflowOpt an Optional specifying a Workflow to override the execution of the Action
-     * @throws ExecutionStartException if action execution failed to start or failed to process workflow
+     * @param workflowOpt an Optional specifying a Workflow to override the execution of the
+     *         Action
+     * @throws ExecutionStartException if action execution failed to start or failed to
+     *         process workflow
      */
     public void execute(final long targetId, @Nonnull final ActionDTO.ActionSpec action,
                         @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt)
@@ -359,10 +365,11 @@ public class ActionExecutor {
     /**
      * Schedule execution of the list of {@link ActionDTO.Action}s and return immediately.
      *
-     * @param targetId the ID of the Target which should execute the action (unless there's a
-     *                 Workflow specified - see below)
+     * @param targetId the ID of the Target which should execute the action (unless there's
+     *         a                 Workflow specified - see below)
      * @param actionList the Action list to execute
-     * @throws ExecutionStartException if action execution failed to start or failed to process workflow
+     * @throws ExecutionStartException if action execution failed to start or failed to
+     *         process workflow
      */
     public void execute(final long targetId, @Nonnull final List<ActionWithWorkflow> actionList)
             throws ExecutionStartException {

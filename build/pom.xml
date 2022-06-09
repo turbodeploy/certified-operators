@@ -31,6 +31,8 @@
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.5.4</cpu.capacity.version>
 
+        <checkstyle.version>9.3</checkstyle.version>
+
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
@@ -1772,7 +1774,7 @@
                         <dependency>
                             <groupId>com.puppycrawl.tools</groupId>
                             <artifactId>checkstyle</artifactId>
-                            <version>8.23</version>
+                            <version>${checkstyle.version}</version>
                         </dependency>
                         <dependency>
                             <groupId>com.vmturbo</groupId>

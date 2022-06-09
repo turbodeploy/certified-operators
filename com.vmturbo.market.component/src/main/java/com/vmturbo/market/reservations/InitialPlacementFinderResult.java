@@ -9,7 +9,8 @@ import com.vmturbo.common.protobuf.market.InitialPlacement;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 
 /**
- * A wrapper class for initial placement finder result. This object is created per reservation entity per shopping list.
+ * A wrapper class for initial placement finder result. This object is created per reservation
+ * entity per shopping list.
  */
 public class InitialPlacementFinderResult {
 
@@ -26,14 +27,16 @@ public class InitialPlacementFinderResult {
 
     /**
      * Constructor of InitialPlacementFinderResult.
+     *
      * @param providerOid provider oid if placement succeeded
      * @param clusterComm the cluster commodity type associated with provider.
      * @param failureInfoList failure information if placement failed
+     * @param invalidInfo the invalid info
      */
     public InitialPlacementFinderResult(@Nonnull final Optional<Long> providerOid,
-                                        @Nonnull final Optional<CommodityType> clusterComm,
-                                        @Nonnull List<FailureInfo> failureInfoList,
-                                        @Nonnull Optional<InitialPlacement.InvalidInfo> invalidInfo) {
+            @Nonnull final Optional<CommodityType> clusterComm,
+            @Nonnull List<FailureInfo> failureInfoList,
+            @Nonnull Optional<InitialPlacement.InvalidInfo> invalidInfo) {
         this.providerOid = providerOid;
         this.clusterComm = clusterComm;
         this.failureInfoList = failureInfoList;
@@ -62,12 +65,17 @@ public class InitialPlacementFinderResult {
      * Returns a list of commodity failure data.
      *
      * @return a list containing failed commodity type, its requested amount, closest seller oid and
-     * max quantity available on that seller.
+     *         max quantity available on that seller.
      */
     public List<FailureInfo> getFailureInfoList() {
         return failureInfoList;
     }
 
+    /**
+     * Gets invalid info.
+     *
+     * @return the invalid info
+     */
     public Optional<InitialPlacement.InvalidInfo> getInvalidInfo() {
         return invalidInfo;
     }
@@ -91,17 +99,21 @@ public class InitialPlacementFinderResult {
 
         /**
          * Constructor for FailureInfo.
+         *
          * @param commodityType coomodity type of the commodity rsponsible for failure.
-         * @param closestSellerOid seller with the most resources of the commodity of type commodityType.
-         * @param maxQuantity quantity of commodity of type commodityType available in closestSellerOid.
-         * @param requestedAmount quantity of commodity of type commodityType requested by buyer.
+         * @param closestSellerOid seller with the most resources of the commodity of type
+         *         commodityType.
+         * @param maxQuantity quantity of commodity of type commodityType available in
+         *         closestSellerOid.
+         * @param requestedAmount quantity of commodity of type commodityType requested by
+         *         buyer.
          * @param closestSellerCluster the key of the closest seller's cluster.
-         * @param isFailedInRealtimeCache true if the failure occurs in the real time cache, false in the historical cache.
+         * @param isFailedInRealtimeCache true if the failure occurs in the real time cache,
+         *         false in the historical cache.
          */
         public FailureInfo(final CommodityType commodityType, final long closestSellerOid,
-                           final double maxQuantity, final double requestedAmount,
-                           final String closestSellerCluster,
-                           final boolean isFailedInRealtimeCache) {
+                final double maxQuantity, final double requestedAmount,
+                final String closestSellerCluster, final boolean isFailedInRealtimeCache) {
             this.commodityType = commodityType;
             this.closestSellerOid = closestSellerOid;
             this.maxQuantity = maxQuantity;
@@ -158,7 +170,8 @@ public class InitialPlacementFinderResult {
 
         /**
          * Returns true if the failure occurs in the real time cache, false in the historical cache.
-         * @return
+         *
+         * @return boolean
          */
         public boolean isFailedInRealtimeCache() {
             return isFailedInRealtimeCache;

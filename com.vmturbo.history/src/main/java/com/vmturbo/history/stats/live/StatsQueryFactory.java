@@ -59,15 +59,27 @@ public interface StatsQueryFactory {
     /**
      * Indicate an aggregation style for this query; defined in legacy.
      */
-    enum AGGREGATE { NO_AGG, AVG_ALL, AVG_MIN_MAX }
+    enum AGGREGATE {
+        /**
+         * No agg aggregate.
+         */
+        NO_AGG,
+        /**
+         * Avg all aggregate.
+         */
+        AVG_ALL,
+        /**
+         * Avg min max aggregate.
+         */
+        AVG_MIN_MAX }
 
     /**
      * Create a Jooq conditional clause to filter on entity type if it is present.
      *
      * @param entityType entity types need to filter on.
-     * @param table      the DB table from which these stats will be collected
+     * @param table the DB table from which these stats will be collected
      * @return an {@link Optional} containing the Jooq condition to filter on entity type. an empty
-     * {@link Optional} if the table does not contain an entity type field.
+     *         {@link Optional} if the table does not contain an entity type field.
      */
     Optional<Condition> entityTypeCond(@Nonnull Set<String> entityType,
             @Nonnull Table<?> table);
@@ -76,9 +88,9 @@ public interface StatsQueryFactory {
      * Create a Jooq conditional clause to filter on environment type if it is present.
      *
      * @param environmentType environment type need to filter on.
-     * @param table           the DB table from which these stats will be collected
+     * @param table the DB table from which these stats will be collected
      * @return an {@link Optional} containing the Jooq condition to filter on environment type. an
-     * empty {@link Optional} if the table does not contain an environment type field.
+     *         empty {@link Optional} if the table does not contain an environment type field.
      */
     Optional<Condition> environmentTypeCond(@Nonnull EnvironmentType environmentType,
             @Nonnull Table<?> table);
@@ -91,12 +103,13 @@ public interface StatsQueryFactory {
      *
      * @param entities the Entity OID to which the commodities belong
      * @param table the table to query.
-     * @param commodityRequests a list of commodity information to gather; default is all known commodities
+     * @param commodityRequests a list of commodity information to gather; default is all
+     *         known commodities
      * @param timeRange the time range to consider.
      * @param aggregate whether or not to aggregate results
-     * @return a optional with a Jooq query ready to capture the desired stats, or empty()
-     * if there is no db table for this entity type and time frame, e.g.
-     * CLUSTER has no Hourly and Latest tables.
+     * @return a optional with a Jooq query ready to capture the desired stats, or empty() if there
+     *         is no db table for this entity type and time frame, e.g. CLUSTER has no Hourly and
+     *         Latest tables.
      */
     @Nonnull
     Optional<ResultQuery<?>> createStatsQuery(@Nonnull List<String> entities,
@@ -113,15 +126,15 @@ public interface StatsQueryFactory {
      * commodities will be returned.</p>
      *
      * @param commodityRequests a list of commodity names to include in the result set, and
-     *                          optionally a filter to apply to the commodity row, e.g.
-     *                          "relation==bought"; if there are more than commodity requests, then
-     *                          the filters are 'or'ed together; an empty list implies no commodity
-     *                          names filter condition at all, i.e. all commodities will be
-     *                          returned
-     * @param table             the DB table from which these stats will be collected
+     *                                 optionally a filter to apply to the commodity row, e.g.
+     *                            "relation==bought"; if there are more than commodity requests,
+     *         then                          the filters are 'or'ed together; an empty list implies
+     *         no commodity                          names filter condition at all, i.e. all
+     *         commodities will be                          returned
+     * @param table the DB table from which these stats will be collected
      * @return an Optional containing a Jooq conditional to only include the desired commodities
-     * with associated filters (if any) 'and'ed in; Optional.empty() if no commodity selection is
-     * desired
+     *         with associated filters (if any) 'and'ed in; Optional.empty() if no commodity
+     *         selection is desired
      */
     @Nonnull
     Optional<Condition> createCommodityRequestsCond(
@@ -143,7 +156,7 @@ public interface StatsQueryFactory {
      * requested commodity types are included.</p>
      *
      * @param statsFilter the filter specified in the request
-     * @param table       the table being queried
+     * @param table the table being queried
      * @return a conditional to exclude zero records, if needed.
      */
     @Nonnull
@@ -158,6 +171,11 @@ public interface StatsQueryFactory {
 
         private final HistorydbIO historydbIO;
 
+        /**
+         * Instantiates a new Default stats query factory.
+         *
+         * @param historydbIO the historydb io
+         */
         public DefaultStatsQueryFactory(@Nonnull final HistorydbIO historydbIO) {
             this.historydbIO = Objects.requireNonNull(historydbIO);
         }

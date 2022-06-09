@@ -16,8 +16,8 @@ public interface CloudCommitmentTopology {
     /**
      * Resolves and returns the list of covered cloud services for the specified {@code commitmentId}.
      * @param commitmentId the commitment ID.
-     * @throws IllegalArgumentException Thrown if the commitment cannot be found.
      * @return The set of covered cloud services.
+     * @throws IllegalArgumentException Thrown if the commitment cannot be found.
      */
     @Nonnull
     Set<Long> getCoveredCloudServices(long commitmentId) throws IllegalArgumentException;

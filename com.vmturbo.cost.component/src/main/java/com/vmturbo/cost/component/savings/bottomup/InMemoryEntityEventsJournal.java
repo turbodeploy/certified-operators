@@ -55,6 +55,11 @@ public class InMemoryEntityEventsJournal implements EntityEventsJournal {
         this.auditLogWriter = auditLogWriter;
     }
 
+    /**
+     * Add events.
+     *
+     * @param newEvents the new events
+     */
     @Override
     public void addEvents(@Nonnull final Collection<SavingsEvent> newEvents) {
         journalLock.writeLock().lock();
@@ -66,6 +71,11 @@ public class InMemoryEntityEventsJournal implements EntityEventsJournal {
         auditLogWriter.write(new ArrayList<>(newEvents));
     }
 
+    /**
+     * Add event.
+     *
+     * @param newEvent the new event
+     */
     @Override
     public void addEvent(@Nonnull final SavingsEvent newEvent) {
         journalLock.writeLock().lock();
@@ -77,6 +87,12 @@ public class InMemoryEntityEventsJournal implements EntityEventsJournal {
         auditLogWriter.write(ImmutableList.of(newEvent));
     }
 
+    /**
+     * Remove events since list.
+     *
+     * @param startTime the start time
+     * @return the list
+     */
     @Override
     @Nonnull
     public List<SavingsEvent> removeEventsSince(long startTime) {
@@ -99,8 +115,8 @@ public class InMemoryEntityEventsJournal implements EntityEventsJournal {
      *
      * @param startTime Start time (inclusive).
      * @param endTime End time (exclusive).
-     * @param uuids set of UUIDs to get events for. If the set is null, all UUIDs will be used.  If
-     *      the set is empty, no UUIDs will be used.
+     * @param uuids set of UUIDs to get events for. If the set is null, all UUIDs will be
+     *         used.  If      the set is empty, no UUIDs will be used.
      * @return filtered list of savings events
      */
     @Nonnull
@@ -140,13 +156,18 @@ public class InMemoryEntityEventsJournal implements EntityEventsJournal {
      *
      * @param startTime Start time (inclusive).
      * @param endTime End time (exclusive).
-     * @return
+     * @return list
      */
     @Nonnull
     public List<SavingsEvent> removeEventsBetween(long startTime, long endTime) {
         return removeEventsBetween(startTime, endTime, Collections.emptySet());
     }
 
+    /**
+     * Remove all events list.
+     *
+     * @return the list
+     */
     @Override
     @Nonnull
     public List<SavingsEvent> removeAllEvents() {
@@ -173,6 +194,11 @@ public class InMemoryEntityEventsJournal implements EntityEventsJournal {
         return oldestEventTime;
     }
 
+    /**
+     * Size int.
+     *
+     * @return the int
+     */
     @Override
     public int size() {
         int size = 0;
@@ -185,11 +211,24 @@ public class InMemoryEntityEventsJournal implements EntityEventsJournal {
         return size;
     }
 
+    /**
+     * Gets events between.
+     *
+     * @param startTime the start time
+     * @param endTime the end time
+     * @param consumer the consumer
+     */
     @Override
     public void getEventsBetween(long startTime, long endTime, Consumer<SavingsEvent> consumer) {
         // No op. Not used.
     }
 
+    /**
+     * Purge events older than int.
+     *
+     * @param eventTime the event time
+     * @return the int
+     */
     @Override
     public int purgeEventsOlderThan(long eventTime) {
         // No op. Not used.

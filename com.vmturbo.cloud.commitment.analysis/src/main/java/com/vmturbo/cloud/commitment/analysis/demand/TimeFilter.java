@@ -19,17 +19,35 @@ public interface TimeFilter {
      * A comparator for time-based values.
      */
     enum TimeComparator {
+        /**
+         * Before time comparator.
+         */
         BEFORE,
+        /**
+         * Before or equal to time comparator.
+         */
         BEFORE_OR_EQUAL_TO,
+        /**
+         * Equal to time comparator.
+         */
         EQUAL_TO,
+        /**
+         * After time comparator.
+         */
         AFTER,
+        /**
+         * After or equal to time comparator.
+         */
         AFTER_OR_EQUAL_TO
     }
 
     /**
-     * The comparator for comparing some attribute to the target {@link #time()} value contained within
-     * this filter. The comparator can be read as `target {@link #comparator()} {@link #time()} e.g.
-     * if the comparator is {@link TimeComparator#AFTER_OR_EQUAL_TO}, it can be read as target >= {@link #time()}.
+     * The comparator for comparing some attribute to the target {@link #time()} value contained
+     * within
+     * this filter. The comparator can be read as `target {@link #comparator()} {@link #time()}
+     * e.g.
+     * if the comparator is {@link TimeComparator#AFTER_OR_EQUAL_TO}, it can be read as target >=
+     * {@link #time()}.
      *
      * @return The {@link TimeComparator} of this filter.
      */
@@ -46,6 +64,7 @@ public interface TimeFilter {
 
     /**
      * Constructs and returns a new {@link Builder} instance.
+     *
      * @return The newly constructed {@link Builder} instance.
      */
     @Nonnull

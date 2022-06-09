@@ -29,7 +29,7 @@ public class EntityStateMapper {
     /**
      * Private constructor, never initialized, pattern for a utility class.
      */
-    private EntityStateMapper(){}
+    private EntityStateMapper() {}
 
     /**
      * Get the {@link com.vmturbo.api.enums.EntityState} associated with a {@link EntityState}.

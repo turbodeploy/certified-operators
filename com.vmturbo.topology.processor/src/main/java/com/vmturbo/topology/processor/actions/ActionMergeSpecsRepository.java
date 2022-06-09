@@ -54,8 +54,9 @@ public class ActionMergeSpecsRepository {
     /**
      * Save the action merge policies sent by the probe during registration.
      *
-     * @param probeId   Probe Id
-     * @param probeInfo {@link ProbeInfo} containing the list of {@link ActionMergePolicyDTO}'s
+     * @param probeId Probe Id
+     * @param probeInfo {@link ProbeInfo} containing the list of {@link
+     *         ActionMergePolicyDTO}'s
      */
     public void setPoliciesForProbe(long probeId, @Nonnull final ProbeInfo probeInfo) {
         if (probeInfo.getActionMergePolicyCount() >= 0) {
@@ -87,13 +88,13 @@ public class ActionMergeSpecsRepository {
      * Create a list of {@link AtomicActionSpec} for the entities belonging
      * to a given probe and target.
      *
-     * @param probeId   Probe Id
-     * @param targetId      Target Id
-     * @param targetEntityCache TargetEntityCache Cache backed by topologyGraph for efficient
-     *                          look up of entities by type and targetId
-     * @param topologyGraph {@link TopologyGraph} graph of entities with connections after stitching
-     *
-     * @return  list of {@link AtomicActionSpec} for the entities
+     * @param probeId Probe Id
+     * @param targetId Target Id
+     * @param targetEntityCache TargetEntityCache Cache backed by topologyGraph for
+     *         efficient                          look up of entities by type and targetId
+     * @param topologyGraph {@link TopologyGraph} graph of entities with connections after
+     *         stitching
+     * @return list of {@link AtomicActionSpec} for the entities
      */
     public List<AtomicActionSpec> createAtomicActionSpecs(Long probeId, Long targetId,
                                                           @Nonnull final TargetEntityCache targetEntityCache,
@@ -186,9 +187,10 @@ public class ActionMergeSpecsRepository {
         /**
          * Create new or associate a {@link AtomicActionSpec} for the given entity.
          *
-         * @param entity   {@link TopologyEntity} for which the action merge spec will be generated
+         * @param entity {@link TopologyEntity} for which the action merge spec will be
+         *         generated
          * @param mergePolicyDTO {@link ActionMergePolicyDTO} associated with the entity
-         * @return
+         * @return void
          */
         public void entityActionMergeSpec(TopologyEntity entity,
                                           ActionMergePolicyDTO mergePolicyDTO) {
@@ -239,8 +241,18 @@ public class ActionMergeSpecsRepository {
          */
         @Value.Immutable
         interface ActionExecutionTarget {
+            /**
+             * Action aggregation entity topology entity.
+             *
+             * @return the topology entity
+             */
             TopologyEntity actionAggregationEntity();
 
+            /**
+             * Action de duplication entity optional.
+             *
+             * @return the optional
+             */
             Optional<TopologyEntity> actionDeDuplicationEntity();
         }
 
@@ -252,9 +264,8 @@ public class ActionMergeSpecsRepository {
          * If no ActionMergeExecutionTarget is found from the list, action merge will not be
          * performed for the entity.
          *
-         * @param entity            {@link TopologyEntity} entity whose actions will be merged
-         * @param mergePolicyDTO    @{link ActionMergePolicyDTO} action merge policy DTO.
-         *
+         * @param entity {@link TopologyEntity} entity whose actions will be merged
+         * @param mergePolicyDTO @{link ActionMergePolicyDTO} action merge policy DTO.
          * @return {@link ActionMergeExecutionTarget} if one is found, else null
          */
         @VisibleForTesting
@@ -359,6 +370,12 @@ public class ActionMergeSpecsRepository {
         private final ActionExecutionTarget executionTarget;
         private final ActionMergePolicyDTO mergePolicyDTO;
 
+        /**
+         * Instantiates a new Action spec setter.
+         *
+         * @param mergePolicyDTO the merge policy dto
+         * @param executionTarget the execution target
+         */
         ActionSpecSetter(@Nonnull ActionMergePolicyDTO mergePolicyDTO,
                          @Nonnull ActionExecutionTarget executionTarget) {
             this.executionTarget = executionTarget;
@@ -367,7 +384,9 @@ public class ActionMergeSpecsRepository {
 
         /**
          * Set the action spec based on {@link ActionSpecCase}.
-         * @param builder {@link AtomicActionSpec.Builder} where the action spec is filled in
+         *
+         * @param builder {@link AtomicActionSpec.Builder} where the action spec is filled
+         *         in
          */
         void setActionSpec(AtomicActionSpec.Builder builder) {
             switch (mergePolicyDTO.getActionSpecCase()) {

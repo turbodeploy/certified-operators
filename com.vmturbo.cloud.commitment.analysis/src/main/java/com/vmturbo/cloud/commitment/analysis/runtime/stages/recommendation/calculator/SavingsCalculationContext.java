@@ -22,7 +22,8 @@ import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.cloud.common.immutable.TimeSeriesEncodingEnabled;
 
 /**
- * the input to a cloud commitment savings calculation, containing the relevant rates and demand. All
+ * the input to a cloud commitment savings calculation, containing the relevant rates and demand.
+ * All
  * demand contained within the context is expected to be in scope of the recommended commitment.
  */
 @TimeSeriesEncodingEnabled
@@ -31,14 +32,17 @@ import com.vmturbo.cloud.common.immutable.TimeSeriesEncodingEnabled;
 public interface SavingsCalculationContext {
 
     /**
-     * The hourly (or really whatever time interval is represented by {@link DemandSegment}) amortized
+     * The hourly (or really whatever time interval is represented by {@link DemandSegment})
+     * amortized
      * rate of the cloud commitment.
+     *
      * @return The hourly amortized rate of the cloud commitment spec to recommend.
      */
     double amortizedCommitmentRate();
 
     /**
      * A series of demand, recorded across discrete time intervals (defaults to hourly intervals).
+     *
      * @return A set of demand segments, sorted by timestamp.
      */
     @Nonnull
@@ -46,6 +50,7 @@ public interface SavingsCalculationContext {
 
     /**
      * A human-readable tag, used for logging purposes.
+     *
      * @return A human-readable tag, used for logging purposes.
      */
     @Default
@@ -56,6 +61,7 @@ public interface SavingsCalculationContext {
 
     /**
      * Converts this {@link SavingsCalculationContext} to a {@link Builder} instance.
+     *
      * @return The builder instance, copied from this context instance.
      */
     @Nonnull
@@ -65,6 +71,7 @@ public interface SavingsCalculationContext {
 
     /**
      * Constructs and returns a new {@link Builder} instance.
+     *
      * @return The newly constructed builder instance.
      */
     @Nonnull
@@ -86,6 +93,7 @@ public interface SavingsCalculationContext {
 
         /**
          * The cloud tier demand.
+         *
          * @return The cloud tier demand.
          */
         @Nonnull
@@ -93,7 +101,9 @@ public interface SavingsCalculationContext {
 
         /**
          * The cloud tier pricing data, used to derived the {@link #normalizedOnDemandRate()}.
-         * @return The cloud tier pricing data, used to derived the {@link #normalizedOnDemandRate()}.
+         *
+         * @return The cloud tier pricing data, used to derived the {@link
+         *         #normalizedOnDemandRate()}.
          */
         @Nonnull
         CloudTierPricingData tierPricingData();
@@ -101,14 +111,21 @@ public interface SavingsCalculationContext {
         /**
          * The normalized on-demand rate to use in calculating savings over on-demand for potential
          * recommendations.
+         *
          * @return the normalized on-demand rate.
          */
         double normalizedOnDemandRate();
 
+        /**
+         * Demand commitment ratio double.
+         *
+         * @return the double
+         */
         double demandCommitmentRatio();
 
         /**
          * Constructs and returns a new {@link Builder} instance.
+         *
          * @return The newly constructed builder instance.
          */
         @Nonnull
@@ -117,13 +134,14 @@ public interface SavingsCalculationContext {
         }
 
         /**
-         *  A builder class for constructing {@link CloudTierDemandInfo} instances.
+         * A builder class for constructing {@link CloudTierDemandInfo} instances.
          */
         class Builder extends ImmutableCloudTierDemandInfo.Builder {}
     }
 
     /**
-     * Represents normalized cloud tier demand. While the normalization unit will be dependent on the
+     * Represents normalized cloud tier demand. While the normalization unit will be dependent on
+     * the
      * cloud commitment type, it is expected that all {@link AggregateDemand} instances within a
      * {@link SavingsCalculationContext} have the same unit and are relative to each other.
      */
@@ -135,21 +153,27 @@ public interface SavingsCalculationContext {
 
         /**
          * The total demand.
+         *
          * @return The total demand.
          */
         double totalDemand();
 
         /**
-         * The coverage percentage from the cloud commitment inventory. This demand is sent to the savings calculator
+         * The coverage percentage from the cloud commitment inventory. This demand is sent to the
+         * savings calculator
          * in order to correctly calculate the maximum coverage threshold.
+         *
          * @return The coverage percentage from the cloud commitment inventory.
          */
         double inventoryCoverage();
 
         /**
-         * The reserved demand, representing demand above the maximum coverage threshold that cannot
-         * be covered by a potential recommendation. Reserved demand allows the calculator to generate
+         * The reserved demand, representing demand above the maximum coverage threshold that
+         * cannot
+         * be covered by a potential recommendation. Reserved demand allows the calculator to
+         * generate
          * recommendations assuming some maximum coverage percentage.
+         *
          * @return The reserved demand amount.
          */
         @Default
@@ -159,6 +183,7 @@ public interface SavingsCalculationContext {
 
         /**
          * Demand that may be covered by a potential recommendation.
+         *
          * @return Demand that may be covered by a potential recommendation.
          */
         @Derived
@@ -169,7 +194,9 @@ public interface SavingsCalculationContext {
         /**
          * The total uncovered demand, after {@link #inventoryCoverage()} is subtracted. This value
          * will include {@link #reservedDemand()}.
-         * @return The total uncovered demand, after subtracting cloud commitment inventory coverage.
+         *
+         * @return The total uncovered demand, after subtracting cloud commitment inventory
+         *         coverage.
          */
         @Derived
         default double uncoveredDemand() {
@@ -177,8 +204,10 @@ public interface SavingsCalculationContext {
         }
 
         /**
-         * Converts this immutable {@link AggregateDemand} instance to a mutable {@link MutableAggregateDemand}
+         * Converts this immutable {@link AggregateDemand} instance to a mutable {@link
+         * MutableAggregateDemand}
          * instance.
+         *
          * @return The newly constructed {@link MutableAggregateDemand} instance.
          */
         @Nonnull
@@ -187,7 +216,9 @@ public interface SavingsCalculationContext {
         }
 
         /**
-         * Creates a new {@link Builder} instance, copied from this {@link AggregateDemand} instance.
+         * Creates a new {@link Builder} instance, copied from this {@link AggregateDemand}
+         * instance.
+         *
          * @return The newly constructed builder instance.
          */
         @Nonnull
@@ -197,9 +228,10 @@ public interface SavingsCalculationContext {
 
         /**
          * Combines this aggregate demand with {@code otherAggregate}.
+         *
          * @param otherAggregate The other {@link AggregateDemand} to combine.
          * @return A new {@link AggregateDemand} instance, representing the combination of this
-         * instance with {@code otherAggregate}.
+         *         instance with {@code otherAggregate}.
          */
         @Nonnull
         default AggregateDemand combine(@Nonnull AggregateDemand otherAggregate) {
@@ -215,6 +247,7 @@ public interface SavingsCalculationContext {
 
         /**
          * Constructs and returns a new {@link Builder} instance.
+         *
          * @return The newly constructed builder instance.
          */
         @Nonnull
@@ -229,7 +262,8 @@ public interface SavingsCalculationContext {
     }
 
     /**
-     * A segment (time interval) of demand. A segment delineates when unused cloud commitment capacity
+     * A segment (time interval) of demand. A segment delineates when unused cloud commitment
+     * capacity
      * expires. This typically will be an hour interval, as RIs/Savings Plans are charged at a
      * use-it-or-lose-it rate on an hourly basis.
      */
@@ -239,7 +273,9 @@ public interface SavingsCalculationContext {
 
         /**
          * A map containing cloud tier info to the associated demand amount. All demand contained
-         * within the map is assumed to be within scope of the cloud commitment recommendation candidate.
+         * within the map is assumed to be within scope of the cloud commitment recommendation
+         * candidate.
+         *
          * @return An immutable map of {@link CloudTierDemandInfo} to {@link AggregateDemand}.
          */
         @Auxiliary
@@ -248,6 +284,7 @@ public interface SavingsCalculationContext {
         /**
          * The total demand contained within this demand segment. The unit will be based on the
          * type of cloud commitment recommended (e.g. for an RI, it will be coupons).
+         *
          * @return The total demand contained within this demand segment.
          */
         @Auxiliary
@@ -261,6 +298,7 @@ public interface SavingsCalculationContext {
 
         /**
          * Converts this {@link DemandSegment} instance to a {@link Builder}.
+         *
          * @return The builder instance.
          */
         default Builder toBuilder() {
@@ -269,6 +307,7 @@ public interface SavingsCalculationContext {
 
         /**
          * Constructs and returns a new {@link Builder} instance.
+         *
          * @return The newly constructed builder instance.
          */
         @Nonnull
