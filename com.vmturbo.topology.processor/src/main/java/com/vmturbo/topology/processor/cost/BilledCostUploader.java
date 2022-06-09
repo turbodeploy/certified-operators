@@ -230,9 +230,8 @@ public class BilledCostUploader {
                         localAccountId, accountOid);
             }
             billingDp.setAccountOid(accountOid);
-        } else {
-            logger.error("Required field missing - CloudBillingDataPoint doesn't have accountId.");
-        }
+        } // else this must be a charge to the billing account e.g. support plan
+
         // cloud service oid
         if (originalDataPoint.hasCloudServiceId()) {
             Long cloudServiceOid = cloudEntitiesMap.get(originalDataPoint.getCloudServiceId());
