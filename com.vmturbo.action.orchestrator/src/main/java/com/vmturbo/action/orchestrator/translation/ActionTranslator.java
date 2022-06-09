@@ -8,7 +8,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -22,7 +21,6 @@ import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Channel;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -51,11 +49,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.components.common.setting.VCPUScalingUnitsEnum;
 import com.vmturbo.topology.graph.util.BaseTopology;
 
 /**
@@ -240,43 +234,13 @@ public class ActionTranslator {
         // We only need the displayName of the settingPolicy.
         final Map<Long, String> settingPolicyIdToSettingPolicyName = new HashMap<>();
         if (!reasonSettings.isEmpty()) {
-            settingPolicyService.listSettingPolicies(
-                            ListSettingPoliciesRequest.newBuilder().addAllIdFilter(reasonSettings).build())
-                    .forEachRemaining(settingPolicy -> {
-                        final Optional<Setting> vcpuScalingUnits = getSetting(settingPolicy,
-                                EntitySettingSpecs.VcpuScalingUnits.getSettingName());
-                        if (vcpuScalingUnits.isPresent() && vcpuScalingUnits.get().getEnumSettingValue().getValue().equals(
-                                VCPUScalingUnitsEnum.CORES.name())) {
-                            final Optional<Setting> vcpuCoresSettingMode = getSetting(settingPolicy,
-                                    EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode.getSettingName());
-                            settingPolicyIdToSettingPolicyName.put(settingPolicy.getId(),
-                                    settingPolicyDisplayDescription(vcpuCoresSettingMode.get(),
-                                            "cores per socket"));
-                        } else if (vcpuScalingUnits.isPresent() && vcpuScalingUnits.get().getEnumSettingValue().getValue().equals(
-                                VCPUScalingUnitsEnum.SOCKETS.name())) {
-                            final Optional<Setting> vcpuCoresSettingMode = getSetting(settingPolicy,
-                                    EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketMode.getSettingName());
-                            settingPolicyIdToSettingPolicyName.put(settingPolicy.getId(),
-                                    settingPolicyDisplayDescription(vcpuCoresSettingMode.get(),
-                                            VCPUScalingUnitsEnum.SOCKETS.name().toLowerCase()));
-                        } else {
-                            settingPolicyIdToSettingPolicyName.put(settingPolicy.getId(),
-                                    settingPolicy.getInfo().getDisplayName());
-                        }
-                    });
+            settingPolicyService.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
+                .addAllIdFilter(reasonSettings).build())
+                .forEachRemaining(settingPolicy -> settingPolicyIdToSettingPolicyName.put(
+                    settingPolicy.getId(), settingPolicy.getInfo().getDisplayName()));
         }
+
         return settingPolicyIdToSettingPolicyName;
-    }
-
-    private Optional<Setting> getSetting(SettingPolicy settingPolicy, String settingName) {
-        return settingPolicy.getInfo().getSettingsList().stream().filter(
-                k -> k.getSettingSpecName().equals(settingName)).findFirst();
-    }
-
-    private String settingPolicyDisplayDescription(Setting setting, String settingMode) {
-        return StringUtils.capitalize(
-                setting.getEnumSettingValue().getValue().toLowerCase().replace("_", " ")) + " "
-                + StringUtils.capitalize(settingMode);
     }
 
     /**
