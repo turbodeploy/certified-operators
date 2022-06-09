@@ -11,7 +11,6 @@ import org.immutables.value.Value.Modifiable;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.reserved.instance.coverage.allocator.matcher.CommitmentMatcherConfig.Builder;
 
 /**
  * A {@link CoverageKey} implementation for matching compute-based commitments to coverage entities (e.g.

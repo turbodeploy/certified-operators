@@ -16,9 +16,13 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  */
 public interface ITopologyWriter {
 
-    /** ingestion phase label suffix. */
+    /**
+     * ingestion phase label suffix.
+     */
     String INGESTION_PHASE = "ingestion";
-    /** finish phase label suffix. */
+    /**
+     * finish phase label suffix.
+     */
     String FINISH_PHASE = "finish";
 
     /**
@@ -26,12 +30,12 @@ public interface ITopologyWriter {
      *
      * @param topologyInfo the {@link TopologyInfo} for the topology
      * @param writerConfig writer config properties
-     * @param timer        a {@link MultiStageTimer} to collect overall timing information
+     * @param timer a {@link MultiStageTimer} to collect overall timing information
      * @return a consumer to which topology entities will be delivered for processing by this writer
-     * @throws IOException                 if there's a problem setting up for processing
+     * @throws IOException if there's a problem setting up for processing
      * @throws UnsupportedDialectException if our database endpoint is mis-configured
-     * @throws SQLException                if there's a problem establishing database access
-     * @throws InterruptedException        if we're interrupted
+     * @throws SQLException if there's a problem establishing database access
+     * @throws InterruptedException if we're interrupted
      */
     Consumer<TopologyEntityDTO> startTopology(
             TopologyInfo topologyInfo, WriterConfig writerConfig, MultiStageTimer timer)
@@ -53,12 +57,13 @@ public interface ITopologyWriter {
     /**
      * Perform any final processing required after the whole topology has been processed.
      *
-     * @param dataProvider object containing all different aspects of data for entity and group
-     *                     needed for ingestion, like supply chain, actions, severity, etc.
+     * @param dataProvider object containing all different aspects of data for entity and
+     *         group                     needed for ingestion, like supply chain, actions, severity,
+     *         etc.
      * @return number of entities processed
-     * @throws InterruptedException        if the operation is interrupted
+     * @throws InterruptedException if the operation is interrupted
      * @throws UnsupportedDialectException if the db endpoint is mis-configured
-     * @throws SQLException                if there's a problem using the db endpoint
+     * @throws SQLException if there's a problem using the db endpoint
      */
     default int finish(DataProvider dataProvider)
             throws InterruptedException, UnsupportedDialectException, SQLException {
@@ -91,6 +96,11 @@ public interface ITopologyWriter {
      * @param <T> The type of {@link ITopologyWriter} produced by the factory.
      */
     interface TopologyWriterFactory<T extends ITopologyWriter> {
+        /**
+         * New instance t.
+         *
+         * @return the t
+         */
         T newInstance();
     }
 }

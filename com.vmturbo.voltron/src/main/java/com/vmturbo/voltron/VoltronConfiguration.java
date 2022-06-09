@@ -106,10 +106,20 @@ public class VoltronConfiguration {
         return cleanSlate;
     }
 
+    /**
+     * Gets data path.
+     *
+     * @return the data path
+     */
     public String getDataPath() {
         return dataPath;
     }
 
+    /**
+     * Gets components.
+     *
+     * @return the components
+     */
     public Set<Component> getComponents() {
         return components;
     }
@@ -146,16 +156,31 @@ public class VoltronConfiguration {
         return serverGrpcPort;
     }
 
+    /**
+     * Gets ux path.
+     *
+     * @return the ux path
+     */
     @Nonnull
     public String getUxPath() {
         return uxPath;
     }
 
+    /**
+     * Gets swagger path.
+     *
+     * @return the swagger path
+     */
     @Nullable
     public String getSwaggerPath() {
         return swaggerPath;
     }
 
+    /**
+     * Gets swagger setup.
+     *
+     * @return the swagger setup
+     */
     @Nullable
     public SwaggerSetup getSwaggerSetup() {
         return swaggerSetup;
@@ -278,9 +303,9 @@ public class VoltronConfiguration {
         /**
          * Set the swagger path (this is where the swagger-ui resources are  served from).
          *
-         * @deprecated use {@link #setSwaggerSetup(SwaggerSetup)} instead
          * @param swaggerPath Path to the swagger resources.
          * @return The builder, for method chaining.
+         * @deprecated use {@link #setSwaggerSetup(SwaggerSetup)} instead
          */
         @Deprecated
         public Builder setExternalSwaggerPath(@Nullable String swaggerPath) {
@@ -364,6 +389,7 @@ public class VoltronConfiguration {
 
         /**
          * Enable/disable using in-process gRPC. See: {@link VoltronConfiguration#isUseInProcessGrpc()}.
+         *
          * @param newInProcess New value.
          * @return The builder, for method chaining.
          */
@@ -552,6 +578,11 @@ public class VoltronConfiguration {
             this.component = component;
         }
 
+        /**
+         * Gets component.
+         *
+         * @return the component
+         */
         public Component getComponent() {
             return component;
         }
@@ -923,6 +954,11 @@ public class VoltronConfiguration {
             this.component = component;
         }
 
+        /**
+         * Gets component.
+         *
+         * @return the component
+         */
         @Nonnull
         public Component getComponent() {
             return component;

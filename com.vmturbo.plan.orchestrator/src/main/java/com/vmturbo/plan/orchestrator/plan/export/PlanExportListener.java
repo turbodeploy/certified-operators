@@ -33,6 +33,10 @@ public interface PlanExportListener {
      * {@link PlanDestination}.
      */
     class PlanExportListenerException extends Exception {
+        /**
+         * Comment is required here.
+         * @param cause a non empty description
+         */
         public PlanExportListenerException(@Nonnull final Throwable cause) {
             super(cause);
         }

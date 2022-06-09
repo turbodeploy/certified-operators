@@ -99,7 +99,7 @@ public interface MatrixInterface {
      * {@link #populateUnderlay(long, long)} calls are also made as needed.
      *
      * @param oid The consumer oid.
-     * @param ip  The consumer IP address.
+     * @param ip The consumer IP address.
      */
     void setEndpointOID(long oid, @Nonnull String ip);
 
@@ -116,7 +116,7 @@ public interface MatrixInterface {
      * Returns the projected flows per weight class for a given endpoint to be located in a new
      * location.
      *
-     * @param oid      The OID of the entity.
+     * @param oid The OID of the entity.
      * @param location The projected location.
      * @return result. Empty if no flows for an endpoint.
      */
@@ -142,9 +142,9 @@ public interface MatrixInterface {
      * Calculates sum of prices of all flows for a given consumer
      * based on its neighbors' distances from given provider.
      *
-     * @param oid      Consumer oid
+     * @param oid Consumer oid
      * @param location provider oid where consumer is trying to be placed
-     *                 Returns sum of prices of all flows of given consumer on provider
+     *         Returns sum of prices of all flows of given consumer on provider
      * @return The price.
      */
     double calculatePrice(@Nonnull Long oid, @Nonnull Long location);
@@ -152,8 +152,8 @@ public interface MatrixInterface {
     /**
      * Sets the capacities for a provider.
      *
-     * @param oid            The provider OID.
-     * @param capacities     The capacities.
+     * @param oid The provider OID.
+     * @param capacities The capacities.
      * @param utilThresholds The utilization thresholds.
      */
     void setCapacities(@Nonnull Long oid, @Nonnull double[] capacities,
@@ -187,8 +187,17 @@ public interface MatrixInterface {
      * The Matrix component.
      */
     enum Component {
+        /**
+         * Overlay component.
+         */
         OVERLAY,
+        /**
+         * Underlay component.
+         */
         UNDERLAY,
+        /**
+         * Consumer 2 provider component.
+         */
         CONSUMER_2_PROVIDER
     }
 

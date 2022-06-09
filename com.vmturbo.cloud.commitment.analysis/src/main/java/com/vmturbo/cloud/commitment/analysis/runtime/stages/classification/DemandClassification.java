@@ -15,9 +15,12 @@ import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandCl
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.ProjectedDemandClassification;
 
 /**
- * A wrapper class for {@link AllocatedDemandClassification} and {@link ProjectedDemandClassification}.
- * This wrapper allows data classes to contain a single classification attribute, instead of requiring
- * generics and qualification of each data type. An instance of this class may contain exactly one of
+ * A wrapper class for {@link AllocatedDemandClassification} and {@link
+ * ProjectedDemandClassification}.
+ * This wrapper allows data classes to contain a single classification attribute, instead of
+ * requiring
+ * generics and qualification of each data type. An instance of this class may contain exactly one
+ * of
  * either an allocated or projected classification (not both).
  */
 @Style(visibility = ImplementationVisibility.PACKAGE, overshadowImplementation = true)
@@ -28,15 +31,22 @@ public interface DemandClassification {
      * An enum for the classification type (either allocated or projected).
      */
     enum DemandClassificationType {
+        /**
+         * Allocated classification demand classification type.
+         */
         ALLOCATED_CLASSIFICATION,
+        /**
+         * Projected classification demand classification type.
+         */
         PROJECTED_CLASSIFICATION
     }
 
     /**
      * The allocated classification. It may be null, if the type of this classification is
      * {@link DemandClassificationType#PROJECTED_CLASSIFICATION}.
+     *
      * @return The allocated classification. It may be null, if the type of this classification is
-     * {@link DemandClassificationType#PROJECTED_CLASSIFICATION}.
+     *         {@link DemandClassificationType#PROJECTED_CLASSIFICATION}.
      */
     @Nullable
     AllocatedDemandClassification allocatedClassification();
@@ -44,14 +54,16 @@ public interface DemandClassification {
     /**
      * The projected classification. It may be null, if the type of this classification is
      * {@link DemandClassificationType#ALLOCATED_CLASSIFICATION}.
+     *
      * @return The projected classification. It may be null, if the type of this classification is
-     * {@link DemandClassificationType#ALLOCATED_CLASSIFICATION}.
+     *         {@link DemandClassificationType#ALLOCATED_CLASSIFICATION}.
      */
     @Nullable
     ProjectedDemandClassification projectedClassification();
 
     /**
      * Checks whether this classification wrap contains an allocated classification.
+     *
      * @return True, if the allocated classification is set. False, otherwise.
      */
     @Derived
@@ -61,6 +73,7 @@ public interface DemandClassification {
 
     /**
      * Checks whether this classification wrap contains a projected classification.
+     *
      * @return True, if the projected classification is set. False, otherwise.
      */
     @Derived
@@ -70,6 +83,7 @@ public interface DemandClassification {
 
     /**
      * Returns the classification type of this wrapper.
+     *
      * @return The classification type of this wrapper.
      */
     @Derived
@@ -96,6 +110,7 @@ public interface DemandClassification {
 
     /**
      * Constructs a classification wrapper from an allocated classification.
+     *
      * @param classification The allocated classification.
      * @return The newly created classification wrapper instance.
      */
@@ -108,6 +123,7 @@ public interface DemandClassification {
 
     /**
      * Constructs a classification wrapper from a projected classification.
+     *
      * @param classification The projected classification.
      * @return The newly created classification wrapper instance.
      */
@@ -120,6 +136,7 @@ public interface DemandClassification {
 
     /**
      * Constructs and returns a new {@link Builder} instance.
+     *
      * @return A newly constructed {@link Builder} instance.
      */
     @Nonnull

@@ -34,8 +34,7 @@ public class RetentionUtil {
     public static final String MOVING_STATISTICS_RETENTION_POLICY_NAME = "moving_statistics_retention_days";
 
     /** prevent instantiation. */
-    private RetentionUtil(){
-    }
+    private RetentionUtil() {}
 
     /**
      * Compute the expiration time for a given creation time, based on provided policy parameters.

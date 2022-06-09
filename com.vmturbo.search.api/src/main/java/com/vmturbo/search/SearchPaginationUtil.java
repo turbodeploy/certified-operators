@@ -29,8 +29,7 @@ public class SearchPaginationUtil {
     /**
      * Hidden Constructor.
      */
-    private SearchPaginationUtil(){
-    }
+    private SearchPaginationUtil() {}
 
     //Delimiting char for write/read of cursors
     private static final CharSequence DELIMITER = "|";

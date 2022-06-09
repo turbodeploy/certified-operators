@@ -49,7 +49,7 @@ public class JooqUtils {
      * expect (Jooq always loops through all a table's fields til it finds the one we're asking
      * for), so we memoize.</p>
      *
-     * @param tbl     table whose field we're after
+     * @param tbl table whose field we're after
      * @param fldName name of the field
      * @return the {@link Field} with the given name in the given table
      * @throws NullPointerException if the field is not found.
@@ -66,13 +66,15 @@ public class JooqUtils {
      * Returns a field from the given table, and checks that the field type is as expected.
      *
      * <p>Subtypes of the expected type are OK.</p>
+     *
+     * @param <F> field type
      * @param tbl table whose field we're after
      * @param fldName name of the field
-     * @param expectedType the type we expect for the field (the java type, not the db column type)
+     * @param expectedType the type we expect for the field (the java type, not the db
+     *         column type)
      * @return the located field
      * @throws NullPointerException if the field is not found
      * @throws IllegalArgumentException if the field is not of the expected type
-     * @param <F> field type
      */
     @Nonnull
     public static <F> Field<F> getField(@Nonnull Table<?> tbl, @Nonnull String fldName, @Nonnull Class<F> expectedType) {
@@ -86,8 +88,10 @@ public class JooqUtils {
      *
      * @param tbl table whose field we're after
      * @param fldName name of the field
-     * @param expectedType the type we expect for the field (the java type, not the db column type)
-     * @param subClsOK true if it's OK for the field type to be a subclass of the expected type
+     * @param expectedType the type we expect for the field (the java type, not the db
+     *         column type)
+     * @param subClsOK true if it's OK for the field type to be a subclass of the expected
+     *         type
      * @return the located field
      * @throws NullPointerException if the field is not found
      * @throws IllegalArgumentException if the field is not of the expected type
@@ -104,7 +108,7 @@ public class JooqUtils {
     /**
      * Check that the given field type is identical to the expected type.
      *
-     * @param given    field type
+     * @param given field type
      * @param expected expected type
      */
     public static void checkFieldType(@Nonnull Class<?> given, @Nonnull Class<?> expected) {
@@ -114,7 +118,7 @@ public class JooqUtils {
     /**
      * Check that the given field type is identical to or assignable to the expected type.
      *
-     * @param given    field type
+     * @param given field type
      * @param expected expected type
      * @param subClsOK true if types need not be identical
      */
@@ -128,7 +132,7 @@ public class JooqUtils {
     /**
      * Get a field from a table and check that it's an EnvironmentType field.
      *
-     * @param table     table containing field
+     * @param table table containing field
      * @param fieldName name of field
      * @return Field instance
      */
@@ -140,7 +144,7 @@ public class JooqUtils {
     /**
      * Get a field from a table and check that it's an Integer field.
      *
-     * @param table     table containing field
+     * @param table table containing field
      * @param fieldName name of field
      * @return Field instance
      */
@@ -151,7 +155,8 @@ public class JooqUtils {
 
     /**
      * Get a field from a table and check that it's an unsigned Integer field.
-     * @param table     the table
+     *
+     * @param table the table
      * @param fieldName the field name
      * @return the field
      */
@@ -162,7 +167,8 @@ public class JooqUtils {
 
     /**
      * Get a field from a table and check that it's a Long field.
-     * @param table     the table
+     *
+     * @param table the table
      * @param fieldName the field name
      * @return the field
      */
@@ -174,7 +180,7 @@ public class JooqUtils {
     /**
      * Get a field from a table and check that it's a Byte field.
      *
-     * @param table     the table
+     * @param table the table
      * @param fieldName the field name
      * @return the field
      */
@@ -186,7 +192,7 @@ public class JooqUtils {
     /**
      * Get a field from a table and check that it's a String field.
      *
-     * @param table     the table
+     * @param table the table
      * @param fieldName the field name
      * @return the field
      */
@@ -198,7 +204,7 @@ public class JooqUtils {
     /**
      * Get a field from a table and check that it's a RelationType field.
      *
-     * @param table     that contains the field
+     * @param table that contains the field
      * @param fieldName the name of the field
      * @return {@link Field} with the field
      */
@@ -211,7 +217,7 @@ public class JooqUtils {
     /**
      * Get a field from a table and check that it's a Timestamp field.
      *
-     * @param table     the table
+     * @param table the table
      * @param fieldName the field name
      * @return the field
      */
@@ -223,7 +229,7 @@ public class JooqUtils {
     /**
      * Get a field from a table and check that it's a Date field.
      *
-     * @param table     the table
+     * @param table the table
      * @param fieldName the field name
      * @return the field
      */
@@ -237,7 +243,7 @@ public class JooqUtils {
      *
      * <p>Note that java.util.Date is a superclass of: java.sql.Date and java.sql.Timestamp</p>
      *
-     * @param table     the table
+     * @param table the table
      * @param fieldName the field name
      * @return the field
      */
@@ -250,7 +256,7 @@ public class JooqUtils {
     /**
      * Get a field from a table and check that it's a Double field.
      *
-     * @param table     the table
+     * @param table the table
      * @param fieldName the field name
      * @return the field
      */
@@ -262,7 +268,7 @@ public class JooqUtils {
     /**
      * Get a field from a table and check that it's a BigDecimal field.
      *
-     * @param table     the table
+     * @param table the table
      * @param fieldName the field name
      * @return the field
      */
@@ -275,7 +281,7 @@ public class JooqUtils {
     /**
      * Get a field from a table and check that it's some sort of Number field.
      *
-     * @param table     the table
+     * @param table the table
      * @param fieldName the field name
      * @return the field
      */
@@ -330,11 +336,12 @@ public class JooqUtils {
     /**
      * Wrapper around getValue from {@link Record#getValue(int)}, that defaults to 0 if the
      * returned value is null.
-     * @param rec     the record containing the value
-     * @param fldName the name of the field to get
-     * @param type    the type of the field
-     * @return the field value, or zero if the field has no value
+     *
      * @param <T> type of the field
+     * @param rec the record containing the value
+     * @param fldName the name of the field to get
+     * @param type the type of the field
+     * @return the field value, or zero if the field has no value
      */
     @SuppressWarnings("unchecked")
     public static <T extends Number> T getValue(Record rec, String fldName, Class<T> type) {

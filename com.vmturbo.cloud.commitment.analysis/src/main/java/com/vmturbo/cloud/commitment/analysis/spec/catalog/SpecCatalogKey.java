@@ -16,18 +16,21 @@ public interface SpecCatalogKey {
 
     /**
      * The organization type (either billing family or standalone account).
+     *
      * @return The {@link OrganizationType}.
      */
     OrganizationType organizationType();
 
     /**
      * The organization ID. The type represented will depend on {@link #organizationType()}.
+     *
      * @return The organization ID. The type represented will depend on {@link #organizationType()}.
      */
     long organizationId();
 
     /**
      * Constructs a new {@link SpecCatalogKey}.
+     *
      * @param organizationType The organization type.
      * @param organizationId The organization ID.
      * @return The new {@link SpecCatalogKey} instance.
@@ -41,7 +44,13 @@ public interface SpecCatalogKey {
      * The organization type.
      */
     enum OrganizationType {
+        /**
+         * Billing family organization type.
+         */
         BILLING_FAMILY,
+        /**
+         * Standalone account organization type.
+         */
         STANDALONE_ACCOUNT
     }
 }

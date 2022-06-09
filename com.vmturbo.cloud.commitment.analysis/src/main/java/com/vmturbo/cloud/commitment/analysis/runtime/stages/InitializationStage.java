@@ -26,6 +26,7 @@ public class InitializationStage extends AbstractStage {
 
     /**
      * Construct an initialization stage instance for a specific analysis.
+     *
      * @param id THe unique ID of the stage.
      * @param config The analysis config.
      * @param context The analysis context.
@@ -44,6 +45,7 @@ public class InitializationStage extends AbstractStage {
      *
      * @param o This parameter is ignored.
      * @return The stage result with a null output.
+     * @throws AnalysisConfigValidationException the analysis config validation exception
      */
     @Override
     public StageResult execute(final Object o) throws AnalysisConfigValidationException {
@@ -70,7 +72,8 @@ public class InitializationStage extends AbstractStage {
 
     /**
      * {@inheritDoc}
-     * @return
+     *
+     * @return string
      */
     @Override
     public String stageName() {
@@ -106,6 +109,11 @@ public class InitializationStage extends AbstractStage {
 
         /**
          * {@inheritDoc}
+         *
+         * @param id the id
+         * @param config the config
+         * @param context the context
+         * @return the analysis stage
          */
         @Nonnull
         @Override
@@ -124,6 +132,7 @@ public class InitializationStage extends AbstractStage {
 
         /**
          * Constructs a new {@link AnalysisConfigValidationException} instance.
+         *
          * @param message The message of the exception.
          */
         public AnalysisConfigValidationException(String message) {

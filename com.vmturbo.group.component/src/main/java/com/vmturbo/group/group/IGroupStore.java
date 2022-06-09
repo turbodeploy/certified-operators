@@ -35,7 +35,7 @@ public interface IGroupStore {
     /**
      * Create a new group based on group definition. Discovered groups are not supported by this
      * call. Discovered groups should be created with {@link #updateDiscoveredGroups(Collection,
-     * Collection, Set)}
+     * Collection, Set)}*
      *
      * @param oid oid for the new group
      * @param origin origin of this group
@@ -43,7 +43,8 @@ public interface IGroupStore {
      * @param expecMemberTypes expected members types of this group
      * @param supportReverseLookup whether the group supports reverse lookups
      * @throws StoreOperationException if operation failed
-     * @see #updateDiscoveredGroups(Collection, Collection, Set)
+     * @see #updateDiscoveredGroups(Collection, Collection, Set) #updateDiscoveredGroups(Collection,
+     *         Collection, Set)
      */
     void createGroup(long oid, @Nonnull Origin origin, @Nonnull GroupDefinition groupDefinition,
             @Nonnull Set<MemberType> expecMemberTypes, boolean supportReverseLookup)
@@ -79,9 +80,8 @@ public interface IGroupStore {
      *
      * @param groupId The groups to fetch
      * @return A table of (group) -> (member type) -> (boolean). The boolean indicates whether the
-     *         type is:
-     *         - a direct member (true)
-     *         - an indirect member (in case of nested groups) (false).
+     *               type is:         - a direct member (true)         - an indirect member (in case
+     *         of nested groups) (false).
      */
     Table<Long, MemberType, Boolean> getExpectedMemberTypesForGroup(long groupId);
 
@@ -154,7 +154,7 @@ public interface IGroupStore {
      * Returns the next page of groups, conforming to the request specified.
      *
      * @param paginatedGroupsRequest request for groups with necessary filters & pagination
-     *                               parameters
+     *         parameters
      * @return the next page of groups, along with the corresponding pagination info
      */
     @Nonnull
@@ -183,10 +183,11 @@ public interface IGroupStore {
     /**
      * Returns an ordered collection of group ids, conforming to the filter and ordering provided.
      *
-     * @param groupFilter requested filters to filter groups by. If the filter is null or empty, the
-     *                    response will contain all the group ids existing in the component.
-     * @param paginationParameters parameters that contain oderBy & ascending values. If null or
-     *                             empty, defaults will be used.
+     * @param groupFilter requested filters to filter groups by. If the filter is null or
+     *         empty, the                    response will contain all the group ids existing in the
+     *         component.
+     * @param paginationParameters parameters that contain oderBy & ascending values. If
+     *         null or                             empty, defaults will be used.
      * @return a collection of groups
      */
     @Nonnull
@@ -205,8 +206,7 @@ public interface IGroupStore {
      * Deletes the group specified by id.
      *
      * @param groupId group id
-     * @throws StoreOperationException if operation failed
-     *         discovered group)
+     * @throws StoreOperationException if operation failed         discovered group)
      */
     void deleteGroup(long groupId) throws StoreOperationException;
 
@@ -216,7 +216,8 @@ public interface IGroupStore {
      *
      * @param groupsToAdd discovered groups to add (new groups)
      * @param groupsToUpdate discovered groups to update (existing groups)
-     * @param groupsToDelete groups to delete (they are no longer present it the environment)
+     * @param groupsToDelete groups to delete (they are no longer present it the
+     *         environment)
      * @throws StoreOperationException if operation failed
      */
     void updateDiscoveredGroups(@Nonnull Collection<DiscoveredGroup> groupsToAdd,
@@ -276,7 +277,6 @@ public interface IGroupStore {
      * @param groupId is the entity oid to attach the tags.
      * @param tags is the list of tag entries to store.
      * @return the number of tags inserted.
-     *
      * @throws StoreOperationException if a tag already exists.
      */
     int insertTags(long groupId, @Nonnull Tags tags) throws StoreOperationException;
@@ -287,7 +287,6 @@ public interface IGroupStore {
      * @param groupId is the group oid.
      * @param tagKey is the tag key to delete.
      * @return the affected rows after the database operation.
-     *
      * @throws StoreOperationException if the tag with key could not be deleted.
      */
     int deleteTag(long groupId, @Nonnull String tagKey) throws StoreOperationException;
@@ -296,7 +295,6 @@ public interface IGroupStore {
      * Delete all user defined group tags for a group.
      *
      * @param groupId is the group oid to attach the tags.
-     *
      * @throws StoreOperationException if the tags for the group could not to be deleted.
      */
     void deleteTags(long groupId) throws StoreOperationException;
@@ -310,8 +308,7 @@ public interface IGroupStore {
      * @param groupId is the group oid.
      * @param tagKeys is the list of tag keys to delete.
      * @return the affected rows after the database operations. This should match the length of the
-     * tag key list.
-     *
+     *         tag key list.
      * @throws StoreOperationException if the tags for the group could not to be deleted.
      */
     int deleteTagList(long groupId, Collection<String> tagKeys) throws StoreOperationException;
@@ -362,7 +359,6 @@ public interface IGroupStore {
     Set<Long> getOwnersOfGroups(@Nonnull Collection<Long> groupIds,
             @Nullable GroupType groupType);
 
-
     /**
      * Class to hold discovered group information.
      */
@@ -385,7 +381,8 @@ public interface IGroupStore {
          * @param stitchAcrossTargets The stitch across targets flag from the probe.
          * @param targetIds all targets which discovers this group
          * @param expectedMembers expected member types of the group
-         * @param isReverseLookupSupported whether reverse lookup is supported for this group
+         * @param isReverseLookupSupported whether reverse lookup is supported for this
+         *         group
          */
         public DiscoveredGroup(long oid, @Nonnull GroupDefinition groupDefinition,
                                @Nonnull String sourceIdentifier, boolean stitchAcrossTargets,
@@ -405,36 +402,76 @@ public interface IGroupStore {
             this.oid = oid;
         }
 
+        /**
+         * Gets definition.
+         *
+         * @return the definition
+         */
         public GroupDefinition getDefinition() {
             return groupDefinition;
         }
 
+        /**
+         * Gets source identifier.
+         *
+         * @return the source identifier
+         */
         public String getSourceIdentifier() {
             return sourceIdentifier;
         }
 
+        /**
+         * Gets expected members.
+         *
+         * @return the expected members
+         */
         @Nonnull
         public Collection<MemberType> getExpectedMembers() {
             return expectedMembers;
         }
 
+        /**
+         * Is reverse lookup supported boolean.
+         *
+         * @return the boolean
+         */
         public boolean isReverseLookupSupported() {
             return isReverseLookupSupported;
         }
 
+        /**
+         * Gets target ids.
+         *
+         * @return the target ids
+         */
         @Nonnull
         public Set<Long> getTargetIds() {
             return targetIds;
         }
 
+        /**
+         * Gets oid.
+         *
+         * @return the oid
+         */
         public long getOid() {
             return oid;
         }
 
+        /**
+         * Stitch across targets boolean.
+         *
+         * @return the boolean
+         */
         public boolean stitchAcrossTargets() {
             return stitchAcrossTargets;
         }
 
+        /**
+         * To string string.
+         *
+         * @return the string
+         */
         @Override
         public String toString() {
             return Long.toString(oid) + '-' + sourceIdentifier;

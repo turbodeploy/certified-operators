@@ -23,16 +23,16 @@ public interface StatRecordBuilder {
      *
      * @param propertyType name for this stat, e.g. VMem
      * @param propertySubtype refinement for this stat, e.g. "used" vs
-     *                 "utilization"
+     *         "utilization"
      * @param capacityStat The capacity stat.
      * @param reserved the amount of capacity that is "reserved" and unavailable for
-     *                 allocation.
+     *         allocation.
      * @param relatedEntityType the type of the entity related to (buying or
-     *                 selling) this commodity
+     *         selling) this commodity
      * @param producerId unique id of the producer for commodity bought
      * @param statValue value statistics
      * @param commodityKey unique key to associate commodities between seller and
-     *                 buyer
+     *         buyer
      * @param relation stat relation to entity, e.g., "CommoditiesBought"
      * @return a {@link StatRecord} protobuf populated with the given values
      */
@@ -48,16 +48,16 @@ public interface StatRecordBuilder {
      *
      * @param propertyType name for this stat, e.g. VMem
      * @param propertySubtype refinement for this stat, e.g. "used" vs
-     *                 "utilization"
+     *         "utilization"
      * @param capacity available amount on the producer
      * @param reserved the (optional) amount of capacity that is unavailable for
-     *                 allocation
+     *         allocation
      * @param relatedEntityType the (optional) entity type this commodity is
-     *                 associated with
+     *         associated with
      * @param producerId unique id of the producer for commodity bought
      * @param statValue value statistics
      * @param commodityKey unique key to associate commodities between seller and
-     *                 buyer
+     *         buyer
      * @param relation stat relation to entity, e.g., "CommoditiesBought"
      * @return a {@link StatRecord} protobuf populated with the given values
      */
@@ -83,6 +83,16 @@ public interface StatRecordBuilder {
         private final BiConsumer<StatRecord.Builder, PropertyInformation> propertyTypePopulator;
         private final BiConsumer<StatRecord.Builder, ProviderInformation> producerIdPopulator;
 
+        /**
+         * Instantiates a new Default stat record builder.
+         *
+         * @param relatedEntityTypePopulator the related entity type populator
+         * @param relationPopulator the relation populator
+         * @param usageRecordPopulator the usage record populator
+         * @param capacityPopulator the capacity populator
+         * @param propertyTypePopulator the property type populator
+         * @param producerIdPopulator the producer id populator
+         */
         public DefaultStatRecordBuilder(
                         @Nonnull BiConsumer<Builder, String> relatedEntityTypePopulator,
                         @Nonnull BiConsumer<Builder, String> relationPopulator,

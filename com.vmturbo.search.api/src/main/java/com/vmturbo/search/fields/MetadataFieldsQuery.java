@@ -41,7 +41,7 @@ public class MetadataFieldsQuery {
     /**
      * Private constructor as expected of utility class.
      */
-    private MetadataFieldsQuery(){}
+    private MetadataFieldsQuery() {}
 
     /**
      * Process request of {@link EntityMetadataRequestApiDTO}.

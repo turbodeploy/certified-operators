@@ -24,7 +24,7 @@ public class EntityCostToStatRecordConverter {
     /**
      * Private constructor.
      */
-    private EntityCostToStatRecordConverter(){}
+    private EntityCostToStatRecordConverter() {}
 
     /**
      * Static method to convert entityCost to Collection of StatRecords.

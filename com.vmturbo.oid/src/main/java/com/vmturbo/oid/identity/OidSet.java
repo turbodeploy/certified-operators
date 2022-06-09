@@ -34,9 +34,10 @@ public interface OidSet extends OidFilter, Iterable<Long> {
     int size();
 
     /**
-     * A default implementation of hashcode() for an OidSet. This is designed to be order-independent.
+     * A default implementation of hashcode() for an OidSet. This is designed to be
+     * order-independent.
      *
-     * @return hashcode
+     * @return hashcode int
      */
     default int defaultHashCode() {
         // the roaring bitmap hash code is not stable. We'll provide one here that will work
@@ -50,15 +51,14 @@ public interface OidSet extends OidFilter, Iterable<Long> {
         return hash;
     }
 
-
-
     /**
-     * A default implementation of equals() for comparing two OidSets. Two OidSets will be considered
+     * A default implementation of equals() for comparing two OidSets. Two OidSets will be
+     * considered
      * equals if the members of the set are the same.
      *
      * @param obj the other object to compare against.
      * @return true, if the members of the oidsets are the same. False, if obj is null, is not an
-     * OidSet, or contains a different set of members.
+     *         OidSet, or contains a different set of members.
      */
     default boolean defaultEquals(final Object obj) {
         if (obj == this) {
@@ -81,8 +81,6 @@ public interface OidSet extends OidFilter, Iterable<Long> {
         }
         return false;
     }
-
-
 
     /**
      * Merge this OidSet with another one, returning the result.
@@ -113,7 +111,6 @@ public interface OidSet extends OidFilter, Iterable<Long> {
     /**
      * The special "Empty" OidSet doesn't contain any entries. Any intersections on it will produce
      * another empty set.
-     *
      */
     class EmptyOidSet implements OidSet {
         @Override
@@ -134,31 +131,66 @@ public interface OidSet extends OidFilter, Iterable<Long> {
             return other;
         }
 
+        /**
+         * Contains all boolean.
+         *
+         * @return the boolean
+         */
         @Override
         public boolean containsAll() {
             return false;
         }
 
+        /**
+         * Contains boolean.
+         *
+         * @param oid the oid
+         * @return the boolean
+         */
         @Override
         public boolean contains(final long oid) {
             return false;
         }
 
+        /**
+         * Contains boolean.
+         *
+         * @param oids the oids
+         * @return the boolean
+         */
         @Override
         public boolean contains(final Collection<Long> oids) {
             return false;
         }
 
+        /**
+         * Filter oid set.
+         *
+         * @param inputOids the input oids
+         * @return the oid set
+         */
         @Override
         public OidSet filter(final long[] inputOids) {
             return OidSet.EMPTY_OID_SET;
         }
 
+        /**
+         * Filter oid set.
+         *
+         * @param inputSet the input set
+         * @return the oid set
+         */
         @Override
         public OidSet filter(final OidSet inputSet) {
             return OidSet.EMPTY_OID_SET;
         }
 
+        /**
+         * Filter set.
+         *
+         * @param inputOids the input oids
+         * @return the set
+         */
         @Override
         public Set<Long> filter(final Set<Long> inputOids) {
             return Collections.EMPTY_SET;
@@ -171,6 +203,9 @@ public interface OidSet extends OidFilter, Iterable<Long> {
      * OidSet interface while also representing an "all oids" case.
      */
     class AllOidsSet extends OidFilter.AllOidsFilter implements OidSet {
+        /**
+         * The constant ALL_OIDS_SET.
+         */
         public static final AllOidsSet ALL_OIDS_SET = new AllOidsSet();
 
         /**
@@ -178,7 +213,7 @@ public interface OidSet extends OidFilter, Iterable<Long> {
          * this method doesn't make sense to call on the "all oids" scenario. I think an error will
          * be more useful.
          *
-         * @return
+         * @return OfLong
          */
         @Override
         public OfLong iterator() {
@@ -189,7 +224,7 @@ public interface OidSet extends OidFilter, Iterable<Long> {
          * Technically we can probably return MaxLong here, but going to throw an exception instead
          * since this method really shouldn't be used on this object.
          *
-         * @return
+         * @return int
          */
         @Override
         public int size() {
