@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.UnaryOperator;
 
 import org.jooq.Condition;
@@ -33,7 +34,7 @@ public class UpsertBuilder {
     private final LinkedHashSet<Field<?>> insertFields = new LinkedHashSet<>();
     private final List<Field<?>> sourceGroupByFields = new ArrayList<>();
     private final List<Condition> conditions = new ArrayList<>();
-    private final Map<Field<?>, Field<?>> insertValues = new HashMap<>();
+    private final Map<String, Field<?>> insertValues = new HashMap<>();
     private final List<UpdateBinding<?>> updates = new ArrayList<>();
     private final List<Field<?>> conflictColumns = new ArrayList<>();
     private boolean distinct = false;
@@ -46,7 +47,7 @@ public class UpsertBuilder {
      * @return this builder
      */
     public UpsertBuilder withTargetTable(Table<?> target) {
-        this.target = target;
+        this.target = Objects.requireNonNull(target);
         return this;
     }
 
@@ -57,7 +58,7 @@ public class UpsertBuilder {
      * @return this builder
      */
     public UpsertBuilder withSourceTable(Table<?> source) {
-        this.source = source;
+        this.source = Objects.requireNonNull(source);
         return this;
     }
 
@@ -106,7 +107,7 @@ public class UpsertBuilder {
      * @return this builder
      */
     public <T> UpsertBuilder withInsertValue(Field<T> field, Field<T> value) {
-        insertValues.put(field, value);
+        insertValues.put(field.getName(), value);
         return this;
     }
 
@@ -121,7 +122,7 @@ public class UpsertBuilder {
      * @return this builder
      */
     public <T> UpsertBuilder withInsertValue(Field<T> field, T value) {
-        insertValues.put(field, DSL.inline(value));
+        insertValues.put(field.getName(), DSL.inline(value));
         return this;
     }
 
@@ -142,7 +143,7 @@ public class UpsertBuilder {
      */
     public <T> UpsertBuilder withInsertValueDefault(Field<T> field, Field<T> value) {
         Field<?> sourceField = source.field(field.getName(), field.getDataType());
-        insertValues.put(field, sourceField != null ? sourceField : value);
+        insertValues.put(field.getName(), sourceField != null ? sourceField : value);
         return this;
     }
 
@@ -161,7 +162,7 @@ public class UpsertBuilder {
      */
     public <T> UpsertBuilder withInsertValueDefault(Field<T> field, T value) {
         Field<?> sourceField = source.field(field.getName(), field.getDataType());
-        insertValues.put(field, sourceField != null ? sourceField : DSL.inline(value));
+        insertValues.put(field.getName(), sourceField != null ? sourceField : DSL.inline(value));
         return this;
     }
 
@@ -235,8 +236,8 @@ public class UpsertBuilder {
         Field<?>[] fields = insertFields.toArray(new Field<?>[0]);
         for (int i = 0; i < fields.length; i++) {
             Field<?> field = fields[i];
-            if (insertValues.containsKey(field)) {
-                selectList[i] = insertValues.get(field);
+            if (insertValues.containsKey(field.getName())) {
+                selectList[i] = insertValues.get(field.getName());
             } else {
                 selectList[i] = getSourceField(field);
             }
@@ -357,7 +358,8 @@ public class UpsertBuilder {
      * @return field that will compute the weighted average
      */
     public static <T> UpsertValue<T> avg(Field<? extends Number> weight) {
-        return (UpsertValue<T>)(field, dialect) -> {
+        Objects.requireNonNull(weight);
+        return (field, dialect) -> {
             Field<T> sumOfProducts =
                     field.times(weight).plus(
                             JooqUtil.upsertValue(field, dialect)
@@ -378,7 +380,7 @@ public class UpsertBuilder {
      * @return field that will provide the proposed insertion value
      */
     public static <T> Field<T> inserted(Field<T> field, SQLDialect dialect) {
-        return JooqUtil.upsertValue(field, dialect);
+        return JooqUtil.upsertValue(Objects.requireNonNull(field), Objects.requireNonNull(dialect));
     }
 
     /**
@@ -389,7 +391,7 @@ public class UpsertBuilder {
      * @return UpsertValue instance
      */
     public static <T> UpsertValue<T> inline(T value) {
-        return (field, dialect) -> DSL.inline(value);
+        return (field, dialect) -> DSL.inline(Objects.requireNonNull(value));
     }
 
     /**
@@ -413,8 +415,8 @@ public class UpsertBuilder {
          * @param value update value
          */
         UpdateBinding(Field<T> field, UpsertValue<T> value) {
-            this.field = field;
-            this.value = value;
+            this.field = Objects.requireNonNull(field);
+            this.value = Objects.requireNonNull(value);
         }
 
         public void addToMap(Map<Object, Object> map, SQLDialect dialect) {

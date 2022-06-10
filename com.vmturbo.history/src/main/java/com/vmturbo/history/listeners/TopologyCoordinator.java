@@ -545,22 +545,29 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
      */
     void runHourRollup(Instant snapshot) {
         processingStatus.startHourRollup(snapshot);
-        Map<Table<?>, Long> ingestionTableCounts = processingStatus.getIngestionTableCounts(snapshot);
-        Map<Table<?>, Long> tableCountss = ingestionTableCounts.keySet().stream()
+        Map<Table<?>, Long> ingestionTableCounts = processingStatus.getIngestionTableCounts(
+                snapshot);
+        Map<Table<?>, Long> tableCounts = ingestionTableCounts.keySet().stream()
                 .distinct()
                 .collect(Collectors.toMap(Function.identity(), ingestionTableCounts::get));
-        // nothing to do if there are no stats
-        if (!tableCountss.isEmpty()) {
-            // this can't execute while ingestions are in progress
-            rollupLock.lock();
-            logger.info("Running hourly rollups for snapshot time {}", snapshot);
-            try {
-                rollupProcessor.performHourRollups(tableCountss, snapshot);
-            } finally {
-                rollupLock.unlock();
+        try {
+            // nothing to do if there are no stats
+            if (!tableCounts.isEmpty()) {
+                // this can't execute while ingestions are in progress
+                rollupLock.lock();
+                logger.info("Running hourly rollups for snapshot time {}", snapshot);
+                try {
+                    rollupProcessor.performHourRollups(tableCounts, snapshot);
+                } finally {
+                    rollupLock.unlock();
+                }
             }
+        } finally {
+            // make sure we mark this as finished, in all cases, else an uncaught exception]
+            // could throw us into a groundhog-day situation, bringing all productive work to a s
+            // tandstill
+            processingStatus.finishHourRollup(snapshot);
         }
-        processingStatus.finishHourRollup(snapshot);
     }
 
     /**
@@ -579,17 +586,20 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
         Map<Table<?>, Long> tables = ingestionTableCountsForHour.entrySet().stream()
                 .filter(e -> e.getValue() > 0)
                 .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
-        if (!tables.isEmpty()) {
-            rollupLock.lock();
-            logger.info("Running daily/monthly rollups and repartitioning for hour {}",
-                    snapshot.truncatedTo(ChronoUnit.HOURS));
-            try {
-                rollupProcessor.performDayMonthRollups(tables, snapshot);
-            } finally {
-                rollupLock.unlock();
+        try {
+            if (!tables.isEmpty()) {
+                rollupLock.lock();
+                logger.info("Running daily/monthly rollups and repartitioning for hour {}",
+                        snapshot.truncatedTo(ChronoUnit.HOURS));
+                try {
+                    rollupProcessor.performDayMonthRollups(tables, snapshot);
+                } finally {
+                    rollupLock.unlock();
+                }
             }
+        } finally {
+            processingStatus.finishDayMonthRollup(snapshot);
         }
-        processingStatus.finishDayMonthRollup(snapshot);
     }
 
     void runRetentionProcessing() {
@@ -601,6 +611,7 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
             timer.stopAll().info("Repartitioning completed in", Detail.OVERALL_SUMMARY);
         } finally {
             rollupLock.unlock();
+            processingStatus.setLastRepartitionTime(Instant.now());
         }
     }
 
