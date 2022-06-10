@@ -2,6 +2,7 @@ package com.vmturbo.integrations.intersight.targetsync;
 
 import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.INTERSIGHT_ADDRESS;
 import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.INTERSIGHT_PORT;
+import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.K8S_CLUSTER_COLOCATED_PROBE_TYPES;
 import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetConverter.TARGET_SCOPE_FIELD_NAME;
 
 import java.io.IOException;
@@ -257,8 +258,8 @@ public class IntersightTargetSyncHelper {
                     continue;
                 }
                 try {
-                    if (SDKProbeType.KUBERNETES.getProbeType().equals(probeInfo.getType())) {
-                        final TargetInfo targetInfo = findKubernetesTargetInfo(assetTarget, probeInfo);
+                    if (K8S_CLUSTER_COLOCATED_PROBE_TYPES.contains(probeType)) {
+                        final TargetInfo targetInfo = findK8sClusterColocatedTargetInfo(assetTarget, probeInfo);
                         if (targetInfo != null) {
                             staleTargets.remove(targetInfo);
                             targetStatusUpdater.update(assetTarget, targetInfo);
@@ -363,7 +364,10 @@ public class IntersightTargetSyncHelper {
     }
 
     /**
-     * Find the Kubernetes {@link TargetInfo} for the given {@link AssetTarget} from Intersight.
+     * Find the {@link TargetInfo} associated with the {@link ProbeInfo} for the given
+     * {@link AssetTarget} from Intersight, in the situation that there is a one-to-one
+     * correspondence between the target and a Kubernetes cluster.  This includes the Kubernetes
+     * target itself as well as the Prometheus target deployed in a Kubernetes cluster.
      *
      * @param assetTarget the input asset target from Intersight for which the corresponding
      *                    target info to be found
@@ -371,15 +375,15 @@ public class IntersightTargetSyncHelper {
      * @return the found {@link TargetInfo} or null if not found
      */
     @Nullable
-    private TargetInfo findKubernetesTargetInfo(@Nullable final AssetTarget assetTarget,
-            @Nonnull final ProbeInfo probeInfo) {
+    private TargetInfo findK8sClusterColocatedTargetInfo(
+            @Nullable final AssetTarget assetTarget, @Nonnull final ProbeInfo probeInfo) {
         final long probeId = Objects.requireNonNull(probeInfo).getId();
         final List<TargetInfo> targets = targetsByProbeId.get(probeId);
         if (targets == null) {
             return null;
         }
         for (final TargetInfo target : targets) {
-            if (matchKubernetesTarget(assetTarget, target)) {
+            if (matchK8sClusterColocatedTarget(assetTarget, target)) {
                 return target;
             }
         }
@@ -387,12 +391,12 @@ public class IntersightTargetSyncHelper {
     }
 
     /**
-     * Return true if the two represent the same Kubernetes target.
+     * Return true if the two represent the same target by matching the binding channel.
      * @param assetTarget the {@link AssetTarget} from Intersight
      * @param targetInfo the {@link TargetInfo} from topology processor
      * @return true if the two represent the same target, or false otherwise.
      */
-    private boolean matchKubernetesTarget(@Nullable final AssetTarget assetTarget,
+    private boolean matchK8sClusterColocatedTarget(@Nullable final AssetTarget assetTarget,
             @Nonnull final TargetInfo targetInfo) {
         final Collection<String> targetIds = Optional.ofNullable(assetTarget)
                 .map(AssetTarget::getTargetId)
