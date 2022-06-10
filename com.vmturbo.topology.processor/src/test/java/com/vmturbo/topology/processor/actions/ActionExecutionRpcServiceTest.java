@@ -62,6 +62,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCap
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CommonCost;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -198,11 +199,13 @@ public class ActionExecutionRpcServiceTest {
                             .build())
                         .build())
                     .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
-                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
-                        .setDeprecatedImportance(0)
-                        .setDisruptive(true)
-                        .setReversible(true)
-                        .setInfo(ActionInfo.newBuilder().setMove(moveSpec)))
+                            .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                            .setDeprecatedImportance(0)
+                            .setDisruptive(true)
+                            .setReversible(true)
+                            .setSavingsPerHour(CommonCost.CurrencyAmount.newBuilder()
+                                    .setAmount(1.0).build())
+                            .setInfo(ActionInfo.newBuilder().setMove(moveSpec)))
                     .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
@@ -326,12 +329,14 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
-                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
-                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
-                        .setDeprecatedImportance(0)
-                        .setDisruptive(false)
-                        .setReversible(false)
+                .setActionSpec(ActionSpec.newBuilder()
+                    .setRecommendation(Action.newBuilder().setId(0)
+                            .setExplanation(Explanation.getDefaultInstance())
+                            .setDeprecatedImportance(0)
+                            .setDisruptive(false)
+                            .setReversible(false)
+                            .setSavingsPerHour(CommonCost.CurrencyAmount.newBuilder()
+                                    .setAmount(1.0).build())
                         .setInfo(ActionInfo.newBuilder().setMove(moveSpec)))
                     .setActionState(ActionState.IN_PROGRESS).build())
                 .setActionType(ActionDTO.ActionType.MOVE)
@@ -381,11 +386,13 @@ public class ActionExecutionRpcServiceTest {
                 .setTargetId(targetId)
                 .setActionSpec(ActionDTO.ActionSpec.newBuilder()
                     .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
-                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
-                        .setDeprecatedImportance(0)
-                        .setDisruptive(false)
-                        .setReversible(true)
-                        .setInfo(ActionInfo.newBuilder().setMove(moveSpec)))
+                            .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                            .setDeprecatedImportance(0)
+                            .setDisruptive(false)
+                            .setReversible(true)
+                            .setSavingsPerHour(CommonCost.CurrencyAmount.newBuilder()
+                                    .setAmount(1.0).build())
+                            .setInfo(ActionInfo.newBuilder().setMove(moveSpec)))
                     .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
@@ -735,9 +742,11 @@ public class ActionExecutionRpcServiceTest {
                 .setTargetId(targetId)
                 .setActionSpec(ActionDTO.ActionSpec.newBuilder()
                     .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
-                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
-                        .setDeprecatedImportance(0)
-                        .setInfo(ActionInfo.newBuilder().setDeactivate(deactivate)))
+                            .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                            .setDeprecatedImportance(0)
+                            .setSavingsPerHour(CommonCost.CurrencyAmount.newBuilder()
+                                    .setAmount(1.0).build())
+                            .setInfo(ActionInfo.newBuilder().setDeactivate(deactivate)))
                     .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
