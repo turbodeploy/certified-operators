@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -14,6 +15,7 @@ import javax.annotation.Nullable;
 import com.cisco.intersight.client.model.AssetScopedTargetConnection;
 import com.cisco.intersight.client.model.AssetTarget;
 import com.cisco.intersight.client.model.AssetTarget.TargetTypeEnum;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,6 +43,12 @@ public class IntersightTargetConverter {
      * The name of the account input field corresponding to the target scope.
      */
     protected static final String TARGET_SCOPE_FIELD_NAME = "targetEntities";
+
+    /**
+     * Possible types of probes co-located in a Kubernetes cluster.
+     */
+    protected static final Set<SDKProbeType> K8S_CLUSTER_COLOCATED_PROBE_TYPES
+            = ImmutableSet.of(SDKProbeType.KUBERNETES, SDKProbeType.DIF);
 
     private IntersightTargetConverter() {}
 
@@ -223,7 +231,7 @@ public class IntersightTargetConverter {
             case CLOUDFOUNDRY:
                 return Collections.singleton(SDKProbeType.CLOUD_FOUNDRY);
             case KUBERNETES:
-                return Collections.singleton(SDKProbeType.KUBERNETES);
+                return K8S_CLUSTER_COLOCATED_PROBE_TYPES;
             case NEWRELIC:
                 return Collections.singleton(SDKProbeType.NEWRELIC);
             case MYSQLSERVER:
