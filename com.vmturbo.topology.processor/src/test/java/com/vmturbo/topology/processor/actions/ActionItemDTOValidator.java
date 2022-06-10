@@ -95,7 +95,7 @@ public class ActionItemDTOValidator {
         final ValidationErrors errors = new ValidationErrors();
 
         if (suspend.getTargetSE().getEntityType().equals(EntityType.VIRTUAL_MACHINE)) {
-            errors.exactOptionalFields(suspend, Arrays.asList("hostedBySE", "risk", "description", "contextData"));
+            errors.exactOptionalFields(suspend, Arrays.asList("hostedBySE", "risk", "savings", "description", "contextData"));
         }
 
         errors.throwIfError();
@@ -108,10 +108,10 @@ public class ActionItemDTOValidator {
         if (resizeItem.getTargetSE().getEntityType() == EntityType.VIRTUAL_MACHINE) {
             errors.exactOptionalFields(resizeItem,
                 Arrays.asList("currentComm", "newComm", "commodityAttribute", "hostedBySE",
-                    "risk", "description", "contextData"));
+                    "risk", "savings", "description", "contextData"));
         } else {
             errors.exactOptionalFields(resizeItem,
-                Arrays.asList("currentComm", "newComm", "commodityAttribute", "risk", "description", "contextData"));
+                Arrays.asList("currentComm", "newComm", "commodityAttribute", "risk", "savings", "description", "contextData"));
         }
 
         // TODO (roman, May 16 2017): Should validate that the (entity type, commodity type) tuple
@@ -134,6 +134,7 @@ public class ActionItemDTOValidator {
 
         if (isPrimary) {
             fields.add("risk");
+            fields.add("savings");
             fields.add("description");
             fields.add("characteristics");
             fields.add("contextData");
