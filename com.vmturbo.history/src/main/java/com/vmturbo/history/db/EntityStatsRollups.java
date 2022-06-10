@@ -74,6 +74,15 @@ public class EntityStatsRollups {
     // compared to key bounds to determine which source records will participate in the rollup.
     private Field<String> fSourceKey;
 
+    // field needed to deal with a bug introduced in release 8.5.2 which can result in `day_key`
+    // and `month_key` fields being null in some hourly records. In such cases we use the
+    // `hour_key` value instead.
+    private Field<String> fDayKey;
+    private Field<String> fMonthKey;
+    private Field<String> fSourceHourKey;
+    private Field<String> fSourceDayKey;
+    private Field<String> fSourceMonthKey;
+
     /**
      * Create a new instance for a rollup operation.
      *
@@ -120,9 +129,25 @@ public class EntityStatsRollups {
                         fCapacity, fEffectiveCapacity, fMaxValue, fMinValue, fAvgValue,
                         fSamples)
                 .withInsertFields(fRollupKeys)
+                .withInsertValue(fSnapshotTime, DSL.inline(rollupTime))
                 .conditionally(dsl.dialect() == SQLDialect.POSTGRES,
                         builder -> builder.withInsertValue(fRollupKeys[0], fSourceKey))
-                .withInsertValue(fSnapshotTime, DSL.inline(rollupTime))
+                // following two conditional insert-values additions handle an issue that arose
+                // with release 8.5.2. It included an ill-fated change for record rollup keys that
+                // resulted in null `day_key` and `month_key` columns in hourly records. Those
+                // records would cause the first daily/monthly rollup after an upgrade to fail,
+                // becuase the 8.5.2 changes were reverted in 8.5.3 for other reasons.
+                // This fix uses the `hour_key` field when the normal field is null. That's
+                // actually consistent with the intent of the 8.5.2 change, but with the 8.5.3
+                // reversion the nulls are now poisonous.
+                .conditionally(
+                        dsl.dialect() != SQLDialect.POSTGRES && rollupType == RollupType.BY_DAY,
+                        builder -> builder.withInsertValue(fDayKey,
+                                DSL.coalesce(fSourceDayKey, fSourceKey)))
+                .conditionally(
+                        dsl.dialect() != SQLDialect.POSTGRES && rollupType == RollupType.BY_MONTH,
+                        builder -> builder.withInsertValue(fMonthKey,
+                                DSL.coalesce(fSourceMonthKey, fSourceKey)))
                 .withInsertValue(fSamples, fSourceSamples)
                 // for hourly rollups we need to guard against the possibilities of duplicates
                 // the latest table, which can happen if an ingestion is restarted after a crash
@@ -179,6 +204,11 @@ public class EntityStatsRollups {
         //noinspection unchecked
         this.fRollupKeys = (Field<String>[])getTableKeys(source);
         this.fSourceKey = hourKeyField(source);
+        this.fDayKey = rollupType == RollupType.BY_DAY ? dayKeyField(rollup) : null;
+        this.fMonthKey = rollupType == RollupType.BY_MONTH ? monthKeyfield(rollup) : null;
+        this.fSourceHourKey = hourKeyField(source);
+        this.fSourceDayKey = dayKeyField(source);
+        this.fSourceMonthKey = monthKeyfield(source);
     }
 
     private Field<?>[] getTableKeys(Table<?> table) {

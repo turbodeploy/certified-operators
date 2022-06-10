@@ -157,7 +157,6 @@ class ProcessingLoop implements Runnable {
                             processingStatus.setLastRepartitionTime(Instant.now());
                             break;
                         case Repartition:
-                            topologyCoordinator.runRetentionProcessing();
                             if (processingStatus.getLastRepartitionTime() != Instant.MIN) {
                                 logger.error("Running repartioning because the time limit was "
                                         + "exceeded; this could signal a serious issue with "
@@ -166,7 +165,7 @@ class ProcessingLoop implements Runnable {
                                         .labels(SafetyValve.REPARTITION.getLabel(), "-", "-")
                                         .increment();
                             }
-                            processingStatus.setLastRepartitionTime(Instant.now());
+                            topologyCoordinator.runRetentionProcessing();
                             break;
                         case Idle:
                             try {

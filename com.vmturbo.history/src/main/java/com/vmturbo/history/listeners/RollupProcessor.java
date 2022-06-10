@@ -880,8 +880,6 @@ public class RollupProcessor {
                                 : queryToSubmit.execute();
                         affectedRecordCount.addAndGet(n);
                         return this;
-                    } catch (Exception e) {
-                        return null;
                     } finally {
                         processingTime.set(Duration.between(start, Instant.now()));
                     }
