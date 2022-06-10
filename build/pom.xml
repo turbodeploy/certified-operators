@@ -56,7 +56,7 @@
         <netty.version>4.1.77.Final</netty.version>
 
         <lz4.version>1.4</lz4.version>
-        <fastutil.version>8.3.1</fastutil.version>
+        <fastutil.version>8.5.8</fastutil.version>
 
         <!-- START Versions for the various opentracing libraries.
              Do not change them independently without verifying that they are compatible with
@@ -105,7 +105,7 @@
         <swagger-annotations.version>1.5.13</swagger-annotations.version>
         <swagger.codegen.plugin.version>2.2.3</swagger.codegen.plugin.version>
         <jackson-datatype-guava.version>2.6.5</jackson-datatype-guava.version>
-        <snakeyaml.version>1.26</snakeyaml.version>
+        <snakeyaml.version>1.30</snakeyaml.version>
         <javax.ws.rs-api.version>2.0</javax.ws.rs-api.version>
         <commons-collections4.version>4.1</commons-collections4.version>
         <commons-csv.version>1.7</commons-csv.version>
@@ -131,7 +131,7 @@
         <zjsonpatch.version>0.3.6</zjsonpatch.version>
 
         <jjwt.version>0.7.0</jjwt.version>
-        <json-path.version>2.6.0</json-path.version>
+        <json-path.version>2.7.0</json-path.version>
         <copy.rename.plugin.version>1.0.1</copy.rename.plugin.version>
 
         <mariadb.client.version>2.3.0</mariadb.client.version>
@@ -3479,7 +3479,7 @@
             <dependency>
                 <groupId>org.reflections</groupId>
                 <artifactId>reflections</artifactId>
-                <version>0.9.11</version>
+                <version>0.10.2</version>
             </dependency>
             <dependency>
                 <groupId>net.sf.jopt-simple</groupId>
