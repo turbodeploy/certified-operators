@@ -549,21 +549,66 @@ public class CalculatorTest {
         final long sourceProviderId = 1212121212L;
         final long targetProviderId = 2323232323L;
         Set<BillingRecord> records = new HashSet<>();
-        records.add(createVMBillRecord(date(2022, 3, 25), 18, 18, sourceProviderId));
+        records.add(createVMBillRecord(date(2022, 3, 25), 6, 18, sourceProviderId));
         records.add(createVMBillRecord(date(2022, 3, 25), 18, 36, targetProviderId));
         records.add(createVMBillRecord(date(2022, 3, 26), 24, 48, targetProviderId));
         records.add(createVMBillRecord(date(2022, 3, 27), 9, 18, targetProviderId));
         records.add(createVMBillRecord(date(2022, 3, 27), 15, 45, sourceProviderId));
         NavigableSet<ExecutedActionsChangeWindow> actionSpecs =
                 new TreeSet<>(changeWindowComparator);
-        ScenarioGenerator.createVMActionChangeWindow(vmOid, LocalDateTime.of(2022, 3, 25, 6, 0),
-                3, 2, sourceProviderId,
-                targetProviderId, LocalDateTime.of(2022, 3, 27, 9, 0), LivenessState.REVERTED);
         actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
                 LocalDateTime.of(2022, 3, 25, 6, 0),
                 3, 2, sourceProviderId, targetProviderId,
                 LocalDateTime.of(2022, 3, 27, 9, 0),
                 LivenessState.REVERTED));
+
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(18).investments(0)
+                .timestamp(date(2022, 3, 25)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(24).investments(0)
+                .timestamp(date(2022, 3, 26)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(9).investments(0)
+                .timestamp(date(2022, 3, 27)).build());
+
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        Assert.assertTrue(expectedResults.containsAll(result));
+    }
+
+    /**
+     * Scenario:
+     * Entity type: VM
+     * Bill records for 2022-03-25 and 2022-03-26.
+     * Scale action executed on 2022-03-25T06:00.
+     * VM was scaled to an unsolicited service tier at 2022-03-27T09:00.
+     * Original cost of VM: $3/hr.
+     * Destination cost of scale action is $2/hr.
+     * 2022-03-25: VM ran on destination tier for 18 hours. cost = 2*18 = 36.
+     *             Cost on source tier: 3 * 6 = 18
+     *             Savings = 1 * 18 = 18
+     * 2022-03-26: VM ran on destination tier for full day. cost = 2 * 24 = 48.
+     * 2022-03-27: VM scaled to an unsolicited service tier at 9am.
+     *             Cost on destination tier: 2 * 9 = 18
+     *             Cost on source tier: 3 * 15 = 45
+     *             Savings = 1 * 9 = 9
+     */
+    @Test
+    public void testExternalModification() {
+        final long sourceProviderId = 1212121212L;
+        final long targetProviderId = 2323232323L;
+        final long unsolicitedTier = 3434343434L;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVMBillRecord(date(2022, 3, 25), 6, 18, sourceProviderId));
+        records.add(createVMBillRecord(date(2022, 3, 25), 18, 36, targetProviderId));
+        records.add(createVMBillRecord(date(2022, 3, 26), 24, 48, targetProviderId));
+        records.add(createVMBillRecord(date(2022, 3, 27), 9, 18, targetProviderId));
+        records.add(createVMBillRecord(date(2022, 3, 27), 15, 45, unsolicitedTier));
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs =
+                new TreeSet<>(changeWindowComparator);
+        actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
+                LocalDateTime.of(2022, 3, 25, 6, 0),
+                3, 2, sourceProviderId, targetProviderId,
+                LocalDateTime.of(2022, 3, 27, 9, 0),
+                LivenessState.EXTERNAL_MODIFICATION));
 
         List<SavingsValues> expectedResults = new ArrayList<>();
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(18).investments(0)
