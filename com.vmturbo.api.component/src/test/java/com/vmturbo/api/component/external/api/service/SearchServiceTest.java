@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.ACCOUNT_OID;
+import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.CONNECTED_COMPUTE_TIER_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.CONNECTED_STORAGE_TIER_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.USER_DEFINED_ENTITY;
@@ -1738,6 +1739,32 @@ public class SearchServiceTest {
                 entity.getDisplayName().equals(dto.getDisplayName()) &&
                     String.valueOf(entity.getOid()).equals(dto.getValue()))
             )
+        );
+    }
+
+    /**
+     * All compute tier options should be present in criteria.
+     *
+     * @throws Exception if something is catastrophically wrong.
+     */
+    @Test
+    public void testComputeTierOptions() throws Exception {
+
+        final List<MinimalEntity> computeTierEntities = ImmutableList.of(
+                MinimalEntity.newBuilder().setOid(1L).setDisplayName("compute-tier-entity-1").build(),
+                MinimalEntity.newBuilder().setOid(2L).setDisplayName("compute-tier-entity-2").build(),
+                MinimalEntity.newBuilder().setOid(3L).setDisplayName("compute-tier-entity-3").build()
+        );
+        final SearchRequest mockRequest = ApiTestUtils.mockSearchMinReq(computeTierEntities);
+        when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(mockRequest);
+        final List<CriteriaOptionApiDTO> result =
+                searchService.getCriteriaOptions(CONNECTED_COMPUTE_TIER_FILTER_PATH, null, null, null);
+        assertEquals(computeTierEntities.size(), result.size());
+        computeTierEntities.forEach(entity ->
+                assertTrue(result.stream().anyMatch(dto ->
+                        entity.getDisplayName().equals(dto.getDisplayName()) &&
+                                String.valueOf(entity.getOid()).equals(dto.getValue()))
+                )
         );
     }
 
