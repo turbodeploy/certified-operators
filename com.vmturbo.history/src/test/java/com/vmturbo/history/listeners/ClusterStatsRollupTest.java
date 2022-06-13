@@ -1,10 +1,10 @@
 package com.vmturbo.history.listeners;
 
+import static com.vmturbo.components.common.utils.RollupTimeFrame.DAY;
+import static com.vmturbo.components.common.utils.RollupTimeFrame.HOUR;
+import static com.vmturbo.components.common.utils.RollupTimeFrame.MONTH;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
-import static com.vmturbo.history.schema.TimeFrame.DAY;
-import static com.vmturbo.history.schema.TimeFrame.HOUR;
-import static com.vmturbo.history.schema.TimeFrame.MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
 
 import java.sql.SQLException;
@@ -23,8 +23,8 @@ import org.jooq.exception.DataAccessException;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.RollupTimeFrame;
 import com.vmturbo.history.db.bulk.BulkLoader;
-import com.vmturbo.history.schema.TimeFrame;
 import com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay;
 import com.vmturbo.history.schema.abstraction.tables.ClusterStatsByHour;
 import com.vmturbo.history.schema.abstraction.tables.ClusterStatsByMonth;
@@ -116,7 +116,7 @@ public class ClusterStatsRollupTest extends RollupTestBase {
         checkClusterRollup(MONTH, template1, monthlyFeb, CLUSTER_STATS_LATEST, identity);
     }
 
-    private <R extends Record> void checkClusterRollup(TimeFrame timeFrame, R template,
+    private <R extends Record> void checkClusterRollup(RollupTimeFrame timeFrame, R template,
             Aggregator aggregator, Table<R> table, IdentityValues<R> identityValues)
             throws DataAccessException {
         Timestamp snapshot = getRollupSnapshot(timeFrame, aggregator.getLatestSnapshot());

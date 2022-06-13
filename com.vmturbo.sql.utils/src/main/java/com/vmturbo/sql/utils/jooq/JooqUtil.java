@@ -3,6 +3,7 @@ package com.vmturbo.sql.utils.jooq;
 import java.sql.Connection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -13,7 +14,10 @@ import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
+import org.jooq.Schema;
 import org.jooq.Table;
+import org.jooq.conf.MappedSchema;
+import org.jooq.conf.RenderMapping;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
@@ -88,6 +92,37 @@ public class JooqUtil {
             totalDeleted += numDeleted;
         } while (numDeleted > 0);
         return totalDeleted;
+    }
+
+    /**
+     * Get the name of the given schema with mappings applied, as embedded in the given {@link
+     * DSLContext}.
+     *
+     * @param schema jOOQ {@link Schema} object
+     * @param dsl    {@link DSLContext} with current schema mappings
+     * @return mapped schema name
+     */
+    public static String getMappedSchemaName(Schema schema, DSLContext dsl) {
+        return getMappedSchemaName(schema.getName(), dsl);
+    }
+
+    /**
+     * Get the name of the given schmae with mappings applied, as embedded in the given {@link
+     * DSLContext}.
+     *
+     * @param schemaName name of schema
+     * @param dsl {@link DSLContext} with current schema mappings
+     * @return mapped schema name
+     */
+    public static String getMappedSchemaName(String schemaName, DSLContext dsl) {
+        RenderMapping renderMapping =
+                Optional.ofNullable(dsl.configuration().settings().getRenderMapping())
+                        .orElse(new RenderMapping());
+        return renderMapping.getSchemata().stream()
+                .filter(mapping -> mapping.getInput().equals(schemaName))
+                .map(MappedSchema::getOutput)
+                .findFirst()
+                .orElse(schemaName);
     }
 
     /**

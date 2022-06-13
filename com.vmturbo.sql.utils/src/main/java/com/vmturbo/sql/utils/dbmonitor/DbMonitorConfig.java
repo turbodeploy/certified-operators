@@ -22,7 +22,7 @@ public class DbMonitorConfig {
      * <ul>
      *     <li>Bulk upserts into stats tables</li>
      *     <li>Rollup activities</li>
-     *     <li>Repartitioning activities</li>
+     *     <li>Retention update activities</li>
      * </ul>
      *
      * <p>Also, the query used by this monitor is collected by it, and is configured to be classified
@@ -42,8 +42,8 @@ public class DbMonitorConfig {
             + "  \"insert into `?(?<table>[a-z_0-9]+_latest)`?\": stats ingestion [${table}]\n"
             // rollups
             + "  \"(insert into|update) `?(?<table>[a-z_0-9]+_(by_hour|by_day|by_month))`?\": rollup [${table}]\n"
-            // repartitioning
-            + "  \"alter table `?(?<table>[a-z_0-9]+_(latest|by_hour|by_day|by_month))`?\": repartition [${table}]";
+            // retention processing
+            + "  \"alter table `?(?<table>[a-z_0-9]+_(latest|by_hour|by_day|by_month))`?\": retention [${table}]";
 
     private static Logger logger = LogManager.getLogger();
 

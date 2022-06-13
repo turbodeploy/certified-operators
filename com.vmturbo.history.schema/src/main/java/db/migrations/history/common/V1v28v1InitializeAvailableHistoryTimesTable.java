@@ -1,15 +1,15 @@
 package db.migrations.history.common;
 
+import static com.vmturbo.components.common.utils.RollupTimeFrame.DAY;
+import static com.vmturbo.components.common.utils.RollupTimeFrame.HOUR;
+import static com.vmturbo.components.common.utils.RollupTimeFrame.LATEST;
+import static com.vmturbo.components.common.utils.RollupTimeFrame.MONTH;
 import static com.vmturbo.history.schema.HistoryVariety.ENTITY_STATS;
 import static com.vmturbo.history.schema.HistoryVariety.PRICE_DATA;
 import static com.vmturbo.history.schema.RetentionUtil.DAILY_STATS_RETENTION_POLICY_NAME;
 import static com.vmturbo.history.schema.RetentionUtil.HOURLY_STATS_RETENTION_POLICY_NAME;
 import static com.vmturbo.history.schema.RetentionUtil.LATEST_STATS_RETENTION_POLICY_NAME;
 import static com.vmturbo.history.schema.RetentionUtil.MONTHLY_STATS_RETENTION_POLICY_NAME;
-import static com.vmturbo.history.schema.TimeFrame.DAY;
-import static com.vmturbo.history.schema.TimeFrame.HOUR;
-import static com.vmturbo.history.schema.TimeFrame.LATEST;
-import static com.vmturbo.history.schema.TimeFrame.MONTH;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -30,9 +30,9 @@ import org.flywaydb.core.api.migration.jdbc.BaseJdbcMigration;
 import org.jooq.Record;
 import org.jooq.impl.DSL;
 
+import com.vmturbo.components.common.utils.RollupTimeFrame;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.RetentionUtil;
-import com.vmturbo.history.schema.TimeFrame;
 
 /**
  * Migration to populate newly-created (by migration V1.27) available_timestamps table, with
@@ -148,7 +148,7 @@ public class V1v28v1InitializeAvailableHistoryTimesTable extends BaseJdbcMigrati
     }
 
     private int loadTimes(Connection connection, PreparedStatement ps, String tableName,
-            String timestampFieldName, TimeFrame timeFrame, HistoryVariety historyVariety,
+            String timestampFieldName, RollupTimeFrame timeFrame, HistoryVariety historyVariety,
             String policyName) {
         final List<Timestamp> timestamps = getTimestamps(connection, tableName, timestampFieldName);
         Pair<ChronoUnit, Integer> retention = getRetention(connection, timeFrame, policyName);
@@ -162,7 +162,7 @@ public class V1v28v1InitializeAvailableHistoryTimesTable extends BaseJdbcMigrati
     }
 
     private void addToBatch(final PreparedStatement ps, final Timestamp timestamp,
-            final TimeFrame timeFrame, final HistoryVariety historyVariety,
+            final RollupTimeFrame timeFrame, final HistoryVariety historyVariety,
             final Instant expiration) {
         try {
             ps.setTimestamp(1, timestamp);
@@ -188,7 +188,7 @@ public class V1v28v1InitializeAvailableHistoryTimesTable extends BaseJdbcMigrati
                 .collect(Collectors.toList());
     }
 
-    private Pair<ChronoUnit, Integer> getRetention(Connection connection, TimeFrame timeFrame,
+    private Pair<ChronoUnit, Integer> getRetention(Connection connection, RollupTimeFrame timeFrame,
             String policyName) {
         String sql = String.format("SELECT unit, retention_period "
                 + "FROM retention_policies "

@@ -157,6 +157,9 @@
         <javax-annotation.version>1.3.2</javax-annotation.version>
         <xmlsec.version>2.2.3</xmlsec.version>
 
+        <!-- threeten-extra, for its PeriodDuration class and associated methods -->
+        <threeten-extra.version>1.7.0</threeten-extra.version>
+
         <!-- FlexLM, for use with Cisco licenses -->
         <flex.lm.version>11.14.1.1</flex.lm.version>
 
@@ -282,6 +285,7 @@
                 <module>../com.vmturbo.components</module>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.sql.utils</module>
+                <module>../com.vmturbo.sql.utils.tests</module>
             </modules>
         </profile>
 
@@ -1080,6 +1084,7 @@
                 <module>../com.vmturbo.cost.calculation</module>
                 <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
                 <module>../com.vmturbo.sql.utils</module>
+                <module>../com.vmturbo.sql.utils.tests</module>
                 <module>../com.vmturbo.sql.test.utils</module>
                 <module>../com.vmturbo.components.api.root</module>
                 <module>../com.vmturbo.components.api</module>
@@ -1169,6 +1174,7 @@
                 <module>../com.vmturbo.cost.calculation</module>
                 <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
                 <module>../com.vmturbo.sql.utils</module>
+                <module>../com.vmturbo.sql.utils.tests</module>
                 <module>../com.vmturbo.sql.test.utils</module>
                 <module>../com.vmturbo.components.api.root</module>
                 <module>../com.vmturbo.components.api</module>
@@ -1296,6 +1302,7 @@
                 <module>../com.vmturbo.discovery.deserializer</module>
                 <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
                 <module>../com.vmturbo.sql.utils</module>
+                <module>../com.vmturbo.sql.utils.tests</module>
                 <module>../com.vmturbo.sql.test.utils</module>
                 <module>../com.vmturbo.components.api.root</module>
                 <module>../com.vmturbo.components.api</module>
@@ -1458,21 +1465,16 @@
                 <module>../com.vmturbo.clustermgr.api</module>
                 <module>../com.vmturbo.components</module>
                 <module>../com.vmturbo.components.common</module>
-                <module>../com.vmturbo.sql.utils</module>
-                <module>../com.vmturbo.sql.test.utils</module>
                 <module>../com.vmturbo.components.api.root</module>
                 <module>../com.vmturbo.components.api</module>
                 <module>../com.vmturbo.components.api.test</module>
                 <module>../com.vmturbo.action.orchestrator.api</module>
                 <module>../com.vmturbo.group.api</module>
-                <module>../com.vmturbo.group.component</module>
                 <module>../com.vmturbo.kvstore</module>
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.extractor.api</module>
-                <module>../com.vmturbo.extractor.schema</module>
                 <module>../com.vmturbo.search.metadata</module>
                 <module>../com.vmturbo.topology.processor.api</module>
-                <module>../com.vmturbo.history.schema</module>
                 <module>../com.vmturbo.history.component.api</module>
                 <module>../com.vmturbo.identity</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
@@ -3516,6 +3518,11 @@
                 <groupId>org.apache.santuario</groupId>
                 <artifactId>xmlsec</artifactId>
                 <version>${xmlsec.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.threeten</groupId>
+                <artifactId>threeten-extra</artifactId>
+                <version>${threeten-extra.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

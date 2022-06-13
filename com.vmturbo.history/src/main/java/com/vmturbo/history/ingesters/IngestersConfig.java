@@ -19,6 +19,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.jetbrains.annotations.NotNull;
+import org.jooq.SQLDialect;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,10 +35,12 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
-import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.components.common.utils.RollupTimeFrame;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.DbAccessConfig;
+import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.ImmutableTopologyIngesterConfig;
 import com.vmturbo.history.ingesters.common.TopologyIngesterConfig;
@@ -55,10 +59,10 @@ import com.vmturbo.history.ingesters.plan.writers.PlanStatsWriter;
 import com.vmturbo.history.ingesters.plan.writers.ProjectedPlanStatsWriter.Factory;
 import com.vmturbo.history.listeners.ImmutableTopologyCoordinatorConfig;
 import com.vmturbo.history.listeners.PartmanHelper;
-import com.vmturbo.history.listeners.PartmanHelper.PartitionProcessingException;
 import com.vmturbo.history.listeners.RollupProcessor;
 import com.vmturbo.history.listeners.TopologyCoordinator;
 import com.vmturbo.history.listeners.TopologyCoordinatorConfig;
+import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.stats.StatsConfig;
 import com.vmturbo.history.stats.priceindex.DBPriceIndexVisitor.DBPriceIndexVisitorFactory;
 import com.vmturbo.market.component.api.MarketComponent;
@@ -66,6 +70,14 @@ import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.market.component.api.impl.MarketSubscription;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.partition.IPartitionAdapter;
+import com.vmturbo.sql.utils.partition.IPartitioningManager;
+import com.vmturbo.sql.utils.partition.MariaDBPartitionAdapter;
+import com.vmturbo.sql.utils.partition.PartitionProcessingException;
+import com.vmturbo.sql.utils.partition.PartitioningManager;
+import com.vmturbo.sql.utils.partition.PartitionsManager;
+import com.vmturbo.sql.utils.partition.PostgresPartitionAdapter;
+import com.vmturbo.sql.utils.partition.RetentionSettings;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
@@ -165,16 +177,16 @@ public class IngestersConfig {
     @Value("${ingest.saveGuestLoadEntityStats:false}")
     private boolean saveGuestLoadEntityStats;
 
-    @Value("${partitioning.latestInterval:1 hour}")
+    @Value("${partitioning.latestInterval:PT1H}")
     private String latestPartitioningInterval;
 
-    @Value("${partitioning.hourlyInterval:12 hours}")
+    @Value("${partitioning.hourlyInterval:PT12H}")
     private String hourlyPartitioningInterval;
 
-    @Value("${partitioning.dailyInterval:4 days}")
+    @Value("${partitioning.dailyInterval:P4D}")
     private String dailyPartitioningInterval;
 
-    @Value("${partitioning.monthlyInterval:6 months}")
+    @Value("${partitioning.monthlyInterval:P6M}")
     private String monthlyPartitioningInterval;
 
     @Value("${latestRetentionMinutes:120}")
@@ -463,7 +475,7 @@ public class IngestersConfig {
     RollupProcessor rollupProcessor() {
         try {
             return new RollupProcessor(
-                    dbAccessConfig.dsl(), dbAccessConfig.unpooledDsl(), partmanHelper(),
+                    dbAccessConfig.dsl(), dbAccessConfig.unpooledDsl(), partitionManager(),
                     dbAccessConfig.bulkLoaderThreadPoolSupplier(), rollupMaxBatchSize,
                     rollupTimeoutMsecForBatchSize, rollupMinTimeoutMsec, rollupMaxBatchRetry);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
@@ -566,7 +578,7 @@ public class IngestersConfig {
         return () -> {
             try {
                 return new SimpleBulkLoaderFactory(dbAccessConfig.dsl(),
-                        dbAccessConfig.bulkLoaderConfig(), partmanHelper(),
+                        dbAccessConfig.bulkLoaderConfig(), partitionManager(),
                         dbAccessConfig.bulkLoaderThreadPoolSupplier());
             } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
                 if (e instanceof InterruptedException) {
@@ -579,20 +591,39 @@ public class IngestersConfig {
     }
 
     /**
-     * Create a new {@link PartmanHelper} instance to integrate with Postgres' pg_partman
-     * extension.
+     * Create a new {@link IPartitioningManager} instance to manage partitions during ingestion
+     * and rollups.
      *
      * @return new instance
      */
     @Bean
-    public PartmanHelper partmanHelper() {
+    public IPartitioningManager partitionManager() {
         try {
-            return new PartmanHelper(dbAccessConfig.dsl(), settingServiceBlockingStub(),
-                    partitionIntervals(), latestRetentionMinutes, retentionUpdateInterval,
-                    retentionUpdateThreadPool());
+            if (dbAccessConfig.dialect() == SQLDialect.POSTGRES
+                    && !FeatureFlags.OPTIMIZE_PARTITIONING.isEnabled()) {
+                return new PartmanHelper(dbAccessConfig.dsl(),
+                        settingServiceBlockingStub(),
+                        partitionIntervals(), latestRetentionMinutes, retentionUpdateInterval,
+                        retentionUpdateThreadPool());
+            } else {
+                return new PartitioningManager(dbAccessConfig.dsl(), dbAccessConfig.getSchemaName(),
+                        new PartitionsManager(partitioningAdapter()),
+                        new RetentionSettings(settingServiceBlockingStub(), latestRetentionMinutes),
+                        partitionIntervals(), t -> Optional.of(Vmtdb.VMTDB.getTable(t))
+                        .flatMap(EntityType::timeFrameOfTable));
+            }
         } catch (SQLException | UnsupportedDialectException | InterruptedException | PartitionProcessingException e) {
-            throw new BeanCreationException("Failed to obtain DSLContext for partman helper");
+            throw new BeanCreationException("Failed to obtain DSLContext for partitioning manager",
+                    e);
         }
+    }
+
+    @NotNull
+    private IPartitionAdapter partitioningAdapter()
+            throws SQLException, UnsupportedDialectException, InterruptedException {
+        return dbAccessConfig.dialect() == SQLDialect.POSTGRES
+               ? new PostgresPartitionAdapter(dbAccessConfig.dsl())
+               : new MariaDBPartitionAdapter(dbAccessConfig.dsl());
     }
 
     /**
@@ -601,12 +632,12 @@ public class IngestersConfig {
      * @return interval settings
      */
     @Bean
-    Map<TimeFrame, String> partitionIntervals() {
+    Map<RollupTimeFrame, String> partitionIntervals() {
         return ImmutableMap.of(
-                TimeFrame.LATEST, latestPartitioningInterval,
-                TimeFrame.HOUR, hourlyPartitioningInterval,
-                TimeFrame.DAY, dailyPartitioningInterval,
-                TimeFrame.MONTH, monthlyPartitioningInterval
+                RollupTimeFrame.LATEST, latestPartitioningInterval,
+                RollupTimeFrame.HOUR, hourlyPartitioningInterval,
+                RollupTimeFrame.DAY, dailyPartitioningInterval,
+                RollupTimeFrame.MONTH, monthlyPartitioningInterval
         );
     }
 

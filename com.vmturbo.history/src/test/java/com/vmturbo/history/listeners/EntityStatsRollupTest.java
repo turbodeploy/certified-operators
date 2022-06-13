@@ -1,11 +1,11 @@
 package com.vmturbo.history.listeners;
 
+import static com.vmturbo.components.common.utils.RollupTimeFrame.DAY;
+import static com.vmturbo.components.common.utils.RollupTimeFrame.HOUR;
+import static com.vmturbo.components.common.utils.RollupTimeFrame.MONTH;
 import static com.vmturbo.history.db.jooq.JooqUtils.getRelationTypeField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
-import static com.vmturbo.history.schema.TimeFrame.DAY;
-import static com.vmturbo.history.schema.TimeFrame.HOUR;
-import static com.vmturbo.history.schema.TimeFrame.MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_LATEST;
 
 import java.sql.SQLException;
@@ -33,9 +33,9 @@ import org.junit.runners.Parameterized;
 
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.components.common.utils.RollupTimeFrame;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.history.schema.TimeFrame;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsByDay;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsByHour;
@@ -179,7 +179,7 @@ public class EntityStatsRollupTest extends RollupTestBase {
      * @throws DataAccessException on db error
      * @throws DataAccessException on db error
      */
-    protected <R extends Record> void checkEntityRollup(TimeFrame timeFrame, R template,
+    protected <R extends Record> void checkEntityRollup(RollupTimeFrame timeFrame, R template,
             Aggregator aggregator, Table<R> table, IdentityValues<VmStatsLatestRecord> identity)
             throws DataAccessException {
         Timestamp snapshot = getRollupSnapshot(timeFrame, aggregator.getLatestSnapshot());

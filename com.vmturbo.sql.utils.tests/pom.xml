@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>Turbonomic-XL</artifactId>
+        <groupId>com.vmturbo</groupId>
+        <version>${revision}</version>
+        <relativePath>../build/pom.xml</relativePath>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <properties>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
+        <db.url>jdbc:mysql://localhost:3306</db.url>
+        <db.username>root</db.username>
+        <db.password>vmturbo</db.password>
+        <db.schema>sql_utils_${maven.build.timestamp}</db.schema>
+        <db.outputSchema>sql_utils</db.outputSchema>
+        <db.driver>org.mariadb.jdbc.Driver</db.driver>
+    </properties>
+
+    <artifactId>sql-utils-tests</artifactId>
+
+    <profiles>
+        <profile>
+            <id>no-run-postgres-container</id>
+            <!-- set default for postgres port only if we're not going to spin up a postgres container -->
+            <activation>
+                <property>
+                    <name>postgresContainer.skip</name>
+                </property>
+            </activation>
+            <properties>
+                <postgresPort>5432</postgresPort>
+            </properties>
+        </profile>
+        <profile>
+            <id>run-postgres-container</id>
+            <!--
+                If you don't want a postgres container to be spun up during the build in order to
+                perform live DB tests, specify -DpostgresContainer.skip` on maven command line. In
+                that case you will need to have a postgres server available in your environment,
+                and the postgresHost and postgresPort properties can be used to configure access
+                if they're different from localhost and 5432, respectively.
+            -->
+            <activation>
+                <property>
+                    <name>!postgresContainer.skip</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>io.fabric8</groupId>
+                        <artifactId>docker-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>start-postgres</id>
+                                <phase>process-test-classes</phase>
+                                <goals>
+                                    <goal>start</goal>
+                                </goals>
+                                <configuration>
+                                    <dockerHost>${fabricateDockerHost}</dockerHost>
+                                    <showLogs>false</showLogs>
+                                    <images>
+                                        <image>
+                                            <alias>postgres</alias>
+                                            <name>${postgres-image}</name>
+                                            <run>
+                                                <!--
+                                                pattern needs to start with "maven-" so jenkins builds
+                                                will properly clean up leaked containers
+                                                -->
+                                                <containerNamePattern>maven-%a-%t-%i</containerNamePattern>
+                                                <ports>
+                                                    <port>postgresPort:5432</port>
+                                                </ports>
+                                                <env>
+                                                    <POSTGRES_USER>${postgresUserName}</POSTGRES_USER>
+                                                    <POSTGRES_PASSWORD>${postgresPassword}</POSTGRES_PASSWORD>
+                                                </env>
+                                                <wait>
+                                                    <log>
+                                                        <!--
+                                                        CDATA prevents intellij from wrapping the search
+                                                        string, which would break things.
+                                                        We wait for a message that shows that timescale
+                                                        is ready, and we wait to see it twice, since the
+                                                        container's entry-point script includes an internal
+                                                        restart.
+                                                        -->
+                                                        <![CDATA[(?s)database system is ready to accept connections.*database system is ready to accept connections]]>
+                                                    </log>
+                                                    <time>120000</time>
+                                                </wait>
+                                            </run>
+                                        </image>
+                                    </images>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>stop-postgres</id>
+                                <phase>test</phase>
+                                <goals>
+                                    <goal>stop</goal>
+                                </goals>
+                                <configuration>
+                                    <dockerHost>${fabricateDockerHost}</dockerHost>
+                                    <images>
+                                        <image>
+                                            <name>${postgres-image}</name>
+                                        </image>
+                                    </images>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>migrate</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>clean-db</id>
+                        <phase>process-sources</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <url>${db.url}</url>
+                    <user>${db.username}</user>
+                    <password>${db.password}</password>
+                    <locations>
+                        <!-- Configure to the same location as configured in Spring Boot..-->
+                        <location>filesystem:${basedir}/src/main/resources/db/migration</location>
+                    </locations>
+                    <schemas>
+                        <schema>${db.schema}</schema>
+                    </schemas>
+                </configuration>
+            </plugin>
+            <plugin>
+                <!-- Specify the maven code generator plugin -->
+                <groupId>org.jooq</groupId>
+                <artifactId>jooq-codegen-maven</artifactId>
+
+                <!-- The plugin should hook into the generate goal -->
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+
+                <configuration>
+
+                    <!-- JDBC connection parameters -->
+                    <jdbc>
+                        <driver>${db.driver}</driver>
+                        <url>${db.url}/${db.schema}</url>
+                        <user>${db.username}</user>
+                        <password>${db.password}</password>
+                    </jdbc>
+
+                    <!-- Generator parameters -->
+                    <generator>
+                        <database>
+                            <name>org.jooq.meta.mysql.MySQLDatabase</name>
+                            <!-- Retrieve schema version from Flyway info table -->
+                            <schemaVersionProvider>SELECT CONCAT_WS('_', '${db.outputSchema}', MAX(version)) from schema_version</schemaVersionProvider>
+                            <includes>.*</includes>
+                            <excludes>schema_version</excludes>
+                            <schemata>
+                                <schema>
+                                    <inputSchema>${db.schema}</inputSchema>
+                                    <outputSchema>${db.outputSchema}</outputSchema>
+                                </schema>
+                            </schemata>
+                            <!-- Automatically convert timestamps to LocalDateTime using custom data bindings (see http://www.jooq.org/doc/3.6/manual/code-generation/custom-data-type-bindings/) -->
+                            <customTypes>
+                                <customType>
+                                    <!-- Specify the fully-qualified class name of your custom type -->
+                                    <name>java.time.LocalDateTime</name>
+                                    <!-- Associate that custom type with your converter. Note, a
+                                         custom type can only have one converter in jOOQ -->
+                                    <converter>com.vmturbo.sql.utils.LocalDateTimeConverter</converter>
+                                </customType>
+                            </customTypes>
+
+                            <!-- Then, associate custom types with database columns -->
+                        </database>
+                        <generate>
+                            <pojos>true</pojos>
+                        </generate>
+                        <target>
+                            <packageName>com.vmturbo.sql.utils.db</packageName>
+                            <directory>target/generated-sources/jooq</directory>
+                        </target>
+                    </generator>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <dbs.postgresDefault.host>${postgresHost}</dbs.postgresDefault.host>
+                        <dbs.postgresDefault.port>${postgresPort}</dbs.postgresDefault.port>
+                        <dbs.postgresDefault.userName>${postgresUserName}</dbs.postgresDefault.userName>
+                        <dbs.postgresDefault.password>${postgresPassword}</dbs.postgresDefault.password>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+    <dependencies>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>sql-test-utils</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.jooq</groupId>
+            <artifactId>jooq</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mariadb.jdbc</groupId>
+            <artifactId>mariadb-java-client</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>

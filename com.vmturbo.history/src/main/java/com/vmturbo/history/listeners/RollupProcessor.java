@@ -79,7 +79,6 @@ import com.vmturbo.history.db.EntityStatsRollups;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.MarketStatsRollups;
 import com.vmturbo.history.db.RetentionPolicy;
-import com.vmturbo.history.listeners.PartmanHelper.PartitionProcessingException;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.RetentionUtil;
 import com.vmturbo.history.schema.abstraction.Routines;
@@ -89,10 +88,12 @@ import com.vmturbo.history.schema.abstraction.tables.MarketStatsByHour;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsByMonth;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
 import com.vmturbo.sql.utils.jooq.PurgeProcedure;
+import com.vmturbo.sql.utils.partition.IPartitioningManager;
+import com.vmturbo.sql.utils.partition.PartitionProcessingException;
 
 /**
  * This class performs rollups of stats entity and market stats data in the database, and it can
- * also be used to repartition the tables, as an efficient means of deleting expired data.
+ * also be used to perform retention processing to delete expired data.
  */
 public class RollupProcessor {
     private static final Logger logger = LogManager.getLogger(RollupProcessor.class);
@@ -116,7 +117,7 @@ public class RollupProcessor {
     private final ExecutorService executorService;
     private final DSLContext dsl;
     private final DSLContext unpooledDsl;
-    private final PartmanHelper partmanHelper;
+    private final IPartitioningManager partitioningManager;
     private final int maxBatchSize;
     private final long timeoutMsecForBatchSize;
     private final long minTimeoutMsec;
@@ -127,7 +128,7 @@ public class RollupProcessor {
      *
      * @param dsl                     DB access for general use
      * @param unpooledDsl             DB access for long-running operations
-     * @param partmanHelper           for integration with the pg_partman extension if needed
+     * @param partitioningManager     partition manager
      * @param executorServiceSupplier thread pool to run individual tasks
      * @param maxBatchSize            maximum # of records in a single batch
      * @param timeoutMsecForBatchSize a timeout duration that will be multiplied by the # of batches
@@ -136,12 +137,13 @@ public class RollupProcessor {
      *                                end up with an insufficient time to complete reliably
      * @param maxBatchRetry           number of times a failed batch should be retried. Retries do
      */
-    public RollupProcessor(DSLContext dsl, DSLContext unpooledDsl, PartmanHelper partmanHelper,
+    public RollupProcessor(DSLContext dsl, DSLContext unpooledDsl,
+            IPartitioningManager partitioningManager,
             Supplier<ExecutorService> executorServiceSupplier, int maxBatchSize,
             long timeoutMsecForBatchSize, long minTimeoutMsec, int maxBatchRetry) {
         this.dsl = dsl;
         this.unpooledDsl = unpooledDsl;
-        this.partmanHelper = partmanHelper;
+        this.partitioningManager = partitioningManager;
         this.executorService = executorServiceSupplier.get();
         this.maxBatchSize = maxBatchSize;
         this.timeoutMsecForBatchSize = timeoutMsecForBatchSize;
@@ -266,12 +268,12 @@ public class RollupProcessor {
         performRetentionProcessing(timer, true);
     }
 
-    void performRetentionProcessing(MultiStageTimer timer, boolean doRepartitioning) {
+    void performRetentionProcessing(MultiStageTimer timer, boolean doEntityStatsRetentioning) {
         // retention processing for entity stats tables is done by reconfiguring their partitions so
         // that partitions containing expired records are dropped, and currently only works in
         // MARIADB.
-        if (doRepartitioning && dsl.dialect() != SQLDialect.POSTGRES) {
-            performRepartitioning(timer);
+        if (doEntityStatsRetentioning) {
+            performEntityStatsRetentioning(timer);
         }
         // available_timestamps is small, so we just manually delete records that exceed expiration
         timer.start("Expire available_timestamps records");
@@ -333,18 +335,24 @@ public class RollupProcessor {
     }
 
     /**
-     * Perform repartitioning on all the stats tables. They all need this each hour regardless of
-     * whether they participated in any ingestions.
-     *
-     * <p>We kick off a separate task for each table that needs to be partitioned.</p>
+     * Perform retention update on all the stats tables.
      *
      * @param timer timer to use
      */
-    private void performRepartitioning(MultiStageTimer timer) {
-        if (dsl.dialect() == SQLDialect.POSTGRES) {
-            // no explicit operation required for partition maintenance in Postgres
+    private void performEntityStatsRetentioning(MultiStageTimer timer) {
+        if (dsl.dialect() == SQLDialect.POSTGRES
+                || FeatureFlags.OPTIMIZE_PARTITIONING.isEnabled()) {
+            // if we're doing postgres and the FF is off, then we're using the pg_partman-based
+            // implementation that has its own hourly scheduled operation to do partition expiry,
+            // so in that case there's nothing to do. Otherwise (FF is enabled), this is where
+            // we ask the partitioning manager to perform retention processing on all the
+            // partitions.
+            if (FeatureFlags.OPTIMIZE_PARTITIONING.isEnabled()) {
+                partitioningManager.performRetentionUpdate();
+            }
             return;
         }
+        // here we've got the legacy implementation that has to do way too much work :(
         timer.start("Repartitioning");
         final Set<Table<? extends Record>> tables = getTablesToRepartition();
         final Stream<Pair<Table<? extends Record>, Future<Void>>> tableFutures = tables.stream()
@@ -409,8 +417,7 @@ public class RollupProcessor {
                 .map(Entry::getKey)
                 .filter(rollupType::canRollup)
                 .collect(Collectors.toList());
-        CompletionService<RollupTask> cs = new ExecutorCompletionService<>(
-                this.executorService);
+        CompletionService<RollupTask> cs = new ExecutorCompletionService<>(this.executorService);
         for (Table<? extends Record> table : tablesToRollUp) {
             try {
                 tasks.addAll(scheduleRollupTasks(table, rollupType, snapshot, cs,
@@ -459,8 +466,9 @@ public class RollupProcessor {
         Table<? extends Record> source = rollupType.getSourceTable(table);
         Table<? extends Record> rollup = rollupType.getRollupTable(table);
         Timestamp rollupTime = rollupType.getRollupTime(snapshotTime);
-        if (dsl.dialect() == SQLDialect.POSTGRES) {
-            partmanHelper.prepareForInsertion(rollup, rollupTime);
+        if (dsl.dialect() == SQLDialect.POSTGRES
+                || FeatureFlags.OPTIMIZE_PARTITIONING.isEnabled()) {
+            partitioningManager.prepareForInsertion(rollup, rollupTime);
         }
         List<RollupTask> tasks = new ArrayList<>();
         if (source == null || rollup == null) {

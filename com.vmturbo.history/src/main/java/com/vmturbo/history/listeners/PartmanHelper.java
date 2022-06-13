@@ -26,9 +26,13 @@ import org.jooq.impl.SQLDataType;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.components.common.utils.RollupTimeFrame;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.bulk.BulkInserter;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
+import com.vmturbo.sql.utils.partition.IPartitioningManager;
+import com.vmturbo.sql.utils.partition.PartitionProcessingException;
+import com.vmturbo.sql.utils.partition.RetentionSettings;
 
 /**
  * Class to handle integration with the Postgres pg_partman extension to manage partitions for
@@ -60,7 +64,7 @@ import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
  * `part_config` table. It then runs partman's maintenance function for all tables, which will
  * remove any partitions that are expired according to the current settings.</p>
  */
-public class PartmanHelper {
+public class PartmanHelper implements IPartitioningManager {
     // a bunch of hand-crafted DSL objects for composing SQL statements
     private static final Logger logger = LogManager.getLogger();
 
@@ -105,7 +109,7 @@ public class PartmanHelper {
 
     private final DSLContext dsl;
     private final String currentSchema;
-    private final Map<TimeFrame, String> partitionIntervals;
+    private final Map<RollupTimeFrame, String> partitionIntervals;
     private final Duration retentionUpdateInterval;
     private final RetentionSettings retentionSettings;
 
@@ -122,7 +126,7 @@ public class PartmanHelper {
      * @throws PartitionProcessingException if there's a problem during construction
      */
     public PartmanHelper(DSLContext dsl, SettingServiceBlockingStub settingService,
-            Map<TimeFrame, String> partitionIntervals, int latestRetentionMinutes,
+            Map<RollupTimeFrame, String> partitionIntervals, int latestRetentionMinutes,
             Duration retentionUpdateInterval, ScheduledExecutorService retentionUpdateThreadPool)
             throws PartitionProcessingException {
         this.dsl = DSL.using(dsl.configuration().derive());
@@ -154,11 +158,12 @@ public class PartmanHelper {
      * initialized for pg_partman management. Either way, we must also run maintenance on the table
      * to ensure that partitions are up-to-date.</p>
      *
-     * @param table            table that needs to be active
-     * @param initialTimestamp snapshot_time value for the records about to be inserted
+     * @param table              table that needs to be active
+     * @param insertionTimestamp snapshot_time value for the records about to be inserted
      * @throws PartitionProcessingException if there's any problem completing the operation
      */
-    public void prepareForInsertion(Table<?> table, Timestamp initialTimestamp)
+    @Override
+    public void prepareForInsertion(Table<?> table, Timestamp insertionTimestamp)
             throws PartitionProcessingException {
         if (dsl.dialect() != SQLDialect.POSTGRES) {
             throw new PartitionProcessingException(
@@ -166,7 +171,7 @@ public class PartmanHelper {
         }
         Field<String> qualifiedTableName = DSL.concat(DSL.currentSchema(), "." + table.getName());
         if (!dsl.fetchExists(PART_CONFIG_TABLE, PARENT_TABLE_FIELD.eq(qualifiedTableName))) {
-            activateTable(table, initialTimestamp, dsl);
+            activateTable(table, insertionTimestamp, dsl);
         }
         fixPartConfig(table, dsl);
         runMaintenance(table, dsl);
@@ -208,7 +213,7 @@ public class PartmanHelper {
      * @throws PartitionProcessingException if the operation fails
      */
     private String getPartitionInterval(Table<?> table) throws PartitionProcessingException {
-        Optional<TimeFrame> tableTimeFrame = EntityType.timeFrameOfTable(table);
+        Optional<RollupTimeFrame> tableTimeFrame = EntityType.timeFrameOfTable(table);
         if (tableTimeFrame.isPresent()) {
             return partitionIntervals.get(tableTimeFrame.get());
         } else {
@@ -228,9 +233,10 @@ public class PartmanHelper {
      *
      * @param table parent table
      * @return corresponding template table name, qualified with schema name
+     * @throws PartitionProcessingException If there's a problem during the operation
      */
     private String getTemplateTable(Table<?> table) throws PartitionProcessingException {
-        Optional<TimeFrame> tableTimeFrame = EntityType.timeFrameOfTable(table);
+        Optional<RollupTimeFrame> tableTimeFrame = EntityType.timeFrameOfTable(table);
         if (tableTimeFrame.isPresent()) {
             switch (tableTimeFrame.get()) {
                 case LATEST:
@@ -358,7 +364,8 @@ public class PartmanHelper {
      * Perform a retention update, consisting of retrieving current retention settings, updating the
      * `partman.part_config` table accordingly, and then running glboal maintenance.
      */
-    private void performRetentionUpdate() {
+    @Override
+    public void performRetentionUpdate() {
         try {
             logger.info("Updating retention settings for entity-stats tables");
             retentionSettings.refresh();
@@ -423,36 +430,6 @@ public class PartmanHelper {
                 .set(RETENTION_FIELD, retentionString)
                 .where(PARENT_TABLE_FIELD.eq(currentSchema + "." + table.getName()))
                 .execute();
-    }
-
-    /**
-     * Checked exception for failures that can occur in {@link PartmanHelper} methods.
-     */
-    public static class PartitionProcessingException extends Exception {
-        /**
-         * Create a new instance without message or cause.
-         */
-        public PartitionProcessingException() {
-        }
-
-        /**
-         * Create a new instance with message and no cause.
-         *
-         * @param message message
-         */
-        public PartitionProcessingException(String message) {
-            super(message);
-        }
-
-        /**
-         * Create a new instance with a mesasge and a cause.
-         *
-         * @param message message
-         * @param cause   cause
-         */
-        public PartitionProcessingException(String message, Throwable cause) {
-            super(message, cause);
-        }
     }
 
     /**

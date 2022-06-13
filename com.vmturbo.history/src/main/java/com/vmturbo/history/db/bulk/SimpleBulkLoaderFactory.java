@@ -46,9 +46,9 @@ import com.vmturbo.history.db.RecordTransformer;
 import com.vmturbo.history.db.bulk.BulkInserterFactory.TableOperation;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
 import com.vmturbo.history.db.jooq.JooqUtils;
-import com.vmturbo.history.listeners.PartmanHelper;
-import com.vmturbo.history.listeners.PartmanHelper.PartitionProcessingException;
 import com.vmturbo.sql.utils.jooq.ProxyKey;
+import com.vmturbo.sql.utils.partition.IPartitioningManager;
+import com.vmturbo.sql.utils.partition.PartitionProcessingException;
 
 /**
  * This class uses {@link BulkInserterFactory} to create bulk loaders that are automatically
@@ -77,39 +77,40 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
     private static final String DAY_KEY_FIELD_NAME = VM_STATS_LATEST.DAY_KEY.getName();
     private static final String MONTH_KEY_FIELD_NAME = VM_STATS_LATEST.MONTH_KEY.getName();
 
-    private DSLContext dsl;
+    private final DSLContext dsl;
 
     // we delegate to this factory for all the writers we create
     private final BulkInserterFactory factory;
-    private PartmanHelper partmanHelper;
+    private final IPartitioningManager partitioningManager;
 
     /**
      * Create a new instance.
      *
      * @param dsl                     base db utilities
      * @param defaultConfig           config to be used by default when creating inserters
-     * @param partmanHelper           for integration with pg_partman postgres extension if needed
+     * @param partitioningManager     partitioning manager
      * @param executorServiceSupplier executor service to manage concurrent statement executions
      */
     public SimpleBulkLoaderFactory(final @Nonnull DSLContext dsl,
-            final @Nonnull BulkInserterConfig defaultConfig, PartmanHelper partmanHelper,
+            final @Nonnull BulkInserterConfig defaultConfig,
+            IPartitioningManager partitioningManager,
             final @Nonnull Supplier<ExecutorService> executorServiceSupplier) {
         this(dsl, new BulkInserterFactory(dsl, defaultConfig, executorServiceSupplier),
-                partmanHelper);
+                partitioningManager);
     }
 
     /**
      * Create a new instance, supplying a BulkInserterFactory instance.
      *
-     * @param dsl           base db utilities
-     * @param factory       underlying BulkInserterFactory instance
-     * @param partmanHelper for integration with pg_partman postgres extension if needed
+     * @param dsl                 base db utilities
+     * @param factory             underlying BulkInserterFactory instance
+     * @param partitioningManager partitioning manager
      */
     public SimpleBulkLoaderFactory(final @Nonnull DSLContext dsl,
-            final @Nonnull BulkInserterFactory factory, PartmanHelper partmanHelper) {
+            final @Nonnull BulkInserterFactory factory, IPartitioningManager partitioningManager) {
         this.dsl = dsl;
         this.factory = factory;
-        this.partmanHelper = partmanHelper;
+        this.partitioningManager = partitioningManager;
     }
 
     /**
@@ -137,7 +138,14 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
     public <R extends Record> BulkLoader<R> getLoader(final @Nonnull Table<R> table) {
         BulkInserter<R, R> loader = factory.getInserter(table, table, getRecordTransformer(table),
                 getDbInserter(table, Collections.emptySet()));
-        setPreInstallHook(table, loader);
+        if (dsl.dialect() == SQLDialect.POSTGRES
+                || FeatureFlags.OPTIMIZE_PARTITIONING.isEnabled()) {
+            // we always do this for Postgres because our "legacy" partitioning implementation
+            // in that case is the one based on `pg_partman`, which does on-demand partition
+            // provisioning in the same manner as the new implementation. And we do it under
+            // the feature flag cuze that means we're using the new implementation
+            setPreInstallHook(table, loader);
+        }
         return loader;
     }
 
@@ -162,23 +170,21 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
 
     private <R extends Record> void setPreInstallHook(@NotNull Table<R> table,
             BulkInserter<R, R> loader) {
-        if (dsl.dialect() == SQLDialect.POSTGRES) {
-            Table<?> latestTable = EntityType.fromTable(table)
-                    .flatMap(EntityType::getLatestTable)
-                    .orElse(null);
-            if (latestTable != null && latestTable != CLUSTER_STATS_LATEST) {
-                loader.setPreInsertionHook(r -> {
-                    try {
-                        Timestamp timestamp = r.getValue(StringConstants.SNAPSHOT_TIME,
-                                Timestamp.class);
-                        partmanHelper.prepareForInsertion(table, timestamp);
-                        return true;
-                    } catch (PartitionProcessingException e) {
-                        logger.error("Partition preparation failed for table {}", table, e);
-                        return false;
-                    }
-                });
-            }
+        Table<?> latestTable = EntityType.fromTable(table)
+                .flatMap(EntityType::getLatestTable)
+                .orElse(null);
+        if (latestTable != null && latestTable != CLUSTER_STATS_LATEST) {
+            loader.setPreInsertionHook(r -> {
+                try {
+                    Timestamp timestamp = r.getValue(StringConstants.SNAPSHOT_TIME,
+                            Timestamp.class);
+                    partitioningManager.prepareForInsertion(table, timestamp);
+                    return true;
+                } catch (PartitionProcessingException e) {
+                    logger.error("Partition preparation failed for table {}", table, e);
+                    return false;
+                }
+            });
         }
     }
 
@@ -213,7 +219,7 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
      * @return the transient table, as a jOOQ {@link Table} instance
      * @throws InstantiationException if we can't create the jOOQ table object
      * @throws DataAccessException    if there's a problem with DB connection
-     * @throws IllegalAccessException if we can't create the jOOQ tabel object
+     * @throws IllegalAccessException if we can't create the jOOQ table object
      */
     public <R extends Record> BulkLoader<R> getTransientLoader(
             final @Nonnull Table<R> table, TableOperation<R> postTableCreateOp)

@@ -1,0 +1,4 @@
+CREATE TABLE part_test(t datetime)
+PARTITION BY RANGE(to_seconds(t))
+(PARTITION start VALUES LESS THAN (0),
+PARTITION future VALUES LESS THAN MAXVALUE);

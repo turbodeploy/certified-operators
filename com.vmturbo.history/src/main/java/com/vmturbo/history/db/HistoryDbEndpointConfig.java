@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.flyway.MigrationCallbackForVersion121;
 import com.vmturbo.history.flyway.MigrationCallbacksForV1v66AndV1v4;
 import com.vmturbo.history.flyway.MigrationCallbacksForV1v66AndV1v4.ForMariaDBV1v66;
@@ -42,7 +43,7 @@ public class HistoryDbEndpointConfig extends DbEndpointsConfig {
                 .withDatabaseName(HISTORY_SCHEMA_NAME)
                 .withSchemaName(HISTORY_SCHEMA_NAME))
                 .withFlywayCallbacks(flywayCallbacks());
-        if (sqlDialect == SQLDialect.POSTGRES) {
+        if (sqlDialect == SQLDialect.POSTGRES && !FeatureFlags.OPTIMIZE_PARTITIONING.isEnabled()) {
             builder = builder.withPlugins(PostgresPlugins.PARTMAN_4_6_0);
         }
         return builder.build();

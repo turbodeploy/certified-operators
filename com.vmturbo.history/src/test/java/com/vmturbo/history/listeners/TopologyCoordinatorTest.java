@@ -1,6 +1,8 @@
 package com.vmturbo.history.listeners;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 
@@ -10,8 +12,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import org.jooq.DSLContext;
-import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -19,6 +21,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.ingesters.live.ProjectedRealtimeTopologyIngester;
 import com.vmturbo.history.ingesters.live.SourceRealtimeTopologyIngester;
@@ -26,11 +29,12 @@ import com.vmturbo.history.ingesters.plan.ProjectedPlanTopologyIngester;
 import com.vmturbo.history.ingesters.plan.SourcePlanTopologyIngester;
 import com.vmturbo.history.listeners.IngestionStatus.IngestionState;
 import com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Topology Coordinator tests.
  */
-public class TopologyCoordinatorTest extends Assert {
+public class TopologyCoordinatorTest {
 
     private static final int REALTIME_TOPOLOGY_CONTEXT_ID = 77777;
     private static final Timestamp[] TIMESTAMPS = new Timestamp[]{
@@ -45,6 +49,13 @@ public class TopologyCoordinatorTest extends Assert {
 
     private TopologyCoordinator topologyCoordinator;
     private ProcessingStatus processingStatus;
+
+    /**
+     * Manage feaature flag settings during tests.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
+            .testAllCombos(FeatureFlags.OPTIMIZE_PARTITIONING);
 
     /**
      * Set up for testing.

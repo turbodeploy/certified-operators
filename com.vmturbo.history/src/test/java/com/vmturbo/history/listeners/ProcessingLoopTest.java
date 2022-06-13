@@ -1,7 +1,7 @@
 package com.vmturbo.history.listeners;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 
 import java.time.Instant;
@@ -15,13 +15,16 @@ import org.hamcrest.Matchers;
 import org.hamcrest.TypeSafeMatcher;
 import org.jooq.DSLContext;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.db.bulk.BulkInserterFactoryStats;
 import com.vmturbo.history.listeners.IngestionStatus.IngestionState;
 import com.vmturbo.history.listeners.ProcessingLoop.ProcessingAction;
 import com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests operation of the processing loop.
@@ -34,6 +37,13 @@ public class ProcessingLoopTest {
     private ProcessingLoop loop;
     private final DSLContext dsl = mock(DSLContext.class);
     private static final Instant t0 = Instant.parse("2019-10-21T15:34:23Z");
+
+    /**
+     * Manage feature flag settings.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
+            .testAllCombos(FeatureFlags.OPTIMIZE_PARTITIONING);
 
     /**
      * Set up our {@link ProcessingLoop} and {@link ProcessingStatus} instances.
@@ -66,9 +76,11 @@ public class ProcessingLoopTest {
     @Test
     public void testProcessingLoop() {
 
-        // there's always a repartitioning run at startup
-        assertThat(nextAction(), isRepartion());
-        ps.setLastRepartitionTime(Instant.now());
+        if (!FeatureFlags.OPTIMIZE_PARTITIONING.isEnabled()) {
+            // there's always a repartitioning run at startup
+            assertThat(nextAction(), isRetentionUpdate());
+            ps.setLastRepartitionTime(Instant.now());
+        }
 
         // c1Live Topology received and starts ingestion (c1 means cycle 1)
         final IngestionStatus c1Live = receive(TopologyFlavor.Live, 1);
@@ -382,22 +394,22 @@ public class ProcessingLoopTest {
     }
 
     /**
-     * Matcher for an Repartition processor action.
+     * Matcher for a RetentionUpdate processor action.
      */
-    static class IsRepartition extends TypeSafeMatcher<Pair<ProcessingAction, Object>> {
+    static class IsRetentionUpdate extends TypeSafeMatcher<Pair<ProcessingAction, Object>> {
         @Override
         protected boolean matchesSafely(final Pair<ProcessingAction, Object> action) {
-            return action.getLeft() == ProcessingAction.Repartition;
+            return action.getLeft() == ProcessingAction.RetentionUpdate;
         }
 
         @Override
         public void describeTo(final Description description) {
-            description.appendText("Repartition");
+            description.appendText("RetentionUpdate");
         }
 
     }
 
-    private static IsRepartition isRepartion() {
-        return new IsRepartition();
+    private static IsRetentionUpdate isRetentionUpdate() {
+        return new IsRetentionUpdate();
     }
 }

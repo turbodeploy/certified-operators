@@ -21,6 +21,6 @@ public class PropertiesFeatureFlagEnablementStore implements FeatureFlagEnableme
     public boolean isEnabled(final FeatureFlag featureFlag) {
         final String propValue = properties.getProperty(
                 FeatureFlagEnablementStoreBase.getConfigPropertyName(featureFlag));
-        return propValue != null ? Boolean.valueOf(propValue) : false;
+        return propValue != null ? Boolean.valueOf(propValue) : featureFlag.getDefaultEnablement();
     }
 }

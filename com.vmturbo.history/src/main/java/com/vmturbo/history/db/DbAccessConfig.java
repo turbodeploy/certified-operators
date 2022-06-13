@@ -11,6 +11,7 @@ import javax.sql.DataSource;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,6 +39,17 @@ public class DbAccessConfig {
 
     @Autowired(required = false)
     private HistoryDbEndpointConfig historyDbEndpointConfig;
+
+    /**
+     * get the {@link SQLDialect} we're operating under.
+     *
+     * @return dialect, obtained from whichever DbConfig class got included by Spring
+     */
+    public SQLDialect dialect() {
+        return historyDbEndpointConfig != null
+               ? historyDbEndpointConfig.sqlDialect
+               : historyDbConfig.sqlDialect;
+    }
 
     /**
      * Obtain a {@link DSLContext} instance that can be used to access the database.
@@ -88,7 +100,7 @@ public class DbAccessConfig {
     /**
      * Obtain a {@link DataSource} instance that can be used to access the database and is not
      * backed by a connection pool. This is useful for potentially long-running operations that
-     * shouldn't tie up limited pool connections..
+     * shouldn't tie up limited pool connections.
      *
      * @return DSLContext
      * @throws SQLException                if a DB initialization operation fails
@@ -207,5 +219,11 @@ public class DbAccessConfig {
                 .setNameFormat(BulkInserter.class.getSimpleName() + "-%d")
                 .build();
         return () -> Executors.newFixedThreadPool(parallelBatchInserts, factory);
+    }
+
+    public String getSchemaName() {
+        return FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
+               ? historyDbEndpointConfig.historyEndpoint().getConfig().getSchemaName()
+               : historyDbConfig.getDbSchemaName();
     }
 }

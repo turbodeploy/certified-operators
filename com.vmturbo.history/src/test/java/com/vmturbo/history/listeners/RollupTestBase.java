@@ -1,8 +1,8 @@
 package com.vmturbo.history.listeners;
 
+import static com.vmturbo.components.common.utils.RollupTimeFrame.HOUR;
 import static com.vmturbo.history.db.jooq.JooqUtils.getDoubleField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
-import static com.vmturbo.history.schema.TimeFrame.HOUR;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.core.Is.isA;
@@ -42,6 +42,7 @@ import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.utils.RollupTimeFrame;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.RetentionPolicy;
 import com.vmturbo.history.db.TestHistoryDbEndpointConfig;
@@ -50,7 +51,6 @@ import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.listeners.RollupProcessor.RollupType;
-import com.vmturbo.history.schema.TimeFrame;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.schema.abstraction.tables.ClusterStatsLatest;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -107,7 +107,7 @@ public abstract class RollupTestBase extends MultiDbTestBase {
      */
     private static final long RANDOM_SEED = 0L;
     protected final Random rand = new Random(RANDOM_SEED);
-    PartmanHelper partmanHelper = mock(PartmanHelper.class);
+    PartmanHelper partmanPartitioningManager = mock(PartmanHelper.class);
 
     SimpleBulkLoaderFactory loaders;
     BulkInserterConfig config = ImmutableBulkInserterConfig.builder()
@@ -124,9 +124,9 @@ public abstract class RollupTestBase extends MultiDbTestBase {
      */
     @Before
     public void rolllupTestBaseBefore() {
-        loaders = new SimpleBulkLoaderFactory(dsl, config, partmanHelper,
+        loaders = new SimpleBulkLoaderFactory(dsl, config, partmanPartitioningManager,
                 () -> Executors.newSingleThreadExecutor());
-        rollupProcessor = new RollupProcessor(dsl, dsl, partmanHelper,
+        rollupProcessor = new RollupProcessor(dsl, dsl, partmanPartitioningManager,
                 () -> Executors.newFixedThreadPool(8), 100, 10_000, 10_000, 0);
         IdentityGenerator.initPrefix(1L);
         RetentionPolicy.init(dsl);
@@ -204,7 +204,7 @@ public abstract class RollupTestBase extends MultiDbTestBase {
         Instant snapshot;
         final long cycleTimeMsec;
         final R templateRecord;
-        Map<TimeFrame, Aggregator> aggregators = new HashMap<>();
+        Map<RollupTimeFrame, Aggregator> aggregators = new HashMap<>();
         boolean isClusterStats;
 
         /**
@@ -233,11 +233,11 @@ public abstract class RollupTestBase extends MultiDbTestBase {
          * Create hourly, daily, and monthly aggregators.
          *
          * <p>It is up to the caller to close out these aggregators, by calling
-         * {@link #reset(TimeFrame)}, after the last record has been generated in any given
+         * {@link #reset(RollupTimeFrame)}, after the last record has been generated in any given
          * timeframe interval.</p>
          */
         private void initAggregators() {
-            for (TimeFrame timeFrame : TimeFrame.values()) {
+            for (RollupTimeFrame timeFrame : RollupTimeFrame.values()) {
                 switch (timeFrame) {
                     case HOUR:
                     case DAY:
@@ -258,7 +258,7 @@ public abstract class RollupTestBase extends MultiDbTestBase {
          * @param timeFrame hourly, daily, or monthly aggregator to reset
          * @return the closed-out aggregator, no longer active
          */
-        protected Aggregator reset(TimeFrame timeFrame) {
+        protected Aggregator reset(RollupTimeFrame timeFrame) {
             Aggregator result = aggregators.get(timeFrame);
             aggregators.put(timeFrame, new Aggregator());
             return result;
@@ -471,7 +471,7 @@ public abstract class RollupTestBase extends MultiDbTestBase {
      * @param instantInInterval a time covered by the desired rollup period
      * @return the snapshot_time for the rollup record that would cover the given time
      */
-    protected Timestamp getRollupSnapshot(TimeFrame timeFrame, Instant instantInInterval) {
+    protected Timestamp getRollupSnapshot(RollupTimeFrame timeFrame, Instant instantInInterval) {
         switch (timeFrame) {
             case HOUR:
                 return RollupType.BY_HOUR.getRollupTime(Timestamp.from(instantInInterval));
@@ -491,7 +491,7 @@ public abstract class RollupTestBase extends MultiDbTestBase {
      * @param timeFrame rollup timeframe
      * @return the rolulp table
      */
-    protected Table<?> getRollupTable(Table<?> table, TimeFrame timeFrame) {
+    protected Table<?> getRollupTable(Table<?> table, RollupTimeFrame timeFrame) {
         EntityType entityType = EntityType.fromTable(table).orElse(null);
         if (entityType != null) {
             switch (timeFrame) {
