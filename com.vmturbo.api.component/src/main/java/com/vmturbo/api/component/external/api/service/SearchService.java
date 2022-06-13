@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.ACCOUNT_OID;
+import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.CONNECTED_COMPUTE_TIER_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.CONNECTED_STORAGE_TIER_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.REGION_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
@@ -232,6 +233,8 @@ public class SearchService implements ISearchService {
                         (a, b, c) -> getVolumeAttachmentStateOptions())
                 .put(CONNECTED_STORAGE_TIER_FILTER_PATH,
                         (a, b, c) -> getConnectionStorageTierOptions())
+                .put(CONNECTED_COMPUTE_TIER_FILTER_PATH,
+                        (a, b, c) -> getComputeTierOptions())
                 .put(REGION_FILTER_PATH, (a, b, c) -> getRegionFilterOptions())
                 .put("discoveredBy:cloudProvider", (a, b, c) -> getCloudProviderOptions())
                 .put("discoveredBy:probeType", (a, b, c) -> getProbeTypeOptions())
@@ -1396,6 +1399,22 @@ public class SearchService implements ISearchService {
         repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
                 SearchProtoUtil.entityTypeFilter(ApiEntityType.STORAGE_TIER.apiStr()))
                 .build())
+                .getMinimalEntities()
+                .forEach(tier -> {
+                    CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
+                    crOpt.setDisplayName(tier.getDisplayName());
+                    crOpt.setValue(String.valueOf(tier.getOid()));
+                    optionApiDTOs.add(crOpt);
+                });
+        return optionApiDTOs;
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getComputeTierOptions() {
+        final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
+        repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
+                                SearchProtoUtil.entityTypeFilter(ApiEntityType.COMPUTE_TIER.apiStr()))
+                        .build())
                 .getMinimalEntities()
                 .forEach(tier -> {
                     CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
