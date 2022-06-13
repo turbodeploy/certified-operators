@@ -102,7 +102,7 @@ public class ScenarioGenerator {
                 if (changeWindows != null) {
                     ExecutedActionsChangeWindow lastAction = changeWindows.pollLast();
                     if (lastAction != null) {
-                        logger.info("Revert action time: {} entity OID: {}", event.timestamp, oid);
+                        logger.info("Revert action time: {} entity OID: {}", actionDateTime, oid);
                         changeWindows.add(lastAction.toBuilder()
                                 .setEndTime(event.timestamp)
                                 .setLivenessState(LivenessState.REVERTED)
@@ -135,7 +135,7 @@ public class ScenarioGenerator {
 
         for (BillingScriptEvent event : sortedEvents) {
             Long oid = uuidMap.getOrDefault(event.uuid, 0L);
-            if ("RESIZE".equals(event.eventType)) {
+            if ("RESIZE".equals(event.eventType) || "EXTMOD".equals(event.eventType)) {
                 scaleEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
                         .add(event);
             } else if ("POWER_STATE".equals(event.eventType)) {

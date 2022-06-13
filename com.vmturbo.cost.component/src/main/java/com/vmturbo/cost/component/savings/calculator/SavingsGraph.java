@@ -102,7 +102,8 @@ public class SavingsGraph {
                         .destinationProviderOid(destProviderOid)
                         .build());
 
-                if (changeWindow.getLivenessState() == LivenessState.REVERTED) {
+                if (changeWindow.getLivenessState() == LivenessState.REVERTED
+                        || changeWindow.getLivenessState() == LivenessState.EXTERNAL_MODIFICATION) {
                     dataPoints.add(new ActionChainTermination.Builder()
                             .timestamp(changeWindow.getEndTime())
                             .build());
