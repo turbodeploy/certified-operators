@@ -621,4 +621,57 @@ public class CalculatorTest {
         List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
         Assert.assertTrue(expectedResults.containsAll(result));
     }
+
+    /**
+     * Scenario:
+     * Entity type: VM
+     * Scale action executed on 2022-03-25T06:00.
+     * Original cost of VM: $3/hr.
+     * Destination cost of scale action is $2/hr.
+     * Bill records:
+     * 2022-03-25: VM ran on destination tier for 18 hours. cost = 2*18 = 36.
+     *             Cost on source tier: 3 * 6 = 18
+     *             Savings = 1 * 18 = 18
+     * 2022-03-26: VM ran on destination tier for full day. cost should be 2 * 24 = 48, but the bill
+     *             shows 30. Savings = 3 * 24 - 30 = 42
+     * 2022-03-27: VM ran on destination tier for full day. cost = 2 * 24 = 48. Savings = 3 * 24 - 48 = 24
+     * Later, the cost for 3-26 is updated to 48. savings should be recalculated to $24 for the day.
+     */
+    @Test
+    public void testBillCostUpdate() {
+        final long sourceProviderId = 1212121212L;
+        final long targetProviderId = 2323232323L;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVMBillRecord(date(2022, 3, 25), 6, 18, sourceProviderId));
+        records.add(createVMBillRecord(date(2022, 3, 25), 18, 36, targetProviderId));
+        records.add(createVMBillRecord(date(2022, 3, 26), 24, 30, targetProviderId));
+        records.add(createVMBillRecord(date(2022, 3, 27), 24, 48, targetProviderId));
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs =
+                new TreeSet<>(changeWindowComparator);
+        actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
+                LocalDateTime.of(2022, 3, 25, 6, 0),
+                3, 2, sourceProviderId, targetProviderId,
+                LocalDateTime.of(2022, 3, 27, 9, 0),
+                LivenessState.LIVE));
+
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(18).investments(0)
+                .timestamp(date(2022, 3, 25)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(42).investments(0)
+                .timestamp(date(2022, 3, 26)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(24).investments(0)
+                .timestamp(date(2022, 3, 27)).build());
+
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        Assert.assertTrue(expectedResults.containsAll(result));
+
+        records.clear();
+        records.add(createVMBillRecord(date(2022, 3, 26), 24, 48, targetProviderId));
+        expectedResults.clear();
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(24).investments(0)
+                .timestamp(date(2022, 3, 26)).build());
+
+        result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        Assert.assertTrue(expectedResults.containsAll(result));
+    }
 }
