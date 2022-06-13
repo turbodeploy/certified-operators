@@ -3,7 +3,7 @@ package com.vmturbo.history.listeners;
 import static com.vmturbo.history.listeners.IngestionStatus.IngestionState.Missed;
 import static com.vmturbo.history.listeners.IngestionStatus.IngestionState.Processed;
 import static com.vmturbo.history.listeners.ProcessingLoop.ProcessingAction.Idle;
-import static com.vmturbo.history.listeners.ProcessingLoop.ProcessingAction.Repartition;
+import static com.vmturbo.history.listeners.ProcessingLoop.ProcessingAction.RetentionUpdate;
 import static com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor.Live;
 import static com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor.Projected;
 import static org.hamcrest.Matchers.is;
@@ -31,12 +31,14 @@ import io.opentracing.SpanContext;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.jooq.DSLContext;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.stubbing.Answer;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.db.bulk.BulkInserterFactoryStats;
 import com.vmturbo.history.db.bulk.BulkInserterStats;
@@ -47,6 +49,7 @@ import com.vmturbo.history.ingesters.plan.SourcePlanTopologyIngester;
 import com.vmturbo.history.listeners.ImmutableTopologyCoordinatorConfig.Builder;
 import com.vmturbo.history.listeners.ProcessingLoop.ProcessingAction;
 import com.vmturbo.history.schema.abstraction.Tables;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * This class tests various "safety valve" feature of {@link TopologyCoordinator} and associated
@@ -71,17 +74,27 @@ public class TopologyCoordinatorSafetyValveTest {
                     .processingLoopMaxSleepSecs(1);
 
     /**
-     * Test that {@link ProcessingLoop} kicks off a repartitioning action from time to time
-     * in the absence of any other activity.
+     * Manaage feature flag settings.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule()
+            .testAllCombos(FeatureFlags.OPTIMIZE_PARTITIONING);
+
+    /**
+     * Test that {@link ProcessingLoop} kicks off a repartitioning action from time to time in the
+     * absence of any other activity.
      *
      * <p>Repartitioning normally happens as part of daily/monthly retention processing, but
-     * if that stops happening for any reason, repartitioning must continue to happen in order
-     * to avoid running out of space in the database volume. We have a separate safety valve
-     * that should also keep rollups happening, but this is a backup to that one.</p>
-     *
+     * if that stops happening for any reason, repartitioning must continue to happen in order to
+     * avoid running out of space in the database volume. We have a separate safety valve that
+     * should also keep rollups happening, but this is a backup to that one.</p>
      */
     @Test
     public void testRepartitionSafetyValve() {
+        if (FeatureFlags.OPTIMIZE_PARTITIONING.isEnabled()) {
+            // this safety valve is no longer relevant with partitioning optimizations
+            return;
+        }
         final ImmutableTopologyCoordinatorConfig config = configBuilder.get()
                 .repartitioningTimeoutSecs(2)
                 .build();
@@ -104,12 +117,12 @@ public class TopologyCoordinatorSafetyValveTest {
         }).when(procLoopSpy).chooseNextAction();
         procLoopSpy.run(20);
         // no outside events, so we should only ever do repartitions
-        assertTrue(actions.stream().allMatch(a -> a == Idle || a == Repartition));
+        assertTrue(actions.stream().allMatch(a -> a == Idle || a == RetentionUpdate));
         // running for 20 iterations with 1 second sleeps and max 2 seconds between repartitions,
         // we should get  repartitions at 0, 2, 4, 6, ..., 18 seconds if operations take zero time
         // and sleep times are exact. We'll be happy if we got at least 4, meaning that we got
         // our initial call and at least three more, proving that the loop is waking up repeatedly.
-        assertTrue(actions.stream().filter(a -> a == Repartition).count() >= 3);
+        assertTrue(actions.stream().filter(a -> a == RetentionUpdate).count() >= 3);
     }
 
     /**

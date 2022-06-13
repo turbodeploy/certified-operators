@@ -1,13 +1,13 @@
 package com.vmturbo.history.listeners;
 
+import static com.vmturbo.components.common.utils.RollupTimeFrame.DAY;
+import static com.vmturbo.components.common.utils.RollupTimeFrame.HOUR;
+import static com.vmturbo.components.common.utils.RollupTimeFrame.MONTH;
 import static com.vmturbo.history.db.jooq.JooqUtils.getEnvField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getLongField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getRelationTypeField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
-import static com.vmturbo.history.schema.TimeFrame.DAY;
-import static com.vmturbo.history.schema.TimeFrame.HOUR;
-import static com.vmturbo.history.schema.TimeFrame.MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_LATEST;
 
 import java.sql.SQLException;
@@ -29,9 +29,9 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.components.common.utils.RollupTimeFrame;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.history.schema.TimeFrame;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsByDay;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsByHour;
@@ -136,7 +136,7 @@ public class MarketStatsRollupTest extends RollupTestBase {
         checkMarketStatsRollup(MONTH, template1, monthlyFeb, MARKET_STATS_LATEST, identity);
     }
 
-    private <R extends Record> void checkMarketStatsRollup(TimeFrame timeFrame, R template,
+    private <R extends Record> void checkMarketStatsRollup(RollupTimeFrame timeFrame, R template,
             Aggregator aggregator, Table<R> table, IdentityValues<R> identity)
             throws DataAccessException {
         Timestamp snapshotTime = getRollupSnapshot(timeFrame, aggregator.getLatestSnapshot());
@@ -163,7 +163,7 @@ public class MarketStatsRollupTest extends RollupTestBase {
      * @return the rolulp table
      */
     @Override
-    protected Table<?> getRollupTable(Table<?> table, TimeFrame timeFrame) {
+    protected Table<?> getRollupTable(Table<?> table, RollupTimeFrame timeFrame) {
         switch (timeFrame) {
             case HOUR:
                 return Tables.MARKET_STATS_BY_HOUR;

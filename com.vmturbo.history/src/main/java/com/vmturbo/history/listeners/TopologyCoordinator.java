@@ -44,6 +44,7 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.RemoteIteratorDrain;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
 import com.vmturbo.history.SharedMetrics;
@@ -73,7 +74,7 @@ import com.vmturbo.topology.processor.api.TopologySummaryListener;
  * summary topics are monitored for advance notification of available topologies.</p>
  *
  * <p>Included here are listener methods for the relevant topics, methods to process received
- * topologies, and methods to invoke rollup and repartitioning operations in the database. However
+ * topologies, and methods to invoke rollup and retention operations in the database. However
  * logic to choose which of operations to perform at any point in time with respect to realtime
  * topologies is outsourced to an instance of {@link ProcessingLoop}. Plan topologies are always
  * processed as they arrive, since they do not contend in any way with rollup processing.</p>
@@ -84,10 +85,10 @@ import com.vmturbo.topology.processor.api.TopologySummaryListener;
  * status is updated, and then the processing loop is awoken so it can inspect the updated status
  * and decide on what to do next.</p>
  *
- * <p>We use a read-write lock to ensure that live topology ingestion and rollup/repartitioning
+ * <p>We use a read-write lock to ensure that live topology ingestion and rollup/retention
  * actions never overlap, since that tends to create lock contention that seriously impairs
  * performance. The lock permits multiple ingestions to proceed concurrently, or a single
- * rollup/repartitioning operation to run, but never both at once.</p>
+ * rollup/retention operation to run, but never both at once.</p>
  */
 public class TopologyCoordinator extends TopologyListenerBase implements EntitiesListener,
         ProjectedTopologyListener, TopologySummaryListener, AnalysisSummaryListener {
@@ -122,7 +123,7 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
      * @param projectedRealtimeTopologyIngester used to fully process a projected topology
      * @param sourcePlanTopologyIngester          used to fully process a plan topology
      * @param projectedPlanTopologyIngester used to fully process a projected plan topology
-     * @param rollupProcessor               used to perform rollup and repartitioning operations
+     * @param rollupProcessor               used to perform rollup and retention operations
      * @param statsAvailabilityTracker      used to announce successful ingestions of topologies
      * @param dsl                   database utils
      * @param config                        config parameters
@@ -159,7 +160,7 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
      * @param projectedRealtimeTopologyIngester used to fully process a projected topology
      * @param sourcePlanTopologyIngester          used to fully process a plan topology
      * @param projectedPlanTopologyIngester used to fully process a projected plan topology
-     * @param rollupProcessor               used to perform rollup and repartitioning operations
+     * @param rollupProcessor               used to perform rollup and retention operations
      * @param maybeNullProcessingStatus     processing status object; if null a new one is created
      *                                      (nonnull is used testing)
      * @param maybeNullProcessingLoop       thread to run a processing loop; if null a new one is created
@@ -589,7 +590,7 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
         try {
             if (!tables.isEmpty()) {
                 rollupLock.lock();
-                logger.info("Running daily/monthly rollups and repartitioning for hour {}",
+                logger.info("Running daily/monthly rollups and retention update for hour {}",
                         snapshot.truncatedTo(ChronoUnit.HOURS));
                 try {
                     rollupProcessor.performDayMonthRollups(tables, snapshot);
@@ -604,14 +605,16 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
 
     void runRetentionProcessing() {
         rollupLock.lock();
-        logger.info("Repartitioning all stats tables");
+        logger.info("Running retention processing");
         try {
             MultiStageTimer timer = new MultiStageTimer(logger);
             rollupProcessor.performRetentionProcessing(timer);
             timer.stopAll().info("Repartitioning completed in", Detail.OVERALL_SUMMARY);
         } finally {
             rollupLock.unlock();
-            processingStatus.setLastRepartitionTime(Instant.now());
+            if (!FeatureFlags.OPTIMIZE_PARTITIONING.isEnabled()) {
+                processingStatus.setLastRepartitionTime(Instant.now());
+            }
         }
     }
 

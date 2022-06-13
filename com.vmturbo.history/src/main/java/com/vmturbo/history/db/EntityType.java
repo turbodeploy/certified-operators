@@ -8,6 +8,7 @@ import org.jooq.Table;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.stats.StatsUtils;
+import com.vmturbo.components.common.utils.RollupTimeFrame;
 import com.vmturbo.history.schema.abstraction.tables.Entities;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
@@ -126,7 +127,7 @@ public interface EntityType {
      * @param table table
      * @return associated {@link TimeFrame}
      */
-    static Optional<TimeFrame> timeFrameOfTable(Table<?> table) {
+    static Optional<RollupTimeFrame> timeFrameOfTable(Table<?> table) {
         return Optional.ofNullable(
                 EntityTypeDefinitions.TABLE_TO_TIME_FRAME_MAP.get(table.getClass()));
     }

@@ -36,7 +36,7 @@ public class PropertiesLoaderFeatureFlagEnablementStore implements FeatureFlagEn
     public boolean isEnabled(final FeatureFlag feature) {
         return enablementCache.computeIfAbsent(feature, f -> {
             final String property = FeatureFlagEnablementStoreBase.getConfigPropertyName(f);
-            return environment.getProperty(property, Boolean.class, false);
+            return environment.getProperty(property, Boolean.class, f.getDefaultEnablement());
         });
     }
 }

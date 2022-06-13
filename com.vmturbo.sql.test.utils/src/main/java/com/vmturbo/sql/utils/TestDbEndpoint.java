@@ -5,7 +5,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -17,8 +19,12 @@ import net.jpountz.xxhash.XXHashFactory;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Configuration;
 import org.jooq.DSLContext;
 import org.jooq.Schema;
+import org.jooq.conf.MappedSchema;
+import org.jooq.conf.RenderMapping;
+import org.jooq.impl.DSL;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -102,7 +108,7 @@ public class TestDbEndpoint {
             testEndpoints.put(name, this);
             // now gather some other useful stuff
             this.schema = schema;
-            this.dsl = endpoint.dslContext();
+            this.dsl = addSchemaMapping(endpoint.dslContext());
             this.schemaCleaner = new SchemaCleaner(schema, dsl);
         }
     }
@@ -132,6 +138,24 @@ public class TestDbEndpoint {
     private void complete(DbEndpoint endpoint) throws InterruptedException {
         MultiDbTestBase.getTestCompleter().completeEndpoint(endpoint);
         endpoint.awaitCompletion(60L, TimeUnit.SECONDS);
+    }
+
+    private DSLContext addSchemaMapping(DSLContext dsl) {
+        Configuration config = dsl.configuration().derive();
+        RenderMapping mapping = config.settings().getRenderMapping();
+        if (mapping == null) {
+            mapping = new RenderMapping();
+            config.settings().setRenderMapping(mapping);
+        }
+        List<MappedSchema> schemaMappings = mapping.getSchemata();
+        if (schemaMappings == null) {
+            schemaMappings = new ArrayList<>();
+            mapping.setSchemata(schemaMappings);
+        }
+        schemaMappings.add(new MappedSchema()
+                .withInput(schema.getName())
+                .withOutput(endpoint.getConfig().getSchemaName()));
+        return DSL.using(config);
     }
 
     /**

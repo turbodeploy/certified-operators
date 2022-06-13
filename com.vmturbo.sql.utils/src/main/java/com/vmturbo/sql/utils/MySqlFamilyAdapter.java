@@ -10,9 +10,6 @@ import org.mariadb.jdbc.MariaDbDataSource;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
-// TODO This adapter implementation - and the whole DbEndpoint approach in general - has not yet
-// been fully ported to work in MySQL/MariaDB. Initial focus on needs for XLR floodgate
-
 /**
  * {@link DbAdapter} implementation for MySql and MariaDB endpoints.
  */

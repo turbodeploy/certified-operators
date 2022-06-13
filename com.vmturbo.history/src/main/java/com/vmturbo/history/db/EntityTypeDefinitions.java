@@ -22,7 +22,7 @@ import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.components.common.utils.RollupTimeFrame;
 import com.vmturbo.history.db.EntityType.UseCase;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -190,22 +190,22 @@ public class EntityTypeDefinitions {
         return builder.build();
     }
 
-    static final Map<Class<?>, TimeFrame> TABLE_TO_TIME_FRAME_MAP = createTableToTimeFrameMap();
+    static final Map<Class<?>, RollupTimeFrame> TABLE_TO_TIME_FRAME_MAP = createTableToTimeFrameMap();
 
-    private static Map<Class<?>, TimeFrame> createTableToTimeFrameMap() {
-        final ImmutableMap.Builder<Class<?>, TimeFrame> builder = ImmutableMap.builder();
+    private static Map<Class<?>, RollupTimeFrame> createTableToTimeFrameMap() {
+        final ImmutableMap.Builder<Class<?>, RollupTimeFrame> builder = ImmutableMap.builder();
         ENTITY_TYPE_DEFINITIONS.stream()
                 .map(type -> (EntityTypeDefinition)type)
                 .filter(type -> type.aliasee == null)
                 .forEach(type -> {
                     Optional.ofNullable(type.latestTable).ifPresent(table -> builder.put(
-                            table.getClass(), TimeFrame.LATEST));
+                            table.getClass(), RollupTimeFrame.LATEST));
                     Optional.ofNullable(type.hourTable).ifPresent(
-                            table -> builder.put(table.getClass(), TimeFrame.HOUR));
+                            table -> builder.put(table.getClass(), RollupTimeFrame.HOUR));
                     Optional.ofNullable(type.dayTable).ifPresent(
-                            table -> builder.put(table.getClass(), TimeFrame.DAY));
+                            table -> builder.put(table.getClass(), RollupTimeFrame.DAY));
                     Optional.ofNullable(type.monthTable).ifPresent(
-                            table -> builder.put(table.getClass(), TimeFrame.MONTH));
+                            table -> builder.put(table.getClass(), RollupTimeFrame.MONTH));
                 });
         return builder.build();
     }

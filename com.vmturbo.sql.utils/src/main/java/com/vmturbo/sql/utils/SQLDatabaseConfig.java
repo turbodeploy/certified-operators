@@ -22,7 +22,6 @@ import javax.sql.DataSource;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.vmturbo.sql.utils.dbmonitor.MySQLDbMonitor;
 import com.zaxxer.hikari.HikariDataSource;
 
 import org.apache.commons.lang3.StringUtils;
@@ -57,6 +56,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.dbmonitor.DbMonitor;
 import com.vmturbo.sql.utils.dbmonitor.DbMonitorConfig;
+import com.vmturbo.sql.utils.dbmonitor.MySQLDbMonitor;
 import com.vmturbo.sql.utils.dbmonitor.ProcessListClassifier;
 import com.vmturbo.sql.utils.pool.DbConnectionPoolConfig;
 import com.vmturbo.sql.utils.pool.HikariPoolMonitor;
@@ -128,7 +128,7 @@ public abstract class SQLDatabaseConfig {
     private int dbPoolKeepAliveIntervalMinutes;
 
     @Value("${sqlDialect}")
-    protected SQLDialect sqlDialect;
+    public SQLDialect sqlDialect;
 
     @Value("${migrationLocation:}")
     private String migrationLocation;

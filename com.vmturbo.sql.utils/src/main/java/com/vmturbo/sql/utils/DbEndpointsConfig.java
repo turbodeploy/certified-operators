@@ -46,8 +46,13 @@ public class DbEndpointsConfig
     @Value("${dbEndpointMaxAwaitCompletion:30m}")
     private String dbEndpointMaxAwaitCompletion;
 
+    /**
+     * SQL Dialect for this build. We make this public so that components with DBs can figure out
+     * their dialect by looking either their `SQLDatabaseConfig` subclass, or their
+     * `DbEndpointsConfig` subclass, depending on the `POSTGRES_PRIMARY_DB` feature flag setting.
+     */
     @Value("${sqlDialect}")
-    protected SQLDialect sqlDialect;
+    public SQLDialect sqlDialect;
 
     /**
      * The Spring environment, injected by the framework.

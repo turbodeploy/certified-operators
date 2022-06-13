@@ -4,7 +4,7 @@ import static com.vmturbo.history.listeners.IngestionStatus.IngestionState.Expec
 import static com.vmturbo.history.listeners.IngestionStatus.IngestionState.None;
 import static com.vmturbo.history.listeners.IngestionStatus.IngestionState.Processing;
 import static com.vmturbo.history.listeners.IngestionStatus.IngestionState.Received;
-import static com.vmturbo.history.listeners.ProcessingLoop.ProcessingAction.Repartition;
+import static com.vmturbo.history.listeners.ProcessingLoop.ProcessingAction.RetentionUpdate;
 import static com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor.Live;
 import static com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor.Projected;
 
@@ -25,6 +25,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.history.ingesters.IngestionMetrics;
 import com.vmturbo.history.ingesters.IngestionMetrics.SafetyValve;
 import com.vmturbo.history.listeners.IngestionStatus.IngestionState;
@@ -35,13 +36,13 @@ import com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor;
  * projected real-time topologies and performing periodic rollup and repartitioning operations.
  *
  * <p>Plan topologies are not managed by {@link ProcessingLoop} because there's no need to
- * coordinate their ingestion with rollup processing. Plan topologies are processed as soon
- * as they're received.</p>
+ * coordinate their ingestion with rollup processing. Plan topologies are processed as soon as
+ * they're received.</p>
  *
  * <p>The instance operates as something like an event loop. Events detected by the topology
- * coordinator result in changes in an associated {@link ProcessingStatus} instance. Whenever
- * the processing loop fires, it scans the current processing status and chooses one or more
- * actions to carry out. These actions also may cause updates to the processing state.
+ * coordinator result in changes in an associated {@link ProcessingStatus} instance. Whenever the
+ * processing loop fires, it scans the current processing status and chooses one or more actions to
+ * carry out. These actions also may cause updates to the processing state.
  *
  * <p>In general, the coordinator should not take actions except as directed by the processing
  * loop.</p>
@@ -82,12 +83,12 @@ class ProcessingLoop implements Runnable {
      * chicken-egg situation.
      *
      * <p>The issue arises because TopologyCoordinator either creates its own ProcessingLoop
-     * thread, or it gets passed in. But ProcessingLoop needs its associated TopologyCoordinator
-     * as a constructor argument. This alternative constructor allows things to be wired
-     * together using a {@link java.util.concurrent.CompletableFuture} for the topology coordinator
-     * handed to the processing loop. In that case, a FutureResolvingTopologyCoordinator is
-     * created and passed to the normal constructor, and the procesing loop will resolve that to
-     * the real topology coordinator at startup.</p>
+     * thread, or it gets passed in. But ProcessingLoop needs its associated TopologyCoordinator as
+     * a constructor argument. This alternative constructor allows things to be wired together using
+     * a {@link java.util.concurrent.CompletableFuture} for the topology coordinator handed to the
+     * processing loop. In that case, a FutureResolvingTopologyCoordinator is created and passed to
+     * the normal constructor, and the procesing loop will resolve that to the real topology
+     * coordinator at startup.</p>
      *
      * @param topologyCoordinatorFuture future that will resolve to the associated coordiator
      * @param processingStatus          processing status object
@@ -142,7 +143,8 @@ class ProcessingLoop implements Runnable {
                     final Pair<ProcessingAction, Object> nextAction = chooseNextAction();
                     switch (nextAction.getLeft()) {
                         case RunIngestion:
-                            final IngestionStatus ingestion = (IngestionStatus)nextAction.getRight();
+                            final IngestionStatus ingestion =
+                                    (IngestionStatus)nextAction.getRight();
                             // mark the ingestion for processing
                             ingestion.startIngestion();
                             // and wake up the waiting thread
@@ -156,8 +158,9 @@ class ProcessingLoop implements Runnable {
                             // repartitioning happens as a side-effect of this
                             processingStatus.setLastRepartitionTime(Instant.now());
                             break;
-                        case Repartition:
-                            if (processingStatus.getLastRepartitionTime() != Instant.MIN) {
+                        case RetentionUpdate:
+                            if (!FeatureFlags.OPTIMIZE_PARTITIONING.isEnabled()
+                                    && processingStatus.getLastRepartitionTime() != Instant.MIN) {
                                 logger.error("Running repartioning because the time limit was "
                                         + "exceeded; this could signal a serious issue with "
                                         + "topology processing in history component.");
@@ -166,6 +169,9 @@ class ProcessingLoop implements Runnable {
                                         .increment();
                             }
                             topologyCoordinator.runRetentionProcessing();
+                            if (!FeatureFlags.OPTIMIZE_PARTITIONING.isEnabled()) {
+                                processingStatus.setLastRepartitionTime(Instant.now());
+                            }
                             break;
                         case Idle:
                             try {
@@ -176,7 +182,7 @@ class ProcessingLoop implements Runnable {
                                     // here we'll wait for an external event that might require
                                     // a response, but with a timeout so we can check on our
                                     // various safety-valves like not allowing too much time
-                                    // to pass between repartitioning runs
+                                    // to pass before ingestion a topology after it is received
                                     Thread.currentThread().wait(maxSleepMillis);
                                 }
                             } catch (InterruptedException e) {
@@ -217,12 +223,14 @@ class ProcessingLoop implements Runnable {
 
     @VisibleForTesting
     Pair<ProcessingAction, Object> chooseNextAction() {
-        // if we're overdue for repartitioning, do that now... if that doesn't happen regularly
-        // we risk exhausting space on the DB server
-        final Instant cutoff = processingStatus.getLastRepartitionTime()
-                .plus(repartioningTimeoutSecs, ChronoUnit.SECONDS);
-        if (Instant.now().isAfter(cutoff)) {
-            return Pair.of(Repartition, null);
+        if (!FeatureFlags.OPTIMIZE_PARTITIONING.isEnabled()) {
+            // if we're overdue for repartitioning, do that now... if that doesn't happen regularly
+            // we risk exhausting space on the DB server
+            final Instant cutoff = processingStatus.getLastRepartitionTime()
+                    .plus(repartioningTimeoutSecs, ChronoUnit.SECONDS);
+            if (Instant.now().isAfter(cutoff)) {
+                return Pair.of(RetentionUpdate, null);
+            }
         }
         // first a little housekeeping... drop any expired processing status data
         processingStatus.prune();
@@ -305,7 +313,8 @@ class ProcessingLoop implements Runnable {
     }
 
     /**
-     * Find the least recent snapshot for which daily/monthly rollups should be processed and do it.
+     * Find the least recent snapshot for which daily/monthly rollups should be processed and do
+     * it.
      *
      * <p>A snapshotqualifies if the next later snapshot falls in a different hour, and if
      * it and all prior snapshot in the same hour are resolved and have been rolled up into an
@@ -389,7 +398,8 @@ class ProcessingLoop implements Runnable {
                     release(projectedIngestion);
                 } else if (state == Expected) {
                     String topologyLabel = projectedIngestion.getTopologyLabel();
-                    logger.warn("Expected topology {} never arrived, marking as missed.", topologyLabel);
+                    logger.warn("Expected topology {} never arrived, marking as missed.",
+                            topologyLabel);
                     projectedIngestion.miss();
                 } else if (state == None) {
                     projectedIngestion.miss();
@@ -416,7 +426,8 @@ class ProcessingLoop implements Runnable {
                 // ingestions in this state are waiting for a decision, so release them
                 release(liveIngestion);
             } else if (state == Expected) {
-                logger.warn("Expected topology {} never arrived, marking as missed.", topologyLabel);
+                logger.warn("Expected topology {} never arrived, marking as missed.",
+                        topologyLabel);
                 liveIngestion.miss();
             }
         }
@@ -459,7 +470,7 @@ class ProcessingLoop implements Runnable {
         /** Run dayly/monthly rollups for a timestamp. */
         RunDayMonthRollup,
         /** Run repartioning, outside of normal rollup processing. */
-        Repartition,
+        RetentionUpdate,
         /** Nothing to do until status changes. */
         Idle
     }
