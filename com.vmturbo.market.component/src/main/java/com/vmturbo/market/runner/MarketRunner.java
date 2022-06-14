@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -18,6 +19,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.opentracing.SpanContext;
 
@@ -33,11 +35,9 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.PlacementProblem;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -97,6 +97,11 @@ public class MarketRunner {
 
     private final AnalysisHealthTracker analysisHealthTracker;
 
+    /**
+     * Scheduler for the analysis watchdogs.
+     */
+    private final ScheduledExecutorService analysisWatchdogScheduler;
+
     public MarketRunner(@Nonnull final ExecutorService runnerThreadPool,
                         @Nonnull final MarketNotificationSender serverApi,
                         @Nonnull final AnalysisFactory analysisFactory,
@@ -115,6 +120,8 @@ public class MarketRunner {
         this.rtAnalysisTimeoutSecs = rtAnalysisTimeoutSecs;
         this.componentRestartHelper = componentRestartHelper;
         this.analysisHealthTracker = analysisHealthTracker;
+        this.analysisWatchdogScheduler = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
+                .setNameFormat("analysis-watchdog-%d").build());
     }
 
     /**
@@ -316,13 +323,13 @@ public class MarketRunner {
     private void runAnalysis(@Nonnull final Analysis analysis) {
         boolean isPlan = analysis.getTopologyInfo().hasPlanInfo();
         long startTime = 0;
+        ScheduledFuture<?> watchdog = null;
         if (!isPlan) {
             if (!FeatureFlags.DISABLE_ANALYSIS_TIMEOUT.isEnabled()) {
-                ScheduledExecutorService timeoutScheduler = Executors.newSingleThreadScheduledExecutor();
                 logger.info("Scheduling forcestop for analysis {}", analysis.getTopologyId());
                 long contextId = analysis.getContextId();
                 long topologyId = analysis.getTopologyId();
-                timeoutScheduler.schedule(() -> {
+                watchdog = analysisWatchdogScheduler.schedule(() -> {
                     try {
                         // avoid using reference to analysis here as it will result in retaining
                         // reference to entire broadcasted topology till the timeout is triggered.
@@ -344,6 +351,14 @@ public class MarketRunner {
             analysis.execute();
         } finally {
             TheMatrix.clearInstance(analysis.getTopologyInfo().getTopologyId());
+            if (watchdog != null) {
+                // Cancel the analysis watchdog
+                logger.debug("Canceling analysis watchdog, isDone: {}, isCanceled: {}",
+                        watchdog.isDone(), watchdog.isCancelled());
+                // To avoid any race conditions, always cancel the watchdog.  It's okay to cancel
+                // a future that's already complete.
+                watchdog.cancel(true);
+            }
         }
         try {
             componentRestartHelper.updateResult(analysis.isDone());
