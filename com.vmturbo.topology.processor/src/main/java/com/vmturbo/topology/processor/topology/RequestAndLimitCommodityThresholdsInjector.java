@@ -16,7 +16,6 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl.ThresholdsImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -251,70 +250,6 @@ public class RequestAndLimitCommodityThresholdsInjector {
                 });
             stats.incrementEntitiesModified();
         });
-    }
-
-    /**
-     * Inject commodity min threshold as current reservation to prevent resizing down limit or request below
-     * current reservation so as to avoid resize down action failure.
-     *
-     * @param graph The {@link TopologyGraph} containing all the entities in the topology and their
-     *              relationships.
-     * @return {@link InjectionStats} summarizing the changes made.
-     */
-    public InjectionStats injectMinThresholdsFromReservation(@Nonnull final TopologyGraph<TopologyEntity> graph) {
-        final InjectionStats injectionStats = new InjectionStats();
-        graph.entitiesOfType(EntityType.VIRTUAL_MACHINE.getNumber()).forEach(entity ->
-            injectMinThresholdsFromReservation(entity, injectionStats));
-        if (injectionStats.entitiesModified > 0) {
-            logger.info("Injected {} commodity min thresholds from reservation on {} entities.",
-                injectionStats.getCommoditiesModified(),
-                injectionStats.getEntitiesModified());
-        }
-        return injectionStats;
-    }
-
-    /**
-     * Inject commodity min threshold as current reservation to prevent resizing down limit or request below
-     * current reservation so as to avoid resize down action failure.
-     *
-     * @param entity Given entity whose commodities on which we wish to inject min thresholds from reservation.
-     * @param stats  For summarizing the changes made. Stats will be incremented depending to indicate
-     *               the thresholds injected.
-     */
-    private void injectMinThresholdsFromReservation(@Nonnull final TopologyEntity entity,
-                                                    @Nonnull final InjectionStats stats) {
-        // Extract reserved CPU capacity from commodity bought.
-        final Optional<Double> reservedCapacityOptional = entity.getTopologyEntityImpl()
-            .getCommoditiesBoughtFromProvidersList().stream()
-            .filter(commBoughtGrouping -> commBoughtGrouping.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
-            .flatMap(commBoughtGrouping -> commBoughtGrouping.getCommodityBoughtList().stream())
-            .filter(commBought -> commBought.getCommodityType().getType() == CommodityType.CPU_VALUE)
-            .filter(CommodityBoughtView::hasReservedCapacity)
-            .map(CommodityBoughtView::getReservedCapacity)
-            .findFirst();
-
-        if (reservedCapacityOptional.isPresent()) {
-            final double reservedCapacity = reservedCapacityOptional.get();
-            entity.getTopologyEntityImpl()
-                .getCommoditySoldListImplList().stream()
-                .filter(commSold -> commSold.getCommodityType().getType() == CommodityType.VCPU_VALUE)
-                .forEach(commSold -> {
-                    // If commodity has existing thresholds, update min threshold.
-                    if (commSold.hasThresholds()) {
-                        // Set minThreshold to Math.min(Math.max(minThreshold, reservedCapacity), maxThreshold))
-                        final ThresholdsImpl threshold = commSold.getOrCreateThresholds();
-                        double newMinThreshold = Math.max(threshold.getMin(), reservedCapacity);
-                        if (threshold.hasMax()) {
-                            newMinThreshold = Math.min(newMinThreshold, threshold.getMax());
-                        }
-                        threshold.setMin(newMinThreshold);
-                    } else {
-                        commSold.setThresholds(new ThresholdsImpl().setMin(reservedCapacity));
-                    }
-                    stats.incrementCommoditiesModified();
-                    stats.incrementEntitiesModified();
-                });
-        }
     }
 
     /**
