@@ -14,15 +14,13 @@ COPY licenses /licenses
 
 RUN groupadd -g 101 mysql && useradd -r -g 101 -s /bin/bash -u 101 mysql
 
-ENV VERSION=10.5.13
+ENV VERSION=10.5.16
 ENV BOOST_URL=http://10.10.150.66/repository/xl/boost-program-options-1.66.0-14.fc29.x86_64.rpm
 
 RUN echo "[mariadb]" > /etc/yum.repos.d/MariaDB.repo && \
     echo "name = MariaDB-${VERSION}" >> /etc/yum.repos.d/MariaDB.repo && \
-
     #echo "baseurl = https://yum.mariadb.org/${VERSION}/rhel8-amd64/" >> /etc/yum.repos.d/MariaDB.repo && \
     echo "baseurl = https://archive.mariadb.org/mariadb-${VERSION}/yum/rhel8-amd64/" >> /etc/yum.repos.d/MariaDB.repo && \
-
     echo "gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB" >> /etc/yum.repos.d/MariaDB.repo && \
     echo "gpgcheck=1" >> /etc/yum.repos.d/MariaDB.repo && \
     dnf install -y ${BOOST_URL} && \
