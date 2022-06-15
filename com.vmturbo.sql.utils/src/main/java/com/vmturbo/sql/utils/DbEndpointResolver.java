@@ -280,8 +280,10 @@ public class DbEndpointResolver {
      */
     public void resolvePassword() throws UnsupportedDialectException {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getPassword);
-        config.setPassword(Optional.ofNullable(firstNonEmpty(configuredPropValue(PASSWORD_PROPERTY),
-                        config.getPassword(), fromTemplate))
+        config.setPassword(Optional.ofNullable(
+                firstNonEmpty(configuredPropValue(PASSWORD_PROPERTY), config.getPassword(),
+                        fromTemplate, getFromTemplate(DbEndpointConfig::getRootPassword),
+                        config.getRootPassword()))
                 .orElseGet(dbPasswordUtil::getSqlDbRootPassword));
     }
 

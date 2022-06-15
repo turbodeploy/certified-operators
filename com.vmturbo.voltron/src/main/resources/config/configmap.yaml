@@ -32,6 +32,13 @@ defaultProperties:
     # Default stat retention times
     retention.numRetainedMinutes: 130
     # DB
+    # uncomment following to enable POSTGRES with DbEndpoint
+    # sqlDialect: POSTGRES
+    # dbPort: 5432
+    # dbRootUsername: postgres
+    # dbRootPassword: vmturbo
+    # dbUsername: postgres
+    # MariaDB with Legacy SqlDatabaseConfig
     dbPort: 3306
     dbUsername: root
     sqlDialect: MARIADB
