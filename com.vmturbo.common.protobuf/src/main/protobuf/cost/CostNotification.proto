@@ -4,6 +4,8 @@ package cost;
 option java_package = "com.vmturbo.common.protobuf.cost";
 
 import "plan/PlanProgressStatusEnum.proto";
+import "cost/Cost.proto";
+import "topology/TopologyDTO.proto";
 
 // This defines notifications that are sent to subscribing components in various circumstances.
 // It is the notification message from cost component to plan orchestrator at the end of an
@@ -82,5 +84,31 @@ message CostNotification {
 
         // The end timestamp (exclusive) of available savings data.
         optional uint64 end_date = 2;
+    }
+}
+
+// On-demand cost information for an entire topology (used by suspend component)
+message TopologyOnDemandCostChunk {
+
+    optional int64 topology_oid = 1;
+
+    oneof segment {
+        Start start = 2;
+        Data data = 3;
+        End end = 4;
+    }
+
+    message Start {
+        // Basic information about the topology
+        optional .topology.TopologyInfo topology_info = 1;
+    };
+
+    message Data {
+        repeated EntityCost entity_costs = 1;
+    }
+
+    message End {
+        // Total number of costs sent (can be used for integrity checks)
+        optional uint64 total_count = 1;
     }
 }
