@@ -65,9 +65,6 @@ class PropertyRegistry {
 
         props.put("postgresPort", "5432");
 
-        props.put("dbRootUsername", "root");
-        props.put("dbRootPassword", "vmturbo");
-
         props.put("authDbUsername", "auth");
         props.put("authDbPassword", "vmturbo");
         props.put("clustermgrDbUsername", "clustermgr");

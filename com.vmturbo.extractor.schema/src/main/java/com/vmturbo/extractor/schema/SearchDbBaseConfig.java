@@ -1,11 +1,14 @@
 package com.vmturbo.extractor.schema;
 
+import java.util.Objects;
+
 import org.jooq.SQLDialect;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpointBuilder;
 import com.vmturbo.sql.utils.DbEndpointsConfig;
 
 /**
@@ -45,13 +48,17 @@ public class SearchDbBaseConfig extends DbEndpointsConfig {
      */
     @Bean
     public DbEndpoint extractorMySqlDbEndpoint() {
-        return abstractDbEndpoint(null, SQLDialect.MYSQL)
+        final DbEndpointBuilder builder = abstractDbEndpoint(null, SQLDialect.MYSQL)
                 .withDatabaseName(searchDatabaseName)
                 .withSchemaName(searchDatabaseName)
                 .withRootUserName(searchDatabaseRootUser)
                 .withUserName(searchDatabaseUser)
                 .withHost(searchDbHost)
-                .withNoMigrations()
-                .build();
+                .withNoMigrations();
+        // Add the root db password if it's injected
+        if (Objects.nonNull(super.dbRootPassword)) {
+            builder.withRootPassword(super.dbRootPassword);
+        }
+        return builder.build();
     }
 }

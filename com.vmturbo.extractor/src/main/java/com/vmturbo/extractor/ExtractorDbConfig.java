@@ -1,8 +1,11 @@
 package com.vmturbo.extractor;
 
 import java.time.Duration;
+import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -25,6 +28,7 @@ import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.SearchDbBaseConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
+import com.vmturbo.sql.utils.DbEndpointBuilder;
 import com.vmturbo.sql.utils.DbEndpointsConfig;
 import com.vmturbo.sql.utils.sizemon.DbSizeMonitor;
 
@@ -140,14 +144,14 @@ public class ExtractorDbConfig extends DbEndpointsConfig {
     @Primary
     @Bean
     public DbEndpoint ingesterEndpoint() {
-        return derivedDbEndpoint("dbs.extractor", dbBaseConfig.extractorDbEndpointBase())
-                .withUseConnectionPool(false)
+        final DbEndpointBuilder dbEndpointBuilder = derivedDbEndpoint("dbs.extractor",
+                dbBaseConfig.extractorDbEndpointBase()).withUseConnectionPool(false)
                 .withAccess(DbEndpointAccess.ALL)
                 .withShouldProvision(true)
                 .withRootAccessEnabled(true)
                 .withEndpointEnabled(extractorGlobalConfig.requireDatabase())
-                .withFlywayCallbacks(flywayCallbacks())
-                .build();
+                .withFlywayCallbacks(flywayCallbacks());
+        return addOptionalConfig(dbEndpointBuilder);
     }
 
     /**
@@ -157,13 +161,13 @@ public class ExtractorDbConfig extends DbEndpointsConfig {
      */
     @Bean
     public DbEndpoint ingesterMySqlEndpoint() {
-        return derivedDbEndpoint("dbs.search", searchDbBaseConfig.extractorMySqlDbEndpoint())
-                .withUseConnectionPool(false)
+        DbEndpointBuilder dbEndpointBuilder = derivedDbEndpoint("dbs.search",
+                searchDbBaseConfig.extractorMySqlDbEndpoint()).withUseConnectionPool(false)
                 .withAccess(DbEndpointAccess.ALL)
                 .withShouldProvision(true)
                 .withRootAccessEnabled(true)
-                .withEndpointEnabled(extractorGlobalConfig.requireDatabase())
-                .build();
+                .withEndpointEnabled(extractorGlobalConfig.requireDatabase());
+        return addOptionalConfig(dbEndpointBuilder);
     }
 
     /**
@@ -173,13 +177,12 @@ public class ExtractorDbConfig extends DbEndpointsConfig {
      */
     @Bean
     public DbEndpoint queryEndpoint() {
-        return derivedDbEndpoint("dbs.extractor.query",
-                dbBaseConfig.extractorQueryDbEndpointBase())
-                .withUseConnectionPool(false)
+        final DbEndpointBuilder dbEndpointBuilder = derivedDbEndpoint("dbs.extractor.query",
+                dbBaseConfig.extractorQueryDbEndpointBase()).withUseConnectionPool(false)
                 .withShouldProvisionUser(true)
                 .withRootAccessEnabled(true)
-                .withEndpointEnabled(extractorGlobalConfig.requireDatabase())
-                .build();
+                .withEndpointEnabled(extractorGlobalConfig.requireDatabase());
+        return addOptionalConfig(dbEndpointBuilder);
     }
 
 
@@ -195,20 +198,19 @@ public class ExtractorDbConfig extends DbEndpointsConfig {
      */
     @Bean
     public DbEndpoint grafanaWriterEndpoint() {
-        return dbEndpoint("dbs.grafana", SQLDialect.POSTGRES)
-                .withUseConnectionPool(false)
+        final DbEndpointBuilder dbEndpointBuilder = dbEndpoint("dbs.grafana",
+                SQLDialect.POSTGRES).withUseConnectionPool(false)
                 .withSchemaName("grafana_writer")
                 .withAccess(DbEndpointAccess.ALL)
                 .withShouldProvision(true)
                 .withMigrationLocations("db.migration.grafana")
                 .withRootAccessEnabled(true)
-                .withEndpointEnabled(r ->
-                        !FeatureFlags.SAAS_REPORTING.isEnabled()
-                                && r.apply("dbs.grafana.databaseName") != null
-                                && r.apply("dbs.grafana.userName") != null
-                                && r.apply("dbs.grafana.password") != null
-                                && extractorGlobalConfig.featureFlags().isReportingEnabled())
-                .build();
+                .withEndpointEnabled(r -> !FeatureFlags.SAAS_REPORTING.isEnabled()
+                        && r.apply("dbs.grafana.databaseName") != null
+                        && r.apply("dbs.grafana.userName") != null
+                        && r.apply("dbs.grafana.password") != null
+                        && extractorGlobalConfig.featureFlags().isReportingEnabled());
+        return addOptionalConfig(dbEndpointBuilder);
     }
 
     /**
@@ -248,5 +250,17 @@ public class ExtractorDbConfig extends DbEndpointsConfig {
      */
     public int getDbFetchSize() {
         return dbFetchSize;
+    }
+
+    // add optional config
+    private DbEndpoint addOptionalConfig(final @Nonnull DbEndpointBuilder dbEndpointBuilder) {
+        // Add the root db credential if they are injected
+        if (Objects.nonNull(super.dbRootPassword)) {
+            dbEndpointBuilder.withRootPassword(super.dbRootPassword);
+        }
+        if (Objects.nonNull(super.dbRootUsername)) {
+            dbEndpointBuilder.withRootUserName(super.dbRootUsername);
+        }
+        return dbEndpointBuilder.build();
     }
 }
