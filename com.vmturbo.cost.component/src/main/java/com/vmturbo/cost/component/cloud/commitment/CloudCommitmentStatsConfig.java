@@ -1,7 +1,6 @@
 package com.vmturbo.cost.component.cloud.commitment;
 
 import java.sql.SQLException;
-import java.util.HashMap;
 
 import javax.annotation.Nonnull;
 
@@ -18,9 +17,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Scope;
 
-import com.vmturbo.cloud.common.commitment.TopologyEntityCommitmentTopology;
 import com.vmturbo.cloud.common.stat.CloudGranularityCalculator;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServicesREST.CloudCommitmentStatsServiceController;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServicesREST.CloudCommitmentUploadServiceController;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -50,18 +47,13 @@ import com.vmturbo.cost.component.stores.InMemorySourceProjectedFieldsDataStore;
 import com.vmturbo.cost.component.stores.JsonDiagnosableDataStoreCollector;
 import com.vmturbo.cost.component.stores.SingleFieldDataStore;
 import com.vmturbo.cost.component.stores.SourceProjectedFieldsDataStore;
-import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.market.component.api.MarketComponent;
-import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * A configuration file for cloud commitment statistics stores (coverage & utilization),
  * as well as the associated RPC classes.
  */
-@Import({DbAccessConfig.class,
-        GroupClientConfig.class,
-        RepositoryClientConfig.class})
+@Import({DbAccessConfig.class})
 @Configuration
 public class CloudCommitmentStatsConfig {
 
@@ -72,15 +64,6 @@ public class CloudCommitmentStatsConfig {
     // Should be auto-wired from ReservedInstanceConfig
     @Autowired
     private TimeFrameCalculator timeFrameCalculator;
-
-    @Autowired
-    private RepositoryClientConfig repositoryClientConfig;
-
-    @Autowired
-    private GroupClientConfig groupClientConfig;
-
-    @Autowired
-    private MarketComponent marketComponent;
 
     @Value("${cloudCommitment.maxStatRecordsPerChunk:100}")
     private int maxStatRecordsPerChunk;
@@ -440,42 +423,5 @@ public class CloudCommitmentStatsConfig {
     public CloudCommitmentStatsServiceController cloudCommitmentStatsServiceController(
             @Nonnull final CloudCommitmentStatsRpcService cloudCommitmentStatsRpcService) {
         return new CloudCommitmentStatsServiceController(cloudCommitmentStatsRpcService);
-    }
-
-    /**
-     * A bean for {@link ProjectedCommitmentMappingProcessor}.
-     *
-     * @return A bean for {@link ProjectedCommitmentMappingProcessor}.
-     */
-    @Bean
-    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    public ProjectedCommitmentMappingProcessor projectedCommitmentMappingProcessor(
-            @Nonnull final SingleFieldDataStore<CoverageInfo, TopologyEntityCoverageFilter> projectedTopologyCommitmentCoverageStore,
-            @Nonnull final SingleFieldDataStore<MappingInfo, CommitmentMappingFilter> projectedTopologyCommitmentMappingStore,
-            @Nonnull final SingleFieldDataStore<UtilizationInfo, TopologyCommitmentUtilizationFilter> projectedTopologyCommitmentUtilizationStore) {
-        return new ProjectedCommitmentMappingProcessor(new HashMap<>(),
-                new HashMap<>(),
-                new TopologyCommitmentCoverageWriter.Factory(
-                        projectedTopologyCommitmentCoverageStore,
-                        projectedTopologyCommitmentMappingStore,
-                        projectedTopologyCommitmentUtilizationStore,
-                        new TopologyEntityCommitmentTopology.TopologyEntityCommitmentTopologyFactory()),
-                repositoryClientConfig.repositoryClient(),
-                new DefaultTopologyEntityCloudTopologyFactory(
-                        groupClientConfig.groupMemberRetriever()));
-    }
-
-    /**
-     * Returns the projected cloud commitment mapping listener.
-     *
-     * @return The projected cloud commitment mapping listener.
-     */
-    @Bean
-    public CostComponentProjectedCommitmentMappingListener projectedEntityCommitmentMappingsListener(
-            @Nonnull ProjectedCommitmentMappingProcessor projectedCommitmentMappingProcessor) {
-        final CostComponentProjectedCommitmentMappingListener projectedEntityCommitmentMappingsListener =
-                new CostComponentProjectedCommitmentMappingListener(projectedCommitmentMappingProcessor);
-        marketComponent.addProjectedCommitmentMappingListener(projectedEntityCommitmentMappingsListener);
-        return projectedEntityCommitmentMappingsListener;
     }
 }

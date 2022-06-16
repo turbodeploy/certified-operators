@@ -62,7 +62,8 @@ public class ProjectedCommitmentMappingProcessorTest {
                 projectedCloudCommitmentMapping,
                 commitmentCoverageWriterFactory,
                 repositoryClient,
-                cloudTopologyFactory);
+                cloudTopologyFactory,
+                true);
         when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong())).thenReturn(topologyEntities);
         when(cloudTopologyFactory.newCloudTopology(topologyEntities)).thenReturn(cloudTopology);
         when(commitmentCoverageWriterFactory.newWriter(cloudTopology)).thenReturn(topologyCommitmentCoverageWriter);
