@@ -10,6 +10,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -24,6 +25,7 @@ public class DataExtractionFactoryTest {
     private final ThinTargetCache targetCache = mock(ThinTargetCache.class);
     private final DataProvider dataProvider = mock(DataProvider.class);
     private final ExtractorKafkaSender extractorKafkaSender = mock(ExtractorKafkaSender.class);
+    private final ExtractorFeatureFlags featureFlags = mock(ExtractorFeatureFlags.class);
     private DataExtractionFactory dataExtractionFactory;
 
     /**
@@ -34,7 +36,7 @@ public class DataExtractionFactoryTest {
     @Before
     public void setUp() throws Exception {
         dataExtractionFactory = new DataExtractionFactory(dataProvider, targetCache,
-                extractorKafkaSender, ENTITY_EXTRACTION_INTERVAL_MS, clock);
+                extractorKafkaSender, ENTITY_EXTRACTION_INTERVAL_MS, clock, featureFlags);
     }
 
     /**

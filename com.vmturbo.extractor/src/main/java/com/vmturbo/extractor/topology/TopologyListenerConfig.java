@@ -548,7 +548,7 @@ public class TopologyListenerConfig {
                 extractorGlobalConfig.globalExtractionIntervalMins);
         return new DataExtractionFactory(dataProvider(), targetCache(), extractorKafkaSender(),
                 Optional.ofNullable(extractionIntervalMins).map(TimeUnit.MINUTES::toMillis).orElse(null),
-                extractorGlobalConfig.clock());
+                extractorGlobalConfig.clock(), extractorGlobalConfig.featureFlags());
     }
 
     /**

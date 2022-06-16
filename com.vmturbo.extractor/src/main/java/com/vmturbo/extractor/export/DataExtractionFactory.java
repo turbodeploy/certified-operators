@@ -10,6 +10,7 @@ import org.apache.commons.lang3.mutable.MutableLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher.PatchCase;
@@ -39,23 +40,26 @@ public class DataExtractionFactory {
     private final Long entityExtractionIntervalMillis;
     private final Clock clock;
 
+    private final ExtractorFeatureFlags featureFlags;
+
     /**
      * Constructor for {@link DataExtractionFactory}.
-     *
-     * @param dataProvider a provider of topology-wide data
+     *  @param dataProvider a provider of topology-wide data
      * @param targetCache cache for all targets in the system
      * @param extractorKafkaSender for sending entities to kafka
      * @param entityExtractionIntervalMillis the interval for extracting entities, may be null
      * @param clock clock
+     * @param featureFlags providing access to extractor's feature flags
      */
     public DataExtractionFactory(DataProvider dataProvider, ThinTargetCache targetCache,
             ExtractorKafkaSender extractorKafkaSender, Long entityExtractionIntervalMillis,
-            Clock clock) {
+            Clock clock, ExtractorFeatureFlags featureFlags) {
         this.dataProvider = dataProvider;
         this.targetCache = targetCache;
         this.extractorKafkaSender = extractorKafkaSender;
         this.entityExtractionIntervalMillis = entityExtractionIntervalMillis;
         this.clock = clock;
+        this.featureFlags = featureFlags;
     }
 
     /**
@@ -88,7 +92,7 @@ public class DataExtractionFactory {
             return Optional.empty();
         }
         return Optional.of(new RelatedEntitiesExtractor(topologyGraph, supplyChain,
-                dataProvider.getGroupData()));
+                dataProvider.getGroupData(), featureFlags));
     }
 
     /**

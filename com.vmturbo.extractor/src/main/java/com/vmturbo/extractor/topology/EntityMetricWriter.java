@@ -698,7 +698,13 @@ public class EntityMetricWriter extends TopologyWriterBase {
         logger.debug("Adding entities to scope for entity {}: {}", () -> oid, () -> entitiesInScope);
         scopeManager.addInCurrentScope(oid, entitiesInScope.toLongArray());
         // then we collect all the groups that any of our related entities belong to...
-        LongSet groupsInScope = relatedEntitiesExtractor.getRelatedGroups(entitiesInScope.stream())
+        // Make sure that the entity that is being processed is included in the scope for
+        // calculation of related groups. This is necessary if the whitelisting of entity relations
+        // is enabled.
+        LongSet entitiesForRelatedGroupCalculation = new LongOpenHashSet(entitiesInScope);
+        entitiesForRelatedGroupCalculation.add(oid);
+        LongSet groupsInScope = relatedEntitiesExtractor
+                .getRelatedGroups(entitiesForRelatedGroupCalculation.stream())
                 .mapToLong(Grouping::getId)
                 .collect(LongOpenHashSet::new, LongSet::add, LongSet::addAll);
         logger.debug("Adding groups to scope for entity {}: {}", () -> oid, () -> groupsInScope);

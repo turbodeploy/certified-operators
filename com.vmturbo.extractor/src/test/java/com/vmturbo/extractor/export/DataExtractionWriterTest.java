@@ -68,6 +68,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.json.export.Entity;
@@ -164,8 +165,9 @@ public class DataExtractionWriterTest {
     private final ExtractorKafkaSender extractorKafkaSender = mock(ExtractorKafkaSender.class);
     private final ThinTargetCache targetCache = mock(ThinTargetCache.class);
     private final Clock clock = Clock.systemUTC();
+    private final ExtractorFeatureFlags featureFlags = mock(ExtractorFeatureFlags.class);
     private final DataExtractionFactory dataExtractionFactory = new DataExtractionFactory(
-            dataProvider, targetCache, extractorKafkaSender, null, clock);
+            dataProvider, targetCache, extractorKafkaSender, null, clock, featureFlags);
     private DataExtractionWriter writer;
     private List<ExportedObject> exportedObjectsCapture;
 
