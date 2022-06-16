@@ -37,8 +37,8 @@ spec:
       - name: {{ .Chart.Name }}-automigrate
         image: {{ template "image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["hydra"]
-        args: ["migrate", "sql", "-e", "--yes"]
+        command: ["/util/check_and_provision_db.sh"]
+        args: ["migrate"]
         env:
           - name: DSN
             valueFrom:
@@ -53,8 +53,11 @@ spec:
         securityContext:
           {{- toYaml .Values.deployment.securityContext | nindent 10 }}
         {{- end }}
-        {{- if .Values.deployment.extraVolumeMounts }}
         volumeMounts:
+          - mountPath: /etc/turbonomic
+            name: turbo-volume
+            readOnly: true
+        {{- if .Values.deployment.extraVolumeMounts }}
 {{ toYaml .Values.deployment.extraVolumeMounts | indent 10 }}
          {{- end }}
       {{- if .Values.job.extraInitContainers }}
@@ -66,8 +69,12 @@ spec:
       {{- end }}
       restartPolicy: Never
       shareProcessNamespace: {{ .Values.job.shareProcessNamespace }}
-      {{- if .Values.deployment.extraVolumes }}
       volumes:
+        - name: turbo-volume
+          configMap:
+            name: global-properties-{{ .Release.Name }}
+            optional: true
+      {{- if .Values.deployment.extraVolumes }}
 {{ toYaml .Values.deployment.extraVolumes | indent 8 }}
       {{- end }}
   backoffLimit: {{ .Values.job.spec.backoffLimit }}
