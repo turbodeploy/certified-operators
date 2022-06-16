@@ -34,6 +34,7 @@ public enum CloudType {
                     .put("aws lambda", AWS)
                     .put("azure subscription", AZURE)
                     .put("azure ea", AZURE)
+                    .put("azure billing", AZURE)
                     .put("azure service principal", AZURE)
                     .put("azure cost", AZURE)
                     .put("azure wasted volumes", AZURE)
