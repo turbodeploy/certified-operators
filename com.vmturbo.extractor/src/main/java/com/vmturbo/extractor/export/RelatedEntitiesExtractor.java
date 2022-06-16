@@ -19,6 +19,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
+import com.vmturbo.extractor.models.EntityRelationshipFilter;
 import com.vmturbo.extractor.schema.json.export.RelatedEntity;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.fetcher.GroupFetcher.GroupData;
@@ -42,19 +44,22 @@ public class RelatedEntitiesExtractor {
     private final SupplyChain supplyChain;
     private final GroupData groupData;
     private final RelatedEntityMapper relatedEntityMapper = new RelatedEntityMapper();
+    private final ExtractorFeatureFlags featureFlags;
 
     /**
      * Constructor for {@link RelatedEntitiesExtractor}.
-*
-     * @param graph topology graph containing all entities
-     * @param supplyChain supply chain data for all entities
+    *  @param graph topology graph containing all entities
+    * @param supplyChain supply chain data for all entities
      * @param groupData containing all groups related data
+     * @param featureFlags providing access to extractor's feature flags
      */
     public RelatedEntitiesExtractor(@Nonnull final TopologyGraph<SupplyChainEntity> graph,
-            @Nonnull final SupplyChain supplyChain, @Nullable final GroupData groupData) {
+            @Nonnull final SupplyChain supplyChain, @Nullable final GroupData groupData,
+            ExtractorFeatureFlags featureFlags) {
         this.graph = graph;
         this.supplyChain = supplyChain;
         this.groupData = groupData;
+        this.featureFlags = featureFlags;
     }
 
     /**
@@ -92,7 +97,17 @@ public class RelatedEntitiesExtractor {
         });
 
         // related groups
-        getRelatedGroups(relatedEntitiesByType.values().stream().flatMap(Collection::stream))
+        Collection<Long> relatedEntitiesForGroupCalculation = relatedEntitiesByType
+                .values()
+                .stream()
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
+
+        // Make sure the entity itself is always included in the entities used for fetching related
+        // groups. This is needed only if the whitelist is enabled.
+        relatedEntitiesForGroupCalculation.add(entityOid);
+
+        getRelatedGroups(relatedEntitiesForGroupCalculation.stream())
                 .collect(Collectors.groupingBy(grouping -> grouping.getDefinition().getType()))
                 .forEach((groupType, groupings) -> {
                     List<RelatedEntity> relatedGroups = groupings.stream()
@@ -113,6 +128,13 @@ public class RelatedEntitiesExtractor {
      * @return mapping from related entity/group type to list of related entities/groups
      */
     public Map<String, List<RelatedEntity>> extractRelatedEntities(long entityOid) {
+
+        Optional<SupplyChainEntity> entity = graph.getEntity(entityOid);
+        if (entity.isPresent()) {
+            return extractRelatedEntities(entityOid, getRelationsFilter(entity.get()));
+        }
+
+        logger.debug("Provided entity oid ({}) does not exist in topology graph", entityOid);
         return extractRelatedEntities(entityOid, INCLUDE_ALL_RELATED_ENTITY_TYPES);
     }
 
@@ -151,7 +173,24 @@ public class RelatedEntitiesExtractor {
      * @return related entities grouped by type
      */
     public Map<Integer, Set<Long>> getRelatedEntitiesByType(long entityOid) {
+
+        Optional<SupplyChainEntity> entity = graph.getEntity(entityOid);
+        if (entity.isPresent()) {
+            return getRelatedEntitiesByType(entityOid, getRelationsFilter(entity.get()));
+        }
+
+        logger.debug("Provided entity oid ({}) does not exist in topology graph", entityOid);
+
         return getRelatedEntitiesByType(entityOid, INCLUDE_ALL_RELATED_ENTITY_TYPES);
+    }
+
+    private Predicate<Integer> getRelationsFilter(SupplyChainEntity entity) {
+        int entityType = entity.getEntityType();
+
+        if (featureFlags.isEntityRelationWhitelistEnabled()) {
+            return EntityRelationshipFilter.forType(entityType);
+        }
+        return INCLUDE_ALL_RELATED_ENTITY_TYPES;
     }
 
     /**

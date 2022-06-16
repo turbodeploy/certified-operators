@@ -7,6 +7,7 @@ import static com.vmturbo.extractor.schema.enums.EntityType.DATABASE;
 import static com.vmturbo.extractor.schema.enums.EntityType.DATACENTER;
 import static com.vmturbo.extractor.schema.enums.EntityType.DISK_ARRAY;
 import static com.vmturbo.extractor.schema.enums.EntityType.GROUP;
+import static com.vmturbo.extractor.schema.enums.EntityType.NETWORK;
 import static com.vmturbo.extractor.schema.enums.EntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.extractor.schema.enums.EntityType.RESOURCE_GROUP;
 import static com.vmturbo.extractor.schema.enums.EntityType.STORAGE;
@@ -34,6 +35,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin.User;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.action.ActionConverter;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.json.export.RelatedEntity;
@@ -60,6 +62,10 @@ public class RelatedEntitiesExtractorTest {
     private static final long accountId2 = 522;
     private static final long dcId = 621;
     private static final long daId = 721;
+    private static final long nwId = 821;
+
+    private static final long missingEntityOid = 1234567;
+
     private static final Grouping CLUSTER_1 = Grouping.newBuilder()
             .setId(1234)
             .setDefinition(GroupDefinition.newBuilder()
@@ -95,6 +101,7 @@ public class RelatedEntitiesExtractorTest {
     private final SupplyChain supplyChain = mock(SupplyChain.class);
     private final GroupData groupData = mock(GroupData.class);
     private final TopologyGraph<SupplyChainEntity> topologyGraph = mock(TopologyGraph.class);
+    private ExtractorFeatureFlags featureFlags;
     private RelatedEntitiesExtractor relatedEntitiesExtractor;
 
     // mock topology
@@ -107,6 +114,7 @@ public class RelatedEntitiesExtractorTest {
     private final SupplyChainEntity account2 = mockEntity(accountId2, EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE);
     private final SupplyChainEntity dcEntity = mockEntity(dcId, EntityDTO.EntityType.DATACENTER_VALUE);
     private final SupplyChainEntity daEntity = mockEntity(daId, EntityDTO.EntityType.DISK_ARRAY_VALUE);
+    private final SupplyChainEntity nwEntity = mockEntity(nwId, EntityDTO.EntityType.NETWORK_VALUE);
 
     /**
      * Setup before each test.
@@ -118,7 +126,8 @@ public class RelatedEntitiesExtractorTest {
                 EntityDTO.EntityType.VIRTUAL_MACHINE.getNumber(), ImmutableSet.of(vmId),
                 EntityDTO.EntityType.DATABASE.getNumber(), ImmutableSet.of(dbId),
                 EntityDTO.EntityType.STORAGE.getNumber(), ImmutableSet.of(stId1, stId2),
-                EntityDTO.EntityType.PHYSICAL_MACHINE.getNumber(), ImmutableSet.of(pmId))
+                EntityDTO.EntityType.PHYSICAL_MACHINE.getNumber(), ImmutableSet.of(pmId),
+                EntityDTO.EntityType.NETWORK.getNumber(), ImmutableSet.of(nwId))
         ).when(supplyChain).getRelatedEntities(vmId);
 
         // mock groups
@@ -130,7 +139,12 @@ public class RelatedEntitiesExtractorTest {
         doReturn(ImmutableList.of(BILLING_FAMILY_1)).when(groupData).getGroupsForEntity(accountId1);
         doReturn(ImmutableList.of(BILLING_FAMILY_1)).when(groupData).getGroupsForEntity(accountId2);
 
-        relatedEntitiesExtractor = new RelatedEntitiesExtractor(topologyGraph, supplyChain, groupData);
+        featureFlags = mock(ExtractorFeatureFlags.class);
+
+        when(topologyGraph.getEntity(missingEntityOid)).thenReturn(Optional.empty());
+
+        relatedEntitiesExtractor = new RelatedEntitiesExtractor(topologyGraph, supplyChain, groupData,
+                featureFlags);
     }
 
     /**
@@ -142,19 +156,68 @@ public class RelatedEntitiesExtractorTest {
                 relatedEntitiesExtractor.extractRelatedEntities(vmId);
 
         // verify
-        assertThat(relatedEntities.size(), is(7));
+        assertThat(relatedEntities.size(), is(8));
         assertThat(relatedEntities.keySet(), containsInAnyOrder(DATABASE.getLiteral(),
                 PHYSICAL_MACHINE.getLiteral(), STORAGE.getLiteral(), GROUP.getLiteral(),
-                STORAGE_CLUSTER.getLiteral(), COMPUTE_CLUSTER.getLiteral(), RESOURCE_GROUP.getLiteral()));
+                STORAGE_CLUSTER.getLiteral(), COMPUTE_CLUSTER.getLiteral(), RESOURCE_GROUP.getLiteral(),
+                NETWORK.getLiteral()));
         // related entity
         assertThat(getRelatedEntityIds(relatedEntities, DATABASE), containsInAnyOrder(dbId));
+        assertThat(getRelatedEntityIds(relatedEntities, PHYSICAL_MACHINE), containsInAnyOrder(pmId));
+        assertThat(getRelatedEntityIds(relatedEntities, STORAGE), containsInAnyOrder(stId1, stId2));
+        assertThat(getRelatedEntityIds(relatedEntities, NETWORK), containsInAnyOrder(nwId));
+        // related group
+        assertThat(getRelatedEntityIds(relatedEntities, GROUP), containsInAnyOrder(USER_VM_GROUP.getId()));
+        assertThat(getRelatedEntityIds(relatedEntities, STORAGE_CLUSTER), containsInAnyOrder(STORAGE_CLUSTER_1.getId()));
+        assertThat(getRelatedEntityIds(relatedEntities, COMPUTE_CLUSTER), containsInAnyOrder(CLUSTER_1.getId()));
+        assertThat(getRelatedEntityIds(relatedEntities, RESOURCE_GROUP), containsInAnyOrder(RESOURCE_GROUP_1.getId()));
+    }
+
+    /**
+     * Enables the entity relationship whitelist and tests that it works.
+     */
+    @Test
+    public void testRelatedEntitiesWhitelist() {
+
+        // ARRANGE - enable tje whitelist
+        when(featureFlags.isEntityRelationWhitelistEnabled()).thenReturn(true);
+
+        // ACT
+        Map<String, List<RelatedEntity>> relatedEntities =
+                relatedEntitiesExtractor.extractRelatedEntities(vmId);
+
+        // ASSERT - Here we filter out the DATABASE and NETWORK entities. This also results in
+        // losing the RESOURCE_GROUP relationship because it was brought in by the related DATABASE.
+        assertThat(relatedEntities.size(), is(5));
+        assertThat(relatedEntities.keySet(), containsInAnyOrder(PHYSICAL_MACHINE.getLiteral(),
+                STORAGE.getLiteral(), GROUP.getLiteral(), STORAGE_CLUSTER.getLiteral(),
+                COMPUTE_CLUSTER.getLiteral()));
+        // related entity
         assertThat(getRelatedEntityIds(relatedEntities, PHYSICAL_MACHINE), containsInAnyOrder(pmId));
         assertThat(getRelatedEntityIds(relatedEntities, STORAGE), containsInAnyOrder(stId1, stId2));
         // related group
         assertThat(getRelatedEntityIds(relatedEntities, GROUP), containsInAnyOrder(USER_VM_GROUP.getId()));
         assertThat(getRelatedEntityIds(relatedEntities, STORAGE_CLUSTER), containsInAnyOrder(STORAGE_CLUSTER_1.getId()));
         assertThat(getRelatedEntityIds(relatedEntities, COMPUTE_CLUSTER), containsInAnyOrder(CLUSTER_1.getId()));
-        assertThat(getRelatedEntityIds(relatedEntities, RESOURCE_GROUP), containsInAnyOrder(RESOURCE_GROUP_1.getId()));
+    }
+
+    /**
+     * Enables the entity relationship whitelist and tests that it works.
+     */
+    @Test
+    public void testRelatedEntitiesWhitelistWithEntityThatIsMissingFromTopologyGraph() {
+
+        // ARRANGE - enable the whitelist
+        when(featureFlags.isEntityRelationWhitelistEnabled()).thenReturn(true);
+
+        // ACT
+        Map<String, List<RelatedEntity>> relatedEntities =
+                relatedEntitiesExtractor.extractRelatedEntities(1234567L);
+
+        // ASSERT
+        assertThat(
+                "Expecting related entities to be null when the entity is missing from the topology graph",
+                relatedEntities == null);
     }
 
     /**

@@ -42,6 +42,12 @@ public class ExtractorGlobalConfig {
     private boolean enableDataExtraction;
 
     /**
+     * Configuration used to enable/disable whitelisting og entity relations.
+     */
+    @Value("${enableEntityRelationWhitelist:false}")
+    private boolean enableEntityRelationWhitelist;
+
+    /**
      * Configuration used to enable/disable top-up billing account cost ingestion.
      */
     @Value("${enableBillingCost:true}")
@@ -74,12 +80,8 @@ public class ExtractorGlobalConfig {
      */
     @Bean
     public ExtractorFeatureFlags featureFlags() {
-        return new ExtractorFeatureFlags(
-                enableSearchApi,
-                enableReporting,
-                enableActionIngestion,
-                enableDataExtraction,
-                enableBillingCost,
+        return new ExtractorFeatureFlags(enableSearchApi, enableReporting, enableActionIngestion,
+                enableDataExtraction, enableEntityRelationWhitelist, enableBillingCost,
                 enableIndividualVStorages);
     }
 
@@ -100,6 +102,7 @@ public class ExtractorGlobalConfig {
         private final boolean enableReporting;
         private final boolean enableReportActionIngestion;
         private final boolean enableExtraction;
+        private final boolean enableEntityRelationWhitelist;
 
         /**
          * Whether billing cost data collection and reporting is enabled.
@@ -109,11 +112,13 @@ public class ExtractorGlobalConfig {
 
         private ExtractorFeatureFlags(boolean enableSearchApi, boolean enableReporting,
                 boolean enableReportActionIngestion, boolean enableExtraction,
-                boolean enableBillingCost, boolean enableIndividualVStorages) {
+                boolean enableEntityRelationWhitelist, boolean enableBillingCost,
+                boolean enableIndividualVStorages) {
             this.enableSearchApi = enableSearchApi;
             this.enableReporting = enableReporting;
             this.enableReportActionIngestion = enableReportActionIngestion;
             this.enableExtraction = enableExtraction;
+            this.enableEntityRelationWhitelist = enableEntityRelationWhitelist;
             this.enableBillingCost = enableBillingCost;
             this.enableIndividualVStorages = enableIndividualVStorages;
         }
@@ -132,6 +137,10 @@ public class ExtractorGlobalConfig {
 
         public boolean isExtractionEnabled() {
             return enableExtraction;
+        }
+
+        public boolean isEntityRelationWhitelistEnabled() {
+            return enableEntityRelationWhitelist;
         }
 
         public boolean isBillingCostEnabled() {
@@ -153,10 +162,12 @@ public class ExtractorGlobalConfig {
                             + "Report Action Ingestion {}\n"
                             + "Search Ingestion {}\n"
                             + "Data Extraction {}\n"
+                            + "Entity Relation Whitelist {}\n"
                             + "Billing Cost Ingestion {}\n"
-                            + "Individual vStorage metrics {}",
-                    isReportingEnabled(), isReportingActionIngestionEnabled(), isSearchEnabled(),
-                    isExtractionEnabled(), isBillingCostEnabled(), isIndividualVStoragesEnabled());
+                            + "Individual vStorage metrics {}", isReportingEnabled(),
+                    isReportingActionIngestionEnabled(), isSearchEnabled(), isExtractionEnabled(),
+                    isEntityRelationWhitelistEnabled(), isBillingCostEnabled(),
+                    isIndividualVStoragesEnabled());
         }
     }
 }
