@@ -37,4 +37,5 @@ start_hydra() {
   exec /usr/bin/hydra serve all --dangerous-force-http --config /etc/config/config.yaml
 }
 #start_hydra > >(${LOGGER_COMMAND}) 2>&1
+/util/check_and_provision_db.sh entrypoint
 start_hydra
