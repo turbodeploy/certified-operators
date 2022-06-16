@@ -12,6 +12,9 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
@@ -25,22 +28,26 @@ import com.vmturbo.repository.api.RepositoryClient;
  * The processor waits for both projected cloud commitment mappings and projected topology, then call commitment writer to persist.
  */
 public class ProjectedCommitmentMappingProcessor {
+    private static final Logger logger = LogManager.getLogger();
     HashMap<Long, Long> projectedTopologyIDToContextId;
     HashMap<Long, Pair<TopologyInfo, List<CloudCommitmentMapping>>> projectedMapping;
     TopologyCommitmentCoverageWriter.Factory commitmentCoverageWriterFactory;
     private final RepositoryClient repositoryClient;
     private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
+    private final boolean isEstimatorEnabled;
 
     ProjectedCommitmentMappingProcessor(HashMap<Long, Long> projectedTopologyIDToContextId,
                                         HashMap<Long, Pair<TopologyInfo, List<CloudCommitmentMapping>>> projectedCloudCommitmentMapping,
                                         TopologyCommitmentCoverageWriter.Factory commitmentCoverageWriterFactory,
                                         final RepositoryClient repositoryClient,
-                                        TopologyEntityCloudTopologyFactory cloudTopologyFactory) {
+                                        TopologyEntityCloudTopologyFactory cloudTopologyFactory,
+                                        boolean isEstimatorEnabled) {
         this.projectedTopologyIDToContextId = projectedTopologyIDToContextId;
         this.projectedMapping = projectedCloudCommitmentMapping;
         this.commitmentCoverageWriterFactory = commitmentCoverageWriterFactory;
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
+        this.isEstimatorEnabled = isEstimatorEnabled;
     }
 
     /**
@@ -52,6 +59,10 @@ public class ProjectedCommitmentMappingProcessor {
     public void mappingsAvailable(@Nonnull final long topologyId,
                                   @Nonnull final TopologyInfo topologyInfo,
                                   @Nonnull final List<CloudCommitmentMapping> cloudCommitmentMappingList) {
+        if (!isEstimatorEnabled) {
+            logger.info("Topology commitment estimates are disabled. Skipping.");
+            return;
+        }
         if (projectedTopologyIDToContextId.containsKey(topologyId)) {
             // call repository to get cloud topology
             final Stream<TopologyEntityDTO> topologyEntities = repositoryClient.retrieveTopologyEntities(
@@ -75,6 +86,11 @@ public class ProjectedCommitmentMappingProcessor {
     public void projectedAvailable(@Nonnull final long projectedTopologyId,
                                    @Nonnull final long topologyContextId,
                                    @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
+
+        if (!isEstimatorEnabled) {
+            logger.info("Topology commitment estimates are disabled. Skipping.");
+            return;
+        }
         if (projectedMapping.containsKey(projectedTopologyId)) {
             TopologyInfo topologyInfo = projectedMapping.get(projectedTopologyId).first;
             List<CloudCommitmentMapping> cloudCommitmentMappingList = projectedMapping.get(projectedTopologyId).second;
