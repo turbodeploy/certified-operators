@@ -7,9 +7,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
-
-import com.ctc.wstx.shaded.msv_core.datatype.xsd.datetime.TimeZone;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -35,7 +34,7 @@ public class MariaDBPartitionAdapter implements IPartitionAdapter {
             "'before'yyyyMMddHHmmss");
 
     static {
-        partitionNameFormat.setTimeZone(TimeZone.ZERO);
+        partitionNameFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
     /** partition spec to (re)create a future partition. */
