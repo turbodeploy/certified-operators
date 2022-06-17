@@ -222,9 +222,8 @@ public class OptimizedIdentityRecordsBasedCache implements IdentityCache {
                         identityRecord.getEntityType(), identityRecord.getProbeId());
             }
         } else {
-            final String error = String.format("Could not find the probe metadata for probe {} needed by the following entity {}", identityRecord.getProbeId(),
-                    identityRecord.getDescriptor());
-            throw new IllegalStateException(error);
+            logger.error("Could not find the probe metadata for probe {} needed by the following entity {}", identityRecord.getProbeId(),
+                    identityRecord.getDescriptor().getOID());
         }
         return new IdentifyingProperties(nonVolatileProperties, volatileProperties);
     }
