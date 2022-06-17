@@ -78,11 +78,28 @@ public class RelatedActionMapper {
      */
     @Nonnull
     public static Map<ActionRelationType, Integer> countRelatedActionsByType(@Nonnull final ActionSpec actionSpec) {
-        return actionSpec.getRelatedActionsList().stream()
+        Map<ActionRelationType, Integer> relatedActionsByType =
+                actionSpec.getRelatedActionsList().stream()
                 .map(ra -> mapXlActionRelationTypeToApi(ra.getActionRelationTypeCase()))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.summingInt(x -> 1)));
+        /* If we don't have a related action and the underlying action
+        is executable false we will add an entry into RelatedActionsByType
+        with key BLOCKED_BY and value 0. This will make the action state reason
+        as blocked by related action rather than blocked by policy. If market
+        sets an action to no executable it is because there is a related action blocking it.
+        Market is not able to identify the blocking action and pass on in the related actions..But
+        setting the executable to false is a guaranteed sign that market is aware of a related action
+        and that is why market set it to executable false. By adding an entry in this map we now
+        can seamlessly display the reason for the action being not execuatale is due to
+        blocking action and not due to policy.*/
+        if (relatedActionsByType.isEmpty()
+                && actionSpec.getRecommendation() != null
+                && !actionSpec.getRecommendation().getExecutable()) {
+            relatedActionsByType.put(ActionRelationType.BLOCKED_BY, 0);
+        }
+        return relatedActionsByType;
     }
 
 
