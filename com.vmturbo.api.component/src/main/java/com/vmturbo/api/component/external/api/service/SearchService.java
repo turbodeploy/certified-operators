@@ -859,7 +859,8 @@ public class SearchService implements ISearchService {
             SingleEntityRequest entityRequest = repositoryApi.entityRequest(businessAccountId);
             Optional<TopologyEntityDTO> topologyEntityDTO = entityRequest
                 .getFullEntity();
-            if (!topologyEntityDTO.isPresent()) {
+            if (!topologyEntityDTO.isPresent() || ((!StringUtils.isEmpty(nameQueryString) || (
+                    inputDTO != null && !inputDTO.getCriteriaList().isEmpty())))) {
                 // if this is not business account try regular search
                 return searchEntitiesByParameters(inputDTO, nameQueryString, paginationRequest, aspectNames, queryType);
             }

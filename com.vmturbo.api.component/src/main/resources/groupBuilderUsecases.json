@@ -428,5 +428,11 @@
       "criteria" : [
         {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "viewPodByName"}
       ]
+    },
+
+    "Workload" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "workloadByName"}
+        ]
     }
 }

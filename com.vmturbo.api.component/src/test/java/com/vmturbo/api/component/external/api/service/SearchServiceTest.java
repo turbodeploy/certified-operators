@@ -11,6 +11,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -1495,6 +1496,77 @@ public class SearchServiceTest {
                 StringConstants.VIRTUAL_MACHINE,
                 StringConstants.VIRTUAL_MACHINE
         ));
+    }
+
+    /**
+     * Test to get the Workload members (VirtualMachine, Database or DatabaseServer entities)
+     * based on Name filter.
+     *
+     * @throws Exception if there is an error when processing the search query.
+     */
+    @Test
+    public void testGetWorkloadMembersBasedOnNameFilterQuery() throws Exception {
+        final long oid = 1234;
+        List<FilterApiDTO> criteriaList = new ArrayList<>(1);
+        FilterApiDTO filterApiDTO = new FilterApiDTO();
+        filterApiDTO.setExpVal(".*data.*");
+        filterApiDTO.setExpType("RXEQ");
+        filterApiDTO.setFilterType("workloadByName");
+        criteriaList.add(filterApiDTO);
+        GroupApiDTO request = new GroupApiDTO();
+        request.setClassName(StringConstants.WORKLOAD);
+        request.setLogicalOperator("AND");
+        request.setCriteriaList(criteriaList);
+        request.setScope(Arrays.asList(String.valueOf(oid)));
+        request.setEnvironmentType(EnvironmentType.CLOUD);
+
+        // create entities and entity list
+        final ServiceEntityApiDTO entity1 = supplyChainTestUtils.createServiceEntityApiDTO(
+                ENTITY_ID_1, targetId1);
+        entity1.setDisplayName("Database 1");
+        entity1.setClassName(StringConstants.DATABASE);
+
+        final ServiceEntityApiDTO entity2 = supplyChainTestUtils.createServiceEntityApiDTO(
+                ENTITY_ID_2, targetId1);
+        entity2.setDisplayName("Database Server 1");
+        entity2.setClassName(StringConstants.DATABASE_SERVER);
+        List<ServiceEntityApiDTO> entities = Arrays.asList(entity1, entity2);
+
+        ConnectedEntity connectedEntity1 = ConnectedEntity.newBuilder().setConnectedEntityId(
+                ENTITY_ID_1).build();
+        ConnectedEntity connectedEntity2 = ConnectedEntity.newBuilder().setConnectedEntityId(
+                ENTITY_ID_2).build();
+
+        TopologyEntityDTO businessAccount = TopologyEntityDTO.newBuilder()
+                .setOid(oid)
+                .setDisplayName("Business Account 1")
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .addConnectedEntityList(0, connectedEntity1)
+                .addConnectedEntityList(1, connectedEntity2)
+                .build();
+
+        Map<Long, ServiceEntityApiDTO> entityMap = new HashMap<>();
+        entityMap.put(Long.valueOf(ENTITY_ID_1), entities.get(0));
+        entityMap.put(Long.valueOf(ENTITY_ID_2), entities.get(1));
+
+        SingleEntityRequest singleEntityRequest = ApiTestUtils.mockSingleEntityRequest(
+                businessAccount);
+        when(repositoryApi.entityRequest(oid)).thenReturn(singleEntityRequest);
+        when(singleEntityRequest.getFullEntity()).thenReturn(Optional.of(businessAccount));
+        when(groupExpander.getGroup(any())).thenReturn(Optional.empty());
+
+        final SearchPaginationRequest paginationRequest = new SearchPaginationRequest("0", 10, true,
+                SearchOrderBy.SEVERITY.name());
+        RepositoryApi.PaginatedSearchRequest searchReq = ApiTestUtils.mockPaginatedSearchRequest(
+                paginationRequest, entities);
+        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(searchReq);
+        when(groupsService.expandUuids(any(), any(), any())).thenReturn(ImmutableSet.of(1L, 2L));
+
+        SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request,
+                paginationRequest, null, null);
+        assertNotNull(response);
+        assertEquals(2, response.getRawResults().size());
+        assertTrue(response.getRawResults().get(0).getDisplayName().contains("Data"));
     }
 
     /**
