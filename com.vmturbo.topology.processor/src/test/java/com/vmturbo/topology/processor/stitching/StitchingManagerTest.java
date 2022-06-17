@@ -175,6 +175,7 @@ public class StitchingManagerTest {
             .build()));
         when(target.getProbeId()).thenReturn(20L);
         when(target.getProbeInfo()).thenReturn(ProbeInfo.getDefaultInstance());
+        featureFlagTestRule.disable(FeatureFlags.DELAYED_DATA_HANDLING);
     }
 
     @Test
