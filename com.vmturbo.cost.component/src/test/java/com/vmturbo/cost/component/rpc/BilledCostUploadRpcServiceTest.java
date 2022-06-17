@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 
 import io.grpc.stub.StreamObserver;
 
+import org.apache.commons.text.RandomStringGenerator;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
@@ -493,6 +494,25 @@ public class BilledCostUploadRpcServiceTest extends MultiDbTestBase {
         verifyTagGroupsPersisted(verifyTagPersistedAndGetTagId("thirteen", "thirteen"), 1);
         verifyBilledCostPointPersisted(ENTITY_ID, COST,
                 retrieveTagGroupId(Collections.singletonMap("thirteen", "thirteen")));
+    }
+
+    /**
+     * Test that tag keys and values that are up to the azure limit, i.e. 512 characters for tag keys and 256 characters
+     * for tag values, are inserted successfully.
+     */
+    @Test
+    public void testTagKeyAndValueLengthLimits() {
+        final Cost.UploadBilledCostRequest.Builder requestBuilder = createUploadRequest();
+        final RandomStringGenerator randomStringGenerator =  new RandomStringGenerator.Builder().withinRange('a', 'z')
+            .build();
+        final String tagKey = randomStringGenerator.generate(512);
+        final String tagValue =  randomStringGenerator.generate(256);
+        addTagGroup(requestBuilder, 1L, Collections.singletonMap(tagKey, tagValue));
+        addBillingDataPoint(requestBuilder, createBillingDataPoint(ENTITY_ID, 13L));
+        final Cost.UploadBilledCostRequest request = requestBuilder.build();
+        requestStreamObserver.onNext(request);
+        requestStreamObserver.onCompleted();
+        verifyTagPersistedAndGetTagId(tagKey, tagValue);
     }
 
     private BilledCostStore createBilledCostStore(boolean throwsExceptionOnInsert) throws ExecutionException,
