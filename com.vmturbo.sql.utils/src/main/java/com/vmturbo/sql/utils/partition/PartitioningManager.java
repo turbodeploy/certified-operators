@@ -13,7 +13,6 @@ import org.jooq.DSLContext;
 import org.jooq.Table;
 import org.threeten.extra.PeriodDuration;
 
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.RollupTimeFrame;
 
 /**
@@ -60,9 +59,6 @@ public class PartitioningManager implements IPartitioningManager {
         this.partitionSizes = parsePartitionSizes(partitionSizes);
         this.tableTimeframeFn = tableTimeframeFn;
         partitionsModel.load(this.schemaName);
-        if (FeatureFlags.OPTIMIZE_PARTITIONING.isEnabled()) {
-            refreshPartitionInfo();
-        }
     }
 
     private static Map<RollupTimeFrame, PeriodDuration> parsePartitionSizes(
@@ -76,6 +72,9 @@ public class PartitioningManager implements IPartitioningManager {
     @Override
     public void prepareForInsertion(Table<?> table, Timestamp insertionTimestamp)
             throws PartitionProcessingException {
+        if (!initialRefreshComplete) {
+            refreshPartitionInfo();
+        }
         PeriodDuration partitionSize = tableTimeframeFn.apply(table.getName())
                 .map(partitionSizes::get)
                 .orElse(null);

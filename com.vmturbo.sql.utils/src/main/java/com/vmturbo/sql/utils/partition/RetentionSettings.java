@@ -85,6 +85,7 @@ public class RetentionSettings {
         settingService.getMultipleGlobalSettings(request)
                 .forEachRemaining(this::addSetting);
         currentSettings.put(RollupTimeFrame.LATEST, latestRetentionMinutes);
+        logger.info("Refreshed retention settings");
     }
 
     /**
