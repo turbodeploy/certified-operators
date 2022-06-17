@@ -67,6 +67,21 @@ public class RelatedActionMapperTest {
 
     /**
      * Test {@link RelatedActionMapper#countRelatedActionsByType}.
+     * If we don't have a related action and the underlying action
+     * is executable false we will add an entry into RelatedActionsByType
+     * with key BLOCKED_BY and value 0.
+     */
+    @Test
+    public void testCountRelatedActionsByTypeForNonExecutableAction() {
+        final ActionSpec actionSpec = ActionSpec.newBuilder()
+                .setRecommendation(getWCResizeAction())
+                .build();
+        Map<ActionRelationType, Integer> countMap = RelatedActionMapper.countRelatedActionsByType(actionSpec);
+        assertEquals(0, (int)countMap.get(ActionRelationType.BLOCKED_BY));
+    }
+
+    /**
+     * Test {@link RelatedActionMapper#countRelatedActionsByType}.
      */
     @Test
     public void testCountRelatedActionsByType() {
@@ -122,6 +137,7 @@ public class RelatedActionMapperTest {
                 .setExplanation(explanation)
                 .setDisruptive(false)
                 .setReversible(true)
+                .setExecutable(false)
                 .build();
     }
 }
