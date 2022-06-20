@@ -66,9 +66,11 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
 import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.ResourcePath;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
@@ -583,6 +585,65 @@ public class DiscoveredGroupUploaderTest {
         assertTrue(settingPolicyInfos.isEmpty());
     }
 
+    /**
+     * Test converting groups with SLOHorizontalScale setting policy.
+     */
+    @Test
+    public void testConvertSLOHorizontalScaleSettingPolicy() {
+        // ACT
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(
+                DiscoveredGroupConstants.SERVICE_HORIZONTAL_SCALE_DTO));
+        // ASSERT
+        final List<DiscoveredSettingPolicyInfo> settingPolicyInfos = getSettingPoliciesOfTarget(TARGET_ID);
+        assertEquals(1, settingPolicyInfos.size());
+        final DiscoveredSettingPolicyInfo policySettingInfo = settingPolicyInfos.get(0);
+        assertEquals("SET:47d663e2-9014-4fda-800a-ee83da4a9d18:1", policySettingInfo.getName());
+        assertEquals(EntityType.SERVICE_VALUE, policySettingInfo.getEntityType());
+        assertEquals(1, policySettingInfo.getDiscoveredGroupNamesCount());
+        assertEquals("0-47d663e2-9014-4fda-800a-ee83da4a9d18",
+                     policySettingInfo.getDiscoveredGroupNames(0));
+        assertEquals("SLOHorizontalScale on turbonomic/policy-binding-sample [Kubernetes-PT-K8S] (target 1)",
+                     policySettingInfo.getDisplayName());
+        assertEquals(6, policySettingInfo.getSettingsCount());
+        final Optional<Setting> minReplicas = policySettingInfo.getSettingsList()
+                .stream()
+                .filter(s -> s.getSettingSpecName().equals(EntitySettingSpecs.MinReplicas.getSettingName()))
+                .findAny();
+        assertTrue(minReplicas.isPresent());
+        assertEquals(3, minReplicas.get().getNumericSettingValue().getValue(), 0.001);
+        final Optional<Setting> maxReplicas = policySettingInfo.getSettingsList()
+                .stream()
+                .filter(s -> s.getSettingSpecName().equals(EntitySettingSpecs.MaxReplicas.getSettingName()))
+                .findAny();
+        assertTrue(maxReplicas.isPresent());
+        assertEquals(10, maxReplicas.get().getNumericSettingValue().getValue(), 0.001);
+        final Optional<Setting> responseTimeSLO = policySettingInfo.getSettingsList()
+                .stream()
+                .filter(s -> s.getSettingSpecName().equals(EntitySettingSpecs.ResponseTimeSLO.getSettingName()))
+                .findAny();
+        assertTrue(responseTimeSLO.isPresent());
+        assertEquals(300.1, responseTimeSLO.get().getNumericSettingValue().getValue(), 0.001);
+        final Optional<Setting> transactionSLO = policySettingInfo.getSettingsList()
+                .stream()
+                .filter(s -> s.getSettingSpecName().equals(EntitySettingSpecs.TransactionSLO.getSettingName()))
+                .findAny();
+        assertTrue(transactionSLO.isPresent());
+        assertEquals(20, transactionSLO.get().getNumericSettingValue().getValue(), 0.001);
+        final Optional<Setting> scaleUp = policySettingInfo.getSettingsList()
+                .stream()
+                .filter(s -> s.getSettingSpecName()
+                        .equals(ConfigurableActionSettings.HorizontalScaleUp.getSettingName()))
+                .findAny();
+        assertTrue(scaleUp.isPresent());
+        assertEquals("Automatic", scaleUp.get().getEnumSettingValue().getValue());
+        final Optional<Setting> scaleDown = policySettingInfo.getSettingsList()
+                .stream()
+                .filter(s -> s.getSettingSpecName()
+                        .equals(ConfigurableActionSettings.HorizontalScaleDown.getSettingName()))
+                .findAny();
+        assertTrue(scaleDown.isPresent());
+        assertEquals("Disabled", scaleDown.get().getEnumSettingValue().getValue());
+    }
 
     /**
      * Test the conversion of groups with a setting policy associated with it that specifies
