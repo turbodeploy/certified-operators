@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -21,6 +22,7 @@ import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Channel;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -46,10 +48,16 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.VCPUScalingUnitsEnum;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.util.BaseTopology;
 
 /**
@@ -190,10 +198,11 @@ public class ActionTranslator {
             @Nonnull final List<? extends ActionView> actionViews,
             @Nullable final ActionStore actionStore) {
         final boolean isUserAbleToApplyActions = isUserAbleToApplyActions();
+        final Map<Long, String> vcpuScalingActionsPolicyIdToName = new HashMap<>();
         final Map<Long, String> settingPolicyIdToSettingPolicyName =
-                getReasonSettingPolicyIdToSettingPolicyNameMap(actionViews);
+                getReasonSettingPolicyIdToSettingPolicyNameMap(actionViews, vcpuScalingActionsPolicyIdToName);
         return actionViews.stream()
-                .map(actionView -> toSpec(actionView, settingPolicyIdToSettingPolicyName,
+                .map(actionView -> toSpec(actionView, settingPolicyIdToSettingPolicyName, vcpuScalingActionsPolicyIdToName,
                         isUserAbleToApplyActions, actionStore));
     }
 
@@ -207,11 +216,13 @@ public class ActionTranslator {
     @Nonnull
     @VisibleForTesting
     Map<Long, String> getReasonSettingPolicyIdToSettingPolicyNameMap(
-            @Nonnull final List<? extends ActionView> actionViews) {
+            @Nonnull final List<? extends ActionView> actionViews,
+            @Nonnull final Map<Long, String> vcpuScalingActionsPolicyIdToName) {
         final Set<Long> reasonSettings = new HashSet<>();
+        final Set<Long> reasonSettingLeadsToVcpuScalingActions = new HashSet<>();
         for (ActionView actionView : actionViews) {
-            final Explanation explanation = actionView.getTranslationResultOrOriginal()
-                    .getExplanation();
+            final ActionDTO.Action action = actionView.getTranslationResultOrOriginal();
+            final Explanation explanation = action.getExplanation();
             switch (explanation.getActionExplanationTypeCase()) {
                 case MOVE:
                 case SCALE:
@@ -224,6 +235,22 @@ public class ActionTranslator {
                     break;
                 case RECONFIGURE:
                     reasonSettings.addAll(explanation.getReconfigure().getReasonSettingsList());
+                    ActionDTO.ActionEntity target = actionView.getRecommendation()
+                            .getInfo()
+                            .getReconfigure()
+                            .getTarget();
+
+                    // Here we need to check if the reconfig action is of ON_PREM and for a VM
+                    // This will decide how the risk description is altered to show
+                    // Which sub-setting of a reconfig action resulted in this action being generated
+                    // This check is specifically for the Hashset to exclude cloud action reasonSettings
+                    if (target.getEnvironmentType() == EnvironmentType.ON_PREM
+                            && target.getType() == EntityType.VIRTUAL_MACHINE_VALUE
+                            && action.getInfo().hasReconfigure()
+                            && action.getInfo().getReconfigure().getSettingChangeCount() > 0) {
+                        reasonSettingLeadsToVcpuScalingActions.addAll(
+                                explanation.getReconfigure().getReasonSettingsList());
+                    }
                     break;
                 default:
                     break;
@@ -234,13 +261,50 @@ public class ActionTranslator {
         // We only need the displayName of the settingPolicy.
         final Map<Long, String> settingPolicyIdToSettingPolicyName = new HashMap<>();
         if (!reasonSettings.isEmpty()) {
-            settingPolicyService.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
-                .addAllIdFilter(reasonSettings).build())
-                .forEachRemaining(settingPolicy -> settingPolicyIdToSettingPolicyName.put(
-                    settingPolicy.getId(), settingPolicy.getInfo().getDisplayName()));
+            settingPolicyService.listSettingPolicies(
+                            ListSettingPoliciesRequest.newBuilder().addAllIdFilter(reasonSettings).build())
+                    .forEachRemaining(settingPolicy -> {
+                        // We need to check if there is a vcpu scaling policy present
+                        // Which could be driving this action
+                        final Optional<Setting> vcpuScalingUnits = getSetting(settingPolicy,
+                                EntitySettingSpecs.VcpuScalingUnits.getSettingName());
+                        if (reasonSettingLeadsToVcpuScalingActions.contains(settingPolicy.getId())
+                                && vcpuScalingUnits.isPresent()) {
+                            Optional<Setting> vcpuCoresSettingMode = Optional.empty();
+                            // Find which vcpu scaling setting it is and set the name accordingly
+                            // We need to check Cores Per Socket mode and Socket mode because
+                            // Only those two settings can generate a reconfig action
+                            // Vcpu and Mhz mode will not generate a reconfig action by themselves
+                            if (VCPUScalingUnitsEnum.CORES.name().equals(
+                                    vcpuScalingUnits.get().getEnumSettingValue().getValue())) {
+                                vcpuCoresSettingMode = getSetting(
+                                        settingPolicy,
+                                        EntitySettingSpecs.VcpuScaling_CoresPerSocket_SocketMode.getSettingName());
+                            } else if (VCPUScalingUnitsEnum.SOCKETS.name().equals(
+                                    vcpuScalingUnits.get().getEnumSettingValue().getValue())) {
+                                vcpuCoresSettingMode = getSetting(
+                                        settingPolicy,
+                                        EntitySettingSpecs.VcpuScaling_Sockets_CoresPerSocketMode.getSettingName());
+                            }
+                            vcpuScalingActionsPolicyIdToName.put(settingPolicy.getId(),
+                                    settingPolicyDisplayDescription(
+                                            vcpuCoresSettingMode.get()));
+                        }
+                        settingPolicyIdToSettingPolicyName.put(settingPolicy.getId(),
+                                settingPolicy.getInfo().getDisplayName());
+                    });
         }
-
         return settingPolicyIdToSettingPolicyName;
+    }
+
+    private Optional<Setting> getSetting(SettingPolicy settingPolicy, String settingName) {
+        return settingPolicy.getInfo().getSettingsList().stream().filter(
+                k -> k.getSettingSpecName().equals(settingName)).findFirst();
+    }
+
+    private String settingPolicyDisplayDescription(Setting setting) {
+        return StringUtils.capitalize(
+                setting.getEnumSettingValue().getValue().toLowerCase().replace("_", " ")) + " policy";
     }
 
     /**
@@ -291,6 +355,7 @@ public class ActionTranslator {
     @Nonnull
     private ActionSpec toSpec(@Nonnull final ActionView actionView,
             @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
+            @Nullable final Map<Long, String> vcpuScalingActionsPolicyIdToName,
             boolean isUserAbleToApplyActions,
             @Nullable final ActionStore actionStore) {
         final ActionDTO.Action recommendationForDisplay = actionView
@@ -310,7 +375,7 @@ public class ActionTranslator {
             .setActionState(actionView.getState())
             .setIsExecutable(actionView.determineExecutability())
             .setExplanation(ExplanationComposer.composeExplanation(
-                recommendationForDisplay, settingPolicyIdToSettingPolicyName,
+                recommendationForDisplay, settingPolicyIdToSettingPolicyName, vcpuScalingActionsPolicyIdToName,
                 actionTopologyStore.getSourceTopology().map(BaseTopology::entityGraph),
                 topologyInfo, actionView.getRelatedActions()))
             .setCategory(actionView.getActionCategory())
