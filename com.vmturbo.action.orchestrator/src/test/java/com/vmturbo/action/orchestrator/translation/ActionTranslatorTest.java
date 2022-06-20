@@ -266,7 +266,7 @@ public class ActionTranslatorTest {
 
         final Map<Long, String> settingPolicyIdToSettingPolicyName =
             translator.getReasonSettingPolicyIdToSettingPolicyNameMap(
-                Arrays.asList(moveAction1, moveAction2, reconfigureAction));
+                Arrays.asList(moveAction1, moveAction2, reconfigureAction), Collections.emptyMap());
         assertEquals(ImmutableMap.of(reasonSetting1, "reasonSetting1", reasonSetting3, "reasonSetting3"),
             settingPolicyIdToSettingPolicyName);
     }
