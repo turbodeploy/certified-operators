@@ -1,5 +1,16 @@
 package com.vmturbo.topology.processor.group.discovery;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.Setting.SettingType.HORIZONTAL_SCALE_DOWN_AUTOMATION_MODE;
+import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.Setting.SettingType.HORIZONTAL_SCALE_UP_AUTOMATION_MODE;
+import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.Setting.SettingType.MAX_REPLICAS;
+import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.Setting.SettingType.MIN_REPLICAS;
+import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.Setting.SettingType.MOVE_AUTOMATION_MODE;
+import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.Setting.SettingType.RESIZE_AUTOMATION_MODE;
+import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.Setting.SettingType.RESPONSE_TIME_SLO;
+import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.Setting.SettingType.TRANSACTION_SLO;
+import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.Setting.SettingType.VCPU_CORES_MAX_THRESHOLD;
+import static com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.Setting.SettingType.VCPU_CORES_MIN_THRESHOLD;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -49,6 +60,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.Setting.SettingType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -111,6 +123,33 @@ public class DiscoveredGroupUploader {
     private final Map<Long, TargetDiscoveredData> dataByTarget = new HashMap<>();
 
     private Map<Long, String> hypervisorPM2datacenterNames;
+
+    /**
+     * A static map that maps {@link SettingType} to its corresponding setting name.
+     */
+    private static final Map<SettingType, String> settingType2SettingName =
+            ImmutableMap.<SettingType, String>builder()
+                    .put(VCPU_CORES_MIN_THRESHOLD,
+                         EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingName())
+                    .put(VCPU_CORES_MAX_THRESHOLD,
+                         EntitySettingSpecs.ResizeVcpuMaxThreshold.getSettingName())
+                    .put(RESPONSE_TIME_SLO,
+                         EntitySettingSpecs.ResponseTimeSLO.getSettingName())
+                    .put(TRANSACTION_SLO,
+                         EntitySettingSpecs.TransactionSLO.getSettingName())
+                    .put(MIN_REPLICAS,
+                         EntitySettingSpecs.MinReplicas.getSettingName())
+                    .put(MAX_REPLICAS,
+                         EntitySettingSpecs.MaxReplicas.getSettingName())
+                    .put(MOVE_AUTOMATION_MODE,
+                         ConfigurableActionSettings.Move.getSettingName())
+                    .put(RESIZE_AUTOMATION_MODE,
+                         ConfigurableActionSettings.Resize.getSettingName())
+                    .put(HORIZONTAL_SCALE_UP_AUTOMATION_MODE,
+                         ConfigurableActionSettings.HorizontalScaleUp.getSettingName())
+                    .put(HORIZONTAL_SCALE_DOWN_AUTOMATION_MODE,
+                         ConfigurableActionSettings.HorizontalScaleDown.getSettingName())
+                    .build();
 
     @VisibleForTesting
     DiscoveredGroupUploader(
@@ -272,52 +311,36 @@ public class DiscoveredGroupUploader {
             if (!group.hasSettingPolicy()) {
                 continue;
             }
-
             List<Setting> settings = new ArrayList<>(group.getSettingPolicy().getSettingsCount());
-
-            for (GroupDTO.Setting discoveredSetting : group.getSettingPolicy().getSettingsList()) {
-                Setting.Builder setting;
-
-                switch (discoveredSetting.getType()) {
-                    case VCPU_CORES_MIN_THRESHOLD:
-                        setting = Setting.newBuilder()
-                          .setSettingSpecName(EntitySettingSpecs.ResizeVcpuMinThreshold
-                                .getSettingName())
-                          .setNumericSettingValue(NumericSettingValue.newBuilder()
-                                .setValue(discoveredSetting.getNumericSettingValueType().getValue())
-                                .build());
-                        settings.add(setting.build());
+            group.getSettingPolicy().getSettingsList().forEach(discoveredSetting -> {
+                final SettingType settingType = discoveredSetting.getType();
+                if (!settingType2SettingName.containsKey(settingType)) {
+                    logger.error("The setting \"{}\" discovered from target \"{}\" is unknown.",
+                                 settingType, targetName);
+                    return;
+                }
+                final String settingName = settingType2SettingName.get(settingType);
+                final Setting.Builder setting = Setting.newBuilder().setSettingSpecName(settingName);
+                switch (discoveredSetting.getSettingValueTypeCase()) {
+                    case NUMERIC_SETTING_VALUE_TYPE:
+                        setting.setNumericSettingValue(NumericSettingValue.newBuilder()
+                            .setValue(discoveredSetting.getNumericSettingValueType().getValue()));
                         break;
-                    case VCPU_CORES_MAX_THRESHOLD:
-                        setting = Setting.newBuilder()
-                          .setSettingSpecName(EntitySettingSpecs.ResizeVcpuMaxThreshold
-                                .getSettingName())
-                          .setNumericSettingValue(NumericSettingValue.newBuilder()
-                                .setValue(discoveredSetting.getNumericSettingValueType().getValue())
-                                .build());
-                        settings.add(setting.build());
-                        break;
-                    case MOVE_AUTOMATION_MODE:
-                        setting = Setting.newBuilder()
-                            .setSettingSpecName(ConfigurableActionSettings.Move.getSettingName())
-                            .setEnumSettingValue(SettingProto.EnumSettingValue.newBuilder()
-                                .setValue(discoveredSetting.getStringSettingValueType().getValue())
-                            .build());
-                        settings.add(setting.build());
-                        break;
-                    case RESIZE_AUTOMATION_MODE:
-                        setting = Setting.newBuilder()
-                                .setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName())
-                                .setEnumSettingValue(SettingProto.EnumSettingValue.newBuilder()
-                                        .setValue(discoveredSetting.getStringSettingValueType().getValue())
-                                        .build());
-                        settings.add(setting.build());
+                    case STRING_SETTING_VALUE_TYPE:
+                        // Currently, all string setting values from discovered policy settings
+                        // map to enum setting values
+                        // TODO: Distinguish between String and Enum setting value type if needed
+                        //   in the future
+                        setting.setEnumSettingValue(SettingProto.EnumSettingValue.newBuilder()
+                            .setValue(discoveredSetting.getStringSettingValueType().getValue()));
                         break;
                     default:
-                        logger.error("The setting \"{}\" discovered from target \"{}\" is unknown.",
-                                discoveredSetting.getType(), targetName);
+                        logger.error("The setting value \"{}\" discovered from target \"{}\" is unknown.",
+                                     discoveredSetting.getSettingValueTypeCase(), targetName);
+                        return;
                 }
-            }
+                settings.add(setting.build());
+            });
 
             if (settings.size() > 0) {
                 result.add(createPolicy(

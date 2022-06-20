@@ -34,6 +34,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersList;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.ExpressionType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpecList;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.Setting.SettingType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.util.GroupTestUtils;
 
@@ -55,6 +56,11 @@ class DiscoveredGroupConstants {
     public static final String CONSTRAINT_NAME = "Constraint 123";
 
     public static final String DISPLAY_NAME = "Freedom is slavery.";
+
+    public static final String SERVICE_GROUP_DISPLAY_NAME =
+            "SLOHorizontalScale on turbonomic/policy-binding-sample [Kubernetes-PT-K8S]";
+
+    public static final String SERVICE_GROUP_NAME = "47d663e2-9014-4fda-800a-ee83da4a9d18";
 
     static final String PLACEHOLDER_PROP_NAME = "prop";
 
@@ -270,6 +276,41 @@ class DiscoveredGroupConstants {
                     .setNumericSettingValueType(CommonDTO.GroupDTO.Setting
                         .NumericSettingValueType.newBuilder().setValue(16.0f).build())
                 )
+                .build())
+            .build();
+
+    static final CommonDTO.GroupDTO SERVICE_HORIZONTAL_SCALE_DTO = CommonDTO.GroupDTO.newBuilder()
+            .setGroupType(GroupType.REGULAR)
+            .setEntityType(EntityType.SERVICE)
+            .setDisplayName(DISPLAY_NAME)
+            .setMemberList(MembersList.newBuilder().addMember("1").build())
+            .setSettingPolicy(CommonDTO.GroupDTO.SettingPolicy.newBuilder()
+                .setName(SERVICE_GROUP_NAME)
+                .setDisplayName(SERVICE_GROUP_DISPLAY_NAME)
+                .addSettings(CommonDTO.GroupDTO.Setting.newBuilder()
+                    .setType(SettingType.RESPONSE_TIME_SLO)
+                    .setNumericSettingValueType(CommonDTO.GroupDTO.Setting
+                        .NumericSettingValueType.newBuilder().setValue(300.1f).build()))
+                .addSettings(CommonDTO.GroupDTO.Setting.newBuilder()
+                    .setType(SettingType.TRANSACTION_SLO)
+                    .setNumericSettingValueType(CommonDTO.GroupDTO.Setting
+                        .NumericSettingValueType.newBuilder().setValue(20f).build()))
+                .addSettings(CommonDTO.GroupDTO.Setting.newBuilder()
+                    .setType(SettingType.MIN_REPLICAS)
+                    .setNumericSettingValueType(CommonDTO.GroupDTO.Setting
+                        .NumericSettingValueType.newBuilder().setValue(3).build()))
+                .addSettings(CommonDTO.GroupDTO.Setting.newBuilder()
+                    .setType(SettingType.MAX_REPLICAS)
+                    .setNumericSettingValueType(CommonDTO.GroupDTO.Setting
+                        .NumericSettingValueType.newBuilder().setValue(10).build()))
+                .addSettings(CommonDTO.GroupDTO.Setting.newBuilder()
+                   .setType(SettingType.HORIZONTAL_SCALE_UP_AUTOMATION_MODE)
+                   .setStringSettingValueType(CommonDTO.GroupDTO.Setting
+                       .StringSettingValueType.newBuilder().setValue("Automatic").build()))
+                .addSettings(CommonDTO.GroupDTO.Setting.newBuilder()
+                   .setType(SettingType.HORIZONTAL_SCALE_DOWN_AUTOMATION_MODE)
+                   .setStringSettingValueType(CommonDTO.GroupDTO.Setting
+                      .StringSettingValueType.newBuilder().setValue("Disabled").build()))
                 .build())
             .build();
 
