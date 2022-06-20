@@ -132,6 +132,8 @@ public class TopologyEntityMonitor implements LiveCloudTopologyListener {
                                 entityOid,  discoveredProviderInfo);
                         savingsActionStore.activateAction(actionOid, currentTimestamp);
                     }
+                    // Deactivate older change windows, in case we missed updating them in previous broadcast cycles.
+                    deactivateChangeWindows(actionOid, currentTimestamp, entityScaleWindows);
                 } else {
                     // LIVE --> REVERTED
                     boolean sourceMatches = discoveredProviderInfo.matchesAction(actionSpec, false);
@@ -145,11 +147,11 @@ public class TopologyEntityMonitor implements LiveCloudTopologyListener {
                             logger.debug("Source match present for action {}, entity {}, provider info {}, updating to REVERTED", actionOid,
                                     entityOid, discoveredProviderInfo);
                             savingsActionStore.deactivateAction(actionOid, currentTimestamp, LivenessState.REVERTED);
+                            // Deactivate older change windows, in case we missed updating them in previous broadcast cycles.
+                            deactivateChangeWindows(actionOid, currentTimestamp, entityScaleWindows);
                         }
                     }
                 }
-                // Deactivate older change windows, in case we missed updating them in previous broadcast cycles.
-                deactivateChangeWindows(actionOid, currentTimestamp, entityScaleWindows);
             }
         } catch (SavingsException se) {
             // We still have elements in the set after processing the latest change window.

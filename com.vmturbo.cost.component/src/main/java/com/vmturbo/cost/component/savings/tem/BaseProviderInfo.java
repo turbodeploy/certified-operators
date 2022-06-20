@@ -12,6 +12,9 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
@@ -34,6 +37,8 @@ public abstract class BaseProviderInfo implements ProviderInfo {
     protected final Map<Integer, Double> commodityCapacities;
 
     protected final int entityType;
+
+    private final Logger logger = LogManager.getLogger();
 
     /**
      * Constructor. Constructs a ProviderInfo object from a TopologyEntityDTO object.
@@ -155,23 +160,23 @@ public abstract class BaseProviderInfo implements ProviderInfo {
 
     private Map<Integer, Double> getCommInfoFromScaleAction(final ActionInfo actionInfo,
                                                             final boolean isDestinationCheck) {
-        final Map<Integer, Double> commodityCapacities = new HashMap<>();
+        final Map<Integer, Double> actionCommCapacities = new HashMap<>();
         if (actionInfo.hasScale()) {
             final Scale scale = actionInfo.getScale();
             final List<ResizeInfo> resizeInfoList = scale.getCommodityResizesList();
             resizeInfoList.forEach(resize -> {
                 if (isDestinationCheck) {
-                    commodityCapacities.put(resize.getCommodityType().getType(), (double)resize.getNewCapacity());
+                    actionCommCapacities.put(resize.getCommodityType().getType(), (double)resize.getNewCapacity());
                 } else {
-                    commodityCapacities.put(resize.getCommodityType().getType(), (double)resize.getOldCapacity());
+                    actionCommCapacities.put(resize.getCommodityType().getType(), (double)resize.getOldCapacity());
                 }
             });
         }
-        return commodityCapacities;
+        logger.debug("Action Capacities: {}, Provider Capacities {}", actionCommCapacities, commodityCapacities);
+        return actionCommCapacities;
     }
 
-    private boolean checkMatchForComms(final ActionInfo actionInfo,
-                                       final boolean isDestinationCheck) {
+    private boolean checkMatchForComms(final ActionInfo actionInfo, final boolean isDestinationCheck) {
         // Source or Destination commodities match current commodities, including the case of no commodities resize.
         // Some entities like VIRTUAL VOLUME may scale either tier or commodities or both.
         final Map<Integer, Double> actionCommCapacities
@@ -193,12 +198,14 @@ public abstract class BaseProviderInfo implements ProviderInfo {
         final List<ChangeProvider> changeProviders = ActionDTOUtil.getChangeProviderList(actionInfo);
         // Match tier if either the action doesn't involve a tier change or if it does,
         // then the destination or source match, as the case may be.
-        final boolean tierMatches = changeProviders.isEmpty() || isDestinationCheck
+        final boolean tierMatches = changeProviders.isEmpty() || (isDestinationCheck
                 ? changeProviders.stream().anyMatch(cp -> providerOid == cp.getDestination().getId())
-                : changeProviders.stream().anyMatch(cp -> providerOid == cp.getSource().getId());
+                : changeProviders.stream().anyMatch(cp -> providerOid == cp.getSource().getId()));
         // Check for any commodity resizes.  Entities like Virtual Volume could change
         // both tier and commodity capacities at the same time.
         boolean commsMatch = checkMatchForComms(actionInfo,  isDestinationCheck);
+        logger.debug("Action: {} Tier Match: {} Comms Match: {}", actionSpec.getRecommendation().getId(),
+                tierMatches, commsMatch);
         return (tierMatches && commsMatch);
     }
 
