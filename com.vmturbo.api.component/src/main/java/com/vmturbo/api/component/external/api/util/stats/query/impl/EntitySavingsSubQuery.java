@@ -35,6 +35,7 @@ import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord.SavingsRecord;
@@ -276,42 +277,49 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
     void setRequestforScopedUser(Set<ApiId> userScopeIds, GetEntitySavingsStatsRequest.Builder request,
             @Nonnull final StatsQueryContext context) throws OperationFailedException {
         //the User must be scoped to a resource group or an account to use the cloud scope table
-        boolean scopedToRG = userScopeIds.stream().allMatch(apiId -> apiId.isResourceGroupOrGroupOfResourceGroups());
-        boolean scopedToAccount = userScopeIds.stream().allMatch(apiId -> isBillingFamilyOrAccount(apiId));
+        boolean accessScopeAreRG = userScopeIds.stream().allMatch(apiId -> apiId.isResourceGroupOrGroupOfResourceGroups());
+        boolean accessScopeAreAccount = userScopeIds.stream().allMatch(apiId -> isBillingFamilyOrAccount(apiId));
         // if User is scoped and searching for a specific account/entity/resource group in that scope
         if (context.getInputScope().isGroup() || context.getInputScope().isEntity()) {
-            if (!scopedToRG && !scopedToAccount) {
-                //Everything else(like group of VMs, one RG and one Account etc ) , get the stats from the supply chain
-                setScopedRequestFromSupplyChain(context, request);
+            if ((context.getInputScope().isResourceGroupOrGroupOfResourceGroups() && (accessScopeAreRG || accessScopeAreAccount))
+                    || (isBillingFamilyOrAccount(context.getInputScope()) && accessScopeAreRG)) {
+                //AccessScope:Account/RG inputScope:RG or AccessScope:RG InputScope: Account
+                ResourceGroupFilter.Builder resourceGroupFilterBuilder = ResourceGroupFilter.newBuilder();
+                resourceGroupFilterBuilder.addAllResourceGroupOid(Sets.intersection(getScopedResourceGroupIds(userScopeIds),
+                        getScopedResourceGroupIds(Collections.singleton(context.getInputScope()))));
+                request.setResourceGroupFilter(resourceGroupFilterBuilder);
+            } else if (isBillingFamilyOrAccount(context.getInputScope()) && accessScopeAreAccount) {
+                //accessScope & inputScope : Account
+                EntityFilter.Builder entityFilterBuilder = EntityFilter.newBuilder();
+                entityFilterBuilder.addAllEntityId(Sets.intersection(getScopedAccountIds(userScopeIds),
+                        getScopedAccountIds(Collections.singleton(context.getInputScope()))));
+                EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder().addEntityTypeId(
+                        EntityType.BUSINESS_ACCOUNT_VALUE).build();
+                request.setEntityFilter(entityFilterBuilder);
+                request.setEntityTypeFilter(entityTypeFilter);
             } else {
-                if (context.getInputScope().isResourceGroupOrGroupOfResourceGroups() || (scopedToRG
-                        && isBillingFamilyOrAccount(context.getInputScope()))) {
-                    //AccessScope:Account inputScope:RG or AccessScope:RG InputScope: Account/RG
-                    ResourceGroupFilter.Builder resourceGroupFilterBuilder = ResourceGroupFilter.newBuilder();
-                    resourceGroupFilterBuilder.addAllResourceGroupOid(Sets.intersection(getScopedResourceGroupIds(userScopeIds),
-                            getScopedResourceGroupIds(Collections.singleton(context.getInputScope()))));
-                    request.setResourceGroupFilter(resourceGroupFilterBuilder);
-                } else if (isBillingFamilyOrAccount(context.getInputScope())) {
-                    //accessScope & inputScope : Account
-                    EntityFilter.Builder entityFilterBuilder = EntityFilter.newBuilder();
-                    entityFilterBuilder.addAllEntityId(Sets.intersection(getScopedAccountIds(userScopeIds),
-                            getScopedAccountIds(Collections.singleton(context.getInputScope()))));
-                    EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder().addEntityTypeId(
-                            EntityType.BUSINESS_ACCOUNT_VALUE).build();
-                    request.setEntityFilter(entityFilterBuilder);
-                    request.setEntityTypeFilter(entityTypeFilter);
+                EntityFilter.Builder entityFilterBuilder = EntityFilter.newBuilder();
+                Set<Long> includeEntities = getAccessibleIds(Collections.singleton(context.getInputScope()));
+                Set<Long> userAccessibleEntities = context.getSessionContext().getUserAccessScope().accessibleOids().toSet();
+                if (context.getInputScope().isResourceGroupOrGroupOfResourceGroups() || isBillingFamilyOrAccount(
+                        context.getInputScope())) {
+                    // accessScope: VMs/Volumes inputScope:Account/RGs
+                    entityFilterBuilder.addAllEntityId(Sets.intersection(getAccessibleIds(userScopeIds), includeEntities));
+                } else if (userAccessibleEntities.containsAll(includeEntities)) {
+                    // accessScope: VMs/Volumes/Account/RGs inputScope:VMs/Volumes
+                    entityFilterBuilder.addAllEntityId(includeEntities);
                 } else {
-                    //accessScope : RGs/Account inputScope : groupofVMs
-                    setScopedRequestFromSupplyChain(context, request);
+                    throw new UserAccessScopeException("User does not have access to all entities involved in the Realized Savings.");
                 }
+                request.setEntityFilter(entityFilterBuilder);
             }
         } else {
             // Global view of a scoped user
-            if (scopedToRG) {
+            if (accessScopeAreRG) {
                 ResourceGroupFilter.Builder resourceGroupFilterBuilder = ResourceGroupFilter.newBuilder();
                 resourceGroupFilterBuilder.addAllResourceGroupOid(getScopedResourceGroupIds(userScopeIds));
                 request.setResourceGroupFilter(resourceGroupFilterBuilder);
-            } else if (scopedToAccount) {
+            } else if (accessScopeAreAccount) {
                 EntityFilter.Builder entityFilterBuilder = EntityFilter.newBuilder();
                 entityFilterBuilder.addAllEntityId(getScopedAccountIds(userScopeIds));
                 EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder().addEntityTypeId(
@@ -319,10 +327,23 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
                 request.setEntityFilter(entityFilterBuilder);
                 request.setEntityTypeFilter(entityTypeFilter);
             } else {
-                //multiple groups with different entityTypes have to use the supply chain
-                setScopedRequestFromSupplyChain(context, request);
+                EntityFilter entityFilter = EntityFilter.newBuilder().addAllEntityId(getAccessibleIds(userScopeIds)).build();
+                request.setEntityFilter(entityFilter);
             }
         }
+    }
+
+    private Set<Long> getAccessibleIds(Set<ApiId> userScopeIds)
+            throws OperationFailedException {
+        Set<Long> scopeIds = new HashSet<>();
+        for (ApiId apiId : userScopeIds) {
+            if (apiId.isResourceGroupOrGroupOfResourceGroups() || isBillingFamilyOrAccount(apiId)) {
+                scopeIds.addAll(setScopedRequestFromSupplyChain(apiId));
+            } else {
+                scopeIds.addAll(apiId.getScopeOids());
+            }
+        }
+        return scopeIds;
     }
 
     private Set<Long> getScopedResourceGroupIds(Set<ApiId> scopeIds) {
@@ -378,22 +399,17 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
      * Get the Saving stats from supplychain if a user.
      * is scoped to multiple groups of different entity types
      *
-     * @param context stats record
-     * @param request request builder
+     * @param apiId stats record
      */
-    private void setScopedRequestFromSupplyChain(@Nonnull final StatsQueryContext context,
-            GetEntitySavingsStatsRequest.Builder request) throws OperationFailedException {
+    private Set<Long> setScopedRequestFromSupplyChain(ApiId apiId) throws OperationFailedException {
         final SupplyChainNodeFetcherBuilder builder =
                 supplyChainFetcherFactory.newNodeFetcher().entityTypes(
                         ApiEntityType.ENTITY_TYPES_WITH_COST.stream().collect(Collectors.toList()));
-        builder.addSeedOids(context.getInputScope().getScopeOids());
-        Set<Long> allEntitiesInScope = builder.fetch().values().stream()
+        builder.addSeedOids(apiId.getScopeOids());
+        return builder.fetch().values().stream()
                 .flatMap(node -> node.getMembersByStateMap().values().stream())
         .flatMap(memberList -> memberList.getMemberOidsList().stream())
                 .collect(Collectors.toSet());
-        EntityFilter entityFilter = EntityFilter.newBuilder()
-                .addAllEntityId(allEntitiesInScope).build();
-        request.setEntityFilter(entityFilter);
     }
 
     private boolean isBillingFamilyOrAccount(ApiId scopeId) {
