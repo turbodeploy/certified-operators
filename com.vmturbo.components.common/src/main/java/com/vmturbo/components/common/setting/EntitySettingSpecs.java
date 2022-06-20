@@ -18,6 +18,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.EnumUtils;
@@ -55,9 +56,9 @@ public enum EntitySettingSpecs {
      */
     RateOfResize("RATE_OF_RESIZE", "Rate of Resize",
         Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-        SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_SPEC),
+        SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_SPEC, EntityType.STORAGE),
         new NumericSettingDataType(1.0f, 3.0f, 2.0f,
-            Collections.singletonMap(EntityType.CONTAINER_SPEC, 3.0f)), true),
+                ImmutableMap.of(EntityType.CONTAINER_SPEC, 3.0f, EntityType.STORAGE, 3.0f)), true),
 
     /**
      * The minimum number of vcpu cores which is the threshold to decide automation mode.
