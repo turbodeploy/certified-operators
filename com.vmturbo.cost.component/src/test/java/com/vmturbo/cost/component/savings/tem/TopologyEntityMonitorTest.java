@@ -40,7 +40,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
-import com.vmturbo.common.protobuf.action.ActionDTO.UpdateActionChangeWindowRequest.ActionLivenessInfo;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -81,15 +80,6 @@ public class TopologyEntityMonitorTest {
         topologyMonitor = new TopologyEntityMonitor(cachedSavingsActionStore);
         final Map<Long, TopologyEntityDTO> entityMap = createTopologyMap();
         cloudTopology = createCloudTopology(entityMap);
-    }
-
-    private ActionLivenessInfo createLivenessInfo(@Nonnull final Long actionOid, @Nonnull final LivenessState livenessState,
-                                            final Long timeStamp) {
-        final ActionLivenessInfo actionLivenessInfo = ActionLivenessInfo.newBuilder()
-                .setActionOid(actionOid)
-                .setLivenessState(livenessState)
-                .setTimestamp(timeStamp).build();
-        return actionLivenessInfo;
     }
 
     /**
@@ -162,6 +152,44 @@ public class TopologyEntityMonitorTest {
         verify(cachedSavingsActionStore,  times(1)).deactivateAction(301L, topologyInfo.getCreationTime(), LivenessState.SUPERSEDED);
         verify(cachedSavingsActionStore,  times(1)).deactivateAction(401L, topologyInfo.getCreationTime(), LivenessState.SUPERSEDED);
         verify(cachedSavingsActionStore,  times(1)).saveChanges();
+    }
+
+    /**
+     * Test updates of Liveness states of executed actions, with empty change providers.
+     */
+    @Test
+    public void testLivenessUpdatesEmptyChangeProviders() throws SavingsException {
+        List<ResizeInfo> resizeInfoList = new ArrayList<>();
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE))
+                .setOldCapacity(100)
+                .setNewCapacity(300).build());
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
+                .setOldCapacity(50)
+                .setNewCapacity(100).build());
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE))
+                .setOldCapacity(400)
+                .setNewCapacity(200).build());
+        Scale.Builder scaleBuilder = Scale.newBuilder();
+        scaleBuilder.addAllCommodityResizes(resizeInfoList);
+        final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
+                createExecutedActionsChangeWindow(4L, 401L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 24, 11, 30),
+                        EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 0L, 0L, scaleBuilder),
+                createExecutedActionsChangeWindow(4L, 501L, LivenessState.NEW, LocalDateTime.of(2022, 5, 25, 12, 00),
+                        EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 0L, 0L, scaleBuilder));
+
+        doReturn(initialChangeWindows)
+                .when(cachedSavingsActionStore)
+                .getActions(any(LivenessState.class));
+
+        topologyMonitor.process(cloudTopology, topologyInfo);
+
+        verify(cachedSavingsActionStore,  times(1)).activateAction(501L, topologyInfo.getCreationTime());
+        verify(cachedSavingsActionStore,  times(1)).deactivateAction(401L, topologyInfo.getCreationTime(), LivenessState.SUPERSEDED);
+        verify(cachedSavingsActionStore,  times(1)).saveChanges();
+
     }
 
     /**
@@ -255,17 +283,20 @@ public class TopologyEntityMonitorTest {
                 entityType).setEnvironmentType(
                 EnvironmentTypeEnum.EnvironmentType.CLOUD).build();
 
-        final ChangeProvider.Builder changeBuilder = ChangeProvider.newBuilder()
-                .setSource(ActionEntity.newBuilder()
-                        .setId(srcProviderId)
-                        .setType(providerType)
-                        .build())
-                .setDestination(ActionEntity.newBuilder()
-                        .setId(destProviderId)
-                        .setType(providerType)
-                        .build());
-
-       scaleBuilder.setTarget(actionEntity).addChanges(changeBuilder.build());
+        scaleBuilder.setTarget(actionEntity);
+        ChangeProvider.Builder changeBuilder = ChangeProvider.newBuilder();
+        // Provider Id's are passed to this method when only commodities are scaling, to simulate no tier changes.
+        if (srcProviderId != 0L && destProviderId != 0L) {
+            changeBuilder.setSource(ActionEntity.newBuilder()
+                    .setId(srcProviderId)
+                    .setType(providerType)
+                    .build())
+                    .setDestination(ActionEntity.newBuilder()
+                            .setId(destProviderId)
+                            .setType(providerType)
+                            .build());
+            scaleBuilder.addChanges(changeBuilder.build());
+        }
 
         return ExecutedActionsChangeWindow.newBuilder()
                 .setEntityOid(entityOid)
