@@ -87,6 +87,7 @@
         <hamcrest-all.version>1.3</hamcrest-all.version>
         <hamcrest-optional-version>2.0.0</hamcrest-optional-version>
         <javassist.version>3.21.0-GA</javassist.version>
+        <org.jetbrains.kotlin.version>1.6.10</org.jetbrains.kotlin.version>
 
         <mockito.version>1.10.19</mockito.version>
         <powermock.version>1.6.6</powermock.version>
@@ -2454,6 +2455,21 @@
                 <version>${project.version}</version>
             </dependency>
             <dependency>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-stdlib</artifactId>
+                <version>${org.jetbrains.kotlin.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-stdlib-common</artifactId>
+                <version>${org.jetbrains.kotlin.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-stdlib-jdk8</artifactId>
+                <version>${org.jetbrains.kotlin.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>ml-datastore</artifactId>
                 <version>${project.version}</version>
@@ -3264,11 +3280,6 @@
                         <artifactId>kotlin-stdlib</artifactId>
                     </exclusion>
                 </exclusions>
-            </dependency>
-            <dependency>
-                <groupId>org.jetbrains.kotlin</groupId>
-                <artifactId>kotlin-stdlib</artifactId>
-                <version>1.6.10</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.commons</groupId>
