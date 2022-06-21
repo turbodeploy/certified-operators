@@ -194,14 +194,12 @@ public class WastedAppServicePlanAnalysisEngine {
                     .setEnvironmentType(EnvironmentType.CLOUD));
         }
 
-        // TODO: Set executable to true when policy work is ready https://vmturbo.atlassian.net/browse/OM-85048
-        final Action.Builder action = Action.newBuilder()
+        return Action.newBuilder()
                 // Assign a unique ID to each generated action.
                 .setId(IdentityGenerator.next())
                 .setDeprecatedImportance(0.0D)
-                .setExecutable(false)
+                .setExecutable(true)
                 .setInfo(ActionInfo.newBuilder().setDelete(deleteBuilder));
-        return action;
     }
 
     /**
@@ -224,7 +222,7 @@ public class WastedAppServicePlanAnalysisEngine {
             // This will set the hourly saving rate to the action
             costSavings = costJournalOpt.get().getTotalHourlyCost().getValue();
         } else {
-            logger.debug("Unable to get cost for App Service Plan {}",
+            logger.debug("Unable to get cost for Wasted App Service Plan {}",
                     appServicePlan.getDisplayName());
         }
         // Fetch the ComputeTier provider ID
@@ -234,6 +232,8 @@ public class WastedAppServicePlanAnalysisEngine {
             // No actions if we don't have a ComputeTier.
             return Collections.emptyList();
         }
+        logger.debug("Generating delete action for Wasted App Service Plan {}",
+                appServicePlan.getDisplayName());
         // Application Component will migrate to VMSpec at a later date for App Service Plans.
         return Collections.singletonList(newActionFromAppServicePlan(appServicePlan.getOid(),
                 computeTierProviderId.get()).setExplanation(
