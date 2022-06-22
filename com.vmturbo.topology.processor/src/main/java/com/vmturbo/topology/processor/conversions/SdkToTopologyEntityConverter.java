@@ -359,11 +359,16 @@ public class SdkToTopologyEntityConverter {
         // Copy properties map from probe DTO to topology DTO
         // TODO: Support for namespaces and proper handling of duplicate properties (see
         // OM-20545 for description of probe expectations related to duplicate properties).
+        final LogMessageGrouper msgGrouper = LogMessageGrouper.getInstance();
+        msgGrouper.register(LOGMESSAGEGROUPER_SESSION_ID, "ENTITY_WITH_DUPLICATE_PROPERTIES",
+                "The following entity properties (EntityOid : Property Name) are duplicated. Turn on debug log for more details\n");
         dto.getEntityPropertiesList().stream()
                 .filter(SdkToTopologyEntityConverter::entityPropertyFilter)
                 .forEach(prop -> {
                     if (propertyMap.containsKey(prop.getName())) {
-                        logger.warn("Duplicate entity property with values \"{}\", \"{}"
+                        msgGrouper.log(LOGMESSAGEGROUPER_SESSION_ID, "ENTITY_WITH_DUPLICATE_PROPERTIES",
+                                String.valueOf(entity.getOid()) + ":" + prop.getName());
+                        logger.debug("Duplicate entity property with values \"{}\", \"{}"
                                         + "\" detected on entity {} (name: {}).",
                                 prop.getValue(), propertyMap.get(prop.getName()),
                                 entity.getOid(), entity.getDisplayName());
