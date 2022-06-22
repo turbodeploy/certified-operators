@@ -72,14 +72,27 @@ public class SdkToTopologyEntityConverterTest {
     @Test
     public void testDuplicateEntityPropertiesDoesNotThrowException() {
         final EntityDTO.Builder entityDTO = EntityBuilders.virtualMachine("foo")
-            .property(EntityBuilders.entityProperty().named("duplicateProperty").withValue("value"))
-            .property(EntityBuilders.entityProperty().named("duplicateProperty").withValue("value"))
-            .build().toBuilder();
+                .displayName("entity1")
+                .property(EntityBuilders.entityProperty().named("duplicateProperty").withValue("value"))
+                .property(EntityBuilders.entityProperty().named("duplicateProperty").withValue("value"))
+                .property(EntityBuilders.entityProperty().named("duplicateProperty1").withValue("value1"))
+                .property(EntityBuilders.entityProperty().named("duplicateProperty1").withValue("value1"))
+                .build().toBuilder();
+
+        // entityDTO2 doesn't have a duplicate property. Log should not display warning or debug messages.
+        final EntityDTO.Builder entityDTO2 = EntityBuilders.virtualMachine("foo")
+                .displayName("entity2")
+                .property(EntityBuilders.entityProperty().named("duplicateProperty").withValue("value"))
+                .property(EntityBuilders.entityProperty().named("duplicateProperty_1").withValue("value"))
+                .build().toBuilder();
 
         TopologyStitchingEntity e = new TopologyStitchingEntity(entityDTO, 1L, TARGET_OID, 1L);
+        TopologyStitchingEntity e2 = new TopologyStitchingEntity(entityDTO2, 2L, TARGET_OID, 1L);
         // This should generate warning messages in the log about duplicate properties.
         SdkToTopologyEntityConverter.newTopologyEntityDTO(e, resoldCommodityCache);
+        SdkToTopologyEntityConverter.newTopologyEntityDTO(e2, resoldCommodityCache);
     }
+
 
     private static final long TARGET_OID = 99888;
 
