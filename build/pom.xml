@@ -1276,7 +1276,7 @@
                 <module>../grafana</module>
 
                 <!-- Include tests of kubernetes-related scripts. -->
-                <!-- module>kubernetes</module -->
+                <module>kubernetes</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
                 <module>../com.vmturbo.api.conversion</module>
