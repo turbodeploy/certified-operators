@@ -143,13 +143,21 @@ public class TopologyEntityMonitor implements LiveCloudTopologyListener {
                                     + " action got Reverted or the entity deleted, or the update will be in the next"
                                     + " broadcast, action {}, entity {}", actionOid, entityOid);
                         } else if (latestScaleWindowForEntity.getLivenessState() == LivenessState.LIVE) {
-                            // Add request to update Start Time and Liveness to REVERTED current state is NEW.
+                            // Add request to update Start Time and Liveness to REVERTED.
                             logger.debug("Source match present for action {}, entity {}, provider info {}, updating to REVERTED", actionOid,
                                     entityOid, discoveredProviderInfo);
                             savingsActionStore.deactivateAction(actionOid, currentTimestamp, LivenessState.REVERTED);
                             // Deactivate older change windows, in case we missed updating them in previous broadcast cycles.
                             deactivateChangeWindows(actionOid, currentTimestamp, entityScaleWindows);
                         }
+                    } else { // Neither source nor destination matches.
+                        // The current provider is neither the source nor the destination of the action.
+                        // Add request to update Start Time and Liveness to EXTERNAL_MODIFICATION.
+                        logger.debug("Neither source nor destination match present for action {}, entity {}, provider info {},"
+                                + " updating to EXTERNAL_MODIFICATION", actionOid, entityOid, discoveredProviderInfo);
+                        savingsActionStore.deactivateAction(actionOid, currentTimestamp, LivenessState.EXTERNAL_MODIFICATION);
+                        // Deactivate older change windows, in case we missed updating them in previous broadcast cycles.
+                        deactivateChangeWindows(actionOid, currentTimestamp, entityScaleWindows);
                     }
                 }
             }

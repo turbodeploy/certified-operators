@@ -216,7 +216,7 @@ public class TopologyEntityMonitorTest {
     }
 
     /**
-     * Tests external Revert of executed action.
+     * Tests external revert of executed action.
      */
     @Test
     public void testRevert() throws SavingsException {
@@ -236,10 +236,45 @@ public class TopologyEntityMonitorTest {
     }
 
     /**
-     * Tests external Revert of executed action, with commodity resizes.
+     * Tests external revert of executed action, with commodity resizes only.
      */
     @Test
-    public void testRevertWithCommResizes() throws SavingsException {
+    public void testRevertWithCommResizesOnly() throws SavingsException {
+        List<ResizeInfo> resizeInfoList = new ArrayList<>();
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE))
+                .setOldCapacity(300)
+                .setNewCapacity(100).build());
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
+                .setOldCapacity(100)
+                .setNewCapacity(50).build());
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE))
+                .setOldCapacity(200)
+                .setNewCapacity(200).build());
+        Scale.Builder scaleBuilder = Scale.newBuilder();
+        scaleBuilder.addAllCommodityResizes(resizeInfoList);
+
+        final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
+                createExecutedActionsChangeWindow(4L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                        EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 0L, 0L, scaleBuilder));
+
+        doReturn(initialChangeWindows)
+                .when(cachedSavingsActionStore)
+                .getActions(any(LivenessState.class));
+
+        topologyMonitor.process(cloudTopology, topologyInfo);
+
+        verify(cachedSavingsActionStore,  times(1)).deactivateAction(201L, topologyInfo.getCreationTime(), LivenessState.REVERTED);
+        verify(cachedSavingsActionStore,  times(1)).saveChanges();
+    }
+
+    /**
+     * Tests external revert of executed action, with tier change and commodity resizes.
+     */
+    @Test
+    public void testRevertWithTierAndCommResizes() throws SavingsException {
         List<ResizeInfo> resizeInfoList = new ArrayList<>();
         resizeInfoList.add(ResizeInfo.newBuilder()
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE))
@@ -267,6 +302,96 @@ public class TopologyEntityMonitorTest {
         topologyMonitor.process(cloudTopology, topologyInfo);
 
         verify(cachedSavingsActionStore,  times(1)).deactivateAction(201L, topologyInfo.getCreationTime(), LivenessState.REVERTED);
+        verify(cachedSavingsActionStore,  times(1)).saveChanges();
+    }
+
+    /**
+     * Tests external modification of executed action.
+     */
+    @Test
+    public void testExternalModification() throws SavingsException {
+        Scale.Builder scaleBuilder = Scale.newBuilder();
+        final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
+                createExecutedActionsChangeWindow(1L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                        EntityType.VIRTUAL_MACHINE_VALUE, EntityType.COMPUTE_TIER_VALUE, 1001L, 3001L, scaleBuilder));
+
+        doReturn(initialChangeWindows)
+                .when(cachedSavingsActionStore)
+                .getActions(any(LivenessState.class));
+
+        topologyMonitor.process(cloudTopology, topologyInfo);
+
+        verify(cachedSavingsActionStore,  times(1)).deactivateAction(201L, topologyInfo.getCreationTime(), LivenessState.EXTERNAL_MODIFICATION);
+        verify(cachedSavingsActionStore,  times(1)).saveChanges();
+    }
+
+    /**
+     * Tests external modification of executed action, with commodity resizes only.
+     */
+    @Test
+    public void testExternalModificationWithCommResizesOnly() throws SavingsException {
+        List<ResizeInfo> resizeInfoList = new ArrayList<>();
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE))
+                .setOldCapacity(400)
+                .setNewCapacity(150).build());
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
+                .setOldCapacity(200)
+                .setNewCapacity(250).build());
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE))
+                .setOldCapacity(300)
+                .setNewCapacity(300).build());
+        Scale.Builder scaleBuilder = Scale.newBuilder();
+        scaleBuilder.addAllCommodityResizes(resizeInfoList);
+
+        final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
+                createExecutedActionsChangeWindow(4L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                        EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 0L, 0L, scaleBuilder));
+
+        doReturn(initialChangeWindows)
+                .when(cachedSavingsActionStore)
+                .getActions(any(LivenessState.class));
+
+        topologyMonitor.process(cloudTopology, topologyInfo);
+
+        verify(cachedSavingsActionStore,  times(1)).deactivateAction(201L, topologyInfo.getCreationTime(), LivenessState.EXTERNAL_MODIFICATION);
+        verify(cachedSavingsActionStore,  times(1)).saveChanges();
+    }
+
+    /**
+     * Tests external modification of executed action, with tier change and commodity resizes.
+     */
+    @Test
+    public void testExternalModificationWithTierAndCommResizes() throws SavingsException {
+        List<ResizeInfo> resizeInfoList = new ArrayList<>();
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE))
+                .setOldCapacity(300)
+                .setNewCapacity(100).build());
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
+                .setOldCapacity(100)
+                .setNewCapacity(50).build());
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE))
+                .setOldCapacity(200)
+                .setNewCapacity(400).build());
+        Scale.Builder scaleBuilder = Scale.newBuilder();
+        scaleBuilder.addAllCommodityResizes(resizeInfoList);
+
+        final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
+                createExecutedActionsChangeWindow(4L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                        EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 1004L, 3004L, scaleBuilder));
+
+        doReturn(initialChangeWindows)
+                .when(cachedSavingsActionStore)
+                .getActions(any(LivenessState.class));
+
+        topologyMonitor.process(cloudTopology, topologyInfo);
+
+        verify(cachedSavingsActionStore,  times(1)).deactivateAction(201L, topologyInfo.getCreationTime(), LivenessState.EXTERNAL_MODIFICATION);
         verify(cachedSavingsActionStore,  times(1)).saveChanges();
     }
 
