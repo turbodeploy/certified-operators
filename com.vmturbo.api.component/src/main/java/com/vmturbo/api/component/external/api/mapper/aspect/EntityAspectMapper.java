@@ -62,6 +62,7 @@ public class EntityAspectMapper {
                               @Nonnull final VirtualVolumeEntityAspectMapper virtualVolumeEntityAspecMapper,
                               @Nonnull final CloudCommitmentAspectMapper cloudCommitmentAspectMapper,
                               @Nonnull final ContainerPlatformContextAspectMapper containerPlatformContextAspectMapper,
+                              @Nonnull final ApplicationServiceAspectMapper appServiceAspectMapper,
                               final long realtimeTopologyContextId) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         aspectMappers = new ImmutableMap.Builder<Integer, List<IAspectMapper>>()
@@ -120,7 +121,8 @@ public class EntityAspectMapper {
                                 containerPlatformContextAspectMapper))
             .put(EntityType.NAMESPACE_VALUE,
                 ImmutableList.of(containerPlatformContextAspectMapper))
-            .put(EntityType.SERVICE_VALUE, ImmutableList.of(containerPlatformContextAspectMapper))
+            .put(EntityType.SERVICE_VALUE,
+                    ImmutableList.of(containerPlatformContextAspectMapper))
             .put(EntityType.COMPUTE_TIER_VALUE, ImmutableList.of(
                     computeTierAspectMapper))
             .put(EntityType.DATABASE_SERVER_TIER_VALUE, ImmutableList.of(
@@ -129,9 +131,12 @@ public class EntityAspectMapper {
                     databaseTierAspectMapper))
             .put(EntityType.BUSINESS_USER_VALUE, ImmutableList.of(
                     businessUserAspectMapper))
-            .put(EntityType.CLOUD_COMMITMENT_VALUE, ImmutableList.of(cloudCommitmentAspectMapper))
-            .put(EntityType.APPLICATION_COMPONENT_VALUE, ImmutableList.of(cloudAspectMapper))  //TODO: Convert to VM_SPEC_VALUE via OM-83212
-            .build();
+            .put(EntityType.APPLICATION_COMPONENT_VALUE, ImmutableList.of(
+                    //TODO: Convert to VM_SPEC_VALUE via OM-83212
+                    cloudAspectMapper, appServiceAspectMapper))
+            .put(EntityType.CLOUD_COMMITMENT_VALUE, ImmutableList.of(
+                    cloudCommitmentAspectMapper))
+                .build();
     }
 
     /**

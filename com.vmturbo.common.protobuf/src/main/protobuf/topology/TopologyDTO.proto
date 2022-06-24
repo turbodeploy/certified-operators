@@ -46,6 +46,7 @@ message TypeSpecificInfo {
         ContainerInfo container = 83;
         ContainerPodInfo container_pod = 84;
         ServiceInfo service = 85;
+        ApplicationServiceInfo application_service = 86;
     }
 
     message ApplicationInfo {
@@ -58,6 +59,41 @@ message TypeSpecificInfo {
         // more consistent for the application when stitched with APM probes or when the
         // application is reported without the cloud native entities.
         optional double hostingNodeCpuFrequency = 2;
+
+    }
+
+    message ApplicationServiceInfo {
+        // Platform (can also be OS)
+        optional Platform platform = 1;
+        // Tier (also known as Pricing Tier)
+        optional Tier tier = 2;
+        // Maximum number of worker VMs for this component.
+        optional int32 max_instance_count = 3;
+        // Number of worker VMs for this component.
+        optional int32 current_instance_count = 4;
+        // Number of apps contained within this app service
+        optional int32 app_count = 5;
+        // Whether or not the app service is zone redundant
+        optional bool zone_redundant = 6;
+
+        enum Platform {
+            UNKNOWN = 0;
+            LINUX = 1;
+            WINDOWS = 2;
+        }
+
+        enum Tier {
+            OTHER_APP_SERVICE_PLAN_SERVICE_TIER = 0;
+            FREE = 1;
+            SHARED = 2;
+            BASIC = 3;
+            STANDARD = 4;
+            PREMIUM = 5;
+            PREMIUMV2 = 6;
+            PREMIUMV3 = 7;
+            ISOLATED = 8;
+            ISOLATEDV2 = 9;
+        }
     }
 
     message VirtualMachineInfo {

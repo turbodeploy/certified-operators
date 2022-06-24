@@ -111,6 +111,8 @@ public class SdkToTopologyEntityConverter {
             ImmutableMap.<EntityType, TypeSpecificInfoMapper>builder()
                     .put(EntityType.APPLICATION, new ApplicationInfoMapper())
                     .put(EntityType.APPLICATION_COMPONENT, new ApplicationInfoMapper())
+                    // TODO (Cloud PaaS): ASP "legacy" APPLICATION_COMPONENT support, OM-83212
+                    //  Add VIRTUAL_MACHINE_SPEC with ApplicationServiceInfoMapper
                     // Databases get their type-specific info sent via application data
                     .put(EntityType.DATABASE_SERVER, new DatabaseInfoMapper())
                     .put(EntityType.DATABASE, new DatabaseInfoMapper())

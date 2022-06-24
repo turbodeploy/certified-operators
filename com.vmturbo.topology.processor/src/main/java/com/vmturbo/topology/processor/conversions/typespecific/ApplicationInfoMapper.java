@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationServiceInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ApplicationData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DatabaseData;
@@ -22,49 +23,70 @@ public class ApplicationInfoMapper extends TypeSpecificInfoMapper {
     public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(
             @Nonnull final EntityDTOOrBuilder sdkEntity,
             @Nonnull final Map<String, String> entityPropertyMap) {
-        if (!sdkEntity.hasApplicationData()) {
+        if (!sdkEntity.hasApplicationData()
+                // TODO (Cloud PaaS): ASP "legacy" APPLICATION_COMPONENT support, OM-83212
+                //  Remove this hasApplicationServiceData check
+                && !sdkEntity.hasApplicationServiceData()) {
             return TypeSpecificInfo.getDefaultInstance();
         }
-        final ApplicationData appData = sdkEntity.getApplicationData();
+        final TypeSpecificInfo.Builder typInfoBuilder = TypeSpecificInfo.newBuilder();
+        // TODO (Cloud PaaS): ASP "legacy" APPLICATION_COMPONENT support, OM-83212
+        //  remove this ApplicationServiceInfo section when no longer needed
+        if (sdkEntity.hasApplicationServiceData()) {
+            final ApplicationServiceInfoMapper asMapper = new ApplicationServiceInfoMapper();
+            final ApplicationServiceInfo appSvcInfo = asMapper.getApplicationServiceInfo(
+                    sdkEntity.getApplicationServiceData());
+            typInfoBuilder.setApplicationService(appSvcInfo);
+        }
+        if (sdkEntity.hasApplicationData()) {
+            ApplicationData appData = sdkEntity.getApplicationData();
+            final ApplicationInfo appInfo = getApplicationInfo(appData);
+            typInfoBuilder.setApplication(appInfo);
+            if (appData.hasDbData()) {
+                // if this is a DB application, then populate the DB Info as well
+                final DatabaseInfo dbInfo = getDatabaseInfo(appData.getDbData());
+                typInfoBuilder.setDatabase(dbInfo);
+            }
+        }
+        return typInfoBuilder.build();
+    }
+
+    private ApplicationInfo getApplicationInfo(ApplicationData appData) {
         final ApplicationInfo.Builder applicationInfoBuilder = ApplicationInfo.newBuilder();
         if (appData.hasIpAddress()) {
             applicationInfoBuilder.setIpAddress(IpAddress.newBuilder()
-                //  TODO: how do we determine if an application or db ip is elastic?
-                .setIpAddress(appData.getIpAddress())
+                    //  TODO: how do we determine if an application or db ip is elastic?
+                    .setIpAddress(appData.getIpAddress())
             );
         }
         if (appData.hasHostingNodeCpuFrequency()) {
-           applicationInfoBuilder.setHostingNodeCpuFrequency(appData.getHostingNodeCpuFrequency());
+            applicationInfoBuilder.setHostingNodeCpuFrequency(appData.getHostingNodeCpuFrequency());
         }
+        return applicationInfoBuilder.build();
+    }
 
-        final TypeSpecificInfo.Builder appInfo = TypeSpecificInfo.newBuilder()
-                .setApplication(applicationInfoBuilder);
-        // if this is a DB application, then populate the DB Info as well
-        if (appData.hasDbData()) {
-            final DatabaseData dbData = appData.getDbData();
-            // Note that we will add a 'databaseInfo' even if the 'appData.getDbData()' has no info
-            final DatabaseInfo.Builder databaseInfoBuilder = DatabaseInfo.newBuilder();
-            if (dbData.hasEdition()) {
-                databaseInfoBuilder.setEdition(parseDbEdition(dbData.getEdition()));
-                databaseInfoBuilder.setRawEdition(dbData.getEdition());
-            }
-            if (dbData.hasEngine()) {
-                databaseInfoBuilder.setEngine(parseDbEngine(dbData.getEngine()));
-            }
-            if (dbData.hasVersion()) {
-                databaseInfoBuilder.setVersion(dbData.getVersion());
-            }
-            if (dbData.hasDeploymentType()) {
-                parseDeploymentType(dbData.getDeploymentType()).ifPresent(
-                    databaseInfoBuilder::setDeploymentType);
-            }
-            if (dbData.hasLicenseModel()) {
-                parseLicenseModel(dbData.getLicenseModel()).ifPresent(
-                    databaseInfoBuilder::setLicenseModel);
-            }
-            // we don't yet need 'dbData.getVersion() - but that may change
-            appInfo.setDatabase(databaseInfoBuilder);
+    private DatabaseInfo getDatabaseInfo(DatabaseData dbData) {
+        // Note that we will add a 'databaseInfo' even if the 'appData.getDbData()' has no info
+        final DatabaseInfo.Builder databaseInfoBuilder = DatabaseInfo.newBuilder();
+        if (dbData.hasEdition()) {
+            databaseInfoBuilder.setEdition(parseDbEdition(dbData.getEdition()));
+            databaseInfoBuilder.setRawEdition(dbData.getEdition());
         }
-        return appInfo.build();
+        if (dbData.hasEngine()) {
+            databaseInfoBuilder.setEngine(parseDbEngine(dbData.getEngine()));
+        }
+        if (dbData.hasVersion()) {
+            databaseInfoBuilder.setVersion(dbData.getVersion());
+        }
+        if (dbData.hasDeploymentType()) {
+            parseDeploymentType(dbData.getDeploymentType()).ifPresent(
+                    databaseInfoBuilder::setDeploymentType);
+        }
+        if (dbData.hasLicenseModel()) {
+            parseLicenseModel(dbData.getLicenseModel()).ifPresent(
+                    databaseInfoBuilder::setLicenseModel);
+        }
+        // we don't yet need 'dbData.getVersion() - but that may change
+        return databaseInfoBuilder.build();
     }
 }
