@@ -43,6 +43,7 @@ public class EntityAspectMapperTest {
     private final VirtualVolumeEntityAspectMapper virtualVolumeEntityAspecMapper = mock(VirtualVolumeEntityAspectMapper.class);
     private final CloudCommitmentAspectMapper cloudCommitmentAspectMapper = mock(CloudCommitmentAspectMapper.class);
     private final ContainerPlatformContextAspectMapper containerPlatformContextAspectMapper = mock(ContainerPlatformContextAspectMapper.class);
+    private final ApplicationServiceAspectMapper appSvcAspectMapper = mock(ApplicationServiceAspectMapper.class);
     final long realtimeTopologyContextId = 99L;
 
     private final EntityAspectMapper mapper = new EntityAspectMapper(storageTierAspectMapper, virtualVolumeAspectMapper,
@@ -51,7 +52,7 @@ public class EntityAspectMapperTest {
             storageControllerAspectMapper, portsAspectMapper, databaseAspectMapper, databaseServerAspectMapper,
             regionAspectMapper, workloadControllerAspectMapper, computeTierAspectMapper, databaseServerTierAspectMapper,
             databaseTierAspectMapper, businessUserAspectMapper, virtualVolumeEntityAspecMapper, cloudCommitmentAspectMapper,
-            containerPlatformContextAspectMapper, realtimeTopologyContextId);
+            containerPlatformContextAspectMapper, appSvcAspectMapper, realtimeTopologyContextId);
 
     /**
      * Setup mocks.
@@ -81,6 +82,7 @@ public class EntityAspectMapperTest {
         when(virtualVolumeEntityAspecMapper.getAspectName()).thenReturn(AspectName.VIRTUAL_VOLUME_ENTITY);
         when(cloudCommitmentAspectMapper.getAspectName()).thenReturn(AspectName.CLOUD_COMMITMENT);
         when(containerPlatformContextAspectMapper.getAspectName()).thenReturn(AspectName.CONTAINER_PLATFORM_CONTEXT);
+        when(appSvcAspectMapper.getAspectName()).thenReturn(AspectName.APP_SERVICE);
 
     }
 
