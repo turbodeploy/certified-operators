@@ -95,6 +95,11 @@ public class TopologyStitchingGraph {
     private static final String PROVIDER_MISSING = "ProviderMissing";
 
     /**
+     * logType for log message when entities have invalid consistOf relation
+     */
+    private static final String INVALID_CONSIST_OF_CONNECTION = "InvalidConsistOf";
+
+    /**
      * Create a new stitchingGraph.
      *
      * Note that stitchingGraph construction does not validate the consistency of the input - for example,
@@ -377,6 +382,7 @@ public class TopologyStitchingGraph {
         final Map<StitchingErrorCode, MutableInt> errorsByCategory) {
 
         // translate layeredOver relations to aggregations
+        LogMessageGrouper msgGrouper = LogMessageGrouper.getInstance();
         if (!entityDtoBuilder.getLayeredOverList().isEmpty()) {
 
             final List<String> invalidLayeredOver = new ArrayList<>();
@@ -445,7 +451,7 @@ public class TopologyStitchingGraph {
                 // check and report on validity of consistsOf relations and
                 // update the entityDTOBuilder accordingly
                 if (invalidConsistsOf.size() > 0) {
-                    logger.error("Entity {} (local id: {}) consists of invalid entities: {}", entity::getOid, entity::getLocalId, () -> invalidConsistsOf);
+                    logger.debug("Entity {} (local id: {}) consists of invalid entities: {}", entity::getOid, entity::getLocalId, () -> invalidConsistsOf);
                     entityDtoBuilder.clearConsistsOf();
                     entityDtoBuilder.addAllConsistsOf(validConsistsOf);
                 } else if (duplicateConsistsOfCount > 0) {
@@ -456,7 +462,16 @@ public class TopologyStitchingGraph {
                     entityDtoBuilder.addAllConsistsOf(validConsistsOf);
                 }
             }
+            if(invalidConsistsOf.size() > 0)
+            {
+                final String msg = String.format("Entity %s discovered by %s cannot convert consistOf relation to ownership due to " +
+                        "missing entities.Turn on debug log for more details: EntityOid:Local Id\n",entity.getDisplayName(), entity.getTargetId());
+                msgGrouper.register(LOGMESSAGEGROUPER_SESSION_ID,
+                        INVALID_CONSIST_OF_CONNECTION, msg);
+                msgGrouper.log(LOGMESSAGEGROUPER_SESSION_ID,INVALID_CONSIST_OF_CONNECTION, String.valueOf(entity.getOid()) + ":" + entity.getLocalId());
+            }
         }
+
     }
 
     private boolean translateLayeredOver(@Nonnull TopologyStitchingEntity entity,

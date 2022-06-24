@@ -171,12 +171,22 @@ public class TopologyStitchingGraphTest {
             .addConsistsOf("another bad consists of"));
 
         final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
-
         assertThat(graph.entityCount(), is(2));
         final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
+
         assertTrue(resEntity.getStitchingErrors().contains(StitchingErrorCode.INVALID_CONSISTS_OF));
         assertThat(resEntity.getEntityBuilder().getConsistsOfList(),
             containsInAnyOrder(validEntity.getLocalId()));
+
+        final LogMessageGrouper logMsgGrouper = LogMessageGrouper.getInstance();
+        final List<String> logMessages = logMsgGrouper
+                .getMessages(TopologyStitchingGraph.LOGMESSAGEGROUPER_SESSION_ID);
+        final String invalidConsistOfMessage =
+                "cannot convert consistOf relation to ownership due to missing entities.Turn on debug log for more details";
+        
+        assertEquals(1, logMessages.size());
+        assertTrue(logMessages.get(0).contains(invalidConsistOfMessage));
+        logMsgGrouper.clear(TopologyStitchingGraph.LOGMESSAGEGROUPER_SESSION_ID);
     }
 
     @Test
