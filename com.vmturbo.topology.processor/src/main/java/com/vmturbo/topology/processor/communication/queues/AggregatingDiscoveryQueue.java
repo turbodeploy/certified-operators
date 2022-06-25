@@ -89,17 +89,6 @@ public interface AggregatingDiscoveryQueue {
         @Nonnull ContainerInfo containerInfo, ITransport<MediationServerMessage, MediationClientMessage> serverEndpoint);
 
     /**
-     * Register that the given transport will handle the given target. Check if the transport has
-     * a label and/or supports incremental discoveries.
-     *
-     * @param transport the transport that should exclusively discover the target.
-     * @param target String made up of target identifiers that identify the target.
-     */
-    void assignTargetToTransport(
-        @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
-        @Nonnull Target target);
-
-    /**
      * Called when a target is deleted.  Queue should remove all queued discoveries for the target.
      *
      * @param probeId long giving the ID of the Probe that is associated with the delted Target.

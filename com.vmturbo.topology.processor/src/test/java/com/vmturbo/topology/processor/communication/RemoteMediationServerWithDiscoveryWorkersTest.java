@@ -48,6 +48,7 @@ import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * Test functionality of TransportDiscoveryWorker.
@@ -138,6 +139,10 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
 
     private final ProbeStore probeStore = mock(ProbeStore.class);
 
+    private final ProbeContainerChooser probeContainerChooser = mock(ProbeContainerChooser.class);
+
+    private final TargetStore targetStore = mock(TargetStore.class);
+
     private RemoteMediationServer remoteMediationServer;
 
     private String target1IdFields = "target1";
@@ -161,10 +166,11 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
-        queue = spy(new AggregatingDiscoveryQueueImpl(probeStore));
+        queue = spy(new AggregatingDiscoveryQueueImpl(probeStore, probeContainerChooser));
         doReturn(Optional.of(probeIdVc)).when(probeStore).getProbeIdForType(eq(VC_PROBE_TYPE));
         doReturn(Optional.of(probeInfoVc1)).when(probeStore).getProbe(eq(probeIdVc));
         doReturn(true).when(probeStore).isProbeConnected(eq(probeIdVc));
+        doReturn(Optional.of(probeInfoVc1)).when(probeStore).getProbeInfoForType(eq(VC_PROBE_TYPE));
         TargetSpec defaultSpec = TargetSpec.getDefaultInstance();
         when(target1.getProbeId()).thenReturn(probeIdVc);
         when(target1.getSpec()).thenReturn(defaultSpec);
@@ -182,7 +188,7 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
         remoteMediationServer = Mockito.spy(
                 new RemoteMediationServerWithDiscoveryWorkers(probeStore,
                         Mockito.mock(ProbePropertyStore.class),
-                        new ProbeContainerChooserImpl(probeStore),
+                        probeContainerChooser,
                         queue,
                         1,
                         1, discoveryWorkerPollingTimeoutSecs));
@@ -264,11 +270,6 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
 
         // wait for second discovery to be processed
         OperationTestUtilities.waitForEvent(() -> discoveryMethod2.runnable != null);
-
-        // now both discoveries have been processed and we make sure targets have been assigned to
-        // transports
-        verify(queue, timeout(verify_timeout_millis).atLeast(2))
-                .assignTargetToTransport(any(), any());
 
         // Now we queue up 2 more discoveries - they should only go to their assigned transports
         queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod3, errorHandler1, false);

@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -32,6 +33,8 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.Pair;
+import com.vmturbo.topology.processor.communication.ProbeContainerChooser;
+import com.vmturbo.topology.processor.communication.ProbeContainerChooserImpl.TransportReassignment;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryBundle;
 import com.vmturbo.topology.processor.probes.ProbeException;
@@ -49,15 +52,13 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
     private static final Logger logger = LogManager.getLogger(AggregatingDiscoveryQueueImpl.class);
 
     private final ProbeStore probeStore;
+    private final ProbeContainerChooser probeContainerChooser;
 
     private final Map<DiscoveryType, Map<Long, DiscoveryQueue>> discoveryQueueByProbeId =
             Maps.newHashMap();
 
     private final Map<ITransport<MediationServerMessage, MediationClientMessage>,
             Map<DiscoveryType, DiscoveryQueue>> discoveryQueueByTransport = Maps.newHashMap();
-
-    private final Map<Pair<String, String>, ITransport<MediationServerMessage, MediationClientMessage>>
-            transportByTargetId = Maps.newHashMap();
 
     /**
      * Map from channel to discovery queue indexed both by discovery type and probe id. This is
@@ -72,10 +73,16 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
 
     /**
      * Create an instance of {@link AggregatingDiscoveryQueueImpl}.
-     * @param probeStore {@link ProbeStore} containing probe information relevant to this queue.
+     *
+     * @param probeStore {@link ProbeStore} containing probe information relevant to this
+     *         queue.
+     * @param probeContainerChooser for choosing a container for a given target
      */
-    public AggregatingDiscoveryQueueImpl(@Nonnull ProbeStore probeStore) {
+    public AggregatingDiscoveryQueueImpl(@Nonnull ProbeStore probeStore,
+            @Nonnull ProbeContainerChooser probeContainerChooser) {
         this.probeStore = probeStore;
+        this.probeContainerChooser = probeContainerChooser;
+        probeContainerChooser.registerRebalanceCallback(this::reassignQueuedDiscovery);
     }
 
     @Override
@@ -104,7 +111,7 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
             final Pair<String, String> lookupKey = new Pair<>(target.getProbeInfo().getProbeType(),
                     target.getSerializedIdentifyingFields());
             final ITransport<MediationServerMessage, MediationClientMessage> existingTransport =
-                    transportByTargetId.get(lookupKey);
+                    probeContainerChooser.getTransportByTargetId(lookupKey);
             if (existingTransport != null && !targetHasUpdatedChannel(target, existingTransport)) {
                 final IDiscoveryQueueElement retVal = discoveryQueueByTransport.get(existingTransport)
                     .computeIfAbsent(discoveryType,
@@ -224,52 +231,6 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
         if (containerInfo.hasCommunicationBindingChannel()) {
             assignChannelToTransport(containerInfo.getCommunicationBindingChannel(), serverEndpoint);
         }
-        containerInfo.getPersistentTargetIdMapMap()
-            .forEach((probeType, targetIdSet) -> targetIdSet.getTargetIdList()
-                .forEach(targetId -> assignTargetToTransport(
-                    serverEndpoint, probeType, targetId)));
-    }
-
-    @Override
-    public synchronized void assignTargetToTransport(
-        @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
-        @Nonnull Target target) {
-
-        if (!target.getProbeInfo().hasIncrementalRediscoveryIntervalSeconds()) {
-            return;
-        }
-        final String probeType = target.getProbeInfo().getProbeType();
-        final String targetId = target.getSerializedIdentifyingFields();
-        if (target.getSpec().hasCommunicationBindingChannel()) {
-            String channel = target.getSpec().getCommunicationBindingChannel();
-            long probeId = target.getProbeId();
-            if (discoveryQueueByChannel.containsKey(channel) && discoveryQueueByChannel.get(channel).containsKey(probeId)) {
-                discoveryQueueByChannel.remove(target.getSpec().getCommunicationBindingChannel()).get(target.getProbeId());
-            }
-        }
-        assignTargetToTransport(transport, probeType, targetId);
-    }
-
-
-    private synchronized void assignTargetToTransport(
-        @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
-        @Nonnull String probeType,
-        @Nonnull String targetId) {
-        if (!discoveryQueueByTransport.containsKey(transport)) {
-            logger.warn("Ignoring attempt to assign target {} to transport {}. "
-                    + "Transport is no longer open.", targetId, transport);
-            return;
-        }
-        final Pair<String, String> key = new Pair<>(probeType, targetId);
-        final ITransport<MediationServerMessage, MediationClientMessage> transportFromMap =
-            transportByTargetId.get(key);
-        if (transportFromMap != null && transport != transportFromMap) {
-            logger.info("Moving target {} of probe type {} from transport {} to transport {}",
-                targetId, probeType, transportFromMap, transport);
-        }
-        logger.debug("Assigning target {} of probe type {} to transport {}",
-            targetId, probeType, transport);
-        transportByTargetId.put(key, transport);
     }
 
     @Override
@@ -371,7 +332,6 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
         logger.debug("Removing Transport {}", () -> transport);
         Collection<IDiscoveryQueueElement> deletedElements = new ArrayList<>();
         synchronized (this) {
-            transportByTargetId.values().removeIf(transport::equals);
             discoveryQueueByTransport.getOrDefault(transport, Collections.emptyMap())
                     .entrySet()
                     .stream()
@@ -399,5 +359,41 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
         synchronized (this) {
             notifyAll();
         }
+    }
+
+    /**
+     * Reassign the queued discovery elements for targets from old transport to new transport.
+     *
+     * @param transportReassignments list of targets with transport changes
+     */
+    private synchronized void reassignQueuedDiscovery(List<TransportReassignment> transportReassignments) {
+        final List<DiscoveryQueue> affectedQueues = new ArrayList<>();
+        transportReassignments.forEach(transportReassignment -> {
+            final Target target = transportReassignment.getTarget();
+
+            Map<DiscoveryType, DiscoveryQueue> discoveryTypeDiscoveryQueueMap =
+                    discoveryQueueByTransport.get(transportReassignment.getOldTransport());
+            if (discoveryTypeDiscoveryQueueMap != null) {
+                discoveryTypeDiscoveryQueueMap.forEach((discoveryType, queue) -> {
+                    IDiscoveryQueueElement element = queue.handleTargetRemoval(target.getId());
+                    if (element != null) {
+                        try {
+                            DiscoveryQueue discoveryQueue = discoveryQueueByTransport.computeIfAbsent(
+                                    transportReassignment.getNewTransport(), k -> new HashMap<>())
+                                    .computeIfAbsent(discoveryType,
+                                            k -> new DiscoveryQueue(target.getProbeId(), discoveryType));
+                            discoveryQueue.add(element);
+                            affectedQueues.add(discoveryQueue);
+                        } catch (DiscoveryQueueException e) {
+                            logger.error("Failed to queue discovery for target {} and discovery type {}",
+                                    target.getId(), discoveryType, e);
+                        }
+                    }
+                });
+            }
+        });
+
+        // sort affected queues due to added elements
+        affectedQueues.forEach(DiscoveryQueue::sort);
     }
 }

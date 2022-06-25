@@ -20,6 +20,7 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
@@ -102,6 +103,7 @@ public class TransportCloseTest extends AbstractIntegrationTest {
         final long probeId = getSdkEngine().getBean(ProbeStore.class).getProbeIdForType(
                 target.getProbe().getType()).get();
         Mockito.when(targetMock.getProbeId()).thenReturn(probeId);
+        Mockito.when(targetMock.getProbeInfo()).thenReturn(ProbeInfo.getDefaultInstance());
         return targetMock;
     }
 

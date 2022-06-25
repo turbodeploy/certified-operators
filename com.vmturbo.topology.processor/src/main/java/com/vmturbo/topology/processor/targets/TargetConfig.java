@@ -39,6 +39,8 @@ import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.DbAccessConfig;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+import com.vmturbo.topology.processor.communication.ProbeContainerChooser;
+import com.vmturbo.topology.processor.communication.ProbeContainerChooserImpl;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumperConfig;
 import com.vmturbo.topology.processor.probeproperties.GlobalProbePropertiesSettingsLoader;
 import com.vmturbo.topology.processor.probeproperties.KVBackedProbePropertyStore;
@@ -102,6 +104,12 @@ public class TargetConfig {
      */
     @Value("${com.vmturbo.kvdir:/home/turbonomic/data/kv}")
     private String keyDir;
+
+    /**
+     * The seconds to delay before rebalancing the targets after transport is registered or removed.
+     */
+    @Value("${targetRebalanceDelaySec:30}")
+    private long targetRebalanceDelaySec;
 
     @Bean
     public TargetStore targetStore() {
@@ -242,4 +250,10 @@ public class TargetConfig {
         return new PersistentVolumeKeyProvider(publicKeyStoreConfig.publicKeyStore(), keyDir);
     }
 
+    @Bean
+    public ProbeContainerChooser probeContainerChooser() {
+        return new ProbeContainerChooserImpl(probeConfig.probeStore(), targetStore(),
+                Executors.newSingleThreadScheduledExecutor(),
+                targetRebalanceDelaySec);
+    }
 }

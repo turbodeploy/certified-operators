@@ -1,5 +1,8 @@
 package com.vmturbo.topology.processor.communication.it;
 
+import static org.mockito.Mockito.mock;
+
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -16,6 +19,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.topology.processor.communication.ProbeContainerChooserImpl;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * Implementation of {@link RemoteMediationServer}, suitable for mocks.
@@ -29,8 +33,9 @@ public class TestRemoteMediationServer extends RemoteMediationServer {
      * Creates a new TestRemoteMediationServer.
      * @param  probeStore contains the probes
      */
-    public TestRemoteMediationServer(ProbeStore probeStore) {
-        super(probeStore, null, new ProbeContainerChooserImpl(probeStore));
+    public TestRemoteMediationServer(ProbeStore probeStore, TargetStore targetStore) {
+        super(probeStore, null, new ProbeContainerChooserImpl(probeStore, targetStore,
+                mock(ScheduledExecutorService.class), 0));
     }
 
     @Override

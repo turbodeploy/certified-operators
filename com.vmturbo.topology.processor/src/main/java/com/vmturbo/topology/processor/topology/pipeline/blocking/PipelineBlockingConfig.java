@@ -128,7 +128,7 @@ public class PipelineBlockingConfig {
                         .build();
                 return new DiscoveryBasedUnblock(topologyConfig.pipelineExecutorService(),
                         targetConfig.targetStore(),
-                        probeConfig.probeContainerChooser(),
+                        targetConfig.probeContainerChooser(),
                         schedulerConfig.scheduler(),
                         operationConfig.operationManager(),
                         shortCircuitSpec,
