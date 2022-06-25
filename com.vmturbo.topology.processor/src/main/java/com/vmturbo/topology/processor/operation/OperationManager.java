@@ -1343,7 +1343,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             .setUpdateType(UpdateType.DELETED)
                             .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver))
                             .build();
-            remoteMediationServer.handleTargetRemoval(target.getProbeId(), targetId, request);
+            remoteMediationServer.handleTargetRemoval(target, request);
         } catch (CommunicationException | InterruptedException | ProbeException e) {
             logger.warn("Failed to clean up target " + targetId
                          + " data in remote mediation container", e);
@@ -1367,6 +1367,15 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 probe -> Optional.ofNullable(ProbeCategory.create(probe.getProbeCategory())));
         discoveredCloudCostUploader.targetRemoved(targetId, probeCategory);
         discoveredPlanDestinationUploader.targetRemoved(targetId);
+    }
+
+    @Override
+    public void onTargetAdded(@NotNull Target target) {
+        try {
+            remoteMediationServer.handleTargetAddition(target);
+        } catch (ProbeException e) {
+            logger.warn("Error when adding target {} in remote mediation server", target.getId(), e);
+        }
     }
 
     /**

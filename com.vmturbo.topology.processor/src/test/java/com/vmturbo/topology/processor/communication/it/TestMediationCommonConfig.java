@@ -119,7 +119,7 @@ public class TestMediationCommonConfig {
 
     @Bean
     public RemoteMediationServer remoteMediation() {
-        return new TestRemoteMediationServer(probeStore());
+        return new TestRemoteMediationServer(probeStore(), targetStore());
     }
 
     @Bean

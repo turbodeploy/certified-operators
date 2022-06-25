@@ -121,13 +121,13 @@ public class DiscoveryQueue implements IDiscoveryQueue {
     }
 
     @Override
-    public boolean handleTargetRemoval(long targetId) {
+    public IDiscoveryQueueElement handleTargetRemoval(long targetId) {
         IDiscoveryQueueElement toRemove = targetIdMap.remove(targetId);
         if (toRemove != null) {
             innerQ.remove(toRemove);
-            return true;
+            return toRemove;
         }
-        return false;
+        return null;
     }
 
     @Override
