@@ -28,8 +28,6 @@ import org.apache.commons.lang.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import common.HealthCheck.HealthState;
-
 import com.vmturbo.clustermgr.api.ClusterMgrClient;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -46,6 +44,8 @@ import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.probes.ProbeVersionFactory.ProbeVersionCompareResult;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.targets.Target;
+
+import common.HealthCheck.HealthState;
 
 /**
  * Store for remote probe information. It publishes several convenient methods to operate with
@@ -89,8 +89,8 @@ public class RemoteProbeStore implements ProbeStore {
 
     private final ProbeOrdering probeOrdering;
 
-    private final Map<ITransport<MediationServerMessage, MediationClientMessage>, String>
-            transportToChannel = new ConcurrentHashMap<>();
+    private final Map<String, Collection<ITransport<MediationServerMessage,
+            MediationClientMessage>>> channelToTransport = new ConcurrentHashMap<>();
 
     private final Map<ITransport<MediationServerMessage, MediationClientMessage>,
             Collection<ProbeRegistrationDescription>> transportToProbeRegistrations = new ConcurrentHashMap<>();
@@ -346,9 +346,11 @@ public class RemoteProbeStore implements ProbeStore {
         final String communicationBindingChannel =
                 target.getSpec().getCommunicationBindingChannel();
         final Collection<ITransport<MediationServerMessage, MediationClientMessage>>
-                filteredTransports = transports.stream()
-                .filter(t -> communicationBindingChannel.equals(transportToChannel.get(t)))
-                .collect(Collectors.toList());
+                transportsWithAssignedChannel = channelToTransport.getOrDefault(
+                communicationBindingChannel, Collections.emptyList());
+        final Collection<ITransport<MediationServerMessage, MediationClientMessage>>
+                filteredTransports = transports.stream().filter(
+                transportsWithAssignedChannel::contains).collect(Collectors.toList());
         if (filteredTransports.size() == 0) {
             throw new ProbeException(noTransportMessage(probeId, communicationBindingChannel));
         }
@@ -363,12 +365,7 @@ public class RemoteProbeStore implements ProbeStore {
      */
     private void updateTransportByChannel(@Nonnull final String communicationBindingChannel,
             @Nonnull final ITransport<MediationServerMessage, MediationClientMessage> transport) {
-        transportToChannel.put(transport, communicationBindingChannel);
-    }
-
-    @Override
-    public Optional<String> getChannel(final ITransport<MediationServerMessage, MediationClientMessage> transport) {
-        return Optional.ofNullable(transportToChannel.get(transport));
+        channelToTransport.computeIfAbsent(communicationBindingChannel, x -> new ArrayList()).add(transport);
     }
 
     /**

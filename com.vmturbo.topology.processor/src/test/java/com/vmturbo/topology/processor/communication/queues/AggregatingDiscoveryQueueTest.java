@@ -31,11 +31,9 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
-import com.vmturbo.topology.processor.communication.ProbeContainerChooser;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
@@ -53,8 +51,6 @@ public class AggregatingDiscoveryQueueTest {
     private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
 
     private final TestProbeStore probeStore = new TestProbeStore(identityProvider);
-
-    private final ProbeContainerChooser probeContainerChooser = mock(ProbeContainerChooser.class);
 
     private final long probeId1 = 1111L;
 
@@ -152,7 +148,7 @@ public class AggregatingDiscoveryQueueTest {
         probeStore.registerNewProbe(probeInfo1, containerInfo2, transportVc2);
         probeStore.registerNewProbe(probeInfo2, containerInfo1, transportHyperV1);
 
-        queue = new AggregatingDiscoveryQueueImpl(probeStore, probeContainerChooser);
+        queue = new AggregatingDiscoveryQueueImpl(probeStore);
     }
 
     private IDiscoveryQueueElement addToQueueAndVerify(Target target, DiscoveryType discoveryType,
@@ -282,8 +278,7 @@ public class AggregatingDiscoveryQueueTest {
         queue.parseContainerInfoWithTransport(containerInfo, transportVc2);
 
         // tie target1 to transportVc1
-        when(probeContainerChooser.getTransportByTargetId(new Pair<>(probeInfo1.getProbeType(),
-                target1.getSerializedIdentifyingFields()))).thenReturn(transportVc1);
+        queue.assignTargetToTransport(transportVc1, target1);
 
         // this discovery should be added to a queue dedicated to transportVc1
         final IDiscoveryQueueElement firstAdd = addToQueueAndVerify(target1, DiscoveryType.FULL,
@@ -340,9 +335,9 @@ public class AggregatingDiscoveryQueueTest {
         // simulate removal of transportVc1
         probeStore.removeTransport(transportVc1);
         queue.handleTransportRemoval(transportVc1, Collections.singleton(probeId1));
-        // target1 is no longer assigned to transportVc1
-        when(probeContainerChooser.getTransportByTargetId(new Pair<>(probeInfo1.getProbeType(),
-                target1.getSerializedIdentifyingFields()))).thenReturn(null);
+
+        // this should have no effect since transportVc1 is already disconnected
+        queue.assignTargetToTransport(transportVc1, target1);
 
         // add a target1 discovery to queue
         final IDiscoveryQueueElement firstAdd = addToQueueAndVerify(target1, DiscoveryType.FULL,
@@ -377,11 +372,8 @@ public class AggregatingDiscoveryQueueTest {
         TargetSpec specWithLabel =
             TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel(channel1).build();
         when(target1.getSpec()).thenReturn(specWithLabel);
-//        when(probeContainerChooser.getTransportByTargetId(new Pair<>(probeInfo1.getProbeType(),
-//                target1.getSerializedIdentifyingFields()))).thenReturn(transportVc1);
 
-
-        addToQueueAndVerify(target1, DiscoveryType.FULL,
+       addToQueueAndVerify(target1, DiscoveryType.FULL,
             discoveryMethodMock1, false);
 
         //It can be taken by transport two since they are on the same channel and the target
@@ -391,8 +383,7 @@ public class AggregatingDiscoveryQueueTest {
                         DiscoveryType.FULL, waitForQueueEntrySeconds);
         assertTrue(secondTransportGet.isPresent());
 
-        when(probeContainerChooser.getTransportByTargetId(new Pair<>(probeInfo1.getProbeType(),
-                target1.getSerializedIdentifyingFields()))).thenReturn(transportVc1);
+        queue.assignTargetToTransport(transportVc1, target1);
 
         addToQueueAndVerify(target1, DiscoveryType.FULL,
             discoveryMethodMock1, false);
@@ -432,8 +423,7 @@ public class AggregatingDiscoveryQueueTest {
         queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel1).build(), transportVc1);
         queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel2).build(), transportVc2);
 
-        when(probeContainerChooser.getTransportByTargetId(new Pair<>(probeInfo1.getProbeType(),
-                target1.getSerializedIdentifyingFields()))).thenReturn(transportVc1);
+        queue.assignTargetToTransport(transportVc1, target1);
 
         TargetSpec specWithLabel =
             TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel(channel1).build();
@@ -518,8 +508,7 @@ public class AggregatingDiscoveryQueueTest {
                 .addProbes(probeInfo1).build();
         queue.parseContainerInfoWithTransport(containerInfo, transportVc1);
         // tie target1 to transportVc1
-        when(probeContainerChooser.getTransportByTargetId(new Pair<>(probeInfo1.getProbeType(),
-                target1.getSerializedIdentifyingFields()))).thenReturn(transportVc1);
+        queue.assignTargetToTransport(transportVc1, target1);
 
         // make target3 have same identifying fields as target1
         when(target3.getSerializedIdentifyingFields()).thenReturn(target1IdentifyingFields);

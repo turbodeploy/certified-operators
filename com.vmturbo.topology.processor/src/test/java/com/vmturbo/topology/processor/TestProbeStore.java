@@ -234,10 +234,4 @@ public class TestProbeStore implements ProbeStore {
     @Override
     public void initialize() throws InitializationException {
     }
-
-    @Override
-    public Optional<String> getChannel(
-            ITransport<MediationServerMessage, MediationClientMessage> transport) {
-        return Optional.empty();
-    }
 }

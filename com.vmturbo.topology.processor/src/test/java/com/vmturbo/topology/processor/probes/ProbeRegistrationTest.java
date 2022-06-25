@@ -1,14 +1,10 @@
 package com.vmturbo.topology.processor.probes;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Sets;
 
@@ -42,7 +38,6 @@ import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.FakeTransport.TransportPair;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.targets.Target;
-import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.util.Probes;
 
 /**
@@ -75,12 +70,8 @@ public class ProbeRegistrationTest {
             mock(IdentityDatabaseStore.class), 0, 0, mock(StaleOidManagerImpl.class), false);
         ProbeStore probeStore = new RemoteProbeStore(keyValueStore,
             identityProvider, stitchingOperationStore,  new ActionMergeSpecsRepository());
-        ScheduledExecutorService scheduledExecutorService = mock(ScheduledExecutorService.class);
-        when(scheduledExecutorService.schedule(any(Runnable.class), any(Long.class),
-                eq(TimeUnit.SECONDS))).thenReturn(mock(ScheduledFuture.class));
         remoteMediation = new RemoteMediationServer(probeStore,
-            Mockito.mock(ProbePropertyStore.class), new ProbeContainerChooserImpl(probeStore,
-                Mockito.mock(TargetStore.class), scheduledExecutorService, 0));
+            Mockito.mock(ProbePropertyStore.class), new ProbeContainerChooserImpl(probeStore));
         probeInfoBuilder = ProbeInfo.newBuilder(Probes.defaultProbe);
     }
 

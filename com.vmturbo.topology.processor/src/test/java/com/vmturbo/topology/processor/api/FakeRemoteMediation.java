@@ -161,7 +161,7 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     @Override
-    public void handleTargetRemoval(Target target, TargetUpdateRequest request) {
+    public void handleTargetRemoval(long probeId, long targetId, TargetUpdateRequest request) {
     }
 
     @Override

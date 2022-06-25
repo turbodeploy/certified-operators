@@ -55,9 +55,9 @@ public interface IDiscoveryQueue {
      * target.
      *
      * @param targetId the id of the target.
-     * @return removed element if there is an element in the queue for the target, null if not.
+     * @return True if there is an element in the queue for the target, false if not.
      */
-    IDiscoveryQueueElement handleTargetRemoval(long targetId);
+    boolean handleTargetRemoval(long targetId);
 
     /**
      * Get the size of the queue.

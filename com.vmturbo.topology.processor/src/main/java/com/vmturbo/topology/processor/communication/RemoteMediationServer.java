@@ -128,7 +128,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                         .stream()
                         .map(ProbeInfo::getProbeType)
                         .collect(Collectors.toList()));
-        containerChooser.onTransportRegistered(containerInfo, serverEndpoint);
+        containerChooser.parseContainerInfoWithTransport(containerInfo, serverEndpoint);
 
         for (final ProbeInfo probeInfo : containerInfo.getProbesList()) {
             try {
@@ -258,7 +258,6 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         logger.info(() -> "container closed: " + endpoint
                         + ". Unregistering it from probe storage...");
         probeStore.removeTransport(endpoint);
-        containerChooser.onTransportRemoved(endpoint);
 
         synchronized(messageHandlers) {
             final Iterator<MessageAnticipator> iter = messageHandlers.values().iterator();
@@ -486,28 +485,21 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
     }
 
     @Override
-    public void handleTargetRemoval(@Nonnull Target target,
+    public void handleTargetRemoval(long probeId, long targetId,
                                     @Nonnull TargetUpdateRequest request)
                     throws CommunicationException, InterruptedException, ProbeException {
         synchronized (messageHandlers) {
             messageHandlers.entrySet().removeIf(entry -> {
                 final Operation operation = entry.getValue().getMessageHandler().getOperation();
-                return operation.getTargetId() == target.getId();
+                return operation.getTargetId() == targetId;
             });
         }
-        containerChooser.onTargetRemoved(target);
         MediationServerMessage message =
                         MediationServerMessage.newBuilder()
                             .setMessageID(nextMessageId())
                             .setTargetUpdateRequest(request)
                             .build();
-        //todo: test delete target, multiple transports
-        broadcastMessageToProbeInstances(target.getProbeId(), message);
-    }
-
-    @Override
-    public void handleTargetAddition(Target target) throws ProbeException {
-        containerChooser.onTargetAdded(target);
+        broadcastMessageToProbeInstances(probeId, message);
     }
 
     /**

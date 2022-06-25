@@ -114,6 +114,13 @@ public class TestAggregatingDiscoveryQueue implements AggregatingDiscoveryQueue 
     }
 
     @Override
+    public void assignTargetToTransport(
+        @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
+        @Nonnull Target target) {
+
+    }
+
+    @Override
     public void handleTargetRemoval(long probeId, long targetId) {
         logger.debug("Handling target removal for target {} of probe {}", targetId, probeId);
         if (targetSet.contains(targetId)) {

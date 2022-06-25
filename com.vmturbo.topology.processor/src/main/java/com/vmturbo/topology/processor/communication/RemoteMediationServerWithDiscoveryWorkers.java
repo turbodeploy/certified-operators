@@ -212,15 +212,25 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
                 .setMessageID(messageId)
                 .setDiscoveryRequest(discoveryRequest).build();
 
-        return sendMessageViaTransport(message, target, responseHandler, transport);
+        final int retVal = sendMessageViaTransport(message, target, responseHandler, transport);
+
+        // if this target is related to a persistent probe, or has a channel, register the
+        // association between the  target and the transport with the discoveryQueue.
+        // Call this only after calling sendMessageViaTransport, so this code is not executed if
+        // sendMessageViaTransport throws an exception.
+        probeStore.getProbe(target.getProbeId()).ifPresent(probeInfo -> {
+                    discoveryQueue.assignTargetToTransport(transport, target);
+        });
+
+        return retVal;
     }
 
     @Override
-    public void handleTargetRemoval(@Nonnull Target target,
+    public void handleTargetRemoval(long probeId, long targetId,
                                     @Nonnull TargetUpdateRequest request)
                     throws CommunicationException, InterruptedException, ProbeException {
-        discoveryQueue.handleTargetRemoval(target.getProbeId(), target.getId());
-        super.handleTargetRemoval(target, request);
+        discoveryQueue.handleTargetRemoval(probeId, targetId);
+        super.handleTargetRemoval(probeId, targetId, request);
     }
 
     /**

@@ -49,6 +49,11 @@ public class ProbeConfig {
     }
 
     @Bean
+    public ProbeContainerChooser probeContainerChooser() {
+        return new ProbeContainerChooserImpl(probeStore());
+    }
+
+    @Bean
     public ProbeActionCapabilitiesRpcService probeActionPoliciesService() {
         return new ProbeActionCapabilitiesRpcService(probeStore());
     }

@@ -8,10 +8,8 @@ import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.util.Optional;
-import java.util.concurrent.ScheduledExecutorService;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -59,7 +57,6 @@ import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
-import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.util.Probes;
 
 /**
@@ -73,13 +70,11 @@ public class RemoteMediationServerTest {
         0L, mock(IdentityDatabaseStore.class), 10, 0, mock(StaleOidManagerImpl.class), false);
 
     private final ProbeStore probeStore = new TestProbeStore(identityProvider);
-    private final TargetStore targetStore = mock(TargetStore.class);
 
     private final RemoteMediationServer remoteMediationServer = Mockito.spy(
         new RemoteMediationServer(probeStore,
                                   Mockito.mock(ProbePropertyStore.class),
-            new ProbeContainerChooserImpl(probeStore, targetStore,
-                    mock(ScheduledExecutorService.class), 0)));
+            new ProbeContainerChooserImpl(probeStore)));
 
     private final DiscoveryMessageHandler mockOperationMessageHandler =
         mock(DiscoveryMessageHandler.class);
@@ -123,11 +118,9 @@ public class RemoteMediationServerTest {
         Mockito.when(target1.getProbeId()).thenReturn(probeId);
         Mockito.when(target1.getSpec()).thenReturn(spec);
         Mockito.when(target1.getSerializedIdentifyingFields()).thenReturn(targetIdentifyingValues1);
-        Mockito.when(target1.getProbeInfo()).thenReturn(probeInfo);
         Mockito.when(target2.getProbeId()).thenReturn(probeId);
         Mockito.when(target2.getSerializedIdentifyingFields()).thenReturn(targetIdentifyingValues2);
         Mockito.when(target2.getSpec()).thenReturn(spec);
-        Mockito.when(target2.getProbeInfo()).thenReturn(probeInfo);
     }
 
     /**
@@ -184,13 +177,11 @@ public class RemoteMediationServerTest {
     @Test
     public void testProbeStoreThrowsUncheckedException() throws ProbeException {
         final ProbeStore mockProbeStore = mock(ProbeStore.class);
-        when(mockProbeStore.getProbeInfoForType(any())).thenReturn(Optional.empty());
 
         final RemoteMediationServer remoteMediationServer = Mockito.spy(
                 new RemoteMediationServer(mockProbeStore,
                         Mockito.mock(ProbePropertyStore.class),
-                        new ProbeContainerChooserImpl(mockProbeStore, targetStore,
-                                mock(ScheduledExecutorService.class), 0)));
+                        new ProbeContainerChooserImpl(mockProbeStore)));
         // Simulate an unchecked exception when we try to register the probe with the probeStore
         final String errorMessage = "Test Exception";
         final RuntimeException exception = new RuntimeException();
@@ -240,7 +231,6 @@ public class RemoteMediationServerTest {
 
         Discovery mockOperation = mock(Discovery.class);
         long targetId = 12L;
-        Mockito.when(target1.getId()).thenReturn(targetId);
         Mockito.when(mockOperation.getTargetId()).thenReturn(targetId);
         Mockito.when(mockOperationMessageHandler.getOperation()).thenReturn(mockOperation);
         Mockito.when(mockOperationMessageHandler.onMessage(mediationClientMessage))
@@ -251,7 +241,7 @@ public class RemoteMediationServerTest {
                         .setProbeType("qqq")
                         .setUpdateType(UpdateType.DELETED)
                         .build();
-        remoteMediationServer.handleTargetRemoval(target1, request);
+        remoteMediationServer.handleTargetRemoval(probeId, targetId, request);
         remoteMediationServer.onTransportMessage(transport, mediationClientMessage);
 
         Mockito.verify(mockOperationMessageHandler, Mockito.never()).onReceive(mediationClientMessage);
