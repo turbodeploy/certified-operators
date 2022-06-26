@@ -66,7 +66,10 @@ public class EntityTypeDefinitions {
             EntityDTO.EntityType.VLAN,
             EntityDTO.EntityType.VM_SPEC,
             EntityDTO.EntityType.WEB_SERVER,
-            EntityDTO.EntityType.CLUSTER
+            EntityDTO.EntityType.CLUSTER,
+            // TODO: Roop remove these entries after OM-83212 is closed.
+            EntityDTO.EntityType.APPLICATION_COMPONENT_SPEC,
+            EntityDTO.EntityType.VIRTUAL_MACHINE_SPEC
     );
 
     // names for entity types that do not have corresponding ApiEntityType instances.
