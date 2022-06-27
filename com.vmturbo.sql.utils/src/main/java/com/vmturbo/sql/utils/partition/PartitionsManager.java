@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Table;
@@ -91,7 +92,7 @@ public class PartitionsManager {
         List<Partition<Instant>> tableParts =
                 tableMap != null ? tableMap.get(table.getName()) : null;
         Partition<Instant> existingPart = null;
-        if (tableParts != null) {
+        if (!CollectionUtils.emptyIfNull(tableParts).isEmpty()) {
             existingPart = tableParts.stream()
                     .filter(p -> p.contains(t))
                     .findFirst()
@@ -185,7 +186,7 @@ public class PartitionsManager {
             throws PartitionProcessingException {
         Instant start = alignedBounds.getStart();
         Instant end = alignedBounds.getEnd();
-        if (tableParts != null) {
+        if (!CollectionUtils.emptyIfNull(tableParts).isEmpty()) {
             // find the earliest partition that at least partially follows our target time - and
             // if found, note its immediate predecessor as well
             Partition<Instant> followingPart = null;
@@ -241,5 +242,3 @@ public class PartitionsManager {
         tableParts.sort(Comparator.comparing(Partition::getInclusiveLower));
     }
 }
-
-
