@@ -1457,12 +1457,6 @@
                 <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.api.component</module>
-                <module>../com.vmturbo.extractor.schema</module>
-                <module>../com.vmturbo.sql.utils</module>
-                <module>../com.vmturbo.sql.utils.tests</module>
-                <module>../com.vmturbo.sql.test.utils</module>
-                <module>../com.vmturbo.group.component</module>
-                <module>../com.vmturbo.history.schema</module>
                 <module>../com.vmturbo.market.component.api</module>
                 <module>../com.vmturbo.search.api</module>
                 <module>../com.vmturbo.search.schema</module>
