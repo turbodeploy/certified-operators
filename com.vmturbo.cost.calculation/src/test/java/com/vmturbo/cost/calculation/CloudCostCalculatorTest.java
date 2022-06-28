@@ -968,6 +968,7 @@ public class CloudCostCalculatorTest {
         Map<String, String> entityPropertyMap = new HashMap<>();
         entityPropertyMap.put("OS_TYPE", "LINUX");
         when(infoExtractor.getEntityPropertyMap(any())).thenReturn(Optional.of(entityPropertyMap));
+        when(infoExtractor.getAppServicePlanConfig(any())).thenReturn(Optional.empty());
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS_AZURE,
                 ACCOUNT_PRICING_DATA_OID, 15L, 20L);
