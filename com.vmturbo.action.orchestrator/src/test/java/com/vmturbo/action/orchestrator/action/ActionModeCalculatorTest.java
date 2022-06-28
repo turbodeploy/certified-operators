@@ -598,7 +598,10 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testSettingDelete() {
-        testSettingDeleteForEntityType(ConfigurableActionSettings.Delete, EntityType.STORAGE);
+        Action aoAction = testSettingDeleteForEntityType(ConfigurableActionSettings.Delete, EntityType.STORAGE);
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
+
     }
 
     /**
@@ -607,11 +610,47 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testSettingDeleteVolume() {
-        testSettingDeleteForEntityType(ConfigurableActionSettings.DeleteVolume,
+        Action aoAction = testSettingDeleteForEntityType(ConfigurableActionSettings.DeleteVolume,
                 EntityType.VIRTUAL_VOLUME);
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
+
     }
 
-    private void testSettingDeleteForEntityType(
+    /**
+     * Should return AUTOMATIC for Delete Application Service action, with the target having an AUTOMATIC
+     * delete action mode.
+     */
+    @Test
+    public void testSettingDeleteApplicationService() {
+        Action aoAction = testSettingDeleteForEntityType(ConfigurableActionSettings.DeleteVirtualMachineSpec,
+                EntityType.VIRTUAL_MACHINE_SPEC);
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
+
+        aoAction = testSettingDeleteForEntityType(ConfigurableActionSettings.DeleteAppServicePlan,
+                EntityType.APPLICATION_COMPONENT);
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
+    }
+
+    /**
+     * Should never generate Suspend Actions on {@link EntityType#APPLICATION_COMPONENT_SPEC}
+     * and {@link EntityType#VIRTUAL_MACHINE_SPEC}.
+     */
+    @Test
+    public void testNoSettingDeactivateApplicationService() {
+        Action aoAction = testSettingDeleteForEntityType(ConfigurableActionSettings.Suspend,
+                EntityType.VIRTUAL_MACHINE_SPEC);
+        assertTrue(aoAction.getActionTranslation().getTranslationResultOrOriginal().getInfo().hasDelete());
+        assertFalse(aoAction.getActionTranslation().getTranslationResultOrOriginal().getInfo().hasDeactivate());
+        aoAction = testSettingDeleteForEntityType(ConfigurableActionSettings.Suspend,
+                EntityType.APPLICATION_COMPONENT);
+        assertFalse(aoAction.getActionTranslation().getTranslationResultOrOriginal().getInfo().hasDeactivate());
+        assertTrue(aoAction.getActionTranslation().getTranslationResultOrOriginal().getInfo().hasDelete());
+    }
+
+    private Action testSettingDeleteForEntityType(
             @Nonnull final ConfigurableActionSettings setting,
             @Nonnull final EntityType entityType) {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -630,8 +669,7 @@ public class ActionModeCalculatorTest {
                                 .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
-        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
-                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
+        return aoAction;
     }
 
     /**

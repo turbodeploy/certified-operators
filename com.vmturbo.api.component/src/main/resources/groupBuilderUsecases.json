@@ -434,5 +434,17 @@
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "workloadByName"}
         ]
-    }
+    },
+
+  "VirtualMachineSpec" : {
+    "criteria" : [
+      {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "virtualMachineSpecsByName"}
+    ]
+  },
+
+  "ApplicationComponentSpec" : {
+    "criteria" : [
+      {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "applicationComponentSpecsByName"}
+    ]
+  }
 }

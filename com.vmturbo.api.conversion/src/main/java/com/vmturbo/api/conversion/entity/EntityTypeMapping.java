@@ -21,6 +21,7 @@ public class EntityTypeMapping {
     public static final Map<EntityDTO.EntityType, EntityType> ENTITY_TYPE_TO_API_STRING =
         ImmutableMap.<EntityDTO.EntityType, EntityType>builder()
             .put(EntityDTO.EntityType.APPLICATION_COMPONENT, EntityType.ApplicationComponent)
+            .put(EntityDTO.EntityType.APPLICATION_COMPONENT_SPEC, EntityType.ApplicationComponentSpec)
             .put(EntityDTO.EntityType.SERVICE, EntityType.Service)
             .put(EntityDTO.EntityType.APPLICATION, EntityType.Application)
             .put(EntityDTO.EntityType.APPLICATION_SERVER, EntityType.ApplicationServer)
@@ -71,6 +72,7 @@ public class EntityTypeMapping {
             .put(EntityDTO.EntityType.CONTAINER_SPEC, EntityType.ContainerSpec)
             .put(EntityDTO.EntityType.VM_SPEC, EntityType.VMSpec)
             .put(EntityDTO.EntityType.CLOUD_COMMITMENT, EntityType.CloudCommitment)
+            .put(EntityDTO.EntityType.VIRTUAL_MACHINE_SPEC, EntityType.VirtualMachineSpec)
             .build();
 
     /**

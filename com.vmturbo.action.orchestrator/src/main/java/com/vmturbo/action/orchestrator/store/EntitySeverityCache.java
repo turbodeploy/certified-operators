@@ -123,6 +123,9 @@ public class EntitySeverityCache {
             .add(new TraverseOverProducersConfig(EntityType.DATABASE, true, false))
             // Application can have Database/Database Server as a producer
             .add(new TraverseOverProducersConfig(EntityType.APPLICATION_COMPONENT, true, false))
+            .add(new TraverseOverProducersConfig(EntityType.VIRTUAL_MACHINE_SPEC, true, false))
+            .add(new TraverseOverProducersConfig(EntityType.APPLICATION_COMPONENT_SPEC, true, true,
+                    ImmutableSet.of(EntityType.VIRTUAL_MACHINE_SPEC)))
             .add(new TraverseOverProducersConfig(EntityType.SERVICE, false, true))
             .add(new TraverseOverProducersConfig(EntityType.BUSINESS_TRANSACTION, false, true))
             .add(new TraverseOverProducersConfig(EntityType.BUSINESS_APPLICATION, false, true))

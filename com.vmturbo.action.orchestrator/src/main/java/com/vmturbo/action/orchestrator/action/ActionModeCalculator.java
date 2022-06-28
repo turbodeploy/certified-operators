@@ -998,19 +998,27 @@ public class ActionModeCalculator {
             case DELETE:
                 final EntityType targetType = EntityType.forNumber(
                         action.getInfo().getDelete().getTarget().getType());
-                if (targetType == EntityType.APPLICATION_COMPONENT) {
-                    // App Service Plans (Note: These will migrate to VMSpecs in the future).
-                    return Stream.of(ConfigurableActionSettings.DeleteAppServicePlan).filter(
-                            setting -> setting.getEntityTypeScope().contains(targetType)).map(
-                            ActionSpecifications::new);
-                } else {
-                    // Some form of volume
-                    return Stream.of(ConfigurableActionSettings.Delete,
-                            ConfigurableActionSettings.DeleteVolume).filter(
-                            setting -> setting.getEntityTypeScope().contains(targetType)).map(
-                            ActionSpecifications::new);
+                switch (targetType) {
+                    // OM-83212
+                    case APPLICATION_COMPONENT:
+                        // App Service Plans (Note: These will migrate to VirtualMachineSpecs in the future).
+                        return Stream.of(ConfigurableActionSettings.Delete,
+                                ConfigurableActionSettings.DeleteAppServicePlan).filter(
+                                setting -> setting.getEntityTypeScope().contains(targetType)).map(
+                                ActionSpecifications::new);
+                    case VIRTUAL_MACHINE_SPEC:
+                        return Stream.of(ConfigurableActionSettings.Delete,
+                                ConfigurableActionSettings.DeleteVirtualMachineSpec).filter(
+                                setting -> setting.getEntityTypeScope().contains(targetType)).map(
+                                ActionSpecifications::new);
+                    case VIRTUAL_VOLUME:
+                    default:
+                        // Some form of volume
+                        return Stream.of(ConfigurableActionSettings.Delete,
+                                ConfigurableActionSettings.DeleteVolume).filter(
+                                setting -> setting.getEntityTypeScope().contains(targetType)).map(
+                                ActionSpecifications::new);
                 }
-
             case ALLOCATE: // Allocate actions are not executable and are not configurable by the user
             case ACTIONTYPE_NOT_SET:
             default:

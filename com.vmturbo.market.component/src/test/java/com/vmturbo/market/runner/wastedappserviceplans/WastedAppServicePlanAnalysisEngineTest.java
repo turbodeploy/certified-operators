@@ -22,6 +22,8 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -105,10 +107,15 @@ public class WastedAppServicePlanAnalysisEngineTest {
     }
 
     private static TopologyEntityDTO.Builder createASP(final long oid, String name,
-            boolean controllable) {
+                                                       boolean controllable) {
+        return createASP(oid, name, controllable, EntityType.APPLICATION_COMPONENT_VALUE );
+    }
+
+    private static TopologyEntityDTO.Builder createASP(final long oid, String name,
+                                                       boolean controllable, int entityType) {
         final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
                 .setOid(oid)
-                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
+                .setEntityType(entityType)
                 .setEnvironmentType(EnvironmentType.CLOUD);
         // Note: ASP modeled as AppComponent for now. This will change to VMSPEC later.
         builder.setDisplayName("ASP-" + name).addCommoditySoldList(
@@ -182,8 +189,10 @@ public class WastedAppServicePlanAnalysisEngineTest {
     private void mockCostJournal(Map<Long, TopologyEntityDTO> topology,
             TopologyCostCalculator cloudCostCalculator) {
         // Ensure cost returns something so it can properly generate an action. NOTE: ApplicationComponent will switch to VMSPEC at a later date.
+        // TODO: remove EntityType.APPLICATION_COMPONENT_VALUE once Legacy Model for Application Service is removed.
         topology.values().stream().filter(
-                dto -> dto.getEntityType() == EntityType.APPLICATION_COMPONENT_VALUE).forEach(
+                dto -> ImmutableSet.of( EntityType.APPLICATION_COMPONENT_VALUE,  EntityType.VIRTUAL_MACHINE_SPEC_VALUE)
+                        .contains(dto.getEntityType())).forEach(
                 dto -> {
                     CostJournal<TopologyEntityDTO> costJournal = mock(CostJournal.class);
                     when(costJournal.getTotalHourlyCost()).thenReturn(trax(10d * dto.getOid()));
@@ -350,6 +359,40 @@ public class WastedAppServicePlanAnalysisEngineTest {
     }
 
     /**
+     * Test what happens when there are only wasted ASPs in an environment.
+     */
+    @Test
+    public void testGenerateDeleteActionForVMSpec() {
+        // Create topology
+        Map<Long, TopologyEntityDTO> topology = new HashMap<>();
+
+        // Create two wasted apps. There will be no used apps.
+        final long planOid = 1L;
+        final long plan2Oid = 2L;
+        Map<TopologyEntityDTO.Builder, List<TopologyEntityDTO.Builder>> wasted = new HashMap<>();
+        wasted.put(createASP(planOid, "testPLAN", true, EntityType.VIRTUAL_MACHINE_SPEC_VALUE), new ArrayList<>());
+        wasted.put(createASP(plan2Oid, "testPLAN2", true, EntityType.VIRTUAL_MACHINE_SPEC_VALUE), new ArrayList<>());
+        buildPlanAndAssociatedApps(topology, wasted);
+
+        // Mocks for cost
+        final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
+        when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
+        final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(
+                TopologyCostCalculatorFactory.class);
+        final CloudTopology<TopologyEntityDTO> originalCloudTopology = mock(CloudTopology.class);
+        when(cloudCostCalculatorFactory.newCalculator(topologyInfo,
+                originalCloudTopology)).thenReturn(cloudCostCalculator);
+        mockCostJournal(topology, cloudCostCalculator);
+
+        final WastedAppServicePlanResults analysis =
+                wastedAppServicePlanAnalysisEngine.analyzeWastedAppServicePlans(topologyInfo,
+                        topology, cloudCostCalculator, originalCloudTopology);
+        // Expect to see that there are two ASPs that have delete actions
+        Collection<Action> actions = analysis.getActions();
+        assertEquals(2, actions.size());
+    }
+
+    /**
      * Test what happens when there is an ASP with multiple apps on it + one wasted.
      */
     @Test
@@ -424,7 +467,6 @@ public class WastedAppServicePlanAnalysisEngineTest {
                 .setOid(oidSeller)
                 .setEntityType(EntityType.DATABASE_SERVER_VALUE)
                 .setEnvironmentType(EnvironmentType.CLOUD);
-        // Note: ASP modeled as AppComponent for now. This will change to VMSPEC later.
         seller.setDisplayName("DatabaseServer-" + name).addCommoditySoldList(
                 CommoditySoldDTO.newBuilder()
                         .setCommodityType(CommodityType.newBuilder()
@@ -451,7 +493,7 @@ public class WastedAppServicePlanAnalysisEngineTest {
 
     /**
      * Test what happens in a realistic environment with multiple used and multiple wasted ASPs +
-     * some entities of same type ie VMSPEC that aren't App Service Plans.
+     * some entities of same type ie VirtualMachineSpec that aren't App Service Plans.
      */
     @Test
     public void testGenerateActionForWastedASPMixedEnvironmentMultipleWastedMultipleUtilized() {

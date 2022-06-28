@@ -101,7 +101,7 @@ public class TopologyHandler {
         if (includesWastedFiles()) {
             tinfo.addAnalysisType(AnalysisType.WASTED_FILES);
         }
-        if(includesWastedASPs()){
+        if (includesWastedASPs()) {
             tinfo.addAnalysisType(AnalysisType.WASTED_APP_SERVICE_PLANS);
         }
 
@@ -140,7 +140,7 @@ public class TopologyHandler {
      *
      * @return true if any targets may contain unused azure app service plans.
      */
-    public boolean includesWastedASPs(){
+    public boolean includesWastedASPs() {
         return targetStore.getAll().stream()
                 .map(Target::getProbeId)
                 .map(probeStore::getProbe)

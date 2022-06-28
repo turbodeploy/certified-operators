@@ -19,13 +19,13 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import it.unimi.dsi.fastutil.longs.LongSet;
-
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.tag.Tag;
@@ -69,8 +69,8 @@ import com.vmturbo.topology.processor.conversions.typespecific.BusinessUserMappe
 import com.vmturbo.topology.processor.conversions.typespecific.CloudCommitmentInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ComputeTierInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ContainerInfoMapper;
-import com.vmturbo.topology.processor.conversions.typespecific.ContainerPodInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ContainerPlatformClusterInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.ContainerPodInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DatabaseInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DatabaseServerTierInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DatabaseTierInfoMapper;
@@ -153,7 +153,7 @@ public class SdkToTopologyEntityConverter {
                     CommodityDTO.CommodityType.VCPU, CommodityDTO.CommodityType.VMEM,
                     CommodityDTO.CommodityType.STORAGE_AMOUNT);
 
-    private static final Set<EntityType> applicationEntityTypes =
+    private static final Set<EntityType> APPLICATION_ENTITY_TYPES =
             Sets.newHashSet(EntityType.BUSINESS_APPLICATION,
                             EntityType.BUSINESS_TRANSACTION,
                             EntityType.SERVICE,
@@ -161,7 +161,9 @@ public class SdkToTopologyEntityConverter {
                             EntityType.APPLICATION,
                             EntityType.APPLICATION_COMPONENT,
                             EntityType.DATABASE_SERVER,
-                            EntityType.DATABASE);
+                            EntityType.DATABASE,
+                            EntityType.APPLICATION_COMPONENT_SPEC,
+                            EntityType.VIRTUAL_MACHINE_SPEC);
 
     private static Set<CommodityDTO.CommodityType> SLO_COMMODITIES =
             Sets.newHashSet(CommodityDTO.CommodityType.RESPONSE_TIME,
@@ -914,7 +916,7 @@ public class SdkToTopologyEntityConverter {
             return true;
         }
         // For application related entities
-        if (applicationEntityTypes.contains(entity.getEntityType())) {
+        if (APPLICATION_ENTITY_TYPES.contains(entity.getEntityType())) {
             // If the entity does not provide to a service with any non-zero SLO metrics,
             // we should disable suspension
             return shouldDisableAppSuspension(entity);

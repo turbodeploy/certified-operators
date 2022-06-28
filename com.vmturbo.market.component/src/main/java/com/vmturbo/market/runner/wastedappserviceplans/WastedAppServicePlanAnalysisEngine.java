@@ -12,6 +12,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -82,12 +85,9 @@ public class WastedAppServicePlanAnalysisEngine {
             if (license.isPresent()) {
                 String licenseKey = license.get().getCommodityType().getKey();
                 return licenseKey.equals(LINUX) || licenseKey.equals(WINDOWS);
-            } else {
-                return false;
             }
-        } else {
-            return false;
         }
+        return false;
     }
 
     /**
@@ -146,10 +146,13 @@ public class WastedAppServicePlanAnalysisEngine {
                             Collectors.groupingBy(TopologyEntityDTO::getEntityType));
 
             // Find the app service plans that have no apps running on them. These are candidates for deletion.
-            // Note that service and app component will migrate to app component spec and vmspec in the future for azure app service plans.
+            // Note that service and app component will migrate to app component spec and Virtual Machine Spec in the future for azure app service plans.
+            Collection<TopologyEntityDTO> listOfApplicationComponent = topologyEntitiesByEntityType.getOrDefault(
+                    EntityType.APPLICATION_COMPONENT_VALUE, new ArrayList<>());
+            Collection<TopologyEntityDTO> listOfVirtualMachineSpec = topologyEntitiesByEntityType.getOrDefault(
+                    EntityType.VIRTUAL_MACHINE_SPEC_VALUE, new ArrayList<>());
             Set<Long> unUtilizedAppServicePlans = collectAllUnutilizedASPs(
-                    topologyEntitiesByEntityType.getOrDefault(
-                            EntityType.APPLICATION_COMPONENT_VALUE, new ArrayList<>()));
+                    Lists.newArrayList(Iterables.concat(listOfVirtualMachineSpec, listOfApplicationComponent)));
 
             logger.info("Found " + unUtilizedAppServicePlans.size() + " Wasted App Service Plans");
             // Filter out non-controllable ASPs. Do not generate actions for controllable false.
@@ -176,13 +179,14 @@ public class WastedAppServicePlanAnalysisEngine {
     /**
      * Create a {@link Action.Builder} with a particular target.
      *
-     * @param targetEntityOid id of the wasted ASP
+     * @param targetEntity the wasted ASP
+     * @param sourceEntityOid compute tier of ASP.
      * @return {@link Action.Builder} with the common fields for the delete action populated
      */
-    private Action.Builder newActionFromAppServicePlan(final long targetEntityOid,
+    private Action.Builder newActionFromAppServicePlan(final TopologyEntityDTO targetEntity,
             final Long sourceEntityOid) {
         final Delete.Builder deleteBuilder = Delete.newBuilder().setTarget(ActionEntity.newBuilder()
-                .setId(targetEntityOid)
+                .setId(targetEntity.getOid())
                 .setType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .setEnvironmentType(EnvironmentType.CLOUD));
 
@@ -190,7 +194,7 @@ public class WastedAppServicePlanAnalysisEngine {
         if (sourceEntityOid != null) {
             deleteBuilder.setSource(ActionEntity.newBuilder()
                     .setId(sourceEntityOid)
-                    .setType(EntityType.COMPUTE_TIER_VALUE)
+                    .setType(targetEntity.getEntityType())
                     .setEnvironmentType(EnvironmentType.CLOUD));
         }
 
@@ -205,6 +209,7 @@ public class WastedAppServicePlanAnalysisEngine {
     /**
      * Create zero or more wasted ASP actions from an ASP DTO.
      *
+     * @param appServicePlan current Application service based entityDTO.
      * @param topologyCostCalculator The {@link TopologyCostCalculator} for this topology.
      * @param originalCloudTopology The {@link CloudTopology} for the input topology.
      * @return {@link Collection}{@link Action} based on the wasted file(s) associated
@@ -234,8 +239,7 @@ public class WastedAppServicePlanAnalysisEngine {
         }
         logger.debug("Generating delete action for Wasted App Service Plan {}",
                 appServicePlan.getDisplayName());
-        // Application Component will migrate to VMSpec at a later date for App Service Plans.
-        return Collections.singletonList(newActionFromAppServicePlan(appServicePlan.getOid(),
+        return Collections.singletonList(newActionFromAppServicePlan(appServicePlan,
                 computeTierProviderId.get()).setExplanation(
                         Explanation.newBuilder().setDelete(DeleteExplanation.newBuilder()))
                 .setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(costSavings))

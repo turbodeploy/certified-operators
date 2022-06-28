@@ -1,0 +1,5 @@
+/*
+** Add a new entity type value called 'APPLICATION_COMPONENT_SPEC'.
+*/
+
+ALTER TYPE entity_type ADD VALUE IF NOT EXISTS 'APPLICATION_COMPONENT_SPEC';
