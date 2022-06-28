@@ -136,6 +136,9 @@ public class EntityAspectMapper {
                     cloudAspectMapper, appServiceAspectMapper))
             .put(EntityType.CLOUD_COMMITMENT_VALUE, ImmutableList.of(
                     cloudCommitmentAspectMapper))
+            .put(EntityType.APPLICATION_COMPONENT_SPEC_VALUE, ImmutableList.of(cloudAspectMapper))
+            .put(EntityType.VIRTUAL_MACHINE_SPEC_VALUE, ImmutableList.of(cloudAspectMapper))
+
                 .build();
     }
 

@@ -43,15 +43,15 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
 
     /**
      * Name of os type entity property name.
-     * TODO : this should be removed once ASP move from ApplicationComponent to VMSpec: OM-83212.
+     * TODO : this should be removed once ASP move from ApplicationComponent to VirtualMachineSpec: OM-83212.
      */
     public static final String OS_TYPE = "OS_TYPE";
 
     /**
      * Allowed OS type for Application Component.
-     * TODO : this should be removed once ASP move from ApplicationComponent to VMSpec: OM-83212.
+     * TODO : this should be removed once ASP move from ApplicationComponent to VirtualMachineSpec: OM-83212.
      */
-    public static final Collection<String> APPLICATION_COMPONENT_ALLOWED_OS =
+    public static final Collection<String> APPLICATION_SERVICE_ALLOWED_OS =
             Stream.of(OSType.LINUX, OSType.WINDOWS).map(Enum::name).collect(Collectors.toList());
 
     @Override
@@ -98,15 +98,23 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
                     vmConfig.getLicenseModel(),
                     pricedCommoditiesBought));
         } else if (entity.getEntityType() == EntityType.APPLICATION_COMPONENT_VALUE) {
-            //TODO : Roop create VMSpecInfo and add required fields.
-            Optional<Map<String, String>> entityPropertyMap =  getEntityPropertyMap(entity);
-            if (entityPropertyMap.isPresent()
-                    && APPLICATION_COMPONENT_ALLOWED_OS.contains(entityPropertyMap.get().get(OS_TYPE))) {
-                final OSType aspOsType = OSType.valueOf(entityPropertyMap.get().get(OS_TYPE));
-                return Optional.of(
-                        new ComputeConfig(aspOsType, Tenancy.DEFAULT, null, 0,
-                                null, null));
-            }
+            //TODO : Roop remove this block once we move away from legacy model.
+            return getApplicationServiceConfig(entity);
+        } else if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_SPEC_VALUE) {
+            return getApplicationServiceConfig(entity);
+        }
+        return Optional.empty();
+    }
+
+    @Nonnull
+    private Optional<ComputeConfig> getApplicationServiceConfig(@Nonnull final TopologyEntityDTO entity) {
+        Optional<Map<String, String>> entityPropertyMap = getEntityPropertyMap(entity);
+        if (entityPropertyMap.isPresent()
+                && APPLICATION_SERVICE_ALLOWED_OS.contains(entityPropertyMap.get().get(OS_TYPE))) {
+            final OSType aspOsType = OSType.valueOf(entityPropertyMap.get().get(OS_TYPE));
+            return Optional.of(
+                    new ComputeConfig(aspOsType, Tenancy.DEFAULT, null, 0,
+                            null, null));
         }
         return Optional.empty();
     }

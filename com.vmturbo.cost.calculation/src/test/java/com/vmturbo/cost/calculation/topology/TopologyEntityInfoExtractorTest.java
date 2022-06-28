@@ -1,5 +1,6 @@
 package com.vmturbo.cost.calculation.topology;
 
+import static com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor.OS_TYPE;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -17,7 +18,6 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -32,6 +32,7 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierC
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
@@ -54,6 +55,7 @@ public class TopologyEntityInfoExtractorTest {
     private static final double DELTA = 1e-10;
     private static final long DEFAULT_ID = 0;
     private static final String DEFAULT_DB_NAME = "testDB";
+    private static final String DEFAULT_VIRTUAL_MACHINE_SPEC = "testVMSpec";
 
     private static final TopologyEntityDTO VM = TopologyEntityDTO.newBuilder()
             .setOid(DEFAULT_ID)
@@ -143,10 +145,25 @@ public class TopologyEntityInfoExtractorTest {
             .build();
 
     private static final TopologyEntityDTO EMPTY_DB = TopologyEntityDTO.newBuilder()
-        .setOid(DEFAULT_ID)
-        .setDisplayName(DEFAULT_DB_NAME)
-        .setEntityType(EntityType.DATABASE_VALUE)
-        .build();
+            .setOid(DEFAULT_ID)
+            .setDisplayName(DEFAULT_DB_NAME)
+            .setEntityType(EntityType.DATABASE_VALUE)
+            .build();
+
+    private static final TopologyEntityDTO LINUX_VIRTUAL_MACHINE_SPEC = TopologyEntityDTO.newBuilder()
+            .setOid(DEFAULT_ID)
+            .setDisplayName(DEFAULT_VIRTUAL_MACHINE_SPEC)
+            .putEntityPropertyMap(OS_TYPE, OSType.LINUX.name())
+            .setEntityType(EntityType.VIRTUAL_MACHINE_SPEC_VALUE)
+            .build();
+
+    // for Old legacy model.
+    private static final TopologyEntityDTO LINUX_APPLICATION_COMPONENT = TopologyEntityDTO.newBuilder()
+            .setOid(DEFAULT_ID)
+            .setDisplayName(DEFAULT_VIRTUAL_MACHINE_SPEC)
+            .putEntityPropertyMap(OS_TYPE, OSType.LINUX.name())
+            .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
+            .build();
 
     @Test
     public void testExtractId() {
@@ -237,6 +254,18 @@ public class TopologyEntityInfoExtractorTest {
     public void testEmptyGetDatabaseConfig() {
         final Optional<DatabaseConfig> databaseConfig = entityInfoExtractor.getDatabaseConfig(EMPTY_DB);
         assertFalse(databaseConfig.isPresent());
+    }
+
+    @Test
+    public void testGetComputeConfigForASP() {
+        final Optional<ComputeConfig> computeConfig = entityInfoExtractor.getComputeConfig(LINUX_VIRTUAL_MACHINE_SPEC);
+        assertTrue(computeConfig.isPresent());
+    }
+
+    @Test
+    public void testGetComputeConfigForAppServiceLegacyModel() {
+        final Optional<ComputeConfig> computeConfig = entityInfoExtractor.getComputeConfig(LINUX_APPLICATION_COMPONENT);
+        assertTrue(computeConfig.isPresent());
     }
 
     @Test

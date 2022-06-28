@@ -96,5 +96,7 @@ public class EntityAspectMapperTest {
         assertTrue(key.isPresent());
         assertEquals(cloudAspectMapper, key.get());
         assertTrue(result.get(key.get()).contains(EntityType.APPLICATION_COMPONENT_VALUE));
+        assertTrue(result.get(key.get()).contains(EntityType.VIRTUAL_MACHINE_SPEC_VALUE));
+
     }
 }

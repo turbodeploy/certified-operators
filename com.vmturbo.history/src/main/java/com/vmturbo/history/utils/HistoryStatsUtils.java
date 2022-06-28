@@ -106,6 +106,8 @@ public class HistoryStatsUtils {
                     .put(CommonDTO.EntityDTO.EntityType.BUSINESS_USER, EntityDTO.EntityType.BUSINESS_USER)
                     .put(CommonDTO.EntityDTO.EntityType.VIEW_POD, EntityDTO.EntityType.VIEW_POD)
                     .put(CommonDTO.EntityDTO.EntityType.DATABASE, EntityType.DATABASE)
+                    .put(CommonDTO.EntityDTO.EntityType.APPLICATION_COMPONENT_SPEC, EntityType.APPLICATION_COMPONENT_SPEC)
+                    .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_SPEC, EntityType.VIRTUAL_MACHINE_SPEC)
                     .build();
 
     /**

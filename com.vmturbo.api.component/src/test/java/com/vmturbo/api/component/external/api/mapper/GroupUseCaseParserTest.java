@@ -38,7 +38,7 @@ public class GroupUseCaseParserTest {
                 "VirtualMachine", "PhysicalMachine", "VirtualDataCenter", "Storage",
                 "Database", "Cluster", "Group",
                 "StorageCluster", "VirtualMachineCluster", "DiskArray", "StorageController",
-                "Switch", "Service"})
+                "Switch", "Service", "VirtualMachineSpec", "ApplicationComponentSpec"})
                 .forEach(className -> assertTrue(useCases.containsKey(className)));
     }
 

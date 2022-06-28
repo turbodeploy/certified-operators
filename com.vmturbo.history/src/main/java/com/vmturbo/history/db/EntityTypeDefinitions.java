@@ -66,10 +66,7 @@ public class EntityTypeDefinitions {
             EntityDTO.EntityType.VLAN,
             EntityDTO.EntityType.VM_SPEC,
             EntityDTO.EntityType.WEB_SERVER,
-            EntityDTO.EntityType.CLUSTER,
-            // TODO: Roop remove these entries after OM-83212 is closed.
-            EntityDTO.EntityType.APPLICATION_COMPONENT_SPEC,
-            EntityDTO.EntityType.VIRTUAL_MACHINE_SPEC
+            EntityDTO.EntityType.CLUSTER
     );
 
     // names for entity types that do not have corresponding ApiEntityType instances.
@@ -96,6 +93,7 @@ public class EntityTypeDefinitions {
     static final List<EntityType> ENTITY_TYPE_DEFINITIONS = ImmutableList.of(
             APPLICATION_ENTITY_TYPE,
             create(ApiEntityType.APPLICATION_COMPONENT, "app_component_stats", STANDARD_STATS),
+            create(ApiEntityType.APPLICATION_COMPONENT_SPEC, "app_component_spec_stats", STANDARD_STATS),
             create(ApiEntityType.APPLICATION_SERVER, "app_server_stats", STANDARD_STATS),
             APPLICATION_SPEND_ENTITY_TYPE,
             create(ApiEntityType.AVAILABILITY_ZONE),
@@ -143,8 +141,9 @@ public class EntityTypeDefinitions {
             create(ApiEntityType.VPOD, "vpod_stats", STANDARD_STATS),
             create(ApiEntityType.WORKLOAD_CONTROLLER, "wkld_ctl_stats", STANDARD_STATS),
             create(ApiEntityType.CLOUD_COMMITMENT),
-            create(ApiEntityType.SERVICE_PROVIDER)
-    );
+            create(ApiEntityType.SERVICE_PROVIDER),
+            create(ApiEntityType.VIRTUAL_MACHINE_SPEC, "virtual_machine_spec_stats", STANDARD_STATS)
+            );
 
     // convenience methods for invoking the constructor for different scenarios
     private static EntityType create(ApiEntityType apiEntityType, String tablePrefix, UseCase... useCases) {

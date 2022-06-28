@@ -15,6 +15,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -110,6 +112,25 @@ public class SdkToTopologyEntityConverterTest {
                         .build());
         assertEquals(Optional.empty(), SdkToTopologyEntityConverter
                 .calculateSuspendabilityWithStitchingEntity(proxyStitchingEntity));
+    }
+
+    /**
+     * Test the suspend-ability of a discovered Application Service Entities. These entities cannot be suspended.
+     */
+    @Test
+    public void testSuspendabilityForApplicationServiceEntities() {
+        ImmutableSet.of(EntityType.VIRTUAL_MACHINE_SPEC, EntityType.APPLICATION_COMPONENT_SPEC)
+                .forEach(entityType -> {
+            TopologyStitchingEntity proxyStitchingEntity = new TopologyStitchingEntity(
+                    StitchingEntityData
+                            .newBuilder(EntityDTO.newBuilder()
+                                    .setId("foo")
+                                    .setEntityType(entityType)
+                                    .setOrigin(EntityOrigin.DISCOVERED))
+                            .build());
+            assertEquals(Optional.of(false), SdkToTopologyEntityConverter
+                    .calculateSuspendabilityWithStitchingEntity(proxyStitchingEntity));
+        });
     }
 
     /**

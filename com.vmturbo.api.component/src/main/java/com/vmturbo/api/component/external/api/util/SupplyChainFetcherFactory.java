@@ -122,7 +122,8 @@ public class SupplyChainFetcherFactory {
             ApiEntityType.SERVICE,
             ApiEntityType.STORAGE,
             ApiEntityType.VIRTUAL_MACHINE,
-            ApiEntityType.VIRTUAL_VOLUME);
+            ApiEntityType.VIRTUAL_VOLUME,
+            ApiEntityType.VIRTUAL_MACHINE_SPEC);
 
     /**
      * Sometimes we need to expand aggregators to some of their aggregated entities.
@@ -132,6 +133,7 @@ public class SupplyChainFetcherFactory {
         ApiEntityType.BUSINESS_APPLICATION,
         ApiEntityType.SERVICE,
         ApiEntityType.APPLICATION_COMPONENT,
+        ApiEntityType.APPLICATION_COMPONENT_SPEC,
         ApiEntityType.BUSINESS_TRANSACTION);
 
     /**

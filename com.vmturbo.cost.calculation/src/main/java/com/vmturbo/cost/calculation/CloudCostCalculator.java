@@ -264,6 +264,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     break;
                 // TODO: Update entityType for Azure ASP when OM-83212 model refactor story is complete.
                 case EntityType.APPLICATION_COMPONENT_VALUE:
+                case EntityType.VIRTUAL_MACHINE_SPEC_VALUE:
                     calculateAppServicePlanCost(context);
                     break;
                 default:
@@ -283,16 +284,19 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     /**
      * TODO Remove this temporary helper method which differentiate between GuestLoad Application
      * prefixed with "GuestLoad" and Azure App Services. This should be removed when
-     * Azure App Service plan transition over to {@link EntityType.VM_SPEC}.
+     * Azure App Service plan transition over to {@link EntityType#VIRTUAL_MACHINE_SPEC}.
      *
      * @param entity current entity.
      * @return bool if it's a 'real' azure app service plan.
      */
     private boolean isAzureAppServicePlan(@Nonnull final ENTITY_CLASS entity) {
         Optional<Map<String, String>> entityPropertyMap = entityInfoExtractor.getEntityPropertyMap(entity);
-        return EntityType.APPLICATION_COMPONENT_VALUE == entityInfoExtractor.getEntityType(entity)
+        //TODO : remove APPLICATION_COMPONENT_VALUE when we move away from Legacy model OM-83212
+        Collection<Integer> aspEntityTypes = ImmutableSet.of(
+                EntityType.APPLICATION_COMPONENT_VALUE, EntityType.VIRTUAL_MACHINE_SPEC_VALUE);
+        return  aspEntityTypes.contains(entityInfoExtractor.getEntityType(entity))
                 && entityPropertyMap.isPresent()
-                && TopologyEntityInfoExtractor.APPLICATION_COMPONENT_ALLOWED_OS.contains(
+                && TopologyEntityInfoExtractor.APPLICATION_SERVICE_ALLOWED_OS.contains(
                         entityPropertyMap.get().get(TopologyEntityInfoExtractor.OS_TYPE));
     }
 

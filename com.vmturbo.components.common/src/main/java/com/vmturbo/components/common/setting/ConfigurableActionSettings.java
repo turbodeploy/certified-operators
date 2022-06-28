@@ -244,9 +244,15 @@ public enum ConfigurableActionSettings {
      * Delete Volume action automation mode.
      */
     DeleteVolume("deleteVolume", "Delete Volume",
-        EnumSet.of(EntityType.VIRTUAL_VOLUME)),
+            EnumSet.of(EntityType.VIRTUAL_VOLUME)),
 
-    // Note: App Service Plans are modeled as Application Components and will migrate to VMSPECs in the future.
+    /**
+     *  Delete Virtual Machine Spec action automation mode.
+     */
+    DeleteVirtualMachineSpec("deleteVirtualMachineSpec", "Delete Virtual Machine Spec",
+            EnumSet.of(EntityType.VIRTUAL_MACHINE_SPEC)),
+
+    // Note: App Service Plans are modeled as Application Components and will migrate to VirtualMachineSpec in the future.
     /**
      * Delete App Service Plan action automation mode.
      */

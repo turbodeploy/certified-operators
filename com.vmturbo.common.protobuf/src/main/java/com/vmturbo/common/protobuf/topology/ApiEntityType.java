@@ -142,6 +142,19 @@ public enum  ApiEntityType {
     /** VMSpec entity type.
      * Represents shard definition for VM instances managed by a Workload Controller. */
     VM_SPEC(StringConstants.VM_SPEC, EntityType.VM_SPEC),
+    /**
+     * APPLICATION_COMPONENT_SPEC entity Types
+     * Represents an aggregated Application Component and its underlying replicas (if any).
+     */
+    APPLICATION_COMPONENT_SPEC(StringConstants.APPLICATION_COMPONENT_SPEC,
+            EntityType.APPLICATION_COMPONENT_SPEC),
+    /**
+     * VIRTUAL_MACHINE_SPEC entity type.
+     * Represents aggregated VM instance and its underlying replicas (if any).
+     */
+    VIRTUAL_MACHINE_SPEC(StringConstants.VIRTUAL_MACHINE_SPEC,
+            EntityType.VIRTUAL_MACHINE_SPEC),
+
     /** Cloud Commitment Entity Type.
      *  Represents definition for cloud commitments.*/
     CLOUD_COMMITMENT(StringConstants.CLOUD_COMMITMENT, EntityType.CLOUD_COMMITMENT);

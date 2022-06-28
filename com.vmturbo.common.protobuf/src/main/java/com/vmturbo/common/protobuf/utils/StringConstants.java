@@ -247,6 +247,8 @@ public class StringConstants {
     public static final String BUSINESS_APPLICATION = "BusinessApplication";
     public static final String BUSINESS_TRANSACTION = "BusinessTransaction";
     public static final String APPLICATION_COMPONENT = "ApplicationComponent";
+    public static final String APPLICATION_COMPONENT_SPEC = "ApplicationComponentSpec";
+    public static final String VIRTUAL_MACHINE_SPEC = "VirtualMachineSpec";
     public static final String RESERVED_INSTANCE = "ReservedInstance";
     public static final String ACCOUNTID = "accountID";
     public static final String NUM_RI = "numRIs";

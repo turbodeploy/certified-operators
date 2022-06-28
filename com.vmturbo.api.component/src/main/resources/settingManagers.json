@@ -55,6 +55,7 @@
         "enableScaleActions",
         "enableDeleteActions",
         "deleteVolume",
+        "deleteVirtualMachineSpec",
         "nonDisruptiveReversibleScaling",
         "nonDisruptiveIrreversibleScaling",
         "disruptiveReversibleScaling",

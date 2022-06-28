@@ -72,6 +72,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
     private static final Logger logger = LogManager.getLogger();
     private static final Map<Integer, Integer> WORKLOAD_ENTITY_TYPE_TO_TIER_TYPE = ImmutableMap.of(
             EntityType.VIRTUAL_MACHINE_VALUE, EntityType.COMPUTE_TIER_VALUE,
+            EntityType.VIRTUAL_MACHINE_SPEC_VALUE, EntityType.COMPUTE_TIER_VALUE,
             EntityType.DATABASE_SERVER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
             EntityType.DATABASE_VALUE, EntityType.DATABASE_TIER_VALUE,
             EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE);

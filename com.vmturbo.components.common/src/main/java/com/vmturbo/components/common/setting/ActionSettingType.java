@@ -128,6 +128,7 @@ public enum ActionSettingType {
                 case DisruptiveIrreversibleScaling:
                 case DeleteAppServicePlan:
                 case DeleteVolume:
+                case DeleteVirtualMachineSpec:
                     enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, null,
                             ActionMode.RECOMMEND, ActionMode.class);
                     break;

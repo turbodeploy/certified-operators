@@ -88,6 +88,9 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                     .put(EntityType.LOAD_BALANCER_VALUE,
                             v -> getProviderByType(v, EntityType.SERVICE_VALUE))
                     .put(EntityType.CLOUD_COMMITMENT_VALUE, this::getOwner)
+                    .put(EntityType.VIRTUAL_MACHINE_SPEC_VALUE, v -> getAggregator(v, REGION_AND_AVZONE))
+                    .put(EntityType.APPLICATION_COMPONENT_SPEC_VALUE, v -> getAggregator(v, REGION_AND_AVZONE))
+
                     .build();
 
     /**
