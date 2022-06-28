@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationServiceInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseTierInfo;
@@ -239,6 +240,18 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
                 }
                 return Optional.of(databaseConfig);
             }
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    @Nonnull
+    public Optional<AppServicePlanConfig> getAppServicePlanConfig(TopologyEntityDTO entity) {
+        if (entity.getEntityType() == EntityType.APPLICATION_COMPONENT_VALUE
+                && entity.hasTypeSpecificInfo()
+                && entity.getTypeSpecificInfo().hasApplicationService()) {
+            ApplicationServiceInfo appSvcInfo = entity.getTypeSpecificInfo().getApplicationService();
+            return Optional.of(new AppServicePlanConfig(appSvcInfo.getCurrentInstanceCount()));
         }
         return Optional.empty();
     }

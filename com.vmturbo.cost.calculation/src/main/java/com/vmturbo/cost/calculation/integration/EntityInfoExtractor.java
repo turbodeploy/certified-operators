@@ -94,6 +94,19 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     Optional<DatabaseConfig> getDatabaseConfig(@Nonnull ENTITY_CLASS entity);
 
     /**
+     * Get the app service plan configuration of a particular entity.
+     *
+     * The app service configuration contains properties required to determine the
+     * app service plan price.
+     *
+     * @param entity The entity.
+     * @return An optional containing the {@link AppServicePlanConfig}. An empty optional if there
+     *         is no app service plan data associated with this entity.
+     */
+    @Nonnull
+    Optional<AppServicePlanConfig> getAppServicePlanConfig(@Nonnull ENTITY_CLASS entity);
+
+    /**
      * Get the network configuration of a particular entity.
      *
      * The network configuration consists of all the properties of the entity that
@@ -455,5 +468,24 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         public RedundancyType getRedundancyType() {
             return redundancyType;
         }
+    }
+
+    /**
+     * A class containing properties of an application service entity useful in contexts such
+     * as cost calculation.
+     */
+    @Immutable
+    class AppServicePlanConfig {
+        private Integer replicaCount;
+
+        public AppServicePlanConfig(Integer replicaCount) {
+            this.replicaCount = replicaCount;
+        }
+
+        @Nullable
+        public Integer getReplicaCount() {
+            return replicaCount;
+        }
+
     }
 }

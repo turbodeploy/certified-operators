@@ -49,6 +49,7 @@ import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceA
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.AppServicePlanConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
@@ -498,22 +499,26 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         final ENTITY_CLASS entity = context.getEntity();
         final long entityId = entityInfoExtractor.getId(entity);
         final CostJournal.Builder<ENTITY_CLASS> journal = context.getCostJournal();
-        logger.trace("Starting entity cost calculation for vm {}", entityId);
+        if (logger.isTraceEnabled()) {
+            logger.trace("Starting entity cost calculation for app svc plan {} ({})", entityId,
+                    entityInfoExtractor.getName(entity));
+        }
         cloudTopology.getComputeTier(entityId).ifPresent(computeTier -> {
             final long regionId = context.getRegionid();
             final Optional<OnDemandPriceTable> onDemandPriceTable = context.getOnDemandPriceTable();
             if (!onDemandPriceTable.isPresent()) {
-                logger.debug("calculateAppServicePlanCost: Global price table has no entry for region {}."
-                                + "  This means there is some inconsistency between the topology and pricing data.",
-                        regionId);
+                logger.debug(
+                        "calculateAppServicePlanCost: Global price table has no entry for region {}."
+                                + " for entity {}. This means there is some inconsistency between the topology "
+                                + "and pricing data.",
+                        regionId, entityInfoExtractor.getName(entity));
             } else {
                 final ComputeTierPriceList computePriceList = onDemandPriceTable.get()
                         .getComputePricesByTierIdMap()
                         .get(entityInfoExtractor.getId(computeTier));
-                final Optional<ComputeTierConfig> computeTierConfig = entityInfoExtractor.getComputeTierConfig(computeTier);
-                if (computePriceList != null
-                        && computeTierConfig.isPresent()) {
-                    recordAppServicePlanCost(computePriceList, journal, entity);
+                final Optional<AppServicePlanConfig> aspConfig = entityInfoExtractor.getAppServicePlanConfig(entity);
+                if (computePriceList != null) {
+                    recordAppServicePlanCost(computePriceList, journal, aspConfig, entity);
                 }
             }
         });
@@ -521,11 +526,19 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
     private void recordAppServicePlanCost(final ComputeTierPriceList computePriceList,
                                           final Builder<ENTITY_CLASS> costJournal,
+                                          final Optional<AppServicePlanConfig> aspConfig,
                                           final ENTITY_CLASS entity) {
         final ComputeTierConfigPrice computeTierBasePrice = computePriceList.getBasePrice();
+        final TraxNumber billableAmount;
+        if (aspConfig.isPresent() && aspConfig.get().getReplicaCount() > 0) {
+            billableAmount = trax(aspConfig.get().getReplicaCount(),
+                    "Number of app service plan replicas.");
+        } else {
+            billableAmount = FULL;
+        }
         computeTierBasePrice.getPricesList().forEach(price -> {
             costJournal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE,
-                    entity, price, FULL, Optional.empty());
+                    entity, price, billableAmount, Optional.empty());
         });
         final Optional<ComputeConfig> computeConfig = entityInfoExtractor.getComputeConfig(entity);
         computePriceList.getPerConfigurationPriceAdjustmentsList().stream()
@@ -537,7 +550,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         priceAdjustment.getPricesList()
                                 .forEach(price ->
                                         costJournal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE,
-                                                entity, price, FULL, Optional.empty())));
+                                                entity, price, billableAmount, Optional.empty())));
     }
 
     /**
