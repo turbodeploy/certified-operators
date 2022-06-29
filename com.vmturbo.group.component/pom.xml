@@ -191,9 +191,9 @@
             <plugin>
                 <groupId>com.spotify</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
-                  <configuration>
+                <configuration>
                     <serverId>docker-registry</serverId>
-                  </configuration>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -412,62 +412,10 @@
                             <execution>
                                 <id>start-postgres</id>
                                 <phase>process-test-classes</phase>
-                                <goals>
-                                    <goal>start</goal>
-                                </goals>
-                                <configuration>
-                                    <dockerHost>${fabricateDockerHost}</dockerHost>
-                                    <showLogs>false</showLogs>
-                                    <images>
-                                        <image>
-                                            <alias>postgres</alias>
-                                            <name>${postgres-image}</name>
-                                            <run>
-                                                <!--
-                                                pattern needs to start with "maven-" so jenkins builds
-                                                will properly clean up leaked containers
-                                                -->
-                                                <containerNamePattern>maven-%a-%t-%i</containerNamePattern>
-                                                <ports>
-                                                    <port>postgresPort:5432</port>
-                                                </ports>
-                                                <env>
-                                                    <POSTGRES_USER>${postgresUserName}</POSTGRES_USER>
-                                                    <POSTGRES_PASSWORD>${postgresPassword}</POSTGRES_PASSWORD>
-                                                </env>
-                                                <wait>
-                                                    <log>
-                                                        <!--
-                                                        CDATA prevents intellij from wrapping the search
-                                                        string, which would break things.
-                                                        We wait for a message that shows that timescale
-                                                        is ready, and we wait to see it twice, since the
-                                                        container's entry-point script includes an internal
-                                                        restart.
-                                                        -->
-                                                        <![CDATA[(?s)database system is ready to accept connections.*database system is ready to accept connections]]>
-                                                    </log>
-                                                    <time>120000</time>
-                                                </wait>
-                                            </run>
-                                        </image>
-                                    </images>
-                                </configuration>
                             </execution>
                             <execution>
                                 <id>stop-postgres</id>
                                 <phase>test</phase>
-                                <goals>
-                                    <goal>stop</goal>
-                                </goals>
-                                <configuration>
-                                    <dockerHost>${fabricateDockerHost}</dockerHost>
-                                    <images>
-                                        <image>
-                                            <name>${postgres-image}</name>
-                                        </image>
-                                    </images>
-                                </configuration>
                             </execution>
                         </executions>
                     </plugin>

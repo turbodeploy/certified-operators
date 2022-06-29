@@ -94,9 +94,9 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <url>jdbc:postgresql://${postgresHost}:${postgresPort}/</url>
-                    <user>${postgresUserName}</user>
-                    <password>${postgresPassword}</password>
+                    <url>jdbc:postgresql://${timescaledbHost}:${timescaledbPort}/</url>
+                    <user>${timescaledbUserName}</user>
+                    <password>${timescaledbPassword}</password>
                     <locations>
                         <location>filesystem:${basedir}/src/main/resources/db/migration/extractor</location>
                     </locations>
@@ -121,9 +121,9 @@
                         <configuration>
                             <jdbc>
                                 <driver>${postgresDriver}</driver>
-                                <url>jdbc:postgresql://${postgresHost}:${postgresPort}/</url>
-                                <user>${postgresUserName}</user>
-                                <password>${postgresPassword}</password>
+                                <url>jdbc:postgresql://${timescaledbHost}:${timescaledbPort}/</url>
+                                <user>${timescaledbUserName}</user>
+                                <password>${timescaledbPassword}</password>
                             </jdbc>
                             <generator>
                                 <database>
@@ -173,9 +173,9 @@
                                     <inputSchema>${mysqlSchemaName}</inputSchema>
                                     <outputSchema>${mysqlTargetSchemaName}</outputSchema>
                                 </database>
-                                    <generate>
-                                        <pojos>true</pojos>
-                                    </generate>
+                                <generate>
+                                    <pojos>true</pojos>
+                                </generate>
                                 <target>
                                     <packageName>com.vmturbo.search.schema</packageName>
                                     <directory>${project.build.directory}/generated-sources/jooq</directory>
@@ -206,29 +206,29 @@
     </build>
     <profiles>
         <profile>
-            <id>no-run-postgres-container</id>
-            <!-- set default for postgres port only if we're not going to spin up a postgres container -->
+            <id>no-run-timescaledb-container</id>
+            <!-- set default for timescaledb port only if we're not going to spin up a timescaledb container -->
             <activation>
                 <property>
-                    <name>postgresContainer.skip</name>
+                    <name>timescaledbContainer.skip</name>
                 </property>
             </activation>
             <properties>
-                <postgresPort>5432</postgresPort>
+                <timescaledbPort>5432</timescaledbPort>
             </properties>
         </profile>
         <profile>
-            <id>run-postgres-container</id>
+            <id>run-timescaledb-container</id>
             <!--
-                If you don't want a postgres container to be spun up during the build in order to
-                perform live DB tests, specify -DpostgresContainer.skip` on maven command line. In
-                that case you will need to have a postgres server available in your environment,
-                and the postgresHost and postgresPort properties can be used to configure access
-                if they're differnet from lcoalhost and 5432, respectively.
+                If you don't want a timescaledb container to be spun up during the build in order to
+                perform live DB tests, specify -DtimescaledbContainer.skip` on maven command line. In
+                that case you will need to have a timescaledb server available in your environment,
+                and the timescaledbHost and timescaledbPort properties can be used to configure access
+                if they're differnet from localhost and 5432, respectively.
             -->
             <activation>
                 <property>
-                    <name>!postgresContainer.skip</name>
+                    <name>!timescaledbContainer.skip</name>
                 </property>
             </activation>
             <build>
@@ -238,64 +238,12 @@
                         <artifactId>docker-maven-plugin</artifactId>
                         <executions>
                             <execution>
-                                <id>start-tsdb-for</id>
+                                <id>start-tsdb</id>
                                 <phase>initialize</phase>
-                                <goals>
-                                    <goal>start</goal>
-                                </goals>
-                                <configuration>
-                                    <dockerHost>${fabricateDockerHost}</dockerHost>
-                                    <showLogs>false</showLogs>
-                                    <images>
-                                        <image>
-                                            <alias>tsdb</alias>
-                                            <name>timescale/timescaledb:${timescaledb-image-tag}</name>
-                                            <run>
-                                                <!--
-                                                pattern needs to start with "maven-" so jenkins builds
-                                                will properly clean up leaked containers
-                                                -->
-                                                <containerNamePattern>maven-%a-%t-%i</containerNamePattern>
-                                                <ports>
-                                                    <port>postgresPort:5432</port>
-                                                </ports>
-                                                <env>
-                                                    <POSTGRES_USER>${postgresUserName}</POSTGRES_USER>
-                                                    <POSTGRES_PASSWORD>${postgresPassword}</POSTGRES_PASSWORD>
-                                                </env>
-                                                <wait>
-                                                    <log>
-                                                        <!--
-                                                        CDATA prevents intellij from wrapping the search
-                                                        string, which would break things.
-                                                        We wait for a message that shows that timescale
-                                                        is ready, and we wait to see it twice, since the
-                                                        container's entry-point script includes an internal
-                                                        restart.
-                                                        -->
-                                                        <![CDATA[(?s)TimescaleDB background worker launcher connected to shared catalogs.*TimescaleDB background worker launcher connected to shared catalogs]]>
-                                                    </log>
-                                                    <time>120000</time>
-                                                </wait>
-                                            </run>
-                                        </image>
-                                    </images>
-                                </configuration>
                             </execution>
                             <execution>
                                 <id>stop-tsdb</id>
                                 <phase>test</phase>
-                                <goals>
-                                    <goal>stop</goal>
-                                </goals>
-                                <configuration>
-                                    <dockerHost>${fabricateDockerHost}</dockerHost>
-                                    <images>
-                                        <image>
-                                            <name>timescale/timescaledb:${timescaledb-image-tag}</name>
-                                        </image>
-                                    </images>
-                                </configuration>
                             </execution>
                         </executions>
                     </plugin>
