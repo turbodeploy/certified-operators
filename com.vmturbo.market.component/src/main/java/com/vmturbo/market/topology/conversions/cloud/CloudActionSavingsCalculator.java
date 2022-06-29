@@ -247,6 +247,13 @@ public interface CloudActionSavingsCalculator {
             }
 
             /**
+             * The discounted rate.
+             * @return The discounted rate.
+             */
+            @Nonnull
+            Optional<TraxNumber> discountedRate();
+
+            /**
              * The cloud commitment coverage.
              * @return The cloud commitment coverage.
              */
@@ -270,7 +277,9 @@ public interface CloudActionSavingsCalculator {
                 final TierCostDetails.Builder tierCostDetails = TierCostDetails.newBuilder()
                         .setOnDemandRate(CurrencyAmount.newBuilder().setAmount(onDemandRate().getValue()))
                         .setOnDemandCost(CurrencyAmount.newBuilder().setAmount(onDemandCost().getValue()));
-
+                discountedRate().ifPresent(dr -> tierCostDetails.setDiscountedRate(
+                        CurrencyAmount.newBuilder().setAmount(dr.getValue())
+                ));
                 cloudCommitmentCoverage().ifPresent(tierCostDetails::setCloudCommitmentCoverage);
 
                 return tierCostDetails.build();

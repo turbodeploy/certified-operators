@@ -486,6 +486,17 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
 
         }
         tierCostDetails.cloudCommitmentCoverage(cloudCommitmentCoverage.build());
+        if (cloudCommitmentCoverage.hasUsed()) {
+            TraxNumber onDemandCompute = costJournal.getHourlyCostFilterEntries(
+                    CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.EXCLUDE_UPTIME);
+            TraxNumber onDemandLicense = costJournal.getHourlyCostFilterEntries(
+                    CostCategory.ON_DEMAND_LICENSE, CostSourceFilter.EXCLUDE_UPTIME);
+            TraxNumber reservedLicense = costJournal.getHourlyCostFilterEntries(
+                    CostCategory.RESERVED_LICENSE, CostSourceFilter.EXCLUDE_UPTIME);
+            final TraxNumber discountedRate = Stream.of(onDemandCompute, onDemandLicense, reservedLicense)
+                    .collect(TraxCollectors.sum(cloudTier.getDisplayName() + " Discounted Rate"));
+            tierCostDetails.discountedRate(discountedRate);
+        }
         return tierCostDetails.build();
     }
 
@@ -558,9 +569,9 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
             totalOnDemandCost = Stream.of(onDemandComputeCost, licenseCost, reservedLicenseCost, dbStorageCost, spotCost)
                     .collect(TraxCollectors.sum(cloudTier.getDisplayName() + " total cost"));
             logger.debug("Costs for {} on {} are -> on demand compute cost = {}, licenseCost = {},"
-                            + " reservedLicenseCost = {}, ipCost = {}",
+                            + " reservedLicenseCost = {}, dbStorageCost: {}, spotCost = {}",
                     cloudEntityMoving.getDisplayName(), cloudTier.getDisplayName(),
-                    onDemandComputeCost, licenseCost, reservedLicenseCost);
+                    onDemandComputeCost, licenseCost, reservedLicenseCost, dbStorageCost, spotCost);
         } else {
             totalOnDemandCost = journal.getHourlyCostForCategory(CostCategory.STORAGE)
                     .named(cloudTier.getDisplayName() + " total cost");

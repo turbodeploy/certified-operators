@@ -20,7 +20,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverage;
 
 /**
  * A savings graph is a data structure used for savings calculation. It is a representation of a
@@ -75,15 +74,10 @@ public class SavingsGraph {
                         .getSourceTierCostDetails();
                 logger.trace("Source cost details of action {}: {}", action::getId, () -> sourceCostDetails);
 
-                // On-demand rate of the provider
-                double sourceRate = sourceCostDetails.getOnDemandRate().getAmount();
-                // The rate after considering RI coverage
-                if (sourceCostDetails.hasCloudCommitmentCoverage()) {
-                    final CloudCommitmentCoverage coverage = sourceCostDetails.getCloudCommitmentCoverage();
-                    final double used = coverage.getUsed().getCoupons();
-                    final double capacity = coverage.getCapacity().getCoupons();
-                    sourceRate = capacity == 0 ? sourceRate : sourceRate * (1 - used / capacity);
-                }
+                // On-demand rate of the provider, get RI discounted rate if applicable.
+                double sourceRate = sourceCostDetails.hasDiscountedRate()
+                        ? sourceCostDetails.getDiscountedRate().getAmount()
+                        : sourceCostDetails.getOnDemandRate().getAmount();
 
                 low = Math.min(sourceRate, low);
                 high = Math.max(sourceRate, high);

@@ -137,6 +137,8 @@ public class JournalActionSavingsCalculatorTest {
                 .thenReturn(trax(6));
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(3d));
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(4d));
+        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.EXCLUDE_UPTIME)))
+                .thenReturn(trax(3));
         // Total Source cost = 20
         when(sourceCostJournal.getTotalHourlyCost()).thenReturn(trax(20d));
         when(costCalculator.calculateCostForEntity(any(), eq(vm1))).thenReturn(Optional.of(sourceCostJournal));
@@ -207,6 +209,10 @@ public class JournalActionSavingsCalculatorTest {
 
         assertThat(actualDetails.projectedTierCostDetails().onDemandRate().getValue(), closeTo(18.0, ERROR));
         assertThat(actualDetails.projectedTierCostDetails().onDemandCost().getValue(), closeTo(18.0, ERROR));
+
+        assertTrue(actualDetails.sourceTierCostDetails().discountedRate().isPresent());
+        assertThat(actualDetails.sourceTierCostDetails().discountedRate().get().getValue(), closeTo(10.0, ERROR));
+        assertFalse(actualDetails.projectedTierCostDetails().discountedRate().isPresent());
     }
 
     /**
@@ -247,6 +253,8 @@ public class JournalActionSavingsCalculatorTest {
         final CostJournal<TopologyEntityDTO> sourceCostJournal = mock(CostJournal.class);
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER)))
                 .thenReturn(trax(4));
+        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.EXCLUDE_UPTIME)))
+                .thenReturn(trax(3));
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.ON_DEMAND_RATE)))
                 .thenReturn(trax(6));
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(0d));
@@ -261,6 +269,8 @@ public class JournalActionSavingsCalculatorTest {
         final CostJournal<TopologyEntityDTO> projectedCostJournal = mock(CostJournal.class);
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER)))
                 .thenReturn(trax(1));
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.EXCLUDE_UPTIME)))
+                .thenReturn(trax(2));
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.ON_DEMAND_RATE)))
                 .thenReturn(trax(6));
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(0));
@@ -339,6 +349,11 @@ public class JournalActionSavingsCalculatorTest {
                 actualDetails.projectedTierCostDetails().cloudCommitmentCoverage();
         assertTrue(projectedCoverage.isPresent());
         assertThat(projectedCoverage.get().getUsed().getCoupons(), closeTo(2.0, ERROR));
+
+        assertTrue(actualDetails.sourceTierCostDetails().discountedRate().isPresent());
+        assertThat(actualDetails.sourceTierCostDetails().discountedRate().get().getValue(), closeTo(3.0, ERROR));
+        assertTrue(actualDetails.projectedTierCostDetails().discountedRate().isPresent());
+        assertThat(actualDetails.projectedTierCostDetails().discountedRate().get().getValue(), closeTo(2.0, ERROR));
     }
 
     /**
@@ -380,6 +395,8 @@ public class JournalActionSavingsCalculatorTest {
         final CostJournal<TopologyEntityDTO> sourceCostJournal = mock(CostJournal.class);
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.INCLUDE_ALL)))
                 .thenReturn(trax(4));
+        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.EXCLUDE_UPTIME)))
+                .thenReturn(trax(2));
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.ON_DEMAND_RATE)))
                 .thenReturn(trax(6));
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(0d));
@@ -393,6 +410,8 @@ public class JournalActionSavingsCalculatorTest {
          */
         final CostJournal<TopologyEntityDTO> projectedCostJournal = mock(CostJournal.class);
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.INCLUDE_ALL)))
+                .thenReturn(trax(0));
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.EXCLUDE_UPTIME)))
                 .thenReturn(trax(0));
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.ON_DEMAND_RATE)))
                 .thenReturn(trax(6));
@@ -473,6 +492,11 @@ public class JournalActionSavingsCalculatorTest {
                 actualDetails.projectedTierCostDetails().cloudCommitmentCoverage();
         assertTrue(projectedCoverage.isPresent());
         assertThat(projectedCoverage.get().getUsed().getCoupons(), closeTo(3.0, ERROR));
+
+        assertTrue(actualDetails.sourceTierCostDetails().discountedRate().isPresent());
+        assertThat(actualDetails.sourceTierCostDetails().discountedRate().get().getValue(), closeTo(2.0, ERROR));
+        assertTrue(actualDetails.projectedTierCostDetails().discountedRate().isPresent());
+        assertThat(actualDetails.projectedTierCostDetails().discountedRate().get().getValue(), closeTo(0.0, ERROR));
     }
 
     /**
@@ -621,6 +645,8 @@ public class JournalActionSavingsCalculatorTest {
                 .thenReturn(trax(6));
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(3d));
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(4d));
+        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.EXCLUDE_UPTIME)))
+                .thenReturn(trax(5));
         // Total Source cost = 20
         when(sourceCostJournal.getTotalHourlyCost()).thenReturn(trax(20d));
         when(costCalculator.calculateCostForEntity(any(), eq(vm1))).thenReturn(Optional.of(sourceCostJournal));
@@ -632,6 +658,8 @@ public class JournalActionSavingsCalculatorTest {
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE),
                 eq(CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER))).thenReturn(trax(16d)); // return 16d as on demand compute with all discounts
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE),
+                eq(CostSourceFilter.EXCLUDE_UPTIME))).thenReturn(trax(12d));
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE),
                 eq(CostSourceFilter.ON_DEMAND_RATE))).thenReturn(trax(18d)); // return rate as 18d
         when(projectedCostJournal.getFilteredCategoryCostsBySource(eq(CostCategory.ON_DEMAND_COMPUTE),
                 eq(CostSourceFilter.EXCLUDE_UPTIME))).thenReturn(Collections.singletonMap(
@@ -641,6 +669,8 @@ public class JournalActionSavingsCalculatorTest {
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE),
                 eq(CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER))).thenReturn(trax(1d)); // return 16d as on demand compute with all discounts
 
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE),
+                eq(CostSourceFilter.EXCLUDE_UPTIME))).thenReturn(trax(2d));
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE),
                 any())).thenReturn(trax(0d));
         final Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = ImmutableMap.of(
@@ -710,6 +740,10 @@ public class JournalActionSavingsCalculatorTest {
         Double used = Math.abs((18D + 2D) - (18D + 2 - 2)) / ((18D + 2D)  - (2) );
         assertThat(actualDetails.projectedTierCostDetails().cloudCommitmentCoverage().get().getUsed().getCoupons(),
                 closeTo(used, ERROR));
+
+        assertFalse(actualDetails.sourceTierCostDetails().discountedRate().isPresent());
+        assertTrue(actualDetails.projectedTierCostDetails().discountedRate().isPresent());
+        assertThat(actualDetails.projectedTierCostDetails().discountedRate().get().getValue(), closeTo(14.0, ERROR));
     }
 
 }

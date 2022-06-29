@@ -466,6 +466,8 @@ message CloudSavingsDetails {
         optional common_dto.CurrencyAmount on_demand_cost  = 2;
         //the cloud commitment info of the tier.
         optional cloud_commitment_dto.CloudCommitmentCoverage cloud_commitment_coverage = 3;
+        // Commitment discounted rate (compute + on-demand-license + ri-license), without uptime.
+        optional common_dto.CurrencyAmount discounted_rate = 4;
     }
 
     //the entity uptime.
