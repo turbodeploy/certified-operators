@@ -358,6 +358,13 @@ public class CalculatorTest {
 
     private BillingRecord createVMBillRecord(LocalDateTime dateTime, double usageAmount,
             double cost, long providerId) {
+        return createVMBillRecord(dateTime, usageAmount, cost, providerId, PriceModel.ON_DEMAND);
+    }
+
+    private BillingRecord createVMBillRecord(LocalDateTime dateTime, double usageAmount,
+            double cost, long providerId, PriceModel priceModel) {
+        CostCategory costCategory = priceModel == PriceModel.ON_DEMAND
+                ? CostCategory.COMPUTE_LICENSE_BUNDLE : CostCategory.COMMITMENT_USAGE;
         return new BillingRecord.Builder()
                 .sampleTime(dateTime)
                 .usageAmount(usageAmount)
@@ -366,8 +373,8 @@ public class CalculatorTest {
                 .entityId(vmOid)
                 .entityType(EntityType.VIRTUAL_MACHINE.getValue())
                 .providerType(EntityType.COMPUTE_TIER.getValue())
-                .costCategory(CostCategory.COMPUTE)
-                .priceModel(PriceModel.ON_DEMAND)
+                .costCategory(costCategory)
+                .priceModel(priceModel)
                 .build();
     }
 
@@ -390,7 +397,7 @@ public class CalculatorTest {
         double dummyDestOnDemandRate = 2;
         long dummySourceProviderId = 22222222;
         return ScenarioGenerator.createVMActionChangeWindow(vmOid, actionTime, sourceOnDemandRate, dummyDestOnDemandRate, dummySourceProviderId,
-                destProviderId, null, LivenessState.LIVE);
+                destProviderId, null, LivenessState.LIVE, 0);
     }
 
     /**
@@ -560,7 +567,7 @@ public class CalculatorTest {
                 LocalDateTime.of(2022, 3, 25, 6, 0),
                 3, 2, sourceProviderId, targetProviderId,
                 LocalDateTime.of(2022, 3, 27, 9, 0),
-                LivenessState.REVERTED));
+                LivenessState.REVERTED, 0));
 
         List<SavingsValues> expectedResults = new ArrayList<>();
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(18).investments(0)
@@ -608,7 +615,7 @@ public class CalculatorTest {
                 LocalDateTime.of(2022, 3, 25, 6, 0),
                 3, 2, sourceProviderId, targetProviderId,
                 LocalDateTime.of(2022, 3, 27, 9, 0),
-                LivenessState.EXTERNAL_MODIFICATION));
+                LivenessState.EXTERNAL_MODIFICATION, 0));
 
         List<SavingsValues> expectedResults = new ArrayList<>();
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(18).investments(0)
@@ -651,8 +658,7 @@ public class CalculatorTest {
         actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
                 LocalDateTime.of(2022, 3, 25, 6, 0),
                 3, 2, sourceProviderId, targetProviderId,
-                LocalDateTime.of(2022, 3, 27, 9, 0),
-                LivenessState.LIVE));
+                null, LivenessState.LIVE, 0));
 
         List<SavingsValues> expectedResults = new ArrayList<>();
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(18).investments(0)
@@ -672,6 +678,266 @@ public class CalculatorTest {
                 .timestamp(date(2022, 3, 26)).build());
 
         result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        Assert.assertTrue(expectedResults.containsAll(result));
+    }
+
+    /**
+     * Apr 25 8am: Scale VM from 3 -> 5, not expecting RI coverage after the action.
+     * Apr 26 6am: the VM is 100% covered by RI.
+     * Cannot claim savings in this situation. Savings = 0. Investment = 0.
+     */
+    @Test
+    public void testRILimitSavingsToZero() {
+        final long sourceProviderId = 1212121212L;
+        final long targetProviderId = 2323232323L;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVMBillRecord(date(2022, 4, 25), 8, 8 * 3, sourceProviderId, PriceModel.ON_DEMAND));
+        records.add(createVMBillRecord(date(2022, 4, 25), 16, 16 * 5, targetProviderId, PriceModel.ON_DEMAND));
+        records.add(createVMBillRecord(date(2022, 4, 26), 6, 6 * 5, targetProviderId, PriceModel.ON_DEMAND));
+        records.add(createVMBillRecord(date(2022, 4, 26), 10, 0, targetProviderId, PriceModel.RESERVED));
+        records.add(createVMBillRecord(date(2022, 4, 27), 24, 0, targetProviderId, PriceModel.RESERVED));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs =
+                new TreeSet<>(changeWindowComparator);
+        actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
+                LocalDateTime.of(2022, 4, 25, 8, 0),
+                3, 5, sourceProviderId, targetProviderId,
+                null, LivenessState.LIVE, 0));
+
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(0).investments(32)
+                .timestamp(date(2022, 4, 25)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(0).investments(0)
+                .timestamp(date(2022, 4, 26)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(0).investments(0)
+                .timestamp(date(2022, 4, 27)).build());
+
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        Assert.assertTrue(expectedResults.containsAll(result));
+    }
+
+    /**
+     * Apr 25 8am: Scale VM from 5 -> 3, not expecting RI coverage after the action.
+     * Apr 26 6am: the VM is 100% covered by RI.
+     * Cannot claim savings more than $2/hour.
+     */
+    @Test
+    public void testRILimitSavingsOnScaleDown() {
+        final long sourceProviderId = 1212121212L;
+        final long targetProviderId = 2323232323L;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVMBillRecord(date(2022, 4, 25), 8, 8 * 5, sourceProviderId, PriceModel.ON_DEMAND));
+        records.add(createVMBillRecord(date(2022, 4, 25), 16, 16 * 3, targetProviderId, PriceModel.ON_DEMAND));
+        records.add(createVMBillRecord(date(2022, 4, 26), 6, 6 * 3, targetProviderId, PriceModel.ON_DEMAND));
+        records.add(createVMBillRecord(date(2022, 4, 26), 18, 0, targetProviderId, PriceModel.RESERVED));
+        records.add(createVMBillRecord(date(2022, 4, 27), 24, 0, targetProviderId, PriceModel.RESERVED));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs =
+                new TreeSet<>(changeWindowComparator);
+        actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
+                LocalDateTime.of(2022, 4, 25, 8, 0),
+                5, 3, sourceProviderId, targetProviderId,
+                null, LivenessState.LIVE, 0));
+
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(32).investments(0)
+                .timestamp(date(2022, 4, 25)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(48).investments(0)
+                .timestamp(date(2022, 4, 26)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(48).investments(0)
+                .timestamp(date(2022, 4, 27)).build());
+
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        Assert.assertTrue(expectedResults.containsAll(result));
+    }
+
+
+    /**
+     * Apr 25 8am: Scale VM from 3 -> 5, expecting 50% RI coverage after the action.
+     * Apr 26 6am: the VM is 100% covered by RI.
+     * No need to restrict savings.
+     */
+    @Test
+    public void testRICoverageChangeAfterScaleUp() {
+        final long sourceProviderId = 1212121212L;
+        final long targetProviderId = 2323232323L;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVMBillRecord(date(2022, 4, 25), 8, 8 * 3, sourceProviderId, PriceModel.ON_DEMAND));
+        records.add(createVMBillRecord(date(2022, 4, 25), 16, 16 * 5, targetProviderId, PriceModel.ON_DEMAND));
+        records.add(createVMBillRecord(date(2022, 4, 26), 6, 6 * 5, targetProviderId, PriceModel.ON_DEMAND));
+        records.add(createVMBillRecord(date(2022, 4, 26), 18, 0, targetProviderId, PriceModel.RESERVED));
+        records.add(createVMBillRecord(date(2022, 4, 27), 24, 0, targetProviderId, PriceModel.RESERVED));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs =
+                new TreeSet<>(changeWindowComparator);
+        actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
+                LocalDateTime.of(2022, 4, 25, 8, 0),
+                3, 5, sourceProviderId, targetProviderId,
+                null, LivenessState.LIVE, 0.5));
+
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(0).investments(32)
+                .timestamp(date(2022, 4, 25)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(18 * 3 - 2 * 6).investments(0)
+                .timestamp(date(2022, 4, 26)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(24 * 3).investments(0)
+                .timestamp(date(2022, 4, 27)).build());
+
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        Assert.assertTrue(expectedResults.containsAll(result));
+    }
+
+    /**
+     * Apr 25 8am: Scale VM from 5 -> 3, expecting 50% RI coverage after the action.
+     * Apr 26 6am: the VM is 100% covered by RI.
+     * No need to restrict savings.
+     */
+    @Test
+    public void testRICoverageChangeAfterScaleDown() {
+        final long sourceProviderId = 1212121212L;
+        final long targetProviderId = 2323232323L;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVMBillRecord(date(2022, 4, 25), 8, 8 * 5, sourceProviderId, PriceModel.ON_DEMAND));
+        records.add(createVMBillRecord(date(2022, 4, 25), 16, 16 * 3, targetProviderId, PriceModel.ON_DEMAND));
+        records.add(createVMBillRecord(date(2022, 4, 26), 6, 6 * 3, targetProviderId, PriceModel.ON_DEMAND));
+        records.add(createVMBillRecord(date(2022, 4, 26), 18, 0, targetProviderId, PriceModel.RESERVED));
+        records.add(createVMBillRecord(date(2022, 4, 27), 24, 0, targetProviderId, PriceModel.RESERVED));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs =
+                new TreeSet<>(changeWindowComparator);
+        actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
+                LocalDateTime.of(2022, 4, 25, 8, 0),
+                5, 3, sourceProviderId, targetProviderId,
+                null, LivenessState.LIVE, 0.5));
+
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(32).investments(0)
+                .timestamp(date(2022, 4, 25)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(2 * 6 + 5 * 18).investments(0)
+                .timestamp(date(2022, 4, 26)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(5 * 24).investments(0)
+                .timestamp(date(2022, 4, 27)).build());
+
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        Assert.assertTrue(expectedResults.containsAll(result));
+    }
+
+    /**
+     * Action chain test case 1:
+     * 1. June 1: Scale VM from 4 -> 3, not expecting RI coverage.
+     * 2. June 2: Scale VM from 3 -> 5, not expecting RI coverage.
+     * 3. June 3: Bill record shows 24 hours fully covered by RI.
+     * Expect no savings and no investments.
+     * There are no savings because both actions did not expect RI coverage. So we can't claim
+     * savings even when the VM is covered by RI.
+     */
+    @Test
+    public void testRICoverageActionChain1() {
+        final long tierA = 1212121212L;
+        final long tierB = 2323232323L;
+        final long tierC = 3434343434L;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVMBillRecord(date(2022, 6, 3), 24, 0, tierC, PriceModel.RESERVED));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs =
+                new TreeSet<>(changeWindowComparator);
+        actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
+                LocalDateTime.of(2022, 6, 1, 8, 0),
+                4, 3, tierA, tierB,
+                LocalDateTime.of(2022, 6, 2, 10, 0),
+                LivenessState.SUPERSEDED, 0));
+        actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
+                LocalDateTime.of(2022, 6, 2, 10, 0),
+                3, 5, tierB, tierC,
+                null, LivenessState.LIVE, 0));
+
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(24).investments(0)
+                .timestamp(date(2022, 6, 3)).build());
+
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        Assert.assertTrue(expectedResults.containsAll(result));
+    }
+
+    /**
+     * Action chain test case 2:
+     * 1. June 1: Scale VM from 4 -> 3, expecting 50% RI coverage.
+     * 2. June 2: Scale VM from 3 -> 5, not expecting RI coverage.
+     * 3. June 3: Bill record shows 24 hours fully covered by RI.
+     * Expect no savings and no investments.
+     * The first action is supposed to have 4 dollars of savings because it expects RI.
+     * However, the second action cannot claim savings because it is a scale up action and it did
+     * not expect RI. In this situation, we decided to let the first action claim savings up to $3.
+     * It was a design decision.
+     */
+    @Test
+    public void testRICoverageActionChain2() {
+        final long tierA = 1212121212L;
+        final long tierB = 2323232323L;
+        final long tierC = 3434343434L;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVMBillRecord(date(2022, 6, 3), 24, 0, tierC, PriceModel.RESERVED));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs =
+                new TreeSet<>(changeWindowComparator);
+        actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
+                LocalDateTime.of(2022, 6, 1, 8, 0),
+                4, 3, tierA, tierB,
+                LocalDateTime.of(2022, 6, 2, 10, 0),
+                LivenessState.SUPERSEDED, 0.5));
+        actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
+                LocalDateTime.of(2022, 6, 2, 10, 0),
+                3, 5, tierB, tierC,
+                null, LivenessState.LIVE, 0));
+
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(24).investments(0)
+                .timestamp(date(2022, 6, 3)).build());
+
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        Assert.assertTrue(expectedResults.containsAll(result));
+    }
+
+    /**
+     * Action chain test case 3:
+     * Action 1: June 1 scale VM from $8 → $5. Not expecting RI coverage after the action.
+     * Action 2: June 2 scale VM from $5 → $6. Not expecting RI coverage after the action.
+     * Action 3: June 3 scale VM from $6 → $4. Not expecting RI coverage after the action.
+     * On June 4, the bill record shows VM is 100% covered by RI, hence cost is $0. What are the savings and investments for June 4?
+     * Investment: $0
+     * Savings: Adjust the cost for June 4 to $4. So savings is $4 for June 4.
+     */
+    @Test
+    public void testRICoverageActionChain3() {
+        final long tierA = 1212121212L;
+        final long tierB = 2323232323L;
+        final long tierC = 3434343434L;
+        final long tierD = 4545454545L;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVMBillRecord(date(2022, 6, 4), 24, 0, tierD, PriceModel.RESERVED));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs =
+                new TreeSet<>(changeWindowComparator);
+        actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
+                LocalDateTime.of(2022, 6, 1, 8, 0),
+                8, 5, tierA, tierB,
+                LocalDateTime.of(2022, 6, 2, 10, 0),
+                LivenessState.SUPERSEDED, 0));
+        actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
+                LocalDateTime.of(2022, 6, 2, 10, 0),
+                5, 6, tierB, tierC,
+                LocalDateTime.of(2022, 6, 3, 14, 0),
+                LivenessState.SUPERSEDED, 0));
+        actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
+                LocalDateTime.of(2022, 6, 3, 14, 0),
+                6, 4, tierC, tierD,
+                null, LivenessState.LIVE, 0));
+
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(4 * 24).investments(0)
+                .timestamp(date(2022, 6, 4)).build());
+
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
         Assert.assertTrue(expectedResults.containsAll(result));
     }
 }

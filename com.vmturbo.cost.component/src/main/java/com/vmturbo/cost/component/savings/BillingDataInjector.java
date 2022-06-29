@@ -34,6 +34,7 @@ public class BillingDataInjector implements ScenarioDataInjector {
         double destinationOnDemandRate;
         boolean purgeState;
         boolean state;
+        double expectedCloudCommitment;
 
         /**
          * Return string representation of event.
@@ -50,6 +51,7 @@ public class BillingDataInjector implements ScenarioDataInjector {
             sb.append(", timestamp=").append(timestamp);
             sb.append(", eventType='").append(eventType).append('\'');
             sb.append(", uuid='").append(uuid).append('\'');
+            sb.append(", expectedCloudCommitment='").append(expectedCloudCommitment).append('\'');
             sb.append('}');
             return sb.toString();
         }

@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.savings.BillingRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
 
 /**
  * Savings calculation using the bill and action chain.
@@ -166,19 +167,18 @@ public class Calculator {
         double totalDailyInvestments = 0;
         for (Segment segment : segments) {
             if (segment.actionDataPoint instanceof ScaleActionDataPoint) {
-                ScaleActionDataPoint watermark = (ScaleActionDataPoint)segment.actionDataPoint;
-                long providerOid = watermark.getDestinationProviderOid();
+                ScaleActionDataPoint dataPoint = (ScaleActionDataPoint)segment.actionDataPoint;
+                long providerOid = dataPoint.getDestinationProviderOid();
                 // Get all bill records of this provider and sum up the cost
                 Set<BillingRecord> recordsForProvider = billRecords.stream()
                         .filter(r -> r.getProviderId() == providerOid).collect(Collectors.toSet());
-                double costOfProvider = recordsForProvider.stream()
+                double costForProvider = recordsForProvider.stream()
                         .map(BillingRecord::getCost)
                         .reduce(0d, Double::sum);
                 double usageAmount = getUsageAmount(recordsForProvider);
                 double investments = Math.max(0,
-                        (costOfProvider - watermark.getLowWatermark() * usageAmount) * segment.multiplier);
-                double savings = Math.max(0,
-                        (watermark.getHighWatermark() * usageAmount - costOfProvider) * segment.multiplier);
+                        (costForProvider - dataPoint.getLowWatermark() * usageAmount) * segment.multiplier);
+                double savings = calculateSavings(billRecords, dataPoint, costForProvider, usageAmount, segment.multiplier);
                 totalDailyInvestments += investments;
                 totalDailySavings += savings;
             } else if (segment.actionDataPoint instanceof DeleteActionDataPoint) {
@@ -195,6 +195,31 @@ public class Calculator {
                 .timestamp(date)
                 .entityOid(entityOid)
                 .build();
+    }
+
+    private double calculateSavings(Set<BillingRecord> billRecords, ScaleActionDataPoint dataPoint,
+            final double costForProvider, double usageAmount, double multiplier) {
+        double adjustedCostOfProvider = costForProvider;
+        // check if the entity is covered by RI on the day
+        boolean isEntityRICovered = billRecords.stream()
+                .anyMatch(r -> r.getPriceModel() == PriceModel.RESERVED);
+        if (isEntityRICovered && !dataPoint.isCloudCommitmentExpectedAfterAction()) {
+            // The entity is covered by RI, but the action didn't expect it to be covered.
+            if (dataPoint.isSavingsExpectedAfterAction()) {
+                // If it was a scale-down (efficiency) action, savings cannot be more than
+                // the difference between the high watermark and the on-demand cost of the destination tier.
+                // e.g. scale from 5 -> 3, savings cannot be more than $2. In this example,
+                // adjustedCostOfProvider is 3.
+                adjustedCostOfProvider = Math.max(dataPoint.getDestinationOnDemandCost() * usageAmount, costForProvider);
+            } else {
+                // If last action was a scale-up (performance) action, we cannot claim
+                // savings for this action.
+                // e.g. scale from 3 -> 5, cost of provider cannot be less than 3.
+                // Note: Before action cost includes RI discount if present.
+                adjustedCostOfProvider = Math.max(dataPoint.getBeforeActionCost() * usageAmount, costForProvider);
+            }
+        }
+        return Math.max(0, (dataPoint.getHighWatermark() * usageAmount - adjustedCostOfProvider) * multiplier);
     }
 
     /**
