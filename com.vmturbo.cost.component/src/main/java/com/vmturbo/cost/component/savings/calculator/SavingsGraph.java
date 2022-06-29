@@ -89,11 +89,22 @@ public class SavingsGraph {
                             .orElse(0L);
                 }
 
+                final TierCostDetails projectedTierCostDetails = action.getInfo().getScale()
+                        .getCloudSavingsDetails().getProjectedTierCostDetails();
+                boolean isRiCoverageExpectedAfterAction = projectedTierCostDetails
+                        .getCloudCommitmentCoverage().hasCapacity();
+                boolean isSavingsExpectedAfterAction = action.getSavingsPerHour().getAmount() > 0;
+                double destinationOnDemandCost = projectedTierCostDetails.getOnDemandRate().getAmount();
+
                 dataPoints.add(new ScaleActionDataPoint.Builder()
                         .timestamp(timestamp)
                         .lowWatermark(low)
                         .highWatermark(high)
                         .destinationProviderOid(destProviderOid)
+                        .beforeActionCost(sourceRate)
+                        .destinationOnDemandCost(destinationOnDemandCost)
+                        .isCloudCommitmentExpectedAfterAction(isRiCoverageExpectedAfterAction)
+                        .isSavingsExpectedAfterAction(isSavingsExpectedAfterAction)
                         .build());
 
                 if (changeWindow.getLivenessState() == LivenessState.REVERTED
@@ -162,17 +173,7 @@ public class SavingsGraph {
             graph.append(datapoint).append("\n");
             LocalDateTime time = LocalDateTime.ofInstant(
                     Instant.ofEpochMilli(datapoint.getTimestamp()), ZoneOffset.UTC);
-            graph.append(time).append(": ");
-            if (datapoint instanceof ScaleActionDataPoint) {
-                ScaleActionDataPoint watermark = (ScaleActionDataPoint)datapoint;
-                graph.append("high=").append(watermark.getHighWatermark());
-                graph.append(", low=").append(watermark.getLowWatermark());
-                graph.append(", provider=").append(datapoint.getDestinationProviderOid());
-            } else if (datapoint instanceof DeleteActionDataPoint) {
-                double savingsPerHour = ((DeleteActionDataPoint)datapoint).savingsPerHour();
-                graph.append("Entity Deleted. Savings per hour: ").append(savingsPerHour);
-            }
-            graph.append("\n");
+            graph.append(time).append(": ").append(datapoint).append("\n");
         }
         return graph.toString();
     }

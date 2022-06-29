@@ -27,6 +27,36 @@ public interface ScaleActionDataPoint extends ActionDataPoint {
     double getLowWatermark();
 
     /**
+     * Boolean value to show if the entity was expected to be covered by RI at the time when
+     * the action was executed.
+     *
+     * @return true if RI coverage was expected when the action was executed; false otherwise.
+     */
+    boolean isCloudCommitmentExpectedAfterAction();
+
+    /**
+     * Boolean value to show if the action was expected to generate savings or investment.
+     *
+     * @return true if savings was expected (efficiency action);
+     *         false if investments was expected (performance action)
+     */
+    boolean isSavingsExpectedAfterAction();
+
+    /**
+     * The cost of the entity before taking the action.
+     *
+     * @return The on-demand price of the destination tier.
+     */
+    double getBeforeActionCost();
+
+    /**
+     * The on-demand price of the destination tier.
+     *
+     * @return The on-demand price of the destination tier.
+     */
+    double getDestinationOnDemandCost();
+
+    /**
      * Creates a new builder.
      */
     class Builder extends ImmutableScaleActionDataPoint.Builder {}

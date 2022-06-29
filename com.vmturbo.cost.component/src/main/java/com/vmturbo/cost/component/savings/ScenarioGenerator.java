@@ -37,6 +37,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverage;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.savings.BillingDataInjector.BillingScriptEvent;
 import com.vmturbo.cost.component.savings.BillingRecord.Builder;
@@ -55,6 +57,8 @@ import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingDataPoint.CostCat
 public class ScenarioGenerator {
     private static final Logger logger = LogManager.getLogger();
     private static final Clock clock = Clock.systemUTC();
+
+    private static final int HOURS_IN_A_MONTH = 730;
 
     private ScenarioGenerator() {
     }
@@ -79,14 +83,17 @@ public class ScenarioGenerator {
             }
             LocalDateTime actionDateTime = TimeUtil.millisToLocalDateTime(actionTime, clock);
             if ("RESIZE".equals(event.eventType)) {
-                ExecutedActionsChangeWindow action = createVMActionChangeWindow(oid, actionDateTime, event.sourceOnDemandRate,
-                        event.destinationOnDemandRate, generateProviderIdFromRate(event.sourceOnDemandRate),
-                        generateProviderIdFromRate(event.destinationOnDemandRate), null, LivenessState.LIVE);
+                ExecutedActionsChangeWindow action = createVMActionChangeWindow(oid, actionDateTime,
+                        event.sourceOnDemandRate, event.destinationOnDemandRate,
+                        generateProviderIdFromRate(event.sourceOnDemandRate),
+                        generateProviderIdFromRate(event.destinationOnDemandRate), null,
+                        LivenessState.LIVE, event.expectedCloudCommitment);
                 logger.info("Scale action time: {}, entity OID: {}, source rate: {}, "
-                                + "destination rate: {} source provider: {}, destination provider: {}",
+                                + "destination rate: {} source provider: {}, destination provider: {}, "
+                                + "expected RI coverage: {}",
                         actionDateTime, oid, event.sourceOnDemandRate, event.destinationOnDemandRate,
                         generateProviderIdFromRate(event.sourceOnDemandRate),
-                        generateProviderIdFromRate(event.destinationOnDemandRate));
+                        generateProviderIdFromRate(event.destinationOnDemandRate), event.expectedCloudCommitment);
                 actionChains.computeIfAbsent(oid, c -> new TreeSet<>(GrpcActionChainStore.changeWindowComparator))
                         .add(action);
             } else if ("DELVOL".equals(event.eventType)) {
@@ -146,18 +153,29 @@ public class ScenarioGenerator {
             } else if ("REVERT".equals(event.eventType)) {
                 // Model the revert as a scale action which in the opposite direction as the previous
                 // scale action.
-                BillingScriptEvent previousEvent = sortedEvents.lower(event);
+                BillingScriptEvent previousEvent = getPreviousScaleEvent(sortedEvents, event);
                 if (previousEvent != null) {
-                    if ("RESIZE".equals(previousEvent.eventType)) {
-                        BillingScriptEvent revertEvent = new BillingScriptEvent();
-                        revertEvent.timestamp = event.timestamp;
-                        revertEvent.sourceOnDemandRate = previousEvent.destinationOnDemandRate;
-                        revertEvent.destinationOnDemandRate = previousEvent.sourceOnDemandRate;
-                        scaleEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
-                                .add(revertEvent);
-                    } else {
-                        logger.error("Unsupported scenario: revert action is not after a scale action.");
-                    }
+                    BillingScriptEvent revertEvent = new BillingScriptEvent();
+                    revertEvent.timestamp = event.timestamp;
+                    revertEvent.sourceOnDemandRate = previousEvent.destinationOnDemandRate;
+                    revertEvent.destinationOnDemandRate = previousEvent.sourceOnDemandRate;
+                    scaleEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
+                            .add(revertEvent);
+                }
+            } else if ("RI_COVERAGE".equals(event.eventType)) {
+                // Model a RI coverage change action as a scale action. Copy the scale action before
+                // the RI coverage change event and make both source and destination tiers the same
+                // as the destination tier of the previous scale action. Set the expected RI
+                // coverage to that passed in by the RI coverage event.
+                BillingScriptEvent previousEvent = getPreviousScaleEvent(sortedEvents, event);
+                if (previousEvent != null) {
+                    BillingScriptEvent riCoverageEvent = new BillingScriptEvent();
+                    riCoverageEvent.timestamp = event.timestamp;
+                    riCoverageEvent.sourceOnDemandRate = previousEvent.destinationOnDemandRate;
+                    riCoverageEvent.destinationOnDemandRate = previousEvent.destinationOnDemandRate;
+                    riCoverageEvent.expectedCloudCommitment = event.expectedCloudCommitment;
+                    scaleEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
+                            .add(riCoverageEvent);
                 }
             }
         }
@@ -182,6 +200,20 @@ public class ScenarioGenerator {
         return billRecords;
     }
 
+    @Nullable
+    private static BillingScriptEvent getPreviousScaleEvent(NavigableSet<BillingScriptEvent> sortedEvents,
+            BillingScriptEvent event) {
+        BillingScriptEvent previousEvent = sortedEvents.lower(event);
+        while (previousEvent != null && !"RESIZE".equals(previousEvent.eventType)) {
+            previousEvent = sortedEvents.lower(previousEvent);
+        }
+        if (previousEvent == null) {
+            logger.error("Unsupported scenario: RI Coverage change action is not after a scale action.");
+            return null;
+        }
+        return previousEvent;
+    }
+
     private static Set<BillingRecord> generateBillRecordForEntity(NavigableSet<BillingScriptEvent> scaleEvents,
             NavigableSet<BillingScriptEvent> powerEvents, @Nullable BillingScriptEvent deleteEvent,
             long entityOid, LocalDateTime startTime, LocalDateTime endTime) {
@@ -200,44 +232,84 @@ public class ScenarioGenerator {
             List<Segment> segments = createSegments(dayStart, dayEnd, scaleEvents, deleteEvent,
                     poweredOffIntervals);
 
-            // Find usage amount and cost for each provider for the day.
-            // If there are multiple segments for the same provider, combine them.
-            Map<Long, Segment> providerToSegment = new HashMap<>();
-            for (Segment segment : segments) {
-                if (providerToSegment.containsKey(segment.providerId)) {
-                    Segment providerSegment = providerToSegment.get(segment.providerId);
-                    providerSegment.cost += segment.cost;
-                    providerSegment.durationInHours += segment.durationInHours;
-                } else {
-                    providerToSegment.put(segment.providerId, segment);
-                }
-            }
-
             int entityType = EntityType.VIRTUAL_MACHINE_VALUE;
-            CostCategory costCategory = CostCategory.COMPUTE;
+            CostCategory costCategory = CostCategory.COMPUTE_LICENSE_BUNDLE;
             int providerType = EntityType.COMPUTE_TIER_VALUE;
             if (deleteEvent != null) {
                 entityType = EntityType.VIRTUAL_VOLUME_VALUE;
                 costCategory = CostCategory.STORAGE;
                 providerType = EntityType.STORAGE_TIER_VALUE;
             }
-            // Create bill records for each provider for the day.
-            for (Segment segment : providerToSegment.values()) {
-                double duration = segment.durationInHours;
-                if (entityType == EntityType.VIRTUAL_VOLUME_VALUE) {
-                    duration = duration / 730;
+
+            Map<Long, Segment> providerToOnDemandSegment = new HashMap<>();
+            Map<Long, Segment> providerToReservedSegment = new HashMap<>();
+            for (Segment segment : segments) {
+                // If there are two on-demand segments for the same provider, merge them into one
+                // so that only one bill record will be generated.
+                // Also, the cost and durationInHour values are adjusted to reflect the amount of
+                // time spent.
+                if (providerToOnDemandSegment.containsKey(segment.providerId)) {
+                    Segment onDemandSegment = providerToOnDemandSegment.get(segment.providerId);
+                    onDemandSegment.cost += segment.cost * (1 - segment.expectedRICoverage);
+                    onDemandSegment.durationInHours += segment.durationInHours * (1 - segment.expectedRICoverage);
+                } else {
+                    Segment onDemandSegment = new Segment(segment);
+                    onDemandSegment.cost = segment.cost * (1 - segment.expectedRICoverage);
+                    double duration = entityType == EntityType.VIRTUAL_VOLUME_VALUE
+                            ? segment.durationInHours / HOURS_IN_A_MONTH : segment.durationInHours;
+                    onDemandSegment.durationInHours = duration * (1 - segment.expectedRICoverage);
+                    providerToOnDemandSegment.put(segment.providerId, onDemandSegment);
                 }
-                generatedRecords.add(new Builder()
-                        .cost(segment.cost)
-                        .providerId(segment.providerId)
-                        .sampleTime(dayStart)
-                        .entityId(entityOid)
-                        .entityType(entityType)
-                        .priceModel(PriceModel.ON_DEMAND)
-                        .costCategory(costCategory)
-                        .providerType(providerType)
-                        .usageAmount(duration)
-                        .build());
+
+                // If there are two reserved segments for the same provider, merge them into one
+                // so that only one bill record will be generated.
+                // Also, the cost and durationInHour values are adjusted to reflect the amount of
+                // time spent.
+                if (segment.expectedRICoverage > 0) {
+                    if (providerToReservedSegment.containsKey(segment.providerId)) {
+                        Segment reservedSegment = providerToReservedSegment.get(segment.providerId);
+                        reservedSegment.cost = 0;
+                        reservedSegment.durationInHours += segment.durationInHours * segment.expectedRICoverage;
+                    } else {
+                        Segment reservedSegment = new Segment(segment);
+                        reservedSegment.cost = 0;
+                        double duration = entityType == EntityType.VIRTUAL_VOLUME_VALUE
+                                ? segment.durationInHours / 730 : segment.durationInHours;
+                        reservedSegment.durationInHours = duration * segment.expectedRICoverage;
+                        providerToReservedSegment.put(segment.providerId, reservedSegment);
+                    }
+                }
+            }
+
+            // Create bill records for each provider for the day.
+            for (Segment segment : providerToOnDemandSegment.values()) {
+                if (segment.durationInHours > 0) {
+                    generatedRecords.add(new Builder()
+                            .cost(segment.cost)
+                            .providerId(segment.providerId)
+                            .sampleTime(dayStart)
+                            .entityId(entityOid)
+                            .entityType(entityType)
+                            .priceModel(PriceModel.ON_DEMAND)
+                            .costCategory(costCategory)
+                            .providerType(providerType)
+                            .usageAmount(segment.durationInHours)
+                            .build());
+                }
+            }
+            for (Segment segment : providerToReservedSegment.values()) {
+                if (segment.durationInHours > 0) {
+                    generatedRecords.add(new Builder().cost(0)
+                            .providerId(segment.providerId)
+                            .sampleTime(dayStart)
+                            .entityId(entityOid)
+                            .entityType(entityType)
+                            .priceModel(PriceModel.RESERVED)
+                            .costCategory(CostCategory.COMMITMENT_USAGE)
+                            .providerType(providerType)
+                            .usageAmount(segment.durationInHours)
+                            .build());
+                }
             }
 
             dayStart = dayStart.plusDays(1);
@@ -314,13 +386,17 @@ public class ScenarioGenerator {
             }
             if (event.timestamp < dayStartMillis) {
                 Segment segment = new Segment(dayStartMillis, dayEndMillis,
-                        event.destinationOnDemandRate, generateProviderIdFromRate(event.destinationOnDemandRate));
+                        event.destinationOnDemandRate,
+                        generateProviderIdFromRate(event.destinationOnDemandRate),
+                        event.expectedCloudCommitment);
                 // Exclude time when it is powered off.
                 List<Segment> segmentsToAdd = segment.exclude(poweredOffIntervals);
                 segments.addAll(segmentsToAdd);
             } else {
                 Segment segment = new Segment(dayStartMillis, dayEndMillis,
-                        event.sourceOnDemandRate, generateProviderIdFromRate(event.sourceOnDemandRate));
+                        event.sourceOnDemandRate,
+                        generateProviderIdFromRate(event.sourceOnDemandRate),
+                        0.0);
                 // Exclude time when it is powered off.
                 List<Segment> segmentsToAdd = segment.exclude(poweredOffIntervals);
                 segments.addAll(segmentsToAdd);
@@ -331,9 +407,11 @@ public class ScenarioGenerator {
         long segmentStart = dayStartMillis;
         long segmentEnd;
         for (BillingScriptEvent event : eventsForDay) {
+            BillingScriptEvent previousEvent = scaleEvents.lower(event);
             segmentEnd = event.timestamp;
             Segment segment = new Segment(segmentStart, segmentEnd, event.sourceOnDemandRate,
-                    generateProviderIdFromRate(event.sourceOnDemandRate));
+                    generateProviderIdFromRate(event.sourceOnDemandRate),
+                    previousEvent == null ? 0.0 : previousEvent.expectedCloudCommitment);
             // Exclude time when it is powered off.
             List<Segment> segmentsToAdd = segment.exclude(poweredOffIntervals);
             segments.addAll(segmentsToAdd);
@@ -343,7 +421,8 @@ public class ScenarioGenerator {
         if (segmentStart < dayEndMillis && !"DELVOL".equals(eventsForDay.last().eventType)) {
             Segment segment = new Segment(segmentStart, dayEndMillis,
                     eventsForDay.last().destinationOnDemandRate,
-                    generateProviderIdFromRate(eventsForDay.last().destinationOnDemandRate));
+                    generateProviderIdFromRate(eventsForDay.last().destinationOnDemandRate),
+                    eventsForDay.last().expectedCloudCommitment);
             // Exclude time when it is powered off.
             List<Segment> segmentsToAdd = segment.exclude(poweredOffIntervals);
             segments.addAll(segmentsToAdd);
@@ -356,7 +435,31 @@ public class ScenarioGenerator {
     }
 
     private static ActionInfo createScaleActionInfo(long entityOid, double sourceOnDemandRate, double destOnDemandRate,
-            long sourceProviderId, long destProviderId, int entityType, int tierType) {
+            long sourceProviderId, long destProviderId, int entityType, int tierType, double expectedRiCoverage) {
+        TierCostDetails.Builder destinationTierCostDetails = TierCostDetails.newBuilder()
+                .setOnDemandRate(CurrencyAmount.newBuilder()
+                        .setAmount(destOnDemandRate)
+                        .build())
+                .setOnDemandCost(CurrencyAmount.newBuilder()
+                        .setAmount(destOnDemandRate * 24)
+                        .build());
+        if (expectedRiCoverage > 0) {
+            final double riCapacity = 4;
+            destinationTierCostDetails.setCloudCommitmentCoverage(
+                    CloudCommitmentCoverage.newBuilder()
+                            .setCapacity(CloudCommitmentAmount.newBuilder()
+                                    .setAmount(CurrencyAmount.newBuilder()
+                                            .setAmount(riCapacity)
+                                            .build())
+                                    .build())
+                            .setUsed(CloudCommitmentAmount.newBuilder()
+                                    .setAmount(CurrencyAmount.newBuilder()
+                                            .setAmount(riCapacity * expectedRiCoverage)
+                                            .build())
+                                    .build())
+                            .build());
+        }
+
         return ActionInfo.newBuilder()
                 .setScale(Scale.newBuilder()
                         .addChanges(ChangeProvider.newBuilder()
@@ -366,7 +469,7 @@ public class ScenarioGenerator {
                                         .build())
                                 .setSource(ActionEntity.newBuilder()
                                         .setId(sourceProviderId)
-                                        .setType(EntityDTO.EntityType.COMPUTE_TIER_VALUE)
+                                        .setType(EntityType.COMPUTE_TIER_VALUE)
                                         .build())
                                 .build())
                         .setCloudSavingsDetails(CloudSavingsDetails.newBuilder()
@@ -374,12 +477,11 @@ public class ScenarioGenerator {
                                         .setOnDemandRate(CurrencyAmount.newBuilder()
                                                 .setAmount(sourceOnDemandRate)
                                                 .build())
-                                        .build())
-                                .setProjectedTierCostDetails(TierCostDetails.newBuilder()
-                                        .setOnDemandRate(CurrencyAmount.newBuilder()
-                                                .setAmount(destOnDemandRate)
+                                        .setOnDemandCost(CurrencyAmount.newBuilder()
+                                                .setAmount(sourceOnDemandRate * 24)
                                                 .build())
                                         .build())
+                                .setProjectedTierCostDetails(destinationTierCostDetails)
                                 .build())
                         .setTarget(ActionEntity.newBuilder()
                                 .setId(entityOid)
@@ -451,17 +553,21 @@ public class ScenarioGenerator {
      * @param destOnDemandRate destination on-demand rate
      * @param sourceProviderId source provider ID
      * @param destProviderId destination provider ID
+     * @param expectedRiCoverage the expected RI coverage after the action (between 0 - 1)
      * @return ActionSpec object
      */
     public static ExecutedActionsChangeWindow createVMActionChangeWindow(long entityOid, LocalDateTime actionTime, double sourceOnDemandRate,
-            double destOnDemandRate, long sourceProviderId, long destProviderId, @Nullable LocalDateTime endTime, @Nullable LivenessState state) {
+            double destOnDemandRate, long sourceProviderId, long destProviderId, @Nullable LocalDateTime endTime, @Nullable LivenessState state,
+            double expectedRiCoverage) {
         if (state == null) {
             state = LivenessState.LIVE;
         }
         ActionInfo scaleActionInfo = createScaleActionInfo(entityOid, sourceOnDemandRate, destOnDemandRate,
                 sourceProviderId, destProviderId,
-                CommonDTOREST.EntityDTO.EntityType.COMPUTE_TIER.getValue(), CommonDTOREST.EntityDTO.EntityType.VIRTUAL_MACHINE.getValue());
-        ActionSpec actionSpec = createActionSpec(actionTime, scaleActionInfo);
+                CommonDTOREST.EntityDTO.EntityType.COMPUTE_TIER.getValue(),
+                CommonDTOREST.EntityDTO.EntityType.VIRTUAL_MACHINE.getValue(), expectedRiCoverage);
+        ActionSpec actionSpec = createActionSpec(actionTime, scaleActionInfo,
+                sourceOnDemandRate - destOnDemandRate);
         return createExecutedActionsChangeWindow(entityOid, actionSpec, endTime, state);
     }
 
@@ -514,6 +620,8 @@ public class ScenarioGenerator {
         private double cost;
         // Duration in hours
         private double durationInHours;
+        // expected RI coverage after action
+        private double expectedRICoverage;
 
         /**
          * Constructor.
@@ -522,10 +630,11 @@ public class ScenarioGenerator {
          * @param costPerHour cost per hour
          * @param providerId provider ID
          */
-        Segment(long start, long end, double costPerHour, long providerId) {
+        Segment(long start, long end, double costPerHour, long providerId, double expectedRICoverage) {
             super(start, end);
             this.costPerHour = costPerHour;
             this.providerId = providerId;
+            this.expectedRICoverage = expectedRICoverage;
             updateCost();
         }
 
@@ -535,6 +644,7 @@ public class ScenarioGenerator {
             this.cost = segment.cost;
             this.providerId = segment.providerId;
             this.durationInHours = segment.durationInHours;
+            this.expectedRICoverage = segment.expectedRICoverage;
         }
 
         private void updateCost() {
