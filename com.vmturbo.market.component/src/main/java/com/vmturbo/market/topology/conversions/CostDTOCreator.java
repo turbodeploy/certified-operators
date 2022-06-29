@@ -175,9 +175,7 @@ public class CostDTOCreator {
                 }
             }
         }
-        createComputeResourceDependency(tier)
-                .map(computeTierDTOBuilder::addComputeResourceDepedency);
-
+        createComputeResourceDependency(tier).forEach(computeTierDTOBuilder::addComputeResourceDepedency);
         return CostDTO.newBuilder()
                 .setComputeTierCost(computeTierDTOBuilder
                         .setLicenseCommodityBaseType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
@@ -711,14 +709,15 @@ public class CostDTOCreator {
      * and comm sold capacity.
      *
      * @param tier the compute tier topology entity DTO
-     * @return ComputeResourceDependency
+     * @return List of ComputeResourceDependency
      */
-    private Optional<ComputeResourceDependency> createComputeResourceDependency(
+    private List<ComputeResourceDependency> createComputeResourceDependency(
             TopologyEntityDTO tier) {
         // if the compute tier has dedicated storage network state as configured disabled or not supported,
         // the sum of netTpUsed and ioTpUsed should be within the netTpSold capacity so we populate a
         // ComputeResourceDependencyDTO to represent the netTpUsed and ioTpUsed constraint
         String tierDisplayName = tier.getDisplayName();
+        List<ComputeResourceDependency> computeResource = new ArrayList<>();
         if (tier.hasTypeSpecificInfo() && tier.getTypeSpecificInfo().hasComputeTier()) {
             ComputeTierInfo computeTierInfo = tier.getTypeSpecificInfo().getComputeTier();
             if (computeTierInfo.hasDedicatedStorageNetworkState()) {
@@ -741,6 +740,15 @@ public class CostDTOCreator {
                     List<CommoditySoldDTO> ioThruPut =
                             typeToCommodities.get(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE);
 
+                    List<CommoditySoldDTO> netThruPutOut =
+                            typeToCommodities.get(CommodityDTO.CommodityType.NET_THROUGHPUT_OUT_VALUE);
+                    List<CommoditySoldDTO> netThruPutIn =
+                            typeToCommodities.get(CommodityDTO.CommodityType.NET_THROUGHPUT_IN_VALUE);
+                    List<CommoditySoldDTO> ioThruPutRead =
+                            typeToCommodities.get(CommodityDTO.CommodityType.IO_THROUGHPUT_READ_VALUE);
+                    List<CommoditySoldDTO> ioThruPutWrite =
+                            typeToCommodities.get(CommodityDTO.CommodityType.IO_THROUGHPUT_WRITE_VALUE);
+
                     if (netThruPut != null && ioThruPut != null && netThruPut.size() == 1
                             && ioThruPut.size() == 1) {
                         ComputeResourceDependency.Builder dependency = ComputeResourceDependency
@@ -749,9 +757,29 @@ public class CostDTOCreator {
                                         netThruPut.get(0).getCommodityType()))
                                 .setDependentResourceType(commodityConverter.commoditySpecification(
                                         ioThruPut.get(0).getCommodityType()));
-                        return Optional.of(dependency.build());
-                    } else {
-                        logger.warn("Expected one commodity each of IOThroughput" +
+                        computeResource.add(dependency.build());
+                        return computeResource;
+                    } else if (netThruPutOut != null && netThruPutIn != null
+                            && ioThruPutRead != null && ioThruPutWrite != null
+                            && netThruPutOut.size() == 1 && netThruPutIn.size() == 1
+                            && ioThruPutRead.size() == 1 && ioThruPutWrite.size() == 1) {
+                            ComputeResourceDependency.Builder dependency = ComputeResourceDependency
+                                .newBuilder()
+                                .setBaseResourceType(commodityConverter.commoditySpecification(
+                                        netThruPutOut.get(0).getCommodityType()))
+                                .setDependentResourceType(commodityConverter.commoditySpecification(
+                                        ioThruPutRead.get(0).getCommodityType()));
+                            ComputeResourceDependency.Builder dependency1 = ComputeResourceDependency
+                                .newBuilder()
+                                .setBaseResourceType(commodityConverter.commoditySpecification(
+                                        netThruPutIn.get(0).getCommodityType()))
+                                .setDependentResourceType(commodityConverter.commoditySpecification(
+                                        ioThruPutWrite.get(0).getCommodityType()));
+                            computeResource.add(dependency.build());
+                            computeResource.add(dependency1.build());
+                            return computeResource;
+                        } else {
+                            logger.debug("Expected one commodity each of IOThroughput" +
                                 " and NetThroughput, Found zero/multiple for {}", tierDisplayName);
                     }
                 } else {
@@ -765,7 +793,7 @@ public class CostDTOCreator {
         } else {
             logger.debug("No compute tier associated with {} ", tierDisplayName);
         }
-        return Optional.empty();
+        return computeResource;
     }
 
 

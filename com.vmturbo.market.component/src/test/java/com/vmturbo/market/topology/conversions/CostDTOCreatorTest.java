@@ -71,6 +71,14 @@ public class CostDTOCreatorTest {
     private static final int IOSPEC_TYPE = 11;
     private static final int NETSPEC_BASE_TYPE = 2;
     private static final int NETSPEC_TYPE = 22;
+    private static final int NETOUTSPEC_BASE_TYPE = 3;
+    private static final int NETOUTSPEC_TYPE = 33;
+    private static final int NETINSPEC_BASE_TYPE = 4;
+    private static final int NETINSPEC_TYPE = 44;
+    private static final int IOREADSPEC_BASE_TYPE = 5;
+    private static final int IOREADSPEC_TYPE = 55;
+    private static final int IOWRITESPEC_BASE_TYPE = 6;
+    private static final int IOWRITESPEC_TYPE = 66;
 
     public static final String DB_TIER_LICENCE_KEY = "SqlServer:Standard:MultiAz:NoLicenseRequired";
     public static final int DB_TIER_ID = 771;
@@ -214,6 +222,152 @@ public class CostDTOCreatorTest {
         Assert.assertNotNull(dependency.getDependentResourceType());
         Assert.assertEquals(IOSPEC_BASE_TYPE, dependency.getDependentResourceType().getBaseType());
         Assert.assertEquals(IOSPEC_TYPE, dependency.getDependentResourceType().getType());
+    }
+
+    /**
+     * Creates and returns a test TopologyEntityDTO.
+     * @return TopologyEntityDTO
+     */
+    private TopologyEntityDTO getTestComputeTierGCP() {
+
+        // Setting up the sold commodities for a Region
+        final TopologyDTO.CommoditySoldDTO soldDTO = TopologyDTO.CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.DATACENTER_VALUE)
+                        .build())
+                .build();
+        List<TopologyDTO.CommoditySoldDTO > soldDTOS = new ArrayList<TopologyDTO.CommoditySoldDTO>();
+        soldDTOS.add(soldDTO);
+        TopologyEntityDTO REGION = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.REGION_VALUE)
+                .setOid(REGION_ID)
+                .addAllCommoditySoldList(soldDTOS)
+                .build();
+        REGIONS = Collections.singletonList(REGION);
+
+
+        CommodityType netTpCommOutType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.NET_THROUGHPUT_OUT_VALUE).build();
+        CommodityType netTpCommInType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.NET_THROUGHPUT_IN_VALUE).build();
+        CommodityType ioTpReadCommType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.IO_THROUGHPUT_READ_VALUE).build();
+        CommodityType ioTpWriteCommType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.IO_THROUGHPUT_WRITE_VALUE).build();
+        CommoditySpecificationTO netOutCommSpecTO = CommoditySpecificationTO.newBuilder()
+                .setBaseType(NETOUTSPEC_BASE_TYPE)
+                .setType(NETOUTSPEC_TYPE)
+                .build();
+        CommoditySpecificationTO netInCommSpecTO = CommoditySpecificationTO.newBuilder()
+                .setBaseType(NETINSPEC_BASE_TYPE)
+                .setType(NETINSPEC_TYPE)
+                .build();
+        CommoditySpecificationTO ioReadCommSpecTO = CommoditySpecificationTO.newBuilder()
+                .setBaseType(IOREADSPEC_BASE_TYPE)
+                .setType(IOREADSPEC_TYPE)
+                .build();
+        CommoditySpecificationTO ioWriteCommSpecTO = CommoditySpecificationTO.newBuilder()
+                .setBaseType(IOWRITESPEC_BASE_TYPE)
+                .setType(IOWRITESPEC_TYPE)
+                .build();
+        Mockito.doReturn(netOutCommSpecTO).when(converter)
+                .commoditySpecification(netTpCommOutType);
+        Mockito.doReturn(netInCommSpecTO).when(converter)
+                .commoditySpecification(netTpCommInType);
+        Mockito.doReturn(ioReadCommSpecTO).when(converter)
+                .commoditySpecification(ioTpReadCommType);
+        Mockito.doReturn(ioWriteCommSpecTO).when(converter)
+                .commoditySpecification(ioTpWriteCommType);
+        AccountPricingData accountPricingData = Mockito.mock(AccountPricingData.class);
+        DatabasePriceBundle databasePriceBundle = DatabasePriceBundle.newBuilder()
+                .addPrice(BA_ID, DatabaseEngine.MYSQL, DatabaseEdition.STANDARD,
+                        DeploymentType.MULTI_AZ, LicenseModel.BRING_YOUR_OWN_LICENSE, 0.4,
+                        Collections.emptyList())
+                .build();
+        when(marketCloudRateExtractor.getDatabasePriceBundle(TIER_ID, REGION_ID, accountPricingData)).thenReturn(databasePriceBundle);
+        ComputePriceBundle computeBundle = ComputePriceBundle.newBuilder()
+                .addPrice(BA_ID, OSType.LINUX, 0.5, 0.0,true)
+                .build();
+
+        final TopologyDTO.CommoditySoldDTO topologyNetTpOutSold =
+                TopologyDTO.CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.NET_THROUGHPUT_OUT_VALUE)
+                                .build())
+                        .build();
+
+        final TopologyDTO.CommoditySoldDTO topologyNetTpInSold =
+                TopologyDTO.CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.NET_THROUGHPUT_IN_VALUE)
+                                .build())
+                        .build();
+
+        final TopologyDTO.CommoditySoldDTO topologyIoTpReadSold =
+                TopologyDTO.CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.IO_THROUGHPUT_READ_VALUE)
+                                .build())
+                        .build();
+
+        final TopologyDTO.CommoditySoldDTO topologyIoTpWriteSold =
+                TopologyDTO.CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.IO_THROUGHPUT_WRITE_VALUE)
+                                .build())
+                        .build();
+
+        TopologyEntityDTO tier = TopologyEntityDTO.newBuilder()
+                .setOid(111)
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .addCommoditySoldList(topologyNetTpOutSold)
+                .addCommoditySoldList(topologyNetTpInSold)
+                .addCommoditySoldList(topologyIoTpReadSold)
+                .addCommoditySoldList(topologyIoTpWriteSold)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setComputeTier(ComputeTierInfo.newBuilder()
+                                .setDedicatedStorageNetworkState(
+                                        DedicatedStorageNetworkState.NOT_SUPPORTED)
+                                .build())
+                        .build())
+                .build();
+
+        when(marketCloudRateExtractor.getComputePriceBundle(tier, REGION_ID, accountPricingData))
+                .thenReturn(computeBundle);
+        return tier;
+    }
+
+
+    /**
+     * Tests the ComputeResourceDependency aspect of the CreateComputeTierCostDTO for GCP.
+     */
+    @Test
+    public void testComputeResourceDependencyGCP() {
+        final TopologyEntityDTO tier = getTestComputeTierGCP();
+        Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDatabyBusinessAccountMap = new HashMap<>();
+        CostDTOCreator costDTOCreator = new CostDTOCreator(converter, marketCloudRateExtractor);
+        AccountPricingData accountPricingData = mock(AccountPricingData.class);
+        for (TopologyEntityDTO region: REGIONS) {
+            when(marketCloudRateExtractor.getComputePriceBundle(tier, region.getOid(), accountPricingData)).thenReturn(ComputePriceBundle.newBuilder().build());
+        }
+        accountPricingDatabyBusinessAccountMap.put(BA_ID, accountPricingData);
+        HashSet<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData = new HashSet<>(accountPricingDatabyBusinessAccountMap.values());
+        CostDTO costDTO = costDTOCreator.createComputeTierCostDTO(tier, REGIONS, uniqueAccountPricingData);
+        Assert.assertEquals(2, costDTO.getComputeTierCost().getComputeResourceDepedencyCount());
+        ComputeResourceDependency dependency = costDTO.getComputeTierCost().getComputeResourceDepedency(0);
+        Assert.assertNotNull(dependency.getBaseResourceType());
+        Assert.assertEquals(NETOUTSPEC_BASE_TYPE, dependency.getBaseResourceType().getBaseType());
+        Assert.assertEquals(NETOUTSPEC_TYPE, dependency.getBaseResourceType().getType());
+        Assert.assertNotNull(dependency.getBaseResourceType());
+        Assert.assertEquals(IOREADSPEC_BASE_TYPE, dependency.getDependentResourceType().getBaseType());
+        Assert.assertEquals(IOREADSPEC_TYPE, dependency.getDependentResourceType().getType());
+        dependency = costDTO.getComputeTierCost().getComputeResourceDepedency(1);
+        Assert.assertNotNull(dependency.getBaseResourceType());
+        Assert.assertEquals(NETINSPEC_BASE_TYPE, dependency.getBaseResourceType().getBaseType());
+        Assert.assertEquals(NETINSPEC_TYPE, dependency.getBaseResourceType().getType());
+        Assert.assertNotNull(dependency.getBaseResourceType());
+        Assert.assertEquals(IOWRITESPEC_BASE_TYPE, dependency.getDependentResourceType().getBaseType());
+        Assert.assertEquals(IOWRITESPEC_TYPE, dependency.getDependentResourceType().getType());
     }
 
     @Test
