@@ -106,6 +106,7 @@ public class AtomicActionSpecsRpcService extends AtomicActionSpecsUploadServiceI
         AtomicActionSpecsRequest(StreamObserver<Empty> responseObserver) {
             this.responseObserver = responseObserver;
             this.actionSpecsMap = new HashMap<>();
+            this.uploadType = UploadType.REALTIME;
         }
 
         @Override
