@@ -151,6 +151,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.StaleOidManager;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
 import com.vmturbo.topology.processor.scheduling.UnsupportedDiscoveryTypeException;
@@ -199,6 +200,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     private final TargetStatusTracker targetStatusTracker = mock(TargetStatusTracker.class);
     private final StaleOidManager staleOidManager = mock(StaleOidManager.class);
     private final StalenessInformationProvider stalenessProvider = mock(StalenessInformationProvider.class);
+    private final TargetHealthRetriever targetHealthRetriever = mock(TargetHealthRetriever.class);
     private final EntityDTO nwDto =
             EntityDTO.newBuilder().setId("NW-1").setEntityType(EntityType.NETWORK).build();
 
@@ -286,7 +288,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
                         entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
                         identityProvider, discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
-                                statefulEditors, binaryDiscoveryDumper, targetStatusTracker, stalenessProvider, staleOidManager);
+                                statefulEditors, binaryDiscoveryDumper, targetStatusTracker, stalenessProvider, staleOidManager, targetHealthRetriever);
         handler.dump(zos);
         zos.close();
         return new ZipInputStream(new ByteArrayInputStream(zipBytes.toByteArray()));
@@ -436,7 +438,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
                 entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
                 identityProvider, discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
-                            statefulEditors, binaryDiscoveryDumper, targetStatusTracker, stalenessProvider, null);
+                            statefulEditors, binaryDiscoveryDumper, targetStatusTracker, stalenessProvider, null, targetHealthRetriever);
         // Valid json, but not a target info
         final String invalidJsonTarget = GSON.toJson(targetSpecBuilder.setProbeId(3));
         // Invalid json
@@ -684,7 +686,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             simpleTargetStore, targetPersistentIdentityStore, scheduler, entityStore, probeStore,
             groupUploader, templateDeploymentProfileUploader, identityProvider,
             discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
-                        statefulEditors, binaryDiscoveryDumper, targetStatusTracker, stalenessProvider, null);
+                        statefulEditors, binaryDiscoveryDumper, targetStatusTracker, stalenessProvider, null, targetHealthRetriever);
         when(probeStore.getProbe(71664194068896L)).thenReturn(Optional.of(Probes.defaultProbe));
         when(probeStore.getProbe(71564745273056L)).thenReturn(Optional.of(Probes.defaultProbe));
         handler.restore(new FileInputStream(ResourcePath.getTestResource(getClass(), "diags"
@@ -725,6 +727,73 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         assertEquals(2, probeResult.size());
         assertTrue(probeResult.values().stream().allMatch(
                 probeInfo -> probeInfo.getSupplyChainDefinitionSet(0).getTemplateClass() == EntityType.APPLICATION));
+    }
+
+    /**
+     * Restore target health data from zip file into TargetHealthRetriever.
+     * @throws Exception any exception.
+     */
+    @Test
+    public void testRestoreTargetHealthFromZipFile() throws Exception {
+        Map<Long, TargetHealth> targetHealthMap = new HashMap<>();
+        Mockito.doAnswer( i-> {
+            targetHealthMap.putAll(i.getArgumentAt(0, Map.class));
+            return null;
+        }).when(targetHealthRetriever).setHealthFromDiags(anyMapOf(Long.class, TargetHealth.class));
+
+        TopologyProcessorDiagnosticsHandler handler = new TopologyProcessorDiagnosticsHandler(
+                targetStore, targetPersistentIdentityStore, scheduler, entityStore, probeStore,
+                groupUploader, templateDeploymentProfileUploader, identityProvider,
+                discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
+                statefulEditors, binaryDiscoveryDumper, targetStatusTracker, stalenessProvider, null, targetHealthRetriever);
+
+        //This zip file has TargetHealth.diags file
+        handler.restore(new FileInputStream(ResourcePath.getTestResource(getClass(), "diags"
+                + "/compressed/diags_target_health_only.zip").toFile()), null);
+
+        assertEquals(3, targetHealthMap.size());
+
+    }
+
+    /**
+     * Test if there is no target health file in the zip file, we need to make up target health data using target info in target store.
+     * @throws Exception any exceptions.
+     */
+    @Test
+    public void testMakeupTargetHealthWithoutFile() throws Exception{
+        Map<Long, TargetHealth> targetHealthMap = new HashMap<>();
+        Mockito.doAnswer( i-> {
+            targetHealthMap.putAll(i.getArgumentAt(0, Map.class));
+            return null;
+        }).when(targetHealthRetriever).setHealthFromDiags(anyMapOf(Long.class, TargetHealth.class));
+
+        //These targets are in targetStore
+        Target target1 = Mockito.mock(Target.class);
+        Target target2 = Mockito.mock(Target.class);
+        when(target1.getId()).thenReturn(111111L);
+        when(target2.getId()).thenReturn(222222L);
+        when(target1.getDisplayName()).thenReturn("target1FromStore");
+        when(target2.getDisplayName()).thenReturn("target2FromStore");
+        targets.clear();
+        targets.add(target1);
+        targets.add(target2);
+
+
+        TopologyProcessorDiagnosticsHandler handler = new TopologyProcessorDiagnosticsHandler(
+                targetStore, targetPersistentIdentityStore, scheduler, entityStore, probeStore,
+                groupUploader, templateDeploymentProfileUploader, identityProvider,
+                discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
+                statefulEditors, binaryDiscoveryDumper, targetStatusTracker, stalenessProvider, null, targetHealthRetriever);
+
+        //This zip file has no TargetHealth.diags file, hence all the populated info are made up using target store, all the targets are healthy.
+        handler.restore(new FileInputStream(ResourcePath.getTestResource(getClass(), "diags"
+                + "/compressed/diags_nothing.zip").toFile()), null);
+
+        assertEquals(2, targetHealthMap.size());
+        for (TargetHealth health: targetHealthMap.values()) {
+            assertEquals(HealthState.NORMAL, health.getHealthState());
+            assertEquals(TargetHealthSubCategory.DISCOVERY, health.getSubcategory());
+        }
     }
 
     /**

@@ -40,9 +40,12 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import common.HealthCheck.HealthState;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
@@ -76,6 +79,7 @@ import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.StaleOidManager;
 import com.vmturbo.topology.processor.operation.DiscoveryDumperSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
 import com.vmturbo.topology.processor.scheduling.UnsupportedDiscoveryTypeException;
@@ -122,6 +126,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     private final TargetStatusTracker targetStatusTracker;
     private final StalenessInformationProvider stalenessProvider;
     private final StaleOidManager staleOidManager;
+    private final TargetHealthRetriever targetHealthRetriever;
 
     TopologyProcessorDiagnosticsHandler(@Nonnull final TargetStore targetStore,
             @Nonnull final PersistentIdentityStore targetPersistentIdentityStore,
@@ -137,7 +142,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             final BinaryDiscoveryDumper binaryDiscoveryDumper,
             final TargetStatusTracker targetStatusTracker,
             @Nonnull final StalenessInformationProvider stalenessProvider,
-            @Nonnull final StaleOidManager staleOidManager) {
+            @Nonnull final StaleOidManager staleOidManager,
+            @Nonnull final TargetHealthRetriever targetHealthRetriever) {
         this.targetStore = targetStore;
         this.targetPersistentIdentityStore = targetPersistentIdentityStore;
         this.scheduler = scheduler;
@@ -154,6 +160,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         this.targetStatusTracker = targetStatusTracker;
         this.stalenessProvider = stalenessProvider;
         this.staleOidManager = staleOidManager;
+        this.targetHealthRetriever = targetHealthRetriever;
     }
 
     /**
@@ -450,7 +457,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             .sorted(diagsRestoreComparator)
             .collect(Collectors.toList());
         final List<String> errors = new ArrayList<>();
-
+        final Map<Long, TargetHealth> targetHealthFromDiags = new HashMap<>();
         for (Diags diags : sortedDiagnostics) {
             final String diagsName = diags.getName();
             final List<String> diagsLines = diags.getLines() == null ? null : diags.getLines().collect(Collectors.toList());
@@ -470,6 +477,10 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                         break;
                     case TARGETS_DIAGS_FILE_NAME:
                         restoreTargets(diagsLines);
+                        break;
+                    case TARGET_HEALTH_DIAGS_FILE_NAME:
+                        //If target health diags file exists, restore use the file.
+                        parseTargetHealth(diagsLines, targetHealthFromDiags);
                         break;
                     case SCHEDULES_DIAGS_FILE_NAME:
                         restoreSchedules(diagsLines);
@@ -529,6 +540,14 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                 errors.addAll(e.getErrors());
             }
         }
+        //If didn't populate target health data from diags, that means the file is empty or doesn't exist.
+        //We make up target health data from restored targets, assuming all the targets are healthy.
+        //We need the target health data restored during loading, otherwise the loaded topology environments will always have unhealthy targets,
+        //and unhealthy targets won't generate any actions due to delayed_data feature.
+        if (targetHealthFromDiags.isEmpty()) {
+            makeUpTargetHealth(targetHealthFromDiags);
+        }
+        restoreTargetHealth(targetHealthFromDiags);
         if (errors.isEmpty()) {
             final String status = "Successfully restored " + targetStore.getAll().size() + " targets in "
                 + stopwatch.elapsed(TimeUnit.SECONDS) + " seconds";
@@ -552,6 +571,66 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                 + "to database");
         targetPersistentIdentityStore.restoreDiags(serializedTargetIdentifiers, null);
         logger.info("Restored target identifiers into database.");
+    }
+
+    /**
+     * Parse the target health data from file, and populate the data into passed in map.
+     * @param serializedTargetHealth String read from diags file
+     * @param targetHealthFromDiags The map to populate into
+     * @throws DiagnosticsException if can't resotre from file.
+     */
+    @VisibleForTesting
+    void parseTargetHealth(@Nonnull final List<String> serializedTargetHealth, @Nonnull final Map<Long, TargetHealth> targetHealthFromDiags)
+            throws DiagnosticsException {
+        logger.info("Parsing {} targets health from file", serializedTargetHealth.size());
+        targetHealthFromDiags.putAll(
+                serializedTargetHealth.stream()
+                .map(serialized -> {
+                    try {
+                        return GSON.fromJson(serialized, TargetHealthInfo.class);
+                    } catch (JsonParseException e) {
+                        logger.error("Failed to deserialize target health info {} because of error: ",
+                                serialized, e);
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(TargetHealthInfo::getTargetId, TargetHealthInfo::getTargetHealth))
+        );
+    }
+
+    /**
+     * Make up target health data using existing targets information in target store, and populate the health data into passed in map.
+     * We assume all the targets in target store are healthy.
+     * @param targetHealthMap the map to populate.
+     */
+    @VisibleForTesting
+    void makeUpTargetHealth(@Nonnull final Map<Long, TargetHealth> targetHealthMap) {
+        if (!targetHealthMap.isEmpty()) {
+            return;
+        }
+        List<Target> targets = targetStore.getAll();
+        for(Target target: targets) {
+            TargetHealth health = TargetHealth.newBuilder()
+                    .setTargetName(target.getDisplayName())
+                    .setHealthState(HealthState.NORMAL)
+                    .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                    .setConsecutiveFailureCount(0)
+                    .setLastSuccessfulDiscoveryCompletionTime(System.currentTimeMillis())
+                    .build();
+            targetHealthMap.put(target.getId(), health);
+        }
+        logger.info("Target health file is missing in diags, made up {} targets health data from restored targets. All the targets are assumed healthy", targetHealthMap.size());
+    }
+
+    /**
+     * Set target health data from passed in map into target health retriever.
+     * @param targetHealthFromDiags
+     */
+    @VisibleForTesting
+    void restoreTargetHealth(@Nonnull final Map<Long, TargetHealth> targetHealthFromDiags) {
+        targetHealthRetriever.setHealthFromDiags(targetHealthFromDiags);
+        logger.info("Done restoring {} targets into target health retriever.", targetHealthFromDiags.size());
     }
 
     /**
@@ -917,6 +996,14 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         TargetHealthInfo(long targetId, TargetHealth targetHealth) {
             this.targetId = targetId;
             this.targetHealth = targetHealth;
+        }
+
+        public long getTargetId() {
+            return targetId;
+        }
+
+        public TargetHealth getTargetHealth() {
+            return targetHealth;
         }
 
         @Override

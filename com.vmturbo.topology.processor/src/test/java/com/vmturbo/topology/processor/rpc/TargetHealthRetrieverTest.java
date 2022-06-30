@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -283,6 +284,49 @@ public class TargetHealthRetrieverTest {
         Assert.assertFalse(healthInfo.hasErrorType());
         Assert.assertTrue(healthInfo.getErrorTypeInfoList().isEmpty());
         Assert.assertFalse(healthInfo.hasTimeOfFirstFailure());
+    }
+
+    /**
+     * Test target health loaded from diags.
+     * @throws Exception any exception.
+     */
+    @Test
+    public void testTargetHealthLoadedFromDiags() throws Exception   {
+        final Target target = mockTarget();
+        final long targetId = target.getId();
+        when(probeStore.getProbeRegistrationsForTarget(any())).thenReturn(ImmutableList.of(perfectProbe));
+
+        final Validation validation = new Validation(PROBE_ID,  targetId, identityProvider);
+        final Discovery discovery = new Discovery(PROBE_ID, targetId, identityProvider);
+        validation.success();
+        discovery.success();
+        when(operationManager.getLastValidationForTarget(targetId))
+                .thenReturn(Optional.of(validation));
+        when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
+                .thenReturn(Optional.of(discovery));
+
+        TargetHealth targetHealth1 = TargetHealth.newBuilder().setHealthState(HealthState.CRITICAL)
+                .setSubcategory(TargetHealthSubCategory.DELAYED_DATA).build();
+        TargetHealth targetHealth2 = TargetHealth.newBuilder().setHealthState(HealthState.NORMAL)
+                .setSubcategory(TargetHealthSubCategory.DISCOVERY).build();
+        Map<Long, TargetHealth> targetHealthFromDiags = ImmutableMap.of(1111L, targetHealth1, 2222L, targetHealth2);
+        mockTarget(1111L, "target1111");
+        mockTarget(2222L, "target2222");
+
+        //Two targets loaded from diags.
+        healthRetriever.setHealthFromDiags(targetHealthFromDiags);
+
+        //target1 should still be NORMAL.
+        Assert.assertEquals(HealthState.NORMAL, getTargetHealth(targetId).getHealthState());
+
+        //target1111 and target 2222 are loaded from diags.
+        TargetHealth targetHealthRetrieved1 = getTargetHealth(1111L);
+        Assert.assertEquals(HealthState.CRITICAL, targetHealthRetrieved1.getHealthState());
+        Assert.assertEquals(TargetHealthSubCategory.DELAYED_DATA, targetHealthRetrieved1.getSubcategory());
+
+        TargetHealth targetHealthRetrieved2 = getTargetHealth(2222L);
+        Assert.assertEquals(HealthState.NORMAL, targetHealthRetrieved2.getHealthState());
+        Assert.assertEquals(TargetHealthSubCategory.DISCOVERY, targetHealthRetrieved2.getSubcategory());
     }
 
     /**
@@ -599,6 +643,17 @@ public class TargetHealthRetrieverTest {
         when(target.getDisplayName()).thenReturn("43");
         when(target.getProbeInfo()).thenReturn(probeInfo);
         when(targetStore.getTargets(Collections.singleton((long)1))).thenReturn(Collections.singletonList(target));
+        return target;
+    }
+
+    @Nonnull
+    private Target mockTarget(long id, String displayName) {
+        Target target = mock(Target.class);
+        when(target.getProbeId()).thenReturn(TargetHealthRetrieverTest.PROBE_ID);
+        when(target.getId()).thenReturn((long)id);
+        when(target.getDisplayName()).thenReturn(displayName);
+        when(target.getProbeInfo()).thenReturn(probeInfo);
+        when(targetStore.getTargets(Collections.singleton(id))).thenReturn(Collections.singletonList(target));
         return target;
     }
 
