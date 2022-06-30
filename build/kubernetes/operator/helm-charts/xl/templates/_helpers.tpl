@@ -268,6 +268,7 @@ Also, we can't use a single if because lazy evaluation is not an option
 {{- end -}}
 
 {{/*
+
 Expose a service with Skupper. Use inside an annotations block
 */}}
 {{- define "skupperExpose" -}}
@@ -276,3 +277,22 @@ skupper.io/proxy: {{ .proxy }}
 skupper.io/address: {{ .address }}
 {{- end -}}
 {{- end }}
+
+{{/*
+Return kube OAuth secrets volume configuration
+*/}}
+{{ define "kubeAuthSecretsVolume" }}
+- name: kube-auth-secrets
+  secret:
+    secretName: {{ .Chart.Name }}-auth-secrets
+    optional: true
+{{ end }}
+
+{{/*
+Return kube OAuth secret volume mount configuration
+*/}}
+{{ define "kubeAuthSecretsVolumeMount" }}
+- mountPath: /etc/config/kubeAuthSecrets
+  name: kube-auth-secrets
+  readOnly: true
+{{ end }}
