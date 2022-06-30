@@ -2,15 +2,16 @@ package com.vmturbo.topology.processor.rpc;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -66,6 +67,7 @@ public class TargetHealthRetriever {
     private final Clock clock;
     private final SettingServiceBlockingStub settingServiceClient;
     private Scheduler scheduler;
+    private Map<Long, TargetHealth> healthFromDiags;
 
     /**
      * Discovery timing status.
@@ -104,6 +106,7 @@ public class TargetHealthRetriever {
         this.probeStore = probeStore;
         this.clock = clock;
         this.settingServiceClient = settingServiceClient;
+        this.healthFromDiags = new HashMap<>();
     }
 
     /**
@@ -136,11 +139,34 @@ public class TargetHealthRetriever {
         } else {
             matchingTargets = targetStore.getTargets(targetIds);
         }
+        Map<Long, TargetHealth> result = new HashMap<>();
+        List<Target> liveTargets = new ArrayList<>();
+        for (Target target: matchingTargets) {
+            Long targetId = target.getId();
+            //For all the restored targets, the health state will be unhealthy because of connectivity.
+            //To better reproduce loaded environment, we use the restored target health from diags, if exists.
+            if (healthFromDiags.containsKey(targetId)) {
+                result.put(targetId, healthFromDiags.get(targetId));
+            } else {
+                liveTargets.add(target);
+            }
+        }
+        if (!liveTargets.isEmpty()) {
+            requestSettings();
+            for (Target target: liveTargets) {
+                result.put(target.getId(), computeTargetHealthInfo(target));
+            }
+        }
+        return result;
+    }
 
-        requestSettings();
-
-        return matchingTargets.stream().collect(
-                        Collectors.toMap(Target::getId, this::computeTargetHealthInfo));
+    /**
+     * Set target health data from diags.
+     * If exists, we'll use this data as target health, instead of computing it.
+     * @param healthFromDiags The target health data to set into retriever.
+     */
+    public void setHealthFromDiags(@Nonnull final Map<Long, TargetHealth> healthFromDiags) {
+        this.healthFromDiags = healthFromDiags;
     }
 
     private void requestSettings() {

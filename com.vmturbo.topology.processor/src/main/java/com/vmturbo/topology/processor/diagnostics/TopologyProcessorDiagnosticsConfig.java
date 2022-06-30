@@ -142,7 +142,8 @@ public class TopologyProcessorDiagnosticsConfig {
             binaryDiscoveryDumperConfig.binaryDiscoveryDumper(),
             targetConfig.targetStatusTracker(),
             topologyConfig.staleDataManager(),
-            identityProviderConfig.staleOidManager());
+            identityProviderConfig.staleOidManager(),
+            topologyConfig.targetHealthRetriever());
     }
 
     @Bean

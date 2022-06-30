@@ -44,6 +44,7 @@ import com.vmturbo.topology.processor.planexport.PlanExportConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.reservation.ReservationConfig;
+import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.staledata.StaleDataConfig;
 import com.vmturbo.topology.processor.staledata.StaleDataManager;
@@ -434,6 +435,15 @@ public class TopologyConfig {
     @Bean
     public ProbeActionCapabilitiesApplicatorEditor probeActionCapabilitiesApplicatorEditor() {
         return new ProbeActionCapabilitiesApplicatorEditor(targetConfig.targetStore());
+    }
+
+    /**
+     * Get the targetHealthRetriever used for TP RPC.
+     * @return The target health retriever object used in TP RPC service.
+     */
+    @Bean
+    public TargetHealthRetriever targetHealthRetriever() {
+        return topologyProcessorRpcConfig.targetHealthRetriever();
     }
 
     /**
