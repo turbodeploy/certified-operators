@@ -14,6 +14,7 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.gson.stream.JsonReader;
 import com.google.protobuf.Message.Builder;
 import com.google.protobuf.util.JsonFormat;
 
@@ -138,6 +139,24 @@ public class TestUtils {
         if (is != null) {
             List<String> lines = IOUtils.readLines(is, Charset.defaultCharset());
             return StringUtils.join(lines, "\n");
+        }
+        return null;
+    }
+
+    /**
+     * Looks up the specified Json file from resource path.
+     *
+     * @param jsonFilePath Path to CSV file.
+     * @param clazz For resource lookup.
+     * @return JsonReader.
+     * @throws IOException Thrown on read error.
+     */
+    @Nullable
+    public static JsonReader readJsonFile(@Nonnull final String jsonFilePath, @Nonnull final Class<?> clazz)
+            throws IOException {
+        final InputStream is = clazz.getResourceAsStream(jsonFilePath);
+        if (is != null) {
+            return new JsonReader(new InputStreamReader(is));
         }
         return null;
     }
