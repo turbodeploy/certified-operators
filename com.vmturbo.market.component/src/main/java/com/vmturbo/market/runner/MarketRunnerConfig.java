@@ -54,8 +54,8 @@ import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisSer
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisServiceImpl;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
-import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanAnalysisEngine;
-import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
+import com.vmturbo.market.runner.wasted.applicationservice.WastedApplicationServiceAnalysisEngine;
+import com.vmturbo.market.runner.wasted.files.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.TopologyProcessorConfig;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
@@ -322,8 +322,8 @@ public class MarketRunnerConfig {
     }
 
     @Bean
-    public WastedAppServicePlanAnalysisEngine wastedAppServicePlanAnalysisEngineFactory() {
-        return new WastedAppServicePlanAnalysisEngine();
+    public WastedApplicationServiceAnalysisEngine wastedAppServicePlanAnalysisEngineFactory() {
+        return new WastedApplicationServiceAnalysisEngine();
     }
 
 

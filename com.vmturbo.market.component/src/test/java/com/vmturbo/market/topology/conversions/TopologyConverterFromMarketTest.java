@@ -100,7 +100,7 @@ import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
-import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
+import com.vmturbo.market.runner.wasted.files.WastedFilesResults;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
