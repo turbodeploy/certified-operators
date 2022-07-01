@@ -55,6 +55,7 @@ import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.AppServicePlanConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseTierConfig;
@@ -949,15 +950,45 @@ public class CloudCostCalculatorTest {
      * Test a on-demand calculation (no discount) for a Application Component.
      */
     @Test
-    public void testCalculateOnDemandCostForApplicationComponent() {
+    public void testCalculateOnDemandCostForAppServicePlanLegacyModel() {
+        testCalculateOnDemandCostForAppServicePlan(EntityType.APPLICATION_COMPONENT_VALUE, 0);
+    }
+
+    /**
+     * Test a on-demand calculation (no discount) for a Virtual Machine Spec.
+     */
+    @Test
+    public void testCalculateOnDemandCostForAppServicePlan() {
+        testCalculateOnDemandCostForAppServicePlan(EntityType.VIRTUAL_MACHINE_SPEC_VALUE, 0);
+    }
+
+    /**
+     * Test an on-demand calculation (no discount) for a Application Component with
+     * multiple instances.
+     */
+    @Test
+    public void testCalculateOnDemandCostForAppServicePlanWithMultiInstancesLegacyModel() {
+        testCalculateOnDemandCostForAppServicePlan(EntityType.APPLICATION_COMPONENT_VALUE, 2);
+    }
+
+    /**
+     * Test an on-demand calculation (no discount) for a Virtual Machine Spec with
+     * multiple instances.
+     */
+    @Test
+    public void testCalculateOnDemandCostForAppServicePlanWithMultiInstances() {
+        testCalculateOnDemandCostForAppServicePlan(EntityType.VIRTUAL_MACHINE_SPEC_VALUE, 2);
+    }
+
+    private void testCalculateOnDemandCostForAppServicePlan(int entityType, int replicaCount) {
         // arrange
         final long appId = 11;
         final TestEntityClass applicationComponent = TestEntityClass.newBuilder(appId)
-                .setType(EntityType.APPLICATION_COMPONENT_VALUE)
+                .setType(entityType)
                 .setComputeConfig(new ComputeConfig(OSType.LINUX, Tenancy.DEFAULT, null, 0,
                         null, null))
                 .build(infoExtractor);
-        mockApplicationComponentEntityCall(appId);
+        mockApplicationServicePlanEntityCall(appId);
         final ComputeTierConfig computeTierConfig = ComputeTierConfig.builder()
                 .computeTierOid(appComputeTier.getId())
                 .numCores(2)
@@ -968,7 +999,7 @@ public class CloudCostCalculatorTest {
         Map<String, String> entityPropertyMap = new HashMap<>();
         entityPropertyMap.put("OS_TYPE", "LINUX");
         when(infoExtractor.getEntityPropertyMap(any())).thenReturn(Optional.of(entityPropertyMap));
-        when(infoExtractor.getAppServicePlanConfig(any())).thenReturn(Optional.empty());
+        when(infoExtractor.getAppServicePlanConfig(any())).thenReturn(Optional.of(new AppServicePlanConfig(replicaCount)));
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE_AWS_AZURE,
                 ACCOUNT_PRICING_DATA_OID, 15L, 20L);
@@ -976,7 +1007,11 @@ public class CloudCostCalculatorTest {
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         // act
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(applicationComponent);
-        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(APP_SERVICE_LINUX_PRICE));
+        double expected = APP_SERVICE_LINUX_PRICE;
+        if (replicaCount > 0) {
+            expected *= replicaCount;
+        }
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(expected));
     }
 
     /**
@@ -1458,7 +1493,7 @@ public class CloudCostCalculatorTest {
         when(topology.getDatabaseServerTier(dbId)).thenReturn(Optional.of(databaseServerTier));
     }
 
-    private void mockApplicationComponentEntityCall(final long appId) {
+    private void mockApplicationServicePlanEntityCall(final long appId) {
         when(topology.getConnectedRegion(appId)).thenReturn(Optional.of(region));
         when(topology.getConnectedAvailabilityZone(appId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(appId)).thenReturn(Optional.of(businessAccount));

@@ -255,7 +255,8 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
     @Override
     @Nonnull
     public Optional<AppServicePlanConfig> getAppServicePlanConfig(TopologyEntityDTO entity) {
-        if (entity.getEntityType() == EntityType.APPLICATION_COMPONENT_VALUE
+        if ((entity.getEntityType() == EntityType.APPLICATION_COMPONENT_VALUE
+                || entity.getEntityType() == EntityType.VIRTUAL_MACHINE_SPEC_VALUE)
                 && entity.hasTypeSpecificInfo()
                 && entity.getTypeSpecificInfo().hasApplicationService()) {
             ApplicationServiceInfo appSvcInfo = entity.getTypeSpecificInfo().getApplicationService();

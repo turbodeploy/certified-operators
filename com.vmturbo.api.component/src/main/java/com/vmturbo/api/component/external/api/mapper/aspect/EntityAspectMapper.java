@@ -131,15 +131,17 @@ public class EntityAspectMapper {
                     databaseTierAspectMapper))
             .put(EntityType.BUSINESS_USER_VALUE, ImmutableList.of(
                     businessUserAspectMapper))
+            // TODO (Cloud PaaS): ASP "legacy" APPLICATION_COMPONENT support, OM-83212
+            //  can remove APPLICATION_COMPONENT_VALUE when legacy support not needed
             .put(EntityType.APPLICATION_COMPONENT_VALUE, ImmutableList.of(
-                    //TODO: Convert to VM_SPEC_VALUE via OM-83212
                     cloudAspectMapper, appServiceAspectMapper))
             .put(EntityType.CLOUD_COMMITMENT_VALUE, ImmutableList.of(
                     cloudCommitmentAspectMapper))
-            .put(EntityType.APPLICATION_COMPONENT_SPEC_VALUE, ImmutableList.of(cloudAspectMapper))
-            .put(EntityType.VIRTUAL_MACHINE_SPEC_VALUE, ImmutableList.of(cloudAspectMapper))
-
-                .build();
+            .put(EntityType.APPLICATION_COMPONENT_SPEC_VALUE, ImmutableList.of(
+                    cloudAspectMapper))
+            .put(EntityType.VIRTUAL_MACHINE_SPEC_VALUE, ImmutableList.of(
+                    cloudAspectMapper, appServiceAspectMapper))
+            .build();
     }
 
     /**

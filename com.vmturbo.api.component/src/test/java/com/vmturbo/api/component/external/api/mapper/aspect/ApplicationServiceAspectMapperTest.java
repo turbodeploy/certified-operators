@@ -47,11 +47,25 @@ public class ApplicationServiceAspectMapperTest extends BaseAspectMapperTest {
     /**
      * Test standard usage of mapping an entity to app component aspect.
      */
+    // TODO (Cloud PaaS): ASP "legacy" APPLICATION_COMPONENT support, OM-83212
+    //  can remove APPLICATION_COMPONENT_VALUE when legacy support not needed
+    @Test
+    public void testMapEntityToAspectLegacyModel() {
+        testMapEntityToAspect(EntityType.APPLICATION_COMPONENT);
+    }
+
+    /**
+     * Test standard usage of mapping an entity to app component aspect.
+     */
     @Test
     public void testMapEntityToAspect() {
+        testMapEntityToAspect(EntityType.VIRTUAL_MACHINE_SPEC);
+    }
+
+    private void testMapEntityToAspect(EntityType entityType) {
         // arrange
         final TopologyEntityDTO.Builder tpEntityDtoBuilder = topologyEntityDTOBuilder(
-                EntityType.APPLICATION_COMPONENT,
+                entityType,
                 TypeSpecificInfo.newBuilder()
                         .setApplicationService(ApplicationServiceInfo.newBuilder()
                                 .setPlatform(ApplicationServiceInfo.Platform.valueOf(PLATFORM))
@@ -76,10 +90,22 @@ public class ApplicationServiceAspectMapperTest extends BaseAspectMapperTest {
      * Verify no problems when fields are missing from the application info.
      */
     @Test
+    public void testMapEntityToAspectMissingFieldsLegacyModel() {
+        testMapEntityToAspectMissingFields(EntityType.APPLICATION_COMPONENT);
+    }
+
+    /**
+     * Verify no problems when fields are missing from the application info.
+     */
+    @Test
     public void testMapEntityToAspectMissingFields() {
+        testMapEntityToAspectMissingFields(EntityType.VIRTUAL_MACHINE_SPEC);
+    }
+
+    private void testMapEntityToAspectMissingFields(EntityType entityType) {
         // arrange
         final TopologyEntityDTO.Builder tpEntityDtoBuilder = topologyEntityDTOBuilder(
-                EntityType.APPLICATION_COMPONENT,
+                entityType,
                 TypeSpecificInfo.newBuilder()
                         .setApplicationService(ApplicationServiceInfo.newBuilder()
                                 .setCurrentInstanceCount(INSTANCE_COUNT)
