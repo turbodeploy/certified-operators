@@ -64,6 +64,7 @@ import com.vmturbo.stitching.poststitching.StorageAccessCapacityPostStitchingOpe
 import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.stitching.utilities.CopyActionEligibility;
 import com.vmturbo.topology.processor.conversions.typespecific.ApplicationInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.ApplicationServiceInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessAccountInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessUserMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.CloudCommitmentInfoMapper;
@@ -111,8 +112,7 @@ public class SdkToTopologyEntityConverter {
             ImmutableMap.<EntityType, TypeSpecificInfoMapper>builder()
                     .put(EntityType.APPLICATION, new ApplicationInfoMapper())
                     .put(EntityType.APPLICATION_COMPONENT, new ApplicationInfoMapper())
-                    // TODO (Cloud PaaS): ASP "legacy" APPLICATION_COMPONENT support, OM-83212
-                    //  Add VIRTUAL_MACHINE_SPEC with ApplicationServiceInfoMapper
+                    .put(EntityType.VIRTUAL_MACHINE_SPEC, new ApplicationServiceInfoMapper())
                     // Databases get their type-specific info sent via application data
                     .put(EntityType.DATABASE_SERVER, new DatabaseInfoMapper())
                     .put(EntityType.DATABASE, new DatabaseInfoMapper())
