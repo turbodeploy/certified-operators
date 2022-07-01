@@ -965,7 +965,7 @@ public class ActionSpecMapper {
         }
 
         if (ApiEntityType.APPLICATION_COMPONENT.apiStr().equals(targetEntity.getClassName())) {
-            final Long actionTargetId = ActionDTOUtil.getPrimaryEntity(action).getId();
+            final Long actionTargetId = ActionDTOUtil.getPrimaryEntity(action, false).getId();
             setCurrentAndNewLocation(actionTargetId, context, actionApiDTO);
         }
 

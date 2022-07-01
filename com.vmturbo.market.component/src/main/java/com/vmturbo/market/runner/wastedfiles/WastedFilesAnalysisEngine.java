@@ -1,4 +1,4 @@
-package com.vmturbo.market.runner.wasted.files;
+package com.vmturbo.market.runner.wastedfiles;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -39,7 +39,6 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
-import com.vmturbo.market.runner.wasted.WastedEntityAnalysisEngine;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -51,10 +50,10 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 /**
  * Performs wasted file analysis on topologies.
  *
- * <p/>See: {@link WastedFilesAnalysisEngine#analyze(TopologyInfo, Map, TopologyCostCalculator, CloudTopology)}.
+ * <p/>See: {@link WastedFilesAnalysisEngine#analyzeWastedFiles(TopologyInfo, Map, TopologyCostCalculator, CloudTopology)}.
  */
 
-public class WastedFilesAnalysisEngine implements WastedEntityAnalysisEngine {
+public class WastedFilesAnalysisEngine {
     private final Logger logger = LogManager.getLogger();
 
     /**
@@ -74,8 +73,7 @@ public class WastedFilesAnalysisEngine implements WastedEntityAnalysisEngine {
      * @return The {@link WastedFilesResults} object.
      */
     @Nonnull
-    @Override
-    public WastedFilesResults analyze(@Nonnull final TopologyInfo topologyInfo,
+    public WastedFilesResults analyzeWastedFiles(@Nonnull final TopologyInfo topologyInfo,
                                           @Nonnull final Map<Long, TopologyEntityDTO> topologyEntities,
                                           @Nonnull final TopologyCostCalculator topologyCostCalculator,
                                           @Nonnull final CloudTopology<TopologyEntityDTO> originalCloudTopology) {

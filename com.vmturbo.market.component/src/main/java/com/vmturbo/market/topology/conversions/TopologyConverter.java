@@ -1,6 +1,5 @@
 package com.vmturbo.market.topology.conversions;
 
-import static com.google.common.base.Predicates.not;
 import static com.vmturbo.commons.analysis.RawMaterialsMap.rawMaterialsMap;
 import static com.vmturbo.market.topology.conversions.MarketAnalysisUtils.ACCESS_COMMODITY_TYPES;
 import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.CLOUD_VOLUME_COMMODITIES_UNIT_CONVERSION;
@@ -108,9 +107,7 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.FakeEntityCreator;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
-import com.vmturbo.market.runner.wasted.applicationservice.WastedApplicationServiceAnalysisEngine;
-import com.vmturbo.market.runner.wasted.applicationservice.WastedApplicationServiceResults;
-import com.vmturbo.market.runner.wasted.files.WastedFilesResults;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.settings.MarketSettings;
 import com.vmturbo.market.topology.MarketTier;
@@ -128,6 +125,7 @@ import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator;
 import com.vmturbo.mediation.hybrid.cloud.utils.StorageTier;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
@@ -1049,13 +1047,9 @@ public class TopologyConverter {
                         retSet.add(t.build());
                     });
             // Iterate over all scaling groups and compute top usage
-            // TODO (Cloud PaaS): ASP "legacy" APPLICATION_COMPONENT support, OM-85875
-            //  Temporarily filter out app service plans to avoid making traders for them until Azure App Service model migration is done ( no traders needed for deleted ASPs)
-            //  It may be possible/desirable to replace this filter with an entry of VIRTUAL_MACHINE_SPEC in ENTITY_TYPES_TO_SKIP_TRADER_CREATION at TopologyConversionConstants.java
             calculateScalingGroupUsageData(entityOidToDto);
             entityOidToDto.values().stream()
                     .filter(t -> TopologyConversionUtils.shouldConvertToTrader(t.getEntityType()))
-                    .filter(not(WastedApplicationServiceAnalysisEngine::isAppServicePlan))
                     .map(this::topologyDTOtoTraderTO)
                     .filter(Objects::nonNull)
                     .forEach(retSet::add);

@@ -33,7 +33,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
-import com.vmturbo.market.runner.wasted.files.WastedFilesResults;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
 import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;

@@ -41,8 +41,8 @@ import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
-import com.vmturbo.market.runner.wasted.applicationservice.WastedApplicationServiceAnalysisEngine;
-import com.vmturbo.market.runner.wasted.files.WastedFilesAnalysisEngine;
+import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanAnalysisEngine;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
@@ -162,7 +162,7 @@ public interface AnalysisFactory {
 
         private final AnalysisDiagnosticsCollectorFactory analysisDiagsCollectorFactory;
 
-        private final WastedApplicationServiceAnalysisEngine wastedApplicationServiceAnalysisEngine;
+        private final WastedAppServicePlanAnalysisEngine wastedAppServicePlanAnalysisEngine;
 
         public DefaultAnalysisFactory(@Nonnull final GroupMemberRetriever groupMemberRetriever,
                                       @Nonnull final SettingServiceBlockingStub settingServiceClient,
@@ -198,7 +198,7 @@ public interface AnalysisFactory {
                                       final int saveAnalysisDiagsTimeoutSecs,
                                       final int numRealTimeAnalysisDiagsToRetain,
                                       final AnalysisDiagnosticsCollectorFactory analysisDiagsCollectorFactory,
-                @Nonnull final WastedApplicationServiceAnalysisEngine wastedApplicationServiceAnalysisEngine
+                @Nonnull final WastedAppServicePlanAnalysisEngine wastedAppServicePlanAnalysisEngine
                 ) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
@@ -239,7 +239,7 @@ public interface AnalysisFactory {
             this.saveAnalysisDiagsTimeoutSecs = saveAnalysisDiagsTimeoutSecs;
             this.numRealTimeAnalysisDiagsToRetain = numRealTimeAnalysisDiagsToRetain;
             this.analysisDiagsCollectorFactory = analysisDiagsCollectorFactory;
-            this.wastedApplicationServiceAnalysisEngine = wastedApplicationServiceAnalysisEngine;
+            this.wastedAppServicePlanAnalysisEngine = wastedAppServicePlanAnalysisEngine;
         }
 
         /**
@@ -270,7 +270,7 @@ public interface AnalysisFactory {
                     reversibilitySettingFetcherFactory,
                     migratedWorkloadCloudCommitmentAnalysisService, commodityIdUpdater,
                     actionSavingsCalculatorFactory, externalReconfigureActionEngine, diagsCleaner,
-                    analysisDiagsCollectorFactory, wastedApplicationServiceAnalysisEngine,
+                    analysisDiagsCollectorFactory, wastedAppServicePlanAnalysisEngine,
                     fakeEntityCreator);
         }
 

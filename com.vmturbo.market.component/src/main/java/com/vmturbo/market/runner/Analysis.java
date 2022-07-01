@@ -98,10 +98,10 @@ import com.vmturbo.market.runner.postprocessor.ProjectedEntityPostProcessor;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityAnalysisEngine;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
-import com.vmturbo.market.runner.wasted.applicationservice.WastedApplicationServiceAnalysisEngine;
-import com.vmturbo.market.runner.wasted.applicationservice.WastedApplicationServiceResults;
-import com.vmturbo.market.runner.wasted.files.WastedFilesAnalysisEngine;
-import com.vmturbo.market.runner.wasted.files.WastedFilesResults;
+import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanAnalysisEngine;
+import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanResults;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
@@ -318,7 +318,7 @@ public class Analysis {
 
     // RelatedActionInterpreter is to interpret relations between 2 actions.
     private final RelatedActionInterpreter relatedActionInterpreter;
-    private final WastedApplicationServiceAnalysisEngine wastedApplicationServiceAnalysisEngine;
+    private final WastedAppServicePlanAnalysisEngine wastedAppServicePlanAnalysisEngine;
     private final FakeEntityCreator fakeEntityCreator;
 
     /**
@@ -343,7 +343,7 @@ public class Analysis {
      * @param reversibilitySettingFetcherFactory factory for {@link ReversibilitySettingFetcher}.
      * @param migratedWorkloadCloudCommitmentAnalysisService cloud migration analysis
      * @param commodityIdUpdater commodity id updater
-     * @param wastedApplicationServiceAnalysisEngine used to identify unused azure app service plans.
+     * @param wastedAppServicePlanAnalysisEngine used to identify unused azure app service plans.
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Collection<TopologyEntityDTO> topologyDTOs,
@@ -367,7 +367,7 @@ public class Analysis {
                     @Nonnull final ExternalReconfigureActionEngine externalReconfigureActionEngine,
                     @Nonnull final IDiagnosticsCleaner diagnosticsCleaner,
                     @Nonnull final AnalysisDiagnosticsCollectorFactory analysisDiagsCollectorFactory,
-                    @Nonnull final WastedApplicationServiceAnalysisEngine wastedApplicationServiceAnalysisEngine,
+                    @Nonnull final WastedAppServicePlanAnalysisEngine wastedAppServicePlanAnalysisEngine,
                     @Nonnull final FakeEntityCreator fakeEntityCreator) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
@@ -403,7 +403,7 @@ public class Analysis {
         this.diagnosticsCleaner = diagnosticsCleaner;
         this.analysisDiagsCollectorFactory = analysisDiagsCollectorFactory;
         this.relatedActionInterpreter = new RelatedActionInterpreter(topologyInfo);
-        this.wastedApplicationServiceAnalysisEngine = wastedApplicationServiceAnalysisEngine;
+        this.wastedAppServicePlanAnalysisEngine = wastedAppServicePlanAnalysisEngine;
         this.fakeEntityCreator = fakeEntityCreator;
     }
 
@@ -561,7 +561,7 @@ public class Analysis {
         final WastedFilesResults wastedFilesAnalysis;
         if (topologyInfo.getAnalysisTypeList().contains(AnalysisType.WASTED_FILES)) {
             try (TracingScope ignored = Tracing.trace("wasted_file_analysis")) {
-                wastedFilesAnalysis = wastedFilesAnalysisEngine.analyze(
+                wastedFilesAnalysis = wastedFilesAnalysisEngine.analyzeWastedFiles(
                         topologyInfo, topologyDTOs, topologyCostCalculator, originalCloudTopology);
             }
         } else {
@@ -569,14 +569,14 @@ public class Analysis {
         }
 
         // Execute wasted App Service Plan analysis
-        final WastedApplicationServiceResults wastedApplicationServiceResults;
+        final WastedAppServicePlanResults wastedAppServicePlanResults;
         if (topologyInfo.getAnalysisTypeList().contains(AnalysisType.WASTED_APP_SERVICE_PLANS)) {
             try (TracingScope ignored = Tracing.trace("wasted_app_service_plan_analysis")) {
-                wastedApplicationServiceResults = wastedApplicationServiceAnalysisEngine.analyze(
+                wastedAppServicePlanResults = wastedAppServicePlanAnalysisEngine.analyzeWastedAppServicePlans(
                         topologyInfo, topologyDTOs, topologyCostCalculator, originalCloudTopology);
             }
         } else {
-            wastedApplicationServiceResults = WastedApplicationServiceResults.EMPTY;
+            wastedAppServicePlanResults = WastedAppServicePlanResults.EMPTY;
         }
 
         // Calculate reservedCapacity and generate resize actions
@@ -791,16 +791,16 @@ public class Analysis {
                                     }
                                 }
 
-                                // Get the IDs of the entities that are recommended for deletion so we can mark deleted in the projected topology.
-                                Set<Long> wastedEntityIds = new HashSet<Long>() {{
-                                    addAll(wastedFilesAnalysis.getEntityIds());
-                                    addAll(wastedApplicationServiceResults.getEntityIds());
-                                }};
-                                // Set deleted entities as deleted in the projected topology will ensure that the after action price is $0.
+                                final Set<Long> wastedStorageActionsVolumeIds = wastedFilesAnalysis.getActions().stream()
+                                        .map(action -> action.getInfo().getDelete().getTarget().getId())
+                                        .collect(Collectors.toSet());
+
                                 copySkippedEntitiesToProjectedTopology(
-                                        wastedEntityIds,
-                                        convertedTopology.oidsToRemove, projectedTraderDTO,
-                                        topologyDTOs, isMigrateToCloud);
+                                        wastedStorageActionsVolumeIds,
+                                        convertedTopology.oidsToRemove,
+                                        projectedTraderDTO,
+                                        topologyDTOs,
+                                        isMigrateToCloud);
 
                                 // Map of entity type to list of projected topology entities.
                                 Map<Integer, List<ProjectedTopologyEntity>> entityTypeToProjectedEntities =
@@ -938,7 +938,7 @@ public class Analysis {
                     // TODO move wasted files action out of main analysis once we have a framework
                     // to support multiple analyses for the same topology ID
                     actionPlanBuilder.addAllAction(wastedFilesAnalysis.getActions());
-                    actionPlanBuilder.addAllAction(wastedApplicationServiceResults.getActions());
+                    actionPlanBuilder.addAllAction(wastedAppServicePlanResults.getActions());
                     actionPlanBuilder.addAllAction(reservedCapacityResults.getActions());
 
                     //Execute ReconfigureActionAnalysis, need to consider existing actions to avoid duplicates.
@@ -1294,7 +1294,7 @@ public class Analysis {
      * original topology to the projected topology. Skips virtual volumes from being added to
      * projected topology if they have associated wasted storage actions.
      *
-     * @param idsOfWastedEntitiesInTopologyRecommendedForDeletion id associated with wasted storage actions.
+     * @param wastedStorageActionsVolumeIds volumes id associated with wasted storage actions.
      * @param oidsRemoved entities removed via plan configurations.
      *                    For example, configuration changes like remove/decommission hosts etc.
      * @param traderTOs {@link TraderTO} analysis results
@@ -1302,7 +1302,7 @@ public class Analysis {
      * @param isMigrateToCloud whether this is a MCP context
      */
     private void copySkippedEntitiesToProjectedTopology(
-            final Set<Long> idsOfWastedEntitiesInTopologyRecommendedForDeletion,
+            final Set<Long> wastedStorageActionsVolumeIds,
             @Nonnull final Set<Long> oidsRemoved,
             @Nonnull final List<TraderTO> traderTOs,
             @Nonnull final Map<Long, TopologyEntityDTO> originalTopology,
@@ -1323,9 +1323,9 @@ public class Analysis {
                 .filter(entity -> !oidsRemoved.contains(entity.getOid()))
                 // Exclude entities that have already been added
                 .filter(entity -> !projectedEntities.containsKey(entity.getOid()))
-                // Entities with delete actions go into the projected topology, but get
+                // Volumes with delete volume actions go into the projected topology, but get
                 // marked as deleted.
-                .map(entity -> Analysis.toProjectedTopologyEntity(entity, idsOfWastedEntitiesInTopologyRecommendedForDeletion.contains(entity.getOid())))
+                .map(entity -> Analysis.toProjectedTopologyEntity(entity, wastedStorageActionsVolumeIds.contains(entity.getOid())))
                 .collect(Collectors.toSet());
 
         entitiesToAdd.forEach(projectedEntity -> {

@@ -1,5 +1,6 @@
-package com.vmturbo.market.runner.wasted.files;
+package com.vmturbo.market.runner.wastedfiles;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.OptionalLong;
@@ -9,12 +10,11 @@ import it.unimi.dsi.fastutil.longs.Long2LongMaps;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.commons.Units;
-import com.vmturbo.market.runner.wasted.WastedEntityResults;
 
 /**
  * Object representing the results of the wasted file analysis.
  */
-public class WastedFilesResults extends WastedEntityResults {
+public class WastedFilesResults {
 
     /**
      * Singleton instance to represent no results.
@@ -22,11 +22,16 @@ public class WastedFilesResults extends WastedEntityResults {
     public static final WastedFilesResults EMPTY = new WastedFilesResults(Collections.emptyList(),
             Long2LongMaps.EMPTY_MAP);
 
+    private final Collection<Action> actions;
     private final Long2LongMap storageToStorageAmountReleasedMap;
 
     WastedFilesResults(List<Action> actions, Long2LongMap storageToStorageAmountReleasedMap) {
-        super(actions);
+        this.actions = actions;
         this.storageToStorageAmountReleasedMap = storageToStorageAmountReleasedMap;
+    }
+
+    public Collection<Action> getActions() {
+        return actions;
     }
 
     /**

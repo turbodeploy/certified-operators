@@ -22,12 +22,12 @@ public class TopologyConversionConstants {
      * These entity types are not sent for Analysis i.e. no traders are created for these entity
      * types
      */
-    public static final Set<Integer> ENTITY_TYPES_TO_SKIP_TRADER_CREATION =
-            Collections.unmodifiableSet(
-                    Sets.newHashSet(EntityType.COMPUTE_TIER_VALUE, EntityType.STORAGE_TIER_VALUE,
-                            EntityType.DATABASE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
-                            EntityType.REGION_VALUE, EntityType.AVAILABILITY_ZONE_VALUE,
-                            EntityType.BUSINESS_ACCOUNT_VALUE, EntityType.VIRTUAL_VOLUME_VALUE));
+    public static final Set<Integer> ENTITY_TYPES_TO_SKIP_TRADER_CREATION = Collections.unmodifiableSet(
+            Sets.newHashSet(EntityType.COMPUTE_TIER_VALUE,
+                    EntityType.STORAGE_TIER_VALUE, EntityType.DATABASE_TIER_VALUE,
+                    EntityType.DATABASE_SERVER_TIER_VALUE,
+                    EntityType.REGION_VALUE, EntityType.AVAILABILITY_ZONE_VALUE,
+                    EntityType.BUSINESS_ACCOUNT_VALUE, EntityType.VIRTUAL_VOLUME_VALUE));
 
     /**
      * Character (as opposed to string) separator in commodity key.

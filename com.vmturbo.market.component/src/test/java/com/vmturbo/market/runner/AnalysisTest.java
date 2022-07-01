@@ -98,10 +98,10 @@ import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisResult;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
-import com.vmturbo.market.runner.wasted.applicationservice.WastedApplicationServiceAnalysisEngine;
-import com.vmturbo.market.runner.wasted.applicationservice.WastedApplicationServiceResults;
-import com.vmturbo.market.runner.wasted.files.WastedFilesAnalysisEngine;
-import com.vmturbo.market.runner.wasted.files.WastedFilesResults;
+import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanAnalysisEngine;
+import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanResults;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
@@ -117,7 +117,6 @@ import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrot
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
@@ -158,7 +157,6 @@ public class AnalysisTest {
     private static final float MOVE_COST_FACTOR = 0.05f;
     private static final int LICENSE_PRICE_WEIGHT_SCALE = 3;
     private static final long VOLUME_ID_DELETE_ACTION = 1111L;
-    private static final long APP_SERVICE_PLAN_ID_DELETE_ACTION = 3333L;
     private final Clock mockClock = mock(Clock.class);
 
     private final Action wastedFileAction = Action.newBuilder()
@@ -172,14 +170,13 @@ public class AnalysisTest {
         .setId(1234L).build();
 
     // Note: Azure App Service Plans will migrate from App Components to VMSPEC entity types in the future.
-    private final Action wastedAppServicePlanAction = Action.newBuilder()
+    private final Action wastedASPAction = Action.newBuilder()
             .setInfo(ActionInfo.newBuilder()
                     .setDelete(Delete.newBuilder()
-                            .setTarget(ActionEntity.newBuilder().setId(APP_SERVICE_PLAN_ID_DELETE_ACTION)
+                            .setTarget(ActionEntity.newBuilder().setId(3333L)
                                     .setType(EntityType.APPLICATION_COMPONENT_VALUE))))
             .setExplanation(Explanation.newBuilder()
-                    .setDelete(DeleteExplanation.getDefaultInstance())).setSavingsPerHour(
-                    CurrencyAmount.newBuilder().setAmount(3.50d))
+                    .setDelete(DeleteExplanation.getDefaultInstance()))
             .setDeprecatedImportance(0.0d)
             .setId(4343L).build();
 
@@ -278,28 +275,16 @@ public class AnalysisTest {
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(cloudTopology);
         final WastedFilesAnalysisEngine wastedFilesAnalysisEngine =
             mock(WastedFilesAnalysisEngine.class);
-        final WastedApplicationServiceAnalysisEngine wastedApplicationServiceAnalysisEngine =
-                mock(WastedApplicationServiceAnalysisEngine.class);
+        final WastedAppServicePlanAnalysisEngine wastedAppServicePlanAnalysisEngine =
+                mock(WastedAppServicePlanAnalysisEngine.class);
         final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
                 mock(BuyRIImpactAnalysisFactory.class);
-
-        // Mocks for wasted entity results (volumes & application services (for now azure app service plans))
         final WastedFilesResults wastedFilesAnalysis = mock(WastedFilesResults.class);
-        when(wastedFilesAnalysisEngine.analyze(any(), any(), any(), any()))
+        when(wastedFilesAnalysisEngine.analyzeWastedFiles(any(), any(), any(), any()))
                 .thenReturn(wastedFilesAnalysis);
         when(wastedFilesAnalysis.getActions())
                 .thenReturn(Collections.singletonList(wastedFileAction));
-        when(wastedFilesAnalysis.getEntityIds())
-                .thenReturn(ImmutableSet.of(wastedFileAction.getInfo().getDelete().getTarget().getId()));
         when(wastedFilesAnalysis.getMbReleasedOnProvider(anyLong())).thenReturn(OptionalLong.empty());
-        final WastedApplicationServiceResults wastedApplicationServiceResults = mock(WastedApplicationServiceResults.class);
-        when(wastedApplicationServiceAnalysisEngine.analyze(any(), any(), any(), any()))
-                .thenReturn(wastedApplicationServiceResults);
-        when(wastedApplicationServiceResults.getActions())
-                .thenReturn(Collections.singletonList(wastedAppServicePlanAction));
-        when(wastedApplicationServiceResults.getEntityIds())
-                .thenReturn(ImmutableSet.of(wastedAppServicePlanAction.getInfo().getDelete().getTarget().getId()));
-
         final NamespaceQuotaAnalysisFactory nsQuotaAnalysisFactory =
             mock(NamespaceQuotaAnalysisFactory.class);
         final NamespaceQuotaAnalysisEngine nsQuotaAnalysisEngine = mock(NamespaceQuotaAnalysisEngine.class);
@@ -318,6 +303,11 @@ public class AnalysisTest {
         final AnalysisDiagnosticsCollectorFactory analysisCollectorFactory =
                 mock(AnalysisDiagnosticsCollectorFactory.class);
         when(analysisCollectorFactory.newDiagsCollector(any(), any())).thenReturn(Optional.empty());
+        final WastedAppServicePlanResults wastedAppServicePlanResults = mock(WastedAppServicePlanResults.class);
+        when(wastedAppServicePlanAnalysisEngine.analyzeWastedAppServicePlans(any(), any(), any(), any()))
+                .thenReturn(wastedAppServicePlanResults);
+        when(wastedAppServicePlanResults.getActions())
+                .thenReturn(Collections.singletonList(wastedASPAction));
         GroupMemberRetriever groupMemberRetriever = new GroupMemberRetriever(groupServiceClient);
         return new Analysis(topoInfo, topologySet, groupMemberRetriever, mockClock, analysisConfig,
                 cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
@@ -327,7 +317,7 @@ public class AnalysisTest {
                 migratedWorkloadCloudCommitmentAnalysisService, new CommodityIdUpdater(),
                 actionSavingsCalculatorFactory, externalReconfigureActionEngine,
                 new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
-                analysisCollectorFactory, wastedApplicationServiceAnalysisEngine,
+                analysisCollectorFactory, wastedAppServicePlanAnalysisEngine,
                 fakeEntityCreator.isPresent() ? fakeEntityCreator.get()
                         : new FakeEntityCreator(groupMemberRetriever));
     }
@@ -405,7 +395,7 @@ public class AnalysisTest {
         assertTrue(analysis.getActionPlan().isPresent());
         assertTrue(analysis.getProjectedTopology().isPresent());
         assertTrue(analysis.getActionPlan().get().getActionList().contains(wastedFileAction));
-        assertTrue(analysis.getActionPlan().get().getActionList().contains(wastedAppServicePlanAction));
+        assertTrue(analysis.getActionPlan().get().getActionList().contains(wastedASPAction));
     }
 
     /**
@@ -483,71 +473,6 @@ public class AnalysisTest {
 
         Assert.assertEquals(deleteActionVolume, projectedEntities.get(deleteActionVolume.getOid()).getEntity());
         Assert.assertTrue(projectedEntities.get(deleteActionVolume.getOid()).getDeleted());
-    }
-
-    /**
-     * Test that Azure App Service Plans (ASPs) with a corresponding to Delete action is marked appropriately in the
-     * projected entities list. This existing functionality may be extended to support more application services from
-     * other cloud providers (examples of similar services: AWS ElasticBeanstalk, GCP App Engine, DO App Platform, etc).
-     */
-    @Test
-    public void testProjectedWastedAppServicePlanEntities() {
-        // 2 App Service Plans in the topology, one with Delete action and another without
-        final long aspWithoutAction = 99999L;
-        // Note: Azure App Service Plans will migrate from App Components to VMSPEC entity types in the future.
-        final TopologyEntityDTO deleteActionASP = TopologyEntityDTO.newBuilder()
-                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .setOid(APP_SERVICE_PLAN_ID_DELETE_ACTION)
-                .addCommoditiesBoughtFromProviders(
-                        CommoditiesBoughtFromProvider.newBuilder()
-                                .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
-                                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                        .setCommodityType(CommodityType.newBuilder()
-                                                .setType(
-                                                        CommodityDTO.CommodityType.LICENSE_ACCESS.getNumber())
-                                                .setKey("Linux_AppServicePlan")))).putEntityPropertyMap(
-                        "PLAN_SIZE", "P2v3")
-                .build();
-        final TopologyEntityDTO noDeleteActionASP = TopologyEntityDTO.newBuilder()
-                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .setOid(aspWithoutAction)
-                .addCommoditiesBoughtFromProviders(
-                        CommoditiesBoughtFromProvider.newBuilder()
-                                .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
-                                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                        .setCommodityType(CommodityType.newBuilder()
-                                                .setType(
-                                                        CommodityDTO.CommodityType.LICENSE_ACCESS.getNumber())
-                                                .setKey("Linux_AppServicePlan")))).putEntityPropertyMap(
-                        "PLAN_SIZE", "P2v3")
-                .build();
-        final Set<TopologyEntityDTO> topologySet = ImmutableSet.of(deleteActionASP,
-                noDeleteActionASP);
-
-        // On Analysis execution, projected entities are populated
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
-                        MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
-                        Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
-                .setIncludeVDC(true)
-                .build();
-        when(cloudTopology.getAllEntitiesOfType(any())).thenReturn(ImmutableList
-                .of(deleteActionASP, noDeleteActionASP));
-        final Analysis analysis = getAnalysis(analysisConfig, topologySet);
-        analysis.execute();
-
-        // Assert that only 1 ASP exists in the projected entities list, the one with no delete action
-        Assert.assertTrue(analysis.getProjectedTopology().isPresent());
-        final Map<Long, ProjectedTopologyEntity> projectedEntities =
-                analysis.getProjectedTopology().get();
-        Assert.assertFalse(projectedEntities.isEmpty());
-        Assert.assertEquals(2, projectedEntities.size());
-        Assert.assertEquals(noDeleteActionASP, projectedEntities.get(noDeleteActionASP.getOid()).getEntity());
-        Assert.assertFalse(projectedEntities.get(noDeleteActionASP.getOid()).getDeleted());
-
-        Assert.assertEquals(deleteActionASP, projectedEntities.get(deleteActionASP.getOid()).getEntity());
-        Assert.assertTrue(projectedEntities.get(deleteActionASP.getOid()).getDeleted());
     }
 
     /**
