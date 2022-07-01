@@ -66,15 +66,14 @@ import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.MarketNotificationSender;
-import com.vmturbo.market.reservations.InitialPlacementHandler;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.postprocessor.NamespaceQuotaAnalysisEngine.NamespaceQuotaAnalysisFactory;
 import com.vmturbo.market.runner.reconfigure.ExternalReconfigureActionEngine;
-import com.vmturbo.market.runner.wastedappserviceplans.WastedAppServicePlanAnalysisEngine;
-import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
+import com.vmturbo.market.runner.wasted.applicationservice.WastedApplicationServiceAnalysisEngine;
+import com.vmturbo.market.runner.wasted.files.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
@@ -204,7 +203,7 @@ public class MarketRunnerTest {
                     actionSavingsCalculatorFactory, externalReconfigureActionEngine,
                     new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()),
                     Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class),
-                    Mockito.mock(WastedAppServicePlanAnalysisEngine.class),
+                    Mockito.mock(WastedApplicationServiceAnalysisEngine.class),
                     new FakeEntityCreator(groupMemberRetriever));
         }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
     }

@@ -1,4 +1,4 @@
-package com.vmturbo.market.runner.wastedfiles;
+package com.vmturbo.market.runner.wasted.files;
 
 import static com.vmturbo.trax.Trax.trax;
 import static org.junit.Assert.assertEquals;
@@ -270,14 +270,14 @@ public class WastedFilesAnalysisEngineTest {
         when(cloudCostCalculatorFactory.newCalculator(topologyInfo, originalCloudTopology)).thenReturn(cloudCostCalculator);
 
         Map<Long, TopologyEntityDTO> topology = createTestOnPremTopology(false);
-        WastedFilesResults analysis = wastedFilesAnalysisEngine.analyzeWastedFiles(topologyInfo,
+        WastedFilesResults analysis = wastedFilesAnalysisEngine.analyze(topologyInfo,
                 topology, cloudCostCalculator, originalCloudTopology);
         verifyResults(analysis);
 
         // Test wasted files analysis for On Prem plans. Ensure that invalid or removed storages are
         // not generating invalid wasted file deletion actions.
         topology = createTestOnPremTopology(true);
-        analysis = wastedFilesAnalysisEngine.analyzeWastedFiles(planTopologyInfo,
+        analysis = wastedFilesAnalysisEngine.analyze(planTopologyInfo,
                 topology, cloudCostCalculator, originalCloudTopology);
         verifyResults(analysis);
     }
@@ -339,7 +339,7 @@ public class WastedFilesAnalysisEngineTest {
                     when(cloudCostCalculator.calculateCostForEntity(any(), eq(dto))).thenReturn(Optional.of(costJournal));
                 });
 
-        final WastedFilesResults analysis = wastedFilesAnalysisEngine.analyzeWastedFiles(topologyInfo,
+        final WastedFilesResults analysis = wastedFilesAnalysisEngine.analyze(topologyInfo,
             cloudTopology, cloudCostCalculator, originalCloudTopology);
 
 
@@ -419,7 +419,7 @@ public class WastedFilesAnalysisEngineTest {
                     when(cloudCostCalculator.calculateCostForEntity(any(), eq(dto))).thenReturn(Optional.of(costJournal));
                 });
 
-        final WastedFilesResults analysis = wastedFilesAnalysisEngine.analyzeWastedFiles(topologyInfo,
+        final WastedFilesResults analysis = wastedFilesAnalysisEngine.analyze(topologyInfo,
             cloudTopology, cloudCostCalculator, originalCloudTopology);
 
 

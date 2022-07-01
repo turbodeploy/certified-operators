@@ -1,4 +1,4 @@
-package com.vmturbo.market.runner.wastedappserviceplans;
+package com.vmturbo.market.runner.wasted.applicationservice;
 
 import static com.vmturbo.trax.Trax.trax;
 import static org.junit.Assert.assertEquals;
@@ -48,9 +48,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
- * Unit tests for {@link WastedAppServicePlanAnalysisEngine}.
+ * Unit tests for {@link WastedApplicationServiceAnalysisEngine}.
  */
-public class WastedAppServicePlanAnalysisEngineTest {
+public class WastedApplicationServiceAnalysisEngineTest {
     private static final long STORAGE_AMOUNT_CAPACITY = 250; // Premium Capacity
     private static final long VMEM_AMOUNT_CAPACITY = 16384; // P2v3 Capacity
     private static final long VCPU_AMOUNT_CAPACITY = 8; // Fake CPU capacity
@@ -62,8 +62,8 @@ public class WastedAppServicePlanAnalysisEngineTest {
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(
             topologyContextId).setTopologyId(topologyId).setTopologyType(topologyType).build();
 
-    private final WastedAppServicePlanAnalysisEngine wastedAppServicePlanAnalysisEngine =
-            new WastedAppServicePlanAnalysisEngine();
+    private final WastedApplicationServiceAnalysisEngine wastedApplicationServiceAnalysisEngine =
+            new WastedApplicationServiceAnalysisEngine();
 
     /**
      * Common setup code.
@@ -234,8 +234,8 @@ public class WastedAppServicePlanAnalysisEngineTest {
         mockCostJournal(topology, cloudCostCalculator);
 
         // Generate the analysis with one used app, one unused with controllable OFF.
-        final WastedAppServicePlanResults analysis =
-                wastedAppServicePlanAnalysisEngine.analyzeWastedAppServicePlans(topologyInfo,
+        final WastedApplicationServiceResults analysis =
+                wastedApplicationServiceAnalysisEngine.analyze(topologyInfo,
                         topology, cloudCostCalculator, originalCloudTopology);
         // Expect to see that no ASP sits unused.
         Collection<Action> actions = analysis.getActions();
@@ -275,8 +275,8 @@ public class WastedAppServicePlanAnalysisEngineTest {
         mockCostJournal(topology, cloudCostCalculator);
 
         // Generate the analysis with one used app, one unused.
-        final WastedAppServicePlanResults analysis =
-                wastedAppServicePlanAnalysisEngine.analyzeWastedAppServicePlans(topologyInfo,
+        final WastedApplicationServiceResults analysis =
+                wastedApplicationServiceAnalysisEngine.analyze(topologyInfo,
                         topology, cloudCostCalculator, originalCloudTopology);
         // Expect to see that one ASP sits unused.
         Collection<Action> actions = analysis.getActions();
@@ -316,8 +316,8 @@ public class WastedAppServicePlanAnalysisEngineTest {
                 originalCloudTopology)).thenReturn(cloudCostCalculator);
         mockCostJournal(topology, cloudCostCalculator);
 
-        final WastedAppServicePlanResults analysis =
-                wastedAppServicePlanAnalysisEngine.analyzeWastedAppServicePlans(topologyInfo,
+        final WastedApplicationServiceResults analysis =
+                wastedApplicationServiceAnalysisEngine.analyze(topologyInfo,
                         topology, cloudCostCalculator, originalCloudTopology);
         // Expect to see that no ASP sits unused since both have apps attached to them.
         Collection<Action> actions = analysis.getActions();
@@ -350,8 +350,8 @@ public class WastedAppServicePlanAnalysisEngineTest {
                 originalCloudTopology)).thenReturn(cloudCostCalculator);
         mockCostJournal(topology, cloudCostCalculator);
 
-        final WastedAppServicePlanResults analysis =
-                wastedAppServicePlanAnalysisEngine.analyzeWastedAppServicePlans(topologyInfo,
+        final WastedApplicationServiceResults analysis =
+                wastedApplicationServiceAnalysisEngine.analyze(topologyInfo,
                         topology, cloudCostCalculator, originalCloudTopology);
         // Expect to see that there are two ASPs that have delete actions
         Collection<Action> actions = analysis.getActions();
@@ -427,8 +427,8 @@ public class WastedAppServicePlanAnalysisEngineTest {
         mockCostJournal(topology, cloudCostCalculator);
 
         // Generate the analysis with one used app, one unused.
-        final WastedAppServicePlanResults analysis =
-                wastedAppServicePlanAnalysisEngine.analyzeWastedAppServicePlans(topologyInfo,
+        final WastedApplicationServiceResults analysis =
+                wastedApplicationServiceAnalysisEngine.analyze(topologyInfo,
                         topology, cloudCostCalculator, originalCloudTopology);
         // Expect to see that one ASP sits unused.
         Collection<Action> actions = analysis.getActions();
@@ -546,8 +546,8 @@ public class WastedAppServicePlanAnalysisEngineTest {
         mockCostJournal(topology, cloudCostCalculator);
 
         // Generate the analysis with one used app, one unused.
-        final WastedAppServicePlanResults analysis =
-                wastedAppServicePlanAnalysisEngine.analyzeWastedAppServicePlans(topologyInfo,
+        final WastedApplicationServiceResults analysis =
+                wastedApplicationServiceAnalysisEngine.analyze(topologyInfo,
                         topology, cloudCostCalculator, originalCloudTopology);
         // Expect to see that two ASP sit unused and the non ASPs weren't counted
         Collection<Action> actions = analysis.getActions();

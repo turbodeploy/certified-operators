@@ -1,4 +1,4 @@
-package com.vmturbo.market.runner.wastedappserviceplans;
+package com.vmturbo.market.runner.wasted.applicationservice;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.market.runner.wasted.WastedEntityAnalysisEngine;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
@@ -43,10 +44,10 @@ import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
  * Performs wasted Azure App Service Plan (ASP) analysis on topologies.
  *
  * <p/>See:
- * {@link WastedAppServicePlanAnalysisEngine#analyzeWastedAppServicePlans(TopologyInfo, Map,
+ * {@link WastedApplicationServiceAnalysisEngine#analyze(TopologyInfo, Map,
  * TopologyCostCalculator, CloudTopology)}.
  */
-public class WastedAppServicePlanAnalysisEngine {
+public class WastedApplicationServiceAnalysisEngine implements WastedEntityAnalysisEngine {
     private final Logger logger = LogManager.getLogger();
     /**
      * Key of an Azure App Service Plan Linux License (internal representation).
@@ -69,7 +70,7 @@ public class WastedAppServicePlanAnalysisEngine {
      * @param candidateAppServicePlan candidate entity.
      * @return true if entity is app service plan
      */
-    private boolean isAppServicePlan(TopologyEntityDTO candidateAppServicePlan) {
+    public static boolean isAppServicePlan(TopologyEntityDTO candidateAppServicePlan) {
         // Verify is App Service Plan by checking if the license commodity is for an ASP which can be "Windows_AppServicePlan" or "Linux_AppServicePlan"
         Optional<CommoditiesBoughtFromProvider> commoditiesBoughtFromProvider =
                 candidateAppServicePlan.getCommoditiesBoughtFromProvidersList()
@@ -102,7 +103,7 @@ public class WastedAppServicePlanAnalysisEngine {
         return candidateAppServicePlans.stream()
                 .filter(topologyEntityDTO -> !topologyEntityDTO.getDisplayName()
                         .contains(SupplyChainConstants.GUEST_LOAD))
-                .filter(this::isAppServicePlan)
+                .filter(WastedApplicationServiceAnalysisEngine::isAppServicePlan)
                 .filter(topologyEntityDTO -> topologyEntityDTO.getEntityPropertyMapMap() != null
                         && topologyEntityDTO.getEntityPropertyMapMap().containsKey(TOTAL_APP_COUNT)
                         && Integer.parseInt(
@@ -124,10 +125,11 @@ public class WastedAppServicePlanAnalysisEngine {
      * @param originalCloudTopology {@link CloudTopology} for calculating potential savings
      *         from
      *         deleting App Service Plans.
-     * @return The {@link WastedAppServicePlanResults} object.
+     * @return The {@link WastedApplicationServiceResults} object.
      */
     @Nonnull
-    public WastedAppServicePlanResults analyzeWastedAppServicePlans(
+    @Override
+    public WastedApplicationServiceResults analyze(
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final Map<Long, TopologyEntityDTO> topologyEntities,
             @Nonnull final TopologyCostCalculator topologyCostCalculator,
@@ -168,11 +170,11 @@ public class WastedAppServicePlanAnalysisEngine {
                             topologyCostCalculator, originalCloudTopology).stream()).collect(
                     Collectors.toList());
             logger.info("{} Finished", logPrefix);
-            return new WastedAppServicePlanResults(actions);
+            return new WastedApplicationServiceResults(actions);
         } catch (RuntimeException e) {
             logger.debug(logPrefix + " error while running analysis " + e);
             logger.error(logPrefix + " error while running analysis");
-            return WastedAppServicePlanResults.EMPTY;
+            return WastedApplicationServiceResults.EMPTY;
         }
     }
 
