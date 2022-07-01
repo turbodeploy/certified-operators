@@ -1,6 +1,7 @@
 package com.vmturbo.history.ingesters.live.writers;
 
 import java.sql.Date;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -129,7 +130,8 @@ public class VolumeAttachmentHistoryWriter extends TopologyWriterBase {
             () -> volumesNotVisitedFromVms);
         unattachedVolumeLoader.insertAll(createRecords(volumesNotVisitedFromVms,
             VM_OID_VALUE_FOR_UNATTACHED_VOLS));
-        sender.sendNotification(volumesNotVisitedFromVms.stream().collect(Collectors.toList()), topologyInfo.getTopologyId());
+        unattachedVolumeLoader.flush(true); //to ensure all records are written in table
+        sender.sendNotification(new ArrayList<>(volumesNotVisitedFromVms), topologyInfo.getTopologyId());
     }
 
     /**
