@@ -4,7 +4,6 @@
 
 package com.vmturbo.history.stats.snapshots;
 
-import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -68,7 +67,7 @@ public class HistUtilizationRecordVisitorTest {
         return new HistUtilizationRecord(777L, null, UICommodityType.POOL_CPU.typeNumber(),
                         PropertySubType.Utilization.ordinal(), null,
                         HistoryUtilizationType.Timeslot.ordinal(), slot,
-                        BigDecimal.valueOf(utilization / 100D), 100D);
+                        utilization / 100D, 100D);
     }
 
 }

@@ -16,7 +16,6 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 
-import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
@@ -389,7 +388,7 @@ public class StatSnapshotCreatorTest {
 
         final HistUtilizationRecord percentileRecord = new HistUtilizationRecord();
         percentileRecord.setPropertyTypeId(UICommodityType.IMAGE_CPU.typeNumber());
-        percentileRecord.setUtilization(BigDecimal.valueOf(0.4D));
+        percentileRecord.setUtilization(0.4D);
         percentileRecord.setPropertySubtypeId(PropertySubType.Utilization.ordinal());
         percentileRecord.setCapacity(capacity);
         percentileRecord.setCommodityKey("percentileCommodityKey");
@@ -444,7 +443,7 @@ public class StatSnapshotCreatorTest {
 
         final HistUtilizationRecord percentileRecord = new HistUtilizationRecord();
         percentileRecord.setPropertyTypeId(UICommodityType.IMAGE_CPU.typeNumber());
-        percentileRecord.setUtilization(BigDecimal.valueOf(0.4D));
+        percentileRecord.setUtilization(0.4D);
         percentileRecord.setPropertySubtypeId(PropertySubType.Utilization.ordinal());
         percentileRecord.setCapacity(capacity);
         percentileRecord.setCommodityKey("percentileCommodityKey");
@@ -486,7 +485,7 @@ public class StatSnapshotCreatorTest {
         final double capacity = 1000D;
         final HistUtilizationRecord histUtilizationRecord = new HistUtilizationRecord();
         histUtilizationRecord.setPropertyTypeId(UICommodityType.IMAGE_CPU.typeNumber());
-        histUtilizationRecord.setUtilization(BigDecimal.valueOf(0.4D));
+        histUtilizationRecord.setUtilization(0.4D);
         histUtilizationRecord.setPropertySubtypeId(PropertySubType.Utilization.ordinal());
         histUtilizationRecord.setCommodityKey(COMMODITY_KEY);
         histUtilizationRecord.setCapacity(capacity);
@@ -557,7 +556,7 @@ public class StatSnapshotCreatorTest {
     private static Record createRecord(double capacity, double utilization, int slot) {
         final HistUtilizationRecord result = new HistUtilizationRecord();
         result.setPropertyTypeId(UICommodityType.POOL_CPU.typeNumber());
-        result.setUtilization(BigDecimal.valueOf(utilization));
+        result.setUtilization(utilization);
         result.setPropertySubtypeId(PropertySubType.Utilization.ordinal());
         result.setCapacity(capacity);
         result.setPropertySlot(slot);
@@ -694,7 +693,7 @@ public class StatSnapshotCreatorTest {
         result.setPropertyTypeId(UICommodityType.VMEM.typeNumber());
         result.setCapacity(Double.valueOf(HIST_UTILIZATION_CAPACITY));
         result.setPropertySlot(0);
-        result.setUtilization(BigDecimal.valueOf(0));
+        result.setUtilization(0.0);
         result.setValueType(HistoryUtilizationType.Timeslot.ordinal());
         multimap.put(TEST_RECORD_KEY, result);
         final VmStatsLatestRecord vmStatsLatestRecord = new VmStatsLatestRecord();
@@ -756,7 +755,7 @@ public class StatSnapshotCreatorTest {
 
         final HistUtilizationRecord percentileRecord = new HistUtilizationRecord();
         percentileRecord.setPropertyTypeId(UICommodityType.VCPU.typeNumber());
-        percentileRecord.setUtilization(BigDecimal.valueOf(0.4D));
+        percentileRecord.setUtilization(0.4D);
         percentileRecord.setPropertySubtypeId(PropertySubType.Utilization.ordinal());
         percentileRecord.setCapacity(1000D);
         percentileRecord.setCommodityKey("percentileCommodityKey");
