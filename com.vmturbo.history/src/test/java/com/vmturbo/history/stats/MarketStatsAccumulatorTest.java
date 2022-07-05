@@ -11,7 +11,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -342,7 +341,7 @@ public class MarketStatsAccumulatorTest {
         Assert.assertEquals(commodityType.getKey(), record.getCommodityKey());
         Assert.assertThat(historyType.ordinal(), Matchers.is(record.getValueType()));
         Assert.assertThat(propertySlot, Matchers.is(record.getPropertySlot()));
-        Assert.assertEquals(BigDecimal.valueOf(utilization), record.getUtilization());
+        Assert.assertEquals((Double)utilization, record.getUtilization());
         Assert.assertThat(capacity, Matchers.is(record.getCapacity()));
     }
 

@@ -4,7 +4,6 @@
 
 package com.vmturbo.history.stats.readers;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -215,7 +214,8 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
                 for (int commType : commTypes) {
                     if (entitySmoothedUsageStats.containsKey(commType)) {
                         records.add(new HistUtilizationRecord(entityOid, 0L, commType, 0, "",
-                                HistoryUtilizationType.Smoothed.ordinal(), 0, new  BigDecimal(entitySmoothedUsageStats.get(commType)),
+                                HistoryUtilizationType.Smoothed.ordinal(), 0,
+                                entitySmoothedUsageStats.get(commType),
                                 entityCapacityStats.get(commType)));
                     }
                 }

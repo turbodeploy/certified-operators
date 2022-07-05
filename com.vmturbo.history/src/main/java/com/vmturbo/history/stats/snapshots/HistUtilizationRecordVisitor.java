@@ -4,7 +4,6 @@
 
 package com.vmturbo.history.stats.snapshots;
 
-import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
@@ -64,7 +63,7 @@ public class HistUtilizationRecordVisitor extends
                                                         new StatsAccumulator()));
         final Double capacity =
                         RecordVisitor.getFieldValue(record, StringConstants.CAPACITY, Double.class);
-        final BigDecimal utilization = record.getUtilization();
+        final Double utilization = record.getUtilization();
         if (capacity == null || utilization == null) {
             LOGGER.error("Cannot get capacity/utilization from '{}' record", record);
             return;

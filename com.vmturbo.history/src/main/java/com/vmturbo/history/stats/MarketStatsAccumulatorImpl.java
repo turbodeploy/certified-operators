@@ -7,7 +7,6 @@ import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.PRODUCES;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
 
-import java.math.BigDecimal;
 import java.text.MessageFormat;
 import java.util.Collection;
 import java.util.Collections;
@@ -415,12 +414,12 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
     private void createPercentileAndTimeslotsQueries(int commodityTypeId, long entityId,
             Long providerId, String commodityKey, double capacity,
             HistoricalValues historicalUsed) throws InterruptedException {
-        ImmutableTable.Builder<HistoryUtilizationType, Integer, BigDecimal> tableBuilder =
-                        ImmutableTable.builder();
+        ImmutableTable.Builder<HistoryUtilizationType, Integer, Double> tableBuilder =
+                ImmutableTable.builder();
         try {
             for (int i = 0; i < historicalUsed.getTimeSlotCount(); i++) {
                 final double timeSlot = historicalUsed.getTimeSlot(i);
-                tableBuilder.put(HistoryUtilizationType.Timeslot, i, BigDecimal.valueOf(timeSlot / capacity));
+                tableBuilder.put(HistoryUtilizationType.Timeslot, i, timeSlot / capacity);
             }
         } catch (NumberFormatException e) {
             logger.warn("Value calculation for oid {} failed (provider id is {}). Skipping it. capacity = {}, commodity type ID = {}, commodity key = {}. {}",
@@ -437,7 +436,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
         if (historicalUsed.hasPercentile()) {
             try {
                 final double percentile = historicalUsed.getPercentile();
-                tableBuilder.put(HistoryUtilizationType.Percentile, 0, BigDecimal.valueOf(percentile));
+                tableBuilder.put(HistoryUtilizationType.Percentile, 0, percentile);
             } catch (NumberFormatException e) {
                 logger.warn(NUMBER_FORMAT_EXCEPTION_LOG_MESSAGE,
                             entityId,
@@ -460,12 +459,12 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
 
     private void formInsertOrUpdateQueries(long entityId, @Nullable Long providerId,
             @Nullable String commodityKey, double capacity, int commodityTypeId,
-            @Nonnull Collection<Cell<HistoryUtilizationType, Integer, BigDecimal>> cells)
+            @Nonnull Collection<Cell<HistoryUtilizationType, Integer, Double>> cells)
             throws InterruptedException {
         final Long providerIdValue = providerId == null ? DEFAULT_VALUE_PROVIDER_ID : providerId;
         final String commodityKeyValue =
                 commodityKey == null ? DEFAULT_VALUE_COMMODITY_KEY : commodityKey;
-        for (Cell<HistoryUtilizationType, Integer, BigDecimal> cell : cells) {
+        for (Cell<HistoryUtilizationType, Integer, Double> cell : cells) {
             historicalUtilizationLoader.insert(
                     new HistUtilizationRecord(entityId, providerIdValue, commodityTypeId,
                             PropertySubType.Utilization.ordinal(), commodityKeyValue,
