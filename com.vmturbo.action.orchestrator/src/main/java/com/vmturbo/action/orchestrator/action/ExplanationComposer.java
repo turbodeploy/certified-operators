@@ -88,7 +88,7 @@ public class ExplanationComposer {
     private static final String TAINT_MOVE_COMPLIANCE_EXPLANATION_FORMATION =
         "{0} cannot tolerate taints {1} on {2}";
     private static final String LABEL_MOVE_COMPLIANCE_EXPLANATION_FORMAT =
-        "{0} cannot satisfy nodeSelector configuration";
+        "{0} cannot satisfy nodeSelector {1}";
     private static final String MOVE_COMPLIANCE_EXPLANATION_FORMAT =
         "{0} can not satisfy the request for resource(s) ";
     private static final String MOVE_EVACUATION_RECONFIGURE_EXPLANATION_FORMAT =
@@ -165,12 +165,17 @@ public class ExplanationComposer {
             ImmutableMap.of(
                     ChangeProviderExplanation.WastedCostCategory.COMPUTE, "Compute",
                     ChangeProviderExplanation.WastedCostCategory.STORAGE, "Storage");
-    private static final Map<Integer, String> podReconfigureExplanations =
+    private static final String MOVE_COMPLIANCE_ACTION = "MoveCompliance";
+    private static final String RECONFIGURE_ACTION = "Reconfigure";
+    private static final Map<Integer, Map<String, String>> podActionExplanations =
             ImmutableMap.of(
-                    CommodityDTO.CommodityType.TAINT_VALUE, RECONFIGURE_TAINT_COMMODITY_EXPLANATION,
-                    CommodityDTO.CommodityType.LABEL_VALUE, RECONFIGURE_LABEL_COMMODITY_EXPLANATION,
-                    CommodityDTO.CommodityType.VMPM_ACCESS_VALUE, RECONFIGURE_VMPMACCESS_COMMODITY_EXPLANATION);
-
+                    CommodityDTO.CommodityType.TAINT_VALUE, ImmutableMap.of(MOVE_COMPLIANCE_ACTION, TAINT_MOVE_COMPLIANCE_EXPLANATION_FORMATION,
+                            RECONFIGURE_ACTION, RECONFIGURE_TAINT_COMMODITY_EXPLANATION),
+                    CommodityDTO.CommodityType.LABEL_VALUE, ImmutableMap.of(MOVE_COMPLIANCE_ACTION, LABEL_MOVE_COMPLIANCE_EXPLANATION_FORMAT,
+                            RECONFIGURE_ACTION, RECONFIGURE_LABEL_COMMODITY_EXPLANATION),
+                    CommodityDTO.CommodityType.VMPM_ACCESS_VALUE, ImmutableMap.of(MOVE_COMPLIANCE_ACTION, "",
+                            RECONFIGURE_ACTION,RECONFIGURE_VMPMACCESS_COMMODITY_EXPLANATION)
+            );
 
     /**
      * Private to prevent instantiation.
@@ -264,7 +269,7 @@ public class ExplanationComposer {
 
         return reasonCommodities.stream()
                 .filter(reasonCommodity -> reasonCommodity.getCommodityType().hasKey())
-                .filter(reasonCommodity -> podReconfigureExplanations.containsKey(reasonCommodity.getCommodityType().getType()))
+                .filter(reasonCommodity -> podActionExplanations.containsKey(reasonCommodity.getCommodityType().getType()))
                 .collect(Collectors.groupingBy(reasonCommodity -> reasonCommodity.getCommodityType().getType(),
                 Collectors.mapping(reasonCommodity -> reasonCommodity.getCommodityType().getKey(), Collectors.toSet())));
     }
@@ -552,22 +557,37 @@ public class ExplanationComposer {
                 }
             }).collect(Collectors.toSet());
         }
+
         final String providerName = optionalSourceEntity
                 .map(e -> buildEntityNameOrType(e, topology))
                 .orElse("Current supplier");
-        final Set<String> taintReasons = getCommodityReasons(reasonCommodities, CommodityDTO.CommodityType.TAINT_VALUE);
-        if (!taintReasons.isEmpty()) {
-            return Collections.singleton(
-                    MessageFormat.format(TAINT_MOVE_COMPLIANCE_EXPLANATION_FORMATION,
-                                         buildEntityTypeAndName(target, topology),
-                                         String.join(", ", taintReasons),
-                                         providerName));
+
+        if (target.getType() == EntityType.CONTAINER_POD_VALUE) {
+            final Map<Integer, Set<String>> mapCommodityTypeReason = categorizeContainerPodCommodityReasons(reasonCommodities);
+            if(mapCommodityTypeReason.size() == 1){
+                Map<String, String> actionExplanationMap = podActionExplanations.get(mapCommodityTypeReason.keySet().iterator().next());
+                //if Container pod move  action is due to missing only Taint commodity
+                if(mapCommodityTypeReason.containsKey(CommodityDTO.CommodityType.TAINT_VALUE))
+                {
+                    final Set<String> taintReasons = mapCommodityTypeReason.get(CommodityDTO.CommodityType.TAINT_VALUE);
+                    return Collections.singleton(
+                        MessageFormat.format(actionExplanationMap.get(MOVE_COMPLIANCE_ACTION),
+                                buildEntityTypeAndName(target, topology),
+                                String.join(", ", taintReasons),
+                                providerName));
+                }
+                //if Container pod move  action is due to missing only Label commodity
+                if(mapCommodityTypeReason.containsKey(CommodityDTO.CommodityType.LABEL_VALUE))
+                {
+                    final Set<String> labelReasons = mapCommodityTypeReason.get(CommodityDTO.CommodityType.LABEL_VALUE);
+                    return Collections.singleton(
+                        MessageFormat.format(LABEL_MOVE_COMPLIANCE_EXPLANATION_FORMAT, providerName,
+                                String.join(", ",labelReasons)));
+                }
+            }
         }
-        final Set<String> labelReasons = getCommodityReasons(reasonCommodities, CommodityDTO.CommodityType.LABEL_VALUE);
-        if (!labelReasons.isEmpty()) {
-            return Collections.singleton(
-                MessageFormat.format(LABEL_MOVE_COMPLIANCE_EXPLANATION_FORMAT, providerName));
-        }
+
+
         return Collections.singleton(MessageFormat.format(MOVE_COMPLIANCE_EXPLANATION_FORMAT, providerName)
             + reasonCommodities.stream()
             .map(ReasonCommodity::getCommodityType)
@@ -1153,7 +1173,8 @@ public class ExplanationComposer {
         if (targetType.equals(EntityType.CONTAINER_POD_VALUE)) {
             final Map<Integer, Set<String>> mapCommodityTypeReason = categorizeContainerPodCommodityReasons(reasonCommodities);
             if(mapCommodityTypeReason.size() == 1){
-                return podReconfigureExplanations.get(mapCommodityTypeReason.keySet().iterator().next());
+                Map<String, String> actionExplanationMap = podActionExplanations.get(mapCommodityTypeReason.keySet().iterator().next());
+                return actionExplanationMap.get(RECONFIGURE_ACTION);
             }
             else if(mapCommodityTypeReason.size() > 1){
                 return RECONFIGURE_REASON_COMMODITY_EXPLANATION_FOR_CONTAINER_POD;

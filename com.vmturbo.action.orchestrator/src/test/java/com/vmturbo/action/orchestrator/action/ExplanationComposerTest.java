@@ -187,12 +187,64 @@ public class ExplanationComposerTest {
             .build();
 
         assertEquals(
-            "(^_^)~{entity:1:displayName:Virtual Machine} cannot satisfy "
-                + "nodeSelector configuration",
+            "(^_^)~{entity:1:displayName:Virtual Machine} can not satisfy "
+                + "the request for resource(s) Kubernetes Label",
             ExplanationComposer.composeExplanation(action, Collections.emptyList()));
         assertEquals(
             ImmutableSet.of("Kubernetes Label compliance"),
             ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
+    }
+
+    @Test
+    public void testMoveComplianceCPTaintReasonCommodityExplanation() {
+        ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(0).setInfo(ActionInfo.newBuilder()
+                        .setMove(Move.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(2).setType(EntityType.CONTAINER_POD_VALUE))
+                                .addChanges(ChangeProvider.newBuilder()
+                                        .setSource(ActionEntity.newBuilder()
+                                                .setId(1).setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                        )))).setDeprecatedImportance(0)
+                .setExplanation(Explanation.newBuilder()
+                        .setMove(MoveExplanation.newBuilder()
+                                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                        .setCompliance(Compliance.newBuilder()
+                                                .addMissingCommodities(TAINT)))))
+
+                .build();
+
+        assertEquals("(^_^)~Container Pod {entity:2:displayName:} cannot tolerate taints " +
+                        "foo=bar on {entity:1:displayName:Virtual Machine}",
+                ExplanationComposer.composeExplanation(action, Collections.emptyList()));
+        assertEquals(ImmutableSet.of("Kubernetes Taint compliance"),
+                ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
+    }
+
+    @Test
+    public void testMoveComplianceCPLabelReasonCommodityExplanation() {
+        ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(0).setInfo(ActionInfo.newBuilder()
+                        .setMove(Move.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(2).setType(EntityType.CONTAINER_POD_VALUE))
+                                .addChanges(ChangeProvider.newBuilder()
+                                        .setSource(ActionEntity.newBuilder()
+                                                .setId(1).setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                        )))).setDeprecatedImportance(0)
+                .setExplanation(Explanation.newBuilder()
+                        .setMove(MoveExplanation.newBuilder()
+                                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                        .setCompliance(Compliance.newBuilder()
+                                                .addMissingCommodities(LABEL)))))
+
+                .build();
+
+        assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} cannot satisfy nodeSelector " +
+                        "foo=bar",
+                ExplanationComposer.composeExplanation(action, Collections.emptyList()));
+        assertEquals(ImmutableSet.of("Kubernetes Label compliance"),
+                ExplanationComposer.composeRelatedRisks(action, Collections.emptyList()));
     }
 
     /**
