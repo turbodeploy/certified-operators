@@ -1,5 +1,5 @@
 #!/bin/bash
-#Upgrade pre-check script - January 19, 2022
+#Upgrade pre-check script - June 29, 2022
 #Author: CS/JS
 echo " "
 RED=`tput setaf 1`
@@ -601,9 +601,9 @@ if [[ ${SUMMARY_TABLE} = 1 ]]; then
 fi
 echo " "
 if [[ ${VERBOSE} = 1 ]]; then
-    echo "${WHITE}Please review and resolve any FAILED issues above before proceeding with the upgrade, if you cannot resolve **please contact Turbonomic support**"
+    echo "${WHITE}Please review and resolve any ${RED}FAILED ${WHITE}issues above before proceeding with the upgrade, if you cannot resolve **please contact Turbonomic support**"
 else
-    echo "${WHITE}Please review and resolve any FAILED issues above before proceeding with the upgrade, if you need more details of any failed items re-run the script with the -v switch, if you cannot resolve **please contact Turbonomic support**"
+    echo "${WHITE}Please review and resolve any ${RED}FAILED ${WHITE}issues above before proceeding with the upgrade, if you need more details of any failed items re-run the script with the -v switch, if you cannot resolve **please contact Turbonomic support**"
 fi
 echo " "
 echo "End of Upgrade Pre-Check"
