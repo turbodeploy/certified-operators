@@ -77,6 +77,11 @@ public class MarketStatsRollups {
      * @return the jOOQ Query object representing the UPSERT
      */
     public Query getQuery(DSLContext dsl) {
+        // incoming `snapshotTime` value is always truncated down to nearest second. Since MySQL
+        // will have rounded - possibly up - when storing that time into the source records, we
+        // need to include that as a possibility in our selection criteria, which we do below.
+        // Here we just compute that potentially rounded-up second
+        Timestamp nextSecond = Timestamp.from(snapshotTime.toInstant().plusSeconds(1));
         Query query = new UpsertBuilder().withSourceTable(source).withTargetTable(rollup)
                 .withInsertFields(fSnapshotTime, fTimeSeriesKey,
                         fTopologyContextId, fEntityType, fEnvironmentType,
@@ -85,8 +90,8 @@ public class MarketStatsRollups {
                         fSamples)
                 .withInsertValue(fSnapshotTime, DSL.inline(rollupTime))
                 .withInsertValue(fSamples, fSourceSamples)
-                .withSourceCondition(
-                        UpsertBuilder.getSameNamedField(fSnapshotTime, source).eq(snapshotTime))
+                .withSourceCondition(UpsertBuilder.getSameNamedField(fSnapshotTime, source)
+                        .between(snapshotTime, nextSecond))
                 .withUpdateValue(fCapacity, UpsertBuilder::inserted)
                 .withUpdateValue(fEffectiveCapacity, UpsertBuilder::inserted)
                 .withUpdateValue(fAvgValue, UpsertBuilder.avg(fSamples))

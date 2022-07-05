@@ -215,6 +215,7 @@ public class TopologyCoordinatorSafetyValveTest {
                 Tables.VM_STATS_LATEST, Tables.VM_STATS_LATEST, Tables.VM_STATS_LATEST);
         final BulkInserterFactoryStats stats = new BulkInserterFactoryStats(Collections.singletonList(vmStats));
         when(sourceRealtimeTopologyIngester.processBroadcast(any(), any(), any())).thenReturn(Pair.of(0, stats));
+        Thread procLoopThread = new Thread(new ProcessingLoop(topologyCoordinatorFuture, procStatusSpy, config));
         TopologyCoordinator topologyCoordinator = new TopologyCoordinator(
                 sourceRealtimeTopologyIngester,
                 mock(ProjectedRealtimeTopologyIngester.class),
@@ -222,7 +223,7 @@ public class TopologyCoordinatorSafetyValveTest {
                 mock(ProjectedPlanTopologyIngester.class),
                 rollupProcessor,
                 procStatusSpy,
-                new Thread(new ProcessingLoop(topologyCoordinatorFuture, procStatusSpy, config)),
+                procLoopThread,
                 mock(StatsAvailabilityTracker.class),
                 dsl,
                 config);
@@ -246,5 +247,10 @@ public class TopologyCoordinatorSafetyValveTest {
         Thread.sleep(5000);
         verify(rollupProcessor, times(1)).performHourRollups(anyMap(), any(Instant.class));
         assertThat(procStatusSpy.getIngestion(Projected, info).getState(), is(Missed));
+        // we can't have this thread living on past the lifetime of our feature flag rule, since
+        // the FF store will be unset at that point, and we'll end up with a big long mess of
+        // logged exceptions until the JVM finally exits!
+        procLoopThread.interrupt();
+        procLoopThread.join();
     }
 }
