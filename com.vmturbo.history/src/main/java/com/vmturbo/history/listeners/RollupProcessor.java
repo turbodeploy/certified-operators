@@ -155,19 +155,19 @@ public class RollupProcessor {
      * Perform hourly rollup processing for all tables that were active in ingestions that were
      * performed for the given snapshot time.
      *
-     * @param tableCountss tables that were populated by ingestions for the given snapshot, with
+     * @param tableCounts  tables that were populated by ingestions for the given snapshot, with
      *                     record counts
      * @param msecSnapshot snapshot time of contributing ingestions
      */
 
-    void performHourRollups(@Nonnull Map<Table<?>, Long> tableCountss,
+    void performHourRollups(@Nonnull Map<Table<?>, Long> tableCounts,
             @Nonnull Instant msecSnapshot) {
         Timestamp snapshot = dsl.dialect() == SQLDialect.POSTGRES
                              // postgres schema has msec-granularity timestamps
                              ? Timestamp.from(msecSnapshot)
                              : Timestamp.from(msecSnapshot.truncatedTo(ChronoUnit.SECONDS));
         MultiStageTimer timer = new MultiStageTimer(logger);
-        boolean complete = performRollups(tableCountss, snapshot, RollupType.BY_HOUR, timer);
+        boolean complete = performRollups(tableCounts, snapshot, RollupType.BY_HOUR, timer);
         addAvailableTimestamps(snapshot, RollupType.BY_HOUR, HistoryVariety.ENTITY_STATS,
                 HistoryVariety.PRICE_DATA);
         String incomplete = complete ? "" : "[INCOMPLETE]";
@@ -589,10 +589,18 @@ public class RollupProcessor {
         }
         tableStats.keySet().stream().sorted(Comparator.comparing(Table::getName)).forEach(table -> {
             Pair<AtomicInteger, AtomicReference<Duration>> statPair = tableStats.get(table);
-            String countsDesc = getCountsDescription(
-                    statPair.getLeft().get(), tableCounts.get(table));
-            timer.addSegment(String.format("%s %s (%s)", rollupType, table.getName(), countsDesc),
-                    statPair.getRight().get());
+            int recordCount = statPair.getLeft().get();
+            if (recordCount == 0) {
+                logger.error("Reported upsert record count for table {} is zero,"
+                                + " which probably means there was a problem with the upsert",
+                        table.getName());
+            } else {
+                String countsDesc = getCountsDescription(
+                        recordCount, tableCounts.get(table));
+                timer.addSegment(
+                        String.format("%s %s (%s)", rollupType, table.getName(), countsDesc),
+                        statPair.getRight().get());
+            }
         });
         return !incomplete;
     }

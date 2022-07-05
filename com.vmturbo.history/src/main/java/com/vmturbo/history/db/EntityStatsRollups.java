@@ -123,6 +123,11 @@ public class EntityStatsRollups {
      * @return the jOOQ Query object representing the UPSERT
      */
     public Query getUpsert() {
+        // incoming `snapshotTime` value is always truncated down to nearest second. Since MySQL
+        // will have rounded - possibly up - when storing that time into the source records, we
+        // need to include that as a possibility in our selection criteria, which we do below.
+        // Here we just compute that potentially rounded-up second
+        Timestamp nextSecond = Timestamp.from(snapshotTime.toInstant().plusSeconds(1));
         return new UpsertBuilder().withSourceTable(source).withTargetTable(rollup)
                 .withInsertFields(fSnapshotTime, fUuid, fProducerUuid,
                         fPropertyType, fPropertySubtype, fRelation, fCommodityKey,
@@ -152,12 +157,10 @@ public class EntityStatsRollups {
                 // for hourly rollups we need to guard against the possibilities of duplicates
                 // the latest table, which can happen if an ingestion is restarted after a crash
                 .withDistinctSelect(rollupType == RollupType.BY_HOUR)
-                .withSourceCondition(
-                        UpsertBuilder.getSameNamedField(fSnapshotTime, source).eq(snapshotTime))
-                .withSourceCondition(
-                        low != null ? fSourceKey.ge(low) : DSL.trueCondition())
-                .withSourceCondition(
-                        high != null ? fSourceKey.le(high) : DSL.trueCondition())
+                .withSourceCondition(UpsertBuilder.getSameNamedField(fSnapshotTime, source)
+                        .between(snapshotTime, nextSecond))
+                .withSourceCondition(low != null ? fSourceKey.ge(low) : DSL.trueCondition())
+                .withSourceCondition(high != null ? fSourceKey.le(high) : DSL.trueCondition())
                 // we have an index on the first 8 chars of the hour_key, which is in the form of
                 // a MariaDB "partial index" or a Postgres "expression index". For MariaDB, that
                 // index will be used based on the above conditions. But for Postgres we must use
