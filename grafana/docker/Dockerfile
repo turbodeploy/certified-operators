@@ -1,7 +1,8 @@
 # This docker file is capable of building an image that contains multiple versions of the
 # grafana server for use in different scenarios, if needed. The following ARG specifies the
 # versions as a list of <name>:<version> pairs. 
-ARG grafana_versions="embedded-reporting:8.3.2 saas-reporting:7.5.10"
+# Note: 8.3.9 is a private release. See line 76 on update. 
+ARG grafana_versions="embedded-reporting:8.3.9 saas-reporting:7.5.10"
 
 # The grafana.ini config file is, in our case, created by the helm chart responsible for the
 # grafana deployment. It is mounted as a read-only volume mounted at /etc/grafana/grafana.ini.
@@ -72,10 +73,15 @@ ARG grafana_user
 
 RUN groupadd -g $grafana_group grafana && useradd -r -g $grafana_group -s /bin/bash -u $grafana_user grafana
 
+# As of grafana v 8.3.9, embedded reporting runs on a private release (See OM-87097). 
+# When the version is replaced with an open source version, the path should be returned to the default path.
+
 RUN dnf install -y wget && \
     for version in $grafana_versions ; do \
+       name=${version%:*}; \
        v=${version#*:}; \
-       wget https://dl.grafana.com/enterprise/release/grafana-enterprise-$v.linux-amd64.tar.gz \
+       path="enterprise/release" && [[ $name == "embedded-reporting" ]]  && path="private-releases/enterprise"; \
+       wget https://dl.grafana.com/$path/grafana-enterprise-$v.linux-amd64.tar.gz \
            -nv --show-progress --progres=bar:force:noscroll:giga; \
     done
 
@@ -212,7 +218,7 @@ RUN find /grafana-dashboards/*/ -type f -iname '*.yaml' -print0 | xargs -0 /util
 # only the plugins required in a given deployment.
 # We use the first configured grafana version in order to run the cli to install plugins
 RUN cli_version="${grafana_versions% *}" && cli_version="${cli_version%:*}"  && \
-    /grafana-${cli_version}-runtime/bin/grafana-cli \
+    /grafana-$cli_version-runtime/bin/grafana-cli \
         --pluginsDir /grafana-plugins \
         --pluginUrl https://github.com/grafana/grafana-image-renderer/releases/download/$grafana_img_renderer_version/plugin-linux-x64-glibc.zip \
         plugins install grafana-image-renderer && \

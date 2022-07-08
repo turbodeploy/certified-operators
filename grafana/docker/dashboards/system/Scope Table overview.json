@@ -11,7 +11,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "8.3.2"
+      "version": "8.3.9"
     },
     {
       "type": "panel",
@@ -135,7 +135,7 @@
         "textField": "scoped_type",
         "tiling": "treemapSquarify"
       },
-      "pluginVersion": "8.3.2",
+      "pluginVersion": "8.3.9",
       "targets": [
         {
           "datasource": {
@@ -221,7 +221,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "8.3.2",
+      "pluginVersion": "8.3.9",
       "targets": [
         {
           "datasource": {
@@ -373,7 +373,7 @@
         },
         "showHeader": false
       },
-      "pluginVersion": "8.3.2",
+      "pluginVersion": "8.3.9",
       "targets": [
         {
           "datasource": {
@@ -479,7 +479,7 @@
         },
         "xTickLabelRotation": 0
       },
-      "pluginVersion": "8.3.2",
+      "pluginVersion": "8.3.9",
       "targets": [
         {
           "datasource": {
