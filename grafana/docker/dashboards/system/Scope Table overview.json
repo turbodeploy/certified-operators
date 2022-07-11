@@ -1,49 +1,4 @@
 {
-  "__elements": [],
-  "__requires": [
-    {
-      "type": "panel",
-      "id": "barchart",
-      "name": "Bar chart",
-      "version": ""
-    },
-    {
-      "type": "grafana",
-      "id": "grafana",
-      "name": "Grafana",
-      "version": "8.3.9"
-    },
-    {
-      "type": "panel",
-      "id": "marcusolsson-treemap-panel",
-      "name": "Treemap",
-      "version": "0.9.1"
-    },
-    {
-      "type": "datasource",
-      "id": "postgres",
-      "name": "PostgreSQL",
-      "version": "1.0.0"
-    },
-    {
-      "type": "panel",
-      "id": "stat",
-      "name": "Stat",
-      "version": ""
-    },
-    {
-      "type": "panel",
-      "id": "table",
-      "name": "Table",
-      "version": ""
-    },
-    {
-      "type": "panel",
-      "id": "timeseries",
-      "name": "Time series",
-      "version": ""
-    }
-  ],
   "annotations": {
     "list": [
       {
@@ -135,7 +90,6 @@
         "textField": "scoped_type",
         "tiling": "treemapSquarify"
       },
-      "pluginVersion": "8.3.9",
       "targets": [
         {
           "datasource": {
@@ -221,7 +175,6 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "8.3.9",
       "targets": [
         {
           "datasource": {
@@ -373,7 +326,6 @@
         },
         "showHeader": false
       },
-      "pluginVersion": "8.3.9",
       "targets": [
         {
           "datasource": {
@@ -479,7 +431,6 @@
         },
         "xTickLabelRotation": 0
       },
-      "pluginVersion": "8.3.9",
       "targets": [
         {
           "datasource": {

@@ -1,8 +1,10 @@
 # This docker file is capable of building an image that contains multiple versions of the
 # grafana server for use in different scenarios, if needed. The following ARG specifies the
 # versions as a list of <name>:<version> pairs. 
-# Note: 8.3.9 is a private release. See line 76 on update. 
+# Note: Any versions released privately have distinct properties. Include <name> of private
+# release grafana version(s) as a list of strings.
 ARG grafana_versions="embedded-reporting:8.3.9 saas-reporting:7.5.10"
+ARG private_releases=("embedded-reporting")
 
 # The grafana.ini config file is, in our case, created by the helm chart responsible for the
 # grafana deployment. It is mounted as a read-only volume mounted at /etc/grafana/grafana.ini.
@@ -67,6 +69,7 @@ ARG grafana_versions
 ARG grafana_img_renderer_version
 ARG grafana_group
 ARG grafana_user
+ARG private_releases
 
 # This dockerfile section installs all the configured grafana versions from tarballs, to be
 # copied into the final image
@@ -74,13 +77,14 @@ ARG grafana_user
 RUN groupadd -g $grafana_group grafana && useradd -r -g $grafana_group -s /bin/bash -u $grafana_user grafana
 
 # As of grafana v 8.3.9, embedded reporting runs on a private release (See OM-87097). 
-# When the version is replaced with an open source version, the path should be returned to the default path.
+# When the version is replaced with an open source version, remove "embedded-reporting" from the private_releases list.
+# (Defaults to enterprise release path, unless 'name' is in the private releases list)
 
 RUN dnf install -y wget && \
     for version in $grafana_versions ; do \
        name=${version%:*}; \
        v=${version#*:}; \
-       path="enterprise/release" && [[ $name == "embedded-reporting" ]]  && path="private-releases/enterprise"; \
+       path="enterprise/release" && [[ ${private_releases[*]} =~ ${name} ]]  && path="private-releases/enterprise"; \
        wget https://dl.grafana.com/$path/grafana-enterprise-$v.linux-amd64.tar.gz \
            -nv --show-progress --progres=bar:force:noscroll:giga; \
     done
