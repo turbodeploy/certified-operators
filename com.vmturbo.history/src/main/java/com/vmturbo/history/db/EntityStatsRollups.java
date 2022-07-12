@@ -127,7 +127,6 @@ public class EntityStatsRollups {
         // will have rounded - possibly up - when storing that time into the source records, we
         // need to include that as a possibility in our selection criteria, which we do below.
         // Here we just compute that potentially rounded-up second
-        Timestamp nextSecond = Timestamp.from(snapshotTime.toInstant().plusSeconds(1));
         return new UpsertBuilder().withSourceTable(source).withTargetTable(rollup)
                 .withInsertFields(fSnapshotTime, fUuid, fProducerUuid,
                         fPropertyType, fPropertySubtype, fRelation, fCommodityKey,
@@ -141,7 +140,7 @@ public class EntityStatsRollups {
                 // with release 8.5.2. It included an ill-fated change for record rollup keys that
                 // resulted in null `day_key` and `month_key` columns in hourly records. Those
                 // records would cause the first daily/monthly rollup after an upgrade to fail,
-                // becuase the 8.5.2 changes were reverted in 8.5.3 for other reasons.
+                // because the 8.5.2 changes were reverted in 8.5.3 for other reasons.
                 // This fix uses the `hour_key` field when the normal field is null. That's
                 // actually consistent with the intent of the 8.5.2 change, but with the 8.5.3
                 // reversion the nulls are now poisonous.
@@ -157,8 +156,10 @@ public class EntityStatsRollups {
                 // for hourly rollups we need to guard against the possibilities of duplicates
                 // the latest table, which can happen if an ingestion is restarted after a crash
                 .withDistinctSelect(rollupType == RollupType.BY_HOUR)
-                .withSourceCondition(UpsertBuilder.getSameNamedField(fSnapshotTime, source)
-                        .between(snapshotTime, nextSecond))
+                .withSourceCondition(
+                        UpsertBuilder.getSameNamedField(fSnapshotTime, source).eq(snapshotTime)
+                                .or(UpsertBuilder.getSameNamedField(fSnapshotTime, source).eq(
+                                        Timestamp.from(snapshotTime.toInstant().plusSeconds(1)))))
                 .withSourceCondition(low != null ? fSourceKey.ge(low) : DSL.trueCondition())
                 .withSourceCondition(high != null ? fSourceKey.le(high) : DSL.trueCondition())
                 // we have an index on the first 8 chars of the hour_key, which is in the form of
@@ -187,8 +188,7 @@ public class EntityStatsRollups {
         this.fUuid = JooqUtils.getStringField(rollup, StringConstants.UUID);
         this.fProducerUuid = JooqUtils.getStringField(rollup, StringConstants.PRODUCER_UUID);
         this.fPropertyType = JooqUtils.getStringField(rollup, StringConstants.PROPERTY_TYPE);
-        this.fPropertySubtype = JooqUtils.getStringField(rollup,
-                StringConstants.PROPERTY_SUBTYPE);
+        this.fPropertySubtype = JooqUtils.getStringField(rollup, StringConstants.PROPERTY_SUBTYPE);
         this.fRelation = JooqUtils.getRelationTypeField(rollup, StringConstants.RELATION);
         this.fCommodityKey = JooqUtils.getStringField(rollup, StringConstants.COMMODITY_KEY);
         this.fCapacity = JooqUtils.getDoubleField(rollup, StringConstants.CAPACITY);
