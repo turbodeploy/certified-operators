@@ -151,6 +151,25 @@ public class DiscoveredGroupUploader {
                          ConfigurableActionSettings.HorizontalScaleDown.getSettingName())
                     .build();
 
+    /**
+     * A static map that maps SLO {@link SettingType} to its mandatory related setting.
+     */
+    private static final Map<SettingType, Setting> SLOValue2SLOEnabled =
+            ImmutableMap.of(RESPONSE_TIME_SLO,
+                            Setting.newBuilder()
+                                    .setSettingSpecName(
+                                            EntitySettingSpecs.ResponseTimeSLOEnabled.getSettingName())
+                                    .setBooleanSettingValue(
+                                            BooleanSettingValue.newBuilder().setValue(true).build())
+                                    .build(),
+                            TRANSACTION_SLO,
+                            Setting.newBuilder()
+                                    .setSettingSpecName(
+                                            EntitySettingSpecs.TransactionSLOEnabled.getSettingName())
+                                    .setBooleanSettingValue(
+                                            BooleanSettingValue.newBuilder().setValue(true).build())
+                                    .build());
+
     @VisibleForTesting
     DiscoveredGroupUploader(
             @Nonnull final GroupServiceStub groupServiceStub,
@@ -340,6 +359,10 @@ public class DiscoveredGroupUploader {
                         return;
                 }
                 settings.add(setting.build());
+                // If SLO value exists, enable SLO settings automatically
+                if (SLOValue2SLOEnabled.containsKey(settingType)) {
+                    settings.add(SLOValue2SLOEnabled.get(settingType));
+                }
             });
 
             if (settings.size() > 0) {
