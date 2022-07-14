@@ -147,7 +147,7 @@
         <st4.version>4.0.8</st4.version>
         <failsafe.version>3.0.0-M4</failsafe.version>
         <surefire.version>3.0.0-M4</surefire.version>
-        <jetty.version>9.4.46.v20220331</jetty.version>
+        <jetty.version>9.4.48.v20220622</jetty.version>
         <bouncycastle.version>1.69</bouncycastle.version>
         <JUnitParams.version>1.0.4</JUnitParams.version>
         <hibernate.validator.version>6.0.22.Final</hibernate.validator.version>
