@@ -90,8 +90,11 @@ public class MarketStatsRollups {
                         fSamples)
                 .withInsertValue(fSnapshotTime, DSL.inline(rollupTime))
                 .withInsertValue(fSamples, fSourceSamples)
-                .withSourceCondition(UpsertBuilder.getSameNamedField(fSnapshotTime, source)
-                        .between(snapshotTime, nextSecond))
+                .withDistinctSelect(true)
+                .withSourceCondition(
+                        UpsertBuilder.getSameNamedField(fSnapshotTime, source).eq(snapshotTime)
+                                .or(UpsertBuilder.getSameNamedField(fSnapshotTime, source)
+                                        .eq(nextSecond)))
                 .withUpdateValue(fCapacity, UpsertBuilder::inserted)
                 .withUpdateValue(fEffectiveCapacity, UpsertBuilder::inserted)
                 .withUpdateValue(fAvgValue, UpsertBuilder.avg(fSamples))

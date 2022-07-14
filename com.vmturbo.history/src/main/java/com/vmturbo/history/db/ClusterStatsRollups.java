@@ -73,8 +73,11 @@ public class ClusterStatsRollups {
                         fValue, fSamples)
                 .withInsertValue(fRecordedOn, DSL.inline(rollupTime))
                 .withInsertValue(fSamples, fSourceSamples)
-                .withSourceCondition(UpsertBuilder.getSameNamedField(fRecordedOn, source)
-                        .between(snapshotTime, nextSecond))
+                .withDistinctSelect(true)
+                .withSourceCondition(
+                        UpsertBuilder.getSameNamedField(fRecordedOn, source).eq(snapshotTime)
+                                .or(UpsertBuilder.getSameNamedField(fRecordedOn, source)
+                                        .eq(nextSecond)))
                 .withUpdateValue(fValue, UpsertBuilder.avg(fSamples))
                 .withUpdateValue(fSamples, UpsertBuilder::sum)
                 .getUpsert(dsl);

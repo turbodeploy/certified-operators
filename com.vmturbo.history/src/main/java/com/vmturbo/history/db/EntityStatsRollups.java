@@ -127,6 +127,7 @@ public class EntityStatsRollups {
         // will have rounded - possibly up - when storing that time into the source records, we
         // need to include that as a possibility in our selection criteria, which we do below.
         // Here we just compute that potentially rounded-up second
+        Timestamp nextSecond = Timestamp.from(snapshotTime.toInstant().plusSeconds(1));
         return new UpsertBuilder().withSourceTable(source).withTargetTable(rollup)
                 .withInsertFields(fSnapshotTime, fUuid, fProducerUuid,
                         fPropertyType, fPropertySubtype, fRelation, fCommodityKey,
@@ -158,8 +159,8 @@ public class EntityStatsRollups {
                 .withDistinctSelect(rollupType == RollupType.BY_HOUR)
                 .withSourceCondition(
                         UpsertBuilder.getSameNamedField(fSnapshotTime, source).eq(snapshotTime)
-                                .or(UpsertBuilder.getSameNamedField(fSnapshotTime, source).eq(
-                                        Timestamp.from(snapshotTime.toInstant().plusSeconds(1)))))
+                                .or(UpsertBuilder.getSameNamedField(fSnapshotTime, source)
+                                        .eq(nextSecond)))
                 .withSourceCondition(low != null ? fSourceKey.ge(low) : DSL.trueCondition())
                 .withSourceCondition(high != null ? fSourceKey.le(high) : DSL.trueCondition())
                 // we have an index on the first 8 chars of the hour_key, which is in the form of
