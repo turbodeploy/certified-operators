@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [ -z ${instance_id} ]; then
+  export instance_id="hydra-1"
+fi
+
 # Wait until rsyslog container is up.
 # If it is not, we can lose some valuable log information related to the component startup
 if [ -z "$LOG_TO_STDOUT" ]; then
@@ -36,6 +40,7 @@ start_hydra() {
   echo "Starting hydra"
   exec /usr/bin/hydra serve all --dangerous-force-http --config /etc/config/config.yaml
 }
-#start_hydra > >(${LOGGER_COMMAND}) 2>&1
-/util/check_and_provision_db.sh entrypoint
-start_hydra
+
+/util/check_and_provision_db.sh entrypoint > >(${LOGGER_COMMAND}) 2>&1
+
+start_hydra > >(${LOGGER_COMMAND}) 2>&1

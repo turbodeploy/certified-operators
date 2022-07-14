@@ -131,6 +131,10 @@ spec:
                 secretKeyRef:
                   name: {{ include "hydra.secretname" . }}
                   key: secretsCookie
+            - name: instance_id
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             {{- with .Values.deployment.extraEnv }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
