@@ -604,7 +604,7 @@ public class DiscoveredGroupUploaderTest {
                      policySettingInfo.getDiscoveredGroupNames(0));
         assertEquals("SLOHorizontalScale on turbonomic/policy-binding-sample [Kubernetes-PT-K8S] (target 1)",
                      policySettingInfo.getDisplayName());
-        assertEquals(6, policySettingInfo.getSettingsCount());
+        assertEquals(8, policySettingInfo.getSettingsCount());
         final Optional<Setting> minReplicas = policySettingInfo.getSettingsList()
                 .stream()
                 .filter(s -> s.getSettingSpecName().equals(EntitySettingSpecs.MinReplicas.getSettingName()))
@@ -643,6 +643,18 @@ public class DiscoveredGroupUploaderTest {
                 .findAny();
         assertTrue(scaleDown.isPresent());
         assertEquals("Disabled", scaleDown.get().getEnumSettingValue().getValue());
+        final Optional<Setting> transactionSLOEnabled = policySettingInfo.getSettingsList()
+                .stream()
+                .filter(s -> s.getSettingSpecName().equals(EntitySettingSpecs.TransactionSLOEnabled.getSettingName()))
+                .findAny();
+        assertTrue(transactionSLOEnabled.isPresent());
+        assertTrue(transactionSLOEnabled.get().getBooleanSettingValue().getValue());
+        final Optional<Setting> responseTimeSLOEnabled = policySettingInfo.getSettingsList()
+                .stream()
+                .filter(s -> s.getSettingSpecName().equals(EntitySettingSpecs.ResponseTimeSLOEnabled.getSettingName()))
+                .findAny();
+        assertTrue(responseTimeSLOEnabled.isPresent());
+        assertTrue(responseTimeSLOEnabled.get().getBooleanSettingValue().getValue());
     }
 
     /**
