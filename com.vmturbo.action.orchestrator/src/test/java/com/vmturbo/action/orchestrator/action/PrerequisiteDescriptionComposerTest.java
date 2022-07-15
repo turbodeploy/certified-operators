@@ -44,6 +44,8 @@ public class PrerequisiteDescriptionComposerTest {
                     .setLocks("[Scope: vm1, name: vm-lock-1, notes: VM lock]").build(),
                 Prerequisite.newBuilder().setPrerequisiteType(PrerequisiteType.CORE_QUOTAS)
                     .setRegionId(123).setQuotaName("test_quota_name").build(),
+                Prerequisite.newBuilder().setPrerequisiteType(PrerequisiteType.MIN_CPU_PLATFORM)
+                    .setMinCpuPlatform("test_cpu_platform").build(),
                 Prerequisite.newBuilder().setPrerequisiteType(PrerequisiteType.SCALE_SET).build()))
             .build();
 
@@ -60,6 +62,9 @@ public class PrerequisiteDescriptionComposerTest {
                     " read-only locks: [Scope: vm1, name: vm-lock-1, notes: VM lock]",
             "(^_^)~Request a quota increase for test_quota_name in {entity:123:displayName:Region} to " +
                 "allow resize of {entity:1:displayName:Virtual Machine}",
+            "(^_^)~This VM {entity:1:displayName:Virtual Machine} has a minimum CPU platform of "
+                + "test_cpu_platform. Please verify that the software on this VM is compatible with "
+                + "the proposed actions. Once verified, you will need resize the VM manually.",
             "(^_^)~To execute action on {entity:1:displayName:Virtual Machine}, navigate to the Azure portal and adjust the scale set instance size")),
             new HashSet<>(PrerequisiteDescriptionComposer.composePrerequisiteDescription(action)));
     }

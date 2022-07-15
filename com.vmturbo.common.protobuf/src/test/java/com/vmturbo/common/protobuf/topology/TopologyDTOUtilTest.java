@@ -1,6 +1,7 @@
 package com.vmturbo.common.protobuf.topology;
 
 import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.EXECUTION_CONSTRAINT_PROPERTY;
+import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.MIN_CPU_PLATFORM;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -11,6 +12,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -21,6 +23,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -33,6 +36,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Unit tests for {@link TopologyDTOUtil}.
  */
 public class TopologyDTOUtilTest {
+    private static final String ICE_LAKE = "Intel Ice Lake";
 
     /**
      * Test TopologyDTOUtil.isPlaced when no commodity provider ID.
@@ -240,10 +244,7 @@ public class TopologyDTOUtilTest {
      */
     @Test
     public void actionVmInfoEphemeralDiskConstraints() {
-        long vmId = 1001;
-        final TopologyEntityDTO.Builder topologyEntity = TopologyEntityDTO.newBuilder()
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setOid(vmId);
+        final Builder topologyEntity = createVmToplogyEntity();
         final VirtualMachineInfo.Builder vmInfoBuilder = VirtualMachineInfo.newBuilder();
         topologyEntity.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                 .setVirtualMachine(vmInfoBuilder)
@@ -287,6 +288,52 @@ public class TopologyDTOUtilTest {
         assertTrue(topologyEntity.getEntityPropertyMapMap().containsKey(EXECUTION_CONSTRAINT_PROPERTY));
         assertEquals(ephemeralDiskCount, outActionVmInfo.getAttachedEphemeralVolumes());
         assertEquals(PrerequisiteType.LOCAL_SSD_ATTACHED.name(), outActionVmInfo.getExecutionConstraint());
+    }
+
+    /**
+     * Test minimum CPU platform constraint.
+     */
+    @Test
+    public void actionVmInfoMinCpuPlatformConstraints() {
+        final Builder topologyEntity = createVmToplogyEntity();
+        final VirtualMachineInfo.Builder vmInfoBuilder = VirtualMachineInfo.newBuilder();
+        topologyEntity.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(vmInfoBuilder)
+                .build());
+
+        // Before setting, verify ephemeral volumes and execution constraints are not present.
+        Optional<ActionEntityTypeSpecificInfo.Builder> actionInfo =
+                TopologyDTOUtil.makeActionTypeSpecificInfo(topologyEntity);
+        assertTrue(actionInfo.isPresent());
+        assertTrue(actionInfo.get().hasVirtualMachine());
+        ActionVirtualMachineInfo outActionVmInfo = actionInfo.get().getVirtualMachine();
+        assertFalse(outActionVmInfo.hasMinCpuPlatform());
+        assertFalse(topologyEntity.getEntityPropertyMapMap().containsKey(MIN_CPU_PLATFORM));
+
+        // No MIN_CPU_PLATFORM set, so constraint is not set
+        actionInfo = TopologyDTOUtil.makeActionTypeSpecificInfo(topologyEntity);
+        assertTrue(actionInfo.isPresent());
+        assertTrue(actionInfo.get().hasVirtualMachine());
+        outActionVmInfo = actionInfo.get().getVirtualMachine();
+        assertFalse(outActionVmInfo.hasMinCpuPlatform());
+
+        // Set minimum cpu platform, verify constraint is now set up correctly.
+        topologyEntity.putEntityPropertyMap(MIN_CPU_PLATFORM, ICE_LAKE);
+        actionInfo = TopologyDTOUtil.makeActionTypeSpecificInfo(topologyEntity);
+        assertTrue(actionInfo.isPresent());
+        assertTrue(actionInfo.get().hasVirtualMachine());
+        outActionVmInfo = actionInfo.get().getVirtualMachine();
+        assertTrue(outActionVmInfo.hasMinCpuPlatform());
+        assertEquals(ICE_LAKE, outActionVmInfo.getMinCpuPlatform());
+    }
+
+    @NotNull
+    private Builder createVmToplogyEntity() {
+        long vmId = 1001;
+        final Builder topologyEntity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(vmId);
+        return topologyEntity;
     }
 
     /**

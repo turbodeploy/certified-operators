@@ -64,6 +64,15 @@ public class PrerequisiteDescriptionComposer {
             "This VM {0} has {1} Local SSDs attached. Please shut down the VM from inside guest OS "
                     + "and resize to new machine type from GCP Console UI or gCloud CLI.";
 
+    /**
+     * Message for GCP VMs with a minimum CPU platform set. These VM actions may not be safe to
+     * execute, as it depends on the specific software the customer is running.
+     */
+    private static final String MIN_CPU_PLATFORM_PREREQUISITE_FORMAT =
+            "This VM {0} has a minimum CPU platform of {1}. Please verify that the software on "
+                    + "this VM is compatible with the proposed actions. "
+                    + "Once verified, you will need resize the VM manually.";
+
     // A mapping from PrerequisiteType to the display string.
     private static final Map<PrerequisiteType, String> prerequisiteTypeToString = ImmutableMap.of(
             PrerequisiteType.ENA, ENA_PREREQUISITE_FORMAT,
@@ -121,6 +130,11 @@ public class PrerequisiteDescriptionComposer {
                                     LOCAL_SSD_ATTACHED_PREREQUISITE_FORMAT,
                                     buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action)),
                                     prerequisite.getAttachedEphemeralVolumes());
+                        case MIN_CPU_PLATFORM:
+                            return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
+                                    MIN_CPU_PLATFORM_PREREQUISITE_FORMAT,
+                                    buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action)),
+                                    prerequisite.getMinCpuPlatform());
                         default:
                             return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
                             prerequisiteTypeToString.get(prerequisite.getPrerequisiteType()),
