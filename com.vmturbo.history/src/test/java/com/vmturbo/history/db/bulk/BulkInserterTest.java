@@ -242,8 +242,7 @@ public class BulkInserterTest extends MultiDbTestBase {
      * Test that when some batches fail, the records from other batches successfully make it into
      * the target table.
      *
-     * <p>We arrange for specific batches to fail by filling them with records that all contain the
-     * same value for a unique key column, while other batches get unique values.</p>
+     * <p>We arrange for specific batches to fail by sending NULL for a non-null field.</p>
      *
      * @throws InterruptedException if interuppted
      * @throws DataAccessException       if database operations fail
@@ -489,7 +488,8 @@ public class BulkInserterTest extends MultiDbTestBase {
      *
      * @param loader         the loader
      * @param table          the underying table
-     * @param field          a designated field whose values are provided by the caller
+     * @param field          a designated field whose values are provided by the caller. THis should
+     *                       be a NOT NULL field
      * @param values         those values
      * @param failingBatches the batch numbers of batches that should be rigged to fail
      * @param <R>            the underlying record type
@@ -511,9 +511,8 @@ public class BulkInserterTest extends MultiDbTestBase {
             }
             R record = table.newRecord();
             final boolean fail = fails.contains(batchNo);
-            // duplicate the first record's batch no to cause a duplicate key error if this batch
-            // should fail, otherwise use the supplied values as-is.
-            record.set(field, fail ? values.get(0) : values.get(i));
+            // use a null value to cause this record - and hence its batch - to fail
+            record.set(field, fail ? null : values.get(i));
             loader.insert(record);
         }
     }

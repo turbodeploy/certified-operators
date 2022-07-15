@@ -311,7 +311,10 @@ public abstract class RollupTestBase extends MultiDbTestBase {
          * <p>The value will be used in the next generated record, unless that one is skipped.</p>
          */
         private void advanceSnapshot() {
-            snapshot = snapshot.plus(cycleTimeMsec, ChronoUnit.MILLIS);
+            snapshot = snapshot.truncatedTo(ChronoUnit.SECONDS)
+                    // leave a random milliseconds value so we exercise situations where MySQL
+                    // rounds up to next second (MariaDB always truncates down)
+                    .plus(cycleTimeMsec + rand.nextInt(1000), ChronoUnit.MILLIS);
         }
 
         /**
@@ -339,7 +342,13 @@ public abstract class RollupTestBase extends MultiDbTestBase {
          */
         void cycle(int n, BulkLoader<R> loader, boolean lastInHour) throws InterruptedException {
             for (int i = 0; i < n; i++) {
-                loader.insert(get());
+                R record = get();
+                loader.insert(record);
+                // occasionally throw in a dupe, since dupes can happen when ingestion is
+                // interrupted by history restart. rollups should ignore dupes
+                if (rand.nextInt(100) < 5) {
+                    loader.insert((R)record.into(record.getClass()));
+                }
                 loaders.flushAll();
                 rollupProcessor.performHourRollups(singletonMap(table, 1L),
                         aggregators.get(HOUR).getLatestSnapshot());

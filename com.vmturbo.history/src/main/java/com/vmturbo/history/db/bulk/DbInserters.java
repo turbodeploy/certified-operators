@@ -60,7 +60,7 @@ public class DbInserters {
             final InsertValuesStepN<R> insert = dsl.insertInto(getInsertionTable(table))
                     .columns(fieldList);
             records.forEach(r -> insert.values(getOrderedValuesArray(r, fieldList)));
-            insert.execute();
+            insert.onDuplicateKeyIgnore().execute();
         };
     }
 
