@@ -590,7 +590,7 @@ public class RollupProcessor {
         tableStats.keySet().stream().sorted(Comparator.comparing(Table::getName)).forEach(table -> {
             Pair<AtomicInteger, AtomicReference<Duration>> statPair = tableStats.get(table);
             int recordCount = statPair.getLeft().get();
-            if (recordCount == 0) {
+            if (recordCount == 0 && table.getClass() != MarketStatsLatest.class) {
                 logger.error("Reported upsert record count for table {} is zero,"
                                 + " which probably means there was a problem with the upsert",
                         table.getName());
