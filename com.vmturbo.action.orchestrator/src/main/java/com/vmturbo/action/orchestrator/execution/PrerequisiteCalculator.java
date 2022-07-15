@@ -128,7 +128,8 @@ class PrerequisiteCalculator {
                     PrerequisiteCalculator::calculateVirtualizationTypePrerequisite,
                     PrerequisiteCalculator::calculateLockPrerequisite,
                     PrerequisiteCalculator::calculateGcpLocalSsdPrerequisite,
-                    PrerequisiteCalculator::calculateVolumeLocksSetPrerequisite
+                    PrerequisiteCalculator::calculateVolumeLocksSetPrerequisite,
+                    PrerequisiteCalculator::calculateGcpMinCpuPlatfomPrerequisite
             );
 
     /**
@@ -611,10 +612,36 @@ class PrerequisiteCalculator {
                 .setAttachedEphemeralVolumes(virtualMachineInfo.getAttachedEphemeralVolumes())
                 .build());
     }
+
+    /**
+     * Checks if a prerequisite is needed for GCP VMs with a minimum CPU platform set.
+     *
+     * @param virtualMachineInfo Info about VM.
+     * @param computeTierInfo Not used.
+     * @param volumeInfo Not used
+     * @param settingsForTargetEntity Not used.
+     * @return Prerequisite if applicable, or empty.
+     */
+    @VisibleForTesting
+    static Optional<Prerequisite> calculateGcpMinCpuPlatfomPrerequisite(
+            @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
+            @Nonnull final ActionComputeTierInfo computeTierInfo,
+            @Nonnull final ActionVolumeInfo volumeInfo,
+            @Nonnull final Map<String, Setting> settingsForTargetEntity) {
+        if (virtualMachineInfo.hasMinCpuPlatform()) {
+            return Optional.of(Prerequisite.newBuilder()
+                    .setPrerequisiteType(PrerequisiteType.MIN_CPU_PLATFORM)
+                    .setMinCpuPlatform(virtualMachineInfo.getMinCpuPlatform())
+                    .build());
+        } else {
+            return Optional.empty();
+        }
+    }
+
     /**
      * Checks if a prerequisite is needed for Volume based on whether we got info
      * about any locks for the Volume from probe.
-     ** @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info Not used
+     * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info Not used
      * @param computeTierInfo Not used.
      * @param volumeInfo volumeInfo which contains pre-requisite info for volume
      * @param settingsForTargetEntity Not used.

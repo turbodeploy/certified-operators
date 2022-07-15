@@ -676,4 +676,31 @@ public class PrerequisiteCalculatorTest {
         assertEquals(ephemeralDiskCount, prerequisite.getAttachedEphemeralVolumes());
         assertEquals(PrerequisiteType.LOCAL_SSD_ATTACHED, prerequisite.getPrerequisiteType());
     }
+
+    /**
+     * Checks to make sure the GCP Local SSD prerequisite is created correctly based on fields
+     * being set correctly in ActionVirtualMachineInfo.
+     */
+    @Test
+    public void calculateGcpCpuPlatformPrerequisite() {
+        final ActionComputeTierInfo computeTierInfo = ActionComputeTierInfo.newBuilder().build();
+        final Map<String, Setting> settingsMap = Collections.emptyMap();
+        final ActionVirtualMachineInfo.Builder actionVmInfoBuilder = ActionVirtualMachineInfo.newBuilder();
+        final ActionVolumeInfo actionVolumeInfoBuilder = ActionVolumeInfo.newBuilder().build();
+
+        // No minimum CPU platform set and no execution constraint set.
+        Optional<Prerequisite> noPrerequisite1 = PrerequisiteCalculator.calculateGcpMinCpuPlatfomPrerequisite(
+                actionVmInfoBuilder.build(), computeTierInfo, actionVolumeInfoBuilder, settingsMap);
+        assertFalse(noPrerequisite1.isPresent());
+
+        // Witha minimum CPU platform set, the execution constraint is set.
+        final String platform = "Intel Ice Lake";
+        Optional<Prerequisite> yesPrerequisite2 = PrerequisiteCalculator.calculateGcpMinCpuPlatfomPrerequisite(
+                actionVmInfoBuilder.setMinCpuPlatform(platform)
+                        .build(), computeTierInfo, actionVolumeInfoBuilder, settingsMap);
+        assertTrue(yesPrerequisite2.isPresent());
+        final Prerequisite prerequisite = yesPrerequisite2.get();
+        assertEquals(platform, prerequisite.getMinCpuPlatform());
+        assertEquals(PrerequisiteType.MIN_CPU_PLATFORM, prerequisite.getPrerequisiteType());
+    }
 }

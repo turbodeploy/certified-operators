@@ -778,6 +778,10 @@ message PartialEntity {
                 // Whether any execution constraint related info was optionally sent by probe.
                 // Used for GCP to disallow execution of scale actions with local SSDs attached.
                 optional string execution_constraint = 9;
+
+                // The minimum CPU platform required, if any. Sent by probe.
+                // Used for GCP to disallow execution of scale actions for these VMs.
+                optional string min_cpu_platform = 10;
             }
 
             message ActionPhysicalMachineInfo {

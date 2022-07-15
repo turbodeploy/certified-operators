@@ -128,6 +128,11 @@ public final class TopologyDTOUtil {
     public static final String EXECUTION_CONSTRAINT_PROPERTY = "executionConstraint";
 
     /**
+     * Entity property name for a minimum CPU platform requirement.
+     */
+    public static final String MIN_CPU_PLATFORM = "minCpuPlatform";
+
+    /**
      * VC Probe collects the sum of CPU ready (wait time) over 20 second intervals and this sum is
      * only meaningful if you know what interval this value is collected over. Ideally this
      * interval should come from the probe. See https://kb.vmware.com/s/article/2002181 for more details.
@@ -680,11 +685,20 @@ public final class TopologyDTOUtil {
                 VirtualMachineInfo vmInfo = typeSpecificInfo.getVirtualMachine();
                 return createActionVmInfo(vmInfo, reservations).map(actionVmInfo -> {
                     getCPUCoreMhz(topologyEntity).ifPresent(actionVmInfo::setCpuCoreMhz);
-                    final String executionConstraint = topologyEntity.getEntityPropertyMapMap()
+                    final Map<String, String> properties = topologyEntity.getEntityPropertyMapMap();
+
+                    final String executionConstraint = properties
                             .get(EXECUTION_CONSTRAINT_PROPERTY);
                     if (StringUtils.isNotBlank(executionConstraint)) {
                         actionVmInfo.setExecutionConstraint(executionConstraint);
                     }
+
+                    final String minCpuPlatform = properties
+                            .get(MIN_CPU_PLATFORM);
+                    if (StringUtils.isNotBlank(minCpuPlatform)) {
+                        actionVmInfo.setMinCpuPlatform(minCpuPlatform);
+                    }
+
                     return ActionEntityTypeSpecificInfo.newBuilder().setVirtualMachine(
                             actionVmInfo);
                 });
