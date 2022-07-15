@@ -33,6 +33,7 @@ import com.vmturbo.extractor.grafana.GrafanaConfig;
 import com.vmturbo.extractor.scope.ScopeTableManagerConfig;
 import com.vmturbo.extractor.service.ExtractorRpcConfig;
 import com.vmturbo.extractor.service.RetentionUtils;
+import com.vmturbo.extractor.snowflakeconnect.SnowflakeConnectConfig;
 import com.vmturbo.extractor.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -46,6 +47,7 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
         ExtractorRpcConfig.class,
         ExtractorDbConfig.class,
         GrafanaConfig.class,
+        SnowflakeConnectConfig.class,
         ExtractorDiagnosticsConfig.class,
         SpringSecurityConfig.class,
         ScopeTableManagerConfig.class,
