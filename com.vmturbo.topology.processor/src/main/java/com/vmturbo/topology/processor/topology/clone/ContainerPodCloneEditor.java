@@ -132,34 +132,4 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
                     .ifPresent(analysisSettings::setConsistentScalingFactor);
         }
     }
-
-    @Override
-    protected String getCloneDisplayName(
-        @Nonnull final TopologyEntityImpl entityImpl,
-        @Nonnull final CloneInfo cloneInfo) {
-        return cloneInfo.getSourceCluster()
-                        .map(TopologyEntity.Builder::getDisplayName)
-                        .map(clonedFrom -> {
-                            return String.format("%s - Clone #%d from %s",
-                                                 entityImpl.getDisplayName().substring(0, entityImpl.getDisplayName().lastIndexOf("-")),
-                                                 cloneInfo.getCloneCounter(), clonedFrom);
-                        })
-                        .orElse(
-                            entityImpl.getDisplayName() + cloneSuffix(cloneInfo.getCloneCounter()));
-    }
-
-    @Override
-    protected Long getProviderId(@Nonnull final CloneContext cloneContext,
-                                 @Nonnull final CloneInfo cloneInfo,
-                                 final long origProviderId) {
-        Long providerId = cloneContext.getClonedEntityId(cloneInfo.getCloneCounter(), origProviderId);
-        // When increasing the number of replicas for a WorkloadController as part
-        // of a Workload Migration Plan, the associated workload controller will
-        // only be cloned a single time, , so we need to specify a cloneCounter of 0 to
-        // locate the cloned workloadController.
-        if (providerId == null && cloneInfo.getCloneCounter() > 0) {
-            providerId = cloneContext.getClonedEntityId(0, origProviderId);
-        }
-        return providerId;
-    }
 }

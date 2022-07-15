@@ -163,7 +163,6 @@ public class TopologyEditorTest {
     private static final long podId = 40;
     private static final long podId_1 = 41;
     private static final long containerId = 50;
-    private static final long containerId_1 = 51;
     private static final long workloadControllerId = 60;
     private static final long volumeId = 70;
     private static final long containerSpecId = 80;
@@ -362,7 +361,7 @@ public class TopologyEditorTest {
     private static final TopologyEntity.Builder container =
         TopologyEntityUtils.topologyEntityBuilder(new TopologyEntityImpl()
             .setOid(containerId)
-            .setDisplayName("robotshop/catalogue-74768b7f66-mgssg/catalogue")
+            .setDisplayName("catalogue")
             .setEntityType(EntityType.CONTAINER_VALUE)
             .setAnalysisSettings(
                 new AnalysisSettingsImpl()
@@ -400,27 +399,6 @@ public class TopologyEditorTest {
                 .setConnectedEntityType(EntityType.CONTAINER_SPEC_VALUE)
                 .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION))
             .putEntityPropertyMap("KubernetesNamespace", "robotshop"));
-
-    private static final TopologyEntity.Builder container1 =
-        TopologyEntityUtils.topologyEntityBuilder(container.getTopologyEntityImpl()
-                                                           .copy()
-                                                           .setOid(containerId_1)
-                                                      .removeCommoditiesBoughtFromProviders(0)
-                                                           .addCommoditiesBoughtFromProviders(
-                                                               new CommoditiesBoughtFromProviderImpl()
-                                                                   .setProviderId(podId_1)
-                                                                   .setProviderEntityType(EntityType.CONTAINER_POD_VALUE)
-                                                                   .addCommodityBought(new CommodityBoughtImpl()
-                                                                                           .setCommodityType(VMEM)
-                                                                                           .setUsed(USED))
-                                                                   .addCommodityBought(new CommodityBoughtImpl()
-                                                                                           .setCommodityType(VCPU)
-                                                                                           .setUsed(USED))
-                                                                   .addCommodityBought(new CommodityBoughtImpl()
-                                                                                           .setCommodityType(VMPM_POD_TO_CONTAINER)
-                                                                                           .setUsed(USED)))
-                                                           .setDisplayName(
-                                                               "robotshop/catalogue-74768b7f66-m6nqq/catalogue"));
 
     // Create a test pod that is suspendable
     private static final TopologyEntity.Builder pod = TopologyEntityUtils.topologyEntityBuilder(
@@ -576,7 +554,7 @@ public class TopologyEditorTest {
     private static final TopologyEntity.Builder containerSpec = TopologyEntityUtils.topologyEntityBuilder(
             new TopologyEntityImpl()
                     .setOid(containerSpecId)
-                    .setDisplayName("catalogue-1")
+                    .setDisplayName("catalogue")
                     .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
                     .addCommoditySoldList(new CommoditySoldImpl()
                                                   .setCommodityType(VCPU)
@@ -586,6 +564,7 @@ public class TopologyEditorTest {
                                                   .setCommodityType(VMEM)
                                                   .setUsed(USED)
                                                   .setCapacity(VMEM_CAPACITY)));
+
 
     private static final int NUM_CLONES = 5;
 
@@ -698,7 +677,7 @@ public class TopologyEditorTest {
 
     private static final ScenarioChange ADD_WORKLOAD = ScenarioChange.newBuilder()
             .setTopologyAddition(TopologyAddition.newBuilder()
-                .setAdditionCount(2)
+                .setAdditionCount(1)
                 .setEntityId(workloadControllerId)
                 .setTargetEntityType(EntityType.WORKLOAD_CONTROLLER_VALUE))
             .build();
@@ -1983,373 +1962,6 @@ public class TopologyEditorTest {
                            .flatMap(List::stream)
                            .map(CommoditySoldView::getCapacity)
                            .allMatch(capacity -> capacity.equals(TopologyEditorUtil.MAX_QUOTA_CAPACITY)));
-    }
-
-    @Test
-    public void testTopologyMigrateContainerWorkloadIncreaseWorkloadControllerReplicas() throws Exception {
-        final Set<TopologyEntity.Builder> originalEntities = ImmutableSet.of(
-            container, container1, pod, pod1, workloadController, containerSpec,
-            namespace, vm, destVM, cluster, destCluster);
-        featureFlagTestRule.enable(FeatureFlags.MIGRATE_CONTAINER_WORKLOAD_PLAN);
-        Map<Long, TopologyEntity.Builder> topology = originalEntities.stream()
-                                                                     .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
-        List<ScenarioChange> changes = Lists.newArrayList(
-            ScenarioChange.newBuilder().setTopologyAddition(
-                TopologyAddition
-                    .newBuilder()
-                    .setAdditionCount(3)
-                    .setEntityId(workloadControllerId)
-                    .setTargetEntityType(EntityType.WORKLOAD_CONTROLLER_VALUE))
-                    .build()
-            );
-        PlanScope cntClusterPlanScope = PlanScope.newBuilder()
-                                                 .addScopeEntries(PlanScopeEntry.newBuilder()
-                                                                                .setScopeObjectOid(destClusterId)
-                                                                                .setClassName(ApiEntityType.CONTAINER_PLATFORM_CLUSTER.apiStr()))
-                                                 .build();
-        topologyEditor.editTopology(topology, cntClusterPlanScope, changes,
-                                    migrateContainerWorkloadPlanContext,
-                                    groupResolver, sourceEntities, destinationEntities);
-        // Create topology graph
-        final TopologyGraph<TopologyEntity> topologyGraph =
-            TopologyEntityTopologyGraphCreator.newGraph(topology);
-        final Set<Long> originalOidSet = originalEntities.stream()
-                                                         .map(TopologyEntity.Builder::getOid)
-                                                         .collect(Collectors.toSet());
-        // Get cloned entities
-        final List<TopologyEntity> clonedContainers =
-            topologyGraph.entitiesOfType(EntityType.CONTAINER_VALUE)
-                         .filter(entity -> !originalOidSet.contains(entity.getOid()))
-                         .collect(Collectors.toList());
-        final List<TopologyEntity> clonedPods =
-            topologyGraph.entitiesOfType(EntityType.CONTAINER_POD_VALUE)
-                         .filter(entity -> !originalOidSet.contains(entity.getOid()))
-                         .collect(Collectors.toList());
-        final List<TopologyEntity> clonedContainerSpecs =
-            topologyGraph.entitiesOfType(EntityType.CONTAINER_SPEC_VALUE)
-                         .filter(entity -> !originalOidSet.contains(entity.getOid()))
-                         .collect(Collectors.toList());
-        final List<TopologyEntity> clonedWorkloadControllers =
-            topologyGraph.entitiesOfType(EntityType.WORKLOAD_CONTROLLER_VALUE)
-                         .filter(entity -> !originalOidSet.contains(entity.getOid()))
-                         .collect(Collectors.toList());
-        final List<TopologyEntity> clonedNamespaces =
-            topologyGraph.entitiesOfType(EntityType.NAMESPACE_VALUE)
-                         .filter(entity -> !originalOidSet.contains(entity.getOid()))
-                         .collect(Collectors.toList());
-        final List<TopologyEntity> clusters =
-            topologyGraph.entitiesOfType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
-                         .collect(Collectors.toList());
-        assertEquals(3, clonedContainers.size());
-        assertEquals(3, clonedPods.size());
-        assertEquals(1, clonedContainerSpecs.size());
-        assertEquals(1, clonedWorkloadControllers.size());
-        assertEquals(1, clonedNamespaces.size());
-        assertEquals(2, clusters.size());
-        // Verify that the cloned containers are controllable but not suspendable.
-        final boolean allControllable = clonedContainers.stream()
-                                                        .allMatch(clone -> clone.getTopologyEntityImpl().getAnalysisSettings().getControllable());
-        final boolean noneSuspendable = clonedContainers.stream()
-                                                        .noneMatch(clone -> clone.getTopologyEntityImpl().getAnalysisSettings().getSuspendable());
-        assertTrue("Cloned containers must be controllable", allControllable);
-        assertTrue("Cloned containers must not be suspendable", noneSuspendable);
-        // Verify that cloned containers have correct bought keyed commodities
-        int cloneCounter = 0;
-        for (final TopologyEntity entity : clonedContainers) {
-            for (final CommoditiesBoughtFromProviderView bought : entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()) {
-                assertEquals("Cloned containers only buy from pods", EntityType.CONTAINER_POD_VALUE,
-                             bought.getProviderEntityType());
-                final List<CommodityTypeView> keyed = bought.getCommodityBoughtList().stream().map(
-                    CommodityBoughtView::getCommodityType).filter(CommodityTypeView::hasKey).collect(
-                    Collectors.toList());
-
-                cloneCounter = Character.getNumericValue(entity.getDisplayName().split("Clone #")[1].charAt(0));
-
-                // Verify that the cloned containers each buy a VMPM keyed commodity
-                final CommodityTypeView expected = VMPM_POD_TO_CONTAINER.copy()
-                                         .setKey(VMPM_POD_TO_CONTAINER.getKey() + DefaultEntityCloneEditor.cloneSuffix(
-                                             cloneCounter));
-
-                assertEquals("Cloned containers buy a keyed VMPM access commodity",
-                             Collections.singletonList(expected), keyed);
-            }
-            cloneCounter++;
-        }
-        // Verify that the cloned pods each only buy the VMPM keyed commodity but not the cluster one
-        cloneCounter = 0;
-        for (final TopologyEntity entity : clonedPods) {
-            for (final CommoditiesBoughtFromProviderView bought : entity.getTopologyEntityImpl()
-                                                                        .getCommoditiesBoughtFromProvidersList()) {
-                assertNotEquals("Cloned pods should skip bought commodities from virtual volume",
-                                EntityType.VIRTUAL_VOLUME_VALUE, bought.getProviderEntityType());
-                final Set<CommodityTypeView> keyedComm = bought.getCommodityBoughtList().stream()
-                                                               .map(CommodityBoughtView::getCommodityType)
-                                                               .filter(CommodityTypeView::hasKey)
-                                                               .collect(Collectors.toSet());
-                final Set<String> keys = keyedComm.stream()
-                                                  .map(CommodityTypeView::getKey)
-                                                  .collect(Collectors.toSet());
-                if (bought.getProviderEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                    // Verify that the cloned pods each buy the right commodities
-                    assertEquals(4, keyedComm.size());
-                    assertTrue("Cloned pods do buy VMPM_ACCESS commodities",
-                               keyedComm.contains(VMPM_NODE_TO_POD));
-                    assertTrue("Cloned pods do buy TAINT commodities",
-                               keyedComm.contains(TAINT_NODE_TO_POD_1));
-                    assertTrue("Cloned pods do buy TAINT commodities",
-                               keyedComm.contains(TAINT_NODE_TO_POD_2));
-                    assertTrue("Cloned pods do buy cluster commodity bound to the plan cluster",
-                               keyedComm.contains(DEST_CLUSTER_KEYED));
-                } else if (bought.getProviderEntityType() == EntityType.WORKLOAD_CONTROLLER_VALUE) {
-                    // Verify that the cloned pods do not buy any keyed commodities
-                    assertTrue(keys.stream()
-                                   .map(key -> key.contains(workloadControllerKey + " - Clone #"))
-                                   .reduce(true, (a, b) -> a && b));
-
-                }
-            }
-            for (final CommoditySoldView sold : entity.getTopologyEntityImpl().getCommoditySoldListList()) {
-                if (sold.getCommodityType().hasKey()) {
-                    cloneCounter = Character.getNumericValue(entity.getDisplayName().split("Clone #")[1].charAt(0));
-                    final CommodityTypeView expected = VMPM_POD_TO_CONTAINER
-                        .copy()
-                        .setKey(VMPM_POD_TO_CONTAINER.getKey() + DefaultEntityCloneEditor.cloneSuffix(cloneCounter));
-                    assertEquals("Cloned pods sell keyed commodities but with a distinct key",
-                                 expected, sold.getCommodityType());
-                }
-            }
-        }
-        // Verify that the two cloned pods have the same provider, which is the cloned workload controller
-        assertTrue(clonedPods.stream()
-                             .allMatch(pod -> pod.getProviders().stream()
-                                                 .allMatch(clonedWorkloadControllers.get(0)::equals)));
-        // Verify that the two cloned pods have the same aggregator, which is the cloned workload controller
-        assertTrue(clonedPods.stream()
-                             .allMatch(pod -> pod.getAggregators().stream()
-                                                 .allMatch(clonedWorkloadControllers.get(0)::equals)));
-        // Verify that the cloned workload controller is aggregated by the cloned namespace
-        assertTrue(clonedWorkloadControllers.stream()
-                                            .allMatch(wc -> wc.getAggregators().stream()
-                                                              .allMatch(clonedNamespaces.get(0)::equals)));
-        // Verify that the cloned workload controller has the correct display name
-        assertEquals(sourceWorkloadControllerName + " - Clone from " + clusterName,
-                     clonedWorkloadControllers.get(0).getDisplayName());
-        // Verify that the cloned workload controller owns the cloned container spec
-        assertTrue(clonedWorkloadControllers.stream()
-                                            .allMatch(wc -> wc.getOwnedEntities().stream()
-                                                              .allMatch(clonedContainerSpecs.get(0)::equals)));
-        // Verify that the cloned namespace consumes from the destination cluster
-        assertTrue(clonedNamespaces.stream()
-                                   .allMatch(ns -> ns.getProviders().stream()
-                                                     .map(TopologyEntity::getDisplayName)
-                                                     .allMatch(destCluster.getDisplayName()::equals)));
-        // Verify that the cloned container is controlled by the cloned container spec
-        assertTrue(clonedContainers.stream()
-                                   .allMatch(cnt -> cnt.getControllers().stream()
-                                                       .allMatch(clonedContainerSpecs.get(0)::equals)));
-
-        // populate InvertedIndex
-        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
-            index = planTopologyScopeEditor.createInvertedIndex();
-        topologyGraph.entities().forEach(index::add);
-        // scope using inverted index
-        TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
-            .indexBasedScoping(index, migrateContainerWorkloadPlanTopologyInfo, topologyGraph,
-                               groupResolver, cntClusterPlanScope, PlanProjectType.USER);
-        // Verify that the original VM is not scoped
-        assertFalse(result.getEntity(vmId).isPresent());
-        assertTrue(result.getEntity(destVMId).isPresent());
-        // Verify that quota capacity is removed (i.e., set to maximum)]
-        assertTrue(clonedWorkloadControllers.stream()
-                                            .map(TopologyEntity::getTopologyEntityImpl)
-                                            .map(TopologyEntityImpl::getCommoditySoldListList)
-                                            .flatMap(List::stream)
-                                            .map(CommoditySoldView::getCapacity)
-                                            .allMatch(capacity -> capacity.equals(TopologyEditorUtil.MAX_QUOTA_CAPACITY)));
-        assertTrue(clonedNamespaces.stream()
-                                   .map(TopologyEntity::getTopologyEntityImpl)
-                                   .map(TopologyEntityImpl::getCommoditySoldListList)
-                                   .flatMap(List::stream)
-                                   .map(CommoditySoldView::getCapacity)
-                                   .allMatch(capacity -> capacity.equals(TopologyEditorUtil.MAX_QUOTA_CAPACITY)));
-    }
-
-    @Test
-    public void testTopologyMigrateContainerWorkloadDecreaseWorkloadControllerReplicas() throws Exception {
-        final Set<TopologyEntity.Builder> originalEntities = ImmutableSet.of(
-            container, pod, pod1, workloadController, containerSpec,
-            namespace, vm, destVM,cluster, destCluster);
-        featureFlagTestRule.enable(FeatureFlags.MIGRATE_CONTAINER_WORKLOAD_PLAN);
-        Map<Long, TopologyEntity.Builder> topology = originalEntities.stream()
-                                                                     .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
-        List<ScenarioChange> changes = Lists.newArrayList(ScenarioChange.newBuilder()
-                                                                        .setTopologyAddition(TopologyAddition.newBuilder()
-                                                                                                             .setAdditionCount(1)
-                                                                                                             .setEntityId(workloadControllerId)
-                                                                                                             .setTargetEntityType(EntityType.WORKLOAD_CONTROLLER_VALUE))
-                                                                        .build());
-        PlanScope cntClusterPlanScope = PlanScope.newBuilder()
-                                                 .addScopeEntries(PlanScopeEntry.newBuilder()
-                                                                                .setScopeObjectOid(destClusterId)
-                                                                                .setClassName(ApiEntityType.CONTAINER_PLATFORM_CLUSTER.apiStr()))
-                                                 .build();
-        topologyEditor.editTopology(topology, cntClusterPlanScope, changes,
-                                    migrateContainerWorkloadPlanContext,
-                                    groupResolver, sourceEntities, destinationEntities);
-        // Create topology graph
-        final TopologyGraph<TopologyEntity> topologyGraph =
-            TopologyEntityTopologyGraphCreator.newGraph(topology);
-        final Set<Long> originalOidSet = originalEntities.stream()
-                                                         .map(TopologyEntity.Builder::getOid)
-                                                         .collect(Collectors.toSet());
-        // Get cloned entities
-        final List<TopologyEntity> clonedContainers =
-            topologyGraph.entitiesOfType(EntityType.CONTAINER_VALUE)
-                         .filter(entity -> !originalOidSet.contains(entity.getOid()))
-                         .collect(Collectors.toList());
-        final List<TopologyEntity> clonedPods =
-            topologyGraph.entitiesOfType(EntityType.CONTAINER_POD_VALUE)
-                         .filter(entity -> !originalOidSet.contains(entity.getOid()))
-                         .collect(Collectors.toList());
-        final List<TopologyEntity> clonedContainerSpecs =
-            topologyGraph.entitiesOfType(EntityType.CONTAINER_SPEC_VALUE)
-                         .filter(entity -> !originalOidSet.contains(entity.getOid() ))
-                         .collect(Collectors.toList());
-        final List<TopologyEntity> clonedWorkloadControllers =
-            topologyGraph.entitiesOfType(EntityType.WORKLOAD_CONTROLLER_VALUE)
-                         .filter(entity -> !originalOidSet.contains(entity.getOid()))
-                         .collect(Collectors.toList());
-        final List<TopologyEntity> clonedNamespaces =
-            topologyGraph.entitiesOfType(EntityType.NAMESPACE_VALUE)
-                         .filter(entity -> !originalOidSet.contains(entity.getOid()))
-                         .collect(Collectors.toList());
-        final List<TopologyEntity> clusters =
-            topologyGraph.entitiesOfType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
-                         .collect(Collectors.toList());
-        assertEquals(1, clonedContainers.size());
-        assertEquals(1, clonedPods.size());
-        assertEquals(1, clonedContainerSpecs.size());
-        assertEquals(1, clonedWorkloadControllers.size());
-        assertEquals(1, clonedNamespaces.size());
-        assertEquals(2, clusters.size());
-        // Verify that the cloned containers are controllable but not suspendable.
-        final boolean allControllable = clonedContainers.stream()
-                                                        .allMatch(clone -> clone.getTopologyEntityImpl().getAnalysisSettings().getControllable());
-        final boolean noneSuspendable = clonedContainers.stream()
-                                                        .noneMatch(clone -> clone.getTopologyEntityImpl().getAnalysisSettings().getSuspendable());
-        assertTrue("Cloned containers must be controllable", allControllable);
-        assertTrue("Cloned containers must not be suspendable", noneSuspendable);
-        // Verify that cloned containers have correct bought keyed commodities
-        int cloneCounter = 0;
-        for (final TopologyEntity entity : clonedContainers) {
-            for (final CommoditiesBoughtFromProviderView bought : entity.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()) {
-                assertEquals("Cloned containers only buy from pods", EntityType.CONTAINER_POD_VALUE,
-                             bought.getProviderEntityType());
-                final List<CommodityTypeView> keyed = bought.getCommodityBoughtList().stream().map(
-                    CommodityBoughtView::getCommodityType).filter(CommodityTypeView::hasKey).collect(
-                    Collectors.toList());
-                // Verify that the cloned containers each buy a VMPM keyed commodity
-                cloneCounter = Character.getNumericValue(entity.getDisplayName().split("Clone #")[1].charAt(0));
-                final CommodityTypeView expected = VMPM_POD_TO_CONTAINER.copy()
-                                                                        .setKey(VMPM_POD_TO_CONTAINER.getKey() + DefaultEntityCloneEditor.cloneSuffix(cloneCounter));
-                assertEquals("Cloned containers buy a keyed VMPM access commodity",
-                             Collections.singletonList(expected), keyed);
-            }
-            cloneCounter++;
-        }
-        // Verify that the cloned pods each only buy the VMPM keyed commodity but not the cluster one
-        cloneCounter = 0;
-        for (final TopologyEntity entity : clonedPods) {
-            for (final CommoditiesBoughtFromProviderView bought : entity.getTopologyEntityImpl()
-                                                                        .getCommoditiesBoughtFromProvidersList()) {
-                assertNotEquals("Cloned pods should skip bought commodities from virtual volume",
-                                EntityType.VIRTUAL_VOLUME_VALUE, bought.getProviderEntityType());
-                final Set<CommodityTypeView> keyedComm = bought.getCommodityBoughtList().stream()
-                                                               .map(CommodityBoughtView::getCommodityType)
-                                                               .filter(CommodityTypeView::hasKey)
-                                                               .collect(Collectors.toSet());
-                final Set<String> keys = keyedComm.stream()
-                                                  .map(CommodityTypeView::getKey)
-                                                  .collect(Collectors.toSet());
-                if (bought.getProviderEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                    // Verify that the cloned pods each buy the right commodities
-                    assertEquals(4, keyedComm.size());
-                    assertTrue("Cloned pods do buy VMPM_ACCESS commodities",
-                               keyedComm.contains(VMPM_NODE_TO_POD));
-                    assertTrue("Cloned pods do buy TAINT commodities",
-                               keyedComm.contains(TAINT_NODE_TO_POD_1));
-                    assertTrue("Cloned pods do buy TAINT commodities",
-                               keyedComm.contains(TAINT_NODE_TO_POD_2));
-                    assertTrue("Cloned pods do buy cluster commodity bound to the plan cluster",
-                               keyedComm.contains(DEST_CLUSTER_KEYED));
-                } else if (bought.getProviderEntityType() == EntityType.WORKLOAD_CONTROLLER_VALUE) {
-                    // Verify that the cloned pods do not buy any keyed commodities
-                    cloneCounter = Character.getNumericValue(entity.getDisplayName().split("Clone #")[1].charAt(0));
-                    assertTrue(keys.contains(workloadControllerKey + DefaultEntityCloneEditor.cloneSuffix(cloneCounter)));
-                }
-            }
-            for (final CommoditySoldView sold : entity.getTopologyEntityImpl().getCommoditySoldListList()) {
-                if (sold.getCommodityType().hasKey()) {
-                    final CommodityTypeView expected = VMPM_POD_TO_CONTAINER.copy()
-                                                                            .setKey(VMPM_POD_TO_CONTAINER.getKey() + DefaultEntityCloneEditor.cloneSuffix(cloneCounter));
-                    assertEquals("Cloned pods sell keyed commodities but with a distinct key",
-                                 expected, sold.getCommodityType());
-                }
-            }
-        }
-        // Verify that the two cloned pods have the same provider, which is the cloned workload controller
-        assertTrue(clonedPods.stream()
-                             .allMatch(pod -> pod.getProviders().stream()
-                                                 .allMatch(clonedWorkloadControllers.get(0)::equals)));
-        // Verify that the two cloned pods have the same aggregator, which is the cloned workload controller
-        assertTrue(clonedPods.stream()
-                             .allMatch(pod -> pod.getAggregators().stream()
-                                                 .allMatch(clonedWorkloadControllers.get(0)::equals)));
-        // Verify that the cloned workload controller is aggregated by the cloned namespace
-        assertTrue(clonedWorkloadControllers.stream()
-                                            .allMatch(wc -> wc.getAggregators().stream()
-                                                              .allMatch(clonedNamespaces.get(0)::equals)));
-        // Verify that the cloned workload controller has the correct display name
-        assertEquals(sourceWorkloadControllerName + " - Clone from " + clusterName,
-                     clonedWorkloadControllers.get(0).getDisplayName());
-        // Verify that the cloned workload controller owns the cloned container spec
-        assertTrue(clonedWorkloadControllers.stream()
-                                            .allMatch(wc -> wc.getOwnedEntities().stream()
-                                                              .allMatch(clonedContainerSpecs.get(0)::equals)));
-        // Verify that the cloned namespace consumes from the destination cluster
-        assertTrue(clonedNamespaces.stream()
-                                   .allMatch(ns -> ns.getProviders().stream()
-                                                     .map(TopologyEntity::getDisplayName)
-                                                     .allMatch(destCluster.getDisplayName()::equals)));
-        // Verify that the cloned container is controlled by the cloned container spec
-        assertTrue(clonedContainers.stream()
-                                   .allMatch(cnt -> cnt.getControllers().stream()
-                                                       .allMatch(clonedContainerSpecs.get(0)::equals)));
-
-        // populate InvertedIndex
-        InvertedIndex<TopologyEntity, CommoditiesBoughtFromProviderView>
-            index = planTopologyScopeEditor.createInvertedIndex();
-        topologyGraph.entities().forEach(index::add);
-        // scope using inverted index
-        TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
-            .indexBasedScoping(index, migrateContainerWorkloadPlanTopologyInfo, topologyGraph,
-                               groupResolver, cntClusterPlanScope, PlanProjectType.USER);
-        // Verify that the original VM is not scoped
-        assertFalse(result.getEntity(vmId).isPresent());
-        assertTrue(result.getEntity(destVMId).isPresent());
-        // Verify that quota capacity is removed (i.e., set to maximum)]
-        assertTrue(clonedWorkloadControllers.stream()
-                                            .map(TopologyEntity::getTopologyEntityImpl)
-                                            .map(TopologyEntityImpl::getCommoditySoldListList)
-                                            .flatMap(List::stream)
-                                            .map(CommoditySoldView::getCapacity)
-                                            .allMatch(capacity -> capacity.equals(TopologyEditorUtil.MAX_QUOTA_CAPACITY)));
-        assertTrue(clonedNamespaces.stream()
-                                   .map(TopologyEntity::getTopologyEntityImpl)
-                                   .map(TopologyEntityImpl::getCommoditySoldListList)
-                                   .flatMap(List::stream)
-                                   .map(CommoditySoldView::getCapacity)
-                                   .allMatch(capacity -> capacity.equals(TopologyEditorUtil.MAX_QUOTA_CAPACITY)));
     }
 
     /**

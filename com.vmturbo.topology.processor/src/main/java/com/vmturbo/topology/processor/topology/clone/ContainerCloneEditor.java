@@ -77,17 +77,4 @@ public class ContainerCloneEditor extends DefaultEntityCloneEditor {
                     .map(analysisSettings::setConsistentScalingFactor);
         }
     }
-
-    @Override
-    protected String getCloneDisplayName(
-        @Nonnull final TopologyEntityImpl entityImpl,
-        @Nonnull final CloneInfo cloneInfo) {
-        return cloneInfo.getSourceCluster()
-                        .map(TopologyEntity.Builder::getDisplayName)
-                        .map(clonedFrom -> String.format("%s - Clone #%d from %s",
-                                                         entityImpl.getDisplayName(),
-                                                         cloneInfo.getCloneCounter(), clonedFrom))
-                        .orElse(
-                            entityImpl.getDisplayName() + cloneSuffix(cloneInfo.getCloneCounter()));
-    }
 }
