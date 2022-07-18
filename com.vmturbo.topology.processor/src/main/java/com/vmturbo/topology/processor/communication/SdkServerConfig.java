@@ -88,7 +88,8 @@ public class SdkServerConfig {
      */
     @Bean
     public AggregatingDiscoveryQueue discoveryQueue() {
-        return new AggregatingDiscoveryQueueImpl(probeConfig.probeStore());
+        return new AggregatingDiscoveryQueueImpl(probeConfig.probeStore(),
+                targetConfig.probeContainerChooser());
     }
 
     /**
@@ -101,13 +102,13 @@ public class SdkServerConfig {
     public RemoteMediationServer remoteMediation() {
         return applyPermitsToContainers ? new RemoteMediationServerWithDiscoveryWorkers(
                 probeConfig.probeStore(), targetConfig.probePropertyStore(),
-                probeConfig.probeContainerChooser(), discoveryQueue(),
+                targetConfig.probeContainerChooser(), discoveryQueue(),
                 maxConcurrentTargetDiscoveriesPerProbeCount,
                 maxConcurrentTargetIncrementalDiscoveriesPerProbeCount,
                 discoveryWorkerPollingTimeoutSecs)
                 : new RemoteMediationServer(probeConfig.probeStore(),
                         targetConfig.probePropertyStore(),
-                        probeConfig.probeContainerChooser());
+                        targetConfig.probeContainerChooser());
     }
 
     /**
