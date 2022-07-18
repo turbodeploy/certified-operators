@@ -3,6 +3,7 @@ package com.vmturbo.auth.component;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OBSERVER;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.REPORT_EDITOR;
+
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -27,6 +28,8 @@ import com.google.gson.GsonBuilder;
 
 import com.vmturbo.auth.api.authorization.keyprovider.IKeyImportIndicator;
 import org.apache.commons.io.FileUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.assertj.core.util.Files;
 import org.assertj.core.util.Lists;
 import org.junit.AfterClass;
@@ -78,6 +81,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 import org.springframework.web.util.NestedServletException;
 
 import com.vmturbo.auth.api.authentication.AuthenticationException;
+import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.kvstore.AuthStore;
@@ -105,6 +109,8 @@ import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.kvstore.PublicKeyStore;
 
+import io.jsonwebtoken.ExpiredJwtException;
+
 /**
  * The RestTest implements the REST component tests.
  */
@@ -112,6 +118,8 @@ import com.vmturbo.kvstore.PublicKeyStore;
 @WebAppConfiguration
 @ContextConfiguration(loader = AnnotationConfigWebContextLoader.class)
 public class RestTest {
+    private final Logger logger = LogManager.getLogger();
+
     /**
      * The mock service.
      */
@@ -1063,6 +1071,46 @@ public class RestTest {
     @WithMockUser(roles = "OBSERVER")
     public void testNonAdminGetUserByUuid() throws Exception {
         mockMvc.perform(get("/users/{uuid}", "123")).andExpect(status().is(403));
+    }
+
+    /**
+     * Test jwt auth token expiry default.
+     * @throws AuthorizationException
+     */
+    @Test
+    public void testJwtAuthTokenExpiryDefault() throws AuthorizationException {
+        JWTAuthorizationToken token = authStore
+            .generateToken("test1", OBSERVER, null, null, ADMINISTRATOR, null, 0);
+        verifier.verifyAuthComponent(token);
+    }
+
+    /**
+     * Test jwt auth token expiry expired.
+     * @throws Exception
+     */
+    @Test
+    public void testJwtAuthTokenExpiryExpired() throws Exception {
+        JWTAuthorizationToken token = authStore
+            .generateToken("test2", OBSERVER, null, null, ADMINISTRATOR, null, 1);
+        Thread.sleep(70000);
+        try {
+            verifier.verifyAuthComponent(token);
+        } catch (ExpiredJwtException e){
+            logger.info("Token expired successfully!");
+            return;
+        }
+        throw new Exception("Expected token expired exception but did not get it.");
+    }
+
+    /**
+     * Test jwt auth token expiry success.
+     * @throws AuthorizationException
+     */
+    @Test
+    public void testJwtAuthTokenExpirySuccess() throws AuthorizationException {
+        JWTAuthorizationToken token = authStore
+            .generateToken("test3", OBSERVER, null, null, ADMINISTRATOR, null, 3600);
+        verifier.verifyAuthComponent(token);
     }
 
     @ControllerAdvice
