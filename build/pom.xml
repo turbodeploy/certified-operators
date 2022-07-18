@@ -1234,6 +1234,156 @@
             </modules>
         </profile>
 
+        <profile>
+            <id>team-base</id>
+            <modules>
+                <!-- There is a non-maven dependency between any module
+                     that builds a docker image and the baseimage module.
+                     The baseimage module creates the docker image that
+                     all other images should be based on, but the poms don't
+                     capture that relationship.
+
+                     Therefore, keep this at the top of the modules list
+                     so that it gets built first despite not being explicitly
+                     depended on by other modules.
+
+                     For order of module building see:
+                     https://maven.apache.org/guides/mini/guide-multiple-modules.html -->
+                <module>../versioning</module>
+                <module>../com.vmturbo.components.baseimage</module>
+
+                <!-- Infrequently changing dependencies. Essentially the equivalent of
+                     libraries from the XL developer's point of view.
+                     There may be non-maven dependencies between the development modules
+                     and these libraries, so keep them towards the top of the module list. -->
+                <module>../syslog</module>
+                <module>../db</module>
+                <module>../com.vmturbo.influxdb</module>
+                <module>../protoc-plugin-common</module>
+                <module>../protoc-spring-rest</module>
+                <module>../protoc-pojo-gen</module>
+                <module>../protoc-grpc-moles</module>
+                <!--
+                diags adds 5+ mins to build
+                <module>../diags</module>
+                -->
+                <module>../kafka</module>
+                <module>../zookeeper</module>
+                <module>../nginx</module>
+                <module>../hydra</module>
+                <module>../skupper</module>
+                <!-- Generate XL python bindings. -->
+                <module>../xl-python</module>
+                <!--
+                grafana adds 12+ mins to build
+                <module>../grafana</module>
+                -->
+
+                <!-- Include tests of kubernetes-related scripts. -->
+                <module>kubernetes</module>
+
+                <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.api.conversion</module>
+                <module>../com.vmturbo.licensing</module>
+                <module>../com.vmturbo.auth.api</module>
+                <module>../com.vmturbo.auth.component</module>
+                <module>../com.vmturbo.auth.test</module>
+                <module>../com.vmturbo.api.component</module>
+                <module>../com.vmturbo.search.api</module>
+                <module>../com.vmturbo.search.schema</module>
+                <module>../com.vmturbo.oid</module>
+                <module>../com.vmturbo.common.api</module>
+                <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.communication.matrix</module>
+                <module>../com.vmturbo.trax</module>
+                <module>../com.vmturbo.cloud.commitment.analysis</module>
+                <module>../com.vmturbo.cloud.common</module>
+                <module>../com.vmturbo.clustermgr</module>
+                <module>../com.vmturbo.clustermgr.api</module>
+                <module>../com.vmturbo.consul</module>
+                <module>../com.vmturbo.components</module>
+                <module>../com.vmturbo.components.common</module>
+                <module>../com.vmturbo.cost.calculation</module>
+                <module>../com.vmturbo.discovery.deserializer</module>
+                <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
+                <module>../com.vmturbo.sql.utils</module>
+                <module>../com.vmturbo.sql.utils.tests</module>
+                <module>../com.vmturbo.sql.test.utils</module>
+                <module>../com.vmturbo.components.api.root</module>
+                <module>../com.vmturbo.components.api</module>
+                <module>../com.vmturbo.components.api.test</module>
+                <module>../com.vmturbo.sample.component</module>
+                <module>../com.vmturbo.sample.component.api</module>
+                <module>../com.vmturbo.action.orchestrator.api</module>
+                <module>../com.vmturbo.market.component.api</module>
+                <module>../com.vmturbo.components.test.utilities</module>
+                <module>../com.vmturbo.action.orchestrator</module>
+                <module>../com.vmturbo.group.api</module>
+                <module>../com.vmturbo.group.component</module>
+                <module>../com.vmturbo.market.component</module>
+                <module>../com.vmturbo.kvstore</module>
+                <module>../com.vmturbo.repository.api</module>
+                <module>../com.vmturbo.repository.component</module>
+                <module>../com.vmturbo.ml.datastore</module>
+                <module>../com.vmturbo.extractor</module>
+                <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.extractor.api</module>
+                <module>../com.vmturbo.prometheus.config.manager</module>
+                <module>../com.vmturbo.search.metadata</module>
+                <module>../com.vmturbo.integrations.intersight</module>
+                <module>../com.vmturbo.stitching</module>
+                <module>../com.vmturbo.topology.event.library</module>
+                <module>../com.vmturbo.topology.graph</module>
+                <module>../com.vmturbo.topology.processor.api</module>
+                <module>../com.vmturbo.topology.processor</module>
+                <module>../com.vmturbo.history</module>
+                <module>../com.vmturbo.history.schema</module>
+                <module>../com.vmturbo.history.component.api</module>
+                <module>../com.vmturbo.kibitzer</module>
+                <module>../com.vmturbo.identity</module>
+                <module>../com.vmturbo.plan.orchestrator</module>
+                <module>../com.vmturbo.plan.orchestrator.api</module>
+                <module>../com.vmturbo.cost.component.api</module>
+                <module>../com.vmturbo.cost.component</module>
+                <module>../com.vmturbo.component.status.api</module>
+                <module>../com.vmturbo.system.notification.sender</module>
+                <module>../com.vmturbo.system.notification.receiver</module>
+                <module>../com.vmturbo.voltron</module>
+
+                <!-- Base probe components. These are NOT all the probes. -->
+                <module>../com.vmturbo.mediation.probe.parent</module>
+                <module>../com.vmturbo.mediation.client</module>
+                <module>../com.vmturbo.mediation.client.bootstrap</module>
+                <module>../com.vmturbo.mediation.webhook</module>
+
+                <!-- Mediation container with all the probes inside. -->
+                <module>../com.vmturbo.mediation.component</module>
+
+                <!-- Modules on which we want to be sure that testCompile succeeds. -->
+                <module>../com.vmturbo.components.test.performance</module>
+                <module>../com.vmturbo.systest</module>
+
+                <!-- module containing base classes for test classes appearing in multiple modules -->
+                <module>../com.vmturbo.testbases</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>team-cloud-paas</id>
+            <modules>
+                <module>../com.vmturbo.mediation.aws.billing.component</module>
+                <module>../com.vmturbo.mediation.aws.cloudbilling.component</module>
+                <module>../com.vmturbo.mediation.aws.component</module>
+                <module>../com.vmturbo.mediation.aws.cost.component</module>
+                <module>../com.vmturbo.mediation.azure.component</module>
+                <module>../com.vmturbo.mediation.azure.volumes.component</module>
+                <module>../com.vmturbo.mediation.azure.cost.component</module>
+                <module>../com.vmturbo.mediation.azure.ea.component</module>
+                <module>../com.vmturbo.mediation.azure.billing.component</module>
+                <module>../com.vmturbo.mediation.azure.sp.component</module>
+            </modules>
+        </profile>
+
         <!-- Release profile. Builds all the active components. -->
         <profile>
             <id>release</id>
