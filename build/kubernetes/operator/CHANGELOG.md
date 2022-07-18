@@ -3,6 +3,12 @@ T8C-Operator Changelog
 
 Operator Versions
 ---------------------
+42.13
+1. Bootstrap hydra startup with system secret that it needs and DSN
+
+42,12
+1. add helm charts to add volumes for kube secrets
+
 42.11
 1. Added hydra to the helm charts.
 

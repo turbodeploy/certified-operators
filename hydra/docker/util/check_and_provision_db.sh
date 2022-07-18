@@ -17,5 +17,6 @@ done
 if [ $1 = "migrate" ]
   then
   	echo "Running hydra auto migrate"
+    export DSN=`/util/hydra_set_secrets_to_env.py dsn`
     /usr/bin/hydra migrate sql -e --yes
 fi
