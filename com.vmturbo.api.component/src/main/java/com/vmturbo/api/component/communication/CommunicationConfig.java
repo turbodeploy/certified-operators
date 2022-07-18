@@ -208,14 +208,12 @@ public class CommunicationConfig {
     @Value("${useStableActionIdAsUuid:true}")
     private boolean useStableActionIdAsUuid;
 
-
     @Autowired
     private ApiWebsocketConfig websocketConfig;
 
     public long getRealtimeTopologyContextId() {
         return realtimeTopologyContextId;
     }
-
 
     /**
      * Flag that enables all action uuids come from the stable recommendation oid instead of the

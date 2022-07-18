@@ -38,6 +38,7 @@ import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
+import com.vmturbo.api.dto.entity.DiscoveredEntityApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
@@ -933,7 +934,25 @@ public Map<Long, BaseApiDTO> getSettingPolicyIdToBaseApiDto() {
         @Nonnull
         Optional<ServiceEntityApiDTO> getEntity(final long oid) {
             final ServiceEntityApiDTO entity = serviceEntityApiDTOs.get(oid);
-            return entity == null ? Optional.empty() : Optional.of(entity);
+            return Optional.ofNullable(entity);
+        }
+
+        @Nonnull
+        Optional<DiscoveredEntityApiDTO> getDiscoveredEntity(final long oid) {
+            DiscoveredEntityApiDTO result = null;
+            final ServiceEntityApiDTO serviceEntity = serviceEntityApiDTOs.get(oid);
+
+            if (serviceEntity != null) {
+                result = new DiscoveredEntityApiDTO();
+                result.setUuid(serviceEntity.getUuid());
+                result.setClassName(serviceEntity.getClassName());
+                result.setDisplayName(serviceEntity.getDisplayName());
+                result.setEnvironmentType(serviceEntity.getEnvironmentType());
+                result.setDiscoveredBy(serviceEntity.getDiscoveredBy());
+                result.setVendorIds(serviceEntity.getVendorIds());
+            }
+
+            return Optional.ofNullable(result);
         }
 
         @Nonnull Optional<ApiPartialEntity> getDatacenterFromOid(@Nonnull Long entityOid) {

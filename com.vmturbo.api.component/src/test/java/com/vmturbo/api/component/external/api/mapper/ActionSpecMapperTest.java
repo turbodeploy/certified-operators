@@ -80,6 +80,7 @@ import com.vmturbo.api.dto.action.CloudProvisionActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudSuspendActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.OnPremResizeActionDetailsApiDTO;
+import com.vmturbo.api.dto.entity.DiscoveredEntityApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
@@ -230,6 +231,7 @@ public class ActionSpecMapperTest {
 
     private ActionSpecMapper mapper;
     private ActionSpecMapper mapperWithStableIdEnabled;
+    private ActionSpecMapper mapperWithDiscoveredEntityApiDTOEnabled;
 
     private GroupExpander groupExpander;
     private GroupServiceBlockingStub groupServiceGrpc;
@@ -395,6 +397,19 @@ public class ActionSpecMapperTest {
             cloudSavingsDetailsDtoConverter,
             groupExpander,
             true);
+
+        mapperWithDiscoveredEntityApiDTOEnabled = new ActionSpecMapper(
+                actionSpecMappingContextFactory,
+                reservedInstanceMapper,
+                riBuyContextFetchServiceStub,
+                costServiceBlockingStub,
+                reservedInstanceUtilizationCoverageServiceBlockingStub,
+                buyRiScopeHandler,
+                REAL_TIME_TOPOLOGY_CONTEXT_ID,
+                uuidMapper,
+                cloudSavingsDetailsDtoConverter,
+                groupExpander,
+                true);
     }
 
     /**
@@ -1967,6 +1982,52 @@ public class ActionSpecMapperTest {
         assertEquals(ACTION_STABLE_IMPACT_ID,
             stableDisabledAndLiveMarket.getActionImpactID().longValue());
 
+    }
+
+    /**
+     * Test to verify the DiscoveredEntiyApiDTO is used to populate currentLocation and newLocation in the ActionApiDTO.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testDiscoveredEntityApiDTOIsInUse() throws Exception {
+        final long targetId = 1;
+        final ActionInfo resizeInfo = ActionInfo.newBuilder()
+                .setResize(Resize.newBuilder()
+                    .setTarget(ApiUtilsTest.createActionEntity(targetId))
+                    .setOldCapacity(9)
+                    .setNewCapacity(10)
+                    .setCommodityType(CPU.getCommodityType()))
+            .build();
+
+        Explanation resize = Explanation.newBuilder()
+            .setResize(ResizeExplanation.newBuilder()
+                .setDeprecatedStartUtilization(0.2f)
+                .setDeprecatedEndUtilization(0.4f).build())
+            .build();
+
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+                new TestEntity(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity(DC1_NAME, DATACENTER1_ID, EntityType.DATACENTER_VALUE),
+                new TestEntity(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE))));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(targetId)))
+            .thenReturn(req);
+
+        final ActionApiDTO actionApiDTO =
+                mapperWithDiscoveredEntityApiDTOEnabled.mapActionSpecToActionApiDTO(
+                        buildActionSpec(resizeInfo, resize), CONTEXT_ID);
+
+        // Verify that we set the context ID on the request.
+        verify(req).contextId(CONTEXT_ID);
+
+        assertEquals(ENTITY_TO_RESIZE_NAME, actionApiDTO.getTarget().getDisplayName());
+        assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
+
+        assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
+        assertEquals(DC1_NAME, actionApiDTO.getNewLocation().getDisplayName());
+
+        assertTrue(actionApiDTO.getCurrentLocation() instanceof DiscoveredEntityApiDTO);
+        assertTrue(actionApiDTO.getNewLocation() instanceof DiscoveredEntityApiDTO);
     }
 
     /**

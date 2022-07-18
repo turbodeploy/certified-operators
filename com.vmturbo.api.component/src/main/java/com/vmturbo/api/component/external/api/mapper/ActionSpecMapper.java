@@ -1099,15 +1099,16 @@ public class ActionSpecMapper {
                                       @Nonnull ActionSpecMappingContext context,
                                       boolean newLocation) {
         context.getDatacenterFromOid(oid)
-            .ifPresent(apiPartialEntity -> {
-                context.getEntity(apiPartialEntity.getOid()).ifPresent(baseApiDTO -> {
-                    if (newLocation) {
-                        actionApiDTO.setNewLocation(baseApiDTO);
-                    } else {
-                        actionApiDTO.setCurrentLocation(baseApiDTO);
-                    }
-                });
-            });
+            .ifPresent(apiPartialEntity ->
+                context.getDiscoveredEntity(apiPartialEntity.getOid()).ifPresent(
+                        discoveredEntityDTO -> {
+                            if (newLocation) {
+                                actionApiDTO.setNewLocation(discoveredEntityDTO);
+                            } else {
+                                actionApiDTO.setCurrentLocation(discoveredEntityDTO);
+                            }
+                        })
+            );
     }
 
     @Nonnull
@@ -1681,7 +1682,7 @@ public class ActionSpecMapper {
     private void setCurrentAndNewLocation(long targetUuid, ActionSpecMappingContext context, ActionApiDTO actionApiDTO) {
         ApiPartialEntity region = context.getRegion(targetUuid);
         if (region != null) {
-            context.getEntity(region.getOid()).ifPresent(regionDTO -> {
+            context.getDiscoveredEntity(region.getOid()).ifPresent(regionDTO -> {
                 actionApiDTO.setCurrentLocation(regionDTO);
                 actionApiDTO.setNewLocation(regionDTO);
             });
@@ -1692,6 +1693,7 @@ public class ActionSpecMapper {
         if (CollectionUtils.isEmpty(compoundActions)) {
             return;
         }
+
         Optional<ServiceEntityApiDTO> newLocation = compoundActions
                 .stream()
                 .map(ActionApiDTO::getNewEntity)
@@ -1724,7 +1726,10 @@ public class ActionSpecMapper {
                     null, null, null);
             actionApiDTO.setReservedInstance(riApiDTO);
             actionApiDTO.setTarget(getServiceEntityDTO(context, buyRI.getMasterAccount()));
-            actionApiDTO.setCurrentLocation(getServiceEntityDTO(context, buyRI.getRegion()));
+            // set current/new location as DiscoveredEntityDTO
+            ApiPartialEntity region = context.getRegion(buyRI.getRegion().getId());
+            context.getDiscoveredEntity(region.getOid()).ifPresent(actionApiDTO::setCurrentLocation);
+
             // For less brittle UI integration, we set the current entity to an empty object.
             // The UI sometimes checks the validity of the "currentEntity.uuid" field,
             // which throws an error if current entity is unset.
