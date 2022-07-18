@@ -18,6 +18,7 @@ import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -109,6 +110,12 @@ public class AuthProvider extends AuthProviderBase {
      */
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix_;
+
+    /**
+     * Service token expiration in seconds for jwt token.
+     */
+    @Value("${serviceTokenExpirationInSeconds:3600}")
+    private int serviceTokenExpirationInSeconds;
 
     /**
      * We may sometimes call the group service to verify scope groups.
@@ -210,6 +217,29 @@ public class AuthProvider extends AuthProviderBase {
                                                          final @Nullable List<Long> scopeGroups,
                                                          final @Nonnull String ipAddress,
                                                          final @Nonnull AuthUserDTO.PROVIDER provider) {
+        return generateToken(userName, uuid, roles, scopeGroups, ipAddress, provider, 0);
+    }
+
+    /**
+     * Generates an AUTH token for the specified user with remote IP address.
+     *
+     * @param userName  The user name.
+     * @param uuid      The UUID.
+     * @param roles     The role names.
+     * @param scopeGroups The groups in the scope to which the user has access
+     * @param ipAddress The remote IP address.
+     * @param provider The login provider.
+     * @param expirySeconds expiration of token.
+     * @return The generated JWT token.
+     */
+    @VisibleForTesting
+    public @Nonnull JWTAuthorizationToken generateToken(final @Nonnull String userName,
+                                                         final @Nonnull String uuid,
+                                                         final @Nonnull List<String> roles,
+                                                         final @Nullable List<Long> scopeGroups,
+                                                         final @Nonnull String ipAddress,
+                                                         final @Nonnull AuthUserDTO.PROVIDER provider,
+                                                         final int expirySeconds) {
         final PrivateKey privateKey = keyProvider.getPrivateKey();
         JwtBuilder jwtBuilder = Jwts.builder()
                 .setSubject(userName)
@@ -223,10 +253,14 @@ public class AuthProvider extends AuthProviderBase {
         if (CollectionUtils.isNotEmpty(scopeGroups)) {
             jwtBuilder.claim(SCOPE_CLAIM, scopeGroups);
         }
+        if (expirySeconds > 0) {
+            jwtBuilder.setExpiration(new Date(System.currentTimeMillis() + (1000 * expirySeconds)));
+        }
         String compact = jwtBuilder.compact();
 
         return new JWTAuthorizationToken(compact);
     }
+
 
     /**
      * Retrieves the User object in JSON form from the KV store.
@@ -638,7 +672,7 @@ public class AuthProvider extends AuthProviderBase {
         AuthServiceDTO authService = (AuthServiceDTO)auth.getPrincipal();
         JWTAuthorizationToken authToken = generateToken(authService.getName(), authService.getUuid(),
             authService.getRoles().stream().map(role -> role.toString()).collect(Collectors.toList()),
-            Lists.newArrayList(), authService.getIpAddress(), PROVIDER.LDAP);
+            Lists.newArrayList(), authService.getIpAddress(), PROVIDER.LDAP, serviceTokenExpirationInSeconds);
         authService.setInternalToken(authToken.getCompactRepresentation());
         AuditLogUtils.logSecurityAudit(AuditAction.AUTHORIZE_PROBE,
             EnvironmentUtils.getOptionalEnvProperty(BaseVmtComponent.PROP_INSTANCE_ID).orElse("auth")
