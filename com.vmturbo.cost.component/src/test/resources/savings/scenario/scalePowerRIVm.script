@@ -1,0 +1,8 @@
+# Scale Down with 80% RI , Power OFF and ON , RI coverage on the VM
+start 6-25 0:00
+0 0:00 create vm-1
+0 7:00 resize vm-1 4.0 2.0 0.8
+1 12:00 power vm-1 off
+1 14:00 power vm-1 on
+2 10:00 ri_coverage vm-1 0
+4 0:00 stop

@@ -1,0 +1,79 @@
+[
+  {
+    "eventType": "NOP",
+    "uuid": "vm-1",
+    "timestamp": 1656115200000,
+    "expirationTimestamp": 1719273600000
+  },
+  {
+    "eventType": "RESIZE",
+    "uuid": "vm-1",
+    "sourceOnDemandRate": 12,
+    "destinationOnDemandRate": 11,
+    "expectedCloudCommitment": 0,
+    "timestamp": 1656140400000,
+    "expirationTimestamp": 1719298800000
+  },
+  {
+    "eventType": "RI_COVERAGE",
+    "uuid": "vm-1",
+    "expectedCloudCommitment": 1,
+    "timestamp": 1656331200000,
+    "expirationTimestamp": 1719489600000
+  },
+  {
+    "eventType": "RESIZE",
+    "uuid": "vm-1",
+    "sourceOnDemandRate": 12,
+    "destinationOnDemandRate": 11,
+    "expectedCloudCommitment": 1,
+    "timestamp": 1656399600000,
+    "expirationTimestamp": 1719558000000
+  },
+  {
+    "eventType": "RI_COVERAGE",
+    "uuid": "vm-1",
+    "expectedCloudCommitment": 0,
+    "timestamp": 1656504000000,
+    "expirationTimestamp": 1719662400000
+  },
+  {
+    "eventType": "RESIZE",
+    "uuid": "vm-1",
+    "sourceOnDemandRate": 11,
+    "destinationOnDemandRate": 15,
+    "expectedCloudCommitment": 0,
+    "timestamp": 1656572400000,
+    "expirationTimestamp": 1719730800000
+  },
+  {
+    "eventType": "RI_COVERAGE",
+    "uuid": "vm-1",
+    "expectedCloudCommitment": 1,
+    "timestamp": 1656676800000,
+    "expirationTimestamp": 1719835200000
+  },
+  {
+    "eventType": "RESIZE",
+    "uuid": "vm-1",
+    "sourceOnDemandRate": 11,
+    "destinationOnDemandRate": 15,
+    "expectedCloudCommitment": 1,
+    "timestamp": 1656745200000,
+    "expirationTimestamp": 1719903600000
+  },
+  {
+    "eventType": "RI_COVERAGE",
+    "uuid": "vm-1",
+    "expectedCloudCommitment": 0,
+    "timestamp": 1656849600000,
+    "expirationTimestamp": 1720008000000
+  },
+  {
+    "eventType": "STOP",
+    "uuid": "0",
+    "purgeState": false,
+    "timestamp": 1656892800000,
+    "expirationTimestamp": 1720051200000
+  }
+]
