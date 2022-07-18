@@ -1,0 +1,5 @@
+# Delete a volume
+start 6-25 0:00
+0 0:00 create vol
+3 8:00 delvol vol 0.05
+5 10:00 stop

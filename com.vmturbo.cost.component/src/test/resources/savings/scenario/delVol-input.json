@@ -1,0 +1,22 @@
+[
+  {
+    "eventType": "NOP",
+    "uuid": "vol",
+    "timestamp": 1656115200000,
+    "expirationTimestamp": 1719273600000
+  },
+  {
+    "eventType": "DELVOL",
+    "uuid": "vol",
+    "sourceOnDemandRate": 0.05,
+    "timestamp": 1656403200000,
+    "expirationTimestamp": 1719561600000
+  },
+  {
+    "eventType": "STOP",
+    "uuid": "0",
+    "purgeState": false,
+    "timestamp": 1656583200000,
+    "expirationTimestamp": 1719741600000
+  }
+]

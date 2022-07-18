@@ -1,0 +1,45 @@
+[
+  {
+    "eventType": "NOP",
+    "uuid": "vm-1",
+    "timestamp": 1656115200000,
+    "expirationTimestamp": 1719273600000
+  },
+  {
+    "eventType": "RESIZE",
+    "uuid": "vm-1",
+    "sourceOnDemandRate": 4,
+    "destinationOnDemandRate": 2,
+    "expectedCloudCommitment": 0.8,
+    "timestamp": 1656140400000,
+    "expirationTimestamp": 1719298800000
+  },
+  {
+    "eventType": "POWER_STATE",
+    "uuid": "vm-1",
+    "state": false,
+    "timestamp": 1656244800000,
+    "expirationTimestamp": 1719403200000
+  },
+  {
+    "eventType": "POWER_STATE",
+    "uuid": "vm-1",
+    "state": true,
+    "timestamp": 1656252000000,
+    "expirationTimestamp": 1719410400000
+  },
+  {
+    "eventType": "RI_COVERAGE",
+    "uuid": "vm-1",
+    "expectedCloudCommitment": 0,
+    "timestamp": 1656324000000,
+    "expirationTimestamp": 1719482400000
+  },
+  {
+    "eventType": "STOP",
+    "uuid": "0",
+    "purgeState": false,
+    "timestamp": 1656460800000,
+    "expirationTimestamp": 1719619200000
+  }
+]

@@ -1,0 +1,31 @@
+[
+  {
+    "eventType": "NOP",
+    "uuid": "vol",
+    "timestamp": 1656374400000,
+    "expirationTimestamp": 1719532800000
+  },
+  {
+    "eventType": "RESIZE",
+    "uuid": "vol",
+    "sourceOnDemandRate": 0.1,
+    "destinationOnDemandRate": 0.15,
+    "expectedCloudCommitment": 0,
+    "timestamp": 1656504000000,
+    "expirationTimestamp": 1719662400000
+  },
+  {
+    "eventType": "DELVOL",
+    "uuid": "vol",
+    "sourceOnDemandRate": 0.15,
+    "timestamp": 1656669600000,
+    "expirationTimestamp": 1719828000000
+  },
+  {
+    "eventType": "STOP",
+    "uuid": "0",
+    "purgeState": false,
+    "timestamp": 1656842400000,
+    "expirationTimestamp": 1720000800000
+  }
+]

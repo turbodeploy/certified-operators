@@ -1,0 +1,9 @@
+start 5-30 0:00
+0 0:00 create vm-1
+# Scale Up the VM
+3 10:00 resize vm-1 5.0 10.0
+# Revert the Resize Action
+5 16:00 revert vm-1
+# Scale Down the VM
+8 10:00 resize vm-1 5.0 3.0
+10 10:00 stop

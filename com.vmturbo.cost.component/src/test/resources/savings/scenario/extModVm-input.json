@@ -1,0 +1,32 @@
+[
+  {
+    "eventType": "NOP",
+    "uuid": "vm-1",
+    "timestamp": 1654819200000,
+    "expirationTimestamp": 1717977600000
+  },
+  {
+    "eventType": "RESIZE",
+    "uuid": "vm-1",
+    "sourceOnDemandRate": 15,
+    "destinationOnDemandRate": 14,
+    "expectedCloudCommitment": 0,
+    "timestamp": 1655114400000,
+    "expirationTimestamp": 1718272800000
+  },
+  {
+    "eventType": "EXTMOD",
+    "uuid": "vm-1",
+    "sourceOnDemandRate": 14,
+    "destinationOnDemandRate": 12,
+    "timestamp": 1655726400000,
+    "expirationTimestamp": 1718884800000
+  },
+  {
+    "eventType": "STOP",
+    "uuid": "0",
+    "purgeState": false,
+    "timestamp": 1655892000000,
+    "expirationTimestamp": 1719050400000
+  }
+]
