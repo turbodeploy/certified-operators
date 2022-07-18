@@ -304,7 +304,7 @@ public class DefaultEntityCloneEditor {
      * @param cloneInfo the clone change info
      * @return the display name of the cloned entity
      */
-    private String getCloneDisplayName(@Nonnull final TopologyEntityImpl entityImpl,
+    protected String getCloneDisplayName(@Nonnull final TopologyEntityImpl entityImpl,
                                        @Nonnull final CloneInfo cloneInfo) {
         return cloneInfo.getSourceCluster()
                 .map(TopologyEntity.Builder::getDisplayName)
@@ -365,8 +365,18 @@ public class DefaultEntityCloneEditor {
         entity.getTopologyEntityImpl().getConnectedEntityListImplList()
                 .forEach(connectedEntityImpl -> {
                     if (connectedEntityImpl.getConnectionType().getNumber() == connectionType) {
-                        final Long clonedEntityId = cloneContext.getClonedEntityId(
+                        Long clonedEntityId = cloneContext.getClonedEntityId(
                                 cloneInfo.getCloneCounter(), connectedEntityImpl.getConnectedEntityId());
+                        // When changing the number of replicas (pods and containers) of a
+                        // WorkloadController as part of a Workload Migration Plan, we mutate the
+                        // cloneCounter of each replica, but the workloadController and
+                        // containerSpec entities are only cloned once. So we need to specify a
+                        // cloneCounter of 0 to locate the cloned workloadController and cloned
+                        // containerSpec to establish the connection.
+                        if (clonedEntityId == null && cloneInfo.getCloneCounter() > 0) {
+                            clonedEntityId = cloneContext.getClonedEntityId(
+                                0, connectedEntityImpl.getConnectedEntityId());
+                        }
                         if (clonedEntityId == null) {
                             return;
                         }
