@@ -41,6 +41,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.PlanExportResult;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.platform.sdk.probe.TargetOperationException;
@@ -90,6 +91,7 @@ public class RemoteMediationImpl implements IRemoteMediation {
         Mockito.when(targetMock.getSerializedIdentifyingFields()).thenReturn(target.getTargetId());
         final long probeId = getProbeId(target.getProbe());
         Mockito.when(targetMock.getProbeId()).thenReturn(probeId);
+        Mockito.when(targetMock.getProbeInfo()).thenReturn(ProbeInfo.getDefaultInstance());
         return targetMock;
     }
 

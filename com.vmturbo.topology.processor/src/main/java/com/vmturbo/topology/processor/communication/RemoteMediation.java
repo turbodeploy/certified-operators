@@ -200,15 +200,22 @@ public interface RemoteMediation {
     /**
      * Remove message handlers and notify mediation clients about target removal.
      *
-     * @param probeId probe identifier
-     * @param targetId target identifier
+     * @param target the target which was removed
      * @param request request to send to remote containers
      * @throws ProbeException if probe requested does not exist.
      * @throws CommunicationException if some communication error occurred
      * @throws InterruptedException if thread is interrupted while sending request.
      */
-    void handleTargetRemoval(long probeId, long targetId, @Nonnull TargetUpdateRequest request)
+    void handleTargetRemoval(@Nonnull Target target, @Nonnull TargetUpdateRequest request)
                     throws CommunicationException, InterruptedException, ProbeException;
+
+    /**
+     * Handle the addition of a target, like assigning a transport to the target.
+     *
+     * @param target the target which was added
+     * @throws ProbeException if probe requested does not exist
+     */
+    default void handleTargetAddition(Target target) throws ProbeException {}
 
     /**
      * Check for expired operation handlers, expiring and removing any that have

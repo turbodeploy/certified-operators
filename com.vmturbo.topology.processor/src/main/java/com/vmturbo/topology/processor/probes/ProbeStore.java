@@ -228,4 +228,12 @@ public interface ProbeStore extends RequiresDataInitialization {
      */
     @Nonnull
     Optional<ProbeRegistrationDescription> getProbeRegistrationById(final long id);
+
+    /**
+     * Get the channel for the given transport.
+     *
+     * @param transport the transport to get channel for
+     * @return channel for given transport or empty
+     */
+    Optional<String> getChannel(final ITransport<MediationServerMessage, MediationClientMessage> transport);
 }
