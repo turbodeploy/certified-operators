@@ -40,6 +40,12 @@ start_hydra() {
   echo "Starting hydra"
   exec /usr/bin/hydra serve all --dangerous-force-http --config /etc/config/config.yaml
 }
+export SECRETS_SYSTEM=`/util/hydra_set_secrets_to_env.py secret`
+export SECRETS_COOKIE=$SECRETS_SYSTEM
+export
+if [[ -z ${DSN} ]]; then
+  export DSN=`/util/hydra_set_secrets_to_env.py dsn`
+fi
 
 /util/check_and_provision_db.sh entrypoint > >(${LOGGER_COMMAND}) 2>&1
 
