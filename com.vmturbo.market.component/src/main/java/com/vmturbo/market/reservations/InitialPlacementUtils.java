@@ -633,53 +633,6 @@ public final class InitialPlacementUtils {
     }
 
     /**
-     * Updates the non access commodities for the newly added traders.
-     * Since the newly added traders are added to historical economy from the real time economy, its possible for the
-     * commodities on the newly added traders to have a comm-spec number different from the comm-spec number for the
-     * same commodity in the historical cache.
-     * So this method removes such non access commodities on the newly added traders, and then the correct
-     * comm-spec numbers are looked up in the historicalCachedCommTypeMap and added to the newly added traders.
-     *
-     * @param realtimeCachedEconomy real time cached economy
-     * @param realtimeCachedCommTypeMap real time comm type to comm spec map
-     * @param historicalCachedEconomy historical cached economy
-     * @param historicalCachedCommTypeMap historical comm type to comm spec map
-     * @param newlyAddedTraders newly added traders
-     */
-    public static void updateNonAccessCommodities(@Nonnull final Economy realtimeCachedEconomy,
-            @Nonnull final BiMap<CommodityType, Integer> realtimeCachedCommTypeMap,
-            @Nonnull final Economy historicalCachedEconomy,
-            @Nonnull final BiMap<CommodityType, Integer> historicalCachedCommTypeMap,
-            List<Trader> newlyAddedTraders) {
-
-        // 1. get nonAccessCommoditiesByTraderOid in historicalCachedEconomy/realtimeCachedEconomy. Both have same commodities.
-        // using historicalCachedCommTypeMap.. If historicalCachedCommTypeMap does not have an entry
-        // get the entry in realtimeCachedCommTypeMap add it in the
-        // historicalCachedCommTypeMap.
-        Map<Long, List<UpdateCommodityWrapper>> nonAccessCommoditiesByTraderOid =
-                findNonAccessCommByTrader(newlyAddedTraders, realtimeCachedCommTypeMap, historicalCachedCommTypeMap);
-        // 1. delete existing commodities..
-        for (Trader t : newlyAddedTraders) {
-            Set<CommoditySpecification> removeCommSpecs = new HashSet<>();
-            for (CommoditySpecification cs : t.getBasketSold()) {
-                // the trader currently is selling commodity based on realtimeCachedCommTypeMap
-                CommodityType realTimeCommType = realtimeCachedCommTypeMap.inverse()
-                        .get(cs.getType());
-                if (realTimeCommType != null && !realTimeCommType.hasKey()) {
-                    removeCommSpecs.add(cs);
-                }
-            }
-            removeCommSpecs.stream().forEach(cs -> {
-                // This will remove the commSpec from the trader's basket and the commoditySold
-                // from the corresponding index
-                t.removeCommoditySold(cs);
-            });
-        }
-        attachNewCommodities(nonAccessCommoditiesByTraderOid, historicalCachedEconomy, realtimeCachedCommTypeMap,
-                historicalCachedCommTypeMap, false);
-    }
-
-    /**
      * Update historical economy traders' access commodities that can be changed in real time.
      *
      * @param realtimeCachedEconomy real time economy.
@@ -704,7 +657,7 @@ public final class InitialPlacementUtils {
             }
             oldAccessComm.addAll(removeCommSpecs);
             removeCommSpecs.stream().forEach(cs -> {
-                // This will remove the commSpec from the trader's basket and the commoditySold from the corresponding index
+                t.getBasketSold().remove(cs);
                 t.removeCommoditySold(cs);
             });
         }
@@ -713,8 +666,8 @@ public final class InitialPlacementUtils {
         Map<Long, List<UpdateCommodityWrapper>> accessCommoditiesByTraderOid =
                 findAccessCommByTrader(realtimeCachedEconomy.getTraders(), realtimeCachedCommTypeMap);
         // Add all new access commodities based on realtime in historical economy cache and historicalCachedCommTypeMap.
-        attachNewCommodities(accessCommoditiesByTraderOid, historicalCachedEconomy, realtimeCachedCommTypeMap,
-                historicalCachedCommTypeMap, true);
+        attachNewAccessComm(accessCommoditiesByTraderOid, historicalCachedEconomy, realtimeCachedCommTypeMap,
+                historicalCachedCommTypeMap);
         logger.info(logPrefix + " historical economy cache finished commodity update on "
                 + accessCommoditiesByTraderOid.size() + " entities");
     }
@@ -722,20 +675,18 @@ public final class InitialPlacementUtils {
     /**
      * Add access commodities on each trader.
      *
-     * @param commoditiesByTraderOid a map of commodities for each trader.
+     * @param accessCommoditiesByTraderOid a map of access commodities for each trader.
      * @param economy the economy contains the traders.
      * @param realtimeCachedCommTypeMap the real time commodity type to commoditySpecification's type mapping.
      * @param historicalCachedCommTypeMap the historical commodity type to commoditySpecification's type mapping.
-     * @param updateSpecMap boolean to specify if the spec map has to be updated.
      */
-    public static void attachNewCommodities(
-            @Nonnull final Map<Long, List<UpdateCommodityWrapper>> commoditiesByTraderOid,
+    public static void attachNewAccessComm(
+            @Nonnull final Map<Long, List<UpdateCommodityWrapper>> accessCommoditiesByTraderOid,
             @Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> realtimeCachedCommTypeMap,
-            @Nonnull final BiMap<CommodityType, Integer> historicalCachedCommTypeMap,
-            boolean updateSpecMap) {
+            @Nonnull final BiMap<CommodityType, Integer> historicalCachedCommTypeMap) {
         for (Map.Entry<Long, List<UpdateCommodityWrapper>> entry
-                : commoditiesByTraderOid.entrySet()) {
+                : accessCommoditiesByTraderOid.entrySet()) {
             Trader trader = economy.getTopology().getTradersByOid().get(entry.getKey());
             if (trader == null) {
                 logger.warn("Trader with oid {} in realtime does not exist in historical economy.",
@@ -746,56 +697,14 @@ public final class InitialPlacementUtils {
                 CommoditySoldWithSettings newCommSold = (CommoditySoldWithSettings)trader
                         .addCommoditySold(comm.commSpec);
                 cloneCommoditiesSoldAttributes(comm.commSold, newCommSold);
-                if (updateSpecMap) {
-                    // Add the new commodity into the historicalCachedCommTypeMap immediately.
-                    CommodityType realtimeCommType = realtimeCachedCommTypeMap.inverse().get(comm.commSpec.getType());
-                    if (historicalCachedCommTypeMap.inverse().containsKey(comm.commSpec.getType())) {
-                        historicalCachedCommTypeMap.inverse().remove(comm.commSpec.getType());
-                    }
-                    historicalCachedCommTypeMap.put(realtimeCommType, comm.commSpec.getType());
+                // Add the new commodity into the historicalCachedCommTypeMap immediately.
+                CommodityType realtimeCommType = realtimeCachedCommTypeMap.inverse().get(comm.commSpec.getType());
+                if (historicalCachedCommTypeMap.inverse().containsKey(comm.commSpec.getType())) {
+                    historicalCachedCommTypeMap.inverse().remove(comm.commSpec.getType());
                 }
+                historicalCachedCommTypeMap.put(realtimeCommType, comm.commSpec.getType());
             }
         }
-    }
-
-    /**
-     * Find non access commodities of each trader.
-     *
-     * @param traders a list of traders.
-     * @param realtimeCachedCommTypeMap real time commodity type to commoditySpecification's type mapping.
-     * @param historicalCachedCommTypeMap historical commodity type to commoditySpecification's type mapping.
-     * @return a map of access commodities for each trader.
-     */
-    public static Map<Long, List<UpdateCommodityWrapper>> findNonAccessCommByTrader(
-            @Nonnull final List<Trader> traders,
-            @Nonnull final BiMap<CommodityType, Integer> realtimeCachedCommTypeMap,
-            @Nonnull final BiMap<CommodityType, Integer> historicalCachedCommTypeMap) {
-
-        // 1. get nonAccessCommoditiesByTraderOid in historicalCachedEconomy/realtimeCachedEconomy. Both have same commodities.
-        // using historicalCachedCommTypeMap.. If historicalCachedCommTypeMap does not have an entry
-        // get the entry in realtimeCachedCommTypeMap add it in the
-        // historicalCachedCommTypeMap with 50000 + value.
-
-        Map<Long, List<UpdateCommodityWrapper>> nonAccessCommoditiesByTraderOid = new HashMap<>();
-        for (Trader t : traders) {
-            for (int i = 0; i < t.getBasketSold().size(); i++) {
-                CommoditySpecification realTimeCommSpec = t.getBasketSold().get(i);
-                CommodityType realTimeCommType = realtimeCachedCommTypeMap.inverse().get(realTimeCommSpec.getType());
-                if (realTimeCommType != null && !realTimeCommType.hasKey()) {
-                    // a commodity with no key is considered as a non access comm
-                    Integer historicalCommSpecType = historicalCachedCommTypeMap.get(realTimeCommType);
-                    if (historicalCommSpecType != null) {
-                        CommoditySpecification histCommSpec = new CommoditySpecification(historicalCommSpecType,
-                                realTimeCommType.getType());
-                        histCommSpec.setDebugInfoNeverUseInCode(realTimeCommSpec.getDebugInfoNeverUseInCode());
-                        nonAccessCommoditiesByTraderOid.computeIfAbsent(t.getOid(), oid -> new ArrayList<>())
-                                .add(new UpdateCommodityWrapper(histCommSpec,
-                                        (CommoditySoldWithSettings)t.getCommoditiesSold().get(i)));
-                    }
-                }
-            }
-        }
-        return nonAccessCommoditiesByTraderOid;
     }
 
     /**
