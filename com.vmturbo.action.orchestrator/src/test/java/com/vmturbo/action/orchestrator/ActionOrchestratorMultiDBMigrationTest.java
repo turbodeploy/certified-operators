@@ -15,16 +15,27 @@ public class ActionOrchestratorMultiDBMigrationTest extends MultiDBMigrationTest
      * This is intended to NEVER be changed, with the exception of very few occasions. If that happens, we need to make sure
      * to update both the number, and put the new MariaDB migration name.
      */
-    private static final Pair<Integer, String> INITIAL_OFFSET = new Pair<>(24, "V1_24__workflow_primary_key.sql");
-    private static final String DEFAULT_PATH = "src/main/resources/db/migration";
-    private static final String MARIA_DB_PATH = "src/main/resources/db/migrations/actionorchestrator/mariadb";
-    private static final String POSTGRES_PATH = "src/main/resources/db/migrations/actionorchestrator/postgres";
+    private static final Pair<Integer, String> SQL_INITIAL_OFFSET = new Pair<>(24, "V1_24__workflow_primary_key.sql");
+    private static final String SQL_DEFAULT_PATH = "src/main/resources/db/migration";
+    private static final String SQL_MARIA_DB_PATH = "src/main/resources/db/migrations/actionorchestrator/mariadb";
+    private static final String SQL_POSTGRES_PATH = "src/main/resources/db/migrations/actionorchestrator/postgres";
+
+    /**
+     * This initial offset represents the last mariadb Java migration that was implemented before introducing Postgres.
+     * It follows the same change policy as the above initial offset.
+     */
+    private static final Pair<Integer, String> JAVA_INITIAL_OFFSET = new Pair<>(0, "");
+    private static final String JAVA_DEFAULT_PATH = "src/main/java/db/migration";
+    private static final String JAVA_MARIA_DB_PATH = "src/main/java/db/migrations/actionorchestrator/mariadb";
+    private static final String JAVA_POSTGRES_PATH = "src/main/java/db/migrations/actionorchestrator/postgres";
 
     /**
      * Test that the number of migrations for the supported databases match.
      */
     @Test
     public void testMigrations() {
-        testMultiDBMigrations(INITIAL_OFFSET.first, DEFAULT_PATH, MARIA_DB_PATH, POSTGRES_PATH);
+        testMultiDBMigrations(SQL_INITIAL_OFFSET.first, SQL_DEFAULT_PATH, SQL_MARIA_DB_PATH,
+                SQL_POSTGRES_PATH, JAVA_INITIAL_OFFSET.first, JAVA_DEFAULT_PATH, JAVA_MARIA_DB_PATH,
+                JAVA_POSTGRES_PATH);
     }
 }
