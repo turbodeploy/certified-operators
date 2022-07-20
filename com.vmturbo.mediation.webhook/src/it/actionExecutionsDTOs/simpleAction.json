@@ -39,7 +39,7 @@
     "id": "Webhook",
     "property": [{
       "name": "URL",
-      "value": "http://localhost:5000/probeHarnessTest"
+      "value": "http://mockserver:5000/probeHarnessTest"
     }, {
       "name": "TEMPLATED_ACTION_BODY",
       "value": "\"Test Payload\""
