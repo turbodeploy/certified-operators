@@ -64,6 +64,7 @@
         <it.suite.name>${artifactId}</it.suite.name>
         <it.test.directory>/usr/src/project/it</it.test.directory>
         <it.tag></it.tag>
+        <it.docker.dir></it.docker.dir>
         <it.skip.pull>False</it.skip.pull>
         <it.debug>False</it.debug>
     </properties>
@@ -204,6 +205,7 @@
                                             <ROBOT_TAG>${it.tag}</ROBOT_TAG>
                                             <DOCKER_USERNAME>${docker.pull.username}</DOCKER_USERNAME>
                                             <DOCKER_PASSWORD>${docker.pull.password}</DOCKER_PASSWORD>
+                                            <DOCKER_PROJECT_DIR>${it.docker.dir}</DOCKER_PROJECT_DIR>
                                             <SKIP_PULL>${it.skip.pull}</SKIP_PULL>
                                             <DEBUG_MODE>${it.debug}</DEBUG_MODE>
                                             <TEST_PROJECT_DIR>${project.build.directory}</TEST_PROJECT_DIR>

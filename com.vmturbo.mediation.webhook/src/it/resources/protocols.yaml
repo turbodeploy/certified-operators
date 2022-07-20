@@ -51,7 +51,7 @@ http:
          method: GET
          status: 200
 grpc:
-  address: 127.0.0.1
+  address: 0.0.0.0
   ports:
     50051:
       - Greeter:

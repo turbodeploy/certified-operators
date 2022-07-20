@@ -16,6 +16,9 @@
     <properties>
         <pre-integration-test-phase>pre-integration-test</pre-integration-test-phase>
         <integration-test-phase>integration-test</integration-test-phase>
+        <it.docker.dir>/usr/src/project/it/docker</it.docker.dir>
+        <it.debug>False</it.debug>
+        <it.suite.name>webhook_it</it.suite.name>
     </properties>
 
     <build>

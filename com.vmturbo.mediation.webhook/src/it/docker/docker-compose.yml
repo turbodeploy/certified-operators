@@ -1,0 +1,33 @@
+version: '3.9'
+
+networks:
+  # named network - assign that to each service
+  default:
+    ipam:
+      driver: default
+
+services:
+
+  mockserver:
+    image: registry.turbonomic.com/turbonomic/mockserver:1.0.0
+    ports:
+      - 5000:5000
+    volumes:
+      - ${TEST_PROJECT_DIR}:/usr/src/project
+      - ${TEST_PROJECT_DIR}/it/resources:/protocols
+    restart: always
+
+  robot-docker:
+    read_only: false
+    image: registry.turbonomic.com/turbonomic/robot-docker:1.0.10
+    command: tail -F anything
+    depends_on:
+      - mockserver
+    environment:
+      PROJECT_NAME: "${PROJECT_NAME}"
+      PROJECT_VERSION: "${PROJECT_VERSION}"
+      ROBOT_TAG: "${ROBOT_TAG}"
+    volumes:
+      - ${TEST_PROJECT_DIR}:/usr/src/project
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: always
