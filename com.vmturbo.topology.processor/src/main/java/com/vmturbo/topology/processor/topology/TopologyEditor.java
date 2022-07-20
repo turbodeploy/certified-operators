@@ -258,6 +258,10 @@ public class TopologyEditor {
                             // only on that VM.
                             RemoveDaemonPodConsumersWithAllTheirConsumers(entitiesToRemove, entity);
                         }
+                        if (entity.getEntityType() == EntityType.WORKLOAD_CONTROLLER_VALUE) {
+                            RemoveWorkloadControllersWithAllTheirConsumers(entitiesToRemove, entity);
+                            RemoveOwnedEntitiesForWorkloadControllers(entitiesToRemove, entity);
+                        }
                     }
                 }
                 if (nonExistentEntitiesCount != 0) {
@@ -524,6 +528,25 @@ public class TopologyEditor {
                     && (e.getTopologyEntityImpl().getAnalysisSettings().getDaemon())) {
                 entitiesToRemove.add(e.getOid());
                 RemoveAllConsumersRecursive(entitiesToRemove, e);
+            }
+        });
+    }
+
+    private void RemoveWorkloadControllersWithAllTheirConsumers(final @Nonnull Set<Long> entitiesToRemove,
+                                                               final @Nonnull TopologyEntity.Builder entity) {
+        entity.getConsumers().stream().forEach(e -> {
+            if (e.getEntityType() == EntityType.CONTAINER_POD_VALUE) {
+                entitiesToRemove.add(e.getOid());
+                RemoveAllConsumersRecursive(entitiesToRemove, e);
+            }
+        });
+    }
+
+    private void RemoveOwnedEntitiesForWorkloadControllers(final @Nonnull Set<Long> entitiesToRemove,
+                                                                final @Nonnull TopologyEntity.Builder entity) {
+        entity.getOwnedEntities().stream().forEach(e -> {
+            if (e.getEntityType() == EntityType.CONTAINER_SPEC_VALUE) {
+                entitiesToRemove.add(e.getOid());
             }
         });
     }
