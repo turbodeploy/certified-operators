@@ -1036,13 +1036,6 @@
         </profile>
 
         <profile>
-            <id>mediation</id>
-            <modules>
-                <module>../com.vmturbo.mediation.component</module>
-            </modules>
-        </profile>
-
-        <profile>
             <id>mediation-utilprobe</id>
             <modules>
                 <module>../com.vmturbo.mediation.utilprobe.component</module>
@@ -1134,7 +1127,6 @@
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.udt</module>
                 <module>../com.vmturbo.mediation.udt.component</module>
-                <module>../com.vmturbo.mediation.component</module>
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
@@ -1356,9 +1348,6 @@
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
                 <module>../com.vmturbo.mediation.webhook</module>
 
-                <!-- Mediation container with all the probes inside. -->
-                <module>../com.vmturbo.mediation.component</module>
-
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
@@ -1506,8 +1495,6 @@
                 <module>../com.vmturbo.mediation.actionstream.kafka</module>
                 <module>../com.vmturbo.mediation.webhook</module>
 
-                <!-- Mediation container with all the probes inside. -->
-                <module>../com.vmturbo.mediation.component</module>
 
                 <!-- Individual components -->
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
