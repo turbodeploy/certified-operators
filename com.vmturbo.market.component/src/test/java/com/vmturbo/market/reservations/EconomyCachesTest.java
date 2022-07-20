@@ -1340,7 +1340,7 @@ public class EconomyCachesTest {
 
         List<CommoditySpecification> commoditySpecifications = new ArrayList<>();
         commoditySpecifications.add(new CommoditySpecification(CLUSTER3_COMM_SPEC_TYPE));
-        commoditySpecifications.add(new CommoditySpecification(MEM_TYPE));
+        commoditySpecifications.add(new CommoditySpecification(MEM_TYPE * 10000));
         Trader pm5 = realeconomy.addTrader(PM_TYPE, TraderState.ACTIVE,
                         new Basket(commoditySpecifications),
                         ImmutableList.of(455L));
@@ -1350,6 +1350,9 @@ public class EconomyCachesTest {
         TopologyDTO.CommodityType cluster3 =
                 TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CLUSTER_VALUE).setKey(cluster3Key).build();
         newCommTypeToSpecMap.put(cluster3, CLUSTER3_COMM_SPEC_TYPE);
+        TopologyDTO.CommodityType mem_commodity = newCommTypeToSpecMap.inverse().get(CommodityType.MEM_VALUE);
+        newCommTypeToSpecMap.remove(CommodityType.MEM_VALUE);
+        newCommTypeToSpecMap.put(mem_commodity, MEM_TYPE * 10000);
         Economy clonedEconomy = InitialPlacementUtils.cloneEconomy(realeconomy, false);
         economyCaches.updateRealtimeCachedEconomy(clonedEconomy, newCommTypeToSpecMap, new HashMap<>(),
                 new HashMap<>());
@@ -1360,6 +1363,9 @@ public class EconomyCachesTest {
         Assert.assertEquals(1, economyCaches.historicalCachedEconomy.getTraders().stream()
                 .filter(t -> t.getOid() == oid).count());
         Assert.assertEquals((Integer)CLUSTER3_COMM_SPEC_TYPE, economyCaches.getHistoricalCachedCommTypeMap().get(cluster3));
+        Assert.assertTrue(economyCaches.getHistoricalCachedEconomy().getTraders().stream()
+                .filter(a -> a.getOid() == 237612L).findFirst().get()
+                .getBasketSold().stream().anyMatch(b -> b.getType() == 21));
     }
 
     /**

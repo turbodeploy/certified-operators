@@ -353,10 +353,12 @@ public class EconomyCaches {
             // NOTE: the cloned economy has only host and storages, but the utilization of them
             // includes the reservation utils.
             Economy newHistEconomy = InitialPlacementUtils.cloneEconomy(historicalCachedEconomy, false);
-            addNewTradersToHistoricalEconomy(realtimeCachedEconomy, newHistEconomy);
+            List<Trader> newlyAddedTraders = addNewTradersToHistoricalEconomy(realtimeCachedEconomy, newHistEconomy);
             // In case of traders are deleted in the real time, historical cache may not catch it up
             // immediately, so we have to mark those traders in historical cache canAcceptNewCustomers false.
             updateTradersInHistoricalEconomyCache(realtimeCachedEconomy, newHistEconomy);
+            InitialPlacementUtils.updateNonAccessCommodities(realtimeCachedEconomy, realtimeCachedCommTypeMap,
+                    newHistEconomy, historicalCachedCommTypeMap, newlyAddedTraders);
             addExistingReservationEntities(newHistEconomy, historicalCachedCommTypeMap,
                     buyerOidToPlacement, existingReservations, true, false);
             historicalCachedEconomy = newHistEconomy;
@@ -388,11 +390,11 @@ public class EconomyCaches {
         }
     }
 
-    private void addNewTradersToHistoricalEconomy(Economy realtimeEconomy, Economy histEconomy) {
+    private List<Trader> addNewTradersToHistoricalEconomy(Economy realtimeEconomy, Economy histEconomy) {
+        List<Trader> newlyAddedTraders = new ArrayList<>();
         if (FeatureFlags.HEADROOM_ADD_PROVISIONED_RESOURCES.isEnabled()) {
             Stopwatch sw = Stopwatch.createStarted();
             Set<Long> histTraderOids = histEconomy.getTopology().getTradersByOid().keySet();
-            List<Trader> newlyAddedTraders = new ArrayList<>();
             int added = 0;
             for (Map.Entry<Long, Trader> oid2trader : realtimeEconomy.getTopology().getTradersByOid().entrySet()) {
                 Trader trader = oid2trader.getValue();
@@ -425,6 +427,7 @@ public class EconomyCaches {
                 }
             }
         }
+        return newlyAddedTraders;
     }
 
     /**
