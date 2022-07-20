@@ -53,7 +53,9 @@ RUN cd /tmp && \
     rm /opt/zookeeper/lib/slf4j-*.* && \
     rm /opt/zookeeper/lib/log4j-*.* && \
     # Remove old jackson jars (vulnerable)
-    rm /opt/zookeeper/lib/jackson-*.*
+    rm /opt/zookeeper/lib/jackson-*.* && \
+    # Remove old jetty jars (vulnerable)
+    rm /opt/apache-zookeeper-3.6.3-bin/lib/jetty-*.*
 
 # Add reload4j components
 ADD lib/* /opt/zookeeper/lib/

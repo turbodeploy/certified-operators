@@ -46,7 +46,9 @@ RUN source /etc/kafka.profile && \
     rm /opt/kafka/libs/slf4j-*.* && \
     rm /opt/kafka/libs/log4j-*.* && \
     # Remove old jackson jars (vulnerable)
-    rm /opt/kafka/libs/jackson-*.*
+    rm /opt/kafka/libs/jackson-*.* && \
+    # Remove old jetty jars (vulnerable)
+    rm /opt/kafka_2.13-3.1.0/libs/jetty-*.jar
 
 # Add reload4j components
 ADD lib/* /opt/kafka/libs/
