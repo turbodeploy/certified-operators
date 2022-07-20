@@ -1238,6 +1238,68 @@ public class TopologyEditorTest {
 
     }
 
+    // test removal of workload controllers and its consumers
+    // as part of the container workload migration plan scenario
+    @Test
+    public void testRemoveWorkloadControllers() throws Exception {
+        final long wcId = 2L;
+        final long podId1 = 3L;
+        final long podId2 = 4L;
+        final long containerId1 = 5L;
+        final long containerId2 = 6L;
+        final long appId1 = 7L;
+
+        final TopologyEntity.Builder wcEntity = TopologyEntityUtils
+                .topologyEntity(wcId, 0, 0, "WC", EntityType.WORKLOAD_CONTROLLER);
+        final TopologyEntity.Builder podEntity1 = TopologyEntityUtils
+                .topologyEntity(podId1, 0, 0, "Pod1", EntityType.CONTAINER_POD, wcId);
+        final TopologyEntity.Builder podEntity2 = TopologyEntityUtils
+                .topologyEntity(podId2, 0, 0, "Pod2", EntityType.CONTAINER_POD, wcId);
+        final TopologyEntity.Builder containerEntity1 = TopologyEntityUtils
+                .topologyEntity(containerId1, 0, 0, "Container1", EntityType.CONTAINER, podId1);
+        final TopologyEntity.Builder containerEntity2 = TopologyEntityUtils
+                .topologyEntity(containerId2, 0, 0, "Container2", EntityType.CONTAINER, podId2);
+        final TopologyEntity.Builder appEntity = TopologyEntityUtils
+                .topologyEntity(appId1, 0, 0, "App", EntityType.APPLICATION_COMPONENT, podId2);
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+        topology.put(wcId, wcEntity);
+        topology.put(podId1, podEntity1);
+        topology.put(podId2, podEntity2);
+        topology.put(containerId1, containerEntity1);
+        topology.put(containerId2, containerEntity2);
+        topology.put(appId1, appEntity);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.pojoGraphOf(wcEntity, podEntity1, podEntity2,
+                containerEntity1, containerEntity2, appEntity);
+
+        final List<ScenarioChange> changes = Collections.singletonList(ScenarioChange.newBuilder()
+                .setTopologyRemoval(TopologyRemoval.newBuilder().setEntityId(wcId).setTargetEntityType(EntityType.WORKLOAD_CONTROLLER_VALUE))
+                .build());
+
+        topologyEditor.editTopology(topology, scope, changes,
+                context, groupResolver, sourceEntities, destinationEntities);
+
+        TopologyEntity.Builder wcToRemove = topology.get(wcId);
+        assertTrue(wcToRemove.getTopologyEntityImpl().hasEdit()
+                && wcToRemove.getTopologyEntityImpl().getEdit().hasRemoved());
+        TopologyEntity.Builder podToRemove1 = topology.get(podId1);
+        assertTrue(podToRemove1.getTopologyEntityImpl().hasEdit()
+                && podToRemove1.getTopologyEntityImpl().getEdit().hasRemoved());
+        TopologyEntity.Builder podToRemove2 = topology.get(podId2);
+        assertTrue(podToRemove2.getTopologyEntityImpl().hasEdit()
+                && podToRemove2.getTopologyEntityImpl().getEdit().hasRemoved());
+
+        TopologyEntity.Builder containerToRemove1 = topology.get(containerId1);
+        assertTrue(containerToRemove1.getTopologyEntityImpl().hasEdit()
+                && containerToRemove1.getTopologyEntityImpl().getEdit().hasRemoved());
+        TopologyEntity.Builder containerToRemove2 = topology.get(containerId2);
+        assertTrue(containerToRemove2.getTopologyEntityImpl().hasEdit()
+                && containerToRemove2.getTopologyEntityImpl().getEdit().hasRemoved());
+
+        TopologyEntity.Builder appToRemove = topology.get(appId1);
+        assertTrue(appToRemove.getTopologyEntityImpl().hasEdit()
+                && appToRemove.getTopologyEntityImpl().getEdit().hasRemoved());
+    }
+
     // test add storage when user choose from a storage cluster
     @Test
     public void testAddSTFromSTGroup() throws Exception {
