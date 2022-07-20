@@ -94,6 +94,8 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
             final double cpuSpeedMhz = oldCapacity / numCores;
             if (cpuSpeedMhz == 0.0) {
                 // If we can't get the CPU speed we can't interpret the resize, so discard it.
+                // Revert the projected commodity to the original value so that the VCPU change is zero.
+                revertProjectedCommoditySold(projectedTopology, entityId, originalCommoditySold);
                 return Optional.empty();
             }
             oldCapacity = Math.round(oldCapacity / cpuSpeedMhz);
@@ -107,7 +109,7 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
             //if the new capacity of the VM is rounded up and can not fit into the host's logical processors, drop the action.
             double roundedNewCapacity = roundedNewCapacityAndCoresPerSocket.getFirst();
             if (roundedNewCapacity != newCapacity) {
-                logger.info("Resize action for VM {} 's new capacity was rounded up from {} to {} to compromise new cores per socket",
+                logger.info("Resize action for VM {} 's new capacity was rounded up from {} to {} to accommodate new cores per socket",
                         entityId, newCapacity, roundedNewCapacity);
                 Optional<Integer> numCpuThreadsOfProjectedHost = ActionInterpreter
                         .getCPUThreadsFromPM(id ->
@@ -119,6 +121,8 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
                     logger.info("Resize action for VM {} was dropped because the new rounded capacity was {} but the CPU threads of projected host was {}",
                             entityId, roundedNewCapacity, numCpuThreadsOfProjectedHost);
                     //TODO: should show dropped actions in UI, instead of dropping them quietly.
+                    // Revert the projected commodity to the original value so that the VCPU change is zero.
+                    revertProjectedCommoditySold(projectedTopology, entityId, originalCommoditySold);
                     return Optional.empty();
                 }
                 //TODO: check the unreserved MHz on the host is sufficient to fit the new capacity
@@ -126,7 +130,9 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
             }
             if (Double.compare(oldCapacity, newCapacity) == 0) {
                 // If the from and to end up being the same number of CPUs, this action is not
-                // really meaningful.
+                // really meaningful. Revert all values of the projected commodity to the original
+                // value so that the VCPU change is zero (including historical values).
+                revertProjectedCommoditySold(projectedTopology, entityId, originalCommoditySold);
                 return Optional.empty();
             }
             if (roundedNewCapacityAndCoresPerSocket.getSecond() != null) {
@@ -154,6 +160,33 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
             resizeBuilder.setScalingGroupId(resizeTO.getScalingGroupId());
         }
         return Optional.of(resizeBuilder.build());
+    }
+
+    /**
+     * Revert a commodity sold for an entity in the projected topology.
+     *
+     * @param projectedTopology projected topology
+     * @param entityId entity ID containing commodity sold to revert
+     * @param originalCommoditySold commodity sold to revert to
+     */
+    private void revertProjectedCommoditySold(Map<Long, ProjectedTopologyEntity> projectedTopology,
+                                          long entityId, Optional<CommoditySoldDTO> originalCommoditySold) {
+        ProjectedTopologyEntity projectedEntity = projectedTopology.get(entityId);
+        if (projectedEntity == null || !originalCommoditySold.isPresent()) {
+            return;
+        }
+        ProjectedTopologyEntity.Builder builder = projectedEntity.toBuilder();
+        TopologyEntityDTO.Builder projectedTeBuilder = builder.getEntityBuilder();
+        CommodityType topologyCommodityType = originalCommoditySold.get().getCommodityType();
+        for (int i = 0; i < projectedTeBuilder.getCommoditySoldListCount(); i++) {
+            CommoditySoldDTO commSold = projectedTeBuilder.getCommoditySoldList(i);
+            if (commSold.getCommodityType().equals(topologyCommodityType)) {
+                // Convert the original commodity sold to builder to clone it.
+                 projectedTeBuilder.setCommoditySoldList(i, originalCommoditySold.get().toBuilder());
+                projectedTopology.put(entityId, builder.build());
+                break;
+            }
+        }
     }
 
     /**

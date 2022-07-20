@@ -2,6 +2,9 @@ package com.vmturbo.market.topology.conversions.action;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -22,6 +25,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
@@ -162,6 +166,97 @@ public class ResizeInterpreterTest {
         assertVCPUCapacity(1, 3.58593d, 8606.232f, 51638.83698998277f, 6.0f);
     }
 
+    /**
+     * Verify that the projected entity is reverted when a VCPU scale action is dropped due to
+     * rounding.
+     */
+    @Test
+    public void testVerifyProjectedAfterVCPUResizeDrop() {
+        /*
+         * Setup:
+         * - add entity to projected topology with resize in it
+         * - Generate the resize. Ensure that the projected entity has the new value in it
+         * - create a scenario where interpretAction will round such that before/after is equal
+         *   and will drop the VCPU resize
+         * - Ensure that the VCPU comm sold is the original value.
+         */
+        final long entityId = 101L;
+        final long hostId = 102L;
+        final long numCpus = 2L;
+        final long newCores = 2L;
+
+        CommodityType topologyCommType = CommodityType.newBuilder()
+                .setType(UICommodityType.VCPU.typeNumber())
+                .build();
+        addEntity(hostId, ApiEntityType.PHYSICAL_MACHINE,
+                e -> e.setTypeSpecificInfo(
+                        TypeSpecificInfo.newBuilder()
+                                .setPhysicalMachine(PhysicalMachineInfo.newBuilder()
+                                        // This low number of threads on the host will cause the
+                                        // VCPU resize to be dropped.
+                                        .setNumCpuThreads(1))),
+                t -> { });
+        addEntity(entityId, ApiEntityType.VIRTUAL_MACHINE,
+                e -> {
+                    e.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                            .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                                    .setCoresPerSocketChangeable(true)
+                                    .setCoresPerSocketRatio(3)
+                                    .setNumCpus(2)));
+                    // These are the projected values
+                    e.addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                            .setCommodityType(topologyCommType)
+                            .setCapacity(20800f)
+                            .setUsed(10400f)
+                            .setHistoricalPeak(HistoricalValues.newBuilder()
+                                    .setMaxQuantity(20800f)
+                                    .setHistUtilization(0.10d)
+                                    .setPercentile(0.06d)));
+                    e.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                            .setProviderId(hostId));
+                },
+                t -> { });
+        ResizeTO resizeTO = makeResize(entityId, 5200f, 10400f, UICommodityType.VCPU, "foo");
+
+        // This is the original comm sold
+        HistoricalValues originalHistoricalUsed = HistoricalValues.newBuilder()
+                .setHistUtilization(810f).build();
+        HistoricalValues originalHistoricalPeak = HistoricalValues.newBuilder()
+                .setHistUtilization(910f).build();
+        double originalCapacity = 10400d;
+        double originalUsed = 800d;
+        double originalPeak = 900d;
+        when(commodityIndex.getCommSold(entityId, topologyCommType))
+                .thenReturn(Optional.of(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(topologyCommType)
+                                .setUsed(originalUsed)
+                                .setPeak(originalPeak)
+                                .setCapacity(originalCapacity)
+                                .setHistoricalUsed(originalHistoricalUsed)
+                                .setHistoricalPeak(originalHistoricalPeak)
+                        .setScalingFactor(1.0)
+                        .build()));
+
+        Optional<Resize> resize = resizeInterpreter.interpret(resizeTO, projectedTopology);
+        assertFalse(resize.isPresent());
+        ProjectedTopologyEntity projectedEntity = projectedTopology.get(entityId);
+        assertNotNull(projectedEntity);
+        TopologyEntityDTO te = projectedEntity.getEntity();
+        assertNotNull(te);
+        // Locate the VCPU comm sold
+        final Optional<CommoditySoldDTO> resizeCommSold =
+                te.getCommoditySoldListList().stream()
+                        .filter(commSold -> commSold.getCommodityType().equals(topologyCommType))
+                        .findFirst();
+        assertTrue(resizeCommSold.isPresent());
+        CommoditySoldDTO cs = resizeCommSold.get();
+        assertThat(cs.getCapacity(), is(originalCapacity));
+        assertThat(cs.getUsed(), is(originalUsed));
+        assertThat(cs.getPeak(), is(originalPeak));
+        assertThat(cs.getHistoricalUsed(), is(originalHistoricalUsed));
+        assertThat(cs.getHistoricalPeak(), is(originalHistoricalPeak));
+    }
 
     /**
      * Test the VM new capacity is rounded up to nearest multiple of cores per socket and PM cannot host it.
@@ -205,7 +300,7 @@ public class ResizeInterpreterTest {
     public void testActionDroppedWhenPmCantHostRoundedCapacity() {
         Optional<Resize> resize = resizeForRoundedCapacity(4, 5, 1,
                 2, true);
-        Assert.assertFalse(resize.isPresent());
+        assertFalse(resize.isPresent());
     }
 
     private Optional<Resize> resizeForRoundedCapacity(int projectedHostCpuThreads,
