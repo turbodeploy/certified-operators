@@ -964,7 +964,10 @@ public class ActionSpecMapper {
             }
         }
 
-        if (ApiEntityType.APPLICATION_COMPONENT.apiStr().equals(targetEntity.getClassName())) {
+        // TODO (Cloud PaaS): ASP "legacy" APPLICATION_COMPONENT support, OM-83212
+        //  can remove APPLICATION_COMPONENT check when legacy support not needed
+        if (ApiEntityType.VIRTUAL_MACHINE_SPEC.apiStr().equals(targetEntity.getClassName())
+                || ApiEntityType.APPLICATION_COMPONENT.apiStr().equals(targetEntity.getClassName())) {
             final Long actionTargetId = ActionDTOUtil.getPrimaryEntity(action).getId();
             setCurrentAndNewLocation(actionTargetId, context, actionApiDTO);
         }
