@@ -940,9 +940,11 @@ public class ActionDescriptionBuilder {
             return "";
         }
 
-        // If it got to delete stage as an app component, it's an App Service Plan.
-        // App component will migrate to VMSpec in the future.
-        if (targetEntityType == EntityType.APPLICATION_COMPONENT_VALUE) {
+        // TODO (Cloud PaaS): ASP "legacy" APPLICATION_COMPONENT support, OM-83212
+        //  can remove APPLICATION_COMPONENT_VALUE when legacy support not needed
+        // If it got to delete stage as an app component or vm spec, it's an App Service Plan.
+        if (targetEntityType == EntityType.VIRTUAL_MACHINE_SPEC_VALUE ||
+                targetEntityType == EntityType.APPLICATION_COMPONENT_VALUE) {
             ActionPartialEntity targetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId)
                     .get();
             long sourceEntityId = recommendation.getInfo().getDelete().getSource().getId();

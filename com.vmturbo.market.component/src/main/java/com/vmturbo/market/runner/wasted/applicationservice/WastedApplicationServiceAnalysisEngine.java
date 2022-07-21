@@ -59,12 +59,6 @@ public class WastedApplicationServiceAnalysisEngine implements WastedEntityAnaly
     private static final String WINDOWS = "Windows_AppServicePlan";
 
     /**
-     * Name of Entity Property for Azure App Service Plans that contains the number of applications
-     * running on the plan.
-     */
-    private static final String TOTAL_APP_COUNT = "Total App Count";
-
-    /**
      * Verify that a topology entity is an App Service Plan.
      *
      * @param candidateAppServicePlan candidate entity.
@@ -104,10 +98,9 @@ public class WastedApplicationServiceAnalysisEngine implements WastedEntityAnaly
                 .filter(topologyEntityDTO -> !topologyEntityDTO.getDisplayName()
                         .contains(SupplyChainConstants.GUEST_LOAD))
                 .filter(WastedApplicationServiceAnalysisEngine::isAppServicePlan)
-                .filter(topologyEntityDTO -> topologyEntityDTO.getEntityPropertyMapMap() != null
-                        && topologyEntityDTO.getEntityPropertyMapMap().containsKey(TOTAL_APP_COUNT)
-                        && Integer.parseInt(
-                        topologyEntityDTO.getEntityPropertyMapMap().get(TOTAL_APP_COUNT)) <= 0)
+                .filter(topologyEntityDTO -> topologyEntityDTO.hasTypeSpecificInfo()
+                        && topologyEntityDTO.getTypeSpecificInfo().hasApplicationService()
+                        && topologyEntityDTO.getTypeSpecificInfo().getApplicationService().getAppCount() <= 0)
                 .map(TopologyEntityDTO::getOid)
                 .collect(Collectors.toSet());
     }
@@ -189,7 +182,7 @@ public class WastedApplicationServiceAnalysisEngine implements WastedEntityAnaly
             final Long sourceEntityOid) {
         final Delete.Builder deleteBuilder = Delete.newBuilder().setTarget(ActionEntity.newBuilder()
                 .setId(targetEntity.getOid())
-                .setType(EntityType.APPLICATION_COMPONENT_VALUE)
+                .setType(targetEntity.getEntityType())
                 .setEnvironmentType(EnvironmentType.CLOUD));
 
         // ASP Buys from compute tier so set that as source.

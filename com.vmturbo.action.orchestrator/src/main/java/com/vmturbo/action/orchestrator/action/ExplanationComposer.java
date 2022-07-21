@@ -1009,12 +1009,15 @@ public class ExplanationComposer {
     private static String buildDeleteExplanation(ActionDTO.Action action) {
         if (action.getInfo().getDelete().getTarget().getEnvironmentType()
                 == EnvironmentType.CLOUD) {
-            // Note: Application Component will migrate to VMSPEC for Azure App Service Plans ASPs in the future.
-            return EntityType.APPLICATION_COMPONENT_VALUE == action.getInfo()
-                    .getDelete()
-                    .getTarget()
-                    .getType() ? DELETE_WASTED_AZURE_APP_SERVICE_PLANS_EXPLANATION
-                    : DELETE_WASTED_VOLUMES_EXPLANATION;
+            // TODO (Cloud PaaS): ASP "legacy" APPLICATION_COMPONENT support, OM-83212
+            //  can remove APPLICATION_COMPONENT case when legacy support not needed
+            int deletionTargetEntityType = action.getInfo().getDelete().getTarget().getType();
+            if (EntityType.VIRTUAL_MACHINE_SPEC_VALUE == deletionTargetEntityType ||
+                    EntityType.APPLICATION_COMPONENT_VALUE == deletionTargetEntityType) {
+                return DELETE_WASTED_AZURE_APP_SERVICE_PLANS_EXPLANATION;
+            } else {
+                return DELETE_WASTED_VOLUMES_EXPLANATION;
+            }
         } else {
             return DELETE_WASTED_FILES_EXPLANATION;
         }

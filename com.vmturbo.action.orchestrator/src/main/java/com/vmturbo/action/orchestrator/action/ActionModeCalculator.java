@@ -999,9 +999,9 @@ public class ActionModeCalculator {
                 final EntityType targetType = EntityType.forNumber(
                         action.getInfo().getDelete().getTarget().getType());
                 switch (targetType) {
-                    // OM-83212
+                    // TODO (Cloud PaaS): ASP "legacy" APPLICATION_COMPONENT support, OM-83212
+                    //  can remove APPLICATION_COMPONENT case when legacy support not needed
                     case APPLICATION_COMPONENT:
-                        // App Service Plans (Note: These will migrate to VirtualMachineSpecs in the future).
                         return Stream.of(ConfigurableActionSettings.Delete,
                                 ConfigurableActionSettings.DeleteAppServicePlan).filter(
                                 setting -> setting.getEntityTypeScope().contains(targetType)).map(

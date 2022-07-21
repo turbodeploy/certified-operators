@@ -39,6 +39,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationServiceInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.journal.CostJournal;
@@ -174,8 +176,11 @@ public class WastedApplicationServiceAnalysisEngineTest {
                 createCommodityLink(app, plan);
                 connectEntities(app, plan);
             }
-            // Build everything (also set entity property map w/ total app count)
-            plan.putEntityPropertyMap("Total App Count", apps.size() + "");
+            // Build everything (also set application_service w/ total app count)
+            plan.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setApplicationService(
+                            ApplicationServiceInfo.newBuilder().setAppCount(apps.size()))
+                    .build());
             topology.put(plan.getOid(), plan.build());
             for (TopologyEntityDTO.Builder app : apps) {
                 createCommodityLink(app, plan);
