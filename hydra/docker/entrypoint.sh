@@ -42,7 +42,7 @@ start_hydra() {
 }
 export SECRETS_SYSTEM=`/util/hydra_set_secrets_to_env.py secret`
 export SECRETS_COOKIE=$SECRETS_SYSTEM
-export
+
 if [[ -z ${DSN} ]]; then
   export DSN=`/util/hydra_set_secrets_to_env.py dsn`
 fi
