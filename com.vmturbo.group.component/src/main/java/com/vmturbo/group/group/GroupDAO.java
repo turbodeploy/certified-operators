@@ -92,6 +92,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType.TypeCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.OriginFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.PartialGroupingInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.PartialGroupingInfo.MinimalGroupingInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
@@ -832,6 +834,39 @@ public class GroupDAO implements IGroupStore {
             GROUP_STORE_ERROR_COUNT.labels(GET_LABEL).increment();
             throw e;
         }
+    }
+
+    /**
+     * Returns a minimal subset of the grouping table.
+     *
+     * @param groupIds list of group ids to query for.
+     * @return a collection of PartialGroupingInfo, with minimal group object representation
+     *         populated
+     */
+    @Nonnull
+    @Override
+    public Collection<PartialGroupingInfo> getMinimalGroupInfoByIds(
+            @Nonnull Collection<Long> groupIds) {
+        List<PartialGroupingInfo> partialGroupingInfo = new ArrayList<>();
+        final StopWatch stopWatch = new StopWatch(
+                "getMinimalGroupInfoByIds Retrieving " + groupIds.size() + " groups");
+        stopWatch.start("querying grouping table");
+        dslContext.select(GROUPING.ID, GROUPING.GROUP_TYPE, GROUPING.DISPLAY_NAME)
+                .from(GROUPING)
+                .where(GROUPING.ID.in(groupIds))
+                .fetch()
+                .forEach(record -> {
+                    partialGroupingInfo.add(PartialGroupingInfo.newBuilder()
+                            .setMinimal(MinimalGroupingInfo.newBuilder()
+                                    .setOid(record.value1())
+                                    .setType(GroupType.forNumber(record.value2().getNumber()))
+                                    .setDisplayName(record.value3())
+                                    .build())
+                            .build());
+                });
+        stopWatch.stop();
+        logger.debug(stopWatch::prettyPrint);
+        return partialGroupingInfo;
     }
 
     @Nonnull

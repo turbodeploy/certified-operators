@@ -228,11 +228,7 @@ public class ReservationsService implements IReservationsService {
         GetAllReservationsRequest request = GetAllReservationsRequest.newBuilder()
                 .build();
         Iterable<Reservation> reservationIterable = () -> reservationService.getAllReservations(request);
-        final List<DemandReservationApiDTO> result = new ArrayList<>();
-        for (Reservation reservation : reservationIterable) {
-            result.add(reservationMapper.convertReservationToApiDTO(reservation));
-        }
-        return result;
+        return reservationMapper.generateReservationList(reservationIterable);
     }
 
     @Override
@@ -245,7 +241,7 @@ public class ReservationsService implements IReservationsService {
                     .build();
             final Reservation reservation =
                     reservationService.getReservationById(request);
-            return reservationMapper.convertReservationToApiDTO(reservation);
+            return reservationMapper.generateReservationApiDto(reservation);
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                 throw new UnknownObjectException(e.getStatus().getDescription());
@@ -272,7 +268,7 @@ public class ReservationsService implements IReservationsService {
                         .setReservation(reservation)
                         .build();
                 final Reservation createdReservation = reservationService.createReservation(request);
-                return reservationMapper.convertReservationToApiDTO(createdReservation);
+                return reservationMapper.generateReservationApiDto(createdReservation);
             default:
                 throw new UnsupportedOperationException("Invalid action " + demandAction);
         }
@@ -349,11 +345,7 @@ public class ReservationsService implements IReservationsService {
                     .setStatus(reservationStatus)
                     .build();
             Iterable<Reservation> reservationIterable = () -> reservationService.getReservationByStatus(request);
-            final List<DemandReservationApiDTO> result = new ArrayList<>();
-            for (Reservation reservation : reservationIterable) {
-                result.add(reservationMapper.convertReservationToApiDTO(reservation));
-            }
-            return result;
+            return reservationMapper.generateReservationList(reservationIterable);
         } catch (IllegalArgumentException e) {
             logger.error("Illegal argument: " + e.getMessage());
             throw e;

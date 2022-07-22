@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -30,6 +31,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.util.StopWatch;
 
 import com.vmturbo.api.ReservationNotificationDTO;
 import com.vmturbo.api.ReservationNotificationDTO.ReservationNotification;
@@ -60,10 +62,12 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetPartialGroupingInfoRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.PartialGroupingInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InvalidInfo;
@@ -93,7 +97,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
  * A mapper class for convert Reservation related objects between Api DTO with XL DTO.
  */
 public class ReservationMapper {
-
+    private final String moreThanOneReservationFound = "Error: Found more than one value when looking for single reservation";
+    private final String clusterIdAmountMisMatch = "clusterMap.values().size(): {} != clusterIds.size(): {} not equal";
     private final boolean enableReservationEnhancements;
 
     private static final EnumMap<ReservationMode, Set<ReservationGrouping>> VALID_RESERVATION_MODE_GROUPINGS
@@ -273,15 +278,17 @@ public class ReservationMapper {
      * first ReservationTemplate, because currently Reservation only support one type of template.
      *
      * @param reservation {@link Reservation}.
+     * @param placementInfosMap contains a mapping between reservation ids and list of PlacementInfos
+     * @param serviceEntityMap contains a mapping between oids and {@link ServiceEntityApiDTO}
+     * @param clusterMap contains a mapping between clusterIds and basic grouping info
      * @return {@link DemandReservationApiDTO}.
      * @throws UnknownObjectException if there are any unknown objects.
-     * @throws InterruptedException if thread has been interrupted
-     * @throws ConversionException if errors faced during converting data to API DTOs
      * @throws NoSuchValueException if invalid reservation value is specified.
      */
     public DemandReservationApiDTO convertReservationToApiDTO(
-            @Nonnull final Reservation reservation)
-            throws UnknownObjectException, ConversionException, InterruptedException, NoSuchValueException {
+            @Nonnull final Reservation reservation, Map<Long, ServiceEntityApiDTO> serviceEntityMap,
+            Map<Long, BaseApiDTO> clusterMap, Map<Long, List<PlacementInfo>> placementInfosMap)
+            throws UnknownObjectException, NoSuchValueException {
         final DemandReservationApiDTO reservationApiDTO = new DemandReservationApiDTO();
         reservationApiDTO.setUuid(String.valueOf(reservation.getId()));
         reservationApiDTO.setDisplayName(reservation.getName());
@@ -289,11 +296,10 @@ public class ReservationMapper {
         reservationApiDTO.setExpireDateTime(convertProtoDateToString(reservation.getExpirationDate()));
         reservationApiDTO.setStatus(reservation.getStatus().toString());
         List<ReservationConstraintApiDTO> constraintInfos = new ArrayList<>();
-        if (reservation.hasConstraintInfoCollection() &&
-                reservation.getConstraintInfoCollection()
-                        .getReservationConstraintInfoList() != null) {
-            for (ScenarioOuterClass.ReservationConstraintInfo reservationConstraintInfo :
-                    reservation.getConstraintInfoCollection().getReservationConstraintInfoList()) {
+        if (reservation.hasConstraintInfoCollection()
+                && reservation.getConstraintInfoCollection().getReservationConstraintInfoList() != null) {
+            for (ScenarioOuterClass.ReservationConstraintInfo reservationConstraintInfo
+                    : reservation.getConstraintInfoCollection().getReservationConstraintInfoList()) {
                 constraintInfos.add(
                         new ReservationConstraintApiDTO(String.valueOf(reservationConstraintInfo
                                 .getConstraintId()),
@@ -307,8 +313,8 @@ public class ReservationMapper {
         // reservation, it is ok to only pick the first one.
         Optional<ReservationTemplate> reservationTemplate = reservationTemplates.stream().findFirst();
         if (reservationTemplate.isPresent()) {
-            convertToDemandEntityDTO(reservationTemplate.get(),
-                        reservationApiDTO);
+            convertToDemandEntityDTO(reservationTemplate.get(), reservationApiDTO,
+                    placementInfosMap.get(reservation.getId()), serviceEntityMap, clusterMap);
         }
         reservationApiDTO.setReservationDeployed(reservation.getDeployed());
         if (enableReservationEnhancements) {
@@ -352,17 +358,141 @@ public class ReservationMapper {
     }
 
     /**
-     * Convert reservation's placement information to {@link DemandEntityInfoDTO}.
+     * Converts a single raw Reservations into a DemandReservationApiDTOs, by properly populating
+     * auxiliary info, and calling generateReservationList.
      *
+     * @param reservation {@link Reservation}.
+     * @throws UnknownObjectException if there are any unknown objects.
+     * @throws ConversionException if error faced converting objects to
+     * API DTOs in getServiceEntityMap.
+     * @throws InterruptedException if current thread has been interrupted.
+     * @throws NoSuchValueException if invalid reservation value is specified.
+     */
+    public DemandReservationApiDTO generateReservationApiDto(Reservation reservation)
+            throws ConversionException, InterruptedException, NoSuchValueException,
+            UnknownObjectException {
+        List<DemandReservationApiDTO> demandReservationApiDtos =
+                generateReservationList(Collections.singletonList(reservation));
+
+        if (demandReservationApiDtos.size() != 1) {
+            logger.error(moreThanOneReservationFound);
+            throw new ConversionException(moreThanOneReservationFound);
+        }
+        return demandReservationApiDtos.get(0);
+    }
+
+    /**
+     * Converts raw Reservations into a list of DemandReservationApiDTOs, by properly populating
+     * auxiliary info.
+     *
+     * @param reservationIterator Iterable of {@link Reservation}.
+     * @throws UnknownObjectException if there are any unknown objects.
+     * @throws ConversionException if error faced converting objects to
+     * API DTOs in getServiceEntityMap.
+     * @throws InterruptedException if current thread has been interrupted.
+     * @throws NoSuchValueException if invalid reservation value is specified.
+     */
+    public List<DemandReservationApiDTO> generateReservationList(Iterable<Reservation> reservationIterator)
+            throws ConversionException, InterruptedException, NoSuchValueException,
+            UnknownObjectException {
+        final StopWatch stopWatch = new StopWatch("generateReservationList");
+
+        // creating a map between reservation id and the List<PlacementInfo> inside it
+        stopWatch.start("reservationToPlacementInfosMap");
+        Map<Long, List<PlacementInfo>> reservationToPlacementInfosMap =
+                generateReservationToPlacementInfoMap(reservationIterator);
+        stopWatch.stop();
+
+        // collecting all PlacementInfos in the map into a single list to send to
+        // getServiceEntityMap & clusterMap
+        List<PlacementInfo> allPlacementInfos = reservationToPlacementInfosMap.values().stream().flatMap(Collection::stream).collect(
+                Collectors.toList());
+
+        stopWatch.start("getServiceEntityMap");
+        final Map<Long, ServiceEntityApiDTO> serviceEntityMap = getServiceEntityMap(allPlacementInfos);
+        stopWatch.stop();
+
+        stopWatch.start("getClusterMap");
+        final Map<Long, BaseApiDTO> clusterMap = getClusterMap(allPlacementInfos);
+        stopWatch.stop();
+
+        final List<DemandReservationApiDTO> result = new ArrayList<>();
+
+        // iterating over all the Reservations, and supplying the convertReservationToApiDTO method
+        // with all the parameters it requires to convert reservation to DemandReservationApiDTO
+        stopWatch.start("convertReservationToApiDTO - for all reservations");
+        for (Reservation reservation : reservationIterator) {
+            result.add(convertReservationToApiDTO(reservation, serviceEntityMap, clusterMap,
+                    reservationToPlacementInfosMap));
+        }
+        stopWatch.stop();
+        logger.debug(stopWatch::prettyPrint);
+
+        return result;
+    }
+
+    /**
+     * Generates a Map between reservation id and its associated PlacementInfos.
+     * Used in the conversion process between {@link Reservation}
+     * and {@link DemandReservationApiDTO}.
+     *
+     * @param reservationIterator Iterable of Reservation
+     * @return map of id and list of PlacementInfos
+     */
+    public static Map<Long, List<PlacementInfo>> generateReservationToPlacementInfoMap(Iterable<Reservation> reservationIterator) {
+        Map<Long, List<PlacementInfo>> map = new HashMap<>();
+        for (Reservation reservation : reservationIterator) {
+            final List<ReservationTemplate> reservationTemplates =
+                    reservation.getReservationTemplateCollection().getReservationTemplateList();
+            Optional<ReservationTemplate> reservationTemplate = reservationTemplates.stream().findFirst();
+            if (reservationTemplate.isPresent()) {
+                map.put(reservation.getId(), createPlacementInfo(reservationTemplate.get()));
+            }
+        }
+        return map;
+    }
+
+    /**
+     * Generates a list of placementInfos based on a Reservation's ReservationTemplate.
+     *
+     * @param reservationTemplate of ReservationTemplate
+     * @return  PlacementInfo list
+     */
+    private static List<PlacementInfo> createPlacementInfo(@Nonnull final ReservationTemplate reservationTemplate) {
+        final List<PlacementInfo> placementInfos = reservationTemplate.getReservationInstanceList().stream()
+                .map(reservationInstance -> {
+                    final List<ProviderInfo> providerInfos = reservationInstance.getPlacementInfoList().stream()
+                            .map(a -> new ProviderInfo(
+                                    a.hasProviderId()
+                                            ? Optional.of(a.getProviderId()) : Optional.empty(),
+                                    a.getCommodityBoughtList(),
+                                    a.hasClusterId()
+                                            ? Optional.of(a.getClusterId()) : Optional.empty()))
+                            .collect(Collectors.toList());
+                    final InvalidInfo invalidInfo = reservationInstance.hasInvalidInfo()
+                            ? reservationInstance.getInvalidInfo() : null;
+                    return new PlacementInfo(reservationInstance.getEntityId(),
+                            ImmutableList.copyOf(providerInfos), reservationInstance.getUnplacedReasonList(),
+                            Optional.ofNullable(invalidInfo));
+                }).collect(Collectors.toList());
+        return placementInfos;
+    }
+
+    /**
+     * Convert reservation's placement information to {@link DemandEntityInfoDTO}.
+     * Also generates and sets demandEntityInfoDTOS.
      * @param reservationTemplate {@link ReservationTemplate} contains placement information by template.
      * @param reservationApiDTO {@link DemandReservationApiDTO}
+     * @param placementInfos contains a list of placementinfos for use with generateDemandEntityInfoDTO
+     * @param serviceEntityMap contains a mapping between oids and {@link ServiceEntityApiDTO}
+     * @param clusterMap contains a mapping between clusterIds and basic grouping info
      * @throws UnknownObjectException if there are any unknown objects.
-     * @throws InterruptedException if thread has been interrupted
-     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     private void convertToDemandEntityDTO(@Nonnull final ReservationTemplate reservationTemplate,
-                                          @Nonnull final DemandReservationApiDTO reservationApiDTO)
-            throws UnknownObjectException, ConversionException, InterruptedException {
+                                          @Nonnull final DemandReservationApiDTO reservationApiDTO,
+        List<PlacementInfo> placementInfos, Map<Long, ServiceEntityApiDTO> serviceEntityMap,
+                                Map<Long, BaseApiDTO> clusterMap)
+            throws UnknownObjectException {
         reservationApiDTO.setCount(Math.toIntExact(reservationTemplate.getCount()));
         //TODO: need to make sure templates are always available, if templates are deleted, need to
         // mark Reservation not available or also delete related reservations.
@@ -370,27 +500,9 @@ public class ReservationMapper {
             final Template template = reservationTemplate.hasTemplate()
                     ? reservationTemplate.getTemplate()
                     : templateService.getTemplate(GetTemplateRequest.newBuilder()
-                    .setTemplateId(reservationTemplate.getTemplateId())
-                    .build()).getTemplate();
+                            .setTemplateId(reservationTemplate.getTemplateId())
+                            .build()).getTemplate();
 
-            final List<PlacementInfo> placementInfos = reservationTemplate.getReservationInstanceList().stream()
-                    .map(reservationInstance -> {
-                        final List<ProviderInfo> providerInfos = reservationInstance.getPlacementInfoList().stream()
-                                .map(a -> new ProviderInfo(
-                                        a.hasProviderId()
-                                                ? Optional.of(a.getProviderId()) : Optional.empty(),
-                                        a.getCommodityBoughtList(),
-                                        a.hasClusterId()
-                                                ? Optional.of(a.getClusterId()) : Optional.empty()))
-                                .collect(Collectors.toList());
-                        final InvalidInfo invalidInfo = reservationInstance.hasInvalidInfo() ?
-                                reservationInstance.getInvalidInfo() : null;
-                        return new PlacementInfo(reservationInstance.getEntityId(),
-                                ImmutableList.copyOf(providerInfos), reservationInstance.getUnplacedReasonList(),
-                                Optional.ofNullable(invalidInfo));
-                    }).collect(Collectors.toList());
-            final Map<Long, ServiceEntityApiDTO> serviceEntityMap = getServiceEntityMap(placementInfos);
-            final Map<Long, BaseApiDTO> clusterMap = getClusterMap(placementInfos);
             final List<DemandEntityInfoDTO> demandEntityInfoDTOS = new ArrayList<>();
             for (PlacementInfo placementInfo : placementInfos) {
                 demandEntityInfoDTOS.add(
@@ -682,7 +794,7 @@ public class ReservationMapper {
             // should not be happening. The caller already verifies this.
             return;
         }
-        ServiceEntityApiDTO serviceEntityApiDTO =serviceEntityApiDTOMap
+        ServiceEntityApiDTO serviceEntityApiDTO = serviceEntityApiDTOMap
                         .get(providerInfo.getProviderId().get());
         // if entity id is not present, it means this reservation is unplaced.
         if (serviceEntityApiDTO == null) {
@@ -757,8 +869,7 @@ public class ReservationMapper {
      * @param placementInfos contains all initial placement results which only keep ids.
      * @return a map which key is cluster id, value is {@link BaseApiDTO}.
      */
-    private Map<Long, BaseApiDTO> getClusterMap(
-            @Nonnull final List<PlacementInfo> placementInfos) {
+    private Map<Long, BaseApiDTO> getClusterMap(@Nonnull final List<PlacementInfo> placementInfos) {
         // This set contains cluster OIDs.
         Set<Long> clusterIds = new HashSet<>();
         for (PlacementInfo placementInfo : placementInfos) {
@@ -766,27 +877,36 @@ public class ReservationMapper {
                 if (providerInfo.getProviderId().isPresent()) {
                     providerInfo.getClusterId().ifPresent(clusterIds::add);
                 }
-
             }
             for (UnplacementReason reason : placementInfo.getUnpalcementReasons()) {
                 clusterIds.add(reason.getClosestSellerClusterOid());
+                reason.getClosestSellerClusterNameBytes();
             }
         }
-        GetGroupsRequest request =
-                GetGroupsRequest.newBuilder()
-                        .setGroupFilter(GroupFilter.newBuilder()
-                                .addAllId(clusterIds))
-                        .build();
         final Map<Long, BaseApiDTO> clusterMap = new HashMap<>();
-        Iterator<Grouping> groups = groupServiceBlockingStub.getGroups(request);
-        while (groups.hasNext()) {
-            Grouping cluster = groups.next();
-            if (GroupProtoUtil.CLUSTER_GROUP_TYPES.contains(cluster.getDefinition().getType())) {
+        if (clusterIds.size() == 0) {
+            return clusterMap;
+        }
+        GetPartialGroupingInfoRequest request =
+                GetPartialGroupingInfoRequest.newBuilder().setReturnType(Type.MINIMAL).addAllIds(
+                        clusterIds).build();
+
+        Iterator<GroupDTO.PartialGroupingInfo> minimalGroups =
+                groupServiceBlockingStub.getPartialGroupingInfo(request);
+
+        while (minimalGroups.hasNext()) {
+            GroupDTO.PartialGroupingInfo curGroupInfo = minimalGroups.next();
+            if (GroupProtoUtil.CLUSTER_GROUP_TYPES.contains(curGroupInfo.getMinimal().getType())) {
                 final BaseApiDTO apiDTO = new BaseApiDTO();
-                apiDTO.setDisplayName(cluster.getDefinition().getDisplayName());
-                apiDTO.setUuid(String.valueOf(cluster.getId()));
-                clusterMap.put(cluster.getId(), apiDTO);
+                apiDTO.setDisplayName(curGroupInfo.getMinimal().getDisplayName());
+                apiDTO.setUuid(String.valueOf(curGroupInfo.getMinimal().getOid()));
+                clusterMap.put(curGroupInfo.getMinimal().getOid(), apiDTO);
             }
+        }
+
+        if (clusterMap.values().size() != clusterIds.size()) {
+            logger.debug(clusterIdAmountMisMatch, clusterMap.values().size(),
+                    clusterIds.size());
         }
         return clusterMap;
     }

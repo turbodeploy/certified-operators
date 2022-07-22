@@ -95,6 +95,15 @@ public interface IGroupStore {
     Collection<Grouping> getGroupsById(@Nonnull Collection<Long> groupId);
 
     /**
+     * Retrieves id & display name of groups by id.
+     *
+     * @param groupIds id of the group
+     * @return group or empty collection if none found.
+     */
+    @Nonnull
+    Collection<GroupDTO.PartialGroupingInfo> getMinimalGroupInfoByIds(@Nonnull Collection<Long> groupIds);
+
+    /**
      * Method returns Ids for the groups from {@code groupId} collection filtering only
      * existing groups. This method should be used as a very lightweight way to check whether
      * group exists in the DAO.

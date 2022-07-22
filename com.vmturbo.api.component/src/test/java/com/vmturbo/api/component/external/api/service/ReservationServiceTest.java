@@ -3,6 +3,10 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.api.enums.ReservationAction.RESERVATION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
+import static org.mockito.Matchers.anyMap;
+import static org.mockito.Matchers.eq;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -21,6 +25,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservation.DemandEntityInfoDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
@@ -123,7 +128,7 @@ public class ReservationServiceTest {
 
         // Storage Stats to be returned from stats service
         final ApiId apiIdS = Mockito.mock(ApiId.class);
-        Mockito.when(mockUuidMapper.fromUuid(Mockito.any())).thenReturn(apiIdH);
+        Mockito.when(mockUuidMapper.fromUuid(any())).thenReturn(apiIdH);
         List<StatSnapshotApiDTO> entityStatSnapshotS = createEntityStatSnapshot(3000f,
                 CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_PROVISIONED));
         Mockito.when(apiIdS.isGroup()).thenReturn(false);
@@ -147,7 +152,7 @@ public class ReservationServiceTest {
         demandEntityInfoDTOS1.add(demandEntityInfoDTO1);
         reservationApiDTO1.setDemandEntities(demandEntityInfoDTOS1);
         final Reservation reservation1 = Reservation.newBuilder().setName("reservation1").build();
-        Mockito.when(reservationMapper.convertReservationToApiDTO(reservation1))
+        Mockito.when(reservationMapper.convertReservationToApiDTO(eq(reservation1),any(),any(),any()))
                 .thenReturn(reservationApiDTO1);
 
         reservationApiDTO2 = new DemandReservationApiDTO();
@@ -158,14 +163,12 @@ public class ReservationServiceTest {
         demandEntityInfoDTOS2.add(demandEntityInfoDTO2);
         reservationApiDTO2.setDemandEntities(demandEntityInfoDTOS2);
         final Reservation reservation2 = Reservation.newBuilder().setName("reservation2").build();
-        Mockito.when(reservationMapper.convertReservationToApiDTO(reservation2))
+        Mockito.when(reservationMapper.convertReservationToApiDTO(eq(reservation2),any(),any(),any()))
                 .thenReturn(reservationApiDTO2);
 
-        List<Reservation> reservationIterator = new ArrayList<>();
-        reservationIterator.add(reservation1);
-        reservationIterator.add(reservation2);
-        Mockito.when(reservationServiceMole
-                .getAllReservations(Mockito.any())).thenReturn(reservationIterator);
+
+        Mockito.when(reservationMapper.generateReservationList(any()))
+                .thenReturn(Arrays.asList(reservationApiDTO1,reservationApiDTO2));
 
     }
 
@@ -258,16 +261,16 @@ public class ReservationServiceTest {
         final Reservation reservation = Reservation.newBuilder().setName("Test-reservation").build();
         final DemandReservationApiDTO demandReservationApiDTO = new DemandReservationApiDTO();
         demandReservationApiDTO.setCount(2);
-        Mockito.when(reservationMapper.convertToReservation(Mockito.any())).thenReturn(reservation);
-        Mockito.when(reservationServiceMole.createReservation(Mockito.any()))
+        Mockito.when(reservationMapper.convertToReservation(any())).thenReturn(reservation);
+        Mockito.when(reservationServiceMole.createReservation(any()))
                 .thenReturn(reservation);
-        Mockito.when(reservationMapper.convertReservationToApiDTO(Mockito.any()))
+        Mockito.when(reservationMapper.generateReservationApiDto(any()))
                 .thenReturn(demandReservationApiDTO);
         final DemandReservationApiDTO result =
                 reservationsService.createReservationForDemand(false, RESERVATION,
                         demandApiInputDTO);
         Mockito.verify(reservationServiceMole, Mockito.times(1))
-                .createReservation(Mockito.any(), Mockito.any());
+                .createReservation(any(), any());
         assertEquals(2L, (int)result.getCount());
     }
 

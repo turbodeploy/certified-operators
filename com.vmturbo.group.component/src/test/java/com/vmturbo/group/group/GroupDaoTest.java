@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -66,6 +67,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter.StaticOrDynamicFil
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.PartialGroupingInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
@@ -2688,6 +2690,69 @@ public class GroupDaoTest extends MultiDbTestBase {
                 response.getGroups(0).getDefinition().getDisplayName());
         Assert.assertEquals(group3DisplayName,
                 response.getGroups(1).getDefinition().getDisplayName());
+    }
+
+    /**
+     * Tests that {@link GroupDAO#getMinimalGroupInfoByIds} returns correct number of
+     * Groups and in the form of MinimalGroupingInfos.
+     *
+     * @throws StoreOperationException on db error
+     */
+    @Test
+    public void testgetMinimalGroupInfoByIds() throws StoreOperationException {
+        final String group1DisplayName = "testGroupA";
+        final String group2DisplayName = "testGroupB";
+        final String group3DisplayName = "testGroupC";
+        final String group4DisplayName = "TestGroupD";
+
+        // ARRANGE
+        prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
+        List<Long> groupIds = Arrays.asList(OID1, OID2, OID3, OID4);
+
+        // ACT
+        Collection<PartialGroupingInfo> response = groupStore.getMinimalGroupInfoByIds(groupIds);
+
+        // ASSERT
+        Assert.assertEquals(4, response.size());
+
+        for (GroupDTO.PartialGroupingInfo partialGroupingInfo : response) {
+            Assert.assertTrue(partialGroupingInfo.hasMinimal());
+            Assert.assertTrue(partialGroupingInfo.getMinimal().hasDisplayName());
+            Assert.assertTrue(partialGroupingInfo.getMinimal().hasOid());
+            Assert.assertTrue(partialGroupingInfo.getMinimal().hasType());
+        }
+
+        Assert.assertEquals(1, response.stream()
+                .filter(x -> x.getMinimal().getOid() == OID1
+                        && x.getMinimal().getType().getNumber() == 3 && x.getMinimal()
+                        .getDisplayName()
+                        .equals(group1DisplayName))
+                .collect(Collectors.toList())
+                .size());
+
+        Assert.assertEquals(1, response.stream()
+                .filter(x -> x.getMinimal().getOid() == OID2
+                        && x.getMinimal().getType().getNumber() == 3 && x.getMinimal()
+                        .getDisplayName()
+                        .equals(group2DisplayName))
+                .collect(Collectors.toList())
+                .size());
+
+        Assert.assertEquals(1, response.stream()
+                .filter(x -> x.getMinimal().getOid() == OID3
+                        && x.getMinimal().getType().getNumber() == 0 && x.getMinimal()
+                        .getDisplayName()
+                        .equals(group3DisplayName))
+                .collect(Collectors.toList())
+                .size());
+
+        Assert.assertEquals(1, response.stream()
+                .filter(x -> x.getMinimal().getOid() == OID4
+                        && x.getMinimal().getType().getNumber() == 3 && x.getMinimal()
+                        .getDisplayName()
+                        .equals(group4DisplayName))
+                .collect(Collectors.toList())
+                .size());
     }
 
     /**
