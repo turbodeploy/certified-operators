@@ -29,7 +29,7 @@
         <com.vmturbo.api.version>3.3.21-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
-        <cpu.capacity.version>1.5.5</cpu.capacity.version>
+        <cpu.capacity.version>1.5.4</cpu.capacity.version>
 
         <checkstyle.version>9.3</checkstyle.version>
 
