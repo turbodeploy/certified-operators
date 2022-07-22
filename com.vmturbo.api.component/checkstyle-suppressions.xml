@@ -49,7 +49,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]PolicyMapper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]PriceIndexPopulator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]ProbeMapper.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]ReservationMapper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]ReservedInstanceMapper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]ScenarioMapper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]ServiceEntityMapper.java" />

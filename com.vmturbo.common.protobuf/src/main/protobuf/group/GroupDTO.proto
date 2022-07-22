@@ -15,6 +15,39 @@ import "CommonDTO.proto";
 // TODO: Any common message related with group tags need to move into .tag/Tag.proto to avoid code
 // duplication. Any new code should move there, until this file is consolidated.
 
+// ALERT: Only Extend by adding new return types.
+// Created to reduce performance penalties and excessive locking found
+// in the GetGroups Call for large customers
+// Request for retrieving varying types of information of a group.
+// Uses a return_type to dictate what comes back in PartialGroupingInfo
+message GetPartialGroupingInfoRequest {
+    repeated int64 ids = 1;
+
+    // The type of entity to return. This allows the client to specify a detail
+    // level, to reduce db locking, and overhead.
+    optional PartialGroupingInfo.Type return_type = 2;
+}
+
+message PartialGroupingInfo {
+    enum Type {
+        // The following are "generic" detail levels that are needed at a minimum.
+        MINIMAL = 1;
+    }
+
+    // A minimal group entity contains just the bare essentials.
+    message MinimalGroupingInfo {
+        required int64 oid = 1;
+
+        optional string display_name = 2;
+
+        optional common_dto.GroupDTO.GroupType type = 3 [default = REGULAR];
+    }
+
+    oneof infoType {
+        MinimalGroupingInfo minimal = 1;
+    }
+}
+
 // The information about a group in the system
 // A group is a set of entities that can be treated collectively for the
 // purpose of settings, policies, statistics, and other operations.
@@ -611,6 +644,10 @@ service GroupService {
 
     // Get groups based on the query
     rpc GetGroups(GetGroupsRequest) returns (stream Grouping);
+
+    // Get groups based on the query
+    // Using this new call, we can get varying degrees of details of groups
+    rpc GetPartialGroupingInfo(GetPartialGroupingInfoRequest) returns (stream PartialGroupingInfo);
 
     // Get groups based on the query in a paginated response
     rpc GetPaginatedGroups(GetPaginatedGroupsRequest) returns (GetPaginatedGroupsResponse);

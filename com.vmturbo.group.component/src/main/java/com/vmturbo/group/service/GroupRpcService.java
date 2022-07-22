@@ -74,6 +74,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetPartialGroupingInfoRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagValuesRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagValuesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
@@ -87,6 +88,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.Groupings;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.PartialGroupingInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
@@ -236,6 +238,44 @@ public class GroupRpcService extends GroupServiceImplBase {
                 GetPaginatedGroupsRequest.class, new GetPaginatedGroupsSanitizer(
                         groupPaginationParams));
     }
+
+    /**
+     * Returns a list of PartialGroupingInfo objects based on return type and ids given.
+     * If no ids are given nothing is returned
+     * In detail:
+     * For MINIMAL return type:
+     * We only return the minimal fields "display_name" , "id", and "group_type"
+     *
+     * @param request the input request, containing the Ids of the groups you want returned.
+     * @return PartialGroupingInfo populated with the return type object specified in the request.
+     */
+    @Override
+    public void getPartialGroupingInfo(GetPartialGroupingInfoRequest request,
+            StreamObserver<PartialGroupingInfo> responseObserver) {
+        if (request.getIdsCount() == 0 || !request.hasReturnType()) {
+            logger.error("No ids were given or the return type was not given" + request);
+            responseObserver.onCompleted();
+            return;
+        }
+        final StopWatch stopWatch = new StopWatch("getPartialGroupingInfo");
+        logger.debug("Trying to load {} PartialGroupingInfos by OIDs", request.getIdsList()::size);
+        stopWatch.start("starting grpcTransaction for getGroupsBasicInfo");
+        grpcTransactionUtil.executeOperation(responseObserver, (stores) -> {
+            switch (request.getReturnType()) {
+                case MINIMAL:
+                    final Collection<PartialGroupingInfo> partialGroupingInfos =
+                            stores.getGroupStore().getMinimalGroupInfoByIds(request.getIdsList());
+                    partialGroupingInfos.forEach(responseObserver::onNext);
+                    break;
+                default:
+                    logger.error("No valid return type was given" + request);
+            }
+            responseObserver.onCompleted();
+        });
+        stopWatch.stop();
+        logger.debug(stopWatch::prettyPrint);
+    }
+
 
     @Override
     public void countGroups(GetGroupsRequest request,

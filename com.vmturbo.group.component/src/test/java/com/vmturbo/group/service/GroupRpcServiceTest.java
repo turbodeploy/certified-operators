@@ -94,6 +94,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetPartialGroupingInfoRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
@@ -107,6 +108,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Groupings;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin.User;
+import com.vmturbo.common.protobuf.group.GroupDTO.PartialGroupingInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.PartialGroupingInfo.MinimalGroupingInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.PartialGroupingInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
@@ -326,6 +330,66 @@ public class GroupRpcServiceTest {
         Assert.assertEquals(Sets.newHashSet(resultGroup1, resultGroup2, resultGroup3),
                 new HashSet<>(captor.getAllValues()));
         Mockito.verify(groupStoreDAO, Mockito.times(2)).getGroupsById(Mockito.any());
+    }
+
+    /**
+     * Tests that {@link GroupRpcService#getPartialGroupingInfo}
+     * returns a PartialGroupingInfo response
+     */
+    @Test
+    public void testGetGroupsBasicInfoWithMinimalReturnType() {
+        // ARRANGE
+        final long groupId1 = 1234L;
+        final Grouping grouping1 = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setDisplayName(String.valueOf(groupId1))
+                        .build())
+                .setId(groupId1)
+                .build();
+        groupStoreDAO.addGroup(grouping1);
+        final long groupId2 = 1235L;
+        final Grouping grouping2 = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setDisplayName(String.valueOf(groupId2))
+                        .build())
+                .setId(groupId2)
+                .build();
+        groupStoreDAO.addGroup(grouping2);
+        GetPartialGroupingInfoRequest request =
+                GetPartialGroupingInfoRequest.newBuilder().setReturnType(Type.MINIMAL).addAllIds(
+                        Arrays.asList(groupId1, groupId2)).build();
+
+        final StreamObserver<PartialGroupingInfo> mockResponseObserver = Mockito.mock(
+                StreamObserver.class);
+
+        // ACT
+        groupRpcService.getPartialGroupingInfo(request, mockResponseObserver);
+
+        // ASSERT
+        Mockito.verify(groupStoreDAO, Mockito.times(1)).getMinimalGroupInfoByIds(any());
+        final ArgumentCaptor<PartialGroupingInfo> captor = ArgumentCaptor.forClass(
+                PartialGroupingInfo.class);
+        Mockito.verify(mockResponseObserver, Mockito.times(2)).onNext(captor.capture());
+        Mockito.verify(mockResponseObserver).onCompleted();
+        Assert.assertEquals(2, captor.getAllValues().size());
+
+        PartialGroupingInfo minimalGroupingInfo1 = captor.getAllValues().stream().filter(
+                x -> x.getMinimal().getDisplayName().equals(String.valueOf(groupId1))).collect(
+                Collectors.toList()).get(0);
+        Assert.assertNotNull(minimalGroupingInfo1);
+        Assert.assertNotNull(minimalGroupingInfo1.getMinimal().getDisplayName());
+        Assert.assertEquals(String.valueOf(groupId1),
+                minimalGroupingInfo1.getMinimal().getDisplayName());
+        Assert.assertEquals(groupId1, minimalGroupingInfo1.getMinimal().getOid());
+
+        PartialGroupingInfo minimalGroupingInfo2 = captor.getAllValues().stream().filter(
+                x -> x.getMinimal().getDisplayName().equals(String.valueOf(groupId2))).collect(
+                Collectors.toList()).get(0);
+        Assert.assertNotNull(minimalGroupingInfo2);
+        Assert.assertNotNull(minimalGroupingInfo2.getMinimal().getDisplayName());
+        Assert.assertEquals(String.valueOf(groupId2),
+                minimalGroupingInfo2.getMinimal().getDisplayName());
+        Assert.assertEquals(groupId2, minimalGroupingInfo2.getMinimal().getOid());
     }
 
     /**

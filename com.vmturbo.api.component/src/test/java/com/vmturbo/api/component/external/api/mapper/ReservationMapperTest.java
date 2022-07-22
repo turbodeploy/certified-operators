@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.api.component.external.api.mapper.ReservationMapper.generateReservationToPlacementInfoMap;
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
@@ -9,8 +10,12 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -30,6 +35,7 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
@@ -43,6 +49,8 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.PartialGroupingInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.PartialGroupingInfo.MinimalGroupingInfo;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
@@ -128,6 +136,10 @@ public class ReservationMapperTest {
 
     private final ServiceEntityApiDTO pmServiceEntity = new ServiceEntityApiDTO();
 
+    private Grouping emptyGroup = Grouping.newBuilder().build();
+
+    private PartialGroupingInfo emptyPartialGroupingInfo = PartialGroupingInfo.newBuilder().build();
+
     private ReservationMapper reservationMapper;
 
     @Mock
@@ -175,7 +187,7 @@ public class ReservationMapperTest {
         stServiceEntity.setClassName("Storage");
         stServiceEntity.setDisplayName("ST #1");
         stServiceEntity.setUuid("3");
-        final Grouping emptyGroup = Grouping
+        emptyGroup = Grouping
                 .newBuilder()
                 .setId(CLUSTER_ID)
                 .setDefinition(GroupDefinition
@@ -184,6 +196,13 @@ public class ReservationMapperTest {
                         .setDisplayName(CLUSTER_NAME)
                         .build())
                 .build();
+
+        emptyPartialGroupingInfo = PartialGroupingInfo.newBuilder().setMinimal(
+                MinimalGroupingInfo.newBuilder()
+                        .setDisplayName(emptyGroup.getDefinition().getDisplayName())
+                        .setOid(emptyGroup.getId())
+                        .setType(emptyGroup.getDefinition().getType()).build()
+        ).build();
         when(groupServiceMole.getGroups(any())).thenReturn(Collections.singletonList(emptyGroup));
     }
 
@@ -201,6 +220,39 @@ public class ReservationMapperTest {
         demandReservationParametersDTO.setPlacementParameters(placementParametersDTO);
         demandApiInputDTO.setParameters(Lists.newArrayList(demandReservationParametersDTO));
         return demandApiInputDTO;
+    }
+
+    @NotNull
+    private Map<Long, BaseApiDTO> getBaseApiDTOMap(Grouping grouping) {
+        final BaseApiDTO apiDTO = new BaseApiDTO();
+        apiDTO.setDisplayName(grouping.getDefinition().getDisplayName());
+        apiDTO.setUuid(String.valueOf(grouping.getId()));
+        Map<Long, BaseApiDTO> clusterMap = new HashMap<>();
+        clusterMap.put(grouping.getId(), apiDTO);
+        return clusterMap;
+    }
+
+    private Map<Long, ServiceEntityApiDTO> generateSEMapFromExistInServiceEntities( ) {
+        ServiceEntityApiDTO vmServiceEntitySEDto = new ServiceEntityApiDTO();
+        Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = new HashMap<>();
+        serviceEntityApiDTOMap.put(1L, vmServiceEntitySEDto);
+        vmServiceEntitySEDto.setUuid(vmServiceEntity.getUuid());
+        vmServiceEntitySEDto.setDisplayName(vmServiceEntity.getDisplayName());
+        vmServiceEntitySEDto.setClassName(vmServiceEntity.getClassName());
+
+        ServiceEntityApiDTO pmServiceEntitySEDto = new ServiceEntityApiDTO();
+        pmServiceEntitySEDto.setUuid(pmServiceEntity.getUuid());
+        pmServiceEntitySEDto.setDisplayName(pmServiceEntity.getDisplayName());
+        pmServiceEntitySEDto.setClassName(pmServiceEntity.getClassName());
+        serviceEntityApiDTOMap.put(2L, pmServiceEntitySEDto);
+
+        ServiceEntityApiDTO stServiceEntityDto = new ServiceEntityApiDTO();
+        stServiceEntityDto.setUuid(stServiceEntity.getUuid());
+        stServiceEntityDto.setDisplayName(stServiceEntity.getDisplayName());
+        stServiceEntityDto.setClassName(stServiceEntity.getClassName());
+        serviceEntityApiDTOMap.put(3L, stServiceEntityDto);
+
+        return serviceEntityApiDTOMap;
     }
 
     private static void assertThatAllDTORequiredFieldWereMappedCorrectly(
@@ -440,12 +492,39 @@ public class ReservationMapperTest {
     public void testConvertReservationToApiDTO() throws Exception {
         Reservation reservation = createReservation();
 
-        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(vmServiceEntity, pmServiceEntity, stServiceEntity));
-        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+        Map<Long, List<ReservationMapper.PlacementInfo>> placementInfosMap =
+                generateReservationToPlacementInfoMap(Collections.singletonList(reservation));
+
+        Map<Long, BaseApiDTO> clusterMap = getBaseApiDTOMap(emptyGroup);
 
         final DemandReservationApiDTO reservationApiDTO =
-                reservationMapper.convertReservationToApiDTO(reservation);
+                reservationMapper.convertReservationToApiDTO(reservation,
+                        generateSEMapFromExistInServiceEntities(), clusterMap, placementInfosMap);
         assertThatAllReservationFieldsWereMappedCorrectly(reservationApiDTO);
+    }
+
+    /**
+     * Test converting a list of {@link Reservation} protobuf message to a list of
+     * {@link DemandReservationApiDTO}.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testGenerateReservationList() throws Exception {
+        List<Reservation> reservations = Arrays.asList(createReservation(), createReservation());
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(
+                Lists.newArrayList(vmServiceEntity, pmServiceEntity, stServiceEntity));
+
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+        when(groupServiceMole.getPartialGroupingInfo(any())).thenReturn(
+                Collections.singletonList(emptyPartialGroupingInfo));
+        List<DemandReservationApiDTO> reservationApiDTOs =
+                reservationMapper.generateReservationList(reservations);
+
+        for (DemandReservationApiDTO dto : reservationApiDTOs) {
+            assertThatAllReservationFieldsWereMappedCorrectly(dto);
+        }
     }
 
     /**
@@ -519,13 +598,12 @@ public class ReservationMapperTest {
 
         MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(
                 Lists.newArrayList(vmServiceEntity, pmServiceEntity, stServiceEntity));
-        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
         Grouping cluster = Grouping.newBuilder().setId(closestClusterOid).setDefinition(
                 GroupDefinition.newBuilder().setType(GroupType.COMPUTE_HOST_CLUSTER).build()).build();
-        when(groupServiceMole.getGroups(any())).thenReturn(Collections.singletonList(cluster));
-
+        Map<Long, BaseApiDTO> clusterMap = getBaseApiDTOMap(cluster);
+        Map<Long, List<ReservationMapper.PlacementInfo>> placementInfosMap = generateReservationToPlacementInfoMap(Collections.singletonList(reservation));
         final DemandReservationApiDTO reservationApiDTO =
-                reservationMapper.convertReservationToApiDTO(reservation);
+                reservationMapper.convertReservationToApiDTO(reservation, req.getSEMap(), clusterMap, placementInfosMap);
         assertEquals("test-reservation", reservationApiDTO.getDisplayName());
         assertEquals("PLACEMENT_FAILED", reservationApiDTO.getStatus());
         assertEquals(1L, reservationApiDTO.getDemandEntities().size());

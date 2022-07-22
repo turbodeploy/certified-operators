@@ -35,6 +35,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.PartialGroupingInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.PartialGroupingInfo.MinimalGroupingInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
@@ -93,6 +95,27 @@ public class MockGroupStore implements IGroupStore {
     @Override
     public Collection<Grouping> getGroupsById(@Nonnull Collection<Long> groupId) {
         return groupId.stream().map(groups::get).collect(Collectors.toList());
+    }
+
+    /**
+     * Gets a collection of MinimalGroupInfo objects by Id.
+     * If no Ids are given, nothing is returned.
+     * @param groupIds id of the group
+     * @return a list of PartialGroupingInfos
+     */
+    @NotNull
+    @Override
+    public Collection<PartialGroupingInfo> getMinimalGroupInfoByIds(
+            @NotNull Collection<Long> groupIds) {
+        return groupIds.stream().map(groups::get).map(x -> {
+            return PartialGroupingInfo.newBuilder()
+                    .setMinimal(MinimalGroupingInfo.newBuilder()
+                            .setOid(x.getId())
+                            .setType(x.getDefinition().getType())
+                            .setDisplayName(x.getDefinition().getDisplayName())
+                            .build())
+                    .build();
+        }).collect(Collectors.toList());
     }
 
     @Nonnull
