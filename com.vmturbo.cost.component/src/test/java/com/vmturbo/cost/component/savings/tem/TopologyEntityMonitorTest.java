@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
@@ -41,6 +42,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -71,9 +73,9 @@ public class TopologyEntityMonitorTest {
     private CachedSavingsActionStore cachedSavingsActionStore = mock(CachedSavingsActionStore.class);
 
     /**
-         * Maps entity ID to provider ID.
-         */
-        private Map<Long, Long> entityIdToProviderId = new HashMap<Long, Long>();
+     * Maps entity ID to provider ID.
+     */
+    private Map<Long, Long> entityIdToProviderId = new HashMap<Long, Long>();
 
     @Before
     public void setup() throws IOException {
@@ -83,19 +85,19 @@ public class TopologyEntityMonitorTest {
     }
 
     /**
-     * Test updates of Liveness states of executed actions.
+     * Test updates of Liveness states of executed actions, involving tier change only.
      */
     @Test
-    public void testLivenessUpdates() throws SavingsException {
+    public void testLivenessUpdatesWithTierChangeOnly() throws SavingsException {
         Scale.Builder scaleBuilder = Scale.newBuilder();
         final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
-                createExecutedActionsChangeWindow(1L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                createScaleExecutedActionChangeWindow(1L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
                         EntityType.VIRTUAL_MACHINE_VALUE, EntityType.COMPUTE_TIER_VALUE, 1001L, 3001L, scaleBuilder),
-                createExecutedActionsChangeWindow(1L, 301L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 23, 9, 30),
+                createScaleExecutedActionChangeWindow(1L, 301L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 23, 9, 30),
                         EntityType.VIRTUAL_MACHINE_VALUE, EntityType.COMPUTE_TIER_VALUE, 3001L, 4001L, scaleBuilder),
-                createExecutedActionsChangeWindow(1L, 401L, LivenessState.NEW, LocalDateTime.of(2022, 5, 24, 11, 30),
+                createScaleExecutedActionChangeWindow(1L, 401L, LivenessState.NEW, LocalDateTime.of(2022, 5, 24, 11, 30),
                         EntityType.VIRTUAL_MACHINE_VALUE, EntityType.COMPUTE_TIER_VALUE, 4001L, 1001L, scaleBuilder),
-                createExecutedActionsChangeWindow(1L, 501L, LivenessState.NEW, LocalDateTime.of(2022, 5, 25, 12, 0),
+                createScaleExecutedActionChangeWindow(1L, 501L, LivenessState.NEW, LocalDateTime.of(2022, 5, 25, 12, 0),
                         EntityType.VIRTUAL_MACHINE_VALUE, EntityType.COMPUTE_TIER_VALUE, 1001L, 2001L, scaleBuilder));
 
         doReturn(initialChangeWindows)
@@ -112,10 +114,10 @@ public class TopologyEntityMonitorTest {
     }
 
     /**
-     * Test updates of Liveness states of executed actions with commodity resizes.
+     * Test updates of Liveness states of executed actions with tier change and commodity resizes.
      */
     @Test
-    public void testLivenessUpdatesWithCommResizes() throws SavingsException {
+    public void testLivenessUpdatesWithTierAndCommResizes() throws SavingsException {
         List<ResizeInfo> resizeInfoList = new ArrayList<>();
         resizeInfoList.add(ResizeInfo.newBuilder()
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE))
@@ -132,13 +134,13 @@ public class TopologyEntityMonitorTest {
         Scale.Builder scaleBuilder = Scale.newBuilder();
         scaleBuilder.addAllCommodityResizes(resizeInfoList);
         final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
-                createExecutedActionsChangeWindow(4L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                createScaleExecutedActionChangeWindow(4L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
                         EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 1004L, 3004L, scaleBuilder),
-                createExecutedActionsChangeWindow(4L, 301L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 23, 9, 30),
+                createScaleExecutedActionChangeWindow(4L, 301L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 23, 9, 30),
                         EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 3004L, 4004L, scaleBuilder),
-                createExecutedActionsChangeWindow(4L, 401L, LivenessState.NEW, LocalDateTime.of(2022, 5, 24, 11, 30),
+                createScaleExecutedActionChangeWindow(4L, 401L, LivenessState.NEW, LocalDateTime.of(2022, 5, 24, 11, 30),
                         EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 4004L, 1004L, scaleBuilder),
-                createExecutedActionsChangeWindow(4L, 501L, LivenessState.NEW, LocalDateTime.of(2022, 5, 25, 12, 00),
+                createScaleExecutedActionChangeWindow(4L, 501L, LivenessState.NEW, LocalDateTime.of(2022, 5, 25, 12, 00),
                         EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 1004L, 2004L, scaleBuilder));
 
         doReturn(initialChangeWindows)
@@ -155,10 +157,10 @@ public class TopologyEntityMonitorTest {
     }
 
     /**
-     * Test updates of Liveness states of executed actions, with empty change providers.
+     * Test updates of Liveness states of executed actions, with commodity resizes only.
      */
     @Test
-    public void testLivenessUpdatesEmptyChangeProviders() throws SavingsException {
+    public void testLivenessUpdatesWithEmptyChangeProviders() throws SavingsException {
         List<ResizeInfo> resizeInfoList = new ArrayList<>();
         resizeInfoList.add(ResizeInfo.newBuilder()
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE))
@@ -175,9 +177,9 @@ public class TopologyEntityMonitorTest {
         Scale.Builder scaleBuilder = Scale.newBuilder();
         scaleBuilder.addAllCommodityResizes(resizeInfoList);
         final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
-                createExecutedActionsChangeWindow(4L, 401L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 24, 11, 30),
+                createScaleExecutedActionChangeWindow(4L, 401L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 24, 11, 30),
                         EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 0L, 0L, scaleBuilder),
-                createExecutedActionsChangeWindow(4L, 501L, LivenessState.NEW, LocalDateTime.of(2022, 5, 25, 12, 00),
+                createScaleExecutedActionChangeWindow(4L, 501L, LivenessState.NEW, LocalDateTime.of(2022, 5, 25, 12, 00),
                         EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 0L, 0L, scaleBuilder));
 
         doReturn(initialChangeWindows)
@@ -193,15 +195,15 @@ public class TopologyEntityMonitorTest {
     }
 
     /**
-     * Test no updates required to of Liveness states of executed actions.
+     * Test no updates required to of Liveness states of executed actions with tier changes only.
      */
     @Test
-    public void testNoUpdatesRequired() throws SavingsException {
+    public void testNoUpdatesRequiredTierChangeOnly() throws SavingsException {
         Scale.Builder scaleBuilder = Scale.newBuilder();
         final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
-                createExecutedActionsChangeWindow(1L, 101L, LivenessState.SUPERSEDED, LocalDateTime.of(2022, 5, 21, 10, 30),
+                createScaleExecutedActionChangeWindow(1L, 101L, LivenessState.SUPERSEDED, LocalDateTime.of(2022, 5, 21, 10, 30),
                         EntityType.VIRTUAL_MACHINE_VALUE, EntityType.COMPUTE_TIER_VALUE, 1001L, 3001L, scaleBuilder),
-                createExecutedActionsChangeWindow(1L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                createScaleExecutedActionChangeWindow(1L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
                         EntityType.VIRTUAL_MACHINE_VALUE, EntityType.COMPUTE_TIER_VALUE, 3001L, 4001L, scaleBuilder));
 
         doReturn(initialChangeWindows)
@@ -216,13 +218,37 @@ public class TopologyEntityMonitorTest {
     }
 
     /**
+     * Test no updates required to of Liveness states of executed actions with tier changes and commodity resizes.
+     */
+    @Test
+    public void testNoUpdatesRequiredTierAndCommResizes() throws SavingsException {
+        Scale.Builder scaleBuilder = Scale.newBuilder();
+        final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
+                createScaleExecutedActionChangeWindow(4L, 101L, LivenessState.SUPERSEDED, LocalDateTime.of(2022, 5, 21, 10, 30),
+                        EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 1004L, 3004L, scaleBuilder),
+                createScaleExecutedActionChangeWindow(1L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                        EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 3004L, 4004L, scaleBuilder));
+
+        doReturn(initialChangeWindows)
+                .when(cachedSavingsActionStore)
+                .getActions(any(LivenessState.class));
+
+        topologyMonitor.process(cloudTopology, topologyInfo);
+
+        verify(cachedSavingsActionStore,  times(0)).activateAction(201L, topologyInfo.getCreationTime());
+        verify(cachedSavingsActionStore,  times(0)).deactivateAction(101L, topologyInfo.getCreationTime(), LivenessState.SUPERSEDED);
+        verify(cachedSavingsActionStore,  times(1)).saveChanges();
+    }
+
+    /**
+     * Tests external revert of executed action, with tier change only.
      * Tests external revert of executed action.
      */
     @Test
-    public void testRevert() throws SavingsException {
+    public void testRevertWithTierChangeOnly() throws SavingsException {
         Scale.Builder scaleBuilder = Scale.newBuilder();
         final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
-                createExecutedActionsChangeWindow(1L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                createScaleExecutedActionChangeWindow(1L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
                         EntityType.VIRTUAL_MACHINE_VALUE, EntityType.COMPUTE_TIER_VALUE, 2001L, 3001L, scaleBuilder));
 
         doReturn(initialChangeWindows)
@@ -257,7 +283,7 @@ public class TopologyEntityMonitorTest {
         scaleBuilder.addAllCommodityResizes(resizeInfoList);
 
         final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
-                createExecutedActionsChangeWindow(4L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                createScaleExecutedActionChangeWindow(4L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
                         EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 0L, 0L, scaleBuilder));
 
         doReturn(initialChangeWindows)
@@ -292,7 +318,7 @@ public class TopologyEntityMonitorTest {
         scaleBuilder.addAllCommodityResizes(resizeInfoList);
 
         final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
-                createExecutedActionsChangeWindow(4L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                createScaleExecutedActionChangeWindow(4L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
                         EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 2004L, 3004L, scaleBuilder));
 
         doReturn(initialChangeWindows)
@@ -306,13 +332,13 @@ public class TopologyEntityMonitorTest {
     }
 
     /**
-     * Tests external modification of executed action.
+     * Tests external modification of executed action, with tier change only.
      */
     @Test
-    public void testExternalModification() throws SavingsException {
+    public void testExternalModificationTierChangeOnly() throws SavingsException {
         Scale.Builder scaleBuilder = Scale.newBuilder();
         final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
-                createExecutedActionsChangeWindow(1L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                createScaleExecutedActionChangeWindow(1L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
                         EntityType.VIRTUAL_MACHINE_VALUE, EntityType.COMPUTE_TIER_VALUE, 1001L, 3001L, scaleBuilder));
 
         doReturn(initialChangeWindows)
@@ -347,7 +373,7 @@ public class TopologyEntityMonitorTest {
         scaleBuilder.addAllCommodityResizes(resizeInfoList);
 
         final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
-                createExecutedActionsChangeWindow(4L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                createScaleExecutedActionChangeWindow(4L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
                         EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 0L, 0L, scaleBuilder));
 
         doReturn(initialChangeWindows)
@@ -382,7 +408,7 @@ public class TopologyEntityMonitorTest {
         scaleBuilder.addAllCommodityResizes(resizeInfoList);
 
         final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
-                createExecutedActionsChangeWindow(4L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                createScaleExecutedActionChangeWindow(4L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
                         EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 1004L, 3004L, scaleBuilder));
 
         doReturn(initialChangeWindows)
@@ -395,15 +421,76 @@ public class TopologyEntityMonitorTest {
         verify(cachedSavingsActionStore,  times(1)).saveChanges();
     }
 
-    private ExecutedActionsChangeWindow createExecutedActionsChangeWindow(final long entityOid,
-                                                                          final long actionId,
-                                                                          final LivenessState livenessState,
-                                                                          final LocalDateTime localDateTime,
-                                                                          final int entityType,
-                                                                          final int providerType,
-                                                                          final long srcProviderId,
-                                                                          final long destProviderId,
-                                                                          final Scale.Builder scaleBuilder) {
+    /**
+     * Test delete of a entity with no previous scale actions.
+     */
+    @Test
+    public void testDeleteWithNoPreviousScale() throws SavingsException {
+        Scale.Builder scaleBuilder = Scale.newBuilder();
+        final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
+                createDeleteExecutedActionChangeWindow(10L, 301L, LivenessState.NEW, LocalDateTime.of(2022, 5, 22, 10, 30),
+                        EntityType.VIRTUAL_MACHINE_VALUE, EntityType.COMPUTE_TIER_VALUE, 3001L));
+
+        doReturn(initialChangeWindows)
+                .when(cachedSavingsActionStore)
+                .getActions(any(LivenessState.class));
+
+        topologyMonitor.process(cloudTopology, topologyInfo);
+
+        verify(cachedSavingsActionStore,  times(1)).activateAction(301L, topologyInfo.getCreationTime());
+        verify(cachedSavingsActionStore,  times(0)).deactivateAction(201L, topologyInfo.getCreationTime(), LivenessState.SUPERSEDED);
+        verify(cachedSavingsActionStore,  times(1)).saveChanges();
+    }
+
+    /**
+     * Tests delete of a entity with a previous scale action, with tier change and commodity resizes.
+     * Note that the entity type or scale type (tier, commodities or both) of the previous scale, should not affect the deletes handling
+     * workflow.
+     */
+    @Test
+    public void testDeleteWithPreviousScale() throws SavingsException {
+        List<ResizeInfo> resizeInfoList = new ArrayList<>();
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE))
+                .setOldCapacity(300)
+                .setNewCapacity(100).build());
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
+                .setOldCapacity(100)
+                .setNewCapacity(50).build());
+        resizeInfoList.add(ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE))
+                .setOldCapacity(200)
+                .setNewCapacity(400).build());
+        Scale.Builder scaleBuilder = Scale.newBuilder();
+        scaleBuilder.addAllCommodityResizes(resizeInfoList);
+
+        final Set<ExecutedActionsChangeWindow> initialChangeWindows = ImmutableSet.of(
+                createScaleExecutedActionChangeWindow(10L, 201L, LivenessState.LIVE, LocalDateTime.of(2022, 5, 22, 10, 30),
+                        EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 2004L, 3004L, scaleBuilder),
+                createDeleteExecutedActionChangeWindow(10L, 222L, LivenessState.NEW, LocalDateTime.of(2022, 5, 23, 10, 30),
+                        EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE, 1004L));
+
+        doReturn(initialChangeWindows)
+                .when(cachedSavingsActionStore)
+                .getActions(any(LivenessState.class));
+
+        topologyMonitor.process(cloudTopology, topologyInfo);
+
+        verify(cachedSavingsActionStore,  times(1)).activateAction(222L, topologyInfo.getCreationTime());
+        verify(cachedSavingsActionStore,  times(1)).deactivateAction(201L, topologyInfo.getCreationTime(), LivenessState.SUPERSEDED);
+        verify(cachedSavingsActionStore,  times(1)).saveChanges();
+    }
+
+    private ExecutedActionsChangeWindow createScaleExecutedActionChangeWindow(final long entityOid,
+                                                                              final long actionId,
+                                                                              final LivenessState livenessState,
+                                                                              final LocalDateTime localDateTime,
+                                                                              final int entityType,
+                                                                              final int providerType,
+                                                                              final long srcProviderId,
+                                                                              final long destProviderId,
+                                                                              final Scale.Builder scaleBuilder) {
         final ActionEntity actionEntity = ActionEntity.newBuilder().setId(entityOid).setType(
                 entityType).setEnvironmentType(
                 EnvironmentTypeEnum.EnvironmentType.CLOUD).build();
@@ -413,9 +500,9 @@ public class TopologyEntityMonitorTest {
         // Provider Id's are passed to this method when only commodities are scaling, to simulate no tier changes.
         if (srcProviderId != 0L && destProviderId != 0L) {
             changeBuilder.setSource(ActionEntity.newBuilder()
-                    .setId(srcProviderId)
-                    .setType(providerType)
-                    .build())
+                            .setId(srcProviderId)
+                            .setType(providerType)
+                            .build())
                     .setDestination(ActionEntity.newBuilder()
                             .setId(destProviderId)
                             .setType(providerType)
@@ -432,6 +519,43 @@ public class TopologyEntityMonitorTest {
                                         .setInfo(ActionInfo.newBuilder()
                                                 .setScale(scaleBuilder
                                                         .build()))
+                                        .setDeprecatedImportance(0)
+                                        .setExplanation(Explanation.newBuilder().build()))
+                        .setExecutionStep(ExecutionStep.newBuilder()
+                                .setStatus(Status.SUCCESS)
+                                .setCompletionTime(localDateTime.toInstant(ZoneOffset.UTC).toEpochMilli())
+                                .build()))
+                .setLivenessState(livenessState)
+                .build();
+    }
+
+    private ExecutedActionsChangeWindow createDeleteExecutedActionChangeWindow(final long entityOid,
+                                                                               final long actionId,
+                                                                               final LivenessState livenessState,
+                                                                               final LocalDateTime localDateTime,
+                                                                               final int entityType,
+                                                                               final int providerType,
+                                                                               final long srcProviderId) {
+        final Delete.Builder deleteBuilder = Delete.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                        .setId(entityOid)
+                        .setType(entityType)
+                        .setEnvironmentType(EnvironmentType.CLOUD)
+                        .build());
+
+        deleteBuilder.setSource(ActionEntity.newBuilder()
+                .setId(srcProviderId)
+                .setType(providerType)
+                .setEnvironmentType(EnvironmentType.CLOUD));
+
+        return ExecutedActionsChangeWindow.newBuilder()
+                .setEntityOid(entityOid)
+                .setActionOid(actionId)
+                .setActionSpec(ActionSpec.newBuilder().setRecommendation(
+                                Action.newBuilder()
+                                        .setId(actionId)
+                                        .setInfo(ActionInfo.newBuilder()
+                                                .setDelete(deleteBuilder.build()))
                                         .setDeprecatedImportance(0)
                                         .setExplanation(Explanation.newBuilder().build()))
                         .setExecutionStep(ExecutionStep.newBuilder()
@@ -490,8 +614,8 @@ public class TopologyEntityMonitorTest {
     }
 
     private Optional<TopologyEntityDTO> createProvider(Object o, int entityType) {
-            long entityId = entityIdToProviderId.get(Long.parseLong(o.toString()));
-            return Optional.of(createTopologyEntity(entityId, entityType, entityId, true, ImmutableMap.of()));
+        long entityId = entityIdToProviderId.get(Long.parseLong(o.toString()));
+        return Optional.of(createTopologyEntity(entityId, entityType, entityId, true, ImmutableMap.of()));
     }
 
     private CloudTopology createCloudTopology(Map<Long, TopologyEntityDTO> entityMap) {
