@@ -67,6 +67,7 @@ import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.entity.DiscoveredEntityApiDTO;
 import com.vmturbo.api.dto.QueryInputApiDTO;
 import com.vmturbo.api.dto.RangeInputApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -82,6 +83,8 @@ import com.vmturbo.api.dto.action.CloudSuspendActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.OnPremResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.ActionDisruptiveness;
@@ -90,9 +93,13 @@ import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.PaymentOption;
+import com.vmturbo.api.enums.Platform;
+import com.vmturbo.api.enums.ReservedInstanceType;
 import com.vmturbo.api.enums.QueryType;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
+import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -105,6 +112,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
+import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.TierCostDetails;
@@ -113,6 +121,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AllocateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
@@ -140,6 +149,9 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmoun
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverage;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
@@ -230,6 +242,7 @@ public class ActionSpecMapperTest {
 
     private ActionSpecMapper mapper;
     private ActionSpecMapper mapperWithStableIdEnabled;
+    private ActionSpecMapper mapperWithDiscoveredEntityApiDTOEnabled;
 
     private GroupExpander groupExpander;
     private GroupServiceBlockingStub groupServiceGrpc;
@@ -384,6 +397,18 @@ public class ActionSpecMapperTest {
             groupExpander,
             false);
         mapperWithStableIdEnabled = new ActionSpecMapper(
+            actionSpecMappingContextFactory,
+            reservedInstanceMapper,
+            riBuyContextFetchServiceStub,
+            costServiceBlockingStub,
+            reservedInstanceUtilizationCoverageServiceBlockingStub,
+            buyRiScopeHandler,
+            REAL_TIME_TOPOLOGY_CONTEXT_ID,
+            uuidMapper,
+            cloudSavingsDetailsDtoConverter,
+            groupExpander,
+            true);
+        mapperWithDiscoveredEntityApiDTOEnabled = new ActionSpecMapper(
             actionSpecMappingContextFactory,
             reservedInstanceMapper,
             riBuyContextFetchServiceStub,
@@ -1969,6 +1994,53 @@ public class ActionSpecMapperTest {
 
     }
 
+        /**
+     * Test to verify the DiscoveredEntiyApiDTO is used to populate currentLocation and newLocation in the ActionApiDTO.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testDiscoveredEntityApiDTOIsInUse() throws Exception {
+        final long targetId = 1;
+        final ActionInfo resizeInfo = ActionInfo.newBuilder()
+                .setResize(Resize.newBuilder()
+                    .setTarget(ApiUtilsTest.createActionEntity(targetId))
+                    .setOldCapacity(9)
+                    .setNewCapacity(10)
+                    .setCommodityType(CPU.getCommodityType()))
+            .build();
+
+        Explanation resize = Explanation.newBuilder()
+            .setResize(ResizeExplanation.newBuilder()
+                .setDeprecatedStartUtilization(0.2f)
+                .setDeprecatedEndUtilization(0.4f).build())
+            .build();
+
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+                new TestEntity(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity(DC1_NAME, DATACENTER1_ID, EntityType.DATACENTER_VALUE),
+                new TestEntity(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE))));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(targetId)))
+            .thenReturn(req);
+
+        final ActionApiDTO actionApiDTO =
+                mapperWithDiscoveredEntityApiDTOEnabled.mapActionSpecToActionApiDTO(
+                        buildActionSpec(resizeInfo, resize), CONTEXT_ID);
+
+        // Verify that we set the context ID on the request.
+        verify(req).contextId(CONTEXT_ID);
+
+        assertEquals(ENTITY_TO_RESIZE_NAME, actionApiDTO.getTarget().getDisplayName());
+        assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
+
+        assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
+        assertEquals(DC1_NAME, actionApiDTO.getNewLocation().getDisplayName());
+
+        assertTrue(actionApiDTO.getCurrentLocation() instanceof DiscoveredEntityApiDTO);
+        assertTrue(actionApiDTO.getNewLocation() instanceof DiscoveredEntityApiDTO);
+    }
+
+
     /**
      * Tests proper translation of action severity from the internal
      * XL format to the API action class.
@@ -2333,6 +2405,77 @@ public class ActionSpecMapperTest {
         Assert.assertEquals(Collections.singletonList(DEFAULT_PRE_REQUISITE_DESCRIPTION),
             dtos2.get(0).getPrerequisites());
     }
+
+    @Test
+    public void testBuyRIWithoutRegion() throws Exception {
+        ReservedInstanceApiDTO riApiDTO = new ReservedInstanceApiDTO();
+        riApiDTO.setTemplate(createPolicyBaseApiDTO(1L, "default", "default"));
+        riApiDTO.setPayment(PaymentOption.ALL_UPFRONT);
+        riApiDTO.setPlatform(Platform.LINUX);
+        riApiDTO.setTerm(mock(StatApiDTO.class));
+        riApiDTO.setType(ReservedInstanceType.STANDARD);
+        riApiDTO.setInstanceCount(1);
+        when(reservedInstanceMapper.mapToReservedInstanceApiDTO(any(), any(), any(), any(), any(), any()))
+            .thenReturn(riApiDTO);
+
+        ReservedInstanceBought riBought = ReservedInstanceBought.newBuilder()
+            .setId(1)
+            .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
+                .setReservedInstanceSpec(1).build())
+            .build();
+        ReservedInstanceSpec spec = ReservedInstanceSpec.newBuilder().setId(1).build();
+        Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>> map = new HashMap<>();
+        map.put(1L, new Pair<>(riBought, spec));
+
+        Map<Long, PolicyApiDTO> policyApiDto = new HashMap<>();
+        Map<Long, ApiPartialEntity> entitiesMap = new HashMap<>();
+        entitiesMap.put(1L, topologyEntityDTO("Test Entity", 1L, EntityType.RESERVED_INSTANCE_VALUE));
+        Map< Long, BaseApiDTO> relatedSettingsPolicies = new HashMap<>();
+        relatedSettingsPolicies.put(1L, createPolicyBaseApiDTO(1L, "Test1", "default"));
+
+        ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap, Collections.emptyMap(), Collections.emptyMap(),
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), map,
+                Collections.emptyMap(), serviceEntityMapper, false, policyApiDto, relatedSettingsPolicies, Collections.emptyMap());
+
+        ActionSpecMappingContextFactory contextFactory = mock(ActionSpecMappingContextFactory.class);
+        when(contextFactory.getBuyRIIdToRIBoughtandRISpec(any())).thenReturn(map);
+        when(contextFactory.createActionSpecMappingContext(any(), anyLong(), any())).thenReturn(context);
+
+        ActionSpecMapper actionMapper = new ActionSpecMapper(
+            contextFactory,
+            reservedInstanceMapper,
+            RIBuyContextFetchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            mock(BuyRiScopeHandler.class),
+            REAL_TIME_TOPOLOGY_CONTEXT_ID,
+            uuidMapper,
+            cloudSavingsDetailsDtoConverter,
+            groupExpander,
+            true);
+
+        ActionInfo buyInfo = ActionInfo.newBuilder()
+            .setBuyRi(BuyRI.newBuilder()
+                .setBuyRiId(1L)
+                .setMasterAccount(ActionEntity.newBuilder()
+                    .setId(1L)
+                    .setType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                    .build())
+                .build())
+            .build();
+
+        Explanation explanation = Explanation.newBuilder()
+            .setBuyRI(BuyRIExplanation.newBuilder()
+                .setCoveredAverageDemand(5f)
+                .setTotalAverageDemand(10f)
+                .build())
+            .build();
+        
+        List<ActionApiDTO> dtos = actionMapper.mapActionSpecsToActionApiDTOs(
+            Arrays.asList(buildActionSpec(buyInfo, explanation)),
+            REAL_TIME_TOPOLOGY_CONTEXT_ID);
+    }
+
 
     /**
      * To align with classic, plan action should have succeeded state, so it's not selectable from UI.
