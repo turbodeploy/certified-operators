@@ -123,6 +123,7 @@ import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
@@ -184,8 +185,9 @@ public class SettingsMapperTest {
                 .setTiebreaker(SettingTiebreaker.SMALLER)
                 .setEntitySettingScope(EntitySettingScope.newBuilder()
                     .setEntityTypeSet(EntityTypeSet.newBuilder()
-                        .addEntityType(EntityType.SERVICE_VALUE)
-                        .addEntityType(EntityType.APPLICATION_COMPONENT_VALUE))))
+                            .addAllEntityType(SettingDTOUtil.entityTypesWithSLOSettings
+                                    .stream().map(EntityType::getNumber)
+                                    .collect(Collectors.toList())))))
             .setNumericSettingValueType(NumericSettingValueType.newBuilder())
             .build();
 
