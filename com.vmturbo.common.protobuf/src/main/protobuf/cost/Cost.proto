@@ -1572,6 +1572,9 @@ message UploadBilledCostRequest {
         // the changes, so that we can know and notify of cost changes. For only these, we set
         // this flag, not used for rest of the data points (like network etc.).
         optional bool track_changes = 14;
+
+        // Commodity type, applicable for Volumes, set to UNKNOWN (2047) if not applicable.
+        optional int32 commodity_type = 15;
     }
 
     message CostTagGroupMap {
