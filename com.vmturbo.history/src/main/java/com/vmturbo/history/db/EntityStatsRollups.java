@@ -175,6 +175,9 @@ public class EntityStatsRollups {
                 .withSourceCondition(dsl.dialect() == SQLDialect.POSTGRES && high != null
                                      ? DSL.left(fSourceKey, 8).le(high.substring(0, 8))
                                      : DSL.trueCondition())
+                // this ordering reduces the likelihood of deadlocks during upsert execution
+                .withSourceOrder(fSourceHourKey.asc())
+                .withSourceOrder(UpsertBuilder.getSameNamedField(fUuid, source).asc())
                 .withUpdateValue(fCapacity, UpsertBuilder::max)
                 .withUpdateValue(fEffectiveCapacity, UpsertBuilder::max)
                 .withUpdateValue(fMaxValue, UpsertBuilder::max)

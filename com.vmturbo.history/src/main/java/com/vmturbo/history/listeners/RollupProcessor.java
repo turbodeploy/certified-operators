@@ -26,9 +26,11 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -52,6 +54,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Functions;
 
 import org.apache.commons.lang3.tuple.Pair;
@@ -158,22 +161,23 @@ public class RollupProcessor {
      * @param tableCounts  tables that were populated by ingestions for the given snapshot, with
      *                     record counts
      * @param msecSnapshot snapshot time of contributing ingestions
+     * @return overall outcome of rollup operation
      */
-
-    void performHourRollups(@Nonnull Map<Table<?>, Long> tableCounts,
+    RollupOutcome performHourRollups(@Nonnull Map<Table<?>, Long> tableCounts,
             @Nonnull Instant msecSnapshot) {
         Timestamp snapshot = dsl.dialect() == SQLDialect.POSTGRES
                              // postgres schema has msec-granularity timestamps
                              ? Timestamp.from(msecSnapshot)
                              : Timestamp.from(msecSnapshot.truncatedTo(ChronoUnit.SECONDS));
         MultiStageTimer timer = new MultiStageTimer(logger);
-        boolean complete = performRollups(tableCounts, snapshot, RollupType.BY_HOUR, timer);
+        RollupOutcome outcome = performRollups(tableCounts, snapshot, RollupType.BY_HOUR, timer);
         addAvailableTimestamps(snapshot, RollupType.BY_HOUR, HistoryVariety.ENTITY_STATS,
                 HistoryVariety.PRICE_DATA);
-        String incomplete = complete ? "" : "[INCOMPLETE]";
+        String incomplete = outcome != RollupOutcome.COMPLETE ? "" : "[INCOMPLETE]";
         timer.stopAll().withElapsedSegment("Total Elapsed").info(
                 String.format("Hourly Rollup Processing for %s%s", snapshot, incomplete),
                 Detail.STAGE_SUMMARY);
+        return outcome;
     }
 
     /**
@@ -185,9 +189,11 @@ public class RollupProcessor {
      * @param tableCounts  tables that participate in ingestions during the hour, with record
      *                     counts
      * @param msecSnapshot instant from within the hour to roll up
+     * @return overall outcome of rollup operation
      */
-    void performDayMonthRollups(final Map<Table<?>, Long> tableCounts, final Instant msecSnapshot) {
-        performDayMonthRollups(tableCounts, msecSnapshot, true);
+    RollupOutcome performDayMonthRollups(final Map<Table<?>, Long> tableCounts,
+            final Instant msecSnapshot) {
+        return performDayMonthRollups(tableCounts, msecSnapshot, true);
     }
 
     /**
@@ -200,27 +206,40 @@ public class RollupProcessor {
      *                     counts
      * @param msecSnapshot instant from within the hour to roll up
      * @param doRetention  true to do retention processing after rollups
+     * @return overall outcome of rollup opsertion
      */
-    void performDayMonthRollups(final Map<Table<?>, Long> tableCounts, final Instant msecSnapshot,
+    RollupOutcome performDayMonthRollups(final Map<Table<?>, Long> tableCounts,
+            final Instant msecSnapshot,
             boolean doRetention) {
         Timestamp snapshot = Timestamp.from(msecSnapshot.truncatedTo(ChronoUnit.HOURS));
         MultiStageTimer timer = new MultiStageTimer(logger);
-        boolean complete = performRollups(tableCounts, snapshot, RollupType.BY_DAY, timer);
+        final RollupOutcome dailyOutcome = performRollups(tableCounts, snapshot, RollupType.BY_DAY,
+                timer);
         addAvailableTimestamps(snapshot, RollupType.BY_DAY, HistoryVariety.ENTITY_STATS,
                 HistoryVariety.PRICE_DATA);
-        complete = complete && performRollups(tableCounts, snapshot, RollupType.BY_MONTH, timer);
+        if (dailyOutcome == RollupOutcome.INTERRUPTED || dailyOutcome == RollupOutcome.TIMED_OUT) {
+            // don't keep working if we were interrupted or already timed out
+            logger.warn("Skipping monhtly rollup becuase daily rollup was {}}",
+                    dailyOutcome.name().toLowerCase());
+            return dailyOutcome;
+        }
+        final RollupOutcome monthlyOutcome = performRollups(tableCounts, snapshot,
+                RollupType.BY_MONTH, timer);
         addAvailableTimestamps(snapshot, RollupType.BY_MONTH, HistoryVariety.ENTITY_STATS,
                 HistoryVariety.PRICE_DATA);
         if (doRetention) {
             performRetentionProcessing(timer);
         }
-        String incomplete = complete ? "" : "[INCOMPLETE]";
+        String incomplete = !(dailyOutcome.isComplete() && monthlyOutcome.isComplete())
+                            ? "" : "[INCOMPLETE]";
         timer.stopAll().withElapsedSegment("Total Elapsed").info(
                 String.format("Daily/Monthly Rollup Processing for %s%s", snapshot, incomplete),
                 Detail.STAGE_SUMMARY);
+        return dailyOutcome.isComplete() ? monthlyOutcome : dailyOutcome;
     }
 
-    private void addAvailableTimestamps(Timestamp snapshot, RollupType rollupType,
+    @VisibleForTesting
+    void addAvailableTimestamps(Timestamp snapshot, RollupType rollupType,
             HistoryVariety... historyVarieties) {
         for (HistoryVariety historyVariety : historyVarieties) {
             addAvailableTimestamp(snapshot, rollupType, historyVariety);
@@ -407,7 +426,7 @@ public class RollupProcessor {
         });
     }
 
-    private boolean performRollups(@Nonnull final Map<Table<?>, Long> tableCounts,
+    private RollupOutcome performRollups(@Nonnull final Map<Table<?>, Long> tableCounts,
             final Timestamp snapshot, final RollupType rollupType, @Nonnull MultiStageTimer timer) {
         timer.start(rollupType.getLabel() + " Prep");
         // schedule all the task for execution in the thread pool
@@ -518,19 +537,34 @@ public class RollupProcessor {
         return Collections.singletonList(new RollupTask(table, upsert, cs));
     }
 
-    private boolean waitForRollupTasks(final CompletionService<RollupTask> cs,
+    private RollupOutcome waitForRollupTasks(final CompletionService<RollupTask> cs,
             final Map<Future<RollupTask>, RollupTask> futures, final RollupType rollupType,
             Map<Table<?>, Long> tableCounts, final MultiStageTimer timer) {
         Map<Table<?>, Pair<AtomicInteger, AtomicReference<Duration>>> tableStats = new HashMap<>();
         long timeoutMsec = Math.max(minTimeoutMsec, timeoutMsecForBatchSize * futures.size());
         long deadline = System.currentTimeMillis() + timeoutMsec;
-        boolean incomplete = false;
-        while (!futures.isEmpty()) {
+        boolean lastChancePhase = false;
+        RollupOutcome outcome = RollupOutcome.COMPLETE;
+        Deque<RollupTask> tasksForFinalRetry = new ArrayDeque<>();
+
+        while (!futures.isEmpty() || !tasksForFinalRetry.isEmpty()) {
             long msecToWait = deadline - System.currentTimeMillis();
             Future<RollupTask> future;
             RollupTask task = null;
+            if (futures.isEmpty()) {
+                // must be doing final serial retries of upserts that failed all normal retries
+                // force one last retry of this task
+                lastChancePhase = true;
+                RollupTask lastChanceTask = tasksForFinalRetry.removeFirst();
+                futures.put(lastChanceTask.retry(cs, true).get(), lastChanceTask);
+            }
             try {
                 future = cs.poll(msecToWait, TimeUnit.MILLISECONDS);
+                if (Thread.currentThread().isInterrupted()) {
+                    // in case we get interrupted when we're not waiting for something, we'll
+                    // notice it here
+                    throw new InterruptedException();
+                }
                 if (future == null) {
                     // the poll operation above does not throw like future.get does, so we
                     // do it here for uniform handling.
@@ -565,16 +599,24 @@ public class RollupProcessor {
                 // it appears we're shutting down... cancel remaining task. This will attempt
                 // to cancel any in-progress DB operations as well.
                 cancelRemainingTasks(futures);
-                incomplete = true;
+                outcome = RollupOutcome.INTERRUPTED;
                 Thread.currentThread().interrupt();
             } catch (ExecutionException e) {
                 if (task != null) {
-                    Optional<Future<RollupTask>> retryFuture = task.retry(cs);
+                    Optional<Future<RollupTask>> retryFuture = task.retry(cs, false);
                     if (retryFuture.isPresent()) {
                         futures.put(retryFuture.get(), task);
+                        logger.warn("Rollup task {} failed and will be retried: {}",
+                                task, e.getMessage());
+                    } else if (lastChancePhase) {
+                        logger.error("Rollup task {} failed and ran out of retries, including "
+                                + "last-chance serial retry", task, e);
+                        outcome = RollupOutcome.FAILED;
                     } else {
-                        logger.error("Rollup task {} failed and ran out of retries", task, e);
-                        incomplete = true;
+                        logger.warn("Rollup task {} failed and ran out of retries; "
+                                        + "will be held for final attempt at serial execution: {}",
+                                task, e.getMessage());
+                        tasksForFinalRetry.add(task);
                     }
                 } else {
                     logger.error("A future for a rollup task failed "
@@ -584,7 +626,7 @@ public class RollupProcessor {
                 logger.error("Rollup operation took too long; canceling {} remaining tasks",
                         futures.size());
                 cancelRemainingTasks(futures);
-                incomplete = true;
+                outcome = RollupOutcome.TIMED_OUT;
             }
         }
         tableStats.keySet().stream().sorted(Comparator.comparing(Table::getName)).forEach(table -> {
@@ -602,7 +644,7 @@ public class RollupProcessor {
                         statPair.getRight().get());
             }
         });
-        return !incomplete;
+        return outcome;
     }
 
     private void cancelRemainingTasks(Map<Future<RollupTask>, RollupTask> futures) {
@@ -893,7 +935,7 @@ public class RollupProcessor {
                                 // for MariaDB it's just a straight UPSERT whose affected record
                                 // count is INSERT count + 2*(UPDATE count), which we can combine
                                 // with total record count to deduce the two separate counts
-                                : queryToSubmit.execute();
+                                : unpooledDsl.execute(queryToSubmit);
                         affectedRecordCount.addAndGet(n);
                         return this;
                     } finally {
@@ -904,8 +946,8 @@ public class RollupProcessor {
             }
         }
 
-        public Optional<Future<RollupTask>> retry(CompletionService<RollupTask> cs) {
-            if (retryCount++ < maxBatchRetry) {
+        public Optional<Future<RollupTask>> retry(CompletionService<RollupTask> cs, boolean force) {
+            if (force || retryCount++ < maxBatchRetry) {
                 return Optional.of(this.submit());
             } else {
                 return Optional.empty();
@@ -966,6 +1008,24 @@ public class RollupProcessor {
             if (future != null) {
                 future.cancel(true);
             }
+        }
+    }
+
+    /**
+     * Possible outcomes of overall rollup opeartions.
+     */
+    public enum RollupOutcome {
+        /** All rollup data was successfully applied. */
+        COMPLETE,
+        /** Some of the rollup data was not applied, despite retry attempts. */
+        FAILED,
+        /** The rollup operation was interrupted; any unprocessed data was abandoned. */
+        INTERRUPTED,
+        /** The rollup operation took too long; any unprocessed data was abandoned. */
+        TIMED_OUT;
+
+        public boolean isComplete() {
+            return this == COMPLETE;
         }
     }
 }

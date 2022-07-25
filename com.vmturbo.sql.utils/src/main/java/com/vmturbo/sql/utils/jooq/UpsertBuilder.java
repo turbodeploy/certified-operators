@@ -15,11 +15,13 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.InsertOnDuplicateSetStep;
 import org.jooq.InsertOnDuplicateStep;
+import org.jooq.OrderField;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.SQLDialect;
 import org.jooq.Select;
 import org.jooq.SelectConditionStep;
+import org.jooq.SelectHavingStep;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.springframework.util.CollectionUtils;
@@ -38,6 +40,7 @@ public class UpsertBuilder {
     private final List<UpdateBinding<?>> updates = new ArrayList<>();
     private final List<Field<?>> conflictColumns = new ArrayList<>();
     private boolean distinct = false;
+    private List<OrderField<?>> orderByFields = new ArrayList<>();
 
     /**
      * Specify the table that is the target of the upsert operation, i.e. the table that will
@@ -215,6 +218,22 @@ public class UpsertBuilder {
     }
 
     /**
+     * Add sort fields for the SELECT clause of the upsert. Sorting the source records can sometimes
+     * reduce lock contention and the likelihood of deadlocks when multiple upserts execute in
+     * parallel.
+     *
+     * <p>Each field should be an {@link OrderField}, which is most easily provided with a
+     * construct like {@code field.asc()} or {@code field.desc()}.
+     *
+     * @param fields sort fields to add source ordering
+     * @return this builder
+     */
+    public UpsertBuilder withSourceOrder(OrderField<?>... fields) {
+        orderByFields.addAll(Arrays.asList(fields));
+        return this;
+    }
+
+    /**
      * Invoke builder operations conditionally.
      *
      * @param condition true if the oeprations should be applied to the builder
@@ -245,12 +264,16 @@ public class UpsertBuilder {
         SelectConditionStep<Record> select1 =
                 (distinct ? dsl.selectDistinct(selectList) : dsl.select(selectList))
                         .from(source).where(conditions);
-        final Select<Record> select = CollectionUtils.isEmpty(sourceGroupByFields)
-                                      ? select1
-                                      : select1.groupBy(sourceGroupByFields);
+        SelectHavingStep<Record> selectWithGroupBy = CollectionUtils.isEmpty(sourceGroupByFields)
+                                                     ? select1
+                                                     : select1.groupBy(sourceGroupByFields);
+
+        final Select<Record> selectWithOrderBy = CollectionUtils.isEmpty(orderByFields)
+                                                 ? selectWithGroupBy
+                                                 : selectWithGroupBy.orderBy(orderByFields);
         InsertOnDuplicateStep<?> insert = dsl.insertInto(target)
                 .columns(insertFields)
-                .select(select);
+                .select(selectWithOrderBy);
         Map<Object, Object> updateMap = new LinkedHashMap<>();
         for (UpdateBinding<?> update : updates) {
             update.addToMap(updateMap, dsl.dialect());
