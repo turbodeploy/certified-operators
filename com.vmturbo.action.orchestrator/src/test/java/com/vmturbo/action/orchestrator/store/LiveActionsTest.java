@@ -175,6 +175,20 @@ public class LiveActionsTest {
     }
 
     @Test
+    public void replaceStartSuspendActions() {
+        final Action action1 = ActionOrchestratorTestUtils.createMoveAction(1, 2);
+        final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
+        final Action action3 = ActionOrchestratorTestUtils.createMoveAction(3, 2);
+        // Hack - for testing purposes we don't care if it's not actually a start/suspend action.
+        liveActions.replaceStartSuspendActions(Stream.of(action1, action2, action3), true);
+        assertThat(liveActions.size(), is(3));
+        assertThat(liveActions.getAll().collect(Collectors.toList()),
+                containsInAnyOrder(action1, action2, action3));
+        assertThat(liveActions.getActionsByPlanType().get(ActionPlanType.START_SUSPEND),
+                containsInAnyOrder(action1, action2, action3));
+    }
+
+    @Test
     public void testUpdateMarketActions() {
         final Action action1 = ActionOrchestratorTestUtils.createMoveAction(1, 2);
         final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
@@ -393,22 +407,27 @@ public class LiveActionsTest {
     public void testSize() {
         final Action action1 = ActionOrchestratorTestUtils.createMoveAction(1, 2);
         final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
+        final Action action3 = ActionOrchestratorTestUtils.createMoveAction(3, 2);
 
         liveActions.replaceMarketActions(Stream.of(action1));
         liveActions.replaceRiActions(Stream.of(action2));
-        assertThat(liveActions.size(), is(2));
+        liveActions.replaceStartSuspendActions(Stream.of(action3),false);
+        assertThat(liveActions.size(), is(3));
     }
 
     @Test
     public void testGet() {
         final Action action1 = ActionOrchestratorTestUtils.createMoveAction(1, 2);
         final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
+        final Action action3 = ActionOrchestratorTestUtils.createMoveAction(3, 2);
 
         liveActions.replaceMarketActions(Stream.of(action1));
         liveActions.replaceRiActions(Stream.of(action2));
+        liveActions.replaceStartSuspendActions(Stream.of(action3),false);
 
         assertThat(liveActions.get(action1.getId()).get(), is(action1));
         assertThat(liveActions.get(action2.getId()).get(), is(action2));
+        assertThat(liveActions.get(action3.getId()).get(), is(action3));
         assertFalse(liveActions.get(action1.getId() + 100).isPresent());
     }
 
@@ -423,9 +442,14 @@ public class LiveActionsTest {
         final Action move34Action = ActionOrchestratorTestUtils.actionFromRecommendation(
                 ActionOrchestratorTestUtils.createMoveRecommendation(3, 6, 3, 0, 4, 0),
                 1);
+        final Action move45Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(4, 0, 3, 0, 5, 0),
+                1);
 
         liveActions.replaceMarketActions(Stream.of(move12Action, move34Action));
         liveActions.replaceRiActions(Stream.of(move13Action));
+        liveActions.replaceStartSuspendActions(Stream.of(move45Action), false);
+
 
         // verify that a user with access to entities 0,1 and 2 can fetch move12 (in scope), move13 (partially in scope)
         // but not move34 (out of scope)
@@ -434,6 +458,7 @@ public class LiveActionsTest {
                 new ArrayOidSet(Arrays.asList(0L, 1L, 2L)), null));
         assertThat(liveActions.get(move12Action.getId()).get(), is(move12Action));
         assertThat(liveActions.get(move13Action.getId()).get(), is(move13Action));
+        assertThat(liveActions.get(move45Action.getId()).get(), is(move45Action));
 
         // a request for move34 by this user will trigger an access exception
         expectedException.expect(UserAccessScopeException.class);
@@ -445,14 +470,18 @@ public class LiveActionsTest {
         final Action action1 = ActionOrchestratorTestUtils.createMoveAction(1, 2);
         final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
         final Action action3 = ActionOrchestratorTestUtils.createMoveAction(3, 2);
+        final Action action4 = ActionOrchestratorTestUtils.createMoveAction(4, 2);
 
         liveActions.replaceMarketActions(Stream.of(action1, action2));
         liveActions.replaceRiActions(Stream.of(action3));
+        liveActions.replaceStartSuspendActions(Stream.of(action4), false);
 
-        // Try to get one from market and one from RI.
+        // Try to get one from market, one from RI and one from start/suspend.
         // Shouldn't return the other one from market.
-        assertThat(liveActions.get(Sets.newHashSet(action1.getId(), action3.getId())).collect(Collectors.toList()),
-            containsInAnyOrder(action1, action3));
+        assertThat(
+                liveActions.get(Sets.newHashSet(action1.getId(), action3.getId(), action4.getId()))
+                        .collect(Collectors.toList()),
+                containsInAnyOrder(action1, action3, action4));
     }
 
     @Test
@@ -463,23 +492,29 @@ public class LiveActionsTest {
         final Action move14Action = ActionOrchestratorTestUtils.actionFromRecommendation(
                 ActionOrchestratorTestUtils.createMoveRecommendation(2, 0, 1, 0, 4, 0),
                 1);
+        final Action move15Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(3, 0, 1, 0, 5, 0),
+                1);
 
         liveActions.replaceMarketActions(Stream.of(move12Action));
         liveActions.replaceRiActions(Stream.of(move14Action));
+        liveActions.replaceStartSuspendActions(Stream.of(move15Action), false);
 
         // verify that a user with access to entities 0,1,2 and 3 can see both actions
         when(userSessionContext.isUserScoped()).thenReturn(true);
         when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,
                 new ArrayOidSet(Arrays.asList(0L, 1L, 2L, 3L)), null));
 
-        assertThat(liveActions.get(Sets.newHashSet(move12Action.getId(), move14Action.getId())).collect(Collectors.toList()),
-                containsInAnyOrder(move12Action, move14Action));
+        assertThat(liveActions.get(
+                                Sets.newHashSet(move12Action.getId(), move14Action.getId(), move15Action.getId()))
+                        .collect(Collectors.toList()),
+                containsInAnyOrder(move12Action, move14Action, move15Action));
 
-        // a user w/access to only 2 and 3 will get an exception when trying to access both actions
+        // a user w/access to only 2 and 3 will get an exception when trying to access all the actions
         when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,
                 new ArrayOidSet(Arrays.asList(2L, 3L)), null));
         expectedException.expect(UserAccessScopeException.class);
-        liveActions.get(Sets.newHashSet(move12Action.getId(), move14Action.getId()));
+        liveActions.get(Sets.newHashSet(move12Action.getId(), move14Action.getId(), move15Action.getId()));
     }
 
     @Test
@@ -739,9 +774,13 @@ public class LiveActionsTest {
         final Action move13Action = ActionOrchestratorTestUtils.actionFromRecommendation(
                 ActionOrchestratorTestUtils.createMoveRecommendation(2, 1, 1, 0, 3, 0),
                 1);
+        final Action move04Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(3, 0, 0, 0, 4, 0),
+                1);
 
         liveActions.replaceMarketActions(Stream.of(move02Action));
         liveActions.replaceRiActions(Stream.of(move13Action));
+        liveActions.replaceStartSuspendActions(Stream.of(move04Action), false);
 
         final QueryFilter queryFilter = mock(QueryFilter.class);
         when(queryFilter.test(any())).thenReturn(true);
@@ -758,15 +797,15 @@ public class LiveActionsTest {
         Set<ActionView> results = liveActions.get(actionQueryFilter).collect(Collectors.toSet());
         assertTrue(results.contains(move02Action));
         assertTrue(results.contains(move13Action));
+        assertTrue(results.contains(move04Action));
 
         // a user w/access to only 0 and 2 will only get move02 but not move13
         when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,
                 new ArrayOidSet(Arrays.asList(0L, 2L)), null));
         results = liveActions.get(actionQueryFilter).collect(Collectors.toSet());
         assertTrue(results.contains(move02Action));
+        assertTrue(results.contains(move04Action));
         assertFalse(results.contains(move13Action));
-
-
     }
 
     @Test
@@ -802,9 +841,13 @@ public class LiveActionsTest {
         final Action move34Action = ActionOrchestratorTestUtils.actionFromRecommendation(
                 ActionOrchestratorTestUtils.createMoveRecommendation(3, 6, 3, 0, 4, 0),
                 1);
+        final Action move15Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(4, 2, 1, 0, 5, 0),
+                1);
 
         liveActions.replaceMarketActions(Stream.of(move12Action, move34Action));
         liveActions.replaceRiActions(Stream.of(move13Action));
+        liveActions.replaceStartSuspendActions(Stream.of(move15Action), false);
 
         // verify that a user with access to entities 0, 1, 2 and 3 can see all three actions
         when(userSessionContext.isUserScoped()).thenReturn(true);
@@ -812,20 +855,20 @@ public class LiveActionsTest {
                 new ArrayOidSet(Arrays.asList(0L, 1L, 2L, 3L)), null));
 
         assertThat(liveActions.getByEntity(Lists.newArrayList(0L, 1L, 3L)).collect(Collectors.toSet()),
-                containsInAnyOrder(move12Action, move13Action, move34Action));
+                containsInAnyOrder(move12Action, move13Action, move34Action, move15Action));
 
         // a user w/access to only entities 0, 1, 6 will only get actions related to 0, 1 if they
         // try to access actions for entities 0, 1, 2, where entity 2 is not accessible.
         when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,
                 new ArrayOidSet(Arrays.asList(0L, 1L, 6L)), null));
         Set<ActionView> results = liveActions.getByEntity(Lists.newArrayList(0L, 1L, 2L)).collect(Collectors.toSet());
-        assertThat(results, containsInAnyOrder(move12Action, move13Action));
+        assertThat(results, containsInAnyOrder(move12Action, move13Action, move15Action));
         assertFalse(results.contains(move34Action));
 
         // the same user would be able to see the move13 action when they request actions for entity
         // 1, even though entity 3 is outside their normal scope.
         results = liveActions.getByEntity(Lists.newArrayList(0L, 1L)).collect(Collectors.toSet());
-        assertThat(results, containsInAnyOrder(move12Action, move13Action));
+        assertThat(results, containsInAnyOrder(move12Action, move13Action, move15Action));
         assertFalse(results.contains(move34Action));
     }
 
@@ -843,17 +886,21 @@ public class LiveActionsTest {
     public void testGetActionAndGetActionByRecommendationId() {
         final Action action1 = ActionOrchestratorTestUtils.createMoveAction(1, 2);
         final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
+        final Action action3 = ActionOrchestratorTestUtils.createMoveAction(3, 2);
 
         liveActions.replaceMarketActions(Stream.of(action1));
         liveActions.replaceRiActions(Stream.of(action2));
+        liveActions.replaceStartSuspendActions(Stream.of(action3), false);
 
         assertThat(liveActions.getAction(action1.getId()).get(), is(action1));
         assertThat(liveActions.getAction(action2.getId()).get(), is(action2));
+        assertThat(liveActions.getAction(action3.getId()).get(), is(action3));
         assertThat(liveActions.getActionByRecommendationId(action1.getRecommendationOid()).get(),
                 is(action1));
         assertThat(liveActions.getActionByRecommendationId(action2.getRecommendationOid()).get(),
                 is(action2));
-
+        assertThat(liveActions.getActionByRecommendationId(action3.getRecommendationOid()).get(),
+                is(action3));
         assertFalse(liveActions.getAction(action1.getId() + 100).isPresent());
     }
 
@@ -918,14 +965,18 @@ public class LiveActionsTest {
     public void getActionsByPlanType() {
         final Action action1 = ActionOrchestratorTestUtils.createMoveAction(1, 2);
         final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
+        final Action action3 = ActionOrchestratorTestUtils.createMoveAction(3, 2);
 
         liveActions.replaceMarketActions(Stream.of(action1));
         liveActions.replaceRiActions(Stream.of(action2));
+        liveActions.replaceStartSuspendActions(Stream.of(action3), false);
 
         assertThat(liveActions.getActionsByPlanType().keySet(),
-                containsInAnyOrder(ActionPlanType.MARKET, ActionPlanType.BUY_RI));
+                containsInAnyOrder(ActionPlanType.MARKET, ActionPlanType.BUY_RI, ActionPlanType.START_SUSPEND ));
         assertThat(liveActions.getActionsByPlanType().get(ActionPlanType.MARKET), containsInAnyOrder(action1));
         assertThat(liveActions.getActionsByPlanType().get(ActionPlanType.BUY_RI), containsInAnyOrder(action2));
+        assertThat(liveActions.getActionsByPlanType().get(ActionPlanType.START_SUSPEND),
+                containsInAnyOrder(action3));
     }
 
     @Test

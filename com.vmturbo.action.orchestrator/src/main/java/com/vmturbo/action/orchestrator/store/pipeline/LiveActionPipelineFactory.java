@@ -47,6 +47,7 @@ import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.Marke
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.PopulateLiveActionsSegment;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.PrepareAggregatedActionsStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.ProcessLiveBuyRIActionsStage;
+import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.ProcessStartSuspendActionsStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.RefreshProbeCapabilitiesStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.SupportLevelAndPrerequisitesStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.TranslateActionsStage;
@@ -85,6 +86,7 @@ public class LiveActionPipelineFactory {
 
     private long marketActionPlanCount = 0;
     private long buyRiActionPlanCount = 0;
+    private long startSuspendActionPlanCount = 0;
     private final ActionHistoryDao actionHistoryDao;
     private final IActionFactory actionFactory;
     private final Clock clock;
@@ -161,8 +163,9 @@ public class LiveActionPipelineFactory {
     /**
      * Create a new {@link ActionPipeline} for a given action plan. The type of the pipeline
      * created depends on the type of the action plan (ie A MarketActionPipeline will be
-     * created for a MARKET actionPlan, and a BuyRIActionPipeline will be created for a
-     * BUY_RI actionPlan.
+     * created for a MARKET actionPlan, BuyRIActionPipeline will be created for a
+     * BUY_RI actionPlan and startSuspendActionsPipeline will be created for START_SUSPEND
+     * actionPlan.
      *
      * @param actionPlan The actionplan to be processed for which we need a pipeline to process.
      * @return An {@link ActionPlan} appropriate for processing the action plan.
@@ -173,6 +176,8 @@ public class LiveActionPipelineFactory {
                 return marketActionsPipeline(actionPlan);
             case BUY_RI:
                 return buyRiActionsPipeline(actionPlan);
+            case START_SUSPEND:
+                return startSuspendActionsPipeline(actionPlan);
             default:
                 throw new IllegalArgumentException("Unknown ActionPlan type: "
                     + actionPlan.getInfo().getTypeInfoCase());
@@ -209,6 +214,28 @@ public class LiveActionPipelineFactory {
         final ActionPipeline<ActionPlan, ActionProcessingInfo> processingPipeline = buildBuyRiActionsPipeline(actionPlan);
         if (buyRiActionPlanCount == 1) {
             logger.info("\n" + processingPipeline.tabularDescription("Live BuyRI Action Pipeline"));
+        }
+        return processingPipeline;
+    }
+
+    /**
+     * Create a pipeline capable of processing a live Start/Suspend {@link ActionPlan}.
+     *
+     * @param actionPlan The action plan to process.
+     * @return The {@link ActionPipeline}. This pipeline will accept an {@link ActionPlan}
+     *         containing
+     *         Start/Suspend actions and return the {@link ActionProcessingInfo} for the processing
+     *         done by the pipeline.
+     *         For an action pipeline accepting Start/Suspend action plans.
+     */
+    private ActionPipeline<ActionPlan, ActionProcessingInfo> startSuspendActionsPipeline(
+            @Nonnull final ActionPlan actionPlan) {
+        final ActionPipeline<ActionPlan, ActionProcessingInfo> processingPipeline =
+                buildStartSuspendActionsPipeline(actionPlan);
+
+        if (startSuspendActionPlanCount == 1) {
+            logger.info("\n" + processingPipeline.tabularDescription(
+                    "Live Start/Suspend Action Pipeline"));
         }
         return processingPipeline;
     }
@@ -292,6 +319,25 @@ public class LiveActionPipelineFactory {
             .addStage(new UpdateAutomationStage(automationManager))
             .addStage(new UpdateSeverityCacheStage())
             .finalStage(new ActionProcessingInfoStage()), clock
+        );
+    }
+
+    private ActionPipeline<ActionPlan, ActionProcessingInfo> buildStartSuspendActionsPipeline(@Nonnull final ActionPlan actionPlan) {
+        // Increment the number of action plans observed.
+        startSuspendActionPlanCount++;
+
+        final ActionPipelineContext pipelineContext = new ActionPipelineContext(
+                actionPlan.getId(),
+                TopologyType.REALTIME,
+                actionPlan.getInfo());
+
+        return new ActionPipeline<>(PipelineDefinition.<ActionPlan, ActionProcessingInfo, ActionPipelineContext>newBuilder(pipelineContext)
+                .addStage(new GetOrCreateLiveActionStoreStage(actionStorehouse))
+                .addStage(new PopulateLiveActionsSegment(sharedLiveActionsLock, liveActionsLockWaitTimeMinutes,
+                        SegmentDefinition.finalStage(new ProcessStartSuspendActionsStage())
+                ))
+                .addStage(new UpdateAutomationStage(automationManager))
+                .finalStage(new ActionProcessingInfoStage()), clock
         );
     }
 }

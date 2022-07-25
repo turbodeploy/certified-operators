@@ -607,6 +607,27 @@ public class Action implements ActionView {
         }
     }
 
+    /**
+     * updates the  action mode, sets the action description and related Risks.
+     *
+     * @param entitiesSnapshot snapshot containing all relevant entities and settings to
+     *         this broadcast cycle of actions.
+     * @throws UnsupportedActionException when failing to build the action description.
+     */
+    public void refreshStartSuspendActions(
+            @Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot)
+            throws UnsupportedActionException {
+        synchronized (recommendationLock) {
+            actionMode = ActionMode.AUTOMATIC;
+            externalActionName = null;
+            externalActionUrl = null;
+            setDescription(ActionDescriptionBuilder.buildActionDescription(entitiesSnapshot,
+                    actionTranslation.getTranslationResultOrOriginal()));
+            setRelatedRisks(ExplanationComposer.composeRelatedRisks(
+                    actionTranslation.getTranslationResultOrOriginal(), getRelatedActions()));
+        }
+    }
+
     private static Optional<Long> getAssociatedAccountId(@Nonnull final ActionDTO.Action action,
                                                          @Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
                                                          long primaryEntity) {

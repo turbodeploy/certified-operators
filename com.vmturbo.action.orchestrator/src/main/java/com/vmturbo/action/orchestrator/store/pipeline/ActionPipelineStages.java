@@ -1731,6 +1731,20 @@ public class ActionPipelineStages {
     }
 
     /**
+     * The {@link ProcessStartSuspendActionsStage} processes a start/suspend action plan.
+     */
+    public static class ProcessStartSuspendActionsStage extends Stage<ActionPlanAndStore, LiveActionStore> {
+        @Nonnull
+        @Override
+        protected StageResult<LiveActionStore> executeStage(@Nonnull ActionPlanAndStore input) {
+            input.actionStore.populateStartSuspendActions(input.actionPlan);
+
+            return StageResult.withResult(input.actionStore)
+                    .andStatus(Status.success());
+        }
+    }
+
+    /**
      * The {@link PopulatePlanActionsStage} populates plan actions.
      */
     public static class PopulatePlanActionsStage extends Stage<ActionPlanAndPlanStore, ActionStore> {

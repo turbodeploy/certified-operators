@@ -147,9 +147,17 @@ public class ActionDTOUtil {
                     throw new IllegalArgumentException("Buy RI plan info has no context id: " +
                         actionPlan.getBuyRi());
                 }
+            case START_SUSPEND:
+                if (actionPlan.getStartSuspend().hasTopologyContextId()) {
+                    return actionPlan.getStartSuspend().getTopologyContextId();
+                } else {
+                    throw new IllegalArgumentException(
+                            "Buy Start/Suspend plan info has no context id: "
+                                    + actionPlan.getStartSuspend());
+                }
             default:
-                throw new IllegalArgumentException("Invalid/unset action plan: " +
-                    actionPlan.getTypeInfoCase());
+                throw new IllegalArgumentException(
+                        "Invalid/unset action plan: " + actionPlan.getTypeInfoCase());
         }
     }
 

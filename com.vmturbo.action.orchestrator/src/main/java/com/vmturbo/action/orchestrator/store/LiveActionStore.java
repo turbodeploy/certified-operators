@@ -274,6 +274,42 @@ public class LiveActionStore implements ActionStore {
     }
 
     /**
+     * Populate the action store with Start/Suspend actions.
+     *
+     * @param actionPlan ActionPlan received from PMC.
+     * @return boolean once the stage is complete.
+     */
+    public boolean populateStartSuspendActions(@Nonnull ActionPlan actionPlan) {
+        final long planId = actionPlan.getId();
+        final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
+                ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()), topologyContextId);
+
+        final Iterator<Long> recommendationOids;
+        try {
+            recommendationOids = actionIdentityService.getOidsForObjects(
+                            Lists.transform(actionPlan.getActionList(), ActionDTO.Action::getInfo))
+                    .iterator();
+        } catch (IdentityServiceException e) {
+            logger.error("Failed assigning OIDs to actions from plan " + actionPlan.getId(), e);
+            return false;
+        }
+        final List<Action> actionsFromPlan = new ArrayList<>(actionPlan.getActionCount());
+        for (ActionDTO.Action recommendedAction : actionPlan.getActionList()) {
+            final long recommendationOid = recommendationOids.next();
+            final Action action = actionFactory.newAction(recommendedAction, planId,
+                    recommendationOid);
+            actionsFromPlan.add(action);
+        }
+        // All Start/Suspend translations should be passthrough, but we do it here anyway for consistency
+        // with the "normal" action case.
+        actions.replaceStartSuspendActions(
+                actionTranslator.translate(actionsFromPlan.stream(), snapshot), true);
+        actions.updateStartSuspendActions(snapshot);
+        logger.info("Number of Start/Suspend actions={}", actionPlan.getActionCount());
+        return true;
+    }
+
+    /**
      * Get the {@link EntitiesWithNewStateCache}.
      *
      * @return the {@link EntitiesWithNewStateCache}.
@@ -470,6 +506,9 @@ public class LiveActionStore implements ActionStore {
                     break;
                 case BUY_RI:
                     actions.replaceRiActions(actionsOfType.stream());
+                    break;
+                case START_SUSPEND:
+                    actions.replaceStartSuspendActions(actionsOfType.stream(), false);
                     break;
             }
         });

@@ -33,29 +33,32 @@ public class ActionStateMachine {
     /**
      * Generate a new state machine for an action. The state machine looks like:
      * <pre>
-     *      -->READY ----------> CLEARED
-     *     |     ^  ^               ^^^
-     *     |     |  |               |||
-     *     |     |  v               |||
-     *     |     |  REJECTED ------- ||
-     *     |     v                   ||
-     *     |  ACCEPTED---------------||
-     *     |     ^                    |
-     *     |     |                    |
-     *     |     v                    |
-     *     ----QUEUED------------------
-     *           |
-     *           v
-     *        PRE_IN_PROGRESS---------------------------------
-     *           |                                           |
-     *           V                                           |
-     *   -----IN_PROGRESS----------------------              |
-     *  |  ___/  |                             |             |
-     *  | |      v                             v             |
-     *  | |   POST_IN_PROGRESS -----         FAILING         |
-     *  | |      |                  |           |            |
-     *  | |      v                  |           v            |
-     *  |  -->SUCCEEDED              -------> FAILED <-------
+     *
+     *         -------------------------------------------------
+     *         |                                               |
+     *      -->READY ----------> CLEARED                       |
+     *     |     ^  ^               ^^^                        |
+     *     |     |  |               |||                        |
+     *     |     |  v               |||                        |
+     *     |     |  REJECTED ------- ||                        |
+     *     |     v                   ||                        |
+     *     |  ACCEPTED---------------||                        |
+     *     |     ^                    |                        |
+     *     |     |                    |                        |
+     *     |     v                    |                        |
+     *     ----QUEUED------------------                        |
+     *           |                                             |
+     *           v                                             |
+     *        PRE_IN_PROGRESS----------------------------------|
+     *           |                                            ||
+     *           V                                            ||
+     *   -----IN_PROGRESS----------------------               ||
+     *  |  ___/  |                             |              ||
+     *  | |      v                             v              ||
+     *  | |   POST_IN_PROGRESS -----         FAILING          ||
+     *  | |      |                  |           |             ||
+     *  | |      v                  |           v             ||
+     *  |  -->SUCCEEDED              -------> FAILED <----------
      *  |                                       ^
      *  |                                       |
      *   ---------------------------------------
@@ -177,7 +180,11 @@ public class ActionStateMachine {
                 .after(action::onActionFailure))
             .addTransition(from(ActionState.FAILING).to(ActionState.FAILED)
                 .onEvent(SuccessEvent.class)
-                .after(action::onActionSuccess));
+                .after(action::onActionSuccess))
+            //This transition was added to handle the FailureEvent thrown from and existing code inside UpdateAutomationStage.
+            //This was required to remove PMC suspend/activate actions from actions store, if the target is not found.
+            .addTransition(from(ActionState.READY).to(ActionState.FAILED)
+                .onEvent(FailureEvent.class));
 
         for (final ActionEventListener actionEventListener : actionEventListeners) {
             builder.addEventListener((preState, postState, event, performedTransition) ->
