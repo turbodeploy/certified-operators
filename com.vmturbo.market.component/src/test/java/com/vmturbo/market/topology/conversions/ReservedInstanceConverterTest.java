@@ -35,6 +35,7 @@ import com.google.common.collect.Multimap;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -50,6 +51,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cloud.common.topology.CloudTopology;
@@ -72,6 +74,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit tests for ReservedInstanceConverter.
@@ -138,6 +141,13 @@ public class ReservedInstanceConverterTest {
                     .build());
 
     /**
+     * Rule to manage feature flag enablement.
+     */
+    @Rule
+    public FeatureFlagTestRule mergedPeakFeatureFlag =
+            new FeatureFlagTestRule(FeatureFlags.ENABLE_MERGED_PEAK_UPDATE_FUNCTION);
+
+    /**
      * Initializes ReservedInstanceConverter instance.
      */
     @Before
@@ -147,7 +157,7 @@ public class ReservedInstanceConverterTest {
         commodityConverter = new CommodityConverter(new NumericIDAllocator(),
                 false, new BiCliquer(), HashBasedTable.create(),
                 new ConversionErrorCounts(), mock(ConsistentScalingHelper.class),
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false);
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, null);
         final CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter,
                 marketCloudRateExtractor);
         final CloudTopology<TopologyEntityDTO> cloudTopology = createCloudTopologyMock();

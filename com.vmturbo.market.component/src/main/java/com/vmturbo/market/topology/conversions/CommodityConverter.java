@@ -19,6 +19,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Table;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.*;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.Level;
@@ -26,13 +27,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.market.topology.TopologyConversionConstants;
@@ -71,6 +66,8 @@ public class CommodityConverter {
 
     private final boolean enableOP;
 
+    private final TopologyInfo topologyInfo;
+
     CommodityConverter(@Nonnull final NumericIDAllocator idAllocator,
                        final boolean includeGuaranteedBuyer,
                        @Nonnull final BiCliquer dsBasedBicliquer,
@@ -78,7 +75,8 @@ public class CommodityConverter {
                        @Nonnull final ConversionErrorCounts conversionErrorCounts,
                        @Nonnull final ConsistentScalingHelper consistentScalingHelper,
                        final int licensePriceWeightScale,
-                       final boolean enableOP) {
+                       final boolean enableOP,
+                       final TopologyInfo topologyInfo) {
         this.commodityTypeAllocator = new CommodityTypeAllocator(idAllocator);
 
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
@@ -87,6 +85,7 @@ public class CommodityConverter {
         this.conversionErrorCounts = conversionErrorCounts;
         this.licensePriceWeightScale = licensePriceWeightScale;
         this.enableOP = enableOP;
+        this.topologyInfo = topologyInfo;
     }
 
     /**
@@ -259,7 +258,7 @@ public class CommodityConverter {
                         .setUtilizationUpperBound(utilizationUpperBound)
                         .setPriceFunction(priceFunction(topologyCommSold.getCommodityType(),
                             scale, dto, additionalSoldWeight, enableOP))
-                        .setUpdateFunction(updateFunction(topologyCommSold, commodityTypeAllocator));
+                        .setUpdateFunction(updateFunction(topologyCommSold, commodityTypeAllocator, topologyInfo));
 
         // Set thresholds for the commodity sold (min/Max of VCPU/VMem for on-prem VMs).
         if (topologyCommSold.hasThresholds()) {
@@ -534,14 +533,16 @@ public class CommodityConverter {
      *
      * @param topologyCommSold       a commodity sold for which to add an updating function
      * @param commodityTypeAllocator a commodity type allocator
+     * @param topologyInfo           the current topology info
      * @return a (reusable) instance of UpdatingFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
     private static UpdatingFunctionTO
-                    updateFunction(final TopologyDTO.CommoditySoldDTO topologyCommSold,
-                                   final CommodityTypeAllocator commodityTypeAllocator) {
+                    updateFunction(final CommoditySoldDTO topologyCommSold,
+                                   final CommodityTypeAllocator commodityTypeAllocator,
+                                   final TopologyInfo topologyInfo) {
         return MarketAnalysisUtils.updateFunction(topologyCommSold.getCommodityType(),
-                commodityTypeAllocator);
+                commodityTypeAllocator, topologyInfo);
     }
 
     /**

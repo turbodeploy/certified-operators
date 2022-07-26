@@ -85,6 +85,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.utils.CommodityTypeAllocatorConstants;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -116,6 +117,7 @@ import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunct
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityCapacityLimit;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit tests for {@link TopologyConverter}.
@@ -173,6 +175,13 @@ public class TopologyConverterToMarketTest {
      */
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(settingPolicyServiceMole);
+
+    /**
+     * Rule to manage feature flag enablement.
+     */
+    @Rule
+    public FeatureFlagTestRule mergedPeakFeatureFlag =
+            new FeatureFlagTestRule(FeatureFlags.ENABLE_MERGED_PEAK_UPDATE_FUNCTION);
 
     @Before
     public void setup() throws IOException {
