@@ -1,6 +1,7 @@
 package com.vmturbo.cost.api.impl;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.components.api.client.ComponentSubscription;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
@@ -12,7 +13,7 @@ import com.vmturbo.cost.api.impl.CostSubscription.Topic;
 public class CostSubscription extends ComponentSubscription<Topic> {
 
     private CostSubscription(@Nonnull final Topic topic,
-                             @Nonnull final StartFrom startFromOverride) {
+                             @Nullable final StartFrom startFromOverride) {
         super(topic, startFromOverride);
     }
 
@@ -49,6 +50,10 @@ public class CostSubscription extends ComponentSubscription<Topic> {
          * Represents notification of status changes (e.g. RI coverage or cost is received & available
          * for the source or projected topology)
          */
-        COST_STATUS_NOTIFICATION
+        COST_STATUS_NOTIFICATION,
+        /**
+         * Represents on-demand price information, including license costs, for all VMs in topology.
+         */
+        TOPOLOGY_VM_ON_DEMAND_PRICES
     }
 }
