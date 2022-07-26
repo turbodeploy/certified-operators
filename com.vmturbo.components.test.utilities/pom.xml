@@ -14,10 +14,11 @@
     <description>Utilities for testing components.</description>
     <properties>
         <!-- This project was used for integration test and is no longer active, consider removing -->
-        <!-- This library is vulnerable. See https://nvd.nist.gov/vuln/detail/CVE-2020-28491.
-         Upgrading to fixed version (1.8) will break unit tests. Since it's only using it for
-         integration test, keeping it for now -->
-        <docker.compose.rule.test.only.version>1.5.0</docker.compose.rule.test.only.version>
+        <!-- The library version 1.5.0 is vulnerable. Hence upgrading to 1.8.0. Also upgrading mockito and powermock
+        version to fix the unit tests  -->
+        <docker.compose.rule.test.only.version>1.8.0</docker.compose.rule.test.only.version>
+        <mockito.version>4.6.1</mockito.version>
+        <powermock.version>2.0.9</powermock.version>
     </properties>
 
 
@@ -112,22 +113,31 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
+            <version>${mockito.version}</version>
             <scope>test</scope>
         </dependency>
-
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-inline</artifactId>
+            <version>${mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.powermock</groupId>
             <artifactId>powermock-core</artifactId>
+            <version>${powermock.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.powermock</groupId>
             <artifactId>powermock-module-junit4</artifactId>
+            <version>${powermock.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.powermock</groupId>
-            <artifactId>powermock-api-mockito</artifactId>
+            <artifactId>powermock-api-mockito2</artifactId>
+            <version>${powermock.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -158,10 +168,6 @@
             <groupId>io.prometheus</groupId>
             <artifactId>simpleclient_hotspot</artifactId>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-all</artifactId>
         </dependency>
         <dependency>
             <groupId>org.skyscreamer</groupId>
