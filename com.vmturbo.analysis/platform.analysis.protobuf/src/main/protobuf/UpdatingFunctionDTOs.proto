@@ -76,6 +76,15 @@ message UpdatingFunctionTO {
     message InverseSquare {
     }
 
+    /**
+     * Update peak values using merged peaks.  Using the peak merging updating function, the results
+     * are calculated as follows:
+     * - Used = current used + new used
+     * - Peak = current used + new used + sqrt((current peak - current used)^2 + (new peak - new used)^2)
+     */
+    message MergedPeak {
+    }
+
     // Which one of the available functions this message contains.
     oneof updating_function_type {
         Max max = 1;
@@ -90,5 +99,6 @@ message UpdatingFunctionTO {
         StandardDistribution standard_distribution = 10;
         MM1Distribution mm1_distribution = 11;
         InverseSquare inverse_square = 12;
+        MergedPeak merged_peak = 13;
     }
 }

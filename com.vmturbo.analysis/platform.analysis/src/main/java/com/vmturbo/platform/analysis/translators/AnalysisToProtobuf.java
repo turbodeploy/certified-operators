@@ -277,6 +277,10 @@ public final class AnalysisToProtobuf {
             // NOTE: currently give a dummy updatingFunctionTO because it is not used anywhere yet.
             return UpdatingFunctionTO.newBuilder().setUpdateCoupon(UpdatingFunctionTO
                     .UpdateCoupon.newBuilder()).build();
+        } else if (updatingFunction == UpdatingFunctionFactory.MERGED_PEAK) {
+            return UpdatingFunctionTO.newBuilder()
+                    .setMergedPeak(UpdatingFunctionTO.MergedPeak.newBuilder())
+                    .build();
         } else {
             return UpdatingFunctionTO.getDefaultInstance();
         }

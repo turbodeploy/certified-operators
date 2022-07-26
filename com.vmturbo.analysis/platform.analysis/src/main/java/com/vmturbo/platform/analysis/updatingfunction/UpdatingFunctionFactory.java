@@ -85,6 +85,8 @@ public final class UpdatingFunctionFactory {
                 return STANDARD_DISTRIBUTION;
             case MM1_DISTRIBUTION:
                 return createMM1DistributionUpdatingFunction(updateFunctionTO.getMm1Distribution());
+            case MERGED_PEAK:
+                return MERGED_PEAK;
             case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
                 return null;
@@ -301,6 +303,33 @@ public final class UpdatingFunctionFactory {
                                     Double.POSITIVE_INFINITY};
                         }
                     };
+
+    /**
+     * Update peak values using merged peaks.  Using the peak merging updating function, the results
+     * are calculated as follows:
+     * - Used = commSoldUsed + buyerUsed
+     * - Peak = commSoldUsed + buyerUsed + sqrt((commSoldPeak - commSoldUsed)^2 + (buyerPeak - buyerUsed)^2)
+     * @return the updating function
+     */
+    public static final UpdatingFunction MERGED_PEAK = (buyer, boughtIndex, commSold, seller,
+            economy, take, currentSLs, isIncoming) -> {
+        double buyerQuantity = buyer.getQuantities()[boughtIndex];
+        double buyerPeak = buyer.getPeakQuantities()[boughtIndex];
+        double csQuantity = commSold.getQuantity();
+        double csPeak = commSold.getPeakQuantity();
+        double csDistance = (csPeak - csQuantity) * (csPeak - csQuantity);
+        double buyerDistance = (buyerPeak - buyerQuantity) * (buyerPeak - buyerQuantity);
+        double newQuantity;
+        double newPeak;
+        if (isIncoming) {
+            newQuantity = buyerQuantity + csQuantity;
+            newPeak = newQuantity + Math.sqrt(csDistance + buyerDistance);
+        } else {
+            newQuantity = Math.max(0, csQuantity - buyerQuantity);
+            newPeak = newQuantity + Math.sqrt(Math.max(0, csDistance - buyerDistance));
+        }
+        return new double[] {newQuantity, newPeak};
+    };
 
     /**
      * Average commodity updating function.

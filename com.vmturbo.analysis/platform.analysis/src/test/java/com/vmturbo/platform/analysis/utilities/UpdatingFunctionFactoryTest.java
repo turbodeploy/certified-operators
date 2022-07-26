@@ -1,10 +1,18 @@
 package com.vmturbo.platform.analysis.utilities;
 
 import java.util.Arrays;
+import java.util.Map;
+
+import com.google.common.collect.ImmutableMap;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -17,6 +25,7 @@ import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 /**
  * Tests for UpdatingFunctionFactory.
  */
+@RunWith(JUnitParamsRunner.class)
 public class UpdatingFunctionFactoryTest {
 
     private static final long zoneId = 0L;
@@ -34,12 +43,18 @@ public class UpdatingFunctionFactoryTest {
      */
     @Before
     public void setUp() {
+        initializeEconomy(true);
+    }
+
+    private void initializeEconomy(boolean placePM) {
         economy = new Economy();
-        vm = TestUtils.createVM(economy);
+        vm = TestUtils.createVM(economy)
+                .setDebugInfoNeverUseInCode("vm-1");
         pm = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0L),
-                        Arrays.asList(TestUtils.CPU), new double[] {100}, true, false);
+                        Arrays.asList(TestUtils.CPU), new double[] {100}, true, false)
+                .setDebugInfoNeverUseInCode("pm-1");
         sl1 = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU), vm,
-                        new double[] {50}, new double[] {90}, pm);
+                        new double[] {50}, new double[] {90}, placePM ? pm : null);
         sl2 = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU), vm,
                         new double[] {30}, new double[] {60}, null);
     }
@@ -216,5 +231,59 @@ public class UpdatingFunctionFactoryTest {
                         false, null, true);
         Assert.assertEquals(30, res[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(60, res[1], TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Unit test for MERGE_PEAK.
+     *
+     * <p>Start with commodity used = 50 and peak = 90
+     * Update with used = 30 and peak = 60
+     * Using the peak merging updating function, the results should be:
+     * - Used = current used + new used = 80
+     * - Peak = current used + new used + sqrt((current peak - current used)^2 + (new peak - new used)^2)
+     *      which is 50 + 30 + sqrt((90 - 50)^2 + (60 - 30)^2)
+     *      which is 80 + sqrt(1600 + 900)
+     *      which is 80 + sqrt(2500)
+     *      which is 80 + 50 = 130
+     */
+    @Test
+    @Parameters({
+            // Initial SL, SL to move in, SL to move out
+            "sl1,sl2,sl1",  // expecting sl2 to remain
+            "sl1,sl2,sl2",  // expecting sl1 to remain
+            "sl2,sl1,sl1",  // expecting sl2 to remain
+            "sl2,sl1,sl2"   // expecting sl1 to remain
+    })
+    @TestCaseName("Test #{index}: Start with {0}, move in {1}, move out {2}")
+    public void testMergePeakComm(String initialSL, String inSL, String outSL) {
+        initializeEconomy(false);  // Do environment setup without any initial SL placements
+        Map<String, ShoppingList> sls = ImmutableMap.of("sl1", sl1, "sl2", sl2);
+
+        // Initial move in
+        Move.updateQuantities(economy, sls.get(initialSL), pm, UpdatingFunctionFactory.MERGED_PEAK, true);
+
+        // Second move in
+        Move.updateQuantities(economy, sls.get(inSL), pm, UpdatingFunctionFactory.MERGED_PEAK, true);
+        CommoditySold updatedCommSold = pm.getCommoditySold(TestUtils.CPU);
+        Assert.assertEquals(80d, updatedCommSold.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(130d, updatedCommSold.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
+
+        // Move out. Backing out one SL should yield the other SL
+        Move.updateQuantities(economy, sls.get(outSL), pm, UpdatingFunctionFactory.MERGED_PEAK, false);
+        updatedCommSold = pm.getCommoditySold(TestUtils.CPU);
+        ShoppingList resultantSL = outSL.equals("sl1") ? sl2 : sl1;
+        Assert.assertEquals(resultantSL.getQuantity(0), updatedCommSold.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(resultantSL.getPeakQuantity(0), updatedCommSold.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Verify inner updatedQuantities using the merged peak updating function.
+     */
+    @Test
+    public void testUpdatedQuantities() {
+        double[] result = Move.updatedQuantities(economy, UpdatingFunctionFactory.MERGED_PEAK, sl2,
+                0, pm, 0, false, null, true);
+        Assert.assertEquals(80d, result[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(130d, result[1], TestUtils.FLOATING_POINT_DELTA);
     }
 }
