@@ -22,6 +22,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.TopologyOnDemandCostChunk;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
@@ -81,6 +82,18 @@ public class CostClientConfig {
                         CostNotification::parseFrom));
     }
 
+    @Bean
+    protected IMessageReceiver<TopologyOnDemandCostChunk> topologyOnDemandCostReceiver(
+            @Nonnull final Optional<StartFrom> startFromOverride) {
+        return startFromOverride
+                .map(startFrom -> baseKafkaConfig.kafkaConsumer().messageReceiverWithSettings(
+                        new TopicSettings(CostComponentImpl.TOPOLOGY_VM_ON_DEMAND_PRICES, startFrom),
+                        TopologyOnDemandCostChunk::parseFrom))
+                .orElseGet(() -> baseKafkaConfig.kafkaConsumer().messageReceiver(
+                        CostComponentImpl.TOPOLOGY_VM_ON_DEMAND_PRICES,
+                        TopologyOnDemandCostChunk::parseFrom));
+    }
+
     /**
      * The returns the cost component for adding listeners.
      *
@@ -98,9 +111,14 @@ public class CostClientConfig {
                 topicsAndOverrides.containsKey(Topic.COST_STATUS_NOTIFICATION) ?
                         costNotificationReceiver(topicsAndOverrides.get(Topic.COST_STATUS_NOTIFICATION)) :
                         null;
+        final IMessageReceiver<TopologyOnDemandCostChunk> topologyOnDemandCostReceiver =
+                topicsAndOverrides.containsKey(Topic.TOPOLOGY_VM_ON_DEMAND_PRICES) ?
+                        topologyOnDemandCostReceiver(topicsAndOverrides.get(Topic.TOPOLOGY_VM_ON_DEMAND_PRICES)) :
+                        null;
 
         return new CostComponentImpl(
                 costNotificationReceiver,
+                topologyOnDemandCostReceiver,
                 costNotificationClientThreadPool(),
                 kafkaReceiverTimeoutSeconds);
     }

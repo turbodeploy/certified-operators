@@ -30,11 +30,8 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import com.vmturbo.cloud.common.commitment.TopologyEntityCommitmentTopology;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
-import com.vmturbo.cloud.common.commitment.CloudCommitmentTopology;
-import com.vmturbo.cloud.common.commitment.TopologyEntityCommitmentTopology;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.calculation.CloudCommitmentApplicator;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
@@ -54,8 +51,6 @@ import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
 import com.vmturbo.cost.component.cloud.commitment.TopologyCommitmentConfig;
 import com.vmturbo.cost.component.cloud.commitment.TopologyCommitmentCoverageEstimator.CommitmentCoverageEstimatorFactory;
-import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
-import com.vmturbo.cost.component.cloud.commitment.mapping.MappingInfo;
 import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.discount.DiscountConfig;
@@ -78,6 +73,7 @@ import com.vmturbo.cost.component.topology.cloud.listener.CCADemandCollector;
 import com.vmturbo.cost.component.topology.cloud.listener.EntityCostWriter;
 import com.vmturbo.cost.component.topology.cloud.listener.LiveCloudTopologyListener;
 import com.vmturbo.cost.component.topology.cloud.listener.RIBuyRunner;
+import com.vmturbo.cost.component.topology.cloud.listener.TopologyOnDemandCostPublisher;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.ConditionalDbConfig.DbEndpointCondition;
@@ -183,11 +179,14 @@ public class TopologyListenerConfig {
     @Value("${liveTopology.cleanupInterval:PT1H}")
     private String liveTopologyCleanupInterval;
 
+    @Value("${topologyCostChunkSize:100}")
+    private int topologyCostChunkSize;
+
     @Bean
     public LiveTopologyEntitiesListener liveTopologyEntitiesListener(
             @Nonnull EntityCostWriter entityCostWriter) {
         List<LiveCloudTopologyListener> cloudTopologyListenerList =
-                new ArrayList<>(Arrays.asList(entityCostWriter, riBuyRunner(), ccaDemandCollector()));
+                new ArrayList<>(Arrays.asList(entityCostWriter, riBuyRunner(), ccaDemandCollector(), topologyOnDemandCostPublisher()));
         if (entitySavingsConfig.isBillSavingsEnabled()) {
                 logger.info("Registered Billed Savings Topology Monitor");
                 cloudTopologyListenerList.add(entityBilledSavingsTopologyMonitor());
@@ -446,6 +445,15 @@ public class TopologyListenerConfig {
     @Bean
     public TopologyEntityMonitor entityBilledSavingsTopologyMonitor() {
         return new TopologyEntityMonitor(entitySavingsConfig.savingsActionStore());
+    }
+
+    /**
+     * Bean for the publishing of realtime on-demand cost rates for a topology.
+     */
+    @Bean
+    public TopologyOnDemandCostPublisher topologyOnDemandCostPublisher() {
+        return new TopologyOnDemandCostPublisher(entityCostConfig.entityCostStore(),
+                realtimeTopologyContextId, topologyCostChunkSize, costNotificationConfig.topologyCostSender());
     }
 
     /**

@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.TopologyOnDemandCostChunk;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.cost.api.impl.CostComponentImpl;
@@ -29,6 +30,17 @@ public class CostNotificationConfig {
     public IMessageSender<CostNotification> costNotificationIMessageSender() {
         return baseKafkaProducerConfig.kafkaMessageSender()
                 .messageSender(CostComponentImpl.COST_NOTIFICATIONS);
+    }
+
+    @Bean
+    public TopologyCostSender topologyCostSender() {
+        return new TopologyCostSender(topologyOnDemandCostIMessageSender());
+    }
+
+    @Bean
+    public IMessageSender<TopologyOnDemandCostChunk> topologyOnDemandCostIMessageSender() {
+        return baseKafkaProducerConfig.kafkaMessageSender()
+                .messageSender(CostComponentImpl.TOPOLOGY_VM_ON_DEMAND_PRICES);
     }
 
 }
