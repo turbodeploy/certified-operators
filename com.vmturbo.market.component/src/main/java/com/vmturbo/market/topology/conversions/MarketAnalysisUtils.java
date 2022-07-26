@@ -13,7 +13,10 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Pair;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
@@ -312,6 +315,16 @@ public final class MarketAnalysisUtils {
                     ImmutableSet.of(CommodityDTO.CommodityType.TRANSACTION_VALUE);
 
     /**
+     * Commodity types that use the merged peak updating function when running a hardware
+     * refresh plan.
+     */
+    public static final Set<Integer> MERGED_PEAK_TYPES =
+                    ImmutableSet.of(
+                            CommodityDTO.CommodityType.CPU_VALUE,
+                            CommodityDTO.CommodityType.MEM_VALUE
+                    );
+
+    /**
      * Use MM1 distribution for RESPONSE_TIME commodity. Currently we only set one dependent
      * commodity VCPU and hardcode elasticity 1.0.
      */
@@ -334,6 +347,11 @@ public final class MarketAnalysisUtils {
             UpdatingFunctionTO.newBuilder()
                     .setStandardDistribution(UpdatingFunctionTO.StandardDistribution.newBuilder()
                             .build())
+                    .build();
+
+    public static final UpdatingFunctionTO MERGED_PEAK_FUNCTION =
+            UpdatingFunctionTO.newBuilder()
+                    .setMergedPeak(UpdatingFunctionTO.MergedPeak.newBuilder())
                     .build();
 
     /**
@@ -584,14 +602,20 @@ public final class MarketAnalysisUtils {
      *
      * @param commSoldType the numerical commodity sold type
      * @param commodityTypeAllocator the commodity type allocator
+     * @param topologyInfo           the current topology info
      * @return a (reusable) instance of UpdatingFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
     public static UpdatingFunctionTO updateFunction(final CommodityType commSoldType,
-                                                    final CommodityTypeAllocator commodityTypeAllocator) {
+                                                    final CommodityTypeAllocator commodityTypeAllocator,
+                                                    final TopologyInfo topologyInfo) {
         int commType = commSoldType.getType();
         if (STANDARD_DISTRIBUTION_TYPES.contains(commType)) {
             return STANDARD_DISTRIBUTION_FUNCTION;
+        } else if (FeatureFlags.ENABLE_MERGED_PEAK_UPDATE_FUNCTION.isEnabled()
+                && TopologyDTOUtil.isHardwareRefreshPlan(topologyInfo)
+                && MERGED_PEAK_TYPES.contains(commType)) {
+            return MERGED_PEAK_FUNCTION;
         } else if (MM1_DISTRIBUTION_TYPES.containsKey(commType)) {
             return mm1DistributionFunction(MM1_DISTRIBUTION_TYPES.get(commType)
                     .stream()

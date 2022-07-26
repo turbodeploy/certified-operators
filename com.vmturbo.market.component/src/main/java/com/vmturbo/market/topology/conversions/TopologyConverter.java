@@ -524,7 +524,7 @@ public class TopologyConverter {
         this.commodityConverter = incomingCommodityConverter != null ?
                 incomingCommodityConverter : new CommodityConverter(new NumericIDAllocator(),
                 includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable,
-                conversionErrorCounts, consistentScalingHelper, licensePriceWeightScale, enableOP);
+                conversionErrorCounts, consistentScalingHelper, licensePriceWeightScale, enableOP, topologyInfo);
         this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
                 getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,

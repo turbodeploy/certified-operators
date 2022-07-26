@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableSet;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -32,6 +33,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -39,9 +41,10 @@ import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
- * Tests for proper handling of {@link TopologyConverter) inclodeVDC argument
+ * Tests for proper handling of {@link TopologyConverter} inclodeVDC argument
  * and proper handling of guaranteed buyers.
  */
 public class TopologyConverterGuaranteedTest {
@@ -57,7 +60,7 @@ public class TopologyConverterGuaranteedTest {
     private static final long HOST_OID = 50004;
     private static final long VM1_OID = 70001;
     private static final long VM2_OID = 70002;
-    private static CommodityType MEM_ALLOC = CommodityType.newBuilder()
+    private static final CommodityType MEM_ALLOC = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE)
             .build();
     private static Map<Long, TopologyEntityDTO> entities;
@@ -71,6 +74,13 @@ public class TopologyConverterGuaranteedTest {
             mock(ConsistentScalingHelperFactory.class);
     private ReversibilitySettingFetcher reversibilitySettingFetcher =
             mock(ReversibilitySettingFetcher.class);
+
+    /**
+     * Rule to manage feature flag enablement.
+     */
+    @Rule
+    public FeatureFlagTestRule mergedPeakFeatureFlag =
+            new FeatureFlagTestRule(FeatureFlags.ENABLE_MERGED_PEAK_UPDATE_FUNCTION);
 
     /**
      * Create a topology with two VDCs, one that qualifies as guaranteed buyer and one that doesn't,
