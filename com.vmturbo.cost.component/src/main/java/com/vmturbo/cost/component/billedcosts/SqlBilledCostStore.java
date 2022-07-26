@@ -34,6 +34,7 @@ import com.vmturbo.cost.component.db.Keys;
 import com.vmturbo.cost.component.db.tables.BilledCostDaily;
 import com.vmturbo.cost.component.db.tables.records.BilledCostDailyRecord;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.CommonCost;
 import com.vmturbo.platform.sdk.common.CostBilling;
 import com.vmturbo.sql.utils.DbException;
@@ -85,6 +86,8 @@ public class SqlBilledCostStore implements BilledCostStore {
                         minSampleTime.set(Math.min(minSampleTime.get(), sampleTime));
                         record.setSampleTime(LocalDateTime.ofInstant(Instant.ofEpochMilli(sampleTime),
                                 ZoneId.from(ZoneOffset.UTC)));
+                        record.setCommodityType((short)(point.hasCommodityType() ? point.getCommodityType()
+                                : CommodityType.UNKNOWN_VALUE));
                         record.setPriceModel((short)point.getPriceModel().getNumber());
                         record.setCostCategory((short)point.getCostCategory().getNumber());
                         record.setUsageAmount(point.getUsageAmount());

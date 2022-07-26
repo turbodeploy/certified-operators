@@ -277,6 +277,10 @@ public class BilledCostUploader {
             }
             billingDp.setEntityOid(entityOid);
         }
+        // Set commodity type (for Azure volumes, for example) if present.
+        if (originalDataPoint.hasPurchasedCommodity()) {
+            billingDp.setCommodityType(originalDataPoint.getPurchasedCommodity().getNumber());
+        }
         // price model
         if (originalDataPoint.hasPriceModel()) {
             billingDp.setPriceModel(originalDataPoint.getPriceModel());
