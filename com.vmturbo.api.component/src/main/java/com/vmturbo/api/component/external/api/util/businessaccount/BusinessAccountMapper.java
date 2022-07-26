@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.util.businessaccount;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -164,12 +165,14 @@ public class BusinessAccountMapper {
                 .collect(Collectors.toList());
 
         final CloudType cloudType = discoveringTargets.stream()
-                .findFirst()
                 .map(ThinTargetInfo::probeInfo)
                 .map(ThinProbeInfo::type)
                 .map(probeType -> com.vmturbo.common.protobuf.search.CloudType.fromProbeType(
                         probeType).orElse(null))
+                .filter(Objects::nonNull)
                 .map(cloud -> CloudType.fromSimilarEnum(cloud).orElse(null))
+                .filter(Objects::nonNull)
+                .findFirst()
                 .orElse(CloudType.UNKNOWN);
 
         businessUnitApiDTO.setCloudType(cloudType);
