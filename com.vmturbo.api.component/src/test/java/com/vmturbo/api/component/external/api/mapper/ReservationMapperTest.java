@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static com.vmturbo.api.component.external.api.mapper.ReservationMapper.generateReservationToPlacementInfoMap;
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
@@ -493,7 +492,7 @@ public class ReservationMapperTest {
         Reservation reservation = createReservation();
 
         Map<Long, List<ReservationMapper.PlacementInfo>> placementInfosMap =
-                generateReservationToPlacementInfoMap(Collections.singletonList(reservation));
+                reservationMapper.generateReservationToPlacementInfoMap(Collections.singletonList(reservation));
 
         Map<Long, BaseApiDTO> clusterMap = getBaseApiDTOMap(emptyGroup);
 
@@ -520,10 +519,10 @@ public class ReservationMapperTest {
         when(groupServiceMole.getPartialGroupingInfo(any())).thenReturn(
                 Collections.singletonList(emptyPartialGroupingInfo));
         List<DemandReservationApiDTO> reservationApiDTOs =
-                reservationMapper.generateReservationList(reservations);
+                reservationMapper.generateReservationList(reservations.iterator());
 
         for (DemandReservationApiDTO dto : reservationApiDTOs) {
-            assertThatAllReservationFieldsWereMappedCorrectly(dto);
+                assertThatAllReservationFieldsWereMappedCorrectly(dto);
         }
     }
 
@@ -601,7 +600,7 @@ public class ReservationMapperTest {
         Grouping cluster = Grouping.newBuilder().setId(closestClusterOid).setDefinition(
                 GroupDefinition.newBuilder().setType(GroupType.COMPUTE_HOST_CLUSTER).build()).build();
         Map<Long, BaseApiDTO> clusterMap = getBaseApiDTOMap(cluster);
-        Map<Long, List<ReservationMapper.PlacementInfo>> placementInfosMap = generateReservationToPlacementInfoMap(Collections.singletonList(reservation));
+        Map<Long, List<ReservationMapper.PlacementInfo>> placementInfosMap = reservationMapper.generateReservationToPlacementInfoMap(Collections.singletonList(reservation));
         final DemandReservationApiDTO reservationApiDTO =
                 reservationMapper.convertReservationToApiDTO(reservation, req.getSEMap(), clusterMap, placementInfosMap);
         assertEquals("test-reservation", reservationApiDTO.getDisplayName());
