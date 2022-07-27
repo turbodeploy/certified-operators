@@ -266,7 +266,8 @@ public class TopologyConverter {
         EntityType.VIRTUAL_MACHINE_VALUE,
         EntityType.VIRTUAL_VOLUME_VALUE,
         EntityType.DATABASE_VALUE,
-        EntityType.DATABASE_SERVER_VALUE
+        EntityType.DATABASE_SERVER_VALUE,
+        EntityType.VIRTUAL_MACHINE_SPEC_VALUE
     );
 
     /**
@@ -1055,7 +1056,6 @@ public class TopologyConverter {
             calculateScalingGroupUsageData(entityOidToDto);
             entityOidToDto.values().stream()
                     .filter(t -> TopologyConversionUtils.shouldConvertToTrader(t.getEntityType()))
-                    .filter(not(WastedApplicationServiceAnalysisEngine::isAppServicePlan))
                     .map(this::topologyDTOtoTraderTO)
                     .filter(Objects::nonNull)
                     .forEach(retSet::add);
