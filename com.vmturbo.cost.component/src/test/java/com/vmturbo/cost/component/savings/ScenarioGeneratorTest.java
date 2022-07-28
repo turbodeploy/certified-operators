@@ -24,6 +24,7 @@ import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.savings.BillingDataInjector.BillingScriptEvent;
 import com.vmturbo.cost.component.savings.ScenarioGenerator.Interval;
 import com.vmturbo.cost.component.savings.ScenarioGenerator.Segment;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingDataPoint.CostCategory;
@@ -402,6 +403,7 @@ public class ScenarioGeneratorTest {
                 .costCategory(costCategory)
                 .providerId(ScenarioGenerator.generateProviderIdFromRate(tierRate))
                 .providerType(EntityType.COMPUTE_TIER_VALUE)
+                .commodityType(CommodityType.UNKNOWN_VALUE)
                 .usageAmount(usageAmount)
                 .cost(cost)
                 .build();

@@ -10,7 +10,7 @@ import javax.annotation.Nonnull;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-import org.jooq.Record10;
+import org.jooq.Record11;
 
 import com.vmturbo.cost.component.db.tables.BilledCostDaily;
 import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
@@ -57,6 +57,7 @@ public class SqlBillingRecordStore implements BillingRecordStore {
                         t1.COST_CATEGORY,
                         t1.PROVIDER_ID,
                         t1.PROVIDER_TYPE,
+                        t1.COMMODITY_TYPE,
                         t1.USAGE_AMOUNT,
                         t1.COST,
                         t1.LAST_UPDATED)
@@ -80,6 +81,7 @@ public class SqlBillingRecordStore implements BillingRecordStore {
                 BILLED_COST_DAILY.COST_CATEGORY,
                 BILLED_COST_DAILY.PROVIDER_ID,
                 BILLED_COST_DAILY.PROVIDER_TYPE,
+                BILLED_COST_DAILY.COMMODITY_TYPE,
                 BILLED_COST_DAILY.USAGE_AMOUNT,
                 BILLED_COST_DAILY.COST,
                 BILLED_COST_DAILY.LAST_UPDATED)
@@ -97,7 +99,7 @@ public class SqlBillingRecordStore implements BillingRecordStore {
      */
     @Nonnull
     private BillingRecord createChangeRecord(
-            Record10<LocalDateTime, Long, Short, Short, Short, Long, Short, Double, Double, Long> dbRecord) {
+            Record11<LocalDateTime, Long, Short, Short, Short, Long, Short, Short, Double, Double, Long> dbRecord) {
         return new BillingRecord.Builder()
                 .sampleTime(dbRecord.get(0, LocalDateTime.class))
                 .entityId(dbRecord.get(1, Long.class))
@@ -106,8 +108,9 @@ public class SqlBillingRecordStore implements BillingRecordStore {
                 .costCategory(CostCategory.forNumber(dbRecord.get(4, Short.class)))
                 .providerId(dbRecord.get(5, Long.class))
                 .providerType(dbRecord.get(6, Short.class))
-                .usageAmount(dbRecord.get(7, Double.class))
-                .cost(dbRecord.get(8, Double.class))
-                .lastUpdated(dbRecord.get(9, Long.class)).build();
+                .commodityType(dbRecord.get(7, Short.class))
+                .usageAmount(dbRecord.get(8, Double.class))
+                .cost(dbRecord.get(9, Double.class))
+                .lastUpdated(dbRecord.get(10, Long.class)).build();
     }
 }

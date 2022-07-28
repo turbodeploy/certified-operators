@@ -69,6 +69,13 @@ public interface BillingRecord {
     int getProviderType();
 
     /**
+     * Type of commodity (e.g. storage amount or IOPS).
+     *
+     * @return commodity type
+     */
+    int getCommodityType();
+
+    /**
      * For VM usage, this is how many hours in the day that usage was billed for. Not applicable
      * for volumes.
      *

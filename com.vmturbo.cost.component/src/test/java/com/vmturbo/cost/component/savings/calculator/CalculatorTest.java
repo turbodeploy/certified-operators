@@ -20,10 +20,12 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.savings.BillingRecord;
 import com.vmturbo.cost.component.savings.GrpcActionChainStore;
 import com.vmturbo.cost.component.savings.ScenarioGenerator;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingDataPoint.CostCategory;
@@ -62,7 +64,7 @@ public class CalculatorTest {
         NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(changeWindowComparator);
         actionSpecs.add(
                 createVMActionChangeWindow(LocalDateTime.of(2022, 3, 25, 6, 0), 1, targetProviderId));
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 3, 26));
         List<SavingsValues> expectedResults = new ArrayList<>();
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(0).investments(18)
                 .timestamp(date(2022, 3, 25)).build());
@@ -85,7 +87,7 @@ public class CalculatorTest {
         NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(changeWindowComparator);
         actionSpecs.add(
                 createVMActionChangeWindow(LocalDateTime.of(2022, 3, 25, 6, 0), 3, targetProviderId));
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 3, 26));
         List<SavingsValues> expectedResults = new ArrayList<>();
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(18).investments(0)
                 .timestamp(date(2022, 3, 25)).build());
@@ -108,7 +110,7 @@ public class CalculatorTest {
         NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(changeWindowComparator);
         actionSpecs.add(
                 createVMActionChangeWindow(LocalDateTime.of(2022, 3, 25, 6, 0), 3, targetProviderId));
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 3, 27));
         List<SavingsValues> expectedResults = new ArrayList<>();
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(24).investments(0)
                 .timestamp(date(2022, 3, 26)).build());
@@ -131,7 +133,7 @@ public class CalculatorTest {
         NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(changeWindowComparator);
         actionSpecs.add(
                 createVMActionChangeWindow(LocalDateTime.of(2022, 3, 25, 6, 0), 3, targetProviderId));
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 3, 27));
         List<SavingsValues> expectedResults = new ArrayList<>();
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(12).investments(0)
                 .timestamp(date(2022, 3, 26)).build());
@@ -158,7 +160,7 @@ public class CalculatorTest {
                 new TreeSet<>(changeWindowComparator);
         actionSpecs.add(
                 createVMActionChangeWindow(LocalDateTime.of(2022, 3, 25, 6, 0), 3, targetProviderId));
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 3, 27));
         List<SavingsValues> expectedResults = new ArrayList<>();
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(18).investments(0)
                 .timestamp(date(2022, 3, 25)).build());
@@ -190,7 +192,7 @@ public class CalculatorTest {
         actionSpecs.add(createVMActionChangeWindow(LocalDateTime.of(2022, 3, 24, 12, 0), 1, targetProviderId1));
         actionSpecs.add(
                 createVMActionChangeWindow(LocalDateTime.of(2022, 3, 25, 6, 0), 2, targetProviderId2));
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 3, 26));
         List<SavingsValues> expectedResults = new ArrayList<>();
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(0).investments(42)
                 .timestamp(date(2022, 3, 25)).build());
@@ -220,7 +222,7 @@ public class CalculatorTest {
         actionSpecs.add(createVMActionChangeWindow(LocalDateTime.of(2022, 3, 24, 12, 0), 3, targetProviderId1));
         actionSpecs.add(
                 createVMActionChangeWindow(LocalDateTime.of(2022, 3, 25, 6, 0), 2, targetProviderId2));
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 3, 26));
         List<SavingsValues> expectedResults = new ArrayList<>();
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(42).investments(0)
                 .timestamp(date(2022, 3, 25)).build());
@@ -232,9 +234,9 @@ public class CalculatorTest {
      * separate segments of a day.
      * Entity type: VM
      * Bill records for 2022-03-25.
-     * Scale action executed on 2022-03-24T12:00, (A -> B), cost went from $1/hr to @$2/hr.
-     * Scale action executed on 2022-03-25T06:00, (B -> C), cost went from $2/hr to @$3/hr.
-     * Scale action executed on 2022-03-25T15:00, (C -> B), cost went from $3/hr to @$2/hr.
+     * Scale action executed on 2022-03-24T12:00, (A -> B), cost went from $1/hr to $2/hr.
+     * Scale action executed on 2022-03-25T06:00, (B -> C), cost went from $2/hr to $3/hr.
+     * Scale action executed on 2022-03-25T15:00, (C -> B), cost went from $3/hr to $2/hr.
      * Bill record for 2022-03-25 shows two records for the VM compute.
      * 1. 15 hours on tier B: $2/hr (00:00 to 06:00, 15:00 to 24:00)
      * 2. 9 hours on tier C: $3/hr (06:00 to 15:00)
@@ -255,7 +257,7 @@ public class CalculatorTest {
         actionSpecs.add(createVMActionChangeWindow(LocalDateTime.of(2022, 3, 24, 12, 0), 1, targetProviderTierB));
         actionSpecs.add(createVMActionChangeWindow(LocalDateTime.of(2022, 3, 25, 6, 0), 2, targetProviderTierC));
         actionSpecs.add(createVMActionChangeWindow(LocalDateTime.of(2022, 3, 25, 15, 0), 3, targetProviderTierB));
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 3, 26));
         List<SavingsValues> expectedResults = new ArrayList<>();
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(9).investments(33)
                 .timestamp(date(2022, 3, 25)).build());
@@ -365,6 +367,11 @@ public class CalculatorTest {
             double cost, long providerId, PriceModel priceModel) {
         CostCategory costCategory = priceModel == PriceModel.ON_DEMAND
                 ? CostCategory.COMPUTE_LICENSE_BUNDLE : CostCategory.COMMITMENT_USAGE;
+        return createVMBillRecord(dateTime, usageAmount, cost, providerId, priceModel, costCategory);
+    }
+
+    private BillingRecord createVMBillRecord(LocalDateTime dateTime, double usageAmount,
+            double cost, long providerId, PriceModel priceModel, CostCategory costCategory) {
         return new BillingRecord.Builder()
                 .sampleTime(dateTime)
                 .usageAmount(usageAmount)
@@ -373,13 +380,14 @@ public class CalculatorTest {
                 .entityId(vmOid)
                 .entityType(EntityType.VIRTUAL_MACHINE.getValue())
                 .providerType(EntityType.COMPUTE_TIER.getValue())
+                .commodityType(CommodityType.UNKNOWN_VALUE)
                 .costCategory(costCategory)
                 .priceModel(priceModel)
                 .build();
     }
 
     private BillingRecord createVolumeBillRecord(LocalDateTime dateTime, double usageAmount,
-            double cost, long providerId) {
+            double cost, long providerId, int commType) {
         return new BillingRecord.Builder()
                 .sampleTime(dateTime)
                 .usageAmount(usageAmount)
@@ -388,6 +396,7 @@ public class CalculatorTest {
                 .entityId(volumeOid)
                 .entityType(EntityType.VIRTUAL_VOLUME.getValue())
                 .providerType(EntityType.STORAGE_TIER.getValue())
+                .commodityType(commType)
                 .costCategory(CostCategory.STORAGE)
                 .priceModel(PriceModel.ON_DEMAND)
                 .build();
@@ -513,7 +522,8 @@ public class CalculatorTest {
         Set<BillingRecord> records = new HashSet<>();
         double storageCostPerHour = 0.05;
         if (lastProcessed.isBefore(date(2022, 3, 25))) {
-            records.add(createVolumeBillRecord(date(2022, 3, 25), 6, storageCostPerHour * 6, storageTierOid));
+            records.add(createVolumeBillRecord(date(2022, 3, 25), 6, storageCostPerHour * 6,
+                    storageTierOid, CommodityType.STORAGE_AMOUNT_VALUE));
         }
         NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(changeWindowComparator);
         actionSpecs.add(ScenarioGenerator.createVolumeDeleteActionSpec(volumeOid, LocalDateTime.of(2022, 3, 25, 6, 0),
@@ -523,8 +533,8 @@ public class CalculatorTest {
 
     private void validateResults(List<SavingsValues> results, List<SavingsValues> expectedResults) {
         Assert.assertEquals(expectedResults.size(), results.size());
-        Assert.assertEquals(expectedResults.stream().map(SavingsValues::getTimestamp).collect(Collectors.toList()),
-                results.stream().map(SavingsValues::getTimestamp).collect(Collectors.toList()));
+        Assert.assertEquals(expectedResults.stream().map(SavingsValues::getTimestamp).collect(Collectors.toSet()),
+                results.stream().map(SavingsValues::getTimestamp).collect(Collectors.toSet()));
         Map<LocalDateTime, SavingsValues> resultsMap =
                 results.stream().collect(Collectors.toMap(SavingsValues::getTimestamp, Function.identity()));
         expectedResults.forEach(r -> {
@@ -577,7 +587,7 @@ public class CalculatorTest {
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(9).investments(0)
                 .timestamp(date(2022, 3, 27)).build());
 
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 3, 28));
         Assert.assertTrue(expectedResults.containsAll(result));
     }
 
@@ -625,7 +635,7 @@ public class CalculatorTest {
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(9).investments(0)
                 .timestamp(date(2022, 3, 27)).build());
 
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 3, 28));
         Assert.assertTrue(expectedResults.containsAll(result));
     }
 
@@ -668,7 +678,7 @@ public class CalculatorTest {
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(24).investments(0)
                 .timestamp(date(2022, 3, 27)).build());
 
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 3, 28));
         Assert.assertTrue(expectedResults.containsAll(result));
 
         records.clear();
@@ -677,7 +687,7 @@ public class CalculatorTest {
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(24).investments(0)
                 .timestamp(date(2022, 3, 26)).build());
 
-        result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 3, 28));
         Assert.assertTrue(expectedResults.containsAll(result));
     }
 
@@ -712,7 +722,7 @@ public class CalculatorTest {
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(0).investments(0)
                 .timestamp(date(2022, 4, 27)).build());
 
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 4, 28));
         Assert.assertTrue(expectedResults.containsAll(result));
     }
 
@@ -747,7 +757,7 @@ public class CalculatorTest {
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(48).investments(0)
                 .timestamp(date(2022, 4, 27)).build());
 
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 4, 28));
         Assert.assertTrue(expectedResults.containsAll(result));
     }
 
@@ -783,7 +793,7 @@ public class CalculatorTest {
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(24 * 3).investments(0)
                 .timestamp(date(2022, 4, 27)).build());
 
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 4, 28));
         Assert.assertTrue(expectedResults.containsAll(result));
     }
 
@@ -818,7 +828,7 @@ public class CalculatorTest {
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(5 * 24).investments(0)
                 .timestamp(date(2022, 4, 27)).build());
 
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 4, 28));
         Assert.assertTrue(expectedResults.containsAll(result));
     }
 
@@ -855,7 +865,7 @@ public class CalculatorTest {
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(24).investments(0)
                 .timestamp(date(2022, 6, 3)).build());
 
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 6, 4));
         Assert.assertTrue(expectedResults.containsAll(result));
     }
 
@@ -894,7 +904,7 @@ public class CalculatorTest {
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(24).investments(0)
                 .timestamp(date(2022, 6, 3)).build());
 
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 6, 4));
         Assert.assertTrue(expectedResults.containsAll(result));
     }
 
@@ -937,7 +947,146 @@ public class CalculatorTest {
         expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(4 * 24).investments(0)
                 .timestamp(date(2022, 6, 4)).build());
 
-        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, LocalDateTime.now(clock));
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs, lastProcessedDate, date(2022, 6, 5));
         Assert.assertTrue(expectedResults.containsAll(result));
+    }
+
+    /**
+     * Scaled an Azure Windows VM to a new tier where we expect 100% RI coverage.
+     * Although it is 100% covered, there is a license cost that we still need to pay.
+     * Each day the VM will get 2 bill records - one for reserved compute cost which is $0, and
+     * one for the license cost. Both records have usageAmount of 24 hours, but ensure we are not
+     * adding up both values to get 48 hours. The algorithm excludes the usage amount of the licence
+     * cost.
+     */
+    @Test
+    public void testVMScaleWithLicenseCost() {
+        final long sourceProviderId = 1212121212L;
+        final long targetProviderId = 2323232323L;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVMBillRecord(date(2022, 4, 25), 24, 0, targetProviderId, PriceModel.RESERVED, CostCategory.COMPUTE));
+        records.add(createVMBillRecord(date(2022, 4, 25), 24, 48, targetProviderId, PriceModel.ON_DEMAND, CostCategory.LICENSE));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs =
+                new TreeSet<>(changeWindowComparator);
+        actionSpecs.add(ScenarioGenerator.createVMActionChangeWindow(vmOid,
+                LocalDateTime.of(2022, 4, 20, 8, 0),
+                1, 5, sourceProviderId, targetProviderId,
+                null, LivenessState.LIVE, 1));
+
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(vmOid).savings(0).investments(24)
+                .timestamp(date(2022, 4, 25)).build());
+
+        List<SavingsValues> result = calculator.calculate(vmOid, records, actionSpecs,
+                getTimestamp(date(2022, 4, 24)), date(2022, 4, 27));
+        Assert.assertTrue(expectedResults.containsAll(result));
+    }
+
+    /**
+     * Scale volume from one provider to another. It is not an Azure ultra disk. There is one bill
+     * record for each service tier per day.
+     *
+     * <p>Action 1: June 1 10am: scale volume to a different provider. Cost changed from $1/hr to #3/hr.
+     *                        Disk size changed from 5GB to 8GB.
+     * Action 2: June 3 3pm:  scale volume to a different provider. Cost changed from $3/hr to #2/hr.
+     *                        Disk size changed from 8GB to 7GB.
+     */
+    @Test
+    public void testVolumeScaleToDifferentProvider() {
+        final long tierA = 1212121212L;
+        final long tierB = 2323232323L;
+        final long tierC = 3434343434L;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 5 * 10, 10, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 8 * 14, 3 * 14, tierB, CommodityType.STORAGE_AMOUNT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 2), 8 * 24, 3 * 24, tierB, CommodityType.STORAGE_AMOUNT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 3), 8 * 15, 3 * 15, tierB, CommodityType.STORAGE_AMOUNT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 3), 7 * 9, 2 * 9, tierC, CommodityType.STORAGE_AMOUNT_VALUE));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(changeWindowComparator);
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 1, 10, 0),
+                1, 3, tierA, tierB,
+                LocalDateTime.of(2022, 6, 3, 15, 0), LivenessState.SUPERSEDED, null));
+
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 3, 15, 0),
+                3, 2, tierB, tierC,
+                null, LivenessState.LIVE, null));
+
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(0).investments(14 * 2)
+                .timestamp(date(2022, 6, 1)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(0).investments(24 * 2)
+                .timestamp(date(2022, 6, 2)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(9).investments(15 * 2 + 9)
+                .timestamp(date(2022, 6, 3)).build());
+
+        List<SavingsValues> result = calculator.calculate(volumeOid, records, actionSpecs,
+                getTimestamp(date(2022, 5, 31)), date(2022, 6, 4));
+        Assert.assertTrue(expectedResults.containsAll(result));
+    }
+
+    /**
+     * Scale volume by changing IOPS and IO Throughput only. (Azure Ultra disk)
+     * This ultra disk originally has storage of 16GB, IOPS of 100 and IO Throughput of 1MBPS.
+     *
+     * <p>Action 1: June 1 10am: Change disk commodities: IOPS 100 to 200; IO_Throughput 1MBps to 2MBps.
+     * Action 2: June 3 1pm: Change disk commodities: IOPS 200 to 150.
+     */
+    @Test
+    public void testVolumeScaleSameProviderChangeComm() {
+        final long tierA = 1212121212L;
+        final double storageAccessRate = 0.000068;
+        final double ioThroughputRate = 0.00047;
+        final double storageAmountRate = 0.000163159;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 100 * 10 + 200 * 14, (100 * 10 + 200 * 14) * storageAccessRate, tierA, CommodityType.STORAGE_ACCESS_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 10 + 2 * 14, (10 + 2 * 14) * ioThroughputRate, tierA, CommodityType.IO_THROUGHPUT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 16 * 24, (16 * 24) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 2), 200 * 24, (200 * 24) * storageAccessRate, tierA, CommodityType.STORAGE_ACCESS_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 2), 2 * 24, (2 * 24) * ioThroughputRate, tierA, CommodityType.IO_THROUGHPUT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 2), 16 * 24, (16 * 24) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 3), 200 * 13 + 150 * 11, (200 * 13 + 150 * 11) * storageAccessRate, tierA, CommodityType.STORAGE_ACCESS_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 3), 2 * 24, (2 * 24) * ioThroughputRate, tierA, CommodityType.IO_THROUGHPUT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 3), 16 * 24, (16 * 24) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(changeWindowComparator);
+        List<ResizeInfo> resizeInfoList = new ArrayList<>();
+        resizeInfoList.add(ScenarioGenerator.createResizeInfo(CommodityType.STORAGE_ACCESS, 100, 200));
+        resizeInfoList.add(ScenarioGenerator.createResizeInfo(CommodityType.IO_THROUGHPUT, 1, 2));
+        double sourceOnDemandRate = (100 * storageAccessRate + ioThroughputRate + 16 * storageAmountRate); // cost per hour
+        double destOnDemandRate = (200 * storageAccessRate + 2 * ioThroughputRate + 16 * storageAmountRate); // cost per hour
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 1, 10, 0),
+                sourceOnDemandRate, destOnDemandRate, tierA, tierA,
+                null, LivenessState.LIVE, resizeInfoList));
+
+        List<ResizeInfo> resizeInfoList2 = new ArrayList<>();
+        resizeInfoList2.add(ScenarioGenerator.createResizeInfo(CommodityType.STORAGE_ACCESS, 200, 150));
+        double sourceOnDemandRate2 = (200 * storageAccessRate + 2 * ioThroughputRate + 16 * storageAmountRate); // cost per hour
+        double destOnDemandRate2 = (150 * storageAccessRate + 2 * ioThroughputRate + 16 * storageAmountRate); // cost per hour
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 3, 13, 0),
+                sourceOnDemandRate2, destOnDemandRate2, tierA, tierA,
+                null, LivenessState.LIVE, resizeInfoList2));
+
+        double day1Investment = destOnDemandRate * 14 - sourceOnDemandRate * 14;
+        double day2Investment = destOnDemandRate * 24 - sourceOnDemandRate * 24;
+        // On June 3, value of sourceOnDemandRate is the low watermark.
+        double day3Investment = (destOnDemandRate - sourceOnDemandRate) * 13 + (destOnDemandRate2 - sourceOnDemandRate) * 11;
+        // On June 3, value of sourceOnDemandRate2 is the high watermark.
+        double day3Savings = (sourceOnDemandRate2 - destOnDemandRate2) * 11;
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(0).investments(day1Investment)
+                .timestamp(date(2022, 6, 1)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(0).investments(day2Investment)
+                .timestamp(date(2022, 6, 2)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(day3Savings).investments(day3Investment)
+                .timestamp(date(2022, 6, 3)).build());
+        List<SavingsValues> result = calculator.calculate(volumeOid, records, actionSpecs,
+                getTimestamp(date(2022, 5, 31)), date(2022, 6, 4));
+        validateResults(result, expectedResults);
     }
 }

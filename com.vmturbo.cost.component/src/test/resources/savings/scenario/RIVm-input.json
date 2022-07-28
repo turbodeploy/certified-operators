@@ -24,8 +24,8 @@
   {
     "eventType": "RESIZE",
     "uuid": "vm-1",
-    "sourceOnDemandRate": 12,
-    "destinationOnDemandRate": 11,
+    "sourceOnDemandRate": 11,
+    "destinationOnDemandRate": 10,
     "expectedCloudCommitment": 1,
     "timestamp": 1656399600000,
     "expirationTimestamp": 1719558000000
@@ -40,7 +40,7 @@
   {
     "eventType": "RESIZE",
     "uuid": "vm-1",
-    "sourceOnDemandRate": 11,
+    "sourceOnDemandRate": 10,
     "destinationOnDemandRate": 15,
     "expectedCloudCommitment": 0,
     "timestamp": 1656572400000,
@@ -56,8 +56,8 @@
   {
     "eventType": "RESIZE",
     "uuid": "vm-1",
-    "sourceOnDemandRate": 11,
-    "destinationOnDemandRate": 15,
+    "sourceOnDemandRate": 15,
+    "destinationOnDemandRate": 17,
     "expectedCloudCommitment": 1,
     "timestamp": 1656745200000,
     "expirationTimestamp": 1719903600000
