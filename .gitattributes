@@ -292,7 +292,6 @@ com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/s
 com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/service/MarketsService.java -text
 com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/service/NotificationService.java -text
 com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/service/PoliciesService.java -text
-com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/service/ReportsService.java -text
 com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/service/ReservationsService.java -text
 com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/service/RolesService.java -text
 com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/service/ScenariosService.java -text

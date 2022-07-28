@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 import javax.annotation.Nonnull;
@@ -93,7 +94,7 @@ public class UsersService implements IUsersService {
     public static final List<MediaType> HTTP_ACCEPT = ImmutableList.of(MediaType.APPLICATION_JSON);
     private static final String SAML_IDP_ENTITY_NAME = "SAML IDP entity name: ";
     private static final String NOT_ASSIGNED = "Not assigned";
-    private static final String PERMISSION_CHANGED = "Permission changed, current role is %s, scope is %s";
+    private static final String PERMISSION_CHANGED = "Permission changed, current roles are %s, scope is %s";
     private static final String INVALID_SCOPE_UUID = "Invalid scope Uuid specified for user.";
     private static final String INVALID_SCOPE_AD = "Invalid scope Uuid specified for active directory group.";
     private static final String NO_SCOPE_USER = "No valid scope specified for user.";
@@ -454,7 +455,10 @@ public class UsersService implements IUsersService {
             UserApiDTO user = populateResultUserApiDTOFromInput(userApiDTO);
 
             final String details = String.format(PERMISSION_CHANGED,
-                userApiDTO.getRoleName() != null ? userApiDTO.getRoleName().toLowerCase() : "",
+                !CollectionUtils.isEmpty(userApiDTO.getRoles()) ? 
+                    "[" + userApiDTO.getRoles().stream()
+                        .map(RoleApiDTO::getName)
+                        .collect(Collectors.joining(",")) + "]" : "",
                 userApiDTO.getScope() != null && !userApiDTO.getScope().isEmpty() ?
                     userApiDTO.getScope().toString().toLowerCase() : NOT_ASSIGNED);
             AuditLog.newEntry(AuditAction.CHANGE_ROLE,
@@ -527,11 +531,6 @@ public class UsersService implements IUsersService {
 
         if (!CollectionUtils.isEmpty(inputDto.getRoles())) {
             user.setRoles(ApiUtils.sortRoleByPrivileges(inputDto.getRoles()));
-        } else {
-            // if request only has rolename, populate it too.
-            final RoleApiDTO roleApiDTO = new RoleApiDTO();
-            roleApiDTO.setName(inputDto.getRoleName());
-            user.setRoles(Collections.singletonList(roleApiDTO));
         }
         user.setScope(inputDto.getScope());
         user.setUuid(inputDto.getUuid());
@@ -582,9 +581,8 @@ public class UsersService implements IUsersService {
         if (StringUtils.isBlank(userApiDTO.getUsername())) {
             throw new IllegalArgumentException("No user name specified for user.");
         }
-        if (StringUtils.isBlank(userApiDTO.getRoleName())
-                // None of the RoleApiDTOs have a role name set.
-                && userApiDTO.getRoles().stream()
+        // None of the RoleApiDTOs have a role name set.
+        if (userApiDTO.getRoles().stream()
                     .allMatch(role -> StringUtils.isBlank(role.getName()))) {
             throw new IllegalArgumentException("No role specified for user.");
         }
@@ -598,18 +596,18 @@ public class UsersService implements IUsersService {
         }
         //Validate RoleName without Scope
         ScopeErrorType errType =
-        validateSharedUserScope(userApiDTO.getRoleName(), userApiDTO.getScope());
+        validateSharedUserScope(userApiDTO.getRoles().stream().map(RoleApiDTO::getName).collect(Collectors.toList()), userApiDTO.getScope());
         if (errType != ScopeErrorType.VALID_SCOPE) {
             throw new IllegalArgumentException(mapMessage(UserSourceType.USER, errType));
         }
     }
 
     /**
-     * Validate that the user api dto specified has a valid user roleName and scope
+     * Validate that the user api dto specified has valid user roleNames and scope
      *
      */
-    private ScopeErrorType validateSharedUserScope(String roleName, List<GroupApiDTO> scope){
-        if (roleName != null && UserScopeUtils.containsSharedRole(Collections.singletonList(roleName))) {
+    private ScopeErrorType validateSharedUserScope(List<String> roleNames, List<GroupApiDTO> scope){
+        if (!CollectionUtils.isEmpty(roleNames) && UserScopeUtils.containsSharedRole(roleNames)) {
             if (scope == null || scope.isEmpty()) {
                 return ScopeErrorType.NO_SCOPE;
             }
@@ -1258,7 +1256,7 @@ public class UsersService implements IUsersService {
         }
         //Validate RoleName without Scope
         ScopeErrorType errType =
-                validateSharedUserScope(apiDTO.getRoleName(), apiDTO.getScope());
+                validateSharedUserScope(Collections.singletonList(apiDTO.getRoleName()), apiDTO.getScope());
         if (errType != ScopeErrorType.VALID_SCOPE) {
             throw new IllegalArgumentException(mapMessage(UserSourceType.ACTIVE_DIRECTORY_GROUP, errType));
         }
@@ -1279,7 +1277,7 @@ public class UsersService implements IUsersService {
             for (ActiveDirectoryGroupApiDTO adGroupDTO : apiDTO.getGroups()) {
                 //Validate RoleName without Scope
                 ScopeErrorType errType =
-                        validateSharedUserScope(adGroupDTO.getRoleName(), adGroupDTO.getScope());
+                        validateSharedUserScope(Collections.singletonList(adGroupDTO.getRoleName()), adGroupDTO.getScope());
                 if (errType != ScopeErrorType.VALID_SCOPE) {
                     throw new IllegalArgumentException(mapMessage(UserSourceType.ACTIVE_DIRECTORY, errType));
                 }

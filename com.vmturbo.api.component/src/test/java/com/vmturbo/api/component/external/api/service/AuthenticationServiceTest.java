@@ -89,7 +89,7 @@ public class AuthenticationServiceTest {
     public void testInitAdmin() throws Exception {
         BaseApiDTO authUserDTO = testAuthenticationService.initAdmin(username,
                 PASSWORD);
-        Assert.assertEquals(AuthenticationService.ADMINISTRATOR, ((UserApiDTO)authUserDTO).getRoleName());
+        Assert.assertEquals(AuthenticationService.ADMINISTRATOR, ((UserApiDTO)authUserDTO).getRoles().get(0).getName());
         Assert.assertEquals(username, ((UserApiDTO)authUserDTO).getUsername());
     }
 
