@@ -3,7 +3,9 @@ package com.vmturbo.cost.component.savings.calculator;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.NavigableSet;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -15,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.TierCostDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
@@ -72,7 +75,6 @@ public class SavingsGraph {
             if (action.getInfo().hasScale()) {
                 final TierCostDetails sourceCostDetails = action.getInfo().getScale().getCloudSavingsDetails()
                         .getSourceTierCostDetails();
-                logger.trace("Source cost details of action {}: {}", action::getId, () -> sourceCostDetails);
 
                 // On-demand rate of the provider, get RI discounted rate if applicable.
                 double sourceRate = sourceCostDetails.hasDiscountedRate()
@@ -82,11 +84,19 @@ public class SavingsGraph {
                 low = Math.min(sourceRate, low);
                 high = Math.max(sourceRate, high);
 
+                long sourceProviderOid = 0L;
                 long destProviderOid = 0L;
                 if (action.getInfo().hasScale()) {
+                    // If the action is used to change the provider, the source and destination provider
+                    // OID will be the OID of the provider before and after the action respectively.
+                    // If the action does not change the primary provider, but to change the commodity
+                    // values only, both source and destination provider will be set to the primary provider OID.
+                    sourceProviderOid = ActionDTOUtil.getPrimaryChangeProvider(action)
+                            .map(changeProvider -> changeProvider.getSource().getId())
+                            .orElse(ActionDTOUtil.getPrimaryProvider(action).map(ActionEntity::getId).orElse(0L));
                     destProviderOid = ActionDTOUtil.getPrimaryChangeProvider(action)
                             .map(changeProvider -> changeProvider.getDestination().getId())
-                            .orElse(0L);
+                            .orElse(ActionDTOUtil.getPrimaryProvider(action).map(ActionEntity::getId).orElse(0L));
                 }
 
                 final TierCostDetails projectedTierCostDetails = action.getInfo().getScale()
@@ -96,15 +106,28 @@ public class SavingsGraph {
                 boolean isSavingsExpectedAfterAction = action.getSavingsPerHour().getAmount() > 0;
                 double destinationOnDemandCost = projectedTierCostDetails.getOnDemandRate().getAmount();
 
+                List<CommodityResize> commodityResizes = new ArrayList<>();
+                if (action.getInfo().getScale().getCommodityResizesCount() > 0) {
+                    action.getInfo().getScale().getCommodityResizesList().forEach(c ->
+                        commodityResizes.add(new CommodityResize.Builder()
+                                .oldCapacity(c.getOldCapacity())
+                                .newCapacity(c.getNewCapacity())
+                                .commodityType(c.getCommodityType().getType())
+                                .build())
+                    );
+                }
+
                 dataPoints.add(new ScaleActionDataPoint.Builder()
                         .timestamp(timestamp)
                         .lowWatermark(low)
                         .highWatermark(high)
+                        .sourceProviderOid(sourceProviderOid)
                         .destinationProviderOid(destProviderOid)
                         .beforeActionCost(sourceRate)
                         .destinationOnDemandCost(destinationOnDemandCost)
                         .isCloudCommitmentExpectedAfterAction(isRiCoverageExpectedAfterAction)
                         .isSavingsExpectedAfterAction(isSavingsExpectedAfterAction)
+                        .commodityResizes(commodityResizes)
                         .build());
 
                 if (changeWindow.getLivenessState() == LivenessState.REVERTED
@@ -150,7 +173,7 @@ public class SavingsGraph {
     }
 
     private ActionDataPoint createWatermark(long timestamp) {
-        return ImmutableActionDataPoint.builder()
+        return new ActionDataPoint.Builder()
                 .timestamp(timestamp)
                 .destinationProviderOid(0)
                 .build();
@@ -170,7 +193,6 @@ public class SavingsGraph {
         StringBuilder graph = new StringBuilder();
         graph.append("\n=== Watermark Graph (Number of data points: ").append(size()).append(") ===\n");
         for (ActionDataPoint datapoint : dataPoints) {
-            graph.append(datapoint).append("\n");
             LocalDateTime time = LocalDateTime.ofInstant(
                     Instant.ofEpochMilli(datapoint.getTimestamp()), ZoneOffset.UTC);
             graph.append(time).append(": ").append(datapoint).append("\n");

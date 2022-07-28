@@ -36,12 +36,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverage;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.savings.BillingDataInjector.BillingScriptEvent;
 import com.vmturbo.cost.component.savings.BillingRecord.Builder;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST;
@@ -234,11 +237,13 @@ public class ScenarioGenerator {
 
             int entityType = EntityType.VIRTUAL_MACHINE_VALUE;
             CostCategory costCategory = CostCategory.COMPUTE_LICENSE_BUNDLE;
+            int commodityType = CommodityType.UNKNOWN_VALUE;
             int providerType = EntityType.COMPUTE_TIER_VALUE;
             if (deleteEvent != null) {
                 entityType = EntityType.VIRTUAL_VOLUME_VALUE;
                 costCategory = CostCategory.STORAGE;
                 providerType = EntityType.STORAGE_TIER_VALUE;
+                commodityType = CommodityType.STORAGE_AMOUNT_VALUE;
             }
 
             Map<Long, Segment> providerToOnDemandSegment = new HashMap<>();
@@ -293,6 +298,7 @@ public class ScenarioGenerator {
                             .priceModel(PriceModel.ON_DEMAND)
                             .costCategory(costCategory)
                             .providerType(providerType)
+                            .commodityType(commodityType)
                             .usageAmount(segment.durationInHours)
                             .build());
                 }
@@ -307,6 +313,7 @@ public class ScenarioGenerator {
                             .priceModel(PriceModel.RESERVED)
                             .costCategory(CostCategory.COMMITMENT_USAGE)
                             .providerType(providerType)
+                            .commodityType(CommodityType.UNKNOWN_VALUE)
                             .usageAmount(segment.durationInHours)
                             .build());
                 }
@@ -435,7 +442,11 @@ public class ScenarioGenerator {
     }
 
     private static ActionInfo createScaleActionInfo(long entityOid, double sourceOnDemandRate, double destOnDemandRate,
-            long sourceProviderId, long destProviderId, int entityType, int tierType, double expectedRiCoverage) {
+            long sourceProviderId, long destProviderId, int entityType, int tierType, double expectedRiCoverage,
+            List<ResizeInfo> resizeInfoList) {
+        if (resizeInfoList == null) {
+            resizeInfoList = new ArrayList<>();
+        }
         TierCostDetails.Builder destinationTierCostDetails = TierCostDetails.newBuilder()
                 .setOnDemandRate(CurrencyAmount.newBuilder()
                         .setAmount(destOnDemandRate)
@@ -460,19 +471,26 @@ public class ScenarioGenerator {
                             .build());
         }
 
+        Scale.Builder scaleBuilder = Scale.newBuilder();
+        if (resizeInfoList.isEmpty()) {
+            scaleBuilder.addChanges(ChangeProvider.newBuilder()
+                    .setDestination(ActionEntity.newBuilder()
+                            .setId(destProviderId)
+                            .setType(tierType)
+                            .build())
+                    .setSource(ActionEntity.newBuilder()
+                            .setId(sourceProviderId)
+                            .setType(tierType)
+                            .build())
+                    .build());
+        } else {
+            scaleBuilder.setPrimaryProvider(ActionEntity.newBuilder()
+                    .setId(sourceProviderId)
+                    .setType(tierType)
+                    .build());
+        }
         return ActionInfo.newBuilder()
-                .setScale(Scale.newBuilder()
-                        .addChanges(ChangeProvider.newBuilder()
-                                .setDestination(ActionEntity.newBuilder()
-                                        .setId(destProviderId)
-                                        .setType(tierType)
-                                        .build())
-                                .setSource(ActionEntity.newBuilder()
-                                        .setId(sourceProviderId)
-                                        .setType(EntityType.COMPUTE_TIER_VALUE)
-                                        .build())
-                                .build())
-                        .setCloudSavingsDetails(CloudSavingsDetails.newBuilder()
+                .setScale(scaleBuilder.setCloudSavingsDetails(CloudSavingsDetails.newBuilder()
                                 .setSourceTierCostDetails(TierCostDetails.newBuilder()
                                         .setOnDemandRate(CurrencyAmount.newBuilder()
                                                 .setAmount(sourceOnDemandRate)
@@ -487,8 +505,24 @@ public class ScenarioGenerator {
                                 .setId(entityOid)
                                 .setType(entityType)
                                 .build())
+                        .addAllCommodityResizes(resizeInfoList)
                         .build())
                 .build();
+    }
+
+    /**
+     * Create ResizeInfo protobuf object.
+     *
+     * @param commType commodity type
+     * @param oldCapacity old capacity
+     * @param newCapacity new capacity
+     * @return ResizeInfo object
+     */
+    public static ResizeInfo createResizeInfo(final CommodityType commType, final float oldCapacity, final float newCapacity) {
+        return ResizeInfo.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(commType.getNumber()).build())
+                .setOldCapacity(oldCapacity)
+                .setNewCapacity(newCapacity).build();
     }
 
     private static ActionInfo createDeleteActionInfo(long entityOid, long sourceTierOid) {
@@ -565,7 +599,34 @@ public class ScenarioGenerator {
         ActionInfo scaleActionInfo = createScaleActionInfo(entityOid, sourceOnDemandRate, destOnDemandRate,
                 sourceProviderId, destProviderId,
                 CommonDTOREST.EntityDTO.EntityType.COMPUTE_TIER.getValue(),
-                CommonDTOREST.EntityDTO.EntityType.VIRTUAL_MACHINE.getValue(), expectedRiCoverage);
+                CommonDTOREST.EntityDTO.EntityType.VIRTUAL_MACHINE.getValue(), expectedRiCoverage, new ArrayList<>());
+        ActionSpec actionSpec = createActionSpec(actionTime, scaleActionInfo,
+                sourceOnDemandRate - destOnDemandRate);
+        return createExecutedActionsChangeWindow(entityOid, actionSpec, endTime, state);
+    }
+
+    /**
+     * Create ExecutedActionsChangeWindow object for volume scale actions.
+     *
+     * @param entityOid entity OID
+     * @param actionTime action time
+     * @param sourceOnDemandRate source on-demand rate
+     * @param destOnDemandRate destination on-demand rate
+     * @param sourceProviderId source provider ID
+     * @param destProviderId destination provider ID
+     * @param resizeInfoList list of commodity resize info
+     * @return ExecutedActionsChangeWindow object
+     */
+    public static ExecutedActionsChangeWindow createVolumeActionChangeWindow(long entityOid, LocalDateTime actionTime, double sourceOnDemandRate,
+            double destOnDemandRate, long sourceProviderId, long destProviderId, @Nullable LocalDateTime endTime,
+            @Nullable LivenessState state, List<ResizeInfo> resizeInfoList) {
+        if (state == null) {
+            state = LivenessState.LIVE;
+        }
+        ActionInfo scaleActionInfo = createScaleActionInfo(entityOid, sourceOnDemandRate, destOnDemandRate,
+                sourceProviderId, destProviderId,
+                EntityType.STORAGE_TIER_VALUE,
+                EntityType.VIRTUAL_VOLUME_VALUE, 0, resizeInfoList);
         ActionSpec actionSpec = createActionSpec(actionTime, scaleActionInfo,
                 sourceOnDemandRate - destOnDemandRate);
         return createExecutedActionsChangeWindow(entityOid, actionSpec, endTime, state);
