@@ -632,7 +632,6 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
         ActionDTO.ResizeInfo.Builder resizeInfoBuilder =
                 ActionDTO.ResizeInfo.newBuilder()
                         .setTarget(targetEntity)
-                        .addAllSourceEntities(originalEntities)
                         .setCommodityType(resizeCommType)
                         .setCommodityAttribute(origResize.getCommodityAttribute())
                         .setOldCapacity(origResize.getOldCapacity())
@@ -643,8 +642,7 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
         // Explanation for this atomic resize
         AtomicResizeExplanation.ResizeExplanationPerEntity.Builder explanationPerEntity
                 = AtomicResizeExplanation.ResizeExplanationPerEntity.newBuilder()
-                .setTargetId(targetEntity.getId())
-                .addAllResizeEntityIds(entityIds);
+                .setTargetId(targetEntity.getId());
 
         ResizeExplanationPerEntity.ResizeExplanationPerCommodity.Builder expPerComm =
                 ResizeExplanationPerEntity.ResizeExplanationPerCommodity.newBuilder()
