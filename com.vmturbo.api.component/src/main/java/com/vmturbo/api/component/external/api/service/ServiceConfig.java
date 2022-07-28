@@ -550,11 +550,6 @@ public class ServiceConfig {
     }
 
     @Bean
-    public ReportsService reportsService() {
-        return new ReportsService();
-    }
-
-    @Bean
     public ReservationsService reservationsService() {
         return new ReservationsService(
                 communicationConfig.reservationServiceBlockingStub(),
