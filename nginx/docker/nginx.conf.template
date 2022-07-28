@@ -139,6 +139,11 @@ http {
         include /tmp/nginx/includes/normal-processing.conf;
     }
 
+    server {
+        listen  9080;
+        include /tmp/nginx/includes/hybrid-saas-processing.conf;
+    }
+
     # include any additional config files for the main http block
     include /etc/nginx/userconf/http/*.conf;
 }

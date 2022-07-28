@@ -630,6 +630,14 @@ spec:
                       as opposed to being downstream of some other ingress mechanism as in something like an
                       OpenShift deployemnt
                     type: boolean
+                  tunnel:
+                    type: object
+                    properties:
+                      expose:
+                        type: boolean
+                      address:
+                        type: string
+                        description: the name that will be given to the exposed service
                 type: object
               postgres:
                 properties:
@@ -2016,14 +2024,6 @@ spec:
                   serviceAccountName:
                     description: component serviceAccountName
                     type: string
-                  tunnel:
-                    type: object
-                    properties:
-                      expose:
-                        type: boolean
-                      address:
-                        type: string
-                        description: the name that will be given to the exposed service
                 type: object
 
               # Resources limits - Probes
