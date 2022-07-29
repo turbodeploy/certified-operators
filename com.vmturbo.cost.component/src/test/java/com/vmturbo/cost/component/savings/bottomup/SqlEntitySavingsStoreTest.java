@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.savings.bottomup;
 
+import static com.vmturbo.cost.component.db.Tables.ENTITY_CLOUD_SCOPE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -167,6 +168,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
      */
     private RollupSavingsProcessor rollupProcessor;
 
+
     /**
      * Initializing store.
      *
@@ -179,6 +181,16 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         store = new SqlEntitySavingsStore(dsl, clock, 1000);
         rollupTimesStore = new RollupTimesStore(dsl, RolledUpTable.ENTITY_SAVINGS);
         rollupProcessor = new RollupSavingsProcessor(store, rollupTimesStore, clock);
+        dsl.insertInto(ENTITY_CLOUD_SCOPE,
+                        ENTITY_CLOUD_SCOPE.ENTITY_OID,
+                        ENTITY_CLOUD_SCOPE.ENTITY_TYPE,
+                        ENTITY_CLOUD_SCOPE.ACCOUNT_OID,
+                        ENTITY_CLOUD_SCOPE.REGION_OID,
+                        ENTITY_CLOUD_SCOPE.SERVICE_PROVIDER_OID,
+                        ENTITY_CLOUD_SCOPE.CREATION_TIME)
+                .values(vm1Id, 10, vm1Id / 2L, vm1Id / 10L, vm1Id / 20L, LocalDateTime.now())
+                .values(vm2Id, 10, vm2Id / 2L, vm2Id / 10L, vm2Id / 20L, LocalDateTime.now())
+                .execute();
     }
 
     /**

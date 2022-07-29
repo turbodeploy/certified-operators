@@ -591,7 +591,8 @@ public class EntitySavingsConfig {
             return new SavingsTracker(new SqlBillingRecordStore(dbAccessConfig.dsl()),
                     new GrpcActionChainStore(actionsService()),
                     (SavingsStore)entitySavingsStore(), supportedProviderTypes,
-                    getEntitySavingsRetentionConfig().getVolumeDeleteRetentionMs(), getClock());
+                    getEntitySavingsRetentionConfig().getVolumeDeleteRetentionMs(), getClock(), cloudTopologyFactory(), repositoryClient,
+                    dbAccessConfig.dsl(), realtimeTopologyContextId, persistEntityCostChunkSize);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
