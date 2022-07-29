@@ -102,11 +102,15 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             AZURE_DB_FAMILY_NAME_BUSINESS_CRITICAL);
     public static final double LOG_STORAGE_COST_FACTOR = 1.3;
 
+    /**
+     * Collection of {@link EntityType} with costs.
+     */
     public static final Set<Integer> ENTITY_TYPES_WITH_COST = ImmutableSet.of(
                                         EntityType.VIRTUAL_MACHINE_VALUE,
                                         EntityType.DATABASE_SERVER_VALUE,
                                         EntityType.DATABASE_VALUE,
-                                        EntityType.VIRTUAL_VOLUME_VALUE);
+                                        EntityType.VIRTUAL_VOLUME_VALUE,
+                                        EntityType.VIRTUAL_MACHINE_SPEC_VALUE);
 
     private final CloudCostData<ENTITY_CLASS> cloudCostData;
 
