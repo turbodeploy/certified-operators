@@ -1087,10 +1087,12 @@ public class CloudCostsStatsSubQueryTest {
         final CloudCostStatsQuery query = request.getCloudCostStatsQuery(0);
         Assert.assertTrue(query.hasEntityTypeFilter());
         final List<Integer> entityTypeIdList = query.getEntityTypeFilter().getEntityTypeIdList();
-        Assert.assertEquals(3, entityTypeIdList.size());
-        Assert.assertEquals(
-                ImmutableSet.of(EntityType.DATABASE_SERVER_VALUE, EntityType.DATABASE_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE), ImmutableSet.copyOf(entityTypeIdList));
+        Assert.assertEquals(4, entityTypeIdList.size());
+        Assert.assertEquals(ImmutableSet.of(
+                EntityType.DATABASE_VALUE,
+                EntityType.DATABASE_SERVER_VALUE,
+                EntityType.VIRTUAL_MACHINE_VALUE,
+                EntityType.VIRTUAL_MACHINE_SPEC_VALUE), ImmutableSet.copyOf(entityTypeIdList));
     }
 
     /**
