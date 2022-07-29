@@ -55,6 +55,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.common.protobuf.cost.Cost.UploadBilledCostRequest.BillingDataPoint;
@@ -269,7 +270,9 @@ public class SavingsProcessorTest extends MultiDbTestBase {
                         savingsStore,
                         supportedProviderTypes,
                         TimeUnit.DAYS.toMillis(365),
-                        clock),
+                        clock, mock(
+                        TopologyEntityCloudTopologyFactory.class),
+                        null, dsl, 777777, chunkSize),
                 mock(DataRetentionProcessor.class));
     }
 
