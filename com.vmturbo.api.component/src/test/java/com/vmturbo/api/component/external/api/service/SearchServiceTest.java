@@ -1651,7 +1651,7 @@ public class SearchServiceTest {
         PropertyFilter startingFilter = searchQuery.getSearchParameters(0).getStartingFilter();
         assertEquals(startingFilter.getPropertyName(), "entityType");
         //Workload gets expanded to 3 entityTypes
-        assertEquals(startingFilter.getStringFilter().getOptionsCount(), 3);
+        assertEquals(4, startingFilter.getStringFilter().getOptionsCount());
 
         Collection<SearchFilter> searchFilters = searchQuery.getSearchParameters(0).getSearchFilterList();
 
