@@ -1050,9 +1050,6 @@ public class TopologyConverter {
                         retSet.add(t.build());
                     });
             // Iterate over all scaling groups and compute top usage
-            // TODO (Cloud PaaS): ASP "legacy" APPLICATION_COMPONENT support, OM-85875
-            //  Temporarily filter out app service plans to avoid making traders for them until Azure App Service model migration is done ( no traders needed for deleted ASPs)
-            //  It may be possible/desirable to replace this filter with an entry of VIRTUAL_MACHINE_SPEC in ENTITY_TYPES_TO_SKIP_TRADER_CREATION at TopologyConversionConstants.java
             calculateScalingGroupUsageData(entityOidToDto);
             entityOidToDto.values().stream()
                     .filter(t -> TopologyConversionUtils.shouldConvertToTrader(t.getEntityType()))
