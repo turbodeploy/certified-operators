@@ -27,7 +27,8 @@ public class TopologyConversionConstants {
                     Sets.newHashSet(EntityType.COMPUTE_TIER_VALUE, EntityType.STORAGE_TIER_VALUE,
                             EntityType.DATABASE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
                             EntityType.REGION_VALUE, EntityType.AVAILABILITY_ZONE_VALUE,
-                            EntityType.BUSINESS_ACCOUNT_VALUE, EntityType.VIRTUAL_VOLUME_VALUE));
+                            EntityType.BUSINESS_ACCOUNT_VALUE, EntityType.VIRTUAL_VOLUME_VALUE,
+                            EntityType.VIRTUAL_MACHINE_SPEC_VALUE));
 
     /**
      * Character (as opposed to string) separator in commodity key.
