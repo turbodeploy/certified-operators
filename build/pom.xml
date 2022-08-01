@@ -466,8 +466,6 @@
                 <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
-                <module>../com.vmturbo.mediation.acims.component</module>
-                <module>../com.vmturbo.mediation.apic.component</module>
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
@@ -505,7 +503,6 @@
                 <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.gcp.project.component</module>
                 <module>../com.vmturbo.mediation.gcp.billing.component</module>
-                <module>../com.vmturbo.mediation.istio.component</module>
                 <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.intersight.server.component</module>
                 <module>../com.vmturbo.mediation.intersight.ucs.component</module>
@@ -519,7 +516,6 @@
                 <module>../com.vmturbo.mediation.webhook</module>
                 <module>../com.vmturbo.mediation.webhook.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
-                <module>../com.vmturbo.mediation.netflow.component</module>
                 <module>../com.vmturbo.mediation.newrelic.component</module>
                 <module>../com.vmturbo.mediation.nutanix.component</module>
                 <module>../com.vmturbo.mediation.appinsights.component</module>
@@ -532,7 +528,6 @@
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.terraform.component</module>
-                <module>../com.vmturbo.mediation.tetration.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
                 <module>../com.vmturbo.mediation.ucsdirector.component</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
@@ -936,30 +931,9 @@
         </profile>
 
         <profile>
-            <id>mediation-netflow</id>
-            <modules>
-                <module>../com.vmturbo.mediation.netflow.component</module>
-            </modules>
-        </profile>
-
-        <profile>
             <id>mediation-terraform</id>
             <modules>
                 <module>../com.vmturbo.mediation.terraform.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-tetration</id>
-            <modules>
-                <module>../com.vmturbo.mediation.tetration.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-istio</id>
-            <modules>
-                <module>../com.vmturbo.mediation.istio.component</module>
             </modules>
         </profile>
 
@@ -983,20 +957,6 @@
                 <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-acims</id>
-            <modules>
-                <module>../com.vmturbo.mediation.acims.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-apic</id>
-            <modules>
-                <module>../com.vmturbo.mediation.apic.component</module>
             </modules>
         </profile>
 
@@ -1506,8 +1466,6 @@
                 <!-- Individual components -->
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
-                <module>../com.vmturbo.mediation.acims.component</module>
-                <module>../com.vmturbo.mediation.apic.component</module>
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
@@ -1544,7 +1502,6 @@
                 <module>../com.vmturbo.mediation.gcp.billing.component</module>
                 <module>../com.vmturbo.mediation.flexera.component</module>
                 <module>../com.vmturbo.mediation.tanium.component</module>
-                <module>../com.vmturbo.mediation.istio.component</module>
                 <module>../com.vmturbo.mediation.hds.component</module>
                 <module>../com.vmturbo.mediation.horizon.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
@@ -1558,7 +1515,6 @@
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.newrelic.component</module>
                 <module>../com.vmturbo.mediation.appinsights.component</module>
-                <module>../com.vmturbo.mediation.netflow.component</module>
                 <module>../com.vmturbo.mediation.nutanix.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
@@ -1567,7 +1523,6 @@
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.terraform.component</module>
-                <module>../com.vmturbo.mediation.tetration.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
                 <module>../com.vmturbo.mediation.ucsdirector.component</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>

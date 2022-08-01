@@ -338,11 +338,6 @@ public enum Component {
     MEDIATION_INTERSIGHT_UCS("intersight-ucs", "com.vmturbo.mediation.intersight.ucs.component"),
 
     /**
-     * ISTIO.
-     */
-    MEDIATION_ISTIO("istio", "com.vmturbo.mediation.istio.component"),
-
-    /**
      * ActionStream Kafka mediation.
      */
     MEDIATION_ACTIONSTREAM_KAFKA("mediation-actionstream-kafka", "com.vmturbo.mediation.actionstream.kafka.component"),
@@ -351,11 +346,6 @@ public enum Component {
      * NetApp.
      */
     MEDIATION_NETAPP("netapp", "com.vmturbo.mediation.netapp.component"),
-
-    /**
-     * Netflow.
-     */
-    MEDIATION_NETFLOW("netflow", "com.vmturbo.mediation.netflow.component"),
 
     /**
      * NewRelic.
@@ -411,11 +401,6 @@ public enum Component {
      * Terraform.
      */
     MEDIATION_TERRAFORM("terraform", "com.vmturbo.mediation.terraform.component"),
-
-    /**
-     * Tetration.
-     */
-    MEDIATION_TETRATION("tetration", "com.vmturbo.mediation.tetration.component"),
 
     /**
      * Tomcat.

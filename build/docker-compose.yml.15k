@@ -482,27 +482,6 @@ services:
 #    mem_limit: 1024M
 #    depends_on: *clustermgrdep
 #
-#  mediation-istio:
-#    extends:
-#      file: prod-services.yml
-#      service: mediation-istio-prod
-#    mem_limit: 1024M
-#    depends_on: *clustermgrdep
-#
-#  mediation-netflow:
-#    extends:
-#      file: prod-services.yml
-#      service: mediation-netflow-prod
-#    mem_limit: 1024M
-#    depends_on: *clustermgrdep
-#
-#  mediation-tetration:
-#    extends:
-#      file: prod-services.yml
-#      service: mediation-tetration-prod
-#    mem_limit: 1024M
-#    depends_on: *clustermgrdep
-#
 #  mediation-hyperflex:
 #    extends:
 #      file: prod-services.yml

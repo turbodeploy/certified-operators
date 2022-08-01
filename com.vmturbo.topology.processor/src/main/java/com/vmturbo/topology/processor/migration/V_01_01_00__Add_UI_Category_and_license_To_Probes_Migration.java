@@ -65,8 +65,6 @@ public class V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration extends
                 ProbeLicense.CLOUD_TARGETS.getKey()));
         probeCategoryAndLicense.put(SDKProbeType.POWERVM.getProbeType(), Pair.of(ProbeCategory.HYPERVISOR.getCategory(),
                 null));
-        probeCategoryAndLicense.put(SDKProbeType.APIC.getProbeType(), Pair.of(ProbeCategory.STORAGE.getCategory(),
-                ProbeLicense.STORAGE.getKey()));
         probeCategoryAndLicense.put(SDKProbeType.DOCKER.getProbeType(), Pair.of(ProbeCategory.APPLICATIONS_AND_DATABASES.getCategory(),
                 ProbeLicense.CONTAINER_CONTROL.getKey()));
         probeCategoryAndLicense.put(SDKProbeType.SNMP.getProbeType(), Pair.of(ProbeCategory.GUEST_OS_PROCESSES.getCategory(),
@@ -121,12 +119,6 @@ public class V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration extends
                 null));
         probeCategoryAndLicense.put(SDKProbeType.AZURE_STORAGE_BROWSE.getProbeType(), Pair.of(ProbeCategory.STORAGE_BROWSING.getCategory(),
                 null));
-        probeCategoryAndLicense.put(SDKProbeType.NETFLOW.getProbeType(), Pair.of(ProbeCategory.FABRIC_AND_NETWORK.getCategory(),
-                ProbeLicense.NETWORK_CONTROL.getKey()));
-        probeCategoryAndLicense.put(SDKProbeType.TETRATION.getProbeType(), Pair.of(ProbeCategory.FABRIC_AND_NETWORK.getCategory(),
-                ProbeLicense.NETWORK_CONTROL.getKey()));
-        probeCategoryAndLicense.put(SDKProbeType.ISTIO.getProbeType(), Pair.of(ProbeCategory.FABRIC_AND_NETWORK.getCategory(),
-                ProbeLicense.NETWORK_CONTROL.getKey()));
         probeCategoryAndLicense.put(SDKProbeType.UCSD.getProbeType(), Pair.of(ProbeCategory.ORCHESTRATOR.getCategory(),
                 null));
         probeCategoryAndLicense.put(SDKProbeType.SERVICENOW.getProbeType(), Pair.of(ProbeCategory.ORCHESTRATOR.getCategory(),

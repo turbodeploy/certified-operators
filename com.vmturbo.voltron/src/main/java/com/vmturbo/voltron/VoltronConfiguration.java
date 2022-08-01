@@ -798,11 +798,6 @@ public class VoltronConfiguration {
         MEDIATION_INTERSIGHT_UCS(Component.MEDIATION_INTERSIGHT_UCS),
 
         /**
-         * ISTIO.
-         */
-        MEDIATION_ISTIO(Component.MEDIATION_ISTIO),
-
-        /**
          * ActionStream Kafka Mediation.
          */
         MEDIATION_ACTIONSTREAM_KAFKA(Component.MEDIATION_ACTIONSTREAM_KAFKA),
@@ -811,11 +806,6 @@ public class VoltronConfiguration {
          * NetApp.
          */
         MEDIATION_NETAPP(Component.MEDIATION_NETAPP),
-
-        /**
-         * NetFlow.
-         */
-        MEDIATION_NETFLOW(Component.MEDIATION_NETFLOW),
 
         /**
          * NewRelic.
@@ -871,11 +861,6 @@ public class VoltronConfiguration {
          * Terraform.
          */
         MEDIATION_TERRAFORM(Component.MEDIATION_TERRAFORM),
-
-        /**
-         * Tetration.
-         */
-        MEDIATION_TETRATION(Component.MEDIATION_TETRATION),
 
         /**
          * Tomcat.
