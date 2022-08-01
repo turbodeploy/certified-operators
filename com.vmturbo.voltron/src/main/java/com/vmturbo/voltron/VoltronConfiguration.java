@@ -480,6 +480,18 @@ public class VoltronConfiguration {
         }
 
         /**
+         * Adds a component to the configuration.
+         *
+         * @param component The component to remove.
+         * @return The builder, for method chaining.
+         */
+        @Nonnull
+        public Builder addComponent(Component component) {
+            components.add(component);
+            return this;
+        }
+
+        /**
          * Build the configuration.
          *
          * @return The final {@link VoltronConfiguration}.

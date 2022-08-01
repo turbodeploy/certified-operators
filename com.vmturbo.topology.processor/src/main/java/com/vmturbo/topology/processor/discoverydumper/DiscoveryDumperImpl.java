@@ -243,8 +243,15 @@ public class DiscoveryDumperImpl implements DiscoveryDumper {
         }
     }
 
+    /**
+     * Removes sensitive account fields from a DiscoveryResponse.
+     *
+     * @param discovery The discovery response
+     * @param accountDefs The account definitions
+     * @return a discovery response with sensitive account fields removed.
+     */
     @Nonnull
-    static DiscoveryResponse removeHiddenInfoFromDiscovery(
+    public static DiscoveryResponse removeHiddenInfoFromDiscovery(
           @Nonnull DiscoveryResponse discovery,
           @Nonnull List<AccountDefEntry> accountDefs) {
         // Make a copy of the DiscoveryResponse which we will remove password account fields from

@@ -11,13 +11,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -59,6 +63,7 @@ import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.config.ConfigMapPropertiesReader;
 import com.vmturbo.components.common.featureflags.FeatureFlagManager;
 import com.vmturbo.components.common.featureflags.PropertiesFeatureFlagEnablementStore;
+import com.vmturbo.voltron.VoltronConfiguration.MediationComponent;
 
 /**
  * Velocity-Oriented Lightweight Turbo Running On Native.
@@ -349,11 +354,42 @@ public class Voltron extends BaseVmtComponent {
         logger.info("Welcome to Velocity-Oriented Lightweight Turbo Running On Native!\n{}\nVOLTRON came up in {}",
                 image,
                 startupTime.elapsed(TimeUnit.SECONDS));
+        logComponentInfo(voltronContext.getValue().get());
 
         if (config.getSwaggerSetup() != null) {
             config.getSwaggerSetup().copyResourcesIntoDataPath(config.getDataPath());
         }
 
         return new VoltronsContainer(voltronContext.getValue().get(), config, onExitDemolisher);
+    }
+
+    private static void logComponentInfo(@Nonnull VoltronContext context) {
+        final StringBuilder sb = new StringBuilder();
+        final Set<String> mediationComponentNames = Arrays.stream(MediationComponent.values()).map(
+                mc -> mc.getComponent().getShortName()).collect(Collectors.toSet());
+        final List<Component> coreComponents = context.getComponents().keySet().stream().filter(
+                c -> !mediationComponentNames.contains(c.getShortName())).collect(
+                Collectors.toList());
+        final List<Component> mediationComponents = context.getComponents().keySet().stream().filter(
+                c -> mediationComponentNames.contains(c.getShortName())).collect(
+                Collectors.toList());
+        sb.append("Voltron loaded the following components:");
+        sb.append("\n###########################");
+        sb.append("\nCore components");
+        sb.append("\n###########################");
+        appendComponents(coreComponents, sb);
+        sb.append("\n###########################");
+        sb.append("\nMediation components");
+        sb.append("\n###########################");
+        appendComponents(mediationComponents, sb);
+        logger.info(sb.toString());
+    }
+
+    private static void appendComponents(Collection<Component> components, StringBuilder sb) {
+        int i = 0;
+        for (Component comp : components) {
+            i++;
+            sb.append(String.format("\n%d. %s", i, comp.getTopLevelFolder()));
+        }
     }
 }
