@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetDetailsRequest;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetailLevel;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 
 /**
  * Aggregates health data for the consolidated health check endpoint.
@@ -36,6 +37,16 @@ public class HealthDataAggregator {
     private final long realtimeTopologyContextId;
     private static final String ACTIONS = "Actions";
     private static final String TARGETS = "Targets";
+    private static final String COMPONENTS = "Components";
+
+    /**
+     * Flag to display component health on swagger.
+     * @return flag status.
+     */
+    public boolean checkFlagValue() {
+        return FeatureFlags.COMPONENT_HEALTH.isEnabled()
+                ? true : false;
+    }
 
     /**
      * Constructor.
@@ -103,6 +114,41 @@ public class HealthDataAggregator {
                         responseItems.stream().map(AggregatedHealthResponseDTO::getHealthState).collect(Collectors.toList())));
                 actionHealthResponse.addResponseItems(responseItems);
                 result.add(actionHealthResponse);
+            }
+            // Component health data, samples for Minor,Critical and Normal health state
+            if (checkFlagValue() == true) {
+
+                HealthCategoryResponseDTO compHealthResponseCritical = new HealthCategoryResponseDTO();
+                compHealthResponseCritical.setHealthCategory(HealthCategory.COMPONENT);
+                compHealthResponseCritical.setCategoryDisplayName(COMPONENTS);
+
+                AggregatedHealthResponseDTO aggregatedHealthResponseDTOMinor =
+                        new AggregatedHealthResponseDTO("CONTAINER PODS",
+                                HealthState.MINOR, 1);
+                List<AggregatedHealthResponseDTO.Recommendation> recommendationsMinor = new ArrayList<>();
+                recommendationsMinor.add(new AggregatedHealthResponseDTO.Recommendation("NOT READY", "Pod is not accessible."));
+                aggregatedHealthResponseDTOMinor.addRecommendations(recommendationsMinor);
+
+                List<AggregatedHealthResponseDTO> responseItemsCritical = new ArrayList<>();
+                responseItemsCritical.add(aggregatedHealthResponseDTOMinor);
+
+                AggregatedHealthResponseDTO aggregatedHealthResponseDTOCritical =
+                        new AggregatedHealthResponseDTO("CONTAINER PODS",
+                                HealthState.CRITICAL, 1);
+                List<AggregatedHealthResponseDTO.Recommendation> recommendationsCritical = new ArrayList<>();
+                recommendationsCritical.add(new AggregatedHealthResponseDTO.Recommendation("UNHEALTHY", "Pod Failure."));
+                aggregatedHealthResponseDTOCritical.addRecommendations(recommendationsCritical);
+                responseItemsCritical.add(aggregatedHealthResponseDTOCritical);
+
+                AggregatedHealthResponseDTO aggregatedHealthResponseDTONormal =
+                        new AggregatedHealthResponseDTO("CONTAINER PODS",
+                                HealthState.NORMAL, 0);
+                responseItemsCritical.add(aggregatedHealthResponseDTONormal);
+
+                compHealthResponseCritical.setCategoryHealthState(getWorstHealthState(
+                        responseItemsCritical.stream().map(AggregatedHealthResponseDTO::getHealthState).collect(Collectors.toList())));
+                compHealthResponseCritical.addResponseItems(responseItemsCritical);
+                result.add(compHealthResponseCritical);
             }
             return result;
         } catch (StatusRuntimeException e) {

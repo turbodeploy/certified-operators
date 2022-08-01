@@ -46,11 +46,13 @@ import com.vmturbo.common.protobuf.target.TargetDTOMoles.TargetsServiceMole;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo;
 import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.ConnectionTimeOutErrorType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.DataIsMissingErrorType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.DelayedDataErrorType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorTypeInfo.InternalProbeErrorType;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Tests the work of {@link HealthDataAggregator}.
@@ -66,6 +68,12 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
      */
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(targetBackend, settingBackend, analysisStateServiceMole);
+
+    /**
+     * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(FeatureFlags.COMPONENT_HEALTH);
 
     private HealthDataAggregator healthDataAggregator;
 
@@ -105,7 +113,11 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
 
         HealthCategory checkCategory = HealthCategory.TARGET;
         List<HealthCategoryResponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(checkCategory);
-        Assert.assertEquals(1, aggregatedData.size());
+        if (FeatureFlags.COMPONENT_HEALTH.isEnabled()) {
+            Assert.assertEquals(2, aggregatedData.size());
+        } else {
+            Assert.assertEquals(1, aggregatedData.size());
+        }
         HealthCategoryResponseDTO responseDTO = aggregatedData.get(0);
         Assert.assertEquals(checkCategory, responseDTO.getHealthCategory());
         Assert.assertEquals(HealthState.CRITICAL, responseDTO.getCategoryHealthState());
@@ -338,7 +350,12 @@ public class HealthDataAggregatorTest extends HealthChecksTestBase {
         defaultMockTargetHealth(healthOfTargets);
 
         List<HealthCategoryResponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(null);
-        Assert.assertEquals(2, aggregatedData.size());
+        if (FeatureFlags.COMPONENT_HEALTH.isEnabled()) {
+            Assert.assertEquals(3, aggregatedData.size());
+        } else {
+            Assert.assertEquals(2, aggregatedData.size());
+        }
+
         HealthCategoryResponseDTO responseDTO = aggregatedData.get(0);
         Assert.assertEquals(HealthCategory.TARGET, responseDTO.getHealthCategory());
         Assert.assertEquals(HealthState.MINOR, responseDTO.getCategoryHealthState());
