@@ -49,6 +49,7 @@ import com.vmturbo.repository.db.Repository;
 import com.vmturbo.topology.processor.TopologyProcessorComponent;
 import com.vmturbo.topology.processor.db.TopologyProcessor;
 import com.vmturbo.voltron.Voltron.VoltronContext;
+import com.vmturbo.voltron.extensions.tp.CacheOnlyTopologyProcessorComponent;
 
 /**
  * Enum to capture all the possible components that can be part of voltron.
@@ -81,6 +82,13 @@ public enum Component {
      */
     TOPOLOGY_PROCESSOR("topology-processor", "com.vmturbo.topology.processor",
             TopologyProcessorComponent.class, Optional.of(TopologyProcessor.TOPOLOGY_PROCESSOR)),
+
+    /**
+     * A topology processor which operates in discovery cache only mode.
+     * Discoveries and broadcasts are initiated by the developer.
+     */
+    CACHE_ONLY_MODE_TOPOLOGY_PROCESSOR("topology-processor", "com.vmturbo.topology.processor",
+            CacheOnlyTopologyProcessorComponent.class, Optional.of(TopologyProcessor.TOPOLOGY_PROCESSOR)),
 
     /**
      * The market.
@@ -610,6 +618,10 @@ public enum Component {
 
     public String getShortName() {
         return shortName;
+    }
+
+    public String getTopLevelFolder() {
+        return topLevelFolder;
     }
 
     @Nonnull
