@@ -120,7 +120,9 @@ public class MigrationsLibrary {
             .put("V_01_01_17__AppDynamics_Add_Vm_Metrics_Flag",
                     new V_01_01_11__AppDynamics_Add_Vm_Metrics_Flag(targetStore, probeStore))
             .put("V_01_01_18__GCP_BillingProbe_RenameStandardDatasetTable_Names",
-                    new V_01_01_18__GCP_BillingProbe_RenameStandardDatasetTable_Names(keyValueStore));
+                    new V_01_01_18__GCP_BillingProbe_RenameStandardDatasetTable_Names(keyValueStore))
+            .put("V_01_01_19__GCP_Billing_Probe_Resource_Level_Flag",
+                    new V_01_01_19__GCP_Billing_Probe_Resource_Level_Flag(keyValueStore));
         return builder.build();
     }
 }
