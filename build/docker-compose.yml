@@ -1792,50 +1792,6 @@ services:
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_ACTIONSCRIPT_MEM_LIMIT_BYTE}
 
-  mediation-acims:
-    extends:
-      file: common-services.yml
-      service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.acims.component:${XL_VERSION}
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_ACIMS_PORT}"
-      - "${MEDIATION_ACIMS_DEBUG_PORT}"
-    environment:
-      component_type: mediation-acims
-      instance_id: mediation-acims-1
-      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_ACIMS_SYSTEM_PROPERTIES}"
-      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
-      JAVA_DEBUG: "${MEDIATION_ACIMS_DEBUG}${DEBUG_ALL}"
-      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
-      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
-      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
-      JAVA_OPTS: "${ALL_JAVA_OPTS}"
-      JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_ACIMS_MEM_LIMIT_BYTE}
-
-  mediation-apic:
-    extends:
-      file: common-services.yml
-      service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.apic.component:${XL_VERSION}
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_APIC_PORT}"
-      - "${MEDIATION_APIC_DEBUG_PORT}"
-    environment:
-      component_type: mediation-apic
-      instance_id: mediation-apic-1
-      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_APIC_SYSTEM_PROPERTIES}"
-      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
-      JAVA_DEBUG: "${MEDIATION_APIC_DEBUG}${DEBUG_ALL}"
-      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
-      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
-      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
-      JAVA_OPTS: "${ALL_JAVA_OPTS}"
-      JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_APIC_MEM_LIMIT_BYTE}
-
   mediation-wmi:
     extends:
       file: common-services.yml
@@ -1967,72 +1923,6 @@ services:
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_DYNATRACE_MEM_LIMIT_BYTE}
-
-  mediation-istio:
-    extends:
-      file: common-services.yml
-      service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.istio.component:${XL_VERSION}
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_ISTIO_PORT}"
-      - "${MEDIATION_ISTIO_DEBUG_PORT}"
-    environment:
-      component_type: mediation-istio
-      instance_id: mediation-istio-1
-      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_ISTIO_SYSTEM_PROPERTIES}"
-      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
-      JAVA_DEBUG: "${MEDIATION_ISTIO_DEBUG}${DEBUG_ALL}"
-      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
-      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
-      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
-      JAVA_OPTS: "${ALL_JAVA_OPTS}"
-      JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_ISTIO_MEM_LIMIT_BYTE}
-
-  mediation-netflow:
-    extends:
-      file: common-services.yml
-      service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.netflow.component:${XL_VERSION}
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_NETFLOW_PORT}"
-      - "${MEDIATION_NETFLOW_DEBUG_PORT}"
-    environment:
-      component_type: mediation-netflow
-      instance_id: mediation-netflow-1
-      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_NETFLOW_SYSTEM_PROPERTIES}"
-      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
-      JAVA_DEBUG: "${MEDIATION_NETFLOW_DEBUG}${DEBUG_ALL}"
-      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
-      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
-      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
-      JAVA_OPTS: "${ALL_JAVA_OPTS}"
-      JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_NETFLOW_MEM_LIMIT_BYTE}
-
-  mediation-tetration:
-    extends:
-      file: common-services.yml
-      service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.tetration.component:${XL_VERSION}
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_TETRATION_PORT}"
-      - "${MEDIATION_TETRATION_DEBUG_PORT}"
-    environment:
-      component_type: mediation-tetration
-      instance_id: mediation-tetration-1
-      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_TETRATION_SYSTEM_PROPERTIES}"
-      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
-      JAVA_DEBUG: "${MEDIATION_TETRATION_DEBUG}${DEBUG_ALL}"
-      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
-      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
-      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
-      JAVA_OPTS: "${ALL_JAVA_OPTS}"
-      JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_TETRATION_MEM_LIMIT_BYTE}
 
   mediation-hyperflex:
     extends:

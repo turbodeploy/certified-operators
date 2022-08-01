@@ -278,8 +278,6 @@ This will skip all previous goals and will start with the one provided in the co
 | [INFO] mediation .......................................... SUCCESS   |
 | [INFO] com.vmturbo.mediation.delegatingprobe.component .... SUCCESS   |
 | [INFO] com.vmturbo.mediation.actionscript.component ....... SUCCESS   |
-| [INFO] com.vmturbo.mediation.acims.component .............. SUCCESS   |
-| [INFO] com.vmturbo.mediation.apic.component ............... SUCCESS   |
 | [INFO] com.vmturbo.mediation.apm.snmp.component ........... SUCCESS   |
 | [INFO] com.vmturbo.mediation.apm.wmi.component ............ SUCCESS   |
 | [INFO] com.vmturbo.mediation.appdynamics.component ........ SUCCESS   |
@@ -316,7 +314,6 @@ This will skip all previous goals and will start with the one provided in the co
 | [INFO] com.vmturbo.mediation.gcp.billing.component ........ SUCCESS   |
 | [INFO] com.vmturbo.mediation.flexera.component ............ SUCCESS   |
 | [INFO] com.vmturbo.mediation.tanium.component ............. SUCCESS   |
-| [INFO] com.vmturbo.mediation.istio.component .............. SUCCESS   |
 | [INFO] com.vmturbo.mediation.hds.component ................ SUCCESS   |
 | [INFO] com.vmturbo.mediation.horizon.component ............ SUCCESS   |
 | [INFO] com.vmturbo.mediation.hpe3par.component ............ SUCCESS   |
@@ -329,7 +326,6 @@ This will skip all previous goals and will start with the one provided in the co
 | [INFO] com.vmturbo.mediation.netapp.component ............. SUCCESS   |
 | [INFO] com.vmturbo.mediation.newrelic.component ........... SUCCESS   |
 | [INFO] com.vmturbo.mediation.appinsights.component ........ SUCCESS   |
-| [INFO] com.vmturbo.mediation.netflow.component ............ SUCCESS   |
 | [INFO] com.vmturbo.mediation.nutanix.component ............ SUCCESS   |
 | [INFO] com.vmturbo.mediation.oneview.component ............ SUCCESS   |
 | [INFO] com.vmturbo.mediation.pure.component ............... SUCCESS   |
@@ -338,7 +334,6 @@ This will skip all previous goals and will start with the one provided in the co
 | [INFO] com.vmturbo.mediation.storagestressprobe.component . SUCCESS   |
 | [INFO] com.vmturbo.mediation.stressprobe.component ........ SUCCESS   |
 | [INFO] com.vmturbo.mediation.terraform.component .......... SUCCESS   |
-| [INFO] com.vmturbo.mediation.tetration.component .......... SUCCESS   |
 | [INFO] com.vmturbo.mediation.ucs.component ................ SUCCESS   |
 | [INFO] com.vmturbo.mediation.ucsdirector.component ........ SUCCESS   |
 | [INFO] com.vmturbo.mediation.vcenter.browsing.component ... SUCCESS   |
