@@ -632,7 +632,9 @@ public class ServiceConfig {
                 mapperConfig.entityAspectMapper(),
                 searchFilterResolver(),
                 communicationConfig.priceIndexPopulator(),
-                communicationConfig.thinTargetCache());
+                communicationConfig.thinTargetCache(),
+                apiPaginationDefaultLimit,
+                apiPaginationMaxLimit);
     }
 
     @Bean
