@@ -466,7 +466,7 @@ public class SearchServiceTest {
         assertEquals(MAX_LIMIT, paginationRequestCaptor.getValue().getLimit());
 
     }
-    
+
 
     /**
      * Test the method {@link SearchService#getSearchResults}.
@@ -1856,7 +1856,7 @@ public class SearchServiceTest {
         //EntityTypeCheck
         PropertyFilter startingFilter = searchQuery.getSearchParameters(0).getStartingFilter();
         assertEquals(startingFilter.getPropertyName(), "entityType");
-        //Workload gets expanded to 3 entityTypes
+        //Workload gets expanded to 4 entityTypes
         assertEquals(4, startingFilter.getStringFilter().getOptionsCount());
 
         Collection<SearchFilter> searchFilters = searchQuery.getSearchParameters(0).getSearchFilterList();

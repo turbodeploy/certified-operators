@@ -96,6 +96,11 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
               .filter(provider -> provider.getEntityType() == EntityType.COMPUTE_TIER_VALUE)
               .map(RelatedEntity::getOid)
               .findAny(),
+          ApiEntityType.VIRTUAL_MACHINE_SPEC.apiStr(), topologyEntityDTO ->
+             topologyEntityDTO.getProvidersList().stream()
+             .filter(provider -> provider.getEntityType() == EntityType.COMPUTE_TIER_VALUE)
+             .map(RelatedEntity::getOid)
+             .findAny(),
           ApiEntityType.DATABASE.apiStr(), topologyEntityDTO ->
               topologyEntityDTO.getProvidersList().stream()
               .filter(provider -> provider.getEntityType() == EntityType.DATABASE_TIER_VALUE)
