@@ -12,6 +12,7 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,7 +38,6 @@ import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -235,6 +235,8 @@ public class SchedulerTest {
             scheduleKey(Long.toString(targetId)),
             new Gson().toJson(new TargetDiscoveryScheduleData(TEST_SCHEDULE_MILLIS, false))
         );
+        // no additional consul call to get it since it's already in memory
+        verify(keyValueStore, times(0)).getByPrefix(Scheduler.SCHEDULE_KEY_OFFSET + targetId);
     }
 
     // A discovery that is scheduled when there is no prior schedule should be executed immediately.
@@ -508,13 +510,6 @@ public class SchedulerTest {
     }
 
     @Test
-    public void testGetBroadcastScheduleWhenNoneSet() throws Exception {
-        scheduler.cancelBroadcastSchedule();
-        final Optional<TopologyBroadcastSchedule> task = scheduler.getBroadcastSchedule();
-        assertFalse(task.isPresent());
-    }
-
-    @Test
     public void testInitialBroadcastInterval() throws Exception {
         assertEquals(
             INITIAL_BROADCAST_INTERVAL_MINUTES,
@@ -640,21 +635,7 @@ public class SchedulerTest {
         assertTrue(scheduler.getBroadcastSchedule().isPresent());
         assertFalse(task.isCancelled());
 
-        final Optional<TopologyBroadcastSchedule> cancelledTask = scheduler.cancelBroadcastSchedule();
-        assertTrue(cancelledTask.get().isCancelled());
         assertFalse(scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).isPresent());
-    }
-
-    @Test
-    public void testCancelBroadcastScheduleDeletesPersistedSchedule() throws Exception {
-        scheduler.cancelBroadcastSchedule();
-        verify(keyValueStore).removeKeysWithPrefix(scheduleKey(Scheduler.BROADCAST_SCHEDULE_KEY));
-    }
-
-    @Test
-    public void testResetBroadcastScheduleEmpty() throws Exception {
-        scheduler.cancelBroadcastSchedule();
-        assertFalse(scheduler.resetBroadcastSchedule().isPresent());
     }
 
     @Test
@@ -687,8 +668,9 @@ public class SchedulerTest {
     public void testTargetDiscoverySchedulesAreLoaded() throws Exception {
         Target target = targetStore.getTarget(targetId).get();
         when(targetStore.getAll()).thenReturn(ImmutableList.of(target));
-        when(keyValueStore.get(scheduleKey(Long.toString(targetId))))
-            .thenReturn(Optional.of(new Gson().toJson(new TargetDiscoveryScheduleData(TEST_SCHEDULE_MILLIS, false))));
+        when(keyValueStore.getByPrefix(Scheduler.SCHEDULE_KEY_OFFSET)).thenReturn(
+                Collections.singletonMap(Scheduler.SCHEDULE_KEY_OFFSET + targetId,
+                        new Gson().toJson(new TargetDiscoveryScheduleData(TEST_SCHEDULE_MILLIS, false))));
 
         Scheduler scheduler = new Scheduler(operationManager, targetStore, probeStore,
             topologyHandler, keyValueStore, journalFactory, (name) -> fullDiscoveryExecutorSpy1,

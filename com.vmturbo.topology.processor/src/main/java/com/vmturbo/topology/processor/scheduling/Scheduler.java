@@ -37,7 +37,6 @@ import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.ProbeStoreListener;
-import com.vmturbo.topology.processor.scheduling.Schedule.ScheduleData;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule.TargetDiscoveryScheduleData;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.Target;
@@ -107,6 +106,11 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
     // mapping from probe type to executor to run incremental discoveries of that probe type.
     private final Map<String, ScheduledExecutorService>
             probeTypeToIncrementalDiscoveryScheduleExecutor;
+
+    /**
+     * In-memory map storing the TargetDiscoveryScheduleData for each target, backed by consul.
+     */
+    private final Map<Long, TargetDiscoveryScheduleData> targetDiscoveryScheduleData = new HashMap<>();
 
     private final IOperationManager operationManager;
     private final TargetStore targetStore;
@@ -413,7 +417,7 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
      * @param targetId The ID of the target whose schedule should be cancelled.
      */
     public synchronized void disableDiscoverySchedule(final long targetId) {
-        deleteScheduleData(Long.toString(targetId));
+        deleteScheduleData(targetId);
         stopAndRemoveDiscoverySchedule(targetId, DiscoveryType.FULL);
         stopAndRemoveDiscoverySchedule(targetId, DiscoveryType.INCREMENTAL);
     }
@@ -511,19 +515,6 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
     }
 
     /**
-     * Cancel the topology broadcast data. Cancelling the topology broadcast data
-     * will close the regular topology broadcast at fixed intervals.
-     *
-     * @return An {@link Optional} containing the cancelled broadcast data
-     *         if it was successfully cancelled, or {@link Optional#empty()} if the
-     *         data could not be cancelled.
-     */
-    public synchronized Optional<TopologyBroadcastSchedule> cancelBroadcastSchedule() {
-        deleteScheduleData(BROADCAST_SCHEDULE_KEY);
-        return stopAndRemoveBroadcastSchedule();
-    }
-
-    /**
      * Reset the broadcast data. Resetting the broadcast data for a
      * target will cause the full scheduled broadcast interval to elapse from the time
      * of the reset before the next scheduled broadcast.
@@ -559,12 +550,12 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
      */
     @Override
     public void onProbeRegistered(long probeId, ProbeInfo newProbeInfo) {
+        final boolean requireSavedScheduleData = scheduleStore.containsKey(SCHEDULE_KEY_OFFSET);
         targetStore.getProbeTargets(probeId).forEach(target -> {
             // try to stop and remove existing incremental discovery schedule if any
             stopAndRemoveDiscoverySchedule(target.getId(), DiscoveryType.INCREMENTAL);
             // try to schedule new incremental discovery if probe supports
-            initializeIncrementalDiscoverySchedule(target.getId(), newProbeInfo,
-                scheduleStore.containsKey(SCHEDULE_KEY_OFFSET));
+            initializeIncrementalDiscoverySchedule(target.getId(), newProbeInfo, requireSavedScheduleData);
         });
     }
 
@@ -937,13 +928,30 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
      * @param requireSavedScheduleData If true, requires that saved schedule data be present for the schedule
      *                                 and logs an error if it is not.
      */
-    private void initializeDiscoverySchedules(boolean requireSavedScheduleData) {
+    private synchronized void initializeDiscoverySchedules(boolean requireSavedScheduleData) {
+        // read all saved discovery schedules from consul into memory
+        final Map<String, String> allDiscoverySchedules = scheduleStore.getByPrefix(SCHEDULE_KEY_OFFSET);
+        allDiscoverySchedules.forEach((key, value) -> {
+            int targetIdIndex = key.indexOf(SCHEDULE_KEY_OFFSET);
+            if (targetIdIndex != -1) {
+                String idStr = key.substring(SCHEDULE_KEY_OFFSET.length());
+                try {
+                    targetDiscoveryScheduleData.put(Long.valueOf(idStr),
+                            gson.fromJson(value, TargetDiscoveryScheduleData.class));
+                } catch (NumberFormatException e) {
+                    logger.error("Invalid target id {}", idStr);
+                }
+            }
+        });
+
         targetStore.getAll().forEach(target -> {
             final long targetId = target.getId();
             final ProbeInfo probeInfo = target.getProbeInfo();
             if (probeInfo.hasFullRediscoveryIntervalSeconds()) {
                 initializeFullDiscoverySchedule(targetId, probeInfo.getProbeType(),
                         requireSavedScheduleData);
+            }
+            if (probeInfo.hasIncrementalRediscoveryIntervalSeconds()) {
                 initializeIncrementalDiscoverySchedule(targetId, probeInfo,
                         requireSavedScheduleData);
             }
@@ -962,8 +970,8 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
      */
     private synchronized void initializeFullDiscoverySchedule(long targetId,
             @Nonnull String probeType, boolean requireSavedScheduleData) {
-        final Optional<TargetDiscoveryScheduleData> optTargetDiscoveryScheduleData = loadScheduleData(
-            Long.toString(targetId), TargetDiscoveryScheduleData.class, requireSavedScheduleData);
+        final Optional<TargetDiscoveryScheduleData> optTargetDiscoveryScheduleData =
+                getScheduleData(targetId, requireSavedScheduleData);
 
         if (optTargetDiscoveryScheduleData.isPresent()) {
             TargetDiscoveryScheduleData targetDiscoveryScheduleData =
@@ -990,8 +998,8 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
      */
     private synchronized void initializeIncrementalDiscoverySchedule(
             long targetId, @Nonnull ProbeInfo probeInfo, boolean requireSavedScheduleData) {
-        final Optional<TargetDiscoveryScheduleData> optTargetDiscoveryScheduleData = loadScheduleData(
-            Long.toString(targetId), TargetDiscoveryScheduleData.class, requireSavedScheduleData);
+        final Optional<TargetDiscoveryScheduleData> optTargetDiscoveryScheduleData =
+                getScheduleData(targetId, requireSavedScheduleData);
 
         if (optTargetDiscoveryScheduleData.isPresent()) {
             TargetDiscoveryScheduleData targetDiscoveryScheduleData =
@@ -1010,7 +1018,7 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
                         TargetDiscoveryScheduleData.newBuilder(targetDiscoveryScheduleData)
                             .clearIncrementalIntervalMillis()
                             .build();
-                    saveScheduleData(newTargetDiscoveryScheduleData, Long.toString(targetId));
+                    saveScheduleData(newTargetDiscoveryScheduleData, targetId);
                 }
             } else {
                 if (targetDiscoveryScheduleData.isIncrementalDiscoveryDisabled()) {
@@ -1028,7 +1036,7 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
                             TargetDiscoveryScheduleData.newBuilder(targetDiscoveryScheduleData)
                                 .setIncrementalIntervalMillis(incrementalDiscoveryInterval.get())
                                 .build();
-                        saveScheduleData(newTargetDiscoveryScheduleData, Long.toString(targetId));
+                        saveScheduleData(newTargetDiscoveryScheduleData, targetId);
                     }
                 }
             }
@@ -1087,8 +1095,8 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
      */
     private void saveTargetScheduleData(long targetId, @Nonnull DiscoveryType discoveryType,
             long discoveryIntervalMillis, boolean synchedToBroadcast) {
-        Optional<TargetDiscoveryScheduleData> optTargetDiscoveryScheduleData = loadScheduleData(
-            Long.toString(targetId), TargetDiscoveryScheduleData.class, false);
+        Optional<TargetDiscoveryScheduleData> optTargetDiscoveryScheduleData =
+                getScheduleData(targetId, false);
 
         TargetDiscoveryScheduleData.Builder builder = optTargetDiscoveryScheduleData
             .map(TargetDiscoveryScheduleData::newBuilder)
@@ -1111,7 +1119,7 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
                 return;
         }
 
-        saveScheduleData(builder.build(), Long.toString(targetId));
+        saveScheduleData(builder.build(), targetId);
     }
 
     /**
@@ -1119,42 +1127,38 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
      * Save the schedule data to persistent storage.
      *
      * @param scheduleData The broadcast data to save.
-     * @param key The key to save the data at.
-     * @param <S> The type of {@link ScheduleData} to save.
+     * @param targetId The id of the target to save data for.
      */
-    private <S extends ScheduleData> void saveScheduleData(@Nonnull S scheduleData, @Nonnull String key) {
-        scheduleStore.put(scheduleKey(key), gson.toJson(scheduleData, scheduleData.getClass()));
+    private void saveScheduleData(@Nonnull TargetDiscoveryScheduleData scheduleData, long targetId) {
+        scheduleStore.put(scheduleKey(Long.toString(targetId)), gson.toJson(scheduleData, scheduleData.getClass()));
+        targetDiscoveryScheduleData.put(targetId, scheduleData);
     }
 
     /**
      * Delete the data for a schedule from persistent storage.
      * Has no effect if no schedule exists at the key offset.
      *
-     * @param key The key for the schedule in persistent storage.
+     * @param targetId The id of the target to delete schedule in persistent storage.
      */
-    private void deleteScheduleData(@Nonnull String key) {
-        scheduleStore.removeKeysWithPrefix(scheduleKey(key));
+    private void deleteScheduleData(long targetId) {
+        scheduleStore.removeKeysWithPrefix(scheduleKey(Long.toString(targetId)));
+        targetDiscoveryScheduleData.remove(targetId);
     }
 
     /**
-     * Load the data for a schedule from persistent storage.
+     * Load the data for a schedule.
      *
-     * @param key The key at which to look for the data in persistent storage.
-     * @param scheduleDataClass The class of data to retrieve from persistent storage.
+     * @param targetId The id of the target to get schedule data for
      * @param requireData If true, the absence of schedule data for the key in the store
      *                    counts as an error.
-     * @param <S> The class of the data for the schedule.
      * @return A schedule if it was successfully loaded at the key offset, empty otherwise.
      */
-    private <S extends ScheduleData> Optional<S> loadScheduleData(@Nonnull String key,
-                                                                  @Nonnull Class<S> scheduleDataClass,
-                                                                  boolean requireData) {
-        Optional<S> scheduleData = scheduleStore.get(scheduleKey(key))
-            .map(schedule -> Optional.of(gson.fromJson(schedule, scheduleDataClass)))
-            .orElse(Optional.empty());
+    private Optional<TargetDiscoveryScheduleData> getScheduleData(long targetId, boolean requireData) {
+        Optional<TargetDiscoveryScheduleData> scheduleData = Optional.ofNullable(
+                targetDiscoveryScheduleData.get(targetId));
 
         if (requireData && !scheduleData.isPresent()) {
-            logger.error("Required schedule data for " + key + " not found.");
+            logger.error("Required schedule data for " + targetId + " not found.");
         }
         return scheduleData;
     }
