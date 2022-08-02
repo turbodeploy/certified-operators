@@ -10,6 +10,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.group.api.SettingMessages.SettingNotification;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.topology.processor.probes.ProbeException;
@@ -18,7 +19,7 @@ import com.vmturbo.topology.processor.targets.TargetStoreException;
 /**
  * Interface for storing probe properties.
  */
-public interface ProbePropertyStore {
+public interface ProbePropertyStore extends RequiresDataInitialization {
     /**
      * Get a map of all the probe properties in the system to their current values.  The map is returned
      * as a stream of map entries to facilitate optimizations.

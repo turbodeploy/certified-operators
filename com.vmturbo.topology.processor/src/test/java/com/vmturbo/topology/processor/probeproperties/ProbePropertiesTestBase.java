@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.probeproperties;
 
+import static org.mockito.Mockito.spy;
+
 import java.util.Map;
 import java.util.Optional;
 
@@ -24,7 +26,7 @@ public class ProbePropertiesTestBase {
     // construct probe property store
     protected final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
     protected final TargetStore targetStore = Mockito.mock(TargetStore.class);
-    protected final KeyValueStore keyValueStore = new MapKeyValueStore();
+    protected final KeyValueStore keyValueStore = spy(new MapKeyValueStore());
     protected final KVBackedProbePropertyStore probePropertyStore =
                     new KVBackedProbePropertyStore(probeStore, targetStore, keyValueStore,
                                     Mockito.mock(GlobalProbePropertiesSettingsLoader.class));

@@ -1,8 +1,15 @@
 package com.vmturbo.topology.processor.probeproperties;
 
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -10,7 +17,9 @@ import org.junit.Test;
 
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore.ProbePropertyKey;
 import com.vmturbo.topology.processor.probes.ProbeException;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreException;
 
 /**
@@ -80,6 +89,9 @@ public class KVBackedProbePropertyStoreTest extends ProbePropertiesTestBase {
 
         probePropertyStore.putAllProbeSpecificProperties(PROBE_ID_1, PROBE_PROPERTY_MAP_2);
         checkMapInProbe1(PROBE_PROPERTY_MAP_2, "B");
+
+        // verify that no consul calls are made to get the property since it's already in memory
+        verify(keyValueStore, times(0)).getByPrefix(anyString());
     }
 
     /**
@@ -121,6 +133,38 @@ public class KVBackedProbePropertyStoreTest extends ProbePropertiesTestBase {
     @Test(expected = ProbeException.class)
     public void testDeleteNonExistentProbeProperty() throws Exception {
         probePropertyStore.deleteProbeProperty(new ProbePropertyKey(PROBE_ID_1, "A"));
+    }
+
+    /**
+     * Test that initialize method load properties from consul correctly.
+     *
+     * @throws Exception any error during initialization
+     */
+    @Test
+    public void testInitialize() throws Exception {
+        when(keyValueStore.getByPrefix(ProbeStore.PROBE_KV_STORE_PREFIX)).thenReturn(
+                ImmutableMap.of(
+                        "probes/1/probeproperties/A", "Avalue",
+                        "probes/1/probeproperties/B", "Bvalue",
+                        // probe info whose value is a json, which should be skipped during init
+                        "probes/1", "{\"probeType\": \"GCP\"}"
+                )
+        );
+        when(keyValueStore.getByPrefix(TargetStore.TARGET_KV_STORE_PREFIX)).thenReturn(
+                ImmutableMap.of(
+                        "targets/2/probeproperties/A", "Avalue1",
+                        "targets/2/probeproperties/C", "Cvalue"
+                )
+        );
+        probePropertyStore.initialize();
+
+        Assert.assertEquals(PROBE_PROPERTY_MAP_1,
+                probePropertyStore.getProbeSpecificProbeProperties(PROBE_ID_1)
+                        .collect(Collectors.toMap(Entry::getKey, Entry::getValue)));
+
+        Assert.assertEquals(PROBE_PROPERTY_MAP_2,
+                probePropertyStore.getTargetSpecificProbeProperties(PROBE_ID_2, TARGET_ID_2)
+                        .collect(Collectors.toMap(Entry::getKey, Entry::getValue)));
     }
 
     /**
