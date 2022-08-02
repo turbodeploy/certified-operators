@@ -69,8 +69,13 @@ public class AnalysisDiagnosticsUtils {
      * Reduces number of diags, based on the given number of diags to retain.
      * @param filePreFix file prefix that need to be searched for in the ANALYSIS_DIAGS_DIRECTORY
      * @param numberOfDiagsToRetain max number of diags that should exist at any given time
+     * @param debugEnabled skip deletion if debug is enabled.
      */
-    public static void reduceNumberOfDiagsByFilePrefix(String filePreFix, int numberOfDiagsToRetain, IDiagsFileSystem fileSystem) {
+    public static void reduceNumberOfDiagsByFilePrefix(String filePreFix, int numberOfDiagsToRetain,
+            IDiagsFileSystem fileSystem, boolean debugEnabled) {
+        if (debugEnabled) {
+            return;
+        }
         List<Path> placementDiags;
         try (Stream<Path> stream = fileSystem.listFiles(Paths.get(ANALYSIS_DIAGS_DIRECTORY))) {
             placementDiags = stream.filter(file -> !fileSystem.isDirectory(file))
