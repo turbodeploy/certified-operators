@@ -457,21 +457,14 @@ public class TargetHealthRetriever {
     private DiscoveryTimingStatus checkForDelayedData(Target target) {
         long fullRediscoveryThreshold = delayedDataThresholdMultiplier
                         * getRediscoveryInterval(target, DiscoveryType.FULL) * 1000;
-        long incrementalRediscoveryThreshold = delayedDataThresholdMultiplier
-                        * getRediscoveryInterval(target, DiscoveryType.INCREMENTAL) * 1000;
         long currentInstant = System.currentTimeMillis();
 
         Pair<Long, Long> lastSuccessfulDiscoveryTime = targetStatusTracker
                         .getLastSuccessfulDiscoveryTime(target.getId());
-        Pair<Long, Long> lastSuccessfulIncrementalDiscoveryTime = targetStatusTracker
-                        .getLastSuccessfulIncrementalDiscoveryTime(target.getId());
         if (checkLastRediscoveryTime(lastSuccessfulDiscoveryTime, currentInstant, fullRediscoveryThreshold)) {
             return DiscoveryTimingStatus.FULL_DISCOVERY_DELAYED;
         }
-        if ((checkLastRediscoveryTime(lastSuccessfulIncrementalDiscoveryTime,
-                currentInstant, incrementalRediscoveryThreshold))) {
-            return DiscoveryTimingStatus.INCREMENTAL_DISCOVERY_DELAYED;
-        }
+        //TODO: optimize incremental delayed data logic
         return DiscoveryTimingStatus.DISCOVERY_NOT_DELAYED;
     }
 
