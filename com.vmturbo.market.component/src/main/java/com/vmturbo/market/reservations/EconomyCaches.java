@@ -348,17 +348,17 @@ public class EconomyCaches {
                 return;
             }
             updateAccessCommoditiesInHistoricalEconomyCache(realtimeCachedEconomy, realtimeCachedCommTypeMap);
+            List<Trader> newlyAddedTraders = addNewTradersToHistoricalEconomy(realtimeCachedEconomy, historicalCachedEconomy);
+            InitialPlacementUtils.updateNonAccessCommodities(realtimeCachedEconomy, realtimeCachedCommTypeMap,
+                    historicalCachedEconomy, historicalCachedCommTypeMap, newlyAddedTraders);
             // Clone a new historical economy with new InvertedIndex object constructed based on
             // updated traders(all new commodities will be included in the InvertedIndex look up table).
             // NOTE: the cloned economy has only host and storages, but the utilization of them
             // includes the reservation utils.
             Economy newHistEconomy = InitialPlacementUtils.cloneEconomy(historicalCachedEconomy, false);
-            List<Trader> newlyAddedTraders = addNewTradersToHistoricalEconomy(realtimeCachedEconomy, newHistEconomy);
             // In case of traders are deleted in the real time, historical cache may not catch it up
             // immediately, so we have to mark those traders in historical cache canAcceptNewCustomers false.
             updateTradersInHistoricalEconomyCache(realtimeCachedEconomy, newHistEconomy);
-            InitialPlacementUtils.updateNonAccessCommodities(realtimeCachedEconomy, realtimeCachedCommTypeMap,
-                    newHistEconomy, historicalCachedCommTypeMap, newlyAddedTraders);
             addExistingReservationEntities(newHistEconomy, historicalCachedCommTypeMap,
                     buyerOidToPlacement, existingReservations, true, false);
             historicalCachedEconomy = newHistEconomy;
