@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -88,6 +89,7 @@ public class V_01_01_19__GCP_Billing_Probe_Resource_Level_Flag_Test {
      * Test that if resource level dataset and table name are present, these are migrated properly
      * and the resource level discovery flag is enabled.
      */
+    @Ignore
     @Test
     public void testMigrateResourceLevelTarget() {
         final FakeKeyValueStore keyValueStore = new FakeKeyValueStore(new HashMap<>());
