@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.migration;
 
 import static com.vmturbo.topology.processor.migration.V_01_01_18__GCP_BillingProbe_RenameStandardDatasetTable_Names.FIELD_ACCOUNT_VALUE;
 import static com.vmturbo.topology.processor.migration.V_01_01_18__GCP_BillingProbe_RenameStandardDatasetTable_Names.FIELD_ID;
+import static com.vmturbo.topology.processor.migration.V_01_01_18__GCP_BillingProbe_RenameStandardDatasetTable_Names.FIELD_PROBE_ID;
 import static com.vmturbo.topology.processor.migration.V_01_01_18__GCP_BillingProbe_RenameStandardDatasetTable_Names.FIELD_SPEC;
 import static com.vmturbo.topology.processor.migration.V_01_01_18__GCP_BillingProbe_RenameStandardDatasetTable_Names.FIELD_TARGET_INFO;
 
@@ -64,6 +65,11 @@ public class V_01_01_19__GCP_Billing_Probe_Resource_Level_Flag extends AbstractP
             return;
         }
         final JsonObject spec = targetInfoObject.get(FIELD_SPEC).getAsJsonObject();
+        final String probeId = spec.get(FIELD_PROBE_ID).getAsString();
+        final String probeType = probeIdToProbeTypeMap.get(probeId);
+        if (!SDKProbeType.GCP_BILLING.getProbeType().equals(probeType)) {
+            return;
+        }
         if (!spec.has(FIELD_ACCOUNT_VALUE)) {
             logger.warn("target {} spec doesn't have accountValue list", targetId);
             return;
