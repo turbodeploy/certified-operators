@@ -87,6 +87,9 @@ global:
     # - name: nginx-ingressgateway-certs
     #   key:
     #   certificate:
+  telemetry:
+    supported: true
+    enabled: false
 
 nginxingress:
   enabled: true
