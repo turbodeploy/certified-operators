@@ -123,3 +123,7 @@ topics:
   - topic: volume-notifications
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
+  - topic: telemetry # internal
+    properties:
+      retention.ms: 31536000000 # 1 year
+
