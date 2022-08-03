@@ -47,6 +47,7 @@ public class V_01_01_19__GCP_Billing_Probe_Resource_Level_Flag_Test {
      * Test that if no resource level dataset or table name is present, the resource level
      * discovery flag is false.
      */
+    @Ignore
     @Test
     public void testMigrateStandardTarget() {
         final FakeKeyValueStore keyValueStore = new FakeKeyValueStore(new HashMap<>());
@@ -110,6 +111,7 @@ public class V_01_01_19__GCP_Billing_Probe_Resource_Level_Flag_Test {
      * Test that if both standard and resource level dataset/table names are present,
      * the resource level info is used and the resource level discovery flag is enabled.
      */
+    @Ignore
     @Test
     public void testMigrateStandardAndResourceLevelTarget() {
         final FakeKeyValueStore keyValueStore = new FakeKeyValueStore(new HashMap<>());
