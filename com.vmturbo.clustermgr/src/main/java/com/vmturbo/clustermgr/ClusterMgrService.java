@@ -41,7 +41,9 @@ import javax.ws.rs.NotFoundException;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 import com.orbitz.consul.model.health.HealthCheck;
 import com.orbitz.consul.model.kv.Value;
@@ -198,6 +200,14 @@ public class ClusterMgrService {
      * Consul.
      */
     private final Lock diagnosticsLock = new ReentrantLock();
+
+    /**
+     * XL essential component type set.
+     * Note: there is no diag for clustermgr component type.
+     */
+    private static final ImmutableSet<String> ESSENTIAL_COMPONENT_TYPE = ImmutableSet.of(
+            "action-orchestrator", "api", "auth", "cost", "group", "history", "market",
+            "plan-orchestrator", "repository", "topology-processor");
 
     /**
      * Create a new ClusterMgrService instance.
@@ -826,6 +836,7 @@ public class ClusterMgrService {
                                        ResponseEntityProcessor responseEntityProcessor,
                                        @Nonnull final StringBuilder errorMessageBuilder) {
         Table<String, String, RegisteredComponent> instancesByTypeAndId = componentRegistry.getRegisteredComponents();
+
         final MutableInt curComponentCounter = new MutableInt(1);
         instancesByTypeAndId.rowMap().forEach((componentType, instances) -> {
             log.info("applying REST REQUEST {} to component type: {} [{} of {}]", requestPath,
@@ -848,6 +859,25 @@ public class ClusterMgrService {
                 }
             });
         });
+        checkEssentialComponentType(instancesByTypeAndId, Optional.of(errorMessageBuilder));
+    }
+
+    /**
+     * XL has essential component types (see constant ESSENTIAL_COMPONENT_TYPE), if some components
+     * are missing from registered components, they will be put to error message.
+     *
+     * @param instancesByTypeAndId current register components table
+     * @param errorMessageBuilder error message builder
+     */
+    @VisibleForTesting
+    void checkEssentialComponentType(
+            @Nonnull final Table<String, String, RegisteredComponent> instancesByTypeAndId,
+            @Nonnull final Optional<StringBuilder> errorMessageBuilder) {
+        for (String componentType : ESSENTIAL_COMPONENT_TYPE) {
+            if (!instancesByTypeAndId.rowKeySet().contains(componentType)) {
+                appendFailedServiceName(componentType, errorMessageBuilder);
+            }
+        }
     }
 
     /**
