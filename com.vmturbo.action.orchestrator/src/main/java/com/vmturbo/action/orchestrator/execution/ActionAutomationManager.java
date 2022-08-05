@@ -109,13 +109,15 @@ public class ActionAutomationManager {
      */
     public int cancelQueuedActions() {
         // Don't cancel actions in progress. Cancel only those tasks which are yet to be executed.
+        // And PMC suspend/activate action need not be cancelled.
         logger.info("Cancelling all pending automated actions which are waiting to be executed");
         synchronized (actionExecutionFuturesLock) {
             int cancelledCount = actionExecutionFutures.stream()
                     .map(future -> {
                         final List<Action> actionList = future.getOriginalTask().getActionList();
                         if (actionList.stream().allMatch(action ->
-                                action.getState() == ActionState.QUEUED)) {
+                                action.getState() == ActionState.QUEUED
+                                        && !action.isExternalAction())) {
                             future.cancel(false);
                             actionList.forEach(action ->
                                     action.receive(new NotRecommendedEvent(action.getId())));

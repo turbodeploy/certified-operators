@@ -258,6 +258,11 @@ public class Action implements ActionView {
     private String externalActionUrl;
 
     /**
+     * This field is to identify if the action is from an external source, such as PMC.
+     */
+    private boolean externalAction;
+
+    /**
      * Create an action from a state object that was used to serialize the state of the action.
      *
      * @param savedState A state object that was used to serialize the state of the action.
@@ -523,6 +528,26 @@ public class Action implements ActionView {
      */
     public void setRelatedActions(List<ActionDTO.RelatedAction> relatedActions) {
         this.relatedActions  = relatedActions;
+    }
+
+    /**
+     * returns externalAction.
+     * This is used to identify if the action is triggered from an external source,sch as PMC
+     * suspend action.
+     *
+     * @return externalAction returns true if the action is not generated internally.
+     */
+    public boolean isExternalAction() {
+        return externalAction;
+    }
+
+    /**
+     * Set the value for externalAction.
+     *
+     * @param externalAction true if the action is not generated internally.
+     */
+    public void setExternalAction(boolean externalAction) {
+        this.externalAction = externalAction;
     }
 
     /**
