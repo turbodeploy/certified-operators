@@ -240,7 +240,7 @@ public class DataInjectionMonitor implements Runnable {
 
         // Invoke the savings calculations for the specified entities and time period.
         try {
-            scenarioDataHandler.processStates(participatingUuids, startTime, endTime, actionChains,
+            scenarioDataHandler.processSavings(participatingUuids, startTime, endTime, actionChains,
                     billRecordsByEntity);
         } catch (EntitySavingsException e) {
             String oids = participatingUuids.stream()
