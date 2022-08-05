@@ -114,7 +114,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_PROVISION_BY_DEMAND("Provision {0} similar to {1} with scaled up {2} due to {3}"),
         ACTION_DESCRIPTION_LICENSED_PROVISION_BY_SUPPLY("Provision Licensed {0}{1}"),
         ACTION_DESCRIPTION_LICENSED_PROVISION_BY_DEMAND("Provision Licensed {0} similar to {1} with scaled up {2} due to {3}"),
-        ACTION_DESCRIPTION_ACTIVATE("Start {0} due to increased demand for resources"),
+        ACTION_DESCRIPTION_ACTIVATE("Start {0}"),
         ACTION_DESCRIPTION_DEACTIVATE("{0} {1}"),
         ACTION_DESCRIPTION_LICENSED_DEACTIVATE("{0} Licensed {1}"),
         ACTION_DESCRIPTION_DELETE("Delete wasted file ''{0}'' from {1} to free up {2}"),

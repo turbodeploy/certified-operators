@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -198,7 +199,10 @@ public class AutomatedActionExecutor {
 
         List<ConditionalFuture> futures = new ArrayList<>();
         final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
-
+        StringBuilder userBuilder = new StringBuilder();
+        Predicate<Action> completedState = action -> action.getState() == ActionState.SUCCEEDED
+                || action.getState() == ActionState.REJECTED
+                || action.getState() == ActionState.FAILED;
 
         // We want to distribute actions across targets. If we have 5 targets, 10 actions each,
         // and a threadpool of size 10, we don't want to queue 10 actions for target 1.
@@ -246,7 +250,13 @@ public class AutomatedActionExecutor {
                             continue;
                         }
                         if (actionExecutionReadinessDetails.isAutomaticallyAccepted()) {
-                            action.receive(new AutomaticAcceptanceEvent(userNameAndUuid, targetId));
+                            // PMC suspend/activate actions will be retained in the action store until we receive
+                            // a second set of suspend/activate actions.
+                            // These actions are already processed and hence can continue.
+                            if (action.isExternalAction() && completedState.test(action)) {
+                                continue;
+                            }
+                            receiveAutomaticAcceptanceEvent(action, userNameAndUuid, userBuilder, targetId);
                         }
                         action.receive(new QueuedEvent());
                         actionList.add(action);
@@ -281,6 +291,29 @@ public class AutomatedActionExecutor {
         logger.info("TotalExecutableActions={}, SubmittedActionsCount={}",
                 autoActions.size(), futures.size());
         return futures;
+    }
+
+    /**
+     * Used to trigger new AcceptanceEvent on the provided action.
+     * added additional method to reduce Cyclomatic Complexity.
+     *
+     * @param action action on which the event needs to be received.
+     * @param userNameAndUuid userNameAndUuid from gRPC context.
+     * @param userBuilder stringBuilder reference.
+     * @param targetId targetId for the target.
+     */
+    private void receiveAutomaticAcceptanceEvent(Action action, String userNameAndUuid,
+            StringBuilder userBuilder, Long targetId) {
+        if (action.isExternalAction() && action.getRecommendation().hasUser()) {
+            userBuilder.append(action.getRecommendation().getUser().getUserName())
+                    .append("(")
+                    .append(action.getRecommendation().getUser().getUserId())
+                    .append(")");
+            action.receive(new AutomaticAcceptanceEvent(userBuilder.toString(), targetId));
+            userBuilder.setLength(0);
+        } else {
+            action.receive(new AutomaticAcceptanceEvent(userNameAndUuid, targetId));
+        }
     }
 
     private void printSubmitterState() {
