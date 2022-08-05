@@ -2,17 +2,19 @@ package com.vmturbo.cost.component.savings;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
@@ -41,7 +43,7 @@ public class SavingsProcessor {
     /**
      * State tracking store.
      */
-    private final StateStore stateStore;
+    private final SavingsActionStore savingsActionStore;
 
     /**
      * Processing chunk size, typically 100 or so entities at a time.
@@ -65,7 +67,7 @@ public class SavingsProcessor {
      * @param chunkSize Query chunk size.
      * @param rollupTimesStore Store for reading last saved times.
      * @param rollupProcessor Store for triggering rollups to monthly.
-     * @param stateStore Store for reading states.
+     * @param savingsActionStore Savings action store.
      * @param savingsTracker Tracker instance.
      * @param dataRetentionProcessor For cleanup of old data.
      */
@@ -73,14 +75,14 @@ public class SavingsProcessor {
             int chunkSize,
             @Nonnull final RollupTimesStore rollupTimesStore,
             @Nonnull RollupSavingsProcessor rollupProcessor,
-            @Nonnull final StateStore stateStore,
+            @Nonnull final SavingsActionStore savingsActionStore,
             @Nonnull final SavingsTracker savingsTracker,
             @Nonnull final DataRetentionProcessor dataRetentionProcessor) {
         this.clock = clock;
         this.chunkSize = chunkSize;
         this.rollupTimesStore = rollupTimesStore;
         this.rollupProcessor = rollupProcessor;
-        this.stateStore = stateStore;
+        this.savingsActionStore = savingsActionStore;
         this.savingsTracker = savingsTracker;
         this.dataRetentionProcessor = dataRetentionProcessor;
     }
@@ -99,29 +101,31 @@ public class SavingsProcessor {
             final AtomicInteger chunkCounter = new AtomicInteger();
             // Total count of entities.
             final AtomicInteger entityCounter = new AtomicInteger();
-            final List<EntityState> stateChunk = new ArrayList<>();
+            // Set of entity OIDs for entities that need to be processed for savings.
+            final Set<Long> entityOids = new HashSet<>();
 
             // Process a chunk of entity states at a time.
             final AtomicBoolean successfullyProcessed = new AtomicBoolean(true);
-            stateStore.getEntityStates(state -> {
+            savingsActionStore.getActions(LivenessState.LIVE).stream()
+                    .map(ExecutedActionsChangeWindow::getEntityOid).forEach(entityOid -> {
                 if (!successfullyProcessed.get()) {
                     // If any chunk processing fails, we skip the rest.
                     return;
                 }
                 entityCounter.incrementAndGet();
-                if (stateChunk.size() < chunkSize) {
-                    stateChunk.add(state);
+                if (entityOids.size() < chunkSize) {
+                    entityOids.add(entityOid);
                     // We are still filling up the current chunk, so return here.
                     return;
                 }
                 // One chunk is now filled up, ready for processing. This also clears the chunk list.
-                if (!processStateChunk(stateChunk, savingsTimes, chunkCounter)) {
+                if (!processSavings(entityOids, savingsTimes, chunkCounter)) {
                     successfullyProcessed.set(false);
                 }
             });
             // Process any leftover chunk items, if we are able to process the previous ones.
-            if (!stateChunk.isEmpty() && successfullyProcessed.get()) {
-                if (!processStateChunk(stateChunk, savingsTimes, chunkCounter)) {
+            if (!entityOids.isEmpty() && successfullyProcessed.get()) {
+                if (!processSavings(entityOids, savingsTimes, chunkCounter)) {
                     successfullyProcessed.set(false);
                 }
             }
@@ -138,29 +142,26 @@ public class SavingsProcessor {
     }
 
     /**
-     * Processes a chunk of entity states.
+     * Processes savings for a chunk of entities.
      *
-     * @param stateChunk Chunk (batch) of entities, e.g. a set of 100, to process at a time.
+     * @param entityOids Chunk (batch) of entity OIDs, e.g. a set of 100, to process at a time.
      * @param savingsTimes Contains timing related info used for query, stores responses as well.
      * @param chunkCounter Total chunk counter.
      * @return True if this chunk was successfully processed, false if an error during processing.
      */
-    private boolean processStateChunk(@Nonnull final List<EntityState> stateChunk,
+    private boolean processSavings(@Nonnull final Set<Long> entityOids,
             @Nonnull final SavingsTimes savingsTimes, @Nonnull final AtomicInteger chunkCounter) {
         boolean processed = true;
         try {
-            final Set<Long> entityIds = stateChunk.stream()
-                    .map(EntityState::getEntityId)
-                    .collect(Collectors.toSet());
-            savingsTracker.processStates(entityIds, savingsTimes, chunkCounter);
+            savingsTracker.processSavings(entityOids, savingsTimes, chunkCounter);
             // Once we process this chunk, we clear the chunk states list, in preparation
             // for it to be filled with the next chunk of states.
-            stateChunk.clear();
+            entityOids.clear();
             chunkCounter.incrementAndGet();
         } catch (EntitySavingsException ese) {
             logger.warn("Unable to process state chunk # {} of size {}", chunkCounter,
-                    stateChunk.size(), ese);
-            logger.trace("For chunk # {}, states: {}", chunkCounter, stateChunk);
+                    entityOids.size(), ese);
+            logger.trace("For chunk # {}, entities: {}", chunkCounter, entityOids);
             processed = false;
         }
         return processed;
