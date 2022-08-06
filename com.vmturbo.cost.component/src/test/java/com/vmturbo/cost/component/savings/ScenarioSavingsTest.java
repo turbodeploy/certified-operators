@@ -245,7 +245,7 @@ public class ScenarioSavingsTest {
 
         // Invoke the savings calculations for the specified entities and time period.
         try {
-            savingsTracker.processSavings(participatingUuids, startTime, endTime, actionChains,
+            savingsTracker.processStates(participatingUuids, startTime, endTime, actionChains,
                     billRecordsByEntity);
         } catch (EntitySavingsException e) {
             fail("Error occurred when writing savings stats" + e);

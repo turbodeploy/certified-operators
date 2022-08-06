@@ -376,6 +376,8 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         final Set<EntitySavingsStatsType> statsTypes = ImmutableSet.of(
                 EntitySavingsStatsType.REALIZED_INVESTMENTS);
 
+        long vmId = 10L;
+
         // Add hourly stats records every hour, starting at 2am 11 months ago, and up to and
         // including 2pm today.
         LocalDateTime startTime = timeExact1PM.minusMonths(11).toLocalDate().atStartOfDay().plusHours(2);
@@ -384,7 +386,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         long endTimeMillis = TimeUtil.localDateTimeToMilli(endTime, clock);
         for (long tMillis = startTimeMillis; tMillis <= endTimeMillis; tMillis += TimeUnit.HOURS.toMillis(1)) {
             LocalDateTime time = LocalDateTime.ofInstant(Instant.ofEpochMilli(tMillis), ZoneOffset.UTC);
-            setStatsValues(hourlyStats, vm1Id, time, 1, statsTypes);
+            setStatsValues(hourlyStats, vmId, time, 1, statsTypes);
             hourlyTimes.add(tMillis);
         }
         // all the stats have the same stats value - remember it for expected rollup results
@@ -401,7 +403,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         logger.info("Total {} times. New last rollup times: {}", hourlyTimes.size(),
                 newLastTimes);
 
-        Collection<Long> entityOids = ImmutableSet.of(vm1Id);
+        Collection<Long> entityOids = ImmutableSet.of(vmId);
         Collection<Integer> entityTypes = Collections.singleton(EntityType.VIRTUAL_MACHINE_VALUE);
         Collection<Long> billingFamilies = new HashSet<>();
         Collection<Long> resourceGroups = new HashSet<>();

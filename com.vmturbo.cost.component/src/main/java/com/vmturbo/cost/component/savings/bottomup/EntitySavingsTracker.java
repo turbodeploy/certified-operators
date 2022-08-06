@@ -230,7 +230,7 @@ public class EntitySavingsTracker implements ScenarioDataHandler {
      * @param endTime ending time of the injected scenario
      */
     @Override
-    public void processSavings(@Nonnull Set<Long> participatingUuids,
+    public void processStates(@Nonnull Set<Long> participatingUuids,
             @Nonnull LocalDateTime startTime, @Nonnull LocalDateTime endTime,
             @Nonnull Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains,
             @Nonnull Map<Long, Set<BillingRecord>> billRecordsByEntity) {

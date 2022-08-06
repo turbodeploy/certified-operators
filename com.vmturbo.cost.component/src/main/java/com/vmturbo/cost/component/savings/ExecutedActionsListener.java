@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.cost.component.savings.bottomup.EntityPriceChange;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -26,16 +27,20 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class ExecutedActionsListener implements ActionsListener {
     private final Logger logger = LogManager.getLogger();
 
+    private final StateStore stateStore;
     private final Set<Integer> supportedEntityTypes;
     private final SavingsActionStore savingsActionStore;
 
     /**
      * Create new instance.
      *
+     * @param stateStore Store to read and write state.
      * @param supportedEntityTypes Supported entity types to listen actions for.
      */
-    public ExecutedActionsListener(@Nonnull final Set<EntityType> supportedEntityTypes,
+    public ExecutedActionsListener(@Nonnull final StateStore stateStore,
+            @Nonnull final Set<EntityType> supportedEntityTypes,
             @Nonnull final SavingsActionStore savingsActionStore) {
+        this.stateStore = stateStore;
         this.supportedEntityTypes = supportedEntityTypes.stream()
                 .map(EntityType::getNumber)
                 .collect(Collectors.toSet());
@@ -70,7 +75,17 @@ public class ExecutedActionsListener implements ActionsListener {
             // Notify savings store about this new action so that it can be marked dirty.
             savingsActionStore.onNewAction(actionId, entityId);
             logger.info("Detected executed cloud action {} for entity {}.", actionId, entityId);
-        } catch (UnsupportedActionException e) {
+
+            // Check if there is already a state
+            EntityState state = stateStore.getEntityState(entityId);
+            logger.trace("State for entity {}, detected for action {} execution: {}",
+                    actionId, entityId, state);
+            if (state != null) {
+                return;
+            }
+            state = new EntityState(entityId, EntityPriceChange.EMPTY);
+            stateStore.updateEntityState(state);
+        } catch (UnsupportedActionException | EntitySavingsException e) {
             logger.warn("Unable to process action {} for bill savings.", actionId, e);
         }
     }

@@ -629,7 +629,7 @@ public class EntitySavingsConfig {
         SavingsProcessor savingsProcessor =
                 new SavingsProcessor(getClock(), savingsDataProcessingChunkSize,
                         rollupConfig.entitySavingsRollupTimesStore(), rollupSavingsProcessor(),
-                        savingsActionStore(), savingsTracker(),
+                        (StateStore)entityStateStore(), savingsTracker(),
                         dataRetentionProcessor());
         if (isBillSavingsEnabled()) {
             int durationMinutes = 60 * billSavingsProcessorFrequencyHours;
@@ -661,7 +661,7 @@ public class EntitySavingsConfig {
     @Bean
     public ExecutedActionsListener executedActionsListener() {
         final ExecutedActionsListener listener = new ExecutedActionsListener(
-                supportedEntityTypes, savingsActionStore());
+                (StateStore)entityStateStore(), supportedEntityTypes, savingsActionStore());
         if (isBillSavingsEnabled()) {
             logger.info("Registered BillExecutedActionsListener for executed actions.");
             aoClientConfig.actionOrchestratorClient().addListener(listener);

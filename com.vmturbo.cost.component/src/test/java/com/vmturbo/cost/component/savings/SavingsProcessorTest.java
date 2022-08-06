@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
@@ -53,9 +54,9 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
-import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.common.protobuf.cost.Cost.UploadBilledCostRequest.BillingDataPoint;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
@@ -67,7 +68,9 @@ import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
 import com.vmturbo.cost.component.savings.bottomup.AggregatedSavingsStats;
+import com.vmturbo.cost.component.savings.bottomup.EntityPriceChange;
 import com.vmturbo.cost.component.savings.bottomup.SqlEntitySavingsStore;
+import com.vmturbo.cost.component.savings.bottomup.SqlEntityStateStore;
 import com.vmturbo.cost.component.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingData.CloudBillingBucket.Granularity;
@@ -133,9 +136,9 @@ public class SavingsProcessorTest extends MultiDbTestBase {
     private final BilledCostStore billedCostStore;
 
     /**
-     * Savings action store.
+     * State store for setting stats.
      */
-    private final SavingsActionStore savingsActionStore;
+    private final StateStore stateStore;
 
     private final SqlEntitySavingsStore savingsStore;
 
@@ -249,9 +252,9 @@ public class SavingsProcessorTest extends MultiDbTestBase {
                 TestCostDbEndpointConfig::costEndpoint);
         this.dsl = super.getDslContext();
         this.actionChainStore = mock(GrpcActionChainStore.class);
+        this.stateStore = new SqlEntityStateStore(dsl, chunkSize);
         this.rollupTimesStore = mock(RollupTimesStore.class);
         this.savingsStore = new SqlEntitySavingsStore(dsl, clock, chunkSize);
-        this.savingsActionStore = mock(CachedSavingsActionStore.class);
 
         this.billedCostStore = new SqlBilledCostStore(dsl,
                 new BatchInserter(chunkSize, 1, rollupTimesStore),
@@ -260,7 +263,7 @@ public class SavingsProcessorTest extends MultiDbTestBase {
                 chunkSize,
                 rollupTimesStore,
                 mock(RollupSavingsProcessor.class),
-                savingsActionStore,
+                this.stateStore,
                 new SavingsTracker(
                         new SqlBillingRecordStore(dsl),
                         actionChainStore,
@@ -279,7 +282,7 @@ public class SavingsProcessorTest extends MultiDbTestBase {
      * @throws EntitySavingsException Thrown on DB errors.
      */
     @Test
-    public void vm1Scaling() throws EntitySavingsException, SavingsException {
+    public void vm1Scaling() throws EntitySavingsException {
         // Map of date timestamp to StatsValue having realized savings/investment, for comparing
         // with actual test results.
         final List<AggregatedSavingsStats> expectedResults = loadExpectedResults(vm1Name);
@@ -300,12 +303,8 @@ public class SavingsProcessorTest extends MultiDbTestBase {
         when(rollupTimesStore.getLastRollupTimes())
                 .thenReturn(lastRollupTime);
 
-        ExecutedActionsChangeWindow actionsChangeWindow = ExecutedActionsChangeWindow.newBuilder()
-                .setEntityOid(vm1Id)
-                .setActionOid(1L)
-                .build();
-        Set<ExecutedActionsChangeWindow> actions = Collections.singleton(actionsChangeWindow);
-        when(savingsActionStore.getActions(LivenessState.LIVE)).thenReturn(actions);
+        // Update the entity states for the entities being tested.
+        configureEntityStates();
 
         // Run the processor with the above inputs.
         savingsProcessor.execute();
@@ -321,6 +320,22 @@ public class SavingsProcessorTest extends MultiDbTestBase {
         // Verify that all savings and investments match up with expected results.
         // This is for 6 days, so there should be 12 entries in the stats list.
         assertTrue(CollectionUtils.isEqualCollection(dailyStats, expectedResults));
+    }
+
+    /**
+     * Creates entity states for VMs in question.
+     *
+     * @throws EntitySavingsException Thrown on DB error.
+     */
+    private void configureEntityStates() throws EntitySavingsException {
+        final Map<Long, EntityState> statesByEntity = new HashMap<>();
+        final Set<Long> vmIdSet = ImmutableSet.of(vm1Id);
+        vmIdSet.forEach(vmId -> statesByEntity.put(vmId, new EntityState(vm1Id,
+                EntityPriceChange.EMPTY)));
+        final TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
+        when(cloudTopology.getEntity(any(Long.class)))
+                .thenReturn(Optional.empty());
+        stateStore.updateEntityStates(statesByEntity, cloudTopology, vmIdSet);
     }
 
     /**
