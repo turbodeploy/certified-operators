@@ -71,7 +71,7 @@ public class PrerequisiteDescriptionComposer {
     private static final String MIN_CPU_PLATFORM_PREREQUISITE_FORMAT =
             "This VM {0} has a minimum CPU platform of {1}. Please verify that the software on "
                     + "this VM is compatible with the proposed actions. "
-                    + "Once verified, you will need resize the VM manually.";
+                    + "Once verified, you will need to resize the VM manually.";
 
     // A mapping from PrerequisiteType to the display string.
     private static final Map<PrerequisiteType, String> prerequisiteTypeToString = ImmutableMap.of(
