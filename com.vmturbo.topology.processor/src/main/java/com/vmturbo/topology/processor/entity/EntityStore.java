@@ -201,11 +201,12 @@ public class EntityStore {
                                     ProbeCategory.STORAGE,
                                     ProbeCategory.PRIVATE_CLOUD,
                                     ProbeCategory.HYPERCONVERGED);
-    private static final Set<TargetHealthSubCategory> HEALTH_SUBCATEGORIES_FOR_STALENESS =
+    private static final Map<HealthState, Set<TargetHealthSubCategory>> STALENESS_TARGET_HEALTH_TO_SUBCATEGORY =
+            ImmutableMap.of(HealthState.CRITICAL,
                     ImmutableSet.of(TargetHealthSubCategory.VALIDATION,
-                                    TargetHealthSubCategory.DELAYED_DATA,
-                                    TargetHealthSubCategory.DISCOVERY,
-                                    TargetHealthSubCategory.DUPLICATION);
+                            TargetHealthSubCategory.DISCOVERY, TargetHealthSubCategory.DUPLICATION),
+                    HealthState.MAJOR, ImmutableSet.of(TargetHealthSubCategory.DELAYED_DATA));
+
 
     /**
      * Exports the entity count per target category, target type and entity type from entity store.
@@ -507,10 +508,10 @@ public class EntityStore {
         }
         TargetHealth lastKnownTargetHealth =
                         stalenessProvider.getLastKnownTargetHealth(targetId);
-        return lastKnownTargetHealth != null
-                        && lastKnownTargetHealth.getHealthState() == HealthState.CRITICAL
-                        && HEALTH_SUBCATEGORIES_FOR_STALENESS.contains(
-                                        lastKnownTargetHealth.getSubcategory());
+        return lastKnownTargetHealth != null &&
+                STALENESS_TARGET_HEALTH_TO_SUBCATEGORY.getOrDefault(
+                        lastKnownTargetHealth.getHealthState(), Collections.emptySet()).contains(
+                        lastKnownTargetHealth.getSubcategory());
     }
 
     /**

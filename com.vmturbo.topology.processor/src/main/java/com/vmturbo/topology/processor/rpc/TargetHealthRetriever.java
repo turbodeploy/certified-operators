@@ -437,7 +437,7 @@ public class TargetHealthRetriever {
                     .setLastSuccessfulIncrementalDiscoveryCompletionTime(
                             lastSuccessfulIncrementalDiscoveryTime.getSecond());
         }
-        return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
+        return targetHealthBuilder.setHealthState(HealthState.MAJOR)
                 .setSubcategory(TargetHealthSubCategory.DELAYED_DATA)
                 .addErrorTypeInfo(ErrorTypeInfo.newBuilder().setDelayedDataErrorType(
                         DelayedDataErrorType.getDefaultInstance()).build())
