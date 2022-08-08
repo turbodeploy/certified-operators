@@ -997,13 +997,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         final GetVolumeAttachmentHistoryRequest request = GetVolumeAttachmentHistoryRequest
             .newBuilder()
             .addAllVolumeOid(unattachedVolumeOids)
-            // single unattached volume passed to this method implies that this request is being
-            // made for displaying Delete Volume Action details. For this case, last attached VM
-            // names must be retrieved. This is a workaround as there is no mechanism currently
-            // for the UI to include whether it needs last attached VM name information or not.
-            // For all other cases such as Action Summary and Storage Breakdown widgets, there is no
-            // need to retrieve last attached VM name.
-            .setRetrieveVmNames(unattachedVolumeOids.size() == 1)
+            .setRetrieveVmNames(true)
             .build();
         final Future<Iterator<GetVolumeAttachmentHistoryResponse>> responseFuture =
             CompletableFuture.supplyAsync(
