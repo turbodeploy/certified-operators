@@ -24,7 +24,7 @@ public interface ScenarioDataHandler {
      * @param billRecordsByEntity bill records of each entity
      * @throws EntitySavingsException Errors with generating or writing stats
      */
-    void processStates(@Nonnull Set<Long> participatingUuids, @Nonnull LocalDateTime startTime,
+    void processSavings(@Nonnull Set<Long> participatingUuids, @Nonnull LocalDateTime startTime,
             @Nonnull LocalDateTime endTime, @Nonnull Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains,
             @Nonnull Map<Long, Set<BillingRecord>> billRecordsByEntity) throws EntitySavingsException;
 

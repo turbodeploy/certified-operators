@@ -117,19 +117,19 @@ public class SavingsTracker extends SQLCloudScopedStore implements ScenarioDataH
     }
 
     /**
-     * Process given list of entity states. A chunk of states are processed at a time.
+     * Process savings for a given list of entity OIDs. A chunk of entities is processed at a time.
      *
      * @param entityIds OIDs of entities to be processed.
      * @param savingsTimes Contains timing related info used for query, stores responses as well.
      * @param chunkCounter Counter for current chunk, for logging.
      * @throws EntitySavingsException Thrown on DB error.
      */
-    void processStates(@Nonnull final Set<Long> entityIds,
+    void processSavings(@Nonnull final Set<Long> entityIds,
             @Nonnull final SavingsTimes savingsTimes, @Nonnull final AtomicInteger chunkCounter)
             throws EntitySavingsException {
         long previousLastUpdated = savingsTimes.getPreviousLastUpdatedTime();
         long lastUpdatedEndTime = savingsTimes.getLastUpdatedEndTime();
-        logger.trace("{}: Processing chunk of {} states with last updated >= {} && < {}...",
+        logger.trace("{}: Processing savings for a chunk of {} entities with last updated time between {} and {}.",
                 () -> chunkCounter, entityIds::size, () -> previousLastUpdated,
                 () -> lastUpdatedEndTime);
 
@@ -157,14 +157,14 @@ public class SavingsTracker extends SQLCloudScopedStore implements ScenarioDataH
         // Get the timestamp of the day (beginning of the day) that was last processed.
         // Need this date for delete action savings calculation.
         long lastProcessedDate = savingsTimes.getLastRollupTimes().getLastTimeByDay();
-        final Set<Long> statTimes = processStates(entityIds, billingRecords, actionChains,
+        final Set<Long> statTimes = processSavings(entityIds, billingRecords, actionChains,
                 lastProcessedDate, LocalDateTime.now(clock));
 
         // Save off the day stats timestamps for all stats written this time, used for rollups.
         savingsTimes.addAllDayStatsTimes(statTimes);
     }
 
-    private Set<Long> processStates(@Nonnull final Set<Long> entityOids,
+    private Set<Long> processSavings(@Nonnull final Set<Long> entityOids,
             Map<Long, Set<BillingRecord>> billingRecords,
             Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains,
             long lastProcessedDate, LocalDateTime periodEndTime) throws EntitySavingsException {
@@ -209,7 +209,7 @@ public class SavingsTracker extends SQLCloudScopedStore implements ScenarioDataH
      * @throws EntitySavingsException Errors with generating or writing stats
      */
     @Override
-    public void processStates(@Nonnull Set<Long> participatingUuids,
+    public void processSavings(@Nonnull Set<Long> participatingUuids,
             @Nonnull LocalDateTime startTime, @Nonnull LocalDateTime endTime,
             @Nonnull final Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains,
             @Nonnull final Map<Long, Set<BillingRecord>> billRecordsByEntity)
@@ -231,20 +231,20 @@ public class SavingsTracker extends SQLCloudScopedStore implements ScenarioDataH
             actions.putAll(actionChainStore.getActionChains(participatingUuids));
         }
 
-        processStates(participatingUuids, billRecords, actions,
+        processSavings(participatingUuids, billRecords, actions,
                 TimeUtil.localTimeToMillis(startTime.truncatedTo(ChronoUnit.DAYS).minusDays(1),
                         Clock.systemUTC()), endTime);
     }
 
     /**
-     * Purge state for the indicated UUIDs in preparation for processing injected data.  This can
+     * Purge savings stats for the indicated UUIDs in preparation for processing injected data.  This can
      * only be invoked when the ENABLE_SAVINGS_TEST_INPUT feature flag is enabled.
      *
      * @param uuids UUIDs to purge.
      */
     @Override
     public void purgeState(Set<Long> uuids) {
-        logger.debug("Purge state for UUIDs in preparation for data injection: {}",
+        logger.debug("Purge savings stats for UUIDs in preparation for data injection: {}",
                 uuids);
         if (!uuids.isEmpty()) {
             logger.info("Purging savings stats for UUIDs: {}", uuids);
