@@ -1652,55 +1652,6 @@ serverFiles:
             target_label: namespace
             action: replace
 
-      # Scrape config for XL telemetry. Loosely based on 'xl' job.
-      #
-      - job_name: 'telemetry'
-        scrape_interval: 3m # Send telemetry once a day.
-        sample_limit: 10000 # Currently XL components export ~300 metrics or ~3k time series. 10k
-          # should be big enough to support growth, but still prevent a bug from creating millions
-          # of new time series, flooding DataCloud and incurring high costs.
-        kubernetes_sd_configs:
-          - role: endpoints
-        relabel_configs:
-          - action: keep
-            source_labels:
-              - __meta_kubernetes_service_name
-            regex: action-orchestrator|api|auth|clustermgr|cost|group|history|market|ml-datastore|plan-orchestrator|repository|topology-processor
-          - action: drop
-            source_labels:
-              - __meta_kubernetes_endpoint_port_name
-            regex: (tcp-|grpc-|https-).*
-          - action: replace
-            source_labels:
-              - __meta_kubernetes_service_name
-            target_label: service
-        metric_relabel_configs:
-          - action: keep
-            source_labels:
-              - __name__
-            # Only send metrics which match regarding this regular expression.
-            # Please seek the security team guidance and review before changing this regular expression.
-            regex: "turbo_cloud_spend_ratio|\
-              turbo_business_accounts|\
-              turbo_plans_total|\
-              turbo_reservations_total|\
-              turbo_current_reservations|\
-              turbo_current_actions|\
-              turbo_completed_actions_total|\
-              turbo_discovered_entities|\
-              turbo_broadcast_entities|\
-              turbo_targets|\
-              turbo_version_info|\
-              turbo_api_calls_total|\
-              turbo_api_call_latency_seconds_bucket|\
-              turbo_api_call_latency_seconds_count|\
-              turbo_api_call_latency_seconds_sum|\
-              turbo_component_uptime_seconds|\
-              turbo_oid_expiration_execution_seconds_sum|\
-              turbo_oid_expiration_execution_seconds_count|\
-              turbo_oid_expiration_execution_seconds_bucket|\
-              turbo_expired_entities_total"
-
       # Scrape config for XL mysql.
       #
       - job_name: 'xl-mysql'
