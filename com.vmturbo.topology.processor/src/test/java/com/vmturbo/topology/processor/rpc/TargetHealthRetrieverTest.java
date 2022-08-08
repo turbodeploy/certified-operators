@@ -725,7 +725,7 @@ public class TargetHealthRetrieverTest {
 
     private void assertDelayedData(TargetHealth healthInfo, long discoveryCompletionStart,
             long discoveryCompletionTime) {
-        Assert.assertEquals(HealthState.CRITICAL, healthInfo.getHealthState());
+        Assert.assertEquals(HealthState.MAJOR, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.DELAYED_DATA, healthInfo.getSubcategory());
         Assert.assertEquals(1, healthInfo.getErrorTypeInfoList().size());
         Assert.assertEquals(delayedDataError, healthInfo.getErrorTypeInfoList().get(0));
