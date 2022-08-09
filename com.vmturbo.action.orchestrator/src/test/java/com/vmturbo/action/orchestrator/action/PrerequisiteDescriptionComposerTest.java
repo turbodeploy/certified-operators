@@ -64,7 +64,7 @@ public class PrerequisiteDescriptionComposerTest {
                 "allow resize of {entity:1:displayName:Virtual Machine}",
             "(^_^)~This VM {entity:1:displayName:Virtual Machine} has a minimum CPU platform of "
                 + "test_cpu_platform. Please verify that the software on this VM is compatible with "
-                + "the proposed actions. Once verified, you will need resize the VM manually.",
+                + "the proposed actions. Once verified, you will need to resize the VM manually.",
             "(^_^)~To execute action on {entity:1:displayName:Virtual Machine}, navigate to the Azure portal and adjust the scale set instance size")),
             new HashSet<>(PrerequisiteDescriptionComposer.composePrerequisiteDescription(action)));
     }
