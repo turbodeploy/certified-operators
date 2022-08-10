@@ -88,14 +88,18 @@ global:
     #   key:
     #   certificate:
   telemetry:
-    supported: true
-    scrapeInterval: 1d # Send telemetry once a day.
-    sampleLimit: 10000 # Currently, XL components export ~300 metrics or ~3k time series. 10k
-      # should be big enough to support growth, but still prevent a bug from creating millions
-      # of new time series, flooding DataCloud and incurring high costs.
+    # This just controls whether the necessary components are there to collect telemetry and store
+    # it locally. Whether telemetry is sent anywhere is controlled by a UI checkbox.
+    enabled: true
+    # How often to collect telemetry. Default if once a day.
+    scrapeInterval: 1d
+    # Currently, XL components export ~300 metrics or ~3k time series. 10k should be big enough to
+    # support growth, but still prevent a bug from creating millions of new time series, flooding
+    # DataCloud and incurring high costs.
+    sampleLimit: 10000
     # Only send metrics whose name matches this regular expression.
     # Please seek the security team guidance and review before changing this regular expression.
-    metricsWhiteList:  "turbo_cloud_spend_ratio|\
+    metricsWhiteList: "turbo_cloud_spend_ratio|\
                         turbo_business_accounts|\
                         turbo_plans_total|\
                         turbo_reservations_total|\
@@ -115,7 +119,6 @@ global:
                         turbo_oid_expiration_execution_seconds_count|\
                         turbo_oid_expiration_execution_seconds_bucket|\
                         turbo_expired_entities_total"
-    enabled: false
 
 nginxingress:
   enabled: true

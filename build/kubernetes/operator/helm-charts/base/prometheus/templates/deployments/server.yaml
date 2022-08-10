@@ -158,7 +158,7 @@ spec:
               readOnly: true
             - name: prometheus-merged-config
               mountPath: /etc/merged-config
-        {{- if .Values.global.telemetry.supported }}
+        {{- if .Values.global.telemetry.enabled }}
         - name: {{ .Values.server.kafkaAdapter.name }}
           image: {{ .Values.server.kafkaAdapter.image.repository }}/prometheus-kafka-adapter:{{ .Values.server.kafkaAdapter.image.tag }}
           imagePullPolicy: {{ .Values.server.configManager.image.pullPolicy }}

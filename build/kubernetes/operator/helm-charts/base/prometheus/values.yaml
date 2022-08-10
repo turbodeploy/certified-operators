@@ -591,7 +591,7 @@ server:
     args:
       - "60" # seconds between attempts to update the configuration
 
-  # Prometheus to kafka adapter
+  # Prometheus to kafka adapter.
   kafkaAdapter:
     # Name of the sidecar container inside Prometheus server pod.
     name: kafka-adapter
@@ -604,7 +604,8 @@ server:
     # Additional arguments to use when starting the prometheus-kafka-adapter process.
     args: []
     # Most common environment variables set for the prometheus-kafka-adapter process. Explicitly
-    # listed here to work around problems with Helm's list handling.
+    # listed here to work around problems with Helm's list handling. Documentation can be found in
+    # [GitHub](https://github.com/Telefonica/prometheus-kafka-adapter).
     env:
       kafkaBrokerList: kafka:9092
       kafkaTopic: telemetry

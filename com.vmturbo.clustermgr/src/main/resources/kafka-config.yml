@@ -123,7 +123,9 @@ topics:
   - topic: volume-notifications
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
-  - topic: telemetry # internal
+    # This topic in intended for internal use and not exposed to customers directly. A public API
+    # endpoint will allow customers to obtain the contents indirectly.
+  - topic: telemetry
     properties:
       retention.ms: 31536000000 # 1 year
 

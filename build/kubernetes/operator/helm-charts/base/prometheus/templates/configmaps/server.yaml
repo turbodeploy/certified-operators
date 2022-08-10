@@ -14,9 +14,9 @@ data:
 {{- if eq $key "prometheus.yml" }}
     global:
 {{ $root.Values.server.global | toYaml | trimSuffix "\n" | indent 6 }}
-{{- if or $root.Values.server.remoteWrite $root.Values.global.telemetry.supported }}
+{{- if or $root.Values.server.remoteWrite $root.Values.global.telemetry.enabled }}
     remote_write:
-      {{- if $root.Values.global.telemetry.supported }}
+      {{- if $root.Values.global.telemetry.enabled }}
       - name: "kafka"
         url: "http://localhost:8080/receive"
         write_relabel_configs:
@@ -55,7 +55,7 @@ data:
 {{- if $root.Values.extraScrapeConfigs }}
 {{ tpl $root.Values.extraScrapeConfigs $root | indent 4 }}
 {{- end -}}
-{{- if $root.Values.global.telemetry.supported }}
+{{- if $root.Values.global.telemetry.enabled }}
     - job_name: telemetry
       scrape_interval: {{ $root.Values.global.telemetry.scrapeInterval }}
       sample_limit: {{ $root.Values.global.telemetry.sampleLimit }}
