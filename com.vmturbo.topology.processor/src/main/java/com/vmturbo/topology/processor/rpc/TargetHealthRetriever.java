@@ -338,9 +338,23 @@ public class TargetHealthRetriever {
             targetHealthBuilder.addAllErrorTypeInfo(discoveryFailure.getErrorTypeInfos())
                     .setConsecutiveFailureCount(discoveryFailure.getFailsCount());
         }
-        return targetHealthBuilder.setHealthState(HealthState.NORMAL)
-                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
-                .build();
+
+        Optional<com.vmturbo.platform.common.dto.Discovery.ErrorDTO> dto = lastDiscovery.getErrorsDTOList().stream()
+                .filter(errorDTO -> errorDTO.getSeverity() == com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity.WARNING)
+                .findFirst();
+
+        if (dto.isPresent()) {
+            return targetHealthBuilder.setHealthState(HealthState.MAJOR)
+                    .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                    .addErrorTypeInfo(ErrorTypeInfo.newBuilder().setOtherErrorType(ErrorTypeInfo.OtherErrorType.newBuilder().build()))
+                    .setMessageText("Discovery partially successful: MAJOR: " + dto.get().getDescription())
+                    .setTimeOfCheck(System.currentTimeMillis())
+                    .build();
+        } else {
+            return targetHealthBuilder.setHealthState(HealthState.NORMAL)
+                    .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                    .build();
+        }
     }
 
     /**
