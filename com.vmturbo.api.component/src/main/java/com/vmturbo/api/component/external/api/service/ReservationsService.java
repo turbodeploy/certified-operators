@@ -227,8 +227,8 @@ public class ReservationsService implements IReservationsService {
     private List<DemandReservationApiDTO> getAllReservations() throws Exception {
         GetAllReservationsRequest request = GetAllReservationsRequest.newBuilder()
                 .build();
-        Iterable<Reservation> reservationIterable = () -> reservationService.getAllReservations(request);
-        return reservationMapper.generateReservationList(reservationIterable);
+        Iterator<Reservation> reservationIterator = reservationService.getAllReservations(request);
+        return reservationMapper.generateReservationList(reservationIterator);
     }
 
     @Override
@@ -344,8 +344,8 @@ public class ReservationsService implements IReservationsService {
             final GetReservationByStatusRequest request = GetReservationByStatusRequest.newBuilder()
                     .setStatus(reservationStatus)
                     .build();
-            Iterable<Reservation> reservationIterable = () -> reservationService.getReservationByStatus(request);
-            return reservationMapper.generateReservationList(reservationIterable);
+            Iterator<Reservation> reservationIterator = reservationService.getReservationByStatus(request);
+            return reservationMapper.generateReservationList(reservationIterator);
         } catch (IllegalArgumentException e) {
             logger.error("Illegal argument: " + e.getMessage());
             throw e;

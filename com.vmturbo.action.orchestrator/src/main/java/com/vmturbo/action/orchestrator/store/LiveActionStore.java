@@ -298,6 +298,7 @@ public class LiveActionStore implements ActionStore {
             final long recommendationOid = recommendationOids.next();
             final Action action = actionFactory.newAction(recommendedAction, planId,
                     recommendationOid);
+            action.setExternalAction(true);
             actionsFromPlan.add(action);
         }
         // All Start/Suspend translations should be passthrough, but we do it here anyway for consistency

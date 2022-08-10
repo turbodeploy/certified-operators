@@ -180,6 +180,23 @@ public class LiveActionsTest {
         final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
         final Action action3 = ActionOrchestratorTestUtils.createMoveAction(3, 2);
         // Hack - for testing purposes we don't care if it's not actually a start/suspend action.
+        liveActions.replaceStartSuspendActions(Stream.of(action1, action2, action3), false);
+        assertThat(liveActions.size(), is(3));
+        assertThat(liveActions.getAll().collect(Collectors.toList()),
+                containsInAnyOrder(action1, action2, action3));
+        assertThat(liveActions.getActionsByPlanType().get(ActionPlanType.START_SUSPEND),
+                containsInAnyOrder(action1, action2, action3));
+    }
+
+    @Test
+    public void replaceStartSuspendLiveActions() {
+        final Action actionSucceeded = createActionWithCertainState(ActionState.SUCCEEDED, 4);
+        final Action actionFailed = createActionWithCertainState(ActionState.FAILED, 5);
+        final Action action1 = ActionOrchestratorTestUtils.createMoveAction(1, 2);
+        final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
+        final Action action3 = ActionOrchestratorTestUtils.createMoveAction(3, 2);
+        // Hack - for testing purposes we don't care if it's not actually a start/suspend action.
+        liveActions.replaceStartSuspendActions(Stream.of(actionSucceeded, actionFailed), false);
         liveActions.replaceStartSuspendActions(Stream.of(action1, action2, action3), true);
         assertThat(liveActions.size(), is(3));
         assertThat(liveActions.getAll().collect(Collectors.toList()),

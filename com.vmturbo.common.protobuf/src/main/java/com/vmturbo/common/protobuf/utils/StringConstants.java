@@ -450,6 +450,11 @@ public class StringConstants {
             = PlanProjectType.CLOUD_MIGRATION.name() + MIGRATION_PLAN__CONSUMPTION;;
 
     /**
+     * Hardware refresh plan type.
+     */
+    public static final String RECONFIGURE_HARDWARE_PLAN = "RECONFIGURE_HARDWARE";
+
+    /**
      * String indicating the Business Account entity type in the UI.
      */
     public static final String BUSINESS_ACCOUNT = "BusinessAccount";

@@ -92,9 +92,6 @@ public class ActionDescriptionBuilder {
     private static final Set<Integer> CLOUD_NATIVE_ENTITIES = ImmutableSet.of(EntityType.CONTAINER_VALUE,
         EntityType.CONTAINER_SPEC_VALUE, EntityType.WORKLOAD_CONTROLLER_VALUE, EntityType.NAMESPACE_VALUE);
     private static final String COMMA_SPACE = ", ";
-
-    private static final String UNKNOWN = "UNKNOWN";
-
     private static final String AZURE = "Azure";
 
 
@@ -117,13 +114,14 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_PROVISION_BY_DEMAND("Provision {0} similar to {1} with scaled up {2} due to {3}"),
         ACTION_DESCRIPTION_LICENSED_PROVISION_BY_SUPPLY("Provision Licensed {0}{1}"),
         ACTION_DESCRIPTION_LICENSED_PROVISION_BY_DEMAND("Provision Licensed {0} similar to {1} with scaled up {2} due to {3}"),
-        ACTION_DESCRIPTION_ACTIVATE("Start {0} due to increased demand for resources"),
+        ACTION_DESCRIPTION_ACTIVATE("Start {0}"),
         ACTION_DESCRIPTION_DEACTIVATE("{0} {1}"),
         ACTION_DESCRIPTION_LICENSED_DEACTIVATE("{0} Licensed {1}"),
         ACTION_DESCRIPTION_DELETE("Delete wasted file ''{0}'' from {1} to free up {2}"),
         ACTION_DESCRIPTION_DELETE_CLOUD_NO_ACCOUNT("Delete Unattached {0} Volume {1}"),
         ACTION_DESCRIPTION_DELETE_CLOUD("Delete Unattached {0} Volume {1} from {2}"),
-        ACTION_DESCRIPTION_DELETE_ASP("Delete Empty {0} App Service Plan {1} from {2}"),
+        ACTION_DESCRIPTION_DELETE_APPLICATION_SERVICE("Delete Empty {0} App Service Plan {1} from {2}"),
+        ACTION_DESCRIPTION_DELETE_APPLICATION_SERVICE_DEFAULT("Delete Empty App Service Plan {0}"),
         ACTION_DESCRIPTION_ATOMIC_RESIZE("Resize {0} for {1}"),
         ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT("Remove {0} limit on entity {1}"),
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
@@ -948,21 +946,23 @@ public class ActionDescriptionBuilder {
             ActionPartialEntity targetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId)
                     .get();
             long sourceEntityId = recommendation.getInfo().getDelete().getSource().getId();
-            String family = UNKNOWN, subscription = AZURE;
-            if (entitiesSnapshot.getEntityFromOid(sourceEntityId).isPresent()) {
-                family = entitiesSnapshot.getEntityFromOid(sourceEntityId)
+            final Optional<EntityWithConnections> businessAccountTopologyEntityOpt =
+                    entitiesSnapshot.getOwnerAccountOfEntity(targetEntityId);
+            if (entitiesSnapshot.getEntityFromOid(sourceEntityId).isPresent()
+                    && businessAccountTopologyEntityOpt.isPresent()) {
+                String family = entitiesSnapshot.getEntityFromOid(sourceEntityId)
                         .get()
                         .getTypeSpecificInfo()
                         .getComputeTier()
                         .getFamily();
+                String subscription = businessAccountTopologyEntityOpt.get().getDisplayName();
+                return ActionMessageFormat.ACTION_DESCRIPTION_DELETE_APPLICATION_SERVICE.format(
+                        family, targetEntity.getDisplayName(), subscription);
+            } else {
+                // Default to generic delete message for ASP in case we don't have subscription or family.
+                return ActionMessageFormat.ACTION_DESCRIPTION_DELETE_APPLICATION_SERVICE_DEFAULT.format(
+                        targetEntity.getDisplayName());
             }
-            final Optional<EntityWithConnections> businessAccountTopologyEntityOpt =
-                    entitiesSnapshot.getOwnerAccountOfEntity(targetEntityId);
-            if(businessAccountTopologyEntityOpt.isPresent()){
-                subscription = businessAccountTopologyEntityOpt.get().getDisplayName();
-            }
-            return ActionMessageFormat.ACTION_DESCRIPTION_DELETE_ASP.format(
-                    family, targetEntity.getDisplayName(), subscription);
         }
 
         // Handle volumes

@@ -75,6 +75,9 @@ topics:
   - topic: cost-notifications
     properties:
       retention.ms: 3600000 # 3600k ms = 1 hr
+  - topic: topology-vm-on-demand-cost
+    properties:
+      retention.ms: 3600000 # 3600k ms = 1 hr
   - topic: report-generation-notifications
     properties:
       retention.ms: 600000 # 600k ms = 10 min

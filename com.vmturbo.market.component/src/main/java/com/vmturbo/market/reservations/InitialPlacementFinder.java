@@ -45,6 +45,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Unplac
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisMode;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
@@ -337,7 +338,14 @@ public class InitialPlacementFinder {
                 }
             }
             try {
-                saveInitialPlacementDiags(Collections.singletonList(initialPlacementDTO), hasErrorOccured);
+                // If the AnalysisDiagnosticsCollector we would have saved the diags in the
+                // beginning of market run itself. no need to save it again. Also if the
+                // AnalysisDiagnosticsCollector is disabled we have to save the diags only when an
+                // error has occured.
+                if (hasErrorOccured && !AnalysisDiagnosticsCollector.isEnabled()) {
+                    saveInitialPlacementDiags(Collections.singletonList(initialPlacementDTO),
+                            hasErrorOccured);
+                }
             } catch (Exception e) {
                 logger.error("Error when attempting to save InitialPlacement diags", e);
             }

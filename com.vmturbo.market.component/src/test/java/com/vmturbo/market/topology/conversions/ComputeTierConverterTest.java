@@ -16,6 +16,7 @@ import com.google.common.collect.ImmutableSet;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -23,9 +24,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit tests for ComputeTierConverter.
@@ -36,6 +39,13 @@ public class ComputeTierConverterTest {
     private CommodityConverter commodityConverter;
 
     /**
+     * Rule to manage feature flag enablement.
+     */
+    @Rule
+    public FeatureFlagTestRule mergedPeakFeatureFlag =
+            new FeatureFlagTestRule(FeatureFlags.ENABLE_MERGED_PEAK_UPDATE_FUNCTION);
+
+    /**
      * Initializes ComputeTierConverter instance.
      */
     @Before
@@ -44,7 +54,7 @@ public class ComputeTierConverterTest {
         commodityConverter = new CommodityConverter(new NumericIDAllocator(),
                 false, new BiCliquer(), HashBasedTable.create(),
                 new ConversionErrorCounts(), mock(ConsistentScalingHelper.class),
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false);
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, null);
         final TopologyInfo info = TopologyInfo.newBuilder().build();
         final CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, null);
         computeTierConverter = new ComputeTierConverter(info, commodityConverter, costDTOCreator,

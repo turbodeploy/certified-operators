@@ -58,7 +58,7 @@ public class ComponentMetricsScrapeTest {
     @Test
     public void testRemoteHarvest() throws Exception {
         final MetricFamilySamples testSample = MetricTestUtil.createSimpleFamily("test", 10);
-        Mockito.when(testRegistry.filteredMetricFamilySamples(Mockito.anySetOf(String.class)))
+        Mockito.when(testRegistry.filteredMetricFamilySamples(Mockito.anySet()))
                 .thenReturn(Collections.enumeration(Lists.newArrayList(testSample)));
 
         final ComponentCluster rule = Mockito.mock(ComponentCluster.class);

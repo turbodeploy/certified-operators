@@ -725,11 +725,48 @@ public class TargetHealthRetrieverTest {
 
     private void assertDelayedData(TargetHealth healthInfo, long discoveryCompletionStart,
             long discoveryCompletionTime) {
-        Assert.assertEquals(HealthState.CRITICAL, healthInfo.getHealthState());
+        Assert.assertEquals(HealthState.MAJOR, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.DELAYED_DATA, healthInfo.getSubcategory());
         Assert.assertEquals(1, healthInfo.getErrorTypeInfoList().size());
         Assert.assertEquals(delayedDataError, healthInfo.getErrorTypeInfoList().get(0));
         Assert.assertEquals(discoveryCompletionStart, healthInfo.getLastSuccessfulDiscoveryStartTime());
         Assert.assertEquals(discoveryCompletionTime, healthInfo.getLastSuccessfulDiscoveryCompletionTime());
+    }
+
+     /**
+     * Test when the target discovery is success with warnings.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testWhenDiscoverySuccessWithWarnings() throws Exception   {
+        final Target target = mockTarget();
+        final long targetId = target.getId();
+        when(probeStore.getProbeRegistrationsForTarget(any())).thenReturn(ImmutableList.of(perfectProbe));
+
+        final Validation validation = new Validation(PROBE_ID,  targetId, identityProvider);
+        final Discovery discovery = new Discovery(PROBE_ID, targetId, identityProvider);
+        validation.success();
+        discovery.success();
+        when(operationManager.getLastValidationForTarget(targetId))
+                .thenReturn(Optional.of(validation));
+        when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
+                .thenReturn(Optional.of(discovery));
+
+        ErrorTypeInfo errorTypeInfo = ErrorTypeInfo.newBuilder().setOtherErrorType(ErrorTypeInfo.OtherErrorType.getDefaultInstance()).build();
+
+        ErrorDTO errorDTO = ErrorDTO.newBuilder()
+                .addErrorTypeInfo(errorTypeInfo)
+                .setDescription("Discovery partially successful:MAJOR")
+                .setSeverity(ErrorDTO.ErrorSeverity.WARNING)
+                .build();
+
+        discovery.addError(errorDTO);
+
+        TargetHealth healthInfo = getTargetHealth(targetId);
+        Assert.assertEquals(HealthState.MAJOR, healthInfo.getHealthState());
+        Assert.assertEquals(TargetHealthSubCategory.DISCOVERY, healthInfo.getSubcategory());
+        Assert.assertEquals(healthInfo.getErrorTypeInfoList().size(), 1);
+        Assert.assertEquals(errorTypeInfo, healthInfo.getErrorTypeInfo(0));
     }
 }

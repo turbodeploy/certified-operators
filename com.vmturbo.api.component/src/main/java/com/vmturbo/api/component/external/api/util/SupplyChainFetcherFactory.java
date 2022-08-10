@@ -1601,14 +1601,14 @@ public class SupplyChainFetcherFactory {
      * Get leaf entities (entities that have no consumers).
      *
      * @param uuids seed UUIDs of the supply chain.
-     * @param filterOutClasses entity types to filter out.
+     * @param filterEntityTypes entity types to filter out.
      * @param cursor pagination cursor.
      * @param limit pagination limit.
      * @return a list of entities.
      */
     @Nonnull
     public List<BaseApiDTO> fetchLeafEntities(@Nonnull List<Long> uuids,
-                                              @Nullable List<String> filterOutClasses,
+                                              @Nullable List<com.vmturbo.api.enums.EntityType> filterEntityTypes,
                                               @Nullable String cursor,
                                               @Nullable Integer limit)
             throws OperationFailedException {
@@ -1621,9 +1621,9 @@ public class SupplyChainFetcherFactory {
 
         final LeafEntitiesRequest.Builder builder = LeafEntitiesRequest.newBuilder();
         builder.addAllSeeds(expandedUuids);
-        if (filterOutClasses != null && !filterOutClasses.isEmpty()) {
-            builder.addAllFilterOutClasses(filterOutClasses.stream()
-                    .map(cls -> ApiEntityType.fromString(cls).typeNumber())
+        if (filterEntityTypes != null && !filterEntityTypes.isEmpty()) {
+            builder.addAllFilterOutClasses(filterEntityTypes.stream()
+                    .map(cls -> ApiEntityType.fromString(cls.name()).typeNumber())
                     .map(EntityType::forNumber)
                     .collect(Collectors.toSet()));
             if (builder.getFilterOutClassesList().contains(EntityType.UNKNOWN)) {

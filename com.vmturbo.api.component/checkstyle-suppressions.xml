@@ -91,7 +91,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]service[/\\]PoliciesService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]service[/\\]ProbesService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]service[/\\]ReportCgiServlet.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]service[/\\]ReportsService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]service[/\\]ReservationsService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]service[/\\]ReservedInstancesService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]service[/\\]RolesService.java" />

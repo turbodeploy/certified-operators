@@ -697,6 +697,16 @@ message ActionInfo {
     }
 }
 
+// Used to specify the user executing an external action such as PMC suspend action.
+// Only to be used for audit purposes. Should never use to provide Authorization.
+message UserDetails{
+    // Used to identify the username of the user triggering the action.
+    required string user_name = 1;
+
+    // Used to identify the uid of the user triggering the action.
+    required string user_id = 2;
+}
+
 message Action {
     // ID for the action.
     required int64 id = 1;
@@ -800,6 +810,11 @@ message Action {
 
     // Defines if actions is reversible.
     optional bool reversible = 10 [default = true];
+
+    // Specifies the user information, because an external action such as a PMC suspend action
+    // will not have a security context associated.
+    // Only to be used for audit purposes.
+    optional UserDetails user = 11;
 }
 
 // Auxiliary information for an action plan.

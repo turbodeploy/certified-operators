@@ -79,6 +79,15 @@ public abstract class Operation {
     private List<String> errors;
 
     /**
+     * List of ErrorDTO's for any errors that occurred with the operation
+     */
+    private List<ErrorDTO> errorsDTOList;
+
+    public List<ErrorDTO> getErrorsDTOList() {
+        return errorsDTOList;
+    }
+
+    /**
      * The timer used for timing the duration of validations.
      * Mark transient to avoid serialization of this field.
      */
@@ -110,6 +119,7 @@ public abstract class Operation {
         } else {
             this.durationTimer = null;
         }
+		this.errorsDTOList = new ArrayList<ErrorDTO>();
     }
 
     public long getId() {
@@ -223,6 +233,7 @@ public abstract class Operation {
      */
     @Nonnull
     public Operation addError(@Nonnull final ErrorDTO error) {
+        errorsDTOList.add(error);
         errors.add(humanReadableError(error));
         return this;
     }
@@ -238,6 +249,7 @@ public abstract class Operation {
      */
     @Nonnull
     public Operation addErrors(@Nonnull final List<ErrorDTO> errors) {
+        this.errorsDTOList.addAll(errors);
         this.errors.addAll(errors.stream()
                 .map(Operation::humanReadableError)
                 .collect(Collectors.toList())

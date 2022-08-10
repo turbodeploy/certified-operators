@@ -196,6 +196,31 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
     }
 
     /**
+     * Test to check function for provider type by {@link ApiEntityType#VIRTUAL_MACHINE_SPEC}.
+     */
+    @Test
+    public void testVirtualMachineSpecEntityTypeToGetTierFunction() {
+        final RelatedEntity computeTier = RelatedEntity.newBuilder()
+                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .setOid(7777L)
+                .build();
+        final ApiPartialEntity virtualMachineSpec = ApiPartialEntity.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_SPEC_VALUE)
+                .setOid(777777L)
+                .addProviders(computeTier)
+                .build();
+        Map<Long, ApiPartialEntity> entities = new HashMap<>();
+        String virtualMachineSpecEntityType = ApiEntityType.VIRTUAL_MACHINE_SPEC.apiStr();
+        entities.put(7777777L, virtualMachineSpec);
+        Map<Optional<Long>, Long> tierIdToNumEntities = entities.values().stream()
+                .collect(Collectors.groupingBy(CloudPlanNumEntitiesByTierSubQuery
+                        .ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(virtualMachineSpecEntityType),
+                        Collectors.counting()));
+        assertEquals(1, tierIdToNumEntities.size());
+        assertNull(tierIdToNumEntities.get(null));
+    }
+
+    /**
      * Tests get aggregated stats method for the CloudPlanNumEntitiesByTierSubQuery.
      *
      * @throws OperationFailedException If anything goes wrong during getting stats.

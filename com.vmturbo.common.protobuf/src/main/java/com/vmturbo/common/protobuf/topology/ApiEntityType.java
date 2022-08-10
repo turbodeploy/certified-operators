@@ -166,15 +166,19 @@ public enum  ApiEntityType {
      * important entity types for management and licensing purposes.
      */
     public static final Set<ApiEntityType> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(
-            ApiEntityType.VIRTUAL_MACHINE, ApiEntityType.DATABASE, ApiEntityType.DATABASE_SERVER);
+            ApiEntityType.DATABASE,
+            ApiEntityType.DATABASE_SERVER,
+            ApiEntityType.VIRTUAL_MACHINE,
+            ApiEntityType.VIRTUAL_MACHINE_SPEC);
 
     /**
      * For these entity types exist information about cost in cost component.
      */
     public static final ImmutableSet<String> ENTITY_TYPES_WITH_COST = ImmutableSet.of(
-            ApiEntityType.VIRTUAL_MACHINE.apiStr(),
             ApiEntityType.DATABASE.apiStr(),
             ApiEntityType.DATABASE_SERVER.apiStr(),
+            ApiEntityType.VIRTUAL_MACHINE.apiStr(),
+            ApiEntityType.VIRTUAL_MACHINE_SPEC.apiStr(),
             ApiEntityType.VIRTUAL_VOLUME.apiStr()
     );
 
@@ -196,6 +200,7 @@ public enum  ApiEntityType {
             ApiEntityType.LOAD_BALANCER,
             ApiEntityType.VIRTUAL_APPLICATION,
             ApiEntityType.VIRTUAL_MACHINE,
+            ApiEntityType.VIRTUAL_MACHINE_SPEC,
             ApiEntityType.VIRTUAL_VOLUME);
 
     /**

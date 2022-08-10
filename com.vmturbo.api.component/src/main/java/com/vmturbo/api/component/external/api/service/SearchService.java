@@ -23,7 +23,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -47,7 +46,6 @@ import org.apache.logging.log4j.util.Strings;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.PaginatedSearchRequest;
-import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
@@ -142,6 +140,10 @@ public class SearchService implements ISearchService {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private final int apiPaginationDefaultLimit;
+
+    private final int apiPaginationMaxLimit;
+
     private final RepositoryApi repositoryApi;
 
     private final MarketsService marketsService;
@@ -200,7 +202,9 @@ public class SearchService implements ISearchService {
                   @Nonnull final EntityAspectMapper entityAspectMapper,
                   @Nonnull final SearchFilterResolver searchFilterResolver,
                   @Nonnull final PriceIndexPopulator priceIndexPopulator,
-                  @Nonnull final ThinTargetCache thinTargetCache) {
+                  @Nonnull final ThinTargetCache thinTargetCache,
+                  @Nonnull final int apiPaginationDefaultLimit,
+                  @Nonnull final int apiPaginationMaxLimit ) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.marketsService = Objects.requireNonNull(marketsService);
         this.groupsService = Objects.requireNonNull(groupsService);
@@ -270,6 +274,9 @@ public class SearchService implements ISearchService {
                 .put(EntityFilterMapper.WORKLOAD_CONTROLLER_CONTAINER_PLATFORM_CLUSTER, (a, b, c) -> getContainerPlatformClusterOptions())
             .put(EntityFilterMapper.CONTAINER_POD_WORKLOAD_CONTROLLER_NAME, (a,b,c) -> getWorkloadControllerOptions())
                 .build();
+
+        this.apiPaginationDefaultLimit = apiPaginationDefaultLimit;
+        this.apiPaginationMaxLimit = apiPaginationMaxLimit;
     }
 
     @Override
@@ -343,55 +350,6 @@ public class SearchService implements ISearchService {
             default:
                 return nameQuery;
         }
-    }
-
-    private Stream<ServiceEntityApiDTO> queryByTypeAndStateAndName(
-                    @Nullable String nameQueryString, @Nullable List<String> types,
-                    @Nullable String state, @Nullable EnvironmentTypeEnum.EnvironmentType envType,
-                    @Nullable EntityDetailType entityDetailType,
-                    @Nullable QueryType queryType)
-                    throws ConversionException, InterruptedException{
-        // TODO Now, we only support one type of entities in the search
-        if (types == null || types.isEmpty()) {
-            throw new IllegalArgumentException("Type must be set for search result.");
-        }
-
-        final SearchParameters.Builder searchParamsBuilder =
-                        SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(types));
-
-        if (!StringUtils.isEmpty(nameQueryString)) {
-            if (queryType != null) {
-                searchParamsBuilder.addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                                SearchProtoUtil.nameFilterRegex(updatedNameQueryByQueryType(nameQueryString, queryType))));
-            } else {
-                // Without a queryType parameter, we fallback to existing logic for backward
-                // compatibility.
-                searchParamsBuilder.addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                                SearchProtoUtil.nameFilterRegex(nameQueryString)));
-            }
-        }
-
-        if (envType != null) {
-            searchParamsBuilder.addSearchFilter(
-                            SearchProtoUtil.searchFilterProperty(SearchProtoUtil.environmentTypeFilter(envType)));
-        }
-
-        if (!StringUtils.isEmpty(state)) {
-            searchParamsBuilder.addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                            SearchProtoUtil.stateFilter(state)));
-        }
-
-        SearchRequest searchRequest = repositoryApi.newSearchRequest(searchParamsBuilder.build());
-
-        if (EntityDetailType.aspects == entityDetailType) {
-            searchRequest.useAspectMapper(entityAspectMapper);
-        }
-
-        //TODO: OM-52167 Differentiate between EntityDetailType.compact and EntityDetailType.entity
-
-        return searchRequest
-                        .getSEList()
-                        .stream();
     }
 
     /**
@@ -471,8 +429,7 @@ public class SearchService implements ISearchService {
                                     ? Collections.EMPTY_SET : scopes.stream()
                         .map(Long::valueOf).collect(Collectors.toSet());
 
-        searchPaginationRequest = searchPaginationRequest != null ? searchPaginationRequest
-                        : new SearchPaginationRequest(null, null, true, null);
+        searchPaginationRequest = ensureSearchPaginationRequestExistsAndConformLimits(searchPaginationRequest);
 
         PaginatedSearchRequest paginatedSearchRequest = repositoryApi.newPaginatedSearch(searchQuery,
             scopeOids, searchPaginationRequest);
@@ -483,6 +440,27 @@ public class SearchService implements ISearchService {
         }
 
         return paginatedSearchRequest.getResponse();
+    }
+
+    /**
+     * Ensures that paginationRequest has limit that conforms to default/max limit in Search endpoint.
+     * @param searchPaginationRequest
+     * @return
+     * @throws InvalidOperationException
+     */
+    private SearchPaginationRequest ensureSearchPaginationRequestExistsAndConformLimits(SearchPaginationRequest searchPaginationRequest) throws InvalidOperationException {
+        if(Objects.isNull(searchPaginationRequest)){
+            return new SearchPaginationRequest(null, apiPaginationDefaultLimit, true, null);
+        }
+
+        // pagination can be provided with limit equal to null. See PaginationRequest class for details.
+        final int newLimit = searchPaginationRequest.hasLimit() ? Math.min(searchPaginationRequest.getLimit(), apiPaginationMaxLimit) : apiPaginationDefaultLimit;
+
+        String cursor = searchPaginationRequest.getCursor().isPresent() ? searchPaginationRequest.getCursor().get() : null;
+
+        return new SearchPaginationRequest(cursor,
+            newLimit, searchPaginationRequest.isAscending(),
+            searchPaginationRequest.getOrderBy().toString());
     }
 
     /**
@@ -531,7 +509,7 @@ public class SearchService implements ISearchService {
             // (regular, cluster, storage_cluster, etc.)
             return groupsService.getPaginatedGroupApiDTOs(
                 addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE, queryType),
-                paginationRequest, null, new HashSet<>(groupTypes), environmentType, null, scopes, true, groupOrigin);
+                ensureSearchPaginationRequestExistsAndConformLimits(paginationRequest), null, new HashSet<>(groupTypes), environmentType, null, scopes, true, groupOrigin);
         } else if (types != null) {
             final Set<String> typesHashSet = new HashSet<>(types);
             // Check for a type that requires a query to a specific service, vs. Repository search.
@@ -540,7 +518,8 @@ public class SearchService implements ISearchService {
                 // the "includeAllGroupClasses" flag of the groupService.getPaginatedGroupApiDTOs call.
                 return groupsService.getPaginatedGroupApiDTOs(
                     addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE, queryType),
-                    paginationRequest, null, null, environmentType, null, scopes, true, groupOrigin);
+                    ensureSearchPaginationRequestExistsAndConformLimits(paginationRequest),
+                    null, null, environmentType, null, scopes, true, groupOrigin);
             } else if (Sets.intersection(typesHashSet,
                     GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.keySet()).size() > 0) {
                 for (Map.Entry<String, GroupType> entry : GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.entrySet()) {
@@ -565,7 +544,7 @@ public class SearchService implements ISearchService {
                     Collections.singletonList(createCloudProbeMatcher(probeTypes));
                 return businessAccountRetriever.getBusinessAccountsInScope(scopes,
                             addNameMatcher(query, cloudfilter,
-                                EntityFilterMapper.ACCOUNT_NAME, queryType), paginationRequest);
+                                EntityFilterMapper.ACCOUNT_NAME, queryType), ensureSearchPaginationRequestExistsAndConformLimits(paginationRequest));
             } else if (typesHashSet.contains(StringConstants.BILLING_FAMILY)) {
                 return paginationRequest.allResultsResponse(
                     Lists.newArrayList(businessAccountRetriever.getBillingFamilies()));
@@ -606,120 +585,11 @@ public class SearchService implements ISearchService {
                     OperationFailedException {
         //Check to see if pagination is requested,
         //else use legacy code path with no pagination for backwards compatibility.
-        if (paginationRequest.hasLimit() || paginationRequest.getCursor().isPresent()) {
-            return searchServiceEntitiesPaginated(query, types, scopes, state, environmentType,
-                                                  entityDetailType, paginationRequest, probeTypes,
-                                                  queryType);
-        }
-        return searchServiceEntitiesNonPaginated(query, types, scopes, state, environmentType,
+        return searchServiceEntitiesPaginated(query, types, scopes, state, environmentType,
                                                   entityDetailType, paginationRequest, probeTypes,
                                                   queryType);
 
-    }
 
-    /**
-     * Search for all service entities.
-     * @param query matching name pattern
-     * @param types Object types
-     * @param scopes scope to focus search
-     * @param state service entity state
-     * @param environmentType service entity environment type
-     * @param entityDetailType level of details of the response
-     * @param paginationRequest the {@link SearchPaginationRequest}
-     * @param probeTypes The probe types used to filter results
-     * @param queryType Pattern matching strategy to be used for stringToMatch
-     * @return paginationedResponse
-     * @throws ConversionException If there is an issue with entity conversion.
-     * @throws InterruptedException If there is an issue waiting for a dependent operation.
-     * @throws OperationFailedException Issue expanding groups
-     */
-    private SearchPaginationResponse searchServiceEntitiesNonPaginated(String query,
-                                                                       List<String> types,
-                                                                       List<String> scopes,
-                                                                       String state,
-                                                                       @Nullable EnvironmentType environmentType,
-                                                                       @Nullable EntityDetailType entityDetailType,
-                                                                       @Nonnull SearchPaginationRequest paginationRequest,
-                                                                       List<String> probeTypes,
-                                                                       @Nullable QueryType queryType)
-                    throws InterruptedException, ConversionException, OperationFailedException {
-        final EnvironmentTypeEnum.EnvironmentType environmentTypeXl =
-                        EnvironmentTypeMapper.fromApiToXL(environmentType);
-
-        final Stream<ServiceEntityApiDTO> entitiesResult;
-        // Patrick: I am scoping this clause of the request on the results side rather than on the
-        // source side (in the search service), because this search is still using REST, and
-        // converting this method to GRPC looks like it will take more time than I have right now.
-        // TODO: Convert the entity search to use GRPC instead of REST.
-        final Predicate<ServiceEntityApiDTO> scopeFilter = getScopePredicate();
-
-        if (scopes == null || scopes.size() <= 0 ||
-            (scopes.get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR))) {
-            // Search with no scope requested; or a single scope == "Market"; then search in live Market
-            entitiesResult =
-                            queryByTypeAndStateAndName(query, types, state, environmentTypeXl, entityDetailType, queryType)
-                                            .filter(scopeFilter);
-        } else {
-            // expand to include the supplychain for the 'scopes', some of which may be groups or
-            // clusters, and derive a list of ServiceEntities
-            Set<String> scopeServiceEntityIds = groupsService.expandUuids(Sets.newHashSet(scopes),
-                                                                          types, environmentType).stream().map(String::valueOf).collect(Collectors.toSet());
-
-            final boolean isGlobalScope = ApiUtils.containsGlobalScope(
-                            Sets.newHashSet(scopes), groupExpander);
-
-            // Check if the scope is not global and the set of scope ids is empty.
-            // This means there is an invalid scope.
-            if (!isGlobalScope && scopeServiceEntityIds.isEmpty()) {
-                // checking if the scope is valid
-                final Set<Grouping> scopeGroups = groupExpander.getGroups(scopes);
-                final Stream<ApiPartialEntity> scopeEntities =
-                    repositoryApi.entitiesRequest(
-                            scopes.stream().map(Long::parseLong).collect(Collectors.toSet()))
-                        .getEntities();
-                if (scopeGroups.isEmpty() && scopeEntities.count() == 0) {
-                    throw new IllegalArgumentException("Invalid scope specified. There are no " +
-                        "entities or groups related to the scope.");
-                }
-                // returning an empty response
-                return paginationRequest.allResultsResponse(Collections.emptyList());
-            }
-
-            // TODO (roman, June 17 2019: We should probably include the IDs in the query, unless
-            // there are a lot of IDs.
-
-            // Fetch service entities matching the given specs
-            // Restrict entities to those whose IDs are in the expanded 'scopeEntities'
-            entitiesResult = queryByTypeAndStateAndName(query, types, state,
-                                                        environmentTypeXl, entityDetailType, queryType)
-                            .filter(scopeFilter)
-                            .filter(se -> scopeServiceEntityIds.contains(se.getUuid()));
-        }
-
-        // set discoveredBy, filter by probe types and environment type
-        List<BaseApiDTO> result = entitiesResult
-                        .filter(se -> CollectionUtils.isEmpty(probeTypes) ||
-                                      probeTypes.contains(se.getDiscoveredBy().getType()))
-                        .collect(Collectors.toList());
-
-        return paginationRequest.allResultsResponse(result);
-    }
-
-    /**
-     * Create a scope predicate taking into account whether the entity ID and entity type are included within the user's scope.
-     * 
-     * @return predicate evaluating as true if an entity falls within a user's scope, false otherwise
-     */
-    private Predicate<ServiceEntityApiDTO> getScopePredicate() {
-        if (!userSessionContext.isUserScoped()) {
-            return entity -> true;
-        }
-        return entity -> {
-            final ApiEntityType entityType = ApiEntityType.fromString(entity.getClassName());
-            final long oid = Long.parseLong(entity.getUuid());
-            return userSessionContext.isEntityTypeAllowedForUser(entityType) &&
-                userSessionContext.getUserAccessScope().contains(oid);
-        };
     }
 
     /**
@@ -834,13 +704,13 @@ public class SearchService implements ISearchService {
             String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(className);
             return groupsService.getPaginatedGroupApiDTOs(
                     addNameMatcher(nameQueryString, inputDTO.getCriteriaList(), filter,
-                            queryType), paginationRequest, groupType, groupTypes,
+                            queryType),ensureSearchPaginationRequestExistsAndConformLimits(paginationRequest), groupType, groupTypes,
                     inputDTO.getEnvironmentType(), null, inputDTO.getScope(), false,
                     inputDTO.getGroupOrigin());
         } else if (BUSINESS_ACCOUNT.equals(className)) {
             return businessAccountRetriever.getBusinessAccountsInScope(inputDTO.getScope(),
                             addNameMatcher(nameQueryString, inputDTO.getCriteriaList(),
-                                EntityFilterMapper.ACCOUNT_NAME, queryType), paginationRequest);
+                                EntityFilterMapper.ACCOUNT_NAME, queryType), ensureSearchPaginationRequestExistsAndConformLimits(paginationRequest));
         } else if (WORKLOAD.equals(className)) {
             List<String> scope = inputDTO.getScope();
 
@@ -862,7 +732,7 @@ public class SearchService implements ISearchService {
             if (!topologyEntityDTO.isPresent() || ((!StringUtils.isEmpty(nameQueryString) || (
                     inputDTO != null && !inputDTO.getCriteriaList().isEmpty())))) {
                 // if this is not business account try regular search
-                return searchEntitiesByParameters(inputDTO, nameQueryString, paginationRequest, aspectNames, queryType);
+                return searchEntitiesByParameters(inputDTO, nameQueryString, ensureSearchPaginationRequestExistsAndConformLimits(paginationRequest), aspectNames, queryType);
             }
 
             Set<Long> entitiesOid = topologyEntityDTO.get().getConnectedEntityListList()
@@ -884,7 +754,7 @@ public class SearchService implements ISearchService {
             return paginationRequest.allResultsResponse(apiResults);
         } else {
             // this isn't a group search after all -- use a generic search method instead.
-            return searchEntitiesByParameters(inputDTO, nameQueryString, paginationRequest, aspectNames, queryType);
+            return searchEntitiesByParameters(inputDTO, nameQueryString, ensureSearchPaginationRequestExistsAndConformLimits(paginationRequest), aspectNames, queryType);
         }
     }
 

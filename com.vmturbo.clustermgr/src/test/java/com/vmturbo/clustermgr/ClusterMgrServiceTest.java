@@ -34,7 +34,9 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Table;
 import com.orbitz.consul.model.kv.Value;
 
 import org.apache.logging.log4j.LogManager;
@@ -54,7 +56,11 @@ import org.springframework.test.context.web.WebAppConfiguration;
 
 import com.vmturbo.clustermgr.api.ComponentProperties;
 import com.vmturbo.clustermgr.api.HttpProxyConfig;
+import com.vmturbo.clustermgr.management.ComponentHealth;
 import com.vmturbo.clustermgr.management.ComponentRegistry;
+import com.vmturbo.clustermgr.management.RegisteredComponent;
+import com.vmturbo.common.protobuf.cluster.ComponentStatus.ComponentInfo;
+import com.vmturbo.common.protobuf.cluster.ComponentStatus.UriInfo;
 import com.vmturbo.components.common.OsCommandProcessRunner;
 
 /**
@@ -357,6 +363,40 @@ public class ClusterMgrServiceTest {
         verify(zipOutputStream).putNextEntry(argThat(new MatchesZipEntry(zipEntry)));
         verify(zipOutputStream, times(1)).write(new byte[]{anyByte()}, anyInt(), anyInt());
         verify(zipOutputStream).closeEntry();
+    }
+
+    /**
+     * XL has essential components type, if some component types
+     * are missing from registered components, they will be put to error message.
+     */
+    @Test
+    public void testCheckEssentialComponents() {
+        Table<String, String, RegisteredComponent> registeredComponents = HashBasedTable.create();
+        RegisteredComponent component = new RegisteredComponent(ComponentInfo.newBuilder()
+                .setUriInfo(UriInfo.newBuilder().setPort(123).setIpAddress("localhost"))
+                .build(), ComponentHealth.HEALTHY);
+        registeredComponents.put("action-orchestrator", "instance1", component);
+        registeredComponents.put("api", "instance1", component);
+        registeredComponents.put("auth", "instance1", component);
+        registeredComponents.put("cost", "instance1", component);
+        registeredComponents.put("group", "instance1", component);
+        registeredComponents.put("history", "instance1", component);
+        registeredComponents.put("market", "instance1", component);
+        registeredComponents.put("plan-orchestrator", "instance1", component);
+        registeredComponents.put("repository", "instance1", component);
+        registeredComponents.put("action-orchestrator", "instance1", component);
+        // intentionally not adding topology-processor component.
+        StringBuilder errorMessagesBuild = new StringBuilder();
+        clusterMgrService.checkEssentialComponentType(registeredComponents,
+                Optional.of(errorMessagesBuild));
+        // verify error message reports "topology-processor" component is missing
+        assertEquals("topology-processor", errorMessagesBuild.toString().trim());
+        registeredComponents.put("topology-processor", "instance1", component);
+        errorMessagesBuild = new StringBuilder();
+        clusterMgrService.checkEssentialComponentType(registeredComponents,
+                Optional.of(errorMessagesBuild));
+        // verify no error message if all essential components were registered
+        assertEquals(0, errorMessagesBuild.toString().trim().length());
     }
 
     /**

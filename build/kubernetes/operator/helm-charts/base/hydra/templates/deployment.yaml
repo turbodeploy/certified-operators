@@ -133,6 +133,7 @@ spec:
             - name: URLS_SELF_ISSUER
               value: {{ $issuer | quote }}
             {{- end }}
+            {{- if .Values.secret.enabled -}}
             - name: DSN
               valueFrom:
                 secretKeyRef:
@@ -148,6 +149,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "hydra.secretname" . }}
                   key: secretsCookie
+            {{- end }}
             - name: instance_id
               valueFrom:
                 fieldRef:

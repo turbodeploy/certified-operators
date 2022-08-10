@@ -550,11 +550,6 @@ public class ServiceConfig {
     }
 
     @Bean
-    public ReportsService reportsService() {
-        return new ReportsService();
-    }
-
-    @Bean
     public ReservationsService reservationsService() {
         return new ReservationsService(
                 communicationConfig.reservationServiceBlockingStub(),
@@ -637,7 +632,9 @@ public class ServiceConfig {
                 mapperConfig.entityAspectMapper(),
                 searchFilterResolver(),
                 communicationConfig.priceIndexPopulator(),
-                communicationConfig.thinTargetCache());
+                communicationConfig.thinTargetCache(),
+                apiPaginationDefaultLimit,
+                apiPaginationMaxLimit);
     }
 
     @Bean

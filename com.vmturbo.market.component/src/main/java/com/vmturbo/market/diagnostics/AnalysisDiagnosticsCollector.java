@@ -254,7 +254,8 @@ public class AnalysisDiagnosticsCollector {
         } finally {
             closeZipOutputStream(diagnosticZip);
             AnalysisDiagnosticsUtils.reduceNumberOfDiagsByFilePrefix(
-                    INITIAL_PLACEMENT_ZIP_LOCATION_PREFIX, numPlacementDiagsToRetain, fileSystem);
+                    INITIAL_PLACEMENT_ZIP_LOCATION_PREFIX, numPlacementDiagsToRetain, fileSystem,
+                    isEnabled());
             stopwatch.stop();
             logger.info("FindInitialPlacement: Completed dump of InitialPlacement diagnostics with timeStamp  {} in {} seconds",
                     timeStamp, stopwatch.elapsed(TimeUnit.SECONDS));

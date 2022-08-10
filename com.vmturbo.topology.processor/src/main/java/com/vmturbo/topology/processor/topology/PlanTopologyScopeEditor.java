@@ -111,7 +111,8 @@ public class PlanTopologyScopeEditor {
             EntityType.VIRTUAL_VOLUME,
             EntityType.AVAILABILITY_ZONE,
             EntityType.SERVICE_PROVIDER,
-            EntityType.APPLICATION_COMPONENT)
+            EntityType.APPLICATION_COMPONENT,
+            EntityType.VIRTUAL_MACHINE_SPEC)
             .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
@@ -126,7 +127,8 @@ public class PlanTopologyScopeEditor {
             EntityType.VIRTUAL_VOLUME,
             EntityType.AVAILABILITY_ZONE,
             EntityType.SERVICE_PROVIDER,
-            EntityType.APPLICATION_COMPONENT)
+            EntityType.APPLICATION_COMPONENT,
+            EntityType.VIRTUAL_MACHINE_SPEC)
             .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
     /**

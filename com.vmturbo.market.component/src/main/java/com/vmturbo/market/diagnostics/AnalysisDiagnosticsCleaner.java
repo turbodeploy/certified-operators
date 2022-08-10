@@ -70,7 +70,7 @@ public class AnalysisDiagnosticsCleaner implements IDiagnosticsCleaner {
         }
         // Keep only numRealTimeAnalysisDiagsToRetain real time diags around
         AnalysisDiagnosticsUtils.reduceNumberOfDiagsByFilePrefix(getRealTimeAnalysisDiagsStart(),
-                numRealTimeAnalysisDiagsToRetain, fileSystem);
+                numRealTimeAnalysisDiagsToRetain, fileSystem, AnalysisDiagnosticsCollector.isEnabled());
     }
 
     private String getRealTimeAnalysisDiagsStart() {

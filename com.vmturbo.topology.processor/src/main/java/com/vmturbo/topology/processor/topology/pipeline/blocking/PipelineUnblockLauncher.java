@@ -19,7 +19,12 @@ public class PipelineUnblockLauncher implements RequiresDataInitialization {
 
     private final TargetStore targetStore;
 
-    PipelineUnblockLauncher(@Nonnull final PipelineUnblock pipelineUnblock,
+    /**
+     * Constructs a new PipelineUnblockLauncher instance with the given PipelineUnblock instance.
+     * @param pipelineUnblock The PipelineUnblock to use
+     * @param targetStore The target store
+     */
+    public PipelineUnblockLauncher(@Nonnull final PipelineUnblock pipelineUnblock,
             @Nonnull final TargetStore targetStore) {
         this.pipelineUnblock = pipelineUnblock;
         this.targetStore = targetStore;

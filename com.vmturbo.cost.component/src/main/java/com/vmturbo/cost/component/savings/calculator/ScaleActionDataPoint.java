@@ -1,6 +1,10 @@
 package com.vmturbo.cost.component.savings.calculator;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.immutables.value.Value;
+import org.immutables.value.Value.Default;
 
 /**
  * Immutable object definition for holding values to be used for savings calculations in a data
@@ -55,6 +59,16 @@ public interface ScaleActionDataPoint extends ActionDataPoint {
      * @return The on-demand price of the destination tier.
      */
     double getDestinationOnDemandCost();
+
+    /**
+     * Get list of commodity resizes.
+     *
+     * @return commodity resizes
+     */
+    @Default
+    default List<CommodityResize> getCommodityResizes() {
+        return new ArrayList<>();
+    }
 
     /**
      * Creates a new builder.

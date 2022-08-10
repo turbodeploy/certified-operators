@@ -232,10 +232,6 @@ actionscript:
   enabled: false
 actionstream-kafka:
   enabled: false
-acims:
-  enabled: false
-apic:
-  enabled: false
 appdynamics:
   enabled: false
 appinsights:
@@ -278,8 +274,6 @@ instana:
   enabled: false
 intersight:
   enabled: false
-istio:
-  enabled: false
 mssql:
   enabled: false
 mysql:
@@ -291,8 +285,6 @@ tomcat:
 jvm:
   enabled: false
 netapp:
-  enabled: false
-netflow:
   enabled: false
 newrelic:
   enabled: false
@@ -319,8 +311,6 @@ servicenow:
 snmp:
   enabled: false
 terraform:
-  enabled: false
-tetration:
   enabled: false
 ucs:
   enabled: false

@@ -49,6 +49,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Unit tests for AtomicResizeBuilder.
  */
 public class AtomicResizeBuilderTest {
+    private static final long DEFAULT_BLOB_SIZE = 64000L;
+
     private AtomicActionSpecsCache atomicActionSpecsCache;
 
     protected AtomicActionEntity aggregateEntity1;
@@ -396,11 +398,6 @@ public class AtomicResizeBuilderTest {
         assertEquals(deDupEntity1.getEntity(), resize.getResizesList().get(0).getTarget());
         assertEquals(vcpuType, resize.getResizesList().get(0).getCommodityType());
 
-        List<ActionEntity> originalTargets = resize.getResizesList().get(0).getSourceEntitiesList();
-        List<ActionEntity> expectedOriginalTargets = Arrays.asList(container1, container2);
-
-        assertEquals(expectedOriginalTargets, originalTargets);
-
         assertTrue(atomicAction.getExplanation().hasAtomicResize());
         AtomicResizeExplanation exp = atomicAction.getExplanation().getAtomicResize();
         assertEquals(1, exp.getPerEntityExplanationCount());
@@ -489,7 +486,6 @@ public class AtomicResizeBuilderTest {
         // target and commodity of the de-duplicated resize
         ActionDTO.ResizeInfo deDupedResizeInfo = nonExecutableActionResize.getResizesList().get(0);
         assertEquals(deDupEntity1.getEntity(), deDupedResizeInfo.getTarget());
-        assertEquals(Arrays.asList(container1), deDupedResizeInfo.getSourceEntitiesList());
         assertEquals(CommodityType.VCPU.getNumber(), deDupedResizeInfo.getCommodityType().getType());
 
         // Executable atomic action
@@ -505,7 +501,6 @@ public class AtomicResizeBuilderTest {
         // target and commodity of the de-duplicated resize
         ActionDTO.ResizeInfo aggregatedResizeInfo = executableActionResize.getResizesList().get(0);
         assertEquals(deDupEntity1.getEntity(), aggregatedResizeInfo.getTarget());
-        assertEquals(Arrays.asList(container1), aggregatedResizeInfo.getSourceEntitiesList());
         assertEquals(CommodityType.VMEM.getNumber(), aggregatedResizeInfo.getCommodityType().getType());
     }
 
@@ -542,8 +537,6 @@ public class AtomicResizeBuilderTest {
         ActionDTO.ResizeInfo aggregatedResizeInfo = executableActionResize.getResizesList().get(0);
         assertEquals(deDupEntity2.getEntity(), aggregatedResizeInfo.getTarget());
         assertEquals(vcpuType, aggregatedResizeInfo.getCommodityType());
-
-        assertEquals(Arrays.asList(container2), aggregatedResizeInfo.getSourceEntitiesList());
 
         // Non-Executable atomic action is present for the 2nd deDupEntity1
         assertTrue( atomicActionResult.get().nonExecutableAtomicAction().isPresent());
@@ -692,7 +685,6 @@ public class AtomicResizeBuilderTest {
         // target and commodity of the de-duplicated resize
         ActionDTO.ResizeInfo deDupedResizeInfo = nonExecutableActionResize.getResizesList().get(0);
         assertEquals(deDupEntity1.getEntity(), deDupedResizeInfo.getTarget());
-        assertEquals(Arrays.asList(container1, container2), deDupedResizeInfo.getSourceEntitiesList());
         assertEquals(CommodityType.VCPU.getNumber(), deDupedResizeInfo.getCommodityType().getType());
 
         // Executable atomic action for the de-duplication target with executable resizes
@@ -1246,5 +1238,44 @@ public class AtomicResizeBuilderTest {
         MarketRelatedAction ra = atomicActionResult.relatedActions().get(0);
         assertEquals(blockingEntity, ra.getActionEntity());
         assertEquals(blockingActionId, ra.getActionId());
+    }
+
+    /**
+     * Test that the size of an atomic action DTO is below the 64k limit of a database blob.
+     */
+    @Test
+    public void  testAtomicActionSize() {
+        AggregatedAction aggregatedAction = new AggregatedAction(ActionTypeCase.ATOMICRESIZE,
+                aggregateEntity1.getEntity(),
+                aggregateEntity1.getEntityName());
+        for (long l = 1;  l <= 4000; l++) {
+            ActionDTO.Action resize = createResizeAction(l, l, 40, CommodityType.VCPU);
+
+            com.vmturbo.action.orchestrator.action.Action view
+                    = Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize, 1));
+            when(view.getMode()).thenReturn(ActionMode.MANUAL);
+            aggregatedAction.addAction(resize, Optional.of(deDupEntity1));
+            aggregatedAction.updateActionView(resize.getId(), view);
+        }
+
+        for (long l = 5001;  l <= 9000; l++) {
+            ActionDTO.Action resize = createResizeAction(l, l, 40, CommodityType.VMEM);
+
+            com.vmturbo.action.orchestrator.action.Action view
+                    = Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize, 1));
+            when(view.getMode()).thenReturn(ActionMode.MANUAL);
+            aggregatedAction.addAction(resize, Optional.of(deDupEntity1));
+            aggregatedAction.updateActionView(resize.getId(), view);
+        }
+
+        AtomicResizeBuilder actionBuilder = new AtomicResizeBuilder(aggregatedAction);
+        Optional<AtomicActionResult> atomicActionResult = actionBuilder.build();
+
+        // Executable atomic action
+        assertTrue( atomicActionResult.get().atomicAction().isPresent());
+        Action atomicAction = atomicActionResult.get().atomicAction().get();
+        assertTrue(atomicAction.getInfo().hasAtomicResize());
+
+        assertTrue(atomicAction.toByteArray().length < DEFAULT_BLOB_SIZE);
     }
 }

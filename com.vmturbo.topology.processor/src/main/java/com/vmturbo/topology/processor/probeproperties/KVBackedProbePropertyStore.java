@@ -2,6 +2,8 @@ package com.vmturbo.topology.processor.probeproperties;
 
 import java.util.AbstractMap;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -71,6 +73,10 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
     private final KeyValueStore kvStore;
     private final GlobalProbePropertiesSettingsLoader globalPropertiesLoader;
 
+    // in-memory cache of the probe and target specific properties backed by consul store
+    private final Map<Long, Map<String, String>> probeSpecificProperties = new HashMap<>();
+    private final Map<Long, Map<String, String>> targetSpecificProperties = new HashMap<>();
+
     /**
      * Create a probe property store.  Access to a probe store and a target store is given, so that
      * it is possible to make sanity checks (existence of probes and targets, correct probe / target
@@ -93,37 +99,68 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
     }
 
     @Override
+    public void initialize() throws InitializationException {
+        // initialize probe specific properties
+        initializeProbeProperties(ProbeStore.PROBE_KV_STORE_PREFIX, probeSpecificProperties);
+        // initialize target specific properties
+        initializeProbeProperties(TargetStore.TARGET_KV_STORE_PREFIX, targetSpecificProperties);
+    }
+
+    /**
+     * Initialize the in-memory properties map based on records in consul. The key from consul
+     * looks like "probes/74304626914496/probeproperties/propertyName" or
+     * "targets/74304626914497/probeproperties/propertyName". We parse the key, extract the
+     * propertyName and put it in the map.
+     *
+     * @param prefix the prefix used to parse the consul key
+     * @param properties the in-memory map to update
+     */
+    private synchronized void initializeProbeProperties(String prefix,
+            Map<Long, Map<String, String>> properties) {
+        properties.clear();
+        final Map<String, String> allKeyValues = kvStore.getByPrefix(prefix);
+        allKeyValues.forEach((key, propertyValue) -> {
+            int propertyIndex = key.indexOf(PROBE_PROPERTY_PREFIX);
+            if (propertyIndex != -1) {
+                String idStr = key.substring(prefix.length(), propertyIndex - 1);
+                String propertyName = key.substring(propertyIndex + PROBE_PROPERTY_PREFIX.length());
+                try {
+                    properties.computeIfAbsent(Long.valueOf(idStr), k -> new HashMap<>())
+                            .put(propertyName, propertyValue);
+                } catch (NumberFormatException e) {
+                    logger.error("Invalid {} id: {}", prefix, idStr);
+                }
+            }
+        });
+    }
+
+    @Override
+    public int priority() {
+        // initialize after TargetStore and ProbeStore
+        return Math.min(targetStore.priority(), probeStore.priority()) - 1;
+    }
+
+    @Override
     @Nonnull
     public synchronized Stream<Entry<ProbePropertyKey, String>> getAllProbeProperties() {
         final Stream.Builder<Entry<ProbePropertyKey, String>> result = Stream.builder();
+        // fetch all available probe properties
+        probeSpecificProperties.forEach((probeId, properties) -> {
+            properties.forEach((key, value) -> {
+                result.accept(new AbstractMap.SimpleImmutableEntry<>(
+                        new ProbePropertyKey(probeId, key), value));
+            });
+        });
 
-        // for any probe, fetch probe properties
-        for (long probeId : probeStore.getProbes().keySet()) {
-            final String prefix = probeSpecific(probeId);
-            final Map<String, String> probePropertiesAsNameValuePairs = kvStore.getByPrefix(prefix);
-            for (Entry<String, String> e : probePropertiesAsNameValuePairs.entrySet()) {
-                result.accept(
-                    new AbstractMap.SimpleImmutableEntry<>(
-                        new ProbePropertyKey(probeId, e.getKey().substring(prefix.length())),
-                        e.getValue()));
-            }
-        }
-
-        // for any target, fetch probe properties
-        for (Target target : targetStore.getAll()) {
-            final String prefix = targetSpecific(target.getId());
-            final Map<String, String> probePropertiesAsNameValuePairs = kvStore.getByPrefix(prefix);
-            for (Entry<String, String> e : probePropertiesAsNameValuePairs.entrySet()) {
-                result.accept(
-                    new AbstractMap.SimpleImmutableEntry<>(
-                        new ProbePropertyKey(
-                            target.getProbeId(),
-                            target.getId(),
-                            e.getKey().substring(prefix.length())),
-                        e.getValue()));
-            }
-        }
-
+        // fetch all available target properties
+        targetSpecificProperties.forEach((targetId, properties) -> {
+            targetStore.getTarget(targetId).ifPresent(target -> {
+                properties.forEach((key, value) -> {
+                    result.accept(new AbstractMap.SimpleImmutableEntry<>(
+                            new ProbePropertyKey(target.getProbeId(), targetId, key), value));
+                });
+            });
+        });
         return result.build();
     }
 
@@ -132,8 +169,8 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
     public synchronized Stream<Entry<String, String>> getProbeSpecificProbeProperties(long probeId)
             throws ProbeException {
         validateProbeId(probeId);
-        final String prefix = probeSpecific(probeId);
-        return removePrefixFromMapKeys(kvStore.getByPrefix(prefix), prefix.length());
+        return probeSpecificProperties.getOrDefault(probeId, Collections.emptyMap()).entrySet().stream()
+                .map(entry -> new AbstractMap.SimpleImmutableEntry<>(entry.getKey(), entry.getValue()));
     }
 
     @Override
@@ -143,16 +180,22 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
             long targetId) throws ProbeException, TargetStoreException {
         validateProbeId(probeId);
         validateTargetId(probeId, targetId);
-        final String prefix = targetSpecific(targetId);
-        return removePrefixFromMapKeys(kvStore.getByPrefix(prefix), prefix.length());
+        return targetSpecificProperties.getOrDefault(targetId, Collections.emptyMap()).entrySet().stream()
+                .map(entry -> new AbstractMap.SimpleImmutableEntry<>(entry.getKey(), entry.getValue()));
     }
 
     @Override
     @Nonnull
-    public synchronized Optional<String> getProbeProperty(@Nonnull ProbePropertyKey key)
+    public synchronized Optional<String> getProbeProperty(@Nonnull ProbePropertyKey probePropertyKey)
             throws ProbeException, TargetStoreException {
-        validateIdsInPropertyKey(Objects.requireNonNull(key));
-        return kvStore.get(convertProbePropertyKeyToKVStoreKey(key));
+        validateIdsInPropertyKey(Objects.requireNonNull(probePropertyKey));
+        final Map<String, String> map;
+        if (probePropertyKey.isTargetSpecific()) {
+            map = targetSpecificProperties.get(probePropertyKey.getTargetId().get());
+        } else {
+            map = probeSpecificProperties.get(probePropertyKey.getProbeId());
+        }
+        return map == null ? Optional.empty() : Optional.ofNullable(map.get(probePropertyKey.getName()));
     }
 
     @Override
@@ -164,11 +207,14 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
                 getProbeSpecificProbeProperties(probeId).map(Entry::getKey).collect(Collectors.toList())) {
             kvStore.removeKeysWithPrefix(probeSpecific(probeId, name));
         }
+        probeSpecificProperties.remove(probeId);
+
 
         // put the new probe properties under this probe
         for (Entry<String, String> nameValue : Objects.requireNonNull(newProbeProperties).entrySet()) {
             kvStore.put(probeSpecific(probeId, nameValue.getKey()), nameValue.getValue());
         }
+        probeSpecificProperties.put(probeId, newProbeProperties);
     }
 
     @Override
@@ -242,11 +288,14 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
                     .collect(Collectors.toList())) {
             kvStore.removeKeysWithPrefix(targetSpecific(targetId, name));
         }
+        targetSpecificProperties.remove(targetId);
+
 
         // put the new probe properties under this target
         for (Entry<String, String> nameValue : Objects.requireNonNull(newProbeProperties).entrySet()) {
             kvStore.put(targetSpecific(targetId, nameValue.getKey()), nameValue.getValue());
         }
+        targetSpecificProperties.put(targetId, newProbeProperties);
     }
 
     @Override
@@ -254,6 +303,13 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
             throws ProbeException, TargetStoreException {
         validateIdsInPropertyKey(Objects.requireNonNull(key));
         kvStore.put(convertProbePropertyKeyToKVStoreKey(key), Objects.requireNonNull(value));
+        if (key.isTargetSpecific()) {
+            targetSpecificProperties.computeIfAbsent(key.getTargetId().get(), k -> new HashMap<>())
+                    .put(key.getName(), value);
+        } else {
+            probeSpecificProperties.computeIfAbsent(key.getProbeId(), k -> new HashMap<>())
+                    .put(key.getName(), value);
+        }
     }
 
     @Override
@@ -261,10 +317,18 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
             throws ProbeException, TargetStoreException {
         validateIdsInPropertyKey(Objects.requireNonNull(key));
         final String kvStoreKey = convertProbePropertyKeyToKVStoreKey(key);
-        if (!kvStore.containsKey(kvStoreKey)) {
+
+        final Map<String, String> map;
+        if (key.isTargetSpecific()) {
+            map = targetSpecificProperties.get(key.getTargetId().get());
+        } else {
+            map = probeSpecificProperties.get(key.getProbeId());
+        }
+        if (map == null || !map.containsKey(key.getName())) {
             throw new ProbeException("Probe property " + key.toString() + " does not exist");
         }
         kvStore.removeKeysWithPrefix(kvStoreKey);
+        map.remove(key.getName());
     }
 
     @Override

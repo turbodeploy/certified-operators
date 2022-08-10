@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionStorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVolumeInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -54,6 +55,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -257,6 +259,23 @@ public final class TopologyDTOUtil {
     public static boolean isCloudMigrationPlan(@Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
         return isPlan(topologyInfo) && PlanProjectType.CLOUD_MIGRATION.name().equals(
                 topologyInfo.getPlanInfo().getPlanType());
+    }
+
+    /**
+     * Determines whether the topology described by a {@link TopologyDTO.TopologyInfo}
+     * is generated for a hardware refresh plan.
+     *
+     * @param topologyInfo The {@link TopologyDTO.TopologyInfo} describing a topology.
+     * @return true if the plan is hardware refresh
+     */
+    public static boolean isHardwareRefreshPlan(@Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
+        if (topologyInfo == null) {
+            return false;
+        }
+        PlanTopologyInfo planInfo = topologyInfo.getPlanInfo();
+        return isPlan(topologyInfo)
+                && PlanProjectType.USER.equals(planInfo.getPlanProjectType())
+                && planInfo.getPlanType().equals(StringConstants.RECONFIGURE_HARDWARE_PLAN);
     }
 
     /**

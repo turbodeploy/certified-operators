@@ -338,9 +338,23 @@ public class TargetHealthRetriever {
             targetHealthBuilder.addAllErrorTypeInfo(discoveryFailure.getErrorTypeInfos())
                     .setConsecutiveFailureCount(discoveryFailure.getFailsCount());
         }
-        return targetHealthBuilder.setHealthState(HealthState.NORMAL)
-                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
-                .build();
+
+        Optional<com.vmturbo.platform.common.dto.Discovery.ErrorDTO> dto = lastDiscovery.getErrorsDTOList().stream()
+                .filter(errorDTO -> errorDTO.getSeverity() == com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity.WARNING)
+                .findFirst();
+
+        if (dto.isPresent()) {
+            return targetHealthBuilder.setHealthState(HealthState.MAJOR)
+                    .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                    .addErrorTypeInfo(ErrorTypeInfo.newBuilder().setOtherErrorType(ErrorTypeInfo.OtherErrorType.newBuilder().build()))
+                    .setMessageText("Discovery partially successful: MAJOR: " + dto.get().getDescription())
+                    .setTimeOfCheck(System.currentTimeMillis())
+                    .build();
+        } else {
+            return targetHealthBuilder.setHealthState(HealthState.NORMAL)
+                    .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                    .build();
+        }
     }
 
     /**
@@ -437,7 +451,7 @@ public class TargetHealthRetriever {
                     .setLastSuccessfulIncrementalDiscoveryCompletionTime(
                             lastSuccessfulIncrementalDiscoveryTime.getSecond());
         }
-        return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
+        return targetHealthBuilder.setHealthState(HealthState.MAJOR)
                 .setSubcategory(TargetHealthSubCategory.DELAYED_DATA)
                 .addErrorTypeInfo(ErrorTypeInfo.newBuilder().setDelayedDataErrorType(
                         DelayedDataErrorType.getDefaultInstance()).build())
@@ -457,21 +471,14 @@ public class TargetHealthRetriever {
     private DiscoveryTimingStatus checkForDelayedData(Target target) {
         long fullRediscoveryThreshold = delayedDataThresholdMultiplier
                         * getRediscoveryInterval(target, DiscoveryType.FULL) * 1000;
-        long incrementalRediscoveryThreshold = delayedDataThresholdMultiplier
-                        * getRediscoveryInterval(target, DiscoveryType.INCREMENTAL) * 1000;
         long currentInstant = System.currentTimeMillis();
 
         Pair<Long, Long> lastSuccessfulDiscoveryTime = targetStatusTracker
                         .getLastSuccessfulDiscoveryTime(target.getId());
-        Pair<Long, Long> lastSuccessfulIncrementalDiscoveryTime = targetStatusTracker
-                        .getLastSuccessfulIncrementalDiscoveryTime(target.getId());
         if (checkLastRediscoveryTime(lastSuccessfulDiscoveryTime, currentInstant, fullRediscoveryThreshold)) {
             return DiscoveryTimingStatus.FULL_DISCOVERY_DELAYED;
         }
-        if ((checkLastRediscoveryTime(lastSuccessfulIncrementalDiscoveryTime,
-                currentInstant, incrementalRediscoveryThreshold))) {
-            return DiscoveryTimingStatus.INCREMENTAL_DISCOVERY_DELAYED;
-        }
+        //TODO: optimize incremental delayed data logic
         return DiscoveryTimingStatus.DISCOVERY_NOT_DELAYED;
     }
 

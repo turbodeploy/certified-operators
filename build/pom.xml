@@ -10,26 +10,26 @@
     <packaging>pom</packaging>
 
     <properties>
-        <revision>8.6.1-SNAPSHOT</revision>
-        <market.version>4.6.1-SNAPSHOT</market.version>
+        <revision>8.6.2-SNAPSHOT</revision>
+        <market.version>4.6.2-SNAPSHOT</market.version>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
-        <vmturbo.mt.branch.version>8.6.1-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>8.6.2-SNAPSHOT</vmturbo.mt.branch.version>
 
         <!-- Version from the APM PRobes Repository (Newrelic, AppInsights) -->
-        <apm.probes.branch.version>8.6.1-SNAPSHOT</apm.probes.branch.version>
+        <apm.probes.branch.version>8.6.2-SNAPSHOT</apm.probes.branch.version>
 
         <!-- MT Version com.vmturbo.ux -->
-        <ux.mt.branch.version>8.6.1-SNAPSHOT</ux.mt.branch.version>
+        <ux.mt.branch.version>8.6.2-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.3.22-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.3.29-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
-        <cpu.capacity.version>1.5.4</cpu.capacity.version>
+        <cpu.capacity.version>1.5.5</cpu.capacity.version>
 
         <checkstyle.version>9.3</checkstyle.version>
 
@@ -39,7 +39,8 @@
         <spring.version>5.3.20</spring.version>
         <spring.retry.version>1.2.4.RELEASE</spring.retry.version>
         <spring.security.version>5.5.8</spring.security.version>
-        <spring.session.jdbc.version>2.5.0</spring.session.jdbc.version>
+        <!-- Upgraded to fix CVE error. See bug OM-86833-->
+        <spring.session.jdbc.version>2.7.0</spring.session.jdbc.version>
         <guava.version>31.1-jre</guava.version>
         <units.of.measure.version>1.0.2</units.of.measure.version>
 
@@ -191,6 +192,12 @@
         The dependency below is used only to enforce a specific version that
         does not suffer from a vulnerability. See bug OM-59181 -->
         <commons-beanutils.version>1.9.4</commons-beanutils.version>
+
+        <!-- The jaeger client dependency is bringing a dependency on
+        okhttp-4.9.0.jar  which is affected by a security vulnerability.
+        The dependency below is used only to enforce a specific version that
+        does not suffer from a vulnerability. See bug OM-86833-->
+        <com.squareup.okhttp3.okhttp.version>4.9.3</com.squareup.okhttp3.okhttp.version>
 
         <!-- configure properties needed for timescaledb spin-up and/or access -->
         <!-- We do not configure a port property here, since must only appear if spin-up is disabled -->
@@ -459,8 +466,6 @@
                 <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
-                <module>../com.vmturbo.mediation.acims.component</module>
-                <module>../com.vmturbo.mediation.apic.component</module>
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
@@ -498,7 +503,6 @@
                 <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.gcp.project.component</module>
                 <module>../com.vmturbo.mediation.gcp.billing.component</module>
-                <module>../com.vmturbo.mediation.istio.component</module>
                 <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.intersight.server.component</module>
                 <module>../com.vmturbo.mediation.intersight.ucs.component</module>
@@ -512,7 +516,6 @@
                 <module>../com.vmturbo.mediation.webhook</module>
                 <module>../com.vmturbo.mediation.webhook.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
-                <module>../com.vmturbo.mediation.netflow.component</module>
                 <module>../com.vmturbo.mediation.newrelic.component</module>
                 <module>../com.vmturbo.mediation.nutanix.component</module>
                 <module>../com.vmturbo.mediation.appinsights.component</module>
@@ -525,7 +528,6 @@
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.terraform.component</module>
-                <module>../com.vmturbo.mediation.tetration.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
                 <module>../com.vmturbo.mediation.ucsdirector.component</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
@@ -929,30 +931,9 @@
         </profile>
 
         <profile>
-            <id>mediation-netflow</id>
-            <modules>
-                <module>../com.vmturbo.mediation.netflow.component</module>
-            </modules>
-        </profile>
-
-        <profile>
             <id>mediation-terraform</id>
             <modules>
                 <module>../com.vmturbo.mediation.terraform.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-tetration</id>
-            <modules>
-                <module>../com.vmturbo.mediation.tetration.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-istio</id>
-            <modules>
-                <module>../com.vmturbo.mediation.istio.component</module>
             </modules>
         </profile>
 
@@ -976,20 +957,6 @@
                 <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-acims</id>
-            <modules>
-                <module>../com.vmturbo.mediation.acims.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-apic</id>
-            <modules>
-                <module>../com.vmturbo.mediation.apic.component</module>
             </modules>
         </profile>
 
@@ -1499,8 +1466,6 @@
                 <!-- Individual components -->
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
-                <module>../com.vmturbo.mediation.acims.component</module>
-                <module>../com.vmturbo.mediation.apic.component</module>
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
@@ -1537,7 +1502,6 @@
                 <module>../com.vmturbo.mediation.gcp.billing.component</module>
                 <module>../com.vmturbo.mediation.flexera.component</module>
                 <module>../com.vmturbo.mediation.tanium.component</module>
-                <module>../com.vmturbo.mediation.istio.component</module>
                 <module>../com.vmturbo.mediation.hds.component</module>
                 <module>../com.vmturbo.mediation.horizon.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
@@ -1551,7 +1515,6 @@
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.newrelic.component</module>
                 <module>../com.vmturbo.mediation.appinsights.component</module>
-                <module>../com.vmturbo.mediation.netflow.component</module>
                 <module>../com.vmturbo.mediation.nutanix.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
@@ -1560,7 +1523,6 @@
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.terraform.component</module>
-                <module>../com.vmturbo.mediation.tetration.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
                 <module>../com.vmturbo.mediation.ucsdirector.component</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
@@ -3551,7 +3513,20 @@
                         <groupId>org.jetbrains.kotlin</groupId>
                         <artifactId>kotlin-stdlib</artifactId>
                     </exclusion>
+                    <!-- The jaeger client dependency is bringing a dependency on
+                    okhttp-4.9.0.jar  which is affected by a security vulnerability.
+                    The dependency below is used only to enforce a specific version that
+                    does not suffer from a vulnerability.-->
+                    <exclusion>
+                        <groupId>com.squareup.okhttp3</groupId>
+                        <artifactId>okhttp</artifactId>
+                    </exclusion>
                 </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>com.squareup.okhttp3</groupId>
+                <artifactId>okhttp</artifactId>
+                <version>${com.squareup.okhttp3.okhttp.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.commons</groupId>

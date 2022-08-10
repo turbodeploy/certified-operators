@@ -5,6 +5,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -19,14 +20,16 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Table;
 
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -34,8 +37,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.market.topology.conversions.TopologyConverter.UsedAndPeak;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
@@ -44,9 +51,10 @@ import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunct
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
- * Test conversions from XL CommodityDTO to market CommodityTO
+ * Test conversions from XL CommodityDTO to market CommodityTO.
  **/
 @RunWith(JUnitParamsRunner.class)
 public class CommodityConverterTest {
@@ -69,6 +77,16 @@ public class CommodityConverterTest {
     Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable;
     CommodityConverter converterToTest;
     ConsistentScalingHelper consistentScalingHelper;
+
+    /**
+     * Rule to manage feature flag enablement.
+     */
+    @Rule
+    public FeatureFlagTestRule mergedPeakFeatureFlag =
+            new FeatureFlagTestRule(FeatureFlags.ENABLE_MERGED_PEAK_UPDATE_FUNCTION);
+    /**
+     * Setup common to all tests.
+     */
     @Before
     public void setup() {
         // Arrange
@@ -80,7 +98,7 @@ public class CommodityConverterTest {
         consistentScalingHelper = new ConsistentScalingHelper(null);
         converterToTest = new CommodityConverter(commodityTypeAllocator, includeGuaranteedBuyer,  dsBasedBicliquer,
                 numConsumersOfSoldCommTable, new ConversionErrorCounts(), consistentScalingHelper,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false);
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, null);
     }
 
     /**
@@ -126,14 +144,14 @@ public class CommodityConverterTest {
         checkSoldCommodityTO(getCommodityByType(result, CommodityDTO.CommodityType.MEM), null,
                         RAW_CAPACITY, MEAN_PLUS_DEV_USED);
         assertEquals(cpuCommodityTO.getSettings().getUtilizationUpperBound(),
-                (effectiveCapacityPercentage / 100.0) > 1.0f ? 1.0f :
-                        (effectiveCapacityPercentage / 100.0), .001f);
+                (effectiveCapacityPercentage / 100.0) > 1.0f ? 1.0f
+                        : (effectiveCapacityPercentage / 100.0), .001f);
         assertEquals(cpuCommodityTO.getSettings().getPriceFunction().getPriceFunctionTypeCase(),
                 PriceFunctionTypeCase.SCALED_CAPACITY_STANDARD_WEIGHTED);
         assertEquals(cpuCommodityTO.getSettings().getPriceFunction()
                         .getScaledCapacityStandardWeighted().getScale(),
-                (effectiveCapacityPercentage / 100.0) < 1.0f ? 1.0f :
-                        (effectiveCapacityPercentage / 100.0), 0.001f);
+                (effectiveCapacityPercentage / 100.0) < 1.0f ? 1.0f
+                        : (effectiveCapacityPercentage / 100.0), 0.001f);
         assertFalse(cpuCommodityTO.getSettings().hasResold());
     }
 
@@ -510,5 +528,85 @@ public class CommodityConverterTest {
             assertEquals(PriceFunctionTypeCase.STEP, priceFunction.getPriceFunctionTypeCase());
             assertEquals(MarketAnalysisUtils.STEP_ABOVE_ONE_VALUE, priceFunction.getStep().getStepAt(), 0);
         });
+    }
+
+    /**
+     * Ensure that the merged peak commodity update function is being used when necessary. Peak
+     * merging is currently required for the CPU and MEM commodities when running hardware refresh
+     * plans.
+     */
+    @Test
+    @Parameters({"false", "true"})
+    @TestCaseName("Test #{index}: ENABLE_MERGED_PEAK_UPDATE_FUNCTION feature {0}")
+    public void testMergedPeakUpdateFunction(boolean enableMergedPeakUpdate) {
+        /**
+         * Helper class to drive inputs and expected results.
+         */
+        class Result {
+            TopologyInfo topologyInfo;
+            CommodityDTO.CommodityType commodityType;
+            UpdatingFunctionTypeCase updatingFunctionTypeCase;
+
+            Result(TopologyInfo topologyInfo, CommodityDTO.CommodityType commodityType,
+                    UpdatingFunctionTypeCase updatingFunctionTypeCase) {
+                this.topologyInfo = topologyInfo;
+                this.commodityType = commodityType;
+                this.updatingFunctionTypeCase = updatingFunctionTypeCase;
+            }
+        }
+
+        TopologyInfo hwRefreshTopologyInfo = TopologyInfo.newBuilder()
+                .setPlanInfo(TopologyDTO.PlanTopologyInfo.newBuilder()
+                        .setPlanProjectType(PlanProjectOuterClass.PlanProjectType.USER)
+                        .setPlanType(StringConstants.RECONFIGURE_HARDWARE_PLAN))
+                .build();
+
+        // Invoke the test for all combinations of hardware refresh/realtime and
+        // peak/non-peak merging commodity
+        UpdatingFunctionTypeCase updatingFunctionTypeCase;
+        if (enableMergedPeakUpdate) {
+            mergedPeakFeatureFlag.enable(FeatureFlags.ENABLE_MERGED_PEAK_UPDATE_FUNCTION);
+            updatingFunctionTypeCase = UpdatingFunctionTypeCase.MERGED_PEAK;
+        } else {
+            mergedPeakFeatureFlag.disable(FeatureFlags.ENABLE_MERGED_PEAK_UPDATE_FUNCTION);
+            updatingFunctionTypeCase = UpdatingFunctionTypeCase.UPDATINGFUNCTIONTYPE_NOT_SET;
+        }
+        Result[] results = {
+                new Result(hwRefreshTopologyInfo, CommodityDTO.CommodityType.MEM,
+                        updatingFunctionTypeCase),
+                new Result(hwRefreshTopologyInfo, CommodityDTO.CommodityType.CPU_PROVISIONED,
+                        UpdatingFunctionTypeCase.UPDATINGFUNCTIONTYPE_NOT_SET),
+                new Result(null, CommodityDTO.CommodityType.MEM,
+                        UpdatingFunctionTypeCase.UPDATINGFUNCTIONTYPE_NOT_SET),
+                new Result(null, CommodityDTO.CommodityType.CPU_PROVISIONED,
+                        UpdatingFunctionTypeCase.UPDATINGFUNCTIONTYPE_NOT_SET),
+        };
+        for (Result result : results) {
+            final TopologyEntityDTO pm = TopologyEntityDTO.newBuilder()
+                    .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setEntityState(EntityState.POWERED_ON)
+                    .setOid(1L)
+                    .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                            .setCommodityType(CommodityType.newBuilder().setType(result.commodityType.getNumber()))
+                            .setUsed(50d).setPeak(90d).setCapacity(100d))
+                    .build();
+
+            CommodityConverter commodityConverter = new CommodityConverter(commodityTypeAllocator,
+                    includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable,
+                    new ConversionErrorCounts(), consistentScalingHelper,
+                    MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, result.topologyInfo);
+
+            final List<CommoditySoldTO> commoditySoldTOs =
+                    commodityConverter.createCommonCommoditySoldTOList(pm.getCommoditySoldList(0), pm, 1);
+
+            assertEquals(1, commoditySoldTOs.size());
+            CommoditySoldTO commoditySold = getCommodityByType(commoditySoldTOs, result.commodityType);
+            assertNotNull(commoditySold);
+            CommoditySoldSettingsTO settings = commoditySold.getSettings();
+            assertNotNull(settings);
+            assertTrue(settings.hasUpdateFunction());
+            assertEquals(result.updatingFunctionTypeCase,
+                    settings.getUpdateFunction().getUpdatingFunctionTypeCase());
+        }
     }
 }

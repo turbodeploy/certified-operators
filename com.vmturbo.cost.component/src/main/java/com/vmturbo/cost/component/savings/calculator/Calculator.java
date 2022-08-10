@@ -28,14 +28,20 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.savings.BillingRecord;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
+import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingDataPoint.CostCategory;
 
 /**
  * Savings calculation using the bill and action chain.
  */
 public class Calculator {
+    private static final long MILLIS_IN_HOUR = TimeUnit.HOURS.toMillis(1);
     private static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
+
+    // Cost categories of bill records to be excluded from the analysis of time spent on a provider.
+    private static final Set<CostCategory> COST_CATEGORIES_EXCLUDE = Collections.singleton(CostCategory.LICENSE);
+
     private final Logger logger = LogManager.getLogger();
     private final long deleteActionExpiryMs;
     private final Clock clock;
@@ -144,7 +150,7 @@ public class Calculator {
      * @param entityOid entity OID
      * @param date The date (the beginning of the day at 00:00)
      * @param savingsGraph the watermark graph
-     * @param billRecords bill records
+     * @param billRecords bill records of this day
      * @return savings/investments of this day
      */
     @Nonnull
@@ -153,7 +159,7 @@ public class Calculator {
         logger.debug("Calculating savings for entity {} for date {}.", entityOid, date);
         // Use the high-low graph and the bill records to determine the billing segments in the day.
         List<Segment> segments = createBillingSegments(
-                date.toInstant(ZoneOffset.UTC).toEpochMilli(), savingsGraph);
+                date.toInstant(ZoneOffset.UTC).toEpochMilli(), savingsGraph, billRecords);
         if (logger.isDebugEnabled()) {
             StringBuilder debugText = new StringBuilder();
             debugText.append("Number of segments: ").append(segments.size());
@@ -172,13 +178,12 @@ public class Calculator {
                 // Get all bill records of this provider and sum up the cost
                 Set<BillingRecord> recordsForProvider = billRecords.stream()
                         .filter(r -> r.getProviderId() == providerOid).collect(Collectors.toSet());
-                double costForProvider = recordsForProvider.stream()
-                        .map(BillingRecord::getCost)
+                double costForProviderInSegment = recordsForProvider.stream()
+                        .map(r -> r.getCost() * segment.commTypeToMultiplierMap.getOrDefault(r.getCommodityType(), 1.0))
                         .reduce(0d, Double::sum);
-                double usageAmount = getUsageAmount(recordsForProvider);
                 double investments = Math.max(0,
-                        (costForProvider - dataPoint.getLowWatermark() * usageAmount) * segment.multiplier);
-                double savings = calculateSavings(billRecords, dataPoint, costForProvider, usageAmount, segment.multiplier);
+                        costForProviderInSegment - dataPoint.getLowWatermark() * TimeUnit.MILLISECONDS.toHours(segment.duration));
+                double savings = calculateSavings(billRecords, dataPoint, costForProviderInSegment, segment.duration);
                 totalDailyInvestments += investments;
                 totalDailySavings += savings;
             } else if (segment.actionDataPoint instanceof DeleteActionDataPoint) {
@@ -198,8 +203,9 @@ public class Calculator {
     }
 
     private double calculateSavings(Set<BillingRecord> billRecords, ScaleActionDataPoint dataPoint,
-            final double costForProvider, double usageAmount, double multiplier) {
-        double adjustedCostOfProvider = costForProvider;
+            final double costForProviderInSegment, long segmentDurationMillis) {
+        double segmentDurationHours = TimeUnit.MILLISECONDS.toHours(segmentDurationMillis);
+        double adjustedCostOfProvider = costForProviderInSegment;
         // check if the entity is covered by RI on the day
         boolean isEntityRICovered = billRecords.stream()
                 .anyMatch(r -> r.getPriceModel() == PriceModel.RESERVED);
@@ -210,46 +216,20 @@ public class Calculator {
                 // the difference between the high watermark and the on-demand cost of the destination tier.
                 // e.g. scale from 5 -> 3, savings cannot be more than $2. In this example,
                 // adjustedCostOfProvider is 3.
-                adjustedCostOfProvider = Math.max(dataPoint.getDestinationOnDemandCost() * usageAmount, costForProvider);
+                adjustedCostOfProvider = Math.max(dataPoint.getDestinationOnDemandCost() * segmentDurationHours, costForProviderInSegment);
             } else {
                 // If last action was a scale-up (performance) action, we cannot claim
                 // savings for this action.
                 // e.g. scale from 3 -> 5, cost of provider cannot be less than 3.
                 // Note: Before action cost includes RI discount if present.
-                adjustedCostOfProvider = Math.max(dataPoint.getBeforeActionCost() * usageAmount, costForProvider);
+                adjustedCostOfProvider = Math.max(dataPoint.getBeforeActionCost() * segmentDurationHours, costForProviderInSegment);
             }
         }
-        return Math.max(0, (dataPoint.getHighWatermark() * usageAmount - adjustedCostOfProvider) * multiplier);
+        return Math.max(0, (dataPoint.getHighWatermark() * segmentDurationHours - adjustedCostOfProvider));
     }
 
-    /**
-     * Get the usage amount from the bill for a given provider. Usage amount is the time (in hours)
-     * the entity spent on this provider.
-     *
-     * @param recordsForProvider set of bill records for a provider for an entity for one day
-     * @return usage amount (in hours)
-     */
-    private static double getUsageAmount(Set<BillingRecord> recordsForProvider) {
-        int entityType = recordsForProvider.stream()
-                .findAny()
-                .map(BillingRecord::getEntityType)
-                .orElse(EntityType.UNKNOWN_VALUE);
-        double usageAmount = recordsForProvider.stream()
-                    .map(BillingRecord::getUsageAmount)
-                    .reduce(0d, Double::sum);
-        // For azure volumes, the time unit for usage amount is expressed as the fraction of a month.
-        // 730 is the number of hours in a month. May need a more precise number if the bill
-        // considers the actual number of hours in the month. e.g. January has 31 days and longer
-        // than February.
-        // TODO Normalize all usage amount to hourly in the probe.
-        if (entityType == EntityType.VIRTUAL_VOLUME_VALUE) {
-            // Cap value to 24 (number of hours in a day).
-            usageAmount = Math.min(24, 730 * usageAmount);
-        }
-        return usageAmount;
-    }
-
-    private List<Segment> createBillingSegments(long datestamp, SavingsGraph savingsGraph) {
+    private List<Segment> createBillingSegments(long datestamp, SavingsGraph savingsGraph,
+            Set<BillingRecord> billRecords) {
         long segmentStart = datestamp;
         long segmentEnd;
 
@@ -260,6 +240,7 @@ public class Calculator {
         boolean noActionBeforeStartOfDay = false;
 
         if (dataPoint == null) {
+            // There were no actions at or before beginning of this day.
             if (!dataPointsInDay.isEmpty()) {
                 noActionBeforeStartOfDay = true;
                 dataPoint = dataPointsInDay.first();
@@ -274,9 +255,6 @@ public class Calculator {
         }
 
         final List<Segment> segments = new ArrayList<>();
-        // Provider OID mapped to a list segment durations (in milliseconds).
-        final Map<Long, List<Long>> segmentDurationMap = new HashMap<>();
-
         // If there are one or more actions executed on this day, loop through the points.
         for (ActionDataPoint actionDatapoint : dataPointsInDay) {
             // If first point is at exactly the beginning of day (edge case), or no actions were
@@ -288,8 +266,6 @@ public class Calculator {
             final long segmentDuration = segmentEnd - segmentStart;
             // Put segment in a list and add duration in map.
             segments.add(new Segment(segmentDuration, dataPoint));
-            segmentDurationMap.computeIfAbsent(dataPoint.getDestinationProviderOid(), d -> new ArrayList<>())
-                    .add(segmentDuration);
             dataPoint = actionDatapoint;
             segmentStart = actionDatapoint.getTimestamp();
         }
@@ -298,43 +274,174 @@ public class Calculator {
         segmentEnd = datestamp + MILLIS_IN_DAY;
         final long segmentDuration = segmentEnd - segmentStart;
         segments.add(new Segment(segmentDuration, dataPoint));
-        // The check for duration is non-zero is a defensive logic which should not happen because
-        // value of segmentStart comes from action times which excludes the end of the day.
-        if (segmentDuration > 0) {
-            segmentDurationMap.computeIfAbsent(dataPoint.getDestinationProviderOid(),
-                    d -> new ArrayList<>()).add(segmentDuration);
-        }
 
-        // Loop through the segment list and assign value for the multiplier.
-        // For each segment, find the duration of all segments of this provider from the map.
-        // e.g. p1 -> 3hr, 6hr
-        // multiplier for first segment = 3 / (3 + 6)
-        for (Segment segment : segments) {
-            final Long sum = segmentDurationMap.get(segment.actionDataPoint.getDestinationProviderOid()).stream()
-                    .reduce(0L, Long::sum);
-            segment.multiplier = (double)segment.duration / (double)sum;
-        }
+        assignDurationAndMultiplier(segments, billRecords, datestamp);
 
         return segments;
+    }
+
+    /**
+     * Set the duration for each segment and set the multiplier for each commodity type in each segment.
+     *
+     * @param segments all segments in the day
+     * @param billRecords all bill records for the day
+     */
+    private void assignDurationAndMultiplier(List<Segment> segments, Set<BillingRecord> billRecords, long startOfDay) {
+        Map<Long, List<Segment>> segmentsByProvider = segments.stream()
+                .collect(Collectors.groupingBy(s -> s.getActionDataPoint().getDestinationProviderOid()));
+        for (Entry<Long, List<Segment>> providerSegmentsEntry : segmentsByProvider.entrySet()) {
+            long providerId = providerSegmentsEntry.getKey();
+            // Get a map of commodity type to bill records for this provider for this day.
+            Map<Integer, List<BillingRecord>> recordsByCommType = billRecords.stream()
+                    .filter(r -> r.getProviderId() == providerId)
+                    .collect(Collectors.groupingBy(BillingRecord::getCommodityType));
+
+            // If there are no bill records for the specified provider, the segment duration is 0
+            // because this segment is not billed. The exception is for delete actions which accrue
+            // savings by not getting billed.
+            if (recordsByCommType.isEmpty()) {
+                for (Segment segment : providerSegmentsEntry.getValue()) {
+                    if (!(segment.getActionDataPoint() instanceof DeleteActionDataPoint)) {
+                        segment.duration = 0;
+                    }
+                }
+            }
+
+            // If the first segment for the day is for this provider and it did not start from
+            // the beginning of the day, we need to account for the time and cost incurred
+            // before the first segment.
+            long providerRemoveUsageBeforeFirstSegment = 0;
+            if (!segments.isEmpty() && segments.get(0).getActionDataPoint() instanceof ScaleActionDataPoint) {
+                ScaleActionDataPoint firstSegment = (ScaleActionDataPoint)segments.get(0).getActionDataPoint();
+                if (firstSegment.getTimestamp() > startOfDay && !firstSegment.getCommodityResizes().isEmpty()) {
+                    providerRemoveUsageBeforeFirstSegment = firstSegment.getSourceProviderOid();
+                }
+            }
+
+            for (Entry<Integer, List<BillingRecord>> commTypeEntry : recordsByCommType.entrySet()) {
+                List<BillingRecord> billingRecordsForCommType = commTypeEntry.getValue();
+                if (billingRecordsForCommType.isEmpty()) {
+                    continue;
+                }
+
+                // Get total amount billed for this commodity and for this provider by adding the
+                // costs in the corresponding bill records. Exclude LICENSE costs which accompany
+                // compute costs because the time for the VM is already included in the on-demand
+                // and reserved costs. Including time from LICENSE records will double count the time.
+                double totalUsageBilled = billingRecordsForCommType.stream()
+                        .filter(r -> !COST_CATEGORIES_EXCLUDE.contains(r.getCostCategory()))
+                        .map(BillingRecord::getUsageAmount)
+                        .reduce(0d, Double::sum);
+
+                // usageRemaining variable is for tracking how much billed time has been allocated
+                // to segment. e.g. If the bill shows usageAmount is 15 hours and this provider has
+                // 2 segments on this day. According to the actions, both segments is 10 hours long.
+                // The first segment will take the full 10 hours (usageRemaining = 15 - 10 = 5).
+                // The second segment cannot assume the whole 10 hours because there are only 5
+                // billed hours remaining. In this case, adjust the second segment to 5 hours.
+                double usageRemaining = totalUsageBilled;
+                Integer commType = commTypeEntry.getKey();
+                long totalTimeOnProvider = 0;
+                boolean isFirstSegmentForProvider = true;
+                for (Segment segment : providerSegmentsEntry.getValue()) {
+                    if (commType == CommodityType.UNKNOWN_VALUE) {
+                        // UsageAmount is TIME.
+                        double totalUsageBilledMillis = totalUsageBilled * MILLIS_IN_HOUR;
+                        double usageRemainingMillis = usageRemaining * MILLIS_IN_HOUR;
+                        if (usageRemainingMillis - segment.duration < 0) {
+                            segment.duration = Double.valueOf(usageRemainingMillis).longValue();
+                        }
+                        segment.commTypeToMultiplierMap.put(commType, segment.duration / totalUsageBilledMillis);
+                        usageRemaining -= segment.duration / (double)MILLIS_IN_HOUR;
+                    } else {
+                        // UsageAmount is commodity quantity times TIME.
+                        if (segment.getActionDataPoint() instanceof ScaleActionDataPoint) {
+                            ScaleActionDataPoint scaleActionDataPoint = (ScaleActionDataPoint)segment.getActionDataPoint();
+                            CommodityResize commodityResize = scaleActionDataPoint.getCommodityResizes().stream()
+                                    .filter(c -> c.getCommodityType() == commType)
+                                    .findAny()
+                                    .orElse(null);
+                            if (commodityResize == null) {
+                                // This commType is not changed in this segment.
+                                // If storage amount is not changed in the action, there is no
+                                // commodityResize info for storage amount.
+                                // We use the proportion of the lengths of the segments to assign the multiplier.
+                                // If the bill record does not include the charge for the full day yet,
+                                // this multiplier can be inaccurate, but the value will be corrected
+                                // once the bill is updated.
+                                if (totalTimeOnProvider == 0) {
+                                    totalTimeOnProvider = providerSegmentsEntry.getValue().stream()
+                                            .map(Segment::getDuration).reduce(0L, Long::sum);
+                                    // Account for the time before the first segment if it is the
+                                    // first segment (of any provider) for the day and it does not
+                                    // start at the beginning of the day.
+                                    if (providerRemoveUsageBeforeFirstSegment == providerId) {
+                                        totalTimeOnProvider += (segments.get(0).getActionDataPoint().getTimestamp() - startOfDay);
+                                    }
+                                }
+                                double multiplier = totalTimeOnProvider != 0
+                                        ? (double)segment.duration / (double)totalTimeOnProvider : 1;
+                                segment.commTypeToMultiplierMap.put(commType, multiplier);
+                                usageRemaining -= multiplier * billingRecordsForCommType.stream()
+                                        .map(BillingRecord::getUsageAmount)
+                                        .reduce(0d, Double::sum);
+                            } else {
+                                if (isFirstSegmentForProvider && providerRemoveUsageBeforeFirstSegment == providerId) {
+                                    usageRemaining -= commodityResize.getOldCapacity()
+                                            * TimeUnit.MILLISECONDS.toHours(segment.getActionDataPoint().getTimestamp() - startOfDay);
+                                }
+                                double quantityTimesTime = commodityResize.getNewCapacity() * segment.duration / MILLIS_IN_HOUR;
+                                if (usageRemaining - quantityTimesTime < 0) {
+                                    segment.duration = Double.valueOf(usageRemaining / commodityResize.getNewCapacity()).longValue();
+                                }
+                                segment.commTypeToMultiplierMap.put(commType, quantityTimesTime / totalUsageBilled);
+                                usageRemaining -= quantityTimesTime;
+                            }
+                        } else {
+                            segment.commTypeToMultiplierMap.put(commType, 1.0);
+                        }
+                    }
+                    isFirstSegmentForProvider = false;
+                }
+            }
+        }
     }
 
     /**
      * A segment is a period of time in a day when the entity is on the same provider.
      */
     private static class Segment {
-        private final long duration;
+        private long duration;
         private final ActionDataPoint actionDataPoint;
-        private double multiplier;
+        private final Map<Integer, Double> commTypeToMultiplierMap = new HashMap<>();
 
         Segment(long duration, ActionDataPoint actionDataPoint) {
             this.duration = duration;
             this.actionDataPoint = actionDataPoint;
         }
 
+        /**
+         * Get duration of the segment in milliseconds.
+         *
+         * @return segment duration.
+         */
+        public long getDuration() {
+            return duration;
+        }
+
+        /**
+         * Get the action that correspond to this segment.
+         *
+         * @return action datapoint
+         */
+        public ActionDataPoint getActionDataPoint() {
+            return actionDataPoint;
+        }
+
         @Override
         public String toString() {
             return "Segment{" + "duration(hours)=" + TimeUnit.MILLISECONDS.toHours(duration)
-                    + ", actionDataPoint=" + actionDataPoint + ", multiplier=" + multiplier + '}';
+                    + ", actionDataPoint=" + actionDataPoint + ", commTypeToMultiplierMap=" + commTypeToMultiplierMap + '}';
         }
     }
 }

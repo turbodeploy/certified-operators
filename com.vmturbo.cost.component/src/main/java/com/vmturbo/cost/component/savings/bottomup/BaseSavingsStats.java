@@ -1,6 +1,6 @@
 package com.vmturbo.cost.component.savings.bottomup;
 
-import java.sql.Timestamp;
+import java.time.Clock;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 import org.apache.commons.lang.builder.ToStringBuilder;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
+import com.vmturbo.components.common.utils.TimeUtil;
 
 /**
  * Keeps stats (like REALIZED_SAVINGS) of a particular type, at a given timestamp.
@@ -107,7 +108,7 @@ abstract class BaseSavingsStats {
     public String toString() {
         return new ToStringBuilder(this)
                 .append("epochMillis", timestamp)
-                .append("displayTime", new Timestamp(timestamp).toLocalDateTime())
+                .append("displayTime", TimeUtil.millisToLocalDateTime(timestamp, Clock.systemUTC()))
                 .append("type", type)
                 .append("value", value)
                 .toString();

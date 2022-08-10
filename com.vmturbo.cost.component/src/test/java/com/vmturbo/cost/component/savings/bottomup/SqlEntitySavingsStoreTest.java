@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.savings.bottomup;
 
+import static com.vmturbo.cost.component.db.Tables.ENTITY_CLOUD_SCOPE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -167,6 +168,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
      */
     private RollupSavingsProcessor rollupProcessor;
 
+
     /**
      * Initializing store.
      *
@@ -179,6 +181,16 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         store = new SqlEntitySavingsStore(dsl, clock, 1000);
         rollupTimesStore = new RollupTimesStore(dsl, RolledUpTable.ENTITY_SAVINGS);
         rollupProcessor = new RollupSavingsProcessor(store, rollupTimesStore, clock);
+        dsl.insertInto(ENTITY_CLOUD_SCOPE,
+                        ENTITY_CLOUD_SCOPE.ENTITY_OID,
+                        ENTITY_CLOUD_SCOPE.ENTITY_TYPE,
+                        ENTITY_CLOUD_SCOPE.ACCOUNT_OID,
+                        ENTITY_CLOUD_SCOPE.REGION_OID,
+                        ENTITY_CLOUD_SCOPE.SERVICE_PROVIDER_OID,
+                        ENTITY_CLOUD_SCOPE.CREATION_TIME)
+                .values(vm1Id, 10, vm1Id / 2L, vm1Id / 10L, vm1Id / 20L, LocalDateTime.now())
+                .values(vm2Id, 10, vm2Id / 2L, vm2Id / 10L, vm2Id / 20L, LocalDateTime.now())
+                .execute();
     }
 
     /**
@@ -364,8 +376,6 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         final Set<EntitySavingsStatsType> statsTypes = ImmutableSet.of(
                 EntitySavingsStatsType.REALIZED_INVESTMENTS);
 
-        long vmId = 10L;
-
         // Add hourly stats records every hour, starting at 2am 11 months ago, and up to and
         // including 2pm today.
         LocalDateTime startTime = timeExact1PM.minusMonths(11).toLocalDate().atStartOfDay().plusHours(2);
@@ -374,7 +384,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         long endTimeMillis = TimeUtil.localDateTimeToMilli(endTime, clock);
         for (long tMillis = startTimeMillis; tMillis <= endTimeMillis; tMillis += TimeUnit.HOURS.toMillis(1)) {
             LocalDateTime time = LocalDateTime.ofInstant(Instant.ofEpochMilli(tMillis), ZoneOffset.UTC);
-            setStatsValues(hourlyStats, vmId, time, 1, statsTypes);
+            setStatsValues(hourlyStats, vm1Id, time, 1, statsTypes);
             hourlyTimes.add(tMillis);
         }
         // all the stats have the same stats value - remember it for expected rollup results
@@ -391,7 +401,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         logger.info("Total {} times. New last rollup times: {}", hourlyTimes.size(),
                 newLastTimes);
 
-        Collection<Long> entityOids = ImmutableSet.of(vmId);
+        Collection<Long> entityOids = ImmutableSet.of(vm1Id);
         Collection<Integer> entityTypes = Collections.singleton(EntityType.VIRTUAL_MACHINE_VALUE);
         Collection<Long> billingFamilies = new HashSet<>();
         Collection<Long> resourceGroups = new HashSet<>();

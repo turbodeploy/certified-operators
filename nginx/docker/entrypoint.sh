@@ -47,6 +47,13 @@ if [ "$BLOCK_REMOTE_PROBES" == "" ]; then
     export BLOCK_REMOTE_PROBES='FALSE'
 fi
 
+# In order to utilize 1 feature flag for the platform for enabling the probe security, we are obtaining the value of enableTpProbeSecurity from the mounted
+# properties configmap as the nested feature flag value is not accessible from the nginx deployment in our current configuration.
+if [ -f "/etc/turbonomic/properties.yaml" ]; then
+    test $(grep enableTpProbeSecurity /etc/turbonomic/properties.yaml | wc -l) -lt 2 || echo "Error: Multiple instances of enableTpProbeSecurity specified"
+    export ENABLE_TP_PROBE_SECURITY=$( grep enableTpProbeSecurity /etc/turbonomic/properties.yaml | awk 'BEGIN { FS = ":" } { print $2 }' | tr -d "[:blank:]" )
+fi
+
 if [ "$ENABLE_TP_PROBE_SECURITY" == "" ]; then
     export ENABLE_TP_PROBE_SECURITY='FALSE'
 fi

@@ -91,14 +91,12 @@ public class UserMapper {
 
         // convert to the list of roles.
         final List<RoleApiDTO> roles = userApiDTO.getRoles();
-        List<String> roleNames;
+        List<String> roleNames = Collections.emptyList();
         if (!CollectionUtils.isEmpty(roles)) {
             roleNames = roles.stream()
                 .filter(role -> !StringUtils.isBlank(role.getName()))
                 .map(role -> role.getName().toUpperCase())
                 .collect(Collectors.toList());
-        } else {
-            roleNames = ImmutableList.of(userApiDTO.getRoleName().toUpperCase());
         }
 
         // capture any scope groups -- just keep the group id

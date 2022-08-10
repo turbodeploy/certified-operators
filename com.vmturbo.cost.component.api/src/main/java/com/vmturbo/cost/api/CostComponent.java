@@ -14,4 +14,10 @@ public interface CostComponent {
      */
     void addCostNotificationListener(@Nonnull CostNotificationListener listener);
 
+    /**
+     * Registers a listener for topology cost chunks.
+     *
+     * @param listener the listener to register
+     */
+    void addTopologyCostListener(@Nonnull TopologyCostListener listener);
 }

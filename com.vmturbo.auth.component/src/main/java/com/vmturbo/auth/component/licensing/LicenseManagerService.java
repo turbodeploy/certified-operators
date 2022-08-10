@@ -670,7 +670,7 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
                             .build(),
                     longDescription,
                     shortDescription,
-                    Severity.CRITICAL);
+                    Severity.NORMAL);
         } catch (CommunicationException | InterruptedException e) {
             logger.error("Error publishing license notification", e);
         }

@@ -16,6 +16,17 @@ public interface ActionDataPoint {
     long getTimestamp();
 
     /**
+     * The source provider OID. (i.e. the provider of the entity before the timestamp of this
+     * data point.) Default value is 0.
+     *
+     * @return destination provider OID
+     */
+    @Value.Default
+    default long getSourceProviderOid() {
+        return 0;
+    }
+
+    /**
      * The destination provider OID. (i.e. the provider of the entity after the timestamp of this
      * data point.) Default value is 0.
      *
@@ -25,4 +36,9 @@ public interface ActionDataPoint {
     default long getDestinationProviderOid() {
         return 0;
     }
+
+    /**
+     * Creates a new builder.
+     */
+    class Builder extends ImmutableActionDataPoint.Builder {}
 }

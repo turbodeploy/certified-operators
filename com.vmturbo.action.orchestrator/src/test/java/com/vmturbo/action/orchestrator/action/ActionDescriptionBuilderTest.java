@@ -2215,7 +2215,7 @@ public class ActionDescriptionBuilderTest {
             entitySettingsCache, activateRecommendation);
 
         assertEquals(description,
-                "Start Virtual Machine vm1_test due to increased demand for resources in Development");
+                "Start Virtual Machine vm1_test in Development");
     }
 
     /**
@@ -2235,7 +2235,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, activateRecommendation);
 
-        assertEquals(description, "Start Virtual Machine vm1_test due to increased demand for resources");
+        assertEquals(description, "Start Virtual Machine vm1_test");
     }
 
     /**

@@ -6,10 +6,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyCollectionOf;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -169,8 +169,8 @@ public class AlertRuleTest {
     @Test
     public void testStatsStoreException() {
         final MetricsStore store = mock(MetricsStore.class);
-        when(store.getStandardDeviation(any(), any(), any(), anyInt()))
-           .thenThrow(new RuntimeException());
+        when(store.getStandardDeviation(eq(TEST_NAME), eq(METRIC_STR), any(), eq(BASELINE_MS)))
+           .thenThrow(new RuntimeException("Exception occurred"));
         assertFalse(alertRule.evaluate(METRIC, TEST_NAME, TEST_CLASS_NAME, store).isPresent());
     }
 
@@ -227,7 +227,7 @@ public class AlertRuleTest {
         final AlertMetricId metric = AlertMetricId.fromString("foo{label='value'}");
         final MetricNameSuggestor suggestor = mock(MetricNameSuggestor.class);
 
-        when(suggestor.computeSuggestions(eq(metric.getMetricName()), anyCollectionOf(String.class)))
+        when(suggestor.computeSuggestions(eq(metric.getMetricName()), anyCollection()))
             .thenReturn(Arrays.asList(
                 new Suggestion(0, "foo"),
                 new Suggestion(3, "bar")
@@ -241,7 +241,7 @@ public class AlertRuleTest {
         final AlertMetricId metric = AlertMetricId.fromString("foo{label='value'}");
         final MetricNameSuggestor suggestor = mock(MetricNameSuggestor.class);
 
-        when(suggestor.computeSuggestions(eq(metric.getMetricName()), anyCollectionOf(String.class)))
+        when(suggestor.computeSuggestions(eq(metric.getMetricName()), anyCollection()))
             .thenReturn(Arrays.asList(
                 new Suggestion(1, "food"),
                 new Suggestion(3, "bar")

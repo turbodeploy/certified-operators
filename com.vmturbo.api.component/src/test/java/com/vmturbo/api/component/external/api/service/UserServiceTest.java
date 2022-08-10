@@ -960,7 +960,7 @@ public class UserServiceTest {
         assertEquals(userApiDTO.getUsername(), resultUser.getUsername());
         assertEquals(userApiDTO.getType(), resultUser.getType());
         assertEquals(userApiDTO.getLoginProvider(), resultUser.getLoginProvider());
-        assertEquals(userApiDTO.getRoleName(), resultUser.getRoleName());
+        assertEquals(userApiDTO.getRoles().get(0).getName(), resultUser.getRoles().get(0).getName());
         assertEquals(userApiDTO.getUsername(), resultUser.getDisplayName());
         assertFalse(resultUser.getUuid().isEmpty());
     }
@@ -1140,7 +1140,7 @@ public class UserServiceTest {
         assertEquals(userApiDTO.getUsername(), resultUser.getUsername());
         assertEquals(userApiDTO.getType(), resultUser.getType());
         assertEquals(userApiDTO.getLoginProvider(), resultUser.getLoginProvider());
-        assertEquals(userApiDTO.getRoleName(), resultUser.getRoleName());
+        assertEquals(userApiDTO.getRoles().get(0).getName(), resultUser.getRoles().get(0).getName());
         assertEquals(userApiDTO.getUsername(), resultUser.getDisplayName());
         assertEquals(userId, resultUser.getUuid());
     }
@@ -1366,7 +1366,7 @@ public class UserServiceTest {
 
     private void verifyAdUser(UserApiDTO resultUser) {
         assertEquals(TEST_USER, resultUser.getDisplayName());
-        assertEquals(OBSERVER, resultUser.getRoleName());
+        assertEquals(OBSERVER, resultUser.getRoles().get(0).getName());
         assertEquals(DEDICATED_CUSTOMER, resultUser.getType());
         assertEquals(LDAP, resultUser.getLoginProvider());
         assertFalse(resultUser.getUuid().isEmpty());
@@ -1602,10 +1602,10 @@ public class UserServiceTest {
         final ObjectMapper objectMapper = new ObjectMapper();
         final String newUserJson =
                 "{\"username\":\"test\",\"password\":\"1\",\"type\":\"DedicatedCustomer\"," +
-                        "\"loginProvider\":\"LOCAL\",\"roleName\":\"site_admin\"}";
+                        "\"loginProvider\":\"LOCAL\",\"roles\":[{\"name\": \"site_admin\"}]}";
         final UserApiDTO dto = objectMapper.readValue(newUserJson, UserApiDTO.class);
         final UserApiDTO responseDto = usersService.populateResultUserApiDTOFromInput(dto);
-        assertEquals("site_admin", responseDto.getRoleName());
+        assertEquals("site_admin", responseDto.getRoles().get(0).getName());
     }
 
     /**

@@ -37,9 +37,12 @@ import com.google.gson.stream.JsonReader;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.jooq.DSLContext;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -47,6 +50,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.cost.component.db.Cost;
@@ -99,6 +103,7 @@ public class ScenarioSavingsTest {
 
     @BeforeClass
     public static void setup() {
+        Configurator.setAllLevels("com.vmturbo.cost.component.savings", Level.ALL);
         int chunkSize = 1000;
         DSLContext dsl = dbConfig.getDslContext();
         Clock clock =  Clock.systemUTC();
@@ -110,7 +115,8 @@ public class ScenarioSavingsTest {
                 savingsStore,
                 supportedProviderTypes,
                 TimeUnit.DAYS.toMillis(365),
-                clock);
+                clock, mock(
+                TopologyEntityCloudTopologyFactory.class), null, dsl, 777777, chunkSize);
     }
 
     /**
@@ -158,7 +164,24 @@ public class ScenarioSavingsTest {
                 ImmutableList.of(EntityType.VIRTUAL_MACHINE_VALUE), Collections.emptyList());
 
         // Verify that all savings and investments match up with expected results.
-        assertTrue(CollectionUtils.isEqualCollection(dailyStats, expectedResults));
+        validateResults(dailyStats, expectedResults);
+    }
+
+    private void validateResults(List<AggregatedSavingsStats> results, List<AggregatedSavingsStats> expectedResults) {
+        Assert.assertEquals(expectedResults.size(), results.size());
+        Assert.assertEquals(expectedResults.stream().map(AggregatedSavingsStats::getTimestamp).collect(Collectors.toList()),
+                results.stream().map(AggregatedSavingsStats::getTimestamp).collect(Collectors.toList()));
+        Map<Long, List<AggregatedSavingsStats>> resultsMap =
+                results.stream().collect(Collectors.groupingBy(AggregatedSavingsStats::getTimestamp));
+        Map<Long, List<AggregatedSavingsStats>> expectedResultsMap =
+                expectedResults.stream().collect(Collectors.groupingBy(AggregatedSavingsStats::getTimestamp));
+        expectedResults.forEach(r -> {
+            Map<EntitySavingsStatsType, Double> savingsValues =
+                    resultsMap.get(r.getTimestamp()).stream().collect(Collectors.toMap(AggregatedSavingsStats::getType, AggregatedSavingsStats::getValue));
+            Map<EntitySavingsStatsType, Double> expectedSavingsValues =
+                    expectedResultsMap.get(r.getTimestamp()).stream().collect(Collectors.toMap(AggregatedSavingsStats::getType, AggregatedSavingsStats::getValue));
+            expectedSavingsValues.forEach((type, value) -> Assert.assertEquals(savingsValues.get(type), expectedSavingsValues.get(type), 0.0001));
+        });
     }
 
     /**
@@ -222,7 +245,7 @@ public class ScenarioSavingsTest {
 
         // Invoke the savings calculations for the specified entities and time period.
         try {
-            savingsTracker.processStates(participatingUuids, startTime, endTime, actionChains,
+            savingsTracker.processSavings(participatingUuids, startTime, endTime, actionChains,
                     billRecordsByEntity);
         } catch (EntitySavingsException e) {
             fail("Error occurred when writing savings stats" + e);

@@ -34,6 +34,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.hamcrest.collection.IsIterableContainingInAnyOrder;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
@@ -62,6 +63,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.CommodityTypeAllocatorConstants;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cloud.common.topology.CloudTopology;
@@ -108,6 +110,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.util.Pair;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.trax.Trax;
 
 /**
@@ -138,6 +141,13 @@ public class InterpretActionTest {
             mock(ReversibilitySettingFetcher.class);
     private CloudActionSavingsCalculator actionSavingsCalculator =
             mock(CloudActionSavingsCalculator.class);
+
+    /**
+     * Rule to manage feature flag enablement.
+     */
+    @Rule
+    public FeatureFlagTestRule mergedPeakFeatureFlag =
+            new FeatureFlagTestRule(FeatureFlags.ENABLE_MERGED_PEAK_UPDATE_FUNCTION);
 
     @Before
     public void setup() {

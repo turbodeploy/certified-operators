@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -80,7 +81,7 @@ public class CommoditiesEditor {
                                     @Nonnull TopologyInfo topologyInfo,
                                     @Nonnull final PlanScope scope) {
         editCommoditiesForBaselineChanges(graph, changes, topologyInfo);
-        editCommoditiesForClusterHeadroom(graph, scope, topologyInfo);
+        editCommoditiesFromSystemLoadTable(graph, changes, scope, topologyInfo);
     }
 
     /**
@@ -358,17 +359,31 @@ public class CommoditiesEditor {
     }
 
     /**
-     * Apply system load data to VMs if it is a cluster headroom plan with valid cluster oid.
+     * Apply system load data to VMs if it is a cluster headroom plan with valid cluster oid and for
+     * hardware refresh plans without a baseline override.
+     *
      * @param graph which entities belong to.
+     * @param changes to iterate over and find relevant changes (e.g., baseline change).
      * @param scope which contains cluster oid.
      * @param topologyInfo to identify if it is a Cluster headroom plan.
      */
-    private void editCommoditiesForClusterHeadroom(@Nonnull final TopologyGraph<TopologyEntity> graph,
-                    @Nonnull final PlanScope scope,
-                    @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
-
+    private void editCommoditiesFromSystemLoadTable(@Nonnull final TopologyGraph<TopologyEntity> graph,
+            @Nonnull List<ScenarioChange> changes, @Nonnull final PlanScope scope,
+            @Nonnull final TopologyInfo topologyInfo) {
         if (!TopologyDTOUtil.isPlanType(PlanProjectType.CLUSTER_HEADROOM, topologyInfo)) {
-            return;
+            if (!TopologyDTOUtil.isHardwareRefreshPlan(topologyInfo)) {
+                return;
+            }
+            // If there is a baseline selected in a hardware refresh plan, do not pull values from
+            // the system_load table.
+            if (!FeatureFlags.ENABLE_SYSTEM_LOAD_HARDWARE_REFRESH.isEnabled()
+                    || changes.stream()
+                            .filter(change -> change.getPlanChanges().hasHistoricalBaseline())
+                            .findFirst().isPresent()) {
+                // Hardware refresh plan has a baseline override, so no need to copy data from the
+                // system_load table.
+                return;
+            }
         }
 
         SystemLoadInfoRequest.Builder requestBuilder = SystemLoadInfoRequest.newBuilder();

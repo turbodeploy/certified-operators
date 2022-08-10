@@ -10,14 +10,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
-import com.google.common.collect.Lists;
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
 
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -41,15 +48,19 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Test editing of commodities.
  */
+@RunWith(JUnitParamsRunner.class)
 public class CommoditiesEditorTest {
     private static final double DELTA = 0.0001D;
 
@@ -59,6 +70,13 @@ public class CommoditiesEditorTest {
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(statsHistoryService);
 
     private StatsHistoryServiceBlockingStub historyClient;
+
+    /**
+     * Rule to manage feature flag enablement.
+     */
+    @Rule
+    public FeatureFlagTestRule systemLoadFeatureFlag =
+            new FeatureFlagTestRule(FeatureFlags.ENABLE_SYSTEM_LOAD_HARDWARE_REFRESH);
 
     @Before
     public void setup() {
@@ -451,13 +469,9 @@ public class CommoditiesEditorTest {
     }
 
     /**
-     * Test {@link CommoditiesEditor#editCommoditiesForClusterHeadroom(TopologyGraph, PlanScope, TopologyInfo)}
-     * A VM is placed on three storages st1, st2 and st3.
-     * There are historical system load records for two storages st1, st2 and st4 (VM was placed on it).
-     * Make sure that VM bought and storage sold usage are correctly updated.
+     * Initialize state for the commodity edit tests.
      */
-    @Test
-    public void testEditCommoditiesForClusterHeadroom() {
+    class CommodityEditsTestContext {
         // Sets value for VM(from ST1 : Used : 10 , Peak : 20) (from ST2 : Used : 10 , Peak : 20)
         //                  (from ST3 : Used : 100 , Peak : 200)
         // Sets value for ST1(Used : 70, Peak : 80)
@@ -469,73 +483,145 @@ public class CommoditiesEditorTest {
         TopologyEntity st2 = g.getEntity(2L).get();
         TopologyEntity st3 = g.getEntity(4L).get();
         TopologyEntity vm = g.getEntity(3L).get();
+        PlanScope scope;
+        TopologyInfo topologyInfo;
 
-        // Create system load records.
-        List<SystemLoadInfoResponse> response = Collections.singletonList(
-            SystemLoadInfoResponse.newBuilder()
-                .addRecord(SystemLoadRecord.newBuilder()
-                    .setPropertyType(CommodityDTO.CommodityType.STORAGE_AMOUNT.name())
-                    .setAvgValue(10).setMaxValue(20).setUuid(vm.getOid()).setProducerUuid(99L)) // storage that doesn't exist
-                .addRecord(SystemLoadRecord.newBuilder()
-                    .setPropertyType(CommodityDTO.CommodityType.STORAGE_AMOUNT.name())
-                    .setAvgValue(30).setMaxValue(40).setUuid(vm.getOid()).setProducerUuid(st2.getOid())) // uuid of ST2
-                .addRecord(SystemLoadRecord.newBuilder()
-                    .setPropertyType(CommodityDTO.CommodityType.STORAGE_AMOUNT.name())
-                    .setAvgValue(50).setMaxValue(60).setUuid(vm.getOid()).setProducerUuid(st1.getOid())) // uuid of ST1
-                .build());
+        CommodityEditsTestContext(PlanTopologyInfo planTopologyInfo) {
+            // Create system load records.
+            List<SystemLoadInfoResponse> response = Collections.singletonList(
+                    SystemLoadInfoResponse.newBuilder()
+                            .addRecord(SystemLoadRecord.newBuilder()
+                                    .setPropertyType(CommodityDTO.CommodityType.STORAGE_AMOUNT.name())
+                                    .setAvgValue(10)
+                                    .setMaxValue(20)
+                                    .setUuid(vm.getOid())
+                                    .setProducerUuid(99L)) // storage that doesn't exist
+                            .addRecord(SystemLoadRecord.newBuilder()
+                                    .setPropertyType(CommodityDTO.CommodityType.STORAGE_AMOUNT.name())
+                                    .setAvgValue(30)
+                                    .setMaxValue(40)
+                                    .setUuid(vm.getOid())
+                                    .setProducerUuid(st2.getOid())) // uuid of ST2
+                            .addRecord(SystemLoadRecord.newBuilder()
+                                    .setPropertyType(CommodityDTO.CommodityType.STORAGE_AMOUNT.name())
+                                    .setAvgValue(50)
+                                    .setMaxValue(60)
+                                    .setUuid(vm.getOid())
+                                    .setProducerUuid(st1.getOid())) // uuid of ST1
+                            .build());
 
-        Mockito.when(statsHistoryService.getSystemLoadInfo(Mockito.any())).thenReturn(response);
+            Mockito.when(statsHistoryService.getSystemLoadInfo(Mockito.any())).thenReturn(response);
 
-        PlanScope scope = PlanScope.newBuilder()
-            .addScopeEntries(PlanScopeEntry.newBuilder()
-                .setScopeObjectOid(10L)
-                .build())
-            .build();
+            scope = PlanScope.newBuilder()
+                    .addScopeEntries(PlanScopeEntry.newBuilder()
+                            .setScopeObjectOid(10L))
+                    .build();
 
-        TopologyInfo topologyInfo = TopologyInfo.newBuilder().setPlanInfo(PlanTopologyInfo.newBuilder()
-                .setPlanProjectType(com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType.CLUSTER_HEADROOM)
-                .build())
-            .build();
+            topologyInfo = TopologyInfo.newBuilder().setPlanInfo(planTopologyInfo).build();
+        }
+    }
 
-        CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, Collections.emptyList(), topologyInfo, scope);
-
-        // Check values after calling CommoditiesEditor.
+    private static void verifyCommodityEditResults(CommodityEditsTestContext context,
+            boolean expectUpdatedValues) {
         // Compare used
         // Expected value used for ST1 : used - currUsedForVM + usedFromSystemLoad : 70 - 10 + 50
         // Expected value used for ST2 : used - currUsedForVM + usedFromSystemLoad : 70 - 10 + 30
         // Expected value used for ST2 : used - currUsedForVM + usedFromSystemLoad : 700
         // Expected value used for VM : from ST1 : 50, from ST2 : 30, from ST2 : 100
-        Assert.assertEquals(70 - 10 + 50, st1.getTopologyEntityImpl().getCommoditySoldListList()
-            .get(0).getUsed(), DELTA);
-        Assert.assertEquals(70 - 10 + 30, st2.getTopologyEntityImpl().getCommoditySoldListList()
-            .get(0).getUsed(), DELTA);
-        Assert.assertEquals(700, st3.getTopologyEntityImpl().getCommoditySoldListList()
-            .get(0).getUsed(), DELTA);
-        Assert.assertEquals(50, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
-            .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
-        Assert.assertEquals(30, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
-            .get(1).getCommodityBoughtList().get(0).getUsed(), DELTA);
-        Assert.assertEquals(100, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
-            .get(2).getCommodityBoughtList().get(0).getUsed(), DELTA);
+        double st1UsedChange = expectUpdatedValues ? 50 - 10 : 0;
+        double st2UsedChange = expectUpdatedValues ? 30 - 10 : 0;
+        Assert.assertEquals(70 + st1UsedChange, context.st1.getTopologyEntityImpl().getCommoditySoldListList()
+                .get(0).getUsed(), DELTA);
+        Assert.assertEquals(70 + st2UsedChange, context.st2.getTopologyEntityImpl().getCommoditySoldListList()
+                .get(0).getUsed(), DELTA);
+        Assert.assertEquals(700, context.st3.getTopologyEntityImpl().getCommoditySoldListList()
+                .get(0).getUsed(), DELTA);
+        Assert.assertEquals(10 + st1UsedChange, context.vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
+                .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+        Assert.assertEquals(10 + st2UsedChange, context.vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
+                .get(1).getCommodityBoughtList().get(0).getUsed(), DELTA);
+        Assert.assertEquals(100, context.vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
+                .get(2).getCommodityBoughtList().get(0).getUsed(), DELTA);
 
         // Compare peak
         // Expected value used for ST1 : used - currUsedForVM + usedFromSystemLoad : 80 - 20 + 60
         // Expected value used for ST2 : used - currUsedForVM + usedFromSystemLoad : 80 - 20 + 40
         // Expected value used for ST2 : used - currUsedForVM + usedFromSystemLoad : 800
         // Expected value used for VM : from ST1 : 60, from ST2 : 40, from ST2 : 200
-        Assert.assertEquals(80 - 20 + 60, st1.getTopologyEntityImpl().getCommoditySoldListList()
-            .get(0).getPeak(), DELTA);
-        Assert.assertEquals(80 - 20 + 40, st2.getTopologyEntityImpl().getCommoditySoldListList()
-            .get(0).getPeak(), DELTA);
-        Assert.assertEquals(800, st3.getTopologyEntityImpl().getCommoditySoldListList()
-            .get(0).getPeak(), DELTA);
-        Assert.assertEquals(60, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
-            .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
-        Assert.assertEquals(40, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
-            .get(1).getCommodityBoughtList().get(0).getPeak(), DELTA);
-        Assert.assertEquals(200, vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
-            .get(2).getCommodityBoughtList().get(0).getPeak(), DELTA);
+        double st1PeakChange = expectUpdatedValues ? 60 - 20 : 0;
+        double st2PeakChange = expectUpdatedValues ? 40 - 20 : 0;
+        Assert.assertEquals(80 + st1PeakChange, context.st1.getTopologyEntityImpl().getCommoditySoldListList()
+                .get(0).getPeak(), DELTA);
+        Assert.assertEquals(80 + st2PeakChange, context.st2.getTopologyEntityImpl().getCommoditySoldListList()
+                .get(0).getPeak(), DELTA);
+        Assert.assertEquals(800, context.st3.getTopologyEntityImpl().getCommoditySoldListList()
+                .get(0).getPeak(), DELTA);
+        Assert.assertEquals(20 + st1PeakChange, context.vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
+                .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+        Assert.assertEquals(20 + st2PeakChange, context.vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
+                .get(1).getCommodityBoughtList().get(0).getPeak(), DELTA);
+        Assert.assertEquals(200, context.vm.getTopologyEntityImpl().getCommoditiesBoughtFromProvidersList()
+                .get(2).getCommodityBoughtList().get(0).getPeak(), DELTA);
+    }
+
+    /**
+     * Test {@link CommoditiesEditor#editCommoditiesForClusterHeadroom(TopologyGraph, PlanScope, TopologyInfo)}
+     * A VM is placed on three storages st1, st2 and st3.
+     * There are historical system load records for two storages st1, st2 and st4 (VM was placed on it).
+     * Make sure that VM bought and storage sold usage are correctly updated.
+     */
+    @Test
+    public void testEditCommoditiesForClusterHeadroom() {
+        PlanTopologyInfo planTopologyInfo = PlanTopologyInfo.newBuilder()
+                .setPlanProjectType(PlanProjectType.CLUSTER_HEADROOM)
+                .build();
+        CommodityEditsTestContext context = new CommodityEditsTestContext(planTopologyInfo);
+        CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
+        commEditor.applyCommodityEdits(context.g, Collections.emptyList(), context.topologyInfo, context.scope);
+
+        // Check values after calling CommoditiesEditor.
+        verifyCommodityEditResults(context, true);
+    }
+
+    /**
+     * Test {@link CommoditiesEditor#editCommoditiesForClusterHeadroom(TopologyGraph, PlanScope, TopologyInfo)}
+     * A VM is placed on three storages st1, st2 and st3.
+     * There are historical system load records for two storages st1, st2 and st4 (VM was placed on it).
+     * Make sure that VM bought and storage sold usage are correctly updated.
+     */
+    @Test
+    @Parameters({"false", "true"})
+    @TestCaseName("Test #{index}: ENABLE_SYSTEM_LOAD_HARDWARE_REFRESH feature {0}")
+    public void testEditCommoditiesForHardwareRefresh(boolean useSystemLoad) {
+        if (useSystemLoad) {
+            systemLoadFeatureFlag.enable(FeatureFlags.ENABLE_SYSTEM_LOAD_HARDWARE_REFRESH);
+        } else {
+            systemLoadFeatureFlag.disable(FeatureFlags.ENABLE_SYSTEM_LOAD_HARDWARE_REFRESH);
+        }
+        PlanTopologyInfo planTopologyInfo = PlanTopologyInfo.newBuilder()
+                .setPlanProjectType(PlanProjectType.USER)
+                .setPlanType(StringConstants.RECONFIGURE_HARDWARE_PLAN)
+                .build();
+
+        // Run without a baseline
+        CommodityEditsTestContext context = new CommodityEditsTestContext(planTopologyInfo);
+        CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
+        commEditor.applyCommodityEdits(context.g, Collections.emptyList(),
+                context.topologyInfo, context.scope);
+        // Verify
+        verifyCommodityEditResults(context, useSystemLoad);
+
+        // Run with a baseline
+        context = new CommodityEditsTestContext(planTopologyInfo);
+        ScenarioChange scenarioChange = ScenarioChange.newBuilder()
+                .setPlanChanges(PlanChanges.newBuilder()
+                        .setHistoricalBaseline(HistoricalBaseline.newBuilder()
+                                .setBaselineDate(0L)))
+                .build();
+        commEditor.applyCommodityEdits(context.g, ImmutableList.of(scenarioChange),
+                context.topologyInfo, context.scope);
+        // Verify
+        verifyCommodityEditResults(context, false);
     }
 
     @Test

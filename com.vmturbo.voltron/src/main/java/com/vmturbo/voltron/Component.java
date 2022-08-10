@@ -49,6 +49,7 @@ import com.vmturbo.repository.db.Repository;
 import com.vmturbo.topology.processor.TopologyProcessorComponent;
 import com.vmturbo.topology.processor.db.TopologyProcessor;
 import com.vmturbo.voltron.Voltron.VoltronContext;
+import com.vmturbo.voltron.extensions.tp.CacheOnlyTopologyProcessorComponent;
 
 /**
  * Enum to capture all the possible components that can be part of voltron.
@@ -81,6 +82,13 @@ public enum Component {
      */
     TOPOLOGY_PROCESSOR("topology-processor", "com.vmturbo.topology.processor",
             TopologyProcessorComponent.class, Optional.of(TopologyProcessor.TOPOLOGY_PROCESSOR)),
+
+    /**
+     * A topology processor which operates in discovery cache only mode.
+     * Discoveries and broadcasts are initiated by the developer.
+     */
+    CACHE_ONLY_MODE_TOPOLOGY_PROCESSOR("topology-processor", "com.vmturbo.topology.processor",
+            CacheOnlyTopologyProcessorComponent.class, Optional.of(TopologyProcessor.TOPOLOGY_PROCESSOR)),
 
     /**
      * The market.
@@ -338,11 +346,6 @@ public enum Component {
     MEDIATION_INTERSIGHT_UCS("intersight-ucs", "com.vmturbo.mediation.intersight.ucs.component"),
 
     /**
-     * ISTIO.
-     */
-    MEDIATION_ISTIO("istio", "com.vmturbo.mediation.istio.component"),
-
-    /**
      * ActionStream Kafka mediation.
      */
     MEDIATION_ACTIONSTREAM_KAFKA("mediation-actionstream-kafka", "com.vmturbo.mediation.actionstream.kafka.component"),
@@ -351,11 +354,6 @@ public enum Component {
      * NetApp.
      */
     MEDIATION_NETAPP("netapp", "com.vmturbo.mediation.netapp.component"),
-
-    /**
-     * Netflow.
-     */
-    MEDIATION_NETFLOW("netflow", "com.vmturbo.mediation.netflow.component"),
 
     /**
      * NewRelic.
@@ -411,11 +409,6 @@ public enum Component {
      * Terraform.
      */
     MEDIATION_TERRAFORM("terraform", "com.vmturbo.mediation.terraform.component"),
-
-    /**
-     * Tetration.
-     */
-    MEDIATION_TETRATION("tetration", "com.vmturbo.mediation.tetration.component"),
 
     /**
      * Tomcat.
@@ -625,6 +618,10 @@ public enum Component {
 
     public String getShortName() {
         return shortName;
+    }
+
+    public String getTopLevelFolder() {
+        return topLevelFolder;
     }
 
     @Nonnull
