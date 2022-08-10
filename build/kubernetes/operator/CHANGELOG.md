@@ -3,6 +3,11 @@ T8C-Operator Changelog
 
 Operator Versions
 ---------------------
+42.14
+1. Removed containers responsible for sending telemetry to DataCloud from Prometheus server pod.
+2. Added container responsible for sending telemetry to a Kafka topic to Prometheus server pod.
+3. Various improvements related to telemetry testing, troubleshooting and configuration.
+
 42.13
 1. Bootstrap hydra startup with system secret that it needs and DSN
 
