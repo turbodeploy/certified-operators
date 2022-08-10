@@ -1444,7 +1444,7 @@ public class SupplyChainFetcherFactoryTest {
     }
 
     @Nonnull
-    private LeafEntitiesRequest verifyFilteredClass(@Nonnull String className)
+    private LeafEntitiesRequest verifyFilteredClass(@Nonnull com.vmturbo.api.enums.EntityType entityType)
             throws OperationFailedException {
         long id = 1L;
         when(groupExpander.expandUuids(Mockito.any())).thenReturn(ImmutableSet.of(id));
@@ -1452,7 +1452,7 @@ public class SupplyChainFetcherFactoryTest {
         Mockito.when(supplyChainServiceBackend.getLeafEntities(Mockito.any()))
                 .thenReturn(LeafEntitiesResponse.newBuilder().build());
         ArgumentCaptor<LeafEntitiesRequest> reqCaptor = ArgumentCaptor.forClass(LeafEntitiesRequest.class);
-        supplyChainFetcherFactory.fetchLeafEntities(seeds, Collections.singletonList(className), null, null);
+        supplyChainFetcherFactory.fetchLeafEntities(seeds, Collections.singletonList(entityType), null, null);
         verify(supplyChainServiceBackend).getLeafEntities(reqCaptor.capture());
         return reqCaptor.getValue();
     }
@@ -1462,7 +1462,7 @@ public class SupplyChainFetcherFactoryTest {
      */
     @Test
     public void getLeafEntitiesTestFilterClasses() throws OperationFailedException {
-        LeafEntitiesRequest request = verifyFilteredClass("BusinessApplication");
+        LeafEntitiesRequest request = verifyFilteredClass(com.vmturbo.api.enums.EntityType.BusinessApplication);
         Assert.assertFalse(request.getFilterOutClassesList().isEmpty());
         Assert.assertEquals(EntityType.BUSINESS_APPLICATION, request.getFilterOutClassesList().get(0));
     }
@@ -1472,7 +1472,7 @@ public class SupplyChainFetcherFactoryTest {
      */
     @Test(expected = IllegalArgumentException.class)
     public void getLeafEntitiesTestFilterClassesUnexpected() throws OperationFailedException {
-        verifyFilteredClass("__||__");
+        verifyFilteredClass(com.vmturbo.api.enums.EntityType.Unknown);
     }
 
     /**

@@ -43,6 +43,7 @@ import com.vmturbo.api.enums.EntitiesCountCriteria;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
@@ -312,11 +313,11 @@ public class SupplyChainsService implements ISupplyChainsService {
 
     @Override
     public List<BaseApiDTO> getLeafEntities(@Nonnull List<Long> uuids,
-                                            @Nullable List<String> filterOutClasses,
+                                            @Nullable List<EntityType> filterEntityTypes,
                                             @Nullable String cursor,
                                             @Nullable Integer limit)
             throws OperationFailedException {
-        return supplyChainFetcherFactory.fetchLeafEntities(uuids, filterOutClasses, cursor, limit);
+        return supplyChainFetcherFactory.fetchLeafEntities(uuids, filterEntityTypes, cursor, limit);
     }
 
     /**
