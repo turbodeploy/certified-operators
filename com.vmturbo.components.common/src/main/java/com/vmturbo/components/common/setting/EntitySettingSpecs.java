@@ -254,7 +254,7 @@ public enum EntitySettingSpecs {
      */
     ResizeTargetUtilizationStorageAmount("resizeTargetUtilizationStorageAmount", "Scaling Target Storage Amount Utilization",
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.DATABASE_SERVER, EntityType.VIRTUAL_MACHINE_SPEC),
             numeric(0f, 100f, 90f),
             true),
 
@@ -343,6 +343,15 @@ public enum EntitySettingSpecs {
             numeric(90.0f, 100.0f, 95.0f), true),
 
     /**
+     * Aggressiveness for virtual machine spec.
+     */
+    PercentileAggressivenessVirtualMachineSpec("percentileAggressivenessVirtualMachineSpec",
+            SettingConstants.AGGRESSIVENESS,
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE_SPEC),
+            numeric(90.0f, 100.0f, 95.0f), true),
+
+    /**
      * Aggressiveness for virtual volume.
      */
     PercentileAggressivenessVirtualVolume("percentileAggressivenessVirtualVolume",
@@ -386,6 +395,16 @@ public enum EntitySettingSpecs {
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f, 90.0f, 0.0f), true),
+
+    /**
+     * Min observation period for virtual machine spec.
+     */
+    MinObservationPeriodVirtualMachineSpec("minObservationPeriodVirtualMachineSpec",
+            "Min Observation Period",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE_SPEC),
+            numeric(0.0f, 7.0f, 0.0f), true),
+
     /**
      * Min observation period for virtual volume.
      */
@@ -440,6 +459,15 @@ public enum EntitySettingSpecs {
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(7.0f, 90.0f, 30.0f), true),
+
+    /**
+     * Max observation period for virtual machine spec.
+     */
+    MaxObservationPeriodVirtualMachineSpec("maxObservationPeriodVirtualMachineSpec",
+            SettingConstants.MAX_OBSERVATION_PERIOD,
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE_SPEC),
+            numeric(3.0f, 30.0f, 14.0f), true),
 
     /**
      * Max observation period for virtual volume.
@@ -526,7 +554,7 @@ public enum EntitySettingSpecs {
     ResizeTargetUtilizationVcpu("resizeTargetUtilizationVcpu", "Scaling Target VCPU Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_MACHINE_SPEC, EntityType.DATABASE, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
@@ -535,7 +563,7 @@ public enum EntitySettingSpecs {
     ResizeTargetUtilizationVmem("resizeTargetUtilizationVmem", "Scaling Target VMEM Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_MACHINE_SPEC, EntityType.DATABASE, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 100.0f/*max*/, 90.0f/*default*/), true),
 
     /**
@@ -697,13 +725,15 @@ public enum EntitySettingSpecs {
         new BooleanSettingDataType(false), true),
 
     /**
-     * Excluded Templates.
+     * Excluded Templates.  This refers to templates that can be excluded in scaling constraints.
+     * For example, for virtual machine the templates are the full list of cloud instance
+     * ComputeTiers, from which the user can select items for exclusion.
      */
     ExcludedTemplates("excludedTemplatesOids", "Excluded templates",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.UNION,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE,
-                    EntityType.DATABASE_SERVER, EntityType.VIRTUAL_VOLUME),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_MACHINE_SPEC,
+                    EntityType.DATABASE, EntityType.DATABASE_SERVER, EntityType.VIRTUAL_VOLUME),
             sortedSetOfOid(Type.ENTITY), true),
 
     /**
