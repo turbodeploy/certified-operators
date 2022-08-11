@@ -147,6 +147,7 @@ public class SqlBilledCostStore implements BilledCostStore {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toMap(this::getUniqueKeys, r -> r, (a, b) -> {
                     a.setCost(a.getCost() + b.getCost());
+                    a.setUsageAmount(a.getUsageAmount() + b.getUsageAmount());
                     return a;
                 })).values());
             if (!malformedPoints.isEmpty()) {
