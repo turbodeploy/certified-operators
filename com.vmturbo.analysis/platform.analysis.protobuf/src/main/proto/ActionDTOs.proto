@@ -1,0 +1,126 @@
+package com.vmturbo.platform.analysis.protobuf;
+
+import "EconomyDTOs.proto";
+
+// More information may be added to any or all the messages below to facilitate construction of
+// reason and/or description messages.
+
+// Represents a move of a single shopping list bought by a trader from an old supplier to a new.
+// May also represent a first placement of an unplaced shopping list or a shopping list becoming
+// unplaced.
+message MoveTO {
+    // The OID of a shopping list to move.
+    required int64 shopping_list_to_move = 1;
+
+    // The OID of a trader to move from. Assumed null if missing.
+    optional int64 source = 2;
+
+    // The OID of a trader to move to. Assumed null if missing.
+    optional int64 destination = 3;
+}
+
+// Represents an action to reconfigure a shopping list of a trader that contains a mix of
+// commodities no trader is able to provide.
+message ReconfigureTO {
+    // The OID of a shopping list to reconfigure.
+    required int64 shopping_list_to_reconfigure = 1;
+
+    // The OID of the current supplier. Assumed null if missing. It is included for the cases where
+    // a trader is buying a particular shopping list from a supplier that isn't supplying the
+    // complete list and no supplier can supply the complete list.
+    optional int64 source = 2;
+}
+
+// An action to activate a deactivated (suspended) trader.
+message ActivateTO {
+    // The OID of the trader to activate.
+    required int64 trader_to_activate = 1;
+
+    // A high demand for this list of commodity specifications triggered activation of the trader.
+    // It will be a subset of the set of commodity specifications sold by the activating trader.
+    repeated CommoditySpecificationTO triggering_basket = 2;
+
+    // The OID of the template seller
+    required int64 model_seller = 3;
+	
+    
+}
+
+// An action to deactivate (suspend) an active trader.
+message DeactivateTO {
+    // The OID of the trader to deactivate.
+    required int64 trader_to_deactivate = 1;
+
+    // A low demand for this list of commodity specifications triggered deactivation of the trader.
+    // It will be a subset of the set of commodity specifications sold by the deactivating trader.
+    repeated CommoditySpecificationTO triggering_basket = 2;
+}
+
+// An action to provision a trader unlike any other in the system based on the demand of a specific
+// buyer for a specific shopping list.
+message ProvisionByDemandTO {
+    // The OID of a shopping list that can't be satisfied otherwise.
+    required int64 model_buyer = 1;
+
+    // The OID of a trader that is provisioned to satisfy the shopping list, which is negative
+    optional sint64 provisioned_seller = 2;
+
+    // May also need a model_seller to get the desired state for producing the new trader.
+    required int64 model_seller = 3;
+
+	// An entry in commodity to new capacity map. The key is base type of a commodity whose
+	// capacity needs to be changed to satisfy the demand. The value is the new capacity for
+	// that commodity.
+    message CommodityNewCapacityEntry {
+        required int32 commodity_base_Type = 1;
+        required float new_capacity = 2;
+    }
+    // A map keeps information about commodities whose capacity needs to be changed to accommodate
+    // the demand and their new capacity.
+    repeated CommodityNewCapacityEntry commodity_new_capacity_entry = 4;
+}
+
+// An action to provision a trader like another that already exists in the system.
+message ProvisionBySupplyTO {
+    // The OID of a trader to clone.
+    required int64 model_seller = 1;
+
+	// The OID of a trader that is provisioned, which is negative
+    optional sint64 provisioned_seller = 2;
+}
+
+// An action to resize the capacity of a particular commodity sold by a specified trader.
+message ResizeTO {
+    // The OID of the trader that sells the commodity to resize.
+    optional int64 selling_trader = 1;
+
+    // The specification of the commodity sold that should be resized.
+    optional CommoditySpecificationTO specification = 2;
+
+    // The capacity of the commodity sold before resizing. Used in human-readable messages.
+    optional float old_capacity = 3;
+
+    // The capacity to resize to.
+    optional float new_capacity = 4;
+}
+
+// An action to move a list of shopping lists bought by a trader from a number of old providers to
+// a number of new providers.
+message CompoundMoveTO {
+    // A list of move actions that should happen atomically by shoppingLists of the same trader.
+	repeated MoveTO moves = 1;
+}
+// A compound message to encapsulate any one of the above actions.
+message ActionTO {
+    oneof action_type {
+        MoveTO move = 1;
+        ReconfigureTO reconfigure = 2;
+        ActivateTO activate = 3;
+        DeactivateTO deactivate = 4;
+        ProvisionByDemandTO provision_by_demand = 5;
+        ProvisionBySupplyTO provision_by_supply = 6;
+        ResizeTO resize = 7;
+        CompoundMoveTO compound_move = 8;
+    }
+    optional double importance = 9;
+}

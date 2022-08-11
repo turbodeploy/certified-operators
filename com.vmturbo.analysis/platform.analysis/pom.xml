@@ -1,0 +1,96 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.vmturbo</groupId>
+        <artifactId>analysis-parent</artifactId>
+        <version>2.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>platform.analysis</artifactId>
+    <name>Analysis Server</name>
+    <description>The main module for the analysis server that accepts a topology and produces actions.</description>
+    <packaging>war</packaging>
+
+    <properties>
+        <!-- Dependency Versions. -->
+        <junit.version>4.12</junit.version>
+        <JUnitParams.version>1.0.4</JUnitParams.version>
+        <guava.version>18.0</guava.version>
+        <checker-qual.version>1.9.5</checker-qual.version>
+        <log4j.version>1.2.17</log4j.version>
+        <websocket.version>1.1</websocket.version>
+        <!-- A variable for developers to be able to redirect output of the resulting war to a
+             directory were the web server would pick it up from within the Eclipse run configuration.
+             It defaults to were the maven-war-plugin outputDirectory defaults. -->
+        <war.build.dir>${project.build.directory}</war.build.dir>
+    </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <configuration>
+                    <warName>analysis</warName>
+                    <outputDirectory>${war.build.dir}</outputDirectory>
+                    <attachClasses>true</attachClasses>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>com/vmturbo/platform/analysis/demos/*</exclude>
+                        <exclude>com/vmturbo/platform/analysis/drivers/*</exclude>
+                        <exclude>com/vmturbo/platform/analysis/benchmarks/*</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>javax.websocket</groupId>
+            <artifactId>javax.websocket-api</artifactId>
+            <version>${websocket.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>pl.pragmatists</groupId>
+            <artifactId>JUnitParams</artifactId>
+            <version>${JUnitParams.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>${guava.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.checkerframework</groupId>
+            <artifactId>checker-qual</artifactId>
+            <version>${checker-qual.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+            <version>${log4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>platform.analysis.protobuf</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+
+</project>

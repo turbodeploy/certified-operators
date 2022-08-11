@@ -1,0 +1,33 @@
+package com.vmturbo.platform.analysis.protobuf;
+
+// Any one from a small set of functions that can be used to update the quantity sold by a supplier
+// when one or more customers move in or out.
+
+// The intention is to use this message only temporarily and replace it with a one expressing
+// quantity updating functions as bivariate Non Uniform Rational B-Splines (NURBS) in the future, so
+// that we won't have to update the protobuf messages and analysis code every time a new function
+// needs to be added.
+
+// Since we currently use this only for latency in practice, the message is more complex than needed.
+message UpdatingFunctionTO {
+    // The 'max' bivariate function.
+    message Max {
+    }
+
+    message Min {
+    }
+
+    message ProjectSecond {
+    }
+
+    message Delta {
+    }
+
+    // Which one of the available functions this message contains.
+    oneof updating_function_type {
+        Max max = 1;
+        Min min = 2;
+        ProjectSecond project_second = 3;
+        Delta delta = 4;
+    }
+}
