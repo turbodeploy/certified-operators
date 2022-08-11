@@ -1229,8 +1229,11 @@
                 <module>../kafka</module>
                 <module>../zookeeper</module>
                 <module>../nginx</module>
+                <!--
                 <module>../hydra</module>
+                skupper adds ~15 mins
                 <module>../skupper</module>
+                -->
                 <!-- Generate XL python bindings. -->
                 <module>../xl-python</module>
                 <!--
@@ -1321,11 +1324,33 @@
 
                 <!-- module containing base classes for test classes appearing in multiple modules -->
                 <module>../com.vmturbo.testbases</module>
+
+                <!-- probes needed for product sweep -->
+                <module>../com.vmturbo.mediation.vcenter.component</module>
+                <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
+                <module>../com.vmturbo.mediation.appdynamics.component</module>
+                <module>../com.vmturbo.mediation.dynatrace.component</module>
+                <module>../com.vmturbo.mediation.aws.billing.component</module>
+                <module>../com.vmturbo.mediation.aws.cloudbilling.component</module>
+                <module>../com.vmturbo.mediation.aws.component</module>
+                <module>../com.vmturbo.mediation.aws.cost.component</module>
+                <module>../com.vmturbo.mediation.aws.lambda.component</module>
+                <module>../com.vmturbo.mediation.azure.component</module>
+                <module>../com.vmturbo.mediation.azure.volumes.component</module>
+                <module>../com.vmturbo.mediation.azure.cost.component</module>
+                <module>../com.vmturbo.mediation.azure.ea.component</module>
+                <module>../com.vmturbo.mediation.azure.billing.component</module>
+                <module>../com.vmturbo.mediation.azure.sp.component</module>
+                <module>../com.vmturbo.mediation.gcp.sa.component</module>
+                <module>../com.vmturbo.mediation.gcp.cost.component</module>
+                <module>../com.vmturbo.mediation.gcp.project.component</module>
+                <module>../com.vmturbo.mediation.gcp.billing.component</module>
             </modules>
         </profile>
 
         <profile>
             <id>team-cloud-paas</id>
+            <!-- contains modules commonly built by cloud-paas team, update as needed -->
             <modules>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
                 <module>../com.vmturbo.mediation.aws.cloudbilling.component</module>
