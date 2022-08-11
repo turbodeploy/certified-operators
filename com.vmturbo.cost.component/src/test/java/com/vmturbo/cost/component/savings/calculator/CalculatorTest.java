@@ -1061,7 +1061,7 @@ public class CalculatorTest {
         actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
                 LocalDateTime.of(2022, 6, 1, 10, 0),
                 sourceOnDemandRate, destOnDemandRate, tierA, tierA,
-                null, LivenessState.LIVE, resizeInfoList));
+                null, LivenessState.SUPERSEDED, resizeInfoList));
 
         List<ResizeInfo> resizeInfoList2 = new ArrayList<>();
         resizeInfoList2.add(ScenarioGenerator.createResizeInfo(CommodityType.STORAGE_ACCESS, 200, 150));
@@ -1087,6 +1087,162 @@ public class CalculatorTest {
                 .timestamp(date(2022, 6, 3)).build());
         List<SavingsValues> result = calculator.calculate(volumeOid, records, actionSpecs,
                 getTimestamp(date(2022, 5, 31)), date(2022, 6, 4));
+        validateResults(result, expectedResults);
+    }
+
+    /**
+     * Test the case when the bill only included the costs for part of a day.
+     *
+     * <p>Action 1: June 1 10am: Change disk commodities: IOPS 100 to 200; IO_Throughput 1MBps to 2MBps.
+     * Action 2: June 3 1pm: Change disk commodities: IOPS 200 to 150.
+     * The bill for June 3 only include 20 hours of cost.
+     */
+    @Test
+    public void testPartialBill() {
+        final long tierA = 1212121212L;
+        final double storageAccessRate = 0.000068;
+        final double ioThroughputRate = 0.00047;
+        final double storageAmountRate = 0.000163159;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 100 * 10 + 200 * 14, (100 * 10 + 200 * 14) * storageAccessRate, tierA, CommodityType.STORAGE_ACCESS_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 10 + 2 * 14, (10 + 2 * 14) * ioThroughputRate, tierA, CommodityType.IO_THROUGHPUT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 16 * 24, (16 * 24) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 2), 200 * 24, (200 * 24) * storageAccessRate, tierA, CommodityType.STORAGE_ACCESS_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 2), 2 * 24, (2 * 24) * ioThroughputRate, tierA, CommodityType.IO_THROUGHPUT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 2), 16 * 24, (16 * 24) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 3), 200 * 13 + 150 * 7, (200 * 13 + 150 * 7) * storageAccessRate, tierA, CommodityType.STORAGE_ACCESS_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 3), 2 * 20, (2 * 20) * ioThroughputRate, tierA, CommodityType.IO_THROUGHPUT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 3), 16 * 20, (16 * 20) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(changeWindowComparator);
+        List<ResizeInfo> resizeInfoList = new ArrayList<>();
+        resizeInfoList.add(ScenarioGenerator.createResizeInfo(CommodityType.STORAGE_ACCESS, 100, 200));
+        resizeInfoList.add(ScenarioGenerator.createResizeInfo(CommodityType.IO_THROUGHPUT, 1, 2));
+        double sourceOnDemandRate = (100 * storageAccessRate + ioThroughputRate + 16 * storageAmountRate); // cost per hour
+        double destOnDemandRate = (200 * storageAccessRate + 2 * ioThroughputRate + 16 * storageAmountRate); // cost per hour
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 1, 10, 0),
+                sourceOnDemandRate, destOnDemandRate, tierA, tierA,
+                null, LivenessState.SUPERSEDED, resizeInfoList));
+
+        List<ResizeInfo> resizeInfoList2 = new ArrayList<>();
+        resizeInfoList2.add(ScenarioGenerator.createResizeInfo(CommodityType.STORAGE_ACCESS, 200, 150));
+        double sourceOnDemandRate2 = (200 * storageAccessRate + 2 * ioThroughputRate + 16 * storageAmountRate); // cost per hour
+        double destOnDemandRate2 = (150 * storageAccessRate + 2 * ioThroughputRate + 16 * storageAmountRate); // cost per hour
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 3, 13, 0),
+                sourceOnDemandRate2, destOnDemandRate2, tierA, tierA,
+                null, LivenessState.LIVE, resizeInfoList2));
+
+        double day1Investment = destOnDemandRate * 14 - sourceOnDemandRate * 14;
+        double day2Investment = destOnDemandRate * 24 - sourceOnDemandRate * 24;
+        // On June 3, value of sourceOnDemandRate is the low watermark.
+        double day3Investment = (destOnDemandRate - sourceOnDemandRate) * 13 + (destOnDemandRate2 - sourceOnDemandRate) * 7;
+        // On June 3, value of sourceOnDemandRate2 is the high watermark.
+        double day3Savings = (sourceOnDemandRate2 - destOnDemandRate2) * 7;
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(0).investments(day1Investment)
+                .timestamp(date(2022, 6, 1)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(0).investments(day2Investment)
+                .timestamp(date(2022, 6, 2)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(day3Savings).investments(day3Investment)
+                .timestamp(date(2022, 6, 3)).build());
+        List<SavingsValues> result = calculator.calculate(volumeOid, records, actionSpecs,
+                getTimestamp(date(2022, 5, 31)), date(2022, 6, 4));
+        validateResults(result, expectedResults);
+    }
+
+    /**
+     * 1 scale action than changes commodity capacities on an ultra disk, followed by another action
+     * that scales to another provider on the same day.
+     *
+     * <p>Action 1: June 1 10am: Change disk commodities: IOPS 100 to 200; IO_Throughput 1MBps to 2MBps.
+     * Action 2: June 1 5pm: Scale disk to another provider. Storage is still 16GB.
+     */
+    @Test
+    public void testFirstSegment2ProvidersOneDay() {
+        final long tierA = 1212121212L;
+        final long tierB = 2323232323L;
+        final double storageAccessRate = 0.000068;
+        final double ioThroughputRate = 0.00047;
+        final double storageAmountRate = 0.000163159;
+        final double tierBRate = 0.022; // cost per hour
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 100 * 10 + 200 * 7, (100 * 10 + 200 * 7) * storageAccessRate, tierA, CommodityType.STORAGE_ACCESS_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 10 + 2 * 7, (10 + 2 * 7) * ioThroughputRate, tierA, CommodityType.IO_THROUGHPUT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 16 * 17, (16 * 17) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 16 * 7, 7 * tierBRate, tierB, CommodityType.STORAGE_AMOUNT_VALUE));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(changeWindowComparator);
+        List<ResizeInfo> resizeInfoList = new ArrayList<>();
+        resizeInfoList.add(ScenarioGenerator.createResizeInfo(CommodityType.STORAGE_ACCESS, 100, 200));
+        resizeInfoList.add(ScenarioGenerator.createResizeInfo(CommodityType.IO_THROUGHPUT, 1, 2));
+        double sourceOnDemandRate = (100 * storageAccessRate + ioThroughputRate + 16 * storageAmountRate); // cost per hour
+        double destOnDemandRate = (200 * storageAccessRate + 2 * ioThroughputRate + 16 * storageAmountRate); // cost per hour
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 1, 10, 0),
+                sourceOnDemandRate, destOnDemandRate, tierA, tierA,
+                null, LivenessState.SUPERSEDED, resizeInfoList));
+
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 1, 17, 0),
+                destOnDemandRate, tierBRate, tierA, tierB,
+                null, LivenessState.LIVE, null));
+
+        double day1Investment = (destOnDemandRate - sourceOnDemandRate) * 7 + (tierBRate - sourceOnDemandRate) * 7;
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(0).investments(day1Investment)
+                .timestamp(date(2022, 6, 1)).build());
+        List<SavingsValues> result = calculator.calculate(volumeOid, records, actionSpecs,
+                getTimestamp(date(2022, 5, 31)), date(2022, 6, 2));
+        validateResults(result, expectedResults);
+    }
+
+    /**
+     * 2 scale actions on an ultra disk on the same day. First one changes 2 commodities and second
+     * one changes only 1 commodity.
+     *
+     * <p>Action 1: June 1 10am: Change disk commodities: IOPS 100 to 200; IO_Throughput 1MBps to 2MBps.
+     * Action 2: June 1 5pm: Scale IOPS to 300.
+     */
+    @Test
+    public void testFirstSegment1Provider2ActionsOneDay() {
+        final long tierA = 1212121212L;
+        final long tierB = 2323232323L;
+        final double storageAccessRate = 0.000068;
+        final double ioThroughputRate = 0.00047;
+        final double storageAmountRate = 0.000163159;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 100 * 10 + 200 * 7 + 300 * 7, (100 * 10 + 200 * 7 + 300 * 7) * storageAccessRate, tierA, CommodityType.STORAGE_ACCESS_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 10 + 2 * 14, (10 + 2 * 14) * ioThroughputRate, tierA, CommodityType.IO_THROUGHPUT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 16 * 24, (16 * 24) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(changeWindowComparator);
+        List<ResizeInfo> resizeInfoList = new ArrayList<>();
+        resizeInfoList.add(ScenarioGenerator.createResizeInfo(CommodityType.STORAGE_ACCESS, 100, 200));
+        resizeInfoList.add(ScenarioGenerator.createResizeInfo(CommodityType.IO_THROUGHPUT, 1, 2));
+        double sourceOnDemandRate = (100 * storageAccessRate + ioThroughputRate + 16 * storageAmountRate); // cost per hour
+        double destOnDemandRate = (200 * storageAccessRate + 2 * ioThroughputRate + 16 * storageAmountRate); // cost per hour
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 1, 10, 0),
+                sourceOnDemandRate, destOnDemandRate, tierA, tierA,
+                null, LivenessState.SUPERSEDED, resizeInfoList));
+
+        List<ResizeInfo> resizeInfoList2 = new ArrayList<>();
+        resizeInfoList2.add(ScenarioGenerator.createResizeInfo(CommodityType.STORAGE_ACCESS, 200, 300));
+
+        double destOnDemandRate2 = (300 * storageAccessRate + 2 * ioThroughputRate + 16 * storageAmountRate); // cost per hour
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 1, 17, 0),
+                destOnDemandRate, destOnDemandRate2, tierA, tierB,
+                null, LivenessState.LIVE, resizeInfoList2));
+
+        double day1Investment = (destOnDemandRate - sourceOnDemandRate) * 7 + (destOnDemandRate2 - sourceOnDemandRate) * 7;
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(0).investments(day1Investment)
+                .timestamp(date(2022, 6, 1)).build());
+        List<SavingsValues> result = calculator.calculate(volumeOid, records, actionSpecs,
+                getTimestamp(date(2022, 5, 31)), date(2022, 6, 2));
         validateResults(result, expectedResults);
     }
 }

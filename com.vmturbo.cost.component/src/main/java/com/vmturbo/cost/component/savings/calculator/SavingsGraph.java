@@ -84,20 +84,16 @@ public class SavingsGraph {
                 low = Math.min(sourceRate, low);
                 high = Math.max(sourceRate, high);
 
-                long sourceProviderOid = 0L;
-                long destProviderOid = 0L;
-                if (action.getInfo().hasScale()) {
-                    // If the action is used to change the provider, the source and destination provider
-                    // OID will be the OID of the provider before and after the action respectively.
-                    // If the action does not change the primary provider, but to change the commodity
-                    // values only, both source and destination provider will be set to the primary provider OID.
-                    sourceProviderOid = ActionDTOUtil.getPrimaryChangeProvider(action)
-                            .map(changeProvider -> changeProvider.getSource().getId())
-                            .orElse(ActionDTOUtil.getPrimaryProvider(action).map(ActionEntity::getId).orElse(0L));
-                    destProviderOid = ActionDTOUtil.getPrimaryChangeProvider(action)
-                            .map(changeProvider -> changeProvider.getDestination().getId())
-                            .orElse(ActionDTOUtil.getPrimaryProvider(action).map(ActionEntity::getId).orElse(0L));
-                }
+                // If the action is used to change the provider, the source and destination provider
+                // OID will be the OID of the provider before and after the action respectively.
+                // If the action does not change the primary provider, but to change the commodity
+                // values only, both source and destination provider will be set to the primary provider OID.
+                long sourceProviderOid = ActionDTOUtil.getPrimaryChangeProvider(action)
+                        .map(changeProvider -> changeProvider.getSource().getId())
+                        .orElse(ActionDTOUtil.getPrimaryProvider(action).map(ActionEntity::getId).orElse(0L));
+                long destProviderOid = ActionDTOUtil.getPrimaryChangeProvider(action)
+                        .map(changeProvider -> changeProvider.getDestination().getId())
+                        .orElse(ActionDTOUtil.getPrimaryProvider(action).map(ActionEntity::getId).orElse(0L));
 
                 final TierCostDetails projectedTierCostDetails = action.getInfo().getScale()
                         .getCloudSavingsDetails().getProjectedTierCostDetails();
