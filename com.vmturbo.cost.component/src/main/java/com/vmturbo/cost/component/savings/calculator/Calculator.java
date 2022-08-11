@@ -15,6 +15,7 @@ import java.util.Map.Entry;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -260,6 +261,7 @@ public class Calculator {
             // If first point is at exactly the beginning of day (edge case), or no actions were
             // executed before start of the day, skip to next point.
             if (actionDatapoint.getTimestamp() == datestamp || noActionBeforeStartOfDay) {
+                noActionBeforeStartOfDay = false;
                 continue;
             }
             segmentEnd = actionDatapoint.getTimestamp();
@@ -275,9 +277,39 @@ public class Calculator {
         final long segmentDuration = segmentEnd - segmentStart;
         segments.add(new Segment(segmentDuration, dataPoint));
 
-        assignDurationAndMultiplier(segments, billRecords, datestamp);
+        assignDurationAndMultiplier(segments, billRecords, datestamp, dataPointsInDay);
 
         return segments;
+    }
+
+    /**
+     * When there are more than one action on an entity on a day and one action changes a commodity
+     * value but the other action does not, we need to know the capacity of the commodity when
+     * processing the second action so that we can calculate the multiplier accurately.
+     *
+     * @param datestamp timestamp of the beginning of the day.
+     * @param dataPointsInDay All action data points for this day.
+     * @return a map of commodity type to a tree map that maps timestamp to commodity capacity.
+     */
+    @Nonnull
+    private Map<Integer, TreeMap<Long, Double>> getCommodityCapacityMap(long datestamp,
+            SortedSet<ActionDataPoint> dataPointsInDay) {
+        Map<Integer, TreeMap<Long, Double>> capacityMap = new TreeMap<>();
+        for (ActionDataPoint action : dataPointsInDay) {
+            if (!(action instanceof ScaleActionDataPoint)) {
+                continue;
+            }
+            ScaleActionDataPoint scaleActionDataPoint = (ScaleActionDataPoint)action;
+            for (CommodityResize commodityResize : scaleActionDataPoint.getCommodityResizes()) {
+                int commType = commodityResize.getCommodityType();
+                if (!capacityMap.containsKey(commType)) {
+                    capacityMap.put(commType, new TreeMap<>());
+                    capacityMap.get(commType).put(datestamp, commodityResize.getOldCapacity());
+                }
+                capacityMap.get(commType).put(action.getTimestamp(), commodityResize.getNewCapacity());
+            }
+        }
+        return capacityMap;
     }
 
     /**
@@ -286,7 +318,8 @@ public class Calculator {
      * @param segments all segments in the day
      * @param billRecords all bill records for the day
      */
-    private void assignDurationAndMultiplier(List<Segment> segments, Set<BillingRecord> billRecords, long startOfDay) {
+    private void assignDurationAndMultiplier(List<Segment> segments, Set<BillingRecord> billRecords,
+            long startOfDay, SortedSet<ActionDataPoint> dataPointsInDay) {
         Map<Long, List<Segment>> segmentsByProvider = segments.stream()
                 .collect(Collectors.groupingBy(s -> s.getActionDataPoint().getDestinationProviderOid()));
         for (Entry<Long, List<Segment>> providerSegmentsEntry : segmentsByProvider.entrySet()) {
@@ -308,16 +341,21 @@ public class Calculator {
             }
 
             // If the first segment for the day is for this provider and it did not start from
-            // the beginning of the day, we need to account for the time and cost incurred
+            // the beginning of the day and the provider before the first segment is the same as
+            // the first segment, we need to account for the time and cost incurred
             // before the first segment.
             long providerRemoveUsageBeforeFirstSegment = 0;
             if (!segments.isEmpty() && segments.get(0).getActionDataPoint() instanceof ScaleActionDataPoint) {
                 ScaleActionDataPoint firstSegment = (ScaleActionDataPoint)segments.get(0).getActionDataPoint();
-                if (firstSegment.getTimestamp() > startOfDay && !firstSegment.getCommodityResizes().isEmpty()) {
+                if (firstSegment.getTimestamp() > startOfDay
+                        && providerId == firstSegment.getDestinationProviderOid()
+                        && firstSegment.getSourceProviderOid() == firstSegment.getDestinationProviderOid()) {
                     providerRemoveUsageBeforeFirstSegment = firstSegment.getSourceProviderOid();
                 }
             }
 
+            long totalTimeOnProvider = 0;
+            double timeBeforeFirstSegment = 0;
             for (Entry<Integer, List<BillingRecord>> commTypeEntry : recordsByCommType.entrySet()) {
                 List<BillingRecord> billingRecordsForCommType = commTypeEntry.getValue();
                 if (billingRecordsForCommType.isEmpty()) {
@@ -341,7 +379,6 @@ public class Calculator {
                 // billed hours remaining. In this case, adjust the second segment to 5 hours.
                 double usageRemaining = totalUsageBilled;
                 Integer commType = commTypeEntry.getKey();
-                long totalTimeOnProvider = 0;
                 boolean isFirstSegmentForProvider = true;
                 for (Segment segment : providerSegmentsEntry.getValue()) {
                     if (commType == CommodityType.UNKNOWN_VALUE) {
@@ -355,16 +392,11 @@ public class Calculator {
                         usageRemaining -= segment.duration / (double)MILLIS_IN_HOUR;
                     } else {
                         // UsageAmount is commodity quantity times TIME.
+                        Map<Integer, TreeMap<Long, Double>> commCapMap = getCommodityCapacityMap(startOfDay, dataPointsInDay);
                         if (segment.getActionDataPoint() instanceof ScaleActionDataPoint) {
                             ScaleActionDataPoint scaleActionDataPoint = (ScaleActionDataPoint)segment.getActionDataPoint();
-                            CommodityResize commodityResize = scaleActionDataPoint.getCommodityResizes().stream()
-                                    .filter(c -> c.getCommodityType() == commType)
-                                    .findAny()
-                                    .orElse(null);
-                            if (commodityResize == null) {
-                                // This commType is not changed in this segment.
-                                // If storage amount is not changed in the action, there is no
-                                // commodityResize info for storage amount.
+                            if (commCapMap.get(commType) == null) {
+                                // This commType is not changed on this day.
                                 // We use the proportion of the lengths of the segments to assign the multiplier.
                                 // If the bill record does not include the charge for the full day yet,
                                 // this multiplier can be inaccurate, but the value will be corrected
@@ -376,7 +408,8 @@ public class Calculator {
                                     // first segment (of any provider) for the day and it does not
                                     // start at the beginning of the day.
                                     if (providerRemoveUsageBeforeFirstSegment == providerId) {
-                                        totalTimeOnProvider += (segments.get(0).getActionDataPoint().getTimestamp() - startOfDay);
+                                        timeBeforeFirstSegment = (segments.get(0).getActionDataPoint().getTimestamp() - startOfDay);
+                                        totalTimeOnProvider += timeBeforeFirstSegment;
                                     }
                                 }
                                 double multiplier = totalTimeOnProvider != 0
@@ -385,17 +418,25 @@ public class Calculator {
                                 usageRemaining -= multiplier * billingRecordsForCommType.stream()
                                         .map(BillingRecord::getUsageAmount)
                                         .reduce(0d, Double::sum);
-                            } else {
                                 if (isFirstSegmentForProvider && providerRemoveUsageBeforeFirstSegment == providerId) {
-                                    usageRemaining -= commodityResize.getOldCapacity()
+                                    usageRemaining -= timeBeforeFirstSegment / totalTimeOnProvider * billingRecordsForCommType.stream().map(
+                                            BillingRecord::getUsageAmount).reduce(0d, Double::sum);
+                                }
+                            } else {
+                                long segmentStartTime = Math.max(scaleActionDataPoint.getTimestamp(), startOfDay);
+                                if (isFirstSegmentForProvider && providerRemoveUsageBeforeFirstSegment == providerId) {
+                                    double oldCapacity = commCapMap.get(commType).lowerEntry(segmentStartTime).getValue();
+                                    usageRemaining -= oldCapacity
                                             * TimeUnit.MILLISECONDS.toHours(segment.getActionDataPoint().getTimestamp() - startOfDay);
                                 }
-                                double quantityTimesTime = commodityResize.getNewCapacity() * segment.duration / MILLIS_IN_HOUR;
-                                if (usageRemaining - quantityTimesTime < 0) {
-                                    segment.duration = Double.valueOf(usageRemaining / commodityResize.getNewCapacity()).longValue();
+                                double newCapacity = commCapMap.get(commType).floorEntry(segmentStartTime).getValue();
+                                double quantityTimesHours = newCapacity * segment.duration / MILLIS_IN_HOUR;
+                                if (usageRemaining - quantityTimesHours < 0) {
+                                    segment.duration = Double.valueOf(usageRemaining / newCapacity).longValue() * MILLIS_IN_HOUR;
+                                    quantityTimesHours = newCapacity * segment.duration / MILLIS_IN_HOUR;
                                 }
-                                segment.commTypeToMultiplierMap.put(commType, quantityTimesTime / totalUsageBilled);
-                                usageRemaining -= quantityTimesTime;
+                                segment.commTypeToMultiplierMap.put(commType, quantityTimesHours / totalUsageBilled);
+                                usageRemaining -= quantityTimesHours;
                             }
                         } else {
                             segment.commTypeToMultiplierMap.put(commType, 1.0);
