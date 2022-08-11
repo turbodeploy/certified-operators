@@ -534,7 +534,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         final Set<Long> requestedIds = new HashSet<>(request.getGroupFilter().getIdList());
         final List<Long> filteredIds = new ArrayList<>(groupIds.size());
         for (long groupId: groupIds) {
-            if (userScopeFilter(groupId, requestedIds, request.getScopesList(), groupStore)) {
+            if (userScopeFilter(groupId, requestedIds, request.getScopesList(), groupStore, request.getAtomicRequest())) {
                 filteredIds.add(groupId);
             }
         }
@@ -591,7 +591,7 @@ public class GroupRpcService extends GroupServiceImplBase {
     }
 
     private boolean userScopeFilter(long groupId, @Nonnull Set<Long> requestedIds,
-            @Nonnull List<Long> scopes, @Nonnull IGroupStore groupStore) throws StoreOperationException {
+            @Nonnull List<Long> scopes, @Nonnull IGroupStore groupStore, @Nonnull boolean atomicRequest) throws StoreOperationException {
         // if the user is scoped, set up a filter to restrict the results based on their scope.
         // if the request contains scopes limit, set up a filter to restrict the results based on it.
         // if the request is for "all" groups and the user is scoped: we will filter results and
@@ -611,7 +611,15 @@ public class GroupRpcService extends GroupServiceImplBase {
             } else {
                 // trigger an access denied exception if an requested id is inaccessible
                 // if user is not scoped, just not return it, no need to throw exception
-                result = UserScopeUtils.checkAccess(userSessionContext, members);
+                try {
+                    result = UserScopeUtils.checkAccess(userSessionContext, members);
+                } catch (UserAccessScopeException e) {
+                    if (atomicRequest) {
+                        throw e;
+                    } else {
+                        result = false;
+                    }
+                }
             }
         }
         // filter by limited scopes in request to ensure all results are within those scopes

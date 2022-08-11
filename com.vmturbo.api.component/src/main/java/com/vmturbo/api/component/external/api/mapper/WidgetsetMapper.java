@@ -257,6 +257,7 @@ public class WidgetsetMapper {
                 // Get all groups referenced by the widgets.
                 final List<Grouping> groups = Lists.newArrayList(groupRpcService.getGroups(
                         GetGroupsRequest.newBuilder()
+                                .setAtomicRequest(false)
                                 .setGroupFilter(GroupFilter.newBuilder()
                                         .addAllId(groupScopedWidgets.keySet()))
                                 .build()));

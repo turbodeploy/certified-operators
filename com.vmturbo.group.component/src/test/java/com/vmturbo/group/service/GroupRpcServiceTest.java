@@ -8,6 +8,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -1242,6 +1243,54 @@ public class GroupRpcServiceTest {
         when(userSessionContext.isUserScoped()).thenReturn(true);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
         groupRpcService.getGroups(genericGroupsRequest, mockGroupingObserver);
+        Mockito.verify(mockGroupingObserver).onNext(firstGrouping);
+        Mockito.verify(mockGroupingObserver, Mockito.never()).onNext(secondGrouping);
+        Mockito.verify(mockGroupingObserver).onCompleted();
+    }
+
+    /**
+     * Test when user request groups with atomicRequest flag to false.
+     * No UserAccessScopeException is thrown and  user scope limit in the request.
+     * Only filtered groups which are within user scope are returned.
+     */
+    public void testGetGroupsWhenUserScopedWithAtomicRequest() {
+
+        final long firstGroupId = 1L;
+        final long secondGroupId = 2L;
+        final long firstGroupMember = 11L;
+        final long secondGroupMember = 12L;
+        final Collection<Long>  firstGroupMembers =  Collections.singletonList(firstGroupMember);
+        final Collection<Long> secondGroupMembers = Collections.singletonList(secondGroupMember);
+
+        final EntityAccessScope accessScope =
+            new EntityAccessScope(null, null,
+                new ArrayOidSet(Collections.singletonList(firstGroupMember)),
+                null);
+
+        final Grouping firstGrouping = createGrouping(firstGroupId, firstGroupMembers);
+        final Grouping secondGrouping = createGrouping(secondGroupId, secondGroupMembers);
+        groupStoreDAO.addGroup(firstGrouping);
+        groupStoreDAO.addGroup(secondGrouping);
+
+        final StreamObserver<GroupDTO.Grouping> mockGroupingObserver =
+            Mockito.mock(StreamObserver.class);
+        final GetGroupsRequest genericGroupsRequest = GetGroupsRequest
+            .newBuilder()
+            .setAtomicRequest(false)
+            .setGroupFilter(GroupFilter.newBuilder().addAllId(Arrays.asList(firstGroupId,
+                secondGroupId))).build();
+        Mockito.when(groupStoreDAO.getGroupIds(GroupFilters.newBuilder()
+            .addGroupFilter(genericGroupsRequest.getGroupFilter())
+            .build())).thenReturn(Sets.newHashSet(firstGroupId, secondGroupId));
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+
+        try {
+            groupRpcService.getGroups(genericGroupsRequest, mockGroupingObserver);
+        } catch (UserAccessScopeException e) {
+            fail("The request should have thrown an exception");
+        }
+
         Mockito.verify(mockGroupingObserver).onNext(firstGrouping);
         Mockito.verify(mockGroupingObserver, Mockito.never()).onNext(secondGrouping);
         Mockito.verify(mockGroupingObserver).onCompleted();
