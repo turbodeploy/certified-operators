@@ -478,6 +478,8 @@
                 <module>../com.vmturbo.mediation.azure.volumes.component</module>
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
                 <module>../com.vmturbo.mediation.azure.ea.component</module>
+                <module>../com.vmturbo.mediation.azure.pricing</module>
+                <module>../com.vmturbo.mediation.azure.pricing.component</module>
                 <module>../com.vmturbo.mediation.azure.sp.component</module>
                 <module>../com.vmturbo.mediation.baremetal.component</module>
                 <module>../com.vmturbo.mediation.client</module>
@@ -772,6 +774,8 @@
                 <module>../com.vmturbo.mediation.azure.ea.component</module>
                 <module>../com.vmturbo.mediation.azure.sp.component</module>
                 <module>../com.vmturbo.mediation.azure.billing.component</module>
+                <module>../com.vmturbo.mediation.azure.pricing</module>
+                <module>../com.vmturbo.mediation.azure.pricing.component</module>
             </modules>
         </profile>
 
@@ -1479,6 +1483,8 @@
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
                 <module>../com.vmturbo.mediation.azure.ea.component</module>
                 <module>../com.vmturbo.mediation.azure.billing.component</module>
+                <module>../com.vmturbo.mediation.azure.pricing</module>
+                <module>../com.vmturbo.mediation.azure.pricing.component</module>
                 <module>../com.vmturbo.mediation.azure.sp.component</module>
                 <module>../com.vmturbo.mediation.baremetal.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
