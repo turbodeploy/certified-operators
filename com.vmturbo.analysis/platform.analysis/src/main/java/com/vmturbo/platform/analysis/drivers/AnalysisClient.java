@@ -11,7 +11,8 @@ import javax.websocket.OnOpen;
 import javax.websocket.Session;
 import javax.websocket.server.ServerEndpoint;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
@@ -23,7 +24,7 @@ import com.vmturbo.platform.analysis.utilities.M2Utils;
 @ServerEndpoint("/client")
 public class AnalysisClient {
     // Fields
-    private static final Logger logger = Logger.getLogger(AnalysisClient.class);
+    private static final Logger logger = LogManager.getLogger(AnalysisClient.class);
 
     // Constructors
 

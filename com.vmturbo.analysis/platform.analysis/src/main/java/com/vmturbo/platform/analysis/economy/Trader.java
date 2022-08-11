@@ -2,18 +2,20 @@ package com.vmturbo.platform.analysis.economy;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import javax.annotation.Nonnull;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
-
 
 /**
  * An entity that trades goods in a {@link Market}.
@@ -26,14 +28,20 @@ import org.checkerframework.dataflow.qual.Pure;
  *  enforced initially.
  * </p>
  */
-public abstract class Trader {
+public abstract class Trader implements Serializable {
+    /**
+     *
+     */
+    private static final long serialVersionUID = 8356471354794423341L;
     // Fields
     private int economyIndex_;
+    private int cloneOf_;
+    private long oid_ = Long.MIN_VALUE; // OID of the trader
     private final int type_; // this should never change once the object is created.
     private @NonNull TraderState state_;
     private @NonNull Basket basketSold_;
     private final @NonNull List<@NonNull CommoditySold> commoditiesSold_ = new ArrayList<>();
-    private final @NonNull List<@NonNull Integer> cliques_ = new ArrayList<>();
+    private final @NonNull Set<@NonNull Long> cliques_ = new HashSet<>();
     private final @NonNull List<@NonNull ShoppingList> customers_ = new ArrayList<>();
     // TODO: (Jun 22, 2016) This field is intended to be temporarily used for debugging in the initial stages of M2. To avoid making drastic change in
     // market2, we use a setter and getter to set and get this field instead of putting it part of the constructor even though it should
@@ -45,13 +53,24 @@ public abstract class Trader {
 
     // Cached unmodifiable view of the commoditiesSold_ list.
     private final @NonNull List<@NonNull CommoditySold> unmodifiableCommoditiesSold_ = Collections.unmodifiableList(commoditiesSold_);
-    // Cached unmodifiable view of the cliques_ list.
-    private final @NonNull List<@NonNull Integer> unmodifiableCliques_ = Collections.unmodifiableList(cliques_);
+    // Cached unmodifiable view of the cliques_ set.
+    private final @NonNull Set<@NonNull Long> unmodifiableCliques_ = Collections.unmodifiableSet(cliques_);
     // Cached unmodifiable view of the customers_ list.
     private final @NonNull List<@NonNull ShoppingList> unmodifiableCustomers_ = Collections.unmodifiableList(customers_);
+    // This field specifies whether we want to print debug info for the trader
+    private boolean debugEnabled = false;
+    // This field specifies whether this trader represents a template
+    private boolean templateProvider_ = false;
+    // This field specifies whether the trader's debug info is already printed
+    private boolean sellersInfoPrinted = false;
+    // Identifies the scaling group that this trader belongs to
+    private final static String NO_SCALING_GROUP = "";
+    private String scalingGroupId_ = NO_SCALING_GROUP;
+    // Trader coming in to analysis in deploy market as new entity for placement.
+    private boolean isPlacementEntity_ = false;
+    private int reconfigurableCommodityCount_ = 0;
 
     // Constructors
-
     /**
      * Constructs a new TraderWithSettings instance with the specified attributes.
      *
@@ -61,13 +80,13 @@ public abstract class Trader {
      * @param basketSold see {@link #getBasketSold()}.
      */
     public Trader(int economyIndex, int type, @NonNull TraderState state, @NonNull Basket basketSold) {
-        checkArgument(type >= 0, "type = " + type);
+        checkArgument(type >= 0, "type = %s", type);
 
         type_ = type;
         state_ = state;
         basketSold_ = basketSold;
+        cloneOf_ = -1;
         setEconomyIndex(economyIndex);
-
         for(int i = 0 ; i < basketSold.size() ; ++i) {
             commoditiesSold_.add(new CommoditySoldWithSettings());
         }
@@ -162,7 +181,7 @@ public abstract class Trader {
     }
 
     /**
-     * Returns an unmodifiable list of the k-partite cliques {@code this} trader is a member of.
+     * Returns an unmodifiable set of the k-partite cliques {@code this} trader is a member of.
      *
      * <p>
      *  There are situations when a buyer needs to buy a number of {@link ShoppingList}s from
@@ -182,21 +201,21 @@ public abstract class Trader {
      * </p>
      */
     @Pure
-    public @NonNull @ReadOnly List<@NonNull Integer> getCliques(@ReadOnly Trader this) {
+    public @NonNull @ReadOnly Set<@NonNull Long> getCliques(@ReadOnly Trader this) {
         return unmodifiableCliques_;
     }
 
     /**
-     * Returns a modifiable list of the k-partite cliques {@code this} trader is a member of.
+     * Returns a modifiable set of the k-partite cliques {@code this} trader is a member of.
      *
      * <p>
-     *  This is a modifiable version of the list returned by {@link #getCliques()}.
+     *  This is a modifiable version of the set returned by {@link #getCliques()}.
      * </p>
      *
      * @see #getCliques()
      */
     @Pure
-    @NonNull @PolyRead List<@NonNull @PolyRead Integer> getModifiableCliques(@PolyRead Trader this) {
+    @NonNull @PolyRead Set<@NonNull @PolyRead Long> getModifiableCliques(@PolyRead Trader this) {
         return cliques_;
     }
 
@@ -220,6 +239,23 @@ public abstract class Trader {
     @Pure
     public @NonNull @ReadOnly List<@NonNull ShoppingList> getCustomers(@ReadOnly Trader this) {
         return unmodifiableCustomers_;
+    }
+
+    /**
+     * Returns a a modifiable set of {@code this} trader's customers which are buyers in market m.
+     *
+     * <p>
+     *  A trader is a customer of another trader, iff the former is active and currently buying at
+     *  least one commodity the latter is selling.
+     * </p>
+     */
+    @Pure
+    public @NonNull @PolyRead Set<@NonNull ShoppingList> getCustomers(
+            @ReadOnly Trader this, @ReadOnly Market m) {
+        @NonNull Set<@NonNull @ReadOnly ShoppingList> customersInMarket = new HashSet<>(
+                unmodifiableCustomers_);
+        customersInMarket.retainAll(new HashSet<>(m.getBuyers()));
+        return customersInMarket;
     }
 
     /**
@@ -303,9 +339,62 @@ public abstract class Trader {
      */
     @Deterministic
     @NonNull Trader setEconomyIndex(int economyIndex) {
-        checkArgument(economyIndex >= 0, "economyIndex = " + economyIndex);
+        checkArgument(economyIndex >= 0, "economyIndex = %s", economyIndex);
         economyIndex_ = economyIndex;
         return this;
+    }
+
+    /**
+     * Returns the <em>oid</em> of {@code this} trader.
+     * <p>
+     *  The oid is the "Object ID" of the trader and matches the OID
+     *  of the corresponding entity in the topology used to generate
+     *  the economy.
+     * </p>
+     *
+     * <p>
+     *  This is an O(1) operation.
+     * </p>
+     * @return the Trader's OID.
+     */
+    @Pure
+    public long getOid(@ReadOnly Trader this) {
+        return oid_;
+    }
+
+    /**
+     * Sets the value of the <b>oid</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param oid the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getOid()
+     */
+    @Deterministic
+    @NonNull
+    public Trader setOid(long oid) {
+        checkArgument(oid_ == Long.MIN_VALUE, "oid_ already assigned value of %s", oid_);
+        oid_ = oid;
+        return this;
+    }
+
+    /**
+     * Check whether the <b>oid</b> field has been set.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @return whether the Trader's OID has already been set.
+     * @see #getOid()
+     */
+    @Pure
+    public boolean isOidSet(@ReadOnly Trader this) {
+        return oid_ != Long.MIN_VALUE;
     }
 
     /**
@@ -370,5 +459,134 @@ public abstract class Trader {
      */
     public String getDebugInfoNeverUseInCode(@ReadOnly Trader this) {
         return debugInfoNeverUseInCode_;
+    }
+
+    /**
+     * Returns the cloneOf field.
+     */
+    public int getCloneOf() {
+        return cloneOf_;
+    }
+
+    /**
+     * Sets the cloneOf field. It contains economyIndex of the modelSeller
+     * @param modelSeller the {@link Trader} that we clone
+     */
+    public void setCloneOf(Trader modelSeller) {
+        cloneOf_ = modelSeller.getEconomyIndex();
+    }
+
+    /**
+     * @return true if the entity is a clone
+     */
+    public boolean isClone() {
+        return cloneOf_ != -1;
+    }
+
+    /**
+     * @return true if the trader is debug enabled
+     */
+    public boolean isDebugEnabled() {
+        return debugEnabled;
+    }
+
+    /**
+     * set the debugEnabled flag to true or false
+     */
+    public void setDebugEnabled(boolean debugEnabled) {
+        this.debugEnabled = debugEnabled;
+    }
+
+    /**
+     * @return true if the trader is a templateProvider
+     */
+    public boolean isTemplateProvider() {
+        return templateProvider_;
+    }
+
+    /**
+     * set the templateProvider_ flag to true or false
+     */
+    public void setTemplateProvider(boolean templateProvider) {
+        templateProvider_ = templateProvider;
+    }
+
+    /**
+     * @return true if the trader's possible sellers' info is already printed
+     */
+    public boolean isSellersInfoPrinted() {
+        return sellersInfoPrinted;
+    }
+
+    /**
+     * set the sellersInfoPrinted flag to true or false
+     */
+    public void setSellersInfoPrinted(boolean printed) {
+        this.sellersInfoPrinted = printed;
+    }
+
+    /*
+     * Returns the debugInfoNeverUseInCode
+     */
+    @Override
+    public String toString() {
+        return debugInfoNeverUseInCode_;
+    }
+
+    /**
+     * @return the scaling group ID.
+     */
+    public String getScalingGroupId() {
+        return scalingGroupId_;
+    }
+
+    /**
+     * Sets the scaling group ID.
+     * @param scalingGroupId group ID
+     */
+    public void setScalingGroupId(@Nonnull String scalingGroupId) {
+        this.scalingGroupId_ = scalingGroupId;
+    }
+
+    /**
+     * @return whether this Trader is in a scaling group
+     */
+    public boolean isInScalingGroup(Economy e) {
+        return !scalingGroupId_.isEmpty() && e.getNumberOfMembersInScalingGroup(scalingGroupId_) > 1;
+    }
+
+    /**
+     * @return whether Trader is in deploy market as new entity for placement.
+     */
+    public boolean isPlacementEntity() {
+        return isPlacementEntity_;
+    }
+
+    /**
+     * Set whether Trader is in deploy market as new entity for placement.
+     * @param isPlacementEntity
+     */
+    public void setPlacementEntity(boolean isPlacementEntity) {
+        this.isPlacementEntity_ = isPlacementEntity;
+    }
+
+    /**
+     * Clear information about this trader's customers, markets this trader
+     * participates in, clique memberships, etc.
+     * <p/>
+     * This is useful when retaining Traders for ActionReplay without transitively
+     * having to keep the whole old economy in-memory.
+     */
+    public void clearShoppingAndMarketData() {
+        cliques_.clear();
+        customers_.clear();
+    }
+
+    public int getReconfigurableCommodityCount() {
+        return reconfigurableCommodityCount_;
+    }
+
+    public void setReconfigurableCommodityCount(int reconfigurableCommodityCount) {
+        reconfigurableCommodityCount_ = reconfigurableCommodityCount;
     }
 } // end interface Trader

@@ -1,21 +1,29 @@
 package com.vmturbo.platform.analysis.economy;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.TreeSet;
-
-import org.checkerframework.checker.javari.qual.ReadOnly;
-import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.dataflow.qual.Pure;
-import org.checkerframework.dataflow.qual.SideEffectFree;
+import java.util.function.IntUnaryOperator;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ObjectArrays;
 import com.google.common.collect.Ordering;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
+
+import org.apache.commons.lang3.StringUtils;
+import org.checkerframework.checker.javari.qual.ReadOnly;
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Pure;
+import org.checkerframework.dataflow.qual.SideEffectFree;
+
+import com.vmturbo.commons.analysis.NumericIDAllocator;
+import com.vmturbo.platform.analysis.utilities.exceptions.ActionCantReplayException;
 
 /**
  * A set of commodity specifications specifying the commodities a trader may try to buy or sell.
@@ -31,7 +39,7 @@ import com.google.common.hash.Hashing;
  */
 // TODO: investigate the effect of having two different commodity specifications with the same type
 // in the same basket.
-public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iterable<@NonNull @ReadOnly CommoditySpecification>{
+public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iterable<@NonNull @ReadOnly CommoditySpecification>, Serializable {
     // Fields
 
     // An array holding the commodity specifications comprising this basket.
@@ -74,31 +82,27 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
     // Methods
 
     /**
-     * Returns whether a buyer shopping for {@code this} basket, can be satisfied by a given basket.
-     *
-     * <p>
-     *  e.g. a buyer buying CPU with 4 cores and memory, can be satisfied by a seller selling CPU
-     *  with 8 cores, memory and some access commodities.
-     * </p>
+     * Returns whether a buyer shopping for {@code this} basket, is a subset of a given basket.
      *
      * <p>
      *  The current implementation returns {@code true} iff for every commodity specification in
-     *  {@code this} there is a corresponding commodity specification in other that satisfies it.
+     *  {@code this} there is a corresponding commodity specification in other that equals it in type.
      *  It assumes commodity types are sorted with type as the primary key.
      * </p>
      *
      * @param other the Basket to be tested against {@code this}.
-     * @return {@code true} if {@code this} basket is satisfied by {@code other}.
+     * @return {@code true} if {@code this} basket is a subset of the {@code other}.
      */
     @Pure
     public final boolean isSatisfiedBy(@ReadOnly Basket this, @NonNull @ReadOnly Basket other) {
         int otherIndex = 0;
         for(CommoditySpecification specification : contents_) {
-            while(otherIndex < other.contents_.length && !specification.isSatisfiedBy(other.contents_[otherIndex])) {
+            while(otherIndex < other.contents_.length && !specification.equals(other.contents_[otherIndex])) {
                 ++otherIndex;
             }
-            if(otherIndex >= other.contents_.length)
+            if (otherIndex >= other.contents_.length) {
                 return false;
+            }
             ++otherIndex;
         }
         return true;
@@ -137,7 +141,9 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
     @Pure
     public final int indexOf(@ReadOnly Basket this, @NonNull @ReadOnly CommoditySpecification specificationToSearchFor) {
         // The elements of contents_ are unique so the first match will be the only match.
-        return Math.max(-1,Arrays.binarySearch(contents_, specificationToSearchFor));
+        int i = Math.max(-1,Arrays.binarySearch(contents_, specificationToSearchFor));
+
+        return i;
     }
 
     /**
@@ -165,9 +171,14 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
      */
     @Pure
     public final int indexOfBaseType(@ReadOnly Basket this, @NonNull @ReadOnly int baseType) {
-        // TODO: make indexOf return 2 values min and the maxIndex. All comm's btw these indices will be of this type
-        // The elements of contents_ are unique so the first match will be the only match.
-        return Math.max(-1,Arrays.binarySearch(contents_,baseType, (x,y)->((CommoditySpecification)x).getBaseType() - (Integer)y));
+        // search for index corresponding to the baseType, we can not use binary search because
+        // the basket is sorted only based on type not the baseType.
+        for (int i = 0; i < contents_.length; i++) {
+            if (contents_[i].getBaseType() == baseType) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /**
@@ -238,6 +249,34 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
     }
 
     /**
+     * @see Iterable#iterator()
+     */
+    @SideEffectFree
+    public Iterator<@NonNull @ReadOnly CommoditySpecification> reverseIterator(@ReadOnly Basket this) {
+        return new Iterator<@NonNull @ReadOnly CommoditySpecification>() {
+            private int index = contents_.length - 1;
+
+            @Override
+            public boolean hasNext() {
+                return index > -1;
+            }
+
+            @Override
+            public @NonNull @ReadOnly CommoditySpecification next() {
+                return contents_[index--];
+            }
+        }; // end Iterator implementation
+    }
+
+    /**
+     * Returns a sequential Stream of {@link CommoditySpecification}'s with this collection as its source.
+     */
+    @SideEffectFree
+    public Stream<@NonNull @ReadOnly CommoditySpecification> stream(@ReadOnly Basket this) {
+        return Arrays.stream(contents_);
+    }
+
+    /**
      * A total ordering on the Baskets to allow sorting and insertion into maps.
      *
      * <p>
@@ -266,12 +305,23 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
     }
 
     /**
+     * Returns a string representation of {@code this} basket as a list of commodity
+     * specifications in the form of debug info, e.g. [VCPU|, VMEM|, Flow|Flow-1, ...]
+     *
+     * @return a string representation of the list of commodities in this basket for debugging
+     */
+    public String toDebugString(@ReadOnly Basket this) {
+        return Arrays.stream(contents_).map(CommoditySpecification::getDebugInfoNeverUseInCode)
+                .collect(Collectors.toList()).toString();
+    }
+
+    /**
      * Tests whether two Baskets are equal field by field.
      */
     @Override
     @Pure
     public boolean equals(@ReadOnly Basket this,@ReadOnly Object other) {
-        if (other == null || !(other instanceof Basket)) {
+        if (!(other instanceof Basket)) {
             return false;
         }
         Basket otherBasket = (Basket)other;
@@ -281,7 +331,8 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
         }
         // if any commoditySpecification in the basket does not match, return false immediately
         for (CommoditySpecification commSpec : otherBasket.contents_) {
-            if (!get(indexOf(commSpec)).equals(commSpec)) {
+            int specIndex = indexOf(commSpec);
+            if (specIndex < 0 || !get(specIndex).equals(commSpec)) {
                 return false;
             }
         }
@@ -299,6 +350,45 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
         forEach(commSpec -> {
             hasher.putInt(commSpec.hashCode());
         });
-        return hasher.hash().asInt();
+
+        int i = hasher.hash().asInt();
+        return i;
+    }
+
+    /**
+     * Return the debug info for the commodity at the specified index.  If the input index is
+     * beyond the list of the commodities in this basket, then an empty string is returned.
+     *
+     * @param index the index of the commodity which debug info to be returned
+     * @return the debug info of the specified commodity
+     */
+    public String getCommodityDebugInfoAt(final int index) {
+        if (index < contents_.length) {
+            return contents_[index].getDebugInfoNeverUseInCode();
+        }
+        return StringUtils.EMPTY;
+    }
+
+    /**
+     * Return a new basket with new commodity ids.
+     *
+     * @param commodityIdMapping a mapping from old commodity id to new commodity id.
+     *                           If the returned value is {@link NumericIDAllocator#nonAllocableId},
+     *                           it means no mapping is available for the input and we thrown an
+     *                           {@link ActionCantReplayException}
+     * @return a new basket
+     * @throws ActionCantReplayException ActionCantReplayException
+     */
+    public Basket createBasketWithNewCommodityId(final IntUnaryOperator commodityIdMapping)
+            throws ActionCantReplayException {
+        final List<CommoditySpecification> newCommSpecs = new ArrayList<>(this.size());
+        for (CommoditySpecification commSpec : this) {
+            final int newCommodityId = commodityIdMapping.applyAsInt(commSpec.getType());
+            if (newCommodityId == NumericIDAllocator.nonAllocableId) {
+                throw new ActionCantReplayException(commSpec.getType());
+            }
+            newCommSpecs.add(commSpec.createCommSpecWithNewCommodityId(newCommodityId));
+        }
+        return new Basket(newCommSpecs);
     }
 } // end Basket interface

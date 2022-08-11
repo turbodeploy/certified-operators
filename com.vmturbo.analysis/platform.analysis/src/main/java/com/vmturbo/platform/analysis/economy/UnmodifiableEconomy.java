@@ -3,12 +3,22 @@ package com.vmturbo.platform.analysis.economy;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.DoubleBinaryOperator;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.Nullable;
+
+import com.vmturbo.commons.Pair;
+import com.vmturbo.platform.analysis.updatingfunction.ProjectionFunction;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
+
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.utilities.PlacementStats;
 
 /**
  * An unmodifiable view of an {@link Economy}.
@@ -18,24 +28,6 @@ import org.checkerframework.dataflow.qual.SideEffectFree;
  * </p>
  */
 public interface UnmodifiableEconomy {
-
-    /**
-     * Returns an unmodifiable map from {@link CommoditySpecification} to the corresponding quantity
-     * updating function, if there is one.
-     *
-     * <p>
-     *  Those functions are used to compute the quantity and peak quantity of a commodity sold by a
-     *  {@link Trader seller} as a function of the quantities and peak quantities bought by the
-     *  customers of that seller respectively.
-     * </p>
-     *
-     * <p>
-     *  They must be associative and commutative.
-     * </p>
-     */
-    @Pure
-    public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
-        getQuantityFunctions(@ReadOnly UnmodifiableEconomy this);
 
     /**
      * The {@link EconomySettings settings} parameterizing {@code this} economy's behavior.
@@ -168,8 +160,8 @@ public interface UnmodifiableEconomy {
      * Returns an unmodifiable map of the markets the given trader participates in as a buyer.
      *
      * <p>
-     *  It maps shopping lists to the markets the trader participates in with these
-     *  shopping lists.
+     *  It maps shopping lists to the markets the trader participates in with these shopping lists.
+     *  The iteration order of the returned map is guaranteed to be deterministic.
      * </p>
      */
     @Pure
@@ -184,11 +176,40 @@ public interface UnmodifiableEconomy {
                                                                           @NonNull @ReadOnly Trader trader);
 
     /**
-     * Returns an unmodifiable List of commodityType that are rawMaterials of a particular processed type
+     * Returns an unmodifiable array of commodityType that are rawMaterials of a particular processed type.
+     *
+     * @param processedCommodityType is the commodity to get the rawMaterials for.
+     * @return optional {@link RawMaterials}
      */
-    @NonNull @ReadOnly List<Integer> getRawMaterials(int processedCommodityType);
+    @ReadOnly
+    @NonNull Optional<RawMaterials> getRawMaterials(int processedCommodityType);
 
     /**
+     * Returns an unmodifiable array of commodityType that are byProducts of a particular processed type.
+     *
+     * @param processedCommodityType is the commodity to get the byProducts for.
+     * @return optional List of by product commodity baseTypes.
+     */
+    @ReadOnly @NonNull Optional<ByProducts> getByProducts(int processedCommodityType);
+
+    /**
+     * Returns rawMaterials of a particular processed type.
+     *
+     * @param processedCommodityType is the commodity to get the rawMaterials for.
+     * @return {@link RawMaterials} corresponding to the processedCommodityType
+     */
+    @ReadOnly
+    @NonNull RawMaterials getAllRawMaterials(int processedCommodityType);
+
+    /**
+     * Returns a trader and its context list map.
+     *
+     * @return a map if context list by trader
+     */
+    @NonNull Map<Trader, List<Context>> getTraderWithContextMap();
+
+    /**
+     * Returns the commodity dependency for generating resize actions.
      *
      * @param processedCommodityType The commodity base type.
      * @return An unmodifiable List of Commodity Resize Specification for the provided type.
@@ -197,9 +218,115 @@ public interface UnmodifiableEconomy {
     @ReadOnly
     List<@NonNull CommodityResizeSpecification> getResizeDependency(int processedCommodityType);
 
+    @NonNull
+    @ReadOnly
+    List<@NonNull Integer> getHistoryBasedResizeSkippedDependentCommodities(int processedCommodityType);
+
     @ReadOnly
     boolean getForceStop();
 
     @Pure
     void setForceStop(boolean forcePlanStop);
+
+    /**
+     * @return An unmodifiable List of Markets that have at least one movable trader
+     */
+    @ReadOnly
+    @NonNull
+    List<@NonNull Market> getMarketsForPlacement();
+
+    /**
+     * @return the {@link Trader} from which "trader" is cloned
+     */
+    Trader getCloneOfTrader(Trader trader);
+
+    /**
+     * @return An unmodifiable List of preferential {@link ShoppingList}s
+     */
+    @NonNull
+    @ReadOnly
+    List<@NonNull @ReadOnly ShoppingList> getPreferentialShoppingLists();
+
+    /**
+     * @return An unmodifiable list of shop together VMs
+     */
+    @NonNull
+    @ReadOnly
+    List<@NonNull @ReadOnly Trader> getShopTogetherTraders();
+
+    /**
+     * @return list of {@link TraderTO}s
+     */
+    List<TraderTO> getTradersForHeadroom();
+
+    /**
+     * @return balance account map associates with the {@link Economy}
+     */
+    Map<Long, BalanceAccount> getBalanceAccountMap();
+
+    /**
+     * Sets the {@link Topology} associated with this {@link Economy}.
+     *
+     * @param topology The new associated topology
+     */
+    void setTopology(Topology topology);
+
+    /**
+     * Return the {@link Topology} associated with this {@link Economy}.
+     *
+     * @return return the {@link Topology} associated with this {@link Economy}
+     */
+    @Nullable
+    @ReadOnly
+    Topology getTopology();
+
+    /**
+     * Compute all sellers that this trader can buy from.
+     *
+     * @param trader the trader for which to compute the set.
+     * @return all the traders that the argument trader can buy from.
+     */
+    @NonNull
+    Set<Trader> getPotentialSellers(Trader trader);
+
+    /**
+     * Get the placement statistics associated with this economy.
+     *
+     * @return {@link PlacementStats} associated with this economy.
+     */
+    @NonNull
+    PlacementStats getPlacementStats();
+
+    /**
+     * Get the placement entities for deploy market.
+     *
+     * @return placement entities for deploy market.
+     */
+    List<Trader> getPlacementEntities();
+
+    /**
+     * Get the peer {@link ShoppingList} for the leader of a scaling group.
+     *
+     * @param shoppingList shopping list to check.
+     * @return list of peer {@link ShoppingList}s
+     */
+    List<ShoppingList> getPeerShoppingLists(ShoppingList shoppingList);
+
+    /**
+     * Return whether the shopping list's scaling group is currently consistently sized.
+     * @param shoppingList shopping list to check
+     * @return true if the scaling group is currently consistently sized, or false if it is not.
+     */
+    boolean isScalingGroupConsistentlySized(final ShoppingList shoppingList);
+
+    /**
+     * Return the scaling group peer information for a given shopping list.
+     *
+     * @param shoppingList shopping list to check
+     * @return if the shopping list belongs to a scaling group, return the peer information for
+     * the scaling group, which includes whether the group is already consistently sized and the
+     * list of peer shopping lists.  If the shopping list is null or does not belong to a scaling
+     * group, dummy empty peer information will be returned instead.
+     */
+    ScalingGroupPeerInfo getScalingGroupPeerInfo(ShoppingList shoppingList);
 } // end UnmodifiableEconomy interface

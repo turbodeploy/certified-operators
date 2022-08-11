@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.DoubleBinaryOperator;
 import java.util.stream.Collectors;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
@@ -15,14 +14,14 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
-import com.vmturbo.platform.analysis.utilities.NumericIDAllocator;
-import com.vmturbo.platform.analysis.utilities.UnmodifiableNumericIDAllocator;
+import com.vmturbo.commons.analysis.NumericIDAllocator;
+import com.vmturbo.commons.analysis.UnmodifiableNumericIDAllocator;
 
 /**
  * A class representing a loaded legacy topology together with its auxiliary maps capturing
@@ -68,7 +67,7 @@ public final class LegacyTopology {
      * @param commodityTypesSold A collection of human-readable commodity type strings from which
      *                           the basket sold of the trader will be created. They will be
      *                           allocated to numerical IDs in the order they are returned by the
-     *                           collecion's iterator.
+     *                           collection's iterator.
      * @return The new trader.
      *
      * @see Economy#addTrader(int, TraderState, Basket, Basket...)
@@ -76,9 +75,9 @@ public final class LegacyTopology {
     public @NonNull Trader addTrader(@NonNull String uuid, @NonNull String name, @NonNull String type,
             @NonNull TraderState state, @NonNull Collection<@NonNull String> commodityTypesSold) {
         @NonNull Basket basketSold = new Basket(commodityTypesSold.stream()
-            .map(typeSold -> new CommoditySpecification(commodityTypes_.allocate(typeSold)))
+            .map(typeSold -> new CommoditySpecification(commodityTypes_.allocate(typeSold, 0)))
             .collect(Collectors.toList()));
-        @NonNull Trader trader = economy_.addTrader(traderTypes_.allocate(type), state, basketSold);
+        @NonNull Trader trader = economy_.addTrader(traderTypes_.allocate(type, 0), state, basketSold);
         uuids_.put(trader, uuid);
         names_.put(trader, name);
 
@@ -98,21 +97,12 @@ public final class LegacyTopology {
     public @NonNull ShoppingList addBasketBought(@NonNull Trader buyer,
                                        @NonNull Collection<@NonNull String> commodityTypesBought) {
         return economy_.addBasketBought(buyer, new Basket(commodityTypesBought.stream()
-            .map(typeBought -> new CommoditySpecification(commodityTypes_.allocate(typeBought)))
+            .map(typeBought -> new CommoditySpecification(commodityTypes_.allocate(typeBought, 0)))
             .collect(Collectors.toList())));
     }
 
-    /**
-     * Add a function that will be used to calculate the quantity sold by a
-     * {@link CommoditySpecification} of type {@code commodityType}
-     *
-     * @param commodityType The String type of the commodity
-     * @param function a function that takes a list of Doubles as arguments and returns a Double.
-     * The list of Doubles is the quantities bought.
-     */
-    public void addQuantityFunction(String commodityType, DoubleBinaryOperator function) {
-        int commodityId = commodityTypes_.allocate(commodityType);
-        economy_.getModifiableQuantityFunctions().put(new CommoditySpecification(commodityId), function);
+    public void populateMarketsWithSellersAndMergeConsumerCoverage() {
+        economy_.populateMarketsWithSellersAndMergeConsumerCoverage();
     }
 
     /**

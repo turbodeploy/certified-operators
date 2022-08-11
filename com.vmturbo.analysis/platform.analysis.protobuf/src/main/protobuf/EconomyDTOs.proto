@@ -1,0 +1,245 @@
+syntax = "proto2";
+package com.vmturbo.platform.analysis.protobuf;
+
+import "CommodityDTOs.proto";
+import "QuoteFunctionDTOs.proto";
+import "CostDTOs.proto";
+import "BalanceAccountDTOs.proto";
+
+// The settings associated with the Economy.
+// The acceptable commodity utilization range used in resize engage criteria.
+message EconomySettingsTO {
+    // Resize up only if utilization is above the upper watermark.
+    required float rightsize_upper_watermark = 1;
+
+    // Do not resize down if utilization is above the lower watermark.
+    required float rightsize_lower_watermark = 2;
+
+    // Use expense metric in termination criterion for placement.
+    required bool use_expense_metric_for_termination = 3;
+
+    // The minimum percent to be used for the expenses metric termination criterion.
+    required float expense_metric_factor = 4;
+
+    // Support user configured rate of resize.
+    required float __deprecated_rate_of_resize = 5 [deprecated = true];
+
+    // flag to enable estimates
+    required bool estimates = 6 [default = false];
+
+    // The quote factor is a number (between 0 and 1), so that Move actions are
+    // only generated if best-quote < quote-factor * current-quote. That means that if we only want
+    // Moves that result in at least 25% improvement we should use a quote-factor of 0.75.
+    required float quote_factor = 7 [default = 0.75];
+
+    required int32 max_placement_iterations = 8;
+
+    required bool sort_shopping_lists = 9;
+
+    // Factor to represent how much above current current cost we allow a VM
+    // to scale up. For example, if on-demand cost at current supplier is $x
+    // we allow VM to move to a RI with on-demand cost <= discounted_compute_cost_factor * x.
+    optional float discounted_compute_cost_factor = 10;
+}
+
+// A list of commodities that must be bought from the same provider, with some additional information.
+message ShoppingListTO {
+    // The unique identifier of this shopping list. Used to control individual volumes.
+    required int64 oid = 1;
+
+    // The current supplier for this shopping list. Assumed null if missing.
+    optional int64 supplier = 2;
+
+    // Whether the analysis engine can move this shopping list. Intended to be true only for VM and
+    // Container shopping lists.
+    optional bool movable = 3;
+
+    // The list of commodities that are currently bought from this supplier or need to be bought by
+    // some supplier if supplier is missing.
+    repeated CommodityBoughtTO commodities_bought = 4;
+
+    // The cost of moving a shopping list to a new storage. Used for VM and Container shopping lists
+    optional float storage_move_cost = 5;
+
+    // Multiplier indicating membership in consistent resizing groups
+    optional int64 groupFactor = 6 [default = 1];
+
+    // The coupon ID. If a projected shopping list is supplied by a CBTP, then in AnalysisToProtobuf
+    // we switch the supplier to the TP and this field will hold the id of the CBTP.
+    optional int64 coupon_id = 7;
+
+    // The list of commodities' base_type that are not going to increase quote for the shopping list.
+    repeated int32 unquoted_commodities_base_type_list = 8;
+
+    // The context of the move, contains additional info.
+    optional Context context = 9;
+
+    // Whether demand is scalable within M2. Added for cloud volume Savings/Reversibility mode -
+    // In Reversibility mode, demand_scalable is false, which indicates that volume size cannot
+    // be increased by default.
+    // In Savings mode, demand_scalable is true.
+    optional bool demand_scalable = 10;
+}
+
+// Contains family based coverage
+message CoverageEntry {
+    optional double total_allocated_coupons = 1;
+    optional double total_requested_coupons = 2;
+    optional int64 provider_id = 3;
+}
+
+// Contains additional information about the Move
+message Context {
+    // The allocated region ID in NumericIDAllocator that has the best cost. Assumed missing
+    // if null.
+    optional int64 region_id = 1;
+
+    // The allocated business account id which the entity scopes to. Assumed missing if null
+    optional BalanceAccountDTO balance_account = 2;
+
+    // Zone id of the zone to which the holding Trader belongs.
+    optional int64 zone_id = 3;
+
+    // contains the coverage on a consumer/scalingGroup on a per provider basis.
+    repeated CoverageEntry family_based_coverage = 4;
+
+}
+
+// A group of parameters effecting how a trader will be treated by the analysis engine.
+message TraderSettingsTO {
+    // Whether the analysis engine can use this as a template to create new traders.
+    optional bool clonable = 1;
+
+    // Whether the analysis engine can deactivate this trader.
+    optional bool suspendable = 2;
+
+    // Min and max desired utilizations together define the desired zone for a trader.
+    // The relationship min_desired_utilization <= max_desired_utilization must hold.
+    optional float min_desired_utilization = 3;
+    optional float max_desired_utilization = 4 [default = 1.0];
+
+    // Whether the trader should consume the clone of provider
+    optional bool guaranteed_buyer = 5;
+
+	// Whether the trader can accept consumer move in or out
+    optional bool can_accept_new_customers = 6;
+
+    // This field specifies if we can do resize down in the real time market
+    optional bool isEligibleForResizeDown = 7;
+
+    // This field specifies if a trader should shop together or not
+    optional bool isShopTogether = 8;
+
+	// This field specifies which function to use for computing quote
+    optional QuoteFunctionDTO quote_function = 9;
+
+    // This field refers to the balance account that the trader associated with
+    optional Context current_context = 10;
+
+    // Whether a trader's provider should clone when the trader clones
+    optional bool provider_must_clone = 11;
+
+    // The quote factor of the trader
+    optional float quote_factor = 12 [default = 0.68];
+
+    // The move cost factor for a trader to move.
+    optional float move_cost_factor = 13 [default = 0.05];
+
+    // Whether a trader is controllable or not.
+    optional bool controllable = 14;
+
+    // Whether actions on a trader can be simulated or not during shoptogether phase
+    optional bool canSimulateAction = 15;
+
+    // Whether the trader is a daemon
+    optional bool daemon = 16 [default = false];
+
+    // Whether the trader resizes commodity capacities through Supplier cloning or suspending.
+    optional bool resizeThroughSupplier = 17 [default = false];
+
+    // Rate of resize setting
+    optional float rate_of_resize = 18;
+
+    // Whether a trader is reconfigurable or not.
+    optional bool reconfigurable = 19;
+
+    // The consistent scaling factor is used in the market on entities that consistent
+    // scale. It converts values on commodities from the normalized units that the market
+    // uses for computations back into the unit that commodities need to be consistent in.
+    // For example, on containers in a scaling group that are required to have a VCPU
+    // capacity consistent in millicores, the consistent_scaling_factor can be used to
+    // convert VCPU capacities, used values, etc. from the normalized MHz values that
+    // the market uses into millicores. This is important to ensure the market generates
+    // actions that make sense in the unit the consistent scaling group must be consistent in.
+    optional float consistent_scaling_factor = 20 [default = 1.0];
+
+    // Minimum replicas of trader during horizontal scale
+    optional int32 min_replicas = 21;
+
+    // Maximum replicas of trader during horizontal scale
+    optional int32 max_replicas = 22;
+}
+
+// The different states a trader can be in. The intention is to make this a boolean once we confirm
+// no more states are needed by the analysis engine.
+enum TraderStateTO {
+    ACTIVE = 1; // The trader is participating in the economy and has expenses and revenues.
+    INACTIVE = 2; // The trader isn't participating in the economy and has zero expenses and revenues.
+    IDLE = 3; // VMs can be in an IDLE state. they behave like active traders in M2
+}
+
+// An entity that trades goods in a market. Can buy and sell goods simultaneously.
+// Virtual machines, data centers and applications are examples of entities that can be modeled as
+// a trader.
+message TraderTO {
+    // The unique identifier of this trader. Used to send back actions for it.
+    required int64 oid = 1;
+
+    // Analysis is currently not using this field, but may be used for debugging.
+    optional int32 type = 2;
+
+    // Whether this trader participates in the economy and has expenses and revenues.
+    optional TraderStateTO state = 3;
+
+    // A list of commodities offered by this trader.
+    repeated CommoditySoldTO commodities_sold = 4;
+
+    // A list of integers representing the k-partite cliques this trader is a member of.
+    repeated int64 cliques = 5 [packed = true];
+
+    // A list of shopping lists this trader sets out to buy.
+    repeated ShoppingListTO shopping_lists = 6;
+
+    // The settings affecting how the analysis engine should treat this trader.
+    optional TraderSettingsTO settings = 7;
+
+    // The field contains info about trader's eclass and uuid, it is used for debugging only
+    optional string debug_info_never_use_in_code = 8;
+
+    // This field contains the economicIndex of the modelSeller if this host was cloned
+    optional int64 clone_of = 9;
+
+    // The number of buyers that consuming the trader
+    optional int32 num_of_produces = 10;
+
+    // This field specifies weather a trader is a clone of a sampleSE from a template used
+    // for headroom plans
+    optional bool templateForHeadroom = 11 [default = false];
+
+    // This field specifies whether we will print debug info for a trader
+    optional bool debugEnabled = 12 [default = false];
+
+    // This field specifies if this is a templateProvider
+    optional bool templateProvider = 13 [default = false];
+
+    optional bool preferentialPlacement = 14 [default = false];
+
+    // This field specifies the cause for the trader to be unplaced
+    optional string unplacedExplanation = 15 [deprecated = true];
+
+    // Associated scaling group, if any
+    optional string scalingGroupId = 16;
+
+    // Trader coming in to analysis in deploy market as new entity for placement.
+    optional bool isPlacementEntity = 17 [default = false];
+}

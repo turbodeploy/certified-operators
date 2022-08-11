@@ -1,29 +1,54 @@
 package com.vmturbo.platform.analysis.actions;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
+
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+
+import com.vmturbo.commons.analysis.NumericIDAllocator;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.economy.TraderWithSettings;
+import com.vmturbo.platform.analysis.ede.Provision;
+import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
+import com.vmturbo.platform.analysis.updatingfunction.MM1Distribution;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
+import com.vmturbo.platform.analysis.utilities.exceptions.ActionCantReplayException;
 
 /**
  * A test case for the {@link ProvisionBySupply} class.
@@ -31,14 +56,21 @@ import junitparams.naming.TestCaseName;
 @RunWith(JUnitParamsRunner.class)
 public class ProvisionBySupplyTest {
     // Fields
+    // Expected exception
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
     private static final CommoditySpecification MEM = new CommoditySpecification(1);
     private static final CommoditySpecification VCPU = new CommoditySpecification(0);
     private static final CommoditySpecification VMEM = new CommoditySpecification(1);
+    private static final CommoditySpecification STORAGE_AMOUNT = new CommoditySpecification(2);
 
     private static final Basket EMPTY = new Basket();
-    private static final Basket[] basketsSold = {EMPTY, new Basket(VCPU), new Basket(VCPU, VMEM)};
-    private static final Basket[] basketsBought = {EMPTY, new Basket(CPU), new Basket(CPU, MEM)};
+    private static final Basket[] basketsSold = {EMPTY, new Basket(VCPU), new Basket(VCPU, VMEM),
+                    new Basket(VCPU, VMEM, STORAGE_AMOUNT)};
+    private static final Basket[] basketsBought = {EMPTY, new Basket(CPU), new Basket(CPU, MEM),
+                    new Basket(STORAGE_AMOUNT)};
 
     private static final String DEBUG_INFO = "trader name";
 
@@ -48,7 +80,7 @@ public class ProvisionBySupplyTest {
     @Parameters
     @TestCaseName("Test #{index}: new ProvisionBySupply({0},{1})")
     public final void testProvisionBySupply(@NonNull Economy economy, @NonNull Trader modelSeller) {
-        @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller);
+        @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller, CPU);
 
         assertSame(economy, provision.getEconomy());
         assertSame(modelSeller, provision.getModelSeller());
@@ -73,6 +105,7 @@ public class ProvisionBySupplyTest {
             }
 
         }
+        e1.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         return testCases.toArray();
     }
@@ -82,11 +115,32 @@ public class ProvisionBySupplyTest {
         Economy e1 = new Economy();
 
         Trader modelSeller = e1.addTrader(0, TraderState.ACTIVE, basketsSold[1], basketsBought[0]);
-        Trader b1 = e1.addTrader(1, TraderState.ACTIVE, basketsSold[1], basketsSold[1]);
+        Trader b1 = e1.addTrader(1, TraderState.ACTIVE, basketsSold[1]);
         b1.getSettings().setGuaranteedBuyer(true);
         ShoppingList s1 = e1.addBasketBought(b1, basketsSold[1]);
         s1.move(modelSeller);
+        e1.populateMarketsWithSellersAndMergeConsumerCoverage();
+
         return new Object[]{e1, modelSeller};
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestWithResizeThroughSupplier() {
+        Economy e1 = new Economy();
+
+        Trader modelSeller = e1.addTrader(0, TraderState.ACTIVE, basketsSold[3], basketsBought[0]);
+        Trader b1 = e1.addTrader(1, TraderState.ACTIVE, basketsSold[3]);
+        b1.getSettings().setResizeThroughSupplier(true);
+        ShoppingList s1 = e1.addBasketBought(b1, basketsSold[3]);
+        s1.move(modelSeller);
+
+        Trader modelSeller2 = e1.addTrader(0, TraderState.ACTIVE, basketsSold[3], basketsBought[0]);
+        Trader b2 = e1.addTrader(1, TraderState.ACTIVE, basketsBought[3]);
+        b2.getSettings().setResizeThroughSupplier(true);
+        ShoppingList s2 = e1.addBasketBought(b2, basketsBought[3]);
+        s2.move(modelSeller2);
+        e1.populateMarketsWithSellersAndMergeConsumerCoverage();
+        return new Object[]{e1, modelSeller, modelSeller2};
     }
 
     @Test
@@ -105,14 +159,16 @@ public class ProvisionBySupplyTest {
 
         Economy e1 = new Economy();
         Trader t1 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, EMPTY);
+        CommoditySpecification commSpec = CPU;
         Trader t2 = e1.addTrader(0, TraderState.INACTIVE, EMPTY, EMPTY);
+        e1.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         oids.put(t1, "id1");
         oids.put(t2, "id2");
 
         return new Object[][]{
-            {new ProvisionBySupply(e1, t1), oid, "<action type=\"provisionBySupply\" modelSeller=\"id1\" />"},
-            {new ProvisionBySupply(e1, t2), oid, "<action type=\"provisionBySupply\" modelSeller=\"id2\" />"}
+            {new ProvisionBySupply(e1, t1, commSpec), oid, "<action type=\"provisionBySupply\" modelSeller=\"id1\" />"},
+            {new ProvisionBySupply(e1, t2, commSpec), oid, "<action type=\"provisionBySupply\" modelSeller=\"id2\" />"}
         };
     }
 
@@ -121,7 +177,7 @@ public class ProvisionBySupplyTest {
     @TestCaseName("Test #{index}: new ProvisionBySupply({0},{1}).take().rollback()")
     public final void testTakeRollback(@NonNull Economy economy, @NonNull Trader modelSeller) {
         final int oldSize = economy.getTraders().size();
-        @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller);
+        @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller, CPU);
         modelSeller.setDebugInfoNeverUseInCode(DEBUG_INFO);
 
         assertSame(provision, provision.take());
@@ -154,6 +210,7 @@ public class ProvisionBySupplyTest {
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestDebugDescription() {
+        IdentityGenerator.initPrefix(0);
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
         Trader t1 = topology1.addTrader("id1", "VM1", "VM", TraderState.ACTIVE, Arrays.asList());
@@ -162,11 +219,12 @@ public class ProvisionBySupplyTest {
         Trader t2 = topology1.addTrader("id2", "Container2", "Container", TraderState.INACTIVE, Arrays.asList());
         t2.setDebugInfoNeverUseInCode(DEBUG_INFO);
         ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
+        topology1.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         return new Object[][]{
-            {new ProvisionBySupply((Economy)topology1.getEconomy(), t1), topology1,
+            {new ProvisionBySupply((Economy)topology1.getEconomy(), t1, CPU), topology1,
                 "Provision a new VM similar to VM1 [id1] (#0)."},
-            {new ProvisionBySupply((Economy)topology1.getEconomy(), t2), topology1,
+            {new ProvisionBySupply((Economy)topology1.getEconomy(), t2, CPU), topology1,
                 "Provision a new Container similar to Container2 [id2] (#1)."},
             // TODO: update test when we figure out how to get correct type!
         };
@@ -189,11 +247,12 @@ public class ProvisionBySupplyTest {
         ShoppingList b1 = topology1.addBasketBought(t1, Arrays.asList());
         Trader t2 = topology1.addTrader("id2", "Container1", "Container", TraderState.INACTIVE, Arrays.asList());
         ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
+        topology1.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         return new Object[][]{
-            {new ProvisionBySupply((Economy)topology1.getEconomy(), t1), topology1,
+            {new ProvisionBySupply((Economy)topology1.getEconomy(), t1, CPU), topology1,
                 "No VM has enough leftover capacity for [buyer]."},
-            {new ProvisionBySupply((Economy)topology1.getEconomy(), t2), topology1,
+            {new ProvisionBySupply((Economy)topology1.getEconomy(), t2, CPU), topology1,
                 "No Container has enough leftover capacity for [buyer]."},
             // TODO: update test when we figure out how to get correct type!
         };
@@ -203,7 +262,7 @@ public class ProvisionBySupplyTest {
     @Parameters(method = "parametersForTestWithGuaranteedBuyer")
     @TestCaseName("Test #{index}: new ProvisionBySupply({0},{1}).take().rollback()")
     public final void testTakeRollbackWithGuranteedBuyer(@NonNull Economy economy, @NonNull Trader modelSeller) {
-        @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller);
+        @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller, CPU);
         provision.take();
         Trader provisionedSeller = provision.getProvisionedSeller();
 
@@ -224,6 +283,41 @@ public class ProvisionBySupplyTest {
 
     }
 
+    @Test
+    @Parameters(method = "parametersForTestWithResizeThroughSupplier")
+    @TestCaseName("Test #{index}: GenerateResizeThroughSupplier")
+    public final void testWithResizeThroughSupplier(@NonNull Economy economy,
+                    @NonNull Trader modelSeller, @NonNull Trader modelSeller2) {
+        @NonNull ProvisionBySupply provision1 = (ProvisionBySupply) new ProvisionBySupply(economy,
+                        modelSeller, CPU).take();
+        assertTrue(provision1.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .count() == 3);
+        assertTrue(provision1.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .filter(resize -> ((Resize)resize).getResizeTriggerTraders().get(modelSeller)
+                                        .contains(CPU.getBaseType())).count() == 3);
+        @NonNull ProvisionBySupply provision2 = (ProvisionBySupply) new ProvisionBySupply(economy,
+                        modelSeller, STORAGE_AMOUNT).take();
+        assertTrue(provision2.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .count() == 3);
+        assertTrue(provision2.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .filter(resize -> ((Resize)resize).getResizeTriggerTraders().get(modelSeller)
+                                        .contains(STORAGE_AMOUNT.getBaseType())).count() == 3);
+        @NonNull ProvisionBySupply provision3 = (ProvisionBySupply) new ProvisionBySupply(economy,
+                        modelSeller2, CPU).take();
+        assertTrue(provision3.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .count() == 1);
+        assertTrue(provision3.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .filter(resize -> ((Resize)resize).getResizeTriggerTraders().get(modelSeller2)
+                                        .contains(CPU.getBaseType())).count() == 1);
+        @NonNull ProvisionBySupply provision4 = (ProvisionBySupply) new ProvisionBySupply(economy,
+                        modelSeller2, STORAGE_AMOUNT).take();
+        assertTrue(provision4.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .count() == 1);
+        assertTrue(provision4.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .filter(resize -> ((Resize)resize).getResizeTriggerTraders().get(modelSeller2)
+                                        .contains(STORAGE_AMOUNT.getBaseType())).count() == 1);
+    }
+
     @SuppressWarnings("unused")
     private static Object[] parametersForTestEquals_and_HashCode() {
         Economy e = new Economy();
@@ -239,10 +333,11 @@ public class ProvisionBySupplyTest {
         shop1.move(t3);
         ShoppingList shop2 = e.addBasketBought(t2, b2);
         shop2.move(t3);
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        ProvisionBySupply provisionBySupply1 = new ProvisionBySupply(e, t2);
-        ProvisionBySupply provisionBySupply2 = new ProvisionBySupply(e, t2);
-        ProvisionBySupply provisionBySupply3 = new ProvisionBySupply(e, t3);
+        ProvisionBySupply provisionBySupply1 = new ProvisionBySupply(e, t2, CPU);
+        ProvisionBySupply provisionBySupply2 = new ProvisionBySupply(e, t2, CPU);
+        ProvisionBySupply provisionBySupply3 = new ProvisionBySupply(e, t3, CPU);
         return new Object[][] {{provisionBySupply1, provisionBySupply2, true},
                         {provisionBySupply1, provisionBySupply3, false}};
     }
@@ -256,4 +351,796 @@ public class ProvisionBySupplyTest {
         assertEquals(expect, provisionBySupply1.hashCode() == provisionBySupply2.hashCode());
     }
 
+    @Test
+    public final void testTake_checkModelSellerWithCliques() {
+        Set<Long> cliques = new HashSet<>(Arrays.asList(0l));
+        Economy e = new Economy();
+        Basket b1 = new Basket(new CommoditySpecification(100));
+        Basket b2 = new Basket(new CommoditySpecification(200));
+        Trader t1 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Trader t2 = e.addTrader(0, TraderState.ACTIVE, b2, cliques);
+        ShoppingList shop1 = e.addBasketBought(t1, b2);
+        shop1.move(t2);
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        Action action = new ProvisionBySupply(e, t2, CPU).take();
+        // check cliques are cloned
+        assertEquals(cliques, ((ProvisionBySupply)action).getProvisionedSeller().getCliques());
+    }
+
+    /**
+     * Case: One service consume on one app which is hosted by a container.
+     * The app sells 100 transactions. The service requests 150 transaction (over capacity)
+     * from the app.
+     *
+     * <p>Expected:
+     * If provisionBySupply of app occurs, then one container should also be cloned to host
+     * the new app. Service requests 75 transactions from each of the two apps due to standard
+     * distribution, and requests 1 application from each of the two apps due to constant distribution.
+     * If the provisionBySupply is rolled back, then economy contains original traders
+     * and service requests 150 transactions and 1 application from the app.
+     */
+    @Test
+    public void testProvisionBySupplyWithDifferentDistributionFunctions() {
+        Economy e = new Economy();
+        // Create a container entity that sells VCPU with capacity 200
+        Trader container = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, TestUtils.NO_CLIQUES,
+                Collections.singletonList(TestUtils.VCPU), new double[]{200}, true, false);
+        // Create an application entity that sells Transaction with capacity 100,
+        // and Application with capacity 1E22
+        Trader application = TestUtils.createTrader(e, TestUtils.APP_TYPE, TestUtils.NO_CLIQUES,
+                Arrays.asList(TestUtils.TRANSACTION, TestUtils.APPLICATION), new double[]{100, 1E22},
+                true, false);
+        // Set the providerMustClone flag for the application entity
+        application.getSettings().setProviderMustClone(true);
+        // Create a service entity
+        Trader service = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, TestUtils.NO_CLIQUES,
+                Collections.emptyList(), new double[]{}, true, true);
+        // Let the application entity buy VCPU with quantity 70 from the container entity
+        Basket bApp = new Basket(TestUtils.VCPU);
+        ShoppingList slApp = e.addBasketBought(application, bApp);
+        TestUtils.moveSlOnSupplier(e, slApp, container, new double[]{70});
+        // Let the service entity buy Transaction with quantity 150, and Application with quantity 1
+        // from the application entity
+        Basket bSvc = new Basket(TestUtils.TRANSACTION, TestUtils.APPLICATION);
+        ShoppingList slSvc = e.addBasketBought(service, bSvc);
+        TestUtils.moveSlOnSupplier(e, slSvc, application, new double[]{150, 1});
+        // Provision
+        ProvisionBySupply provision = (ProvisionBySupply)new ProvisionBySupply(
+                e, application, TestUtils.TRANSACTION).take();
+        // Make sure 2 additional traders are cloned due to the providerMustClone logic
+        assertEquals(5, e.getTraders().size());
+        // Make sure Transaction commodity values are distributed with standard distribution function
+        assertEquals(75.0, provision.getActionTarget().getCustomers().get(0).getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(75.0, slSvc.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        // Make sure Application commodity values are distributed with constant distribution function
+        assertEquals(1.0, provision.getActionTarget().getCustomers().get(0).getQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(1.0, slSvc.getQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
+        // Make sure the sold commodities on the existing and cloned trader are correct
+        assertEquals(75.0, application.getCommoditySold(bSvc.get(0)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(1.0, application.getCommoditySold(bSvc.get(1)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(75.0, provision.getActionTarget().getCommoditySold(bSvc.get(0)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(1.0, provision.getActionTarget().getCommoditySold(bSvc.get(1)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        // Make sure the number of consumers of sold commodities on the cloned trader is correct
+        provision.getActionTarget().getCommoditiesSold()
+                .forEach(commSold -> assertEquals(1, commSold.getNumConsumers()));
+        // Rollback
+        provision.rollback();
+        // Make sure everything goes back to the original state
+        assertEquals(3, e.getTraders().size());
+        assertEquals(150.0, slSvc.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(1.0, slSvc.getQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(150.0, application.getCommoditySold(bSvc.get(0)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(1.0, application.getCommoditySold(bSvc.get(1)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Case: One vapp consume on two apps, each hosted by a container.
+     * Each app sells 150 transactions. The vapp requests 150 transaction
+     * from each app.
+     * Expected: if provisionBySupply of app occurs, then one container should also be cloned to host
+     * the new app. Vapp requests 100 transaction from each of the three apps.
+     * If the provisionBySuply is rolled back, then economy contains original traders
+     * and vapp requests 150 from each of the two apps.
+     */
+    @Test
+    public void testTakeAndRollback_provisionBySupplyWithGuaranteedBuyer() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(TestUtils.VCPU);
+        Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.VCPU),
+                        new double[]{200}, true, false);
+        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
+               Arrays.asList(TestUtils.TRANSACTION),
+               new double[]{150}, true, true);
+        app1.getSettings().setProviderMustClone(true);
+        ShoppingList sl1 = e.addBasketBought(app1, b1);
+        TestUtils.moveSlOnSupplier(e, sl1, c1, new double[]{70});
+        Trader app2 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
+                Arrays.asList(TestUtils.TRANSACTION),
+                new double[]{150}, true, false);
+        app2.getSettings().setProviderMustClone(true);
+        ShoppingList sl2 = e.addBasketBought(app2, b1);
+        Trader c2 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Arrays.asList(0l),
+                Arrays.asList(TestUtils.VCPU),
+                new double[]{200}, true, false);
+        TestUtils.moveSlOnSupplier(e, sl2, c2, new double[]{70});
+        Trader vapp = TestUtils.createTrader(e, TestUtils.VAPP_TYPE, Arrays.asList(0l),
+                Arrays.asList(), new double[]{}, true, true);
+        Basket b2 = new Basket(TestUtils.TRANSACTION);
+        ShoppingList sl3 = e.addBasketBought(vapp, b2);
+        TestUtils.moveSlOnSupplier(e, sl3, app1, new double[]{150});
+        ShoppingList sl4 = e.addBasketBought(vapp, b2);
+        TestUtils.moveSlOnSupplier(e, sl4, app2, new double[]{150});
+
+        ProvisionBySupply provision1 = (ProvisionBySupply) new ProvisionBySupply(e, app1, CPU).take();
+
+        assertTrue(e.getTraders().size() == 7);
+        // number of SLs changes after taking provision action because of guaranteed buyers
+        assertEquals(3, e.getMarketsAsBuyer(vapp).size());
+        assertEquals(2, e.getMarketsAsBuyer(app1).size());
+        assertEquals(1, e.getMarketsAsBuyer(app2).size());
+        assertTrue(e.getMarketsAsBuyer(c1).isEmpty());
+        assertTrue(e.getMarketsAsBuyer(c2).isEmpty());
+        assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.CONTAINER_TYPE)
+                  .count() == 3);
+        assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.APP_TYPE)
+                  .count() == 3);
+        assertTrue(provision1.getActionTarget().getCustomers().size() == 1);
+        assertEquals(100.0, provision1.getActionTarget().getCustomers().get(0).getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(100.0, sl3.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(100.0, sl4.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+
+        provision1.rollback();
+        assertTrue(e.getTraders().size() == 5);
+        // number of SLs should not change after rollback
+        assertEquals(2, e.getMarketsAsBuyer(vapp).size());
+        assertEquals(1, e.getMarketsAsBuyer(app1).size());
+        assertEquals(1, e.getMarketsAsBuyer(app2).size());
+        assertTrue(e.getMarketsAsBuyer(c1).isEmpty());
+        assertTrue(e.getMarketsAsBuyer(c2).isEmpty());
+        assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.CONTAINER_TYPE)
+                  .count() == 2);
+        assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.APP_TYPE)
+                  .count() == 2);
+        assertTrue(e.getMarketsAsBuyer(vapp).keySet().stream()
+                  .allMatch(sl -> sl.getQuantities()[0] == 150));
+    }
+
+    @Test
+    public void testProvisionBySupplyWithVSANGuaranteedBuyers() {
+        Economy e = new Economy();
+        Trader vSan = TestUtils.createTrader(e, TestUtils.ST_TYPE, TestUtils.NO_CLIQUES,
+                Collections.emptyList(), new double[]{}, true, true);
+        vSan.getSettings().setResizeThroughSupplier(true);
+        Basket bvSan = new Basket(TestUtils.ST_AMT, TestUtils.Q16_VCPU);
+        ShoppingList slvSan = e.addBasketBought(vSan, bvSan);
+        Trader host = TestUtils.createTrader(e, TestUtils.PM_TYPE, TestUtils.NO_CLIQUES,
+                Arrays.asList(TestUtils.ST_AMT, TestUtils.Q16_VCPU), new double[]{100, 100},
+                true, false);
+        TestUtils.moveSlOnSupplier(e, slvSan, host, new double[]{80, 90});
+        // Provision
+        ProvisionBySupply provision = (ProvisionBySupply)new ProvisionBySupply(
+                e, host, TestUtils.ST_AMT).take();
+        // Make sure ST_AMT commodity value is the same as that of the model seller
+        assertEquals(80.0, provision.getActionTarget().getCustomers().get(0).getQuantities()[0],
+                TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(80.0, provision.getActionTarget().getCommoditySold(bvSan.get(0)).getQuantity(),
+                TestUtils.FLOATING_POINT_DELTA);
+        // Make sure Q16_VCPU commodity value is the same as that of the model seller
+        assertEquals(90.0, provision.getActionTarget().getCustomers().get(0).getQuantities()[1],
+                TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(90.0, provision.getActionTarget().getCommoditySold(bvSan.get(1)).getQuantity(),
+                TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Case: One service consume on two apps, each hosted by a container.
+     * Each app sells 300(ms) response time. The service requests 2000(ms) response time from each app.
+     * The containers sells 575(MHz) VCPU. The two applications requests 515(MHz) and 495(MHz) VCPU
+     * respectively.
+     * Provision through MM1Distribution with one dependent VCPU commodity of default elasticity 1.0:
+     * After one provision, the service should request 391(ms) response time from each of the 3 apps.
+     * After another provision, the service should request 134(ms) response time from each of the 4 apps.
+     */
+    @Test
+    public void testProvisionBySupplyTwiceWithMM1Distribution() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(TestUtils.VCPU, TestUtils.VMEM);
+        Basket b2 = new Basket(TestUtils.RESPONSE_TIME);
+        Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        Trader c2 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app1.getSettings().setProviderMustClone(true);
+        ShoppingList sl1 = e.addBasketBought(app1, b1);
+        TestUtils.moveSlOnSupplier(e, sl1, c1, new double[]{515, 256});
+        Trader app2 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app2.getSettings().setProviderMustClone(true);
+        ShoppingList sl2 = e.addBasketBought(app2, b1);
+        TestUtils.moveSlOnSupplier(e, sl2, c2, new double[]{495, 256});
+        Trader svc = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, Collections.singletonList(0L),
+                Collections.emptyList(), new double[]{}, true, true);
+        ShoppingList sl3 = e.addBasketBought(svc, b2);
+        TestUtils.moveSlOnSupplier(e, sl3, app1, new double[]{2000});
+        ShoppingList sl4 = e.addBasketBought(svc, b2);
+        TestUtils.moveSlOnSupplier(e, sl4, app2, new double[]{2000});
+        // Provision once
+        ProvisionBySupply provision1 = (ProvisionBySupply)
+                new ProvisionBySupply(e, app1, TestUtils.RESPONSE_TIME).take();
+        // 2000 -> 391
+        final double expected1 = 2000D * (575D * 2 - (515D + 495D)) / (575D * 3 - (515D + 495D));
+        assertEquals(expected1, provision1.getActionTarget().getCustomers().get(0).getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected1, sl3.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected1, sl4.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        final double expected2 = (515D + 495D) / 3;
+        assertEquals(expected2, sl1.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected2, sl2.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected2, c1.getCommoditySold(TestUtils.VCPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected2, c2.getCommoditySold(TestUtils.VCPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        // Provision twice
+        ProvisionBySupply provision2 = (ProvisionBySupply)
+                new ProvisionBySupply(e, app1, TestUtils.RESPONSE_TIME).take();
+        // 391 -> 134
+        final double expected3 = expected1 * (575D * 3 - (515D + 495D)) / (575D * 4 - (515D + 495D));
+        assertEquals(expected3, provision2.getActionTarget().getCustomers().get(0).getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected3, provision1.getActionTarget().getCustomers().get(0).getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected3, sl3.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected3, sl4.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        final double expected4 = (515D + 495D) / 4;
+        assertEquals(expected4, sl1.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected4, sl2.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected4, c1.getCommoditySold(TestUtils.VCPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected4, c2.getCommoditySold(TestUtils.VCPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        // Verify provisioned sellers have the correct number of consumers
+        provision1.getActionTarget().getCommoditiesSold()
+                .forEach(commoditySold -> assertEquals(1, commoditySold.getNumConsumers()));
+        provision2.getActionTarget().getCommoditiesSold()
+                .forEach(commoditySold -> assertEquals(1, commoditySold.getNumConsumers()));
+
+    }
+
+    /**
+     * Test provision by supply with MM1 distribution does not require RoI decrease.
+     *
+     * <p>One service consume on two apps, each hosted by a container.
+     * Each app sells 300(ms) response time. The service requests 20000(ms) response time from each app.
+     * Each container sells 575(MHz) VCPU, 65536(MB) memory.
+     * Each application requests 515(MHz) VCPU, 256(MB) memory.
+     * Stop criteria is set as 50% for each app (artificially control the number of clones).
+     *
+     * <p>Before provision, we have the following for each app:
+     * Original Quantity: 200000 (ms)
+     * Original Revenue: 20000/300 x 1E22 = 6.67E23
+     * Original Expense: 515/575 / (60/575)^2 = 82.257
+     * Original RoI: 6.67E23 / 82.257 = 8.1E21
+     *
+     * <p>After one provision through MM1Distribution, we will have the following for each app:
+     * New Quantity: 3453 (ms)
+     * New Revenue: 3453/300 x 1E22 = 1.15E23
+     * New Expense: 8.136 = (343/575 / (232/575)^2) [Used] + (172/575 / (60/232)^2) [Peak Used]
+     * New RoI: 1.15E23 / 8.136 = 1.41E22
+     *
+     * <p>Conclusion: Provision is taken when quantity drops more than 20% but RoI does not decrease.
+     * New Quantity (3453) < 80% of Original Quantity (0.8 x 20000 = 16000)
+     * New RoI > Original RoI
+     */
+    @Test
+    public void testProvisionBySupplyWithMM1DistributionDoNotEvaluateRoI() {
+        Economy e = new Economy();
+        // Set up the environment
+        Basket b1 = new Basket(TestUtils.VCPU, TestUtils.VMEM);
+        Basket b2 = new Basket(TestUtils.RESPONSE_TIME);
+        Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        c1.setDebugInfoNeverUseInCode("container1");
+        Trader c2 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        c2.setDebugInfoNeverUseInCode("container2");
+        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app1.setDebugInfoNeverUseInCode("application1");
+        app1.getSettings()
+                .setProviderMustClone(true)
+                .setMaxDesiredUtil(0.75)
+                .setMinDesiredUtil(0.65);
+        Optional.ofNullable(app1.getCommoditySold(b2.get(0)).getSettings().getUpdatingFunction())
+                .filter(UpdatingFunctionFactory::isMM1DistributionFunction)
+                .map(MM1Distribution.class::cast).ifPresent(uf -> uf.setMinDecreasePct(0.5F));
+        ShoppingList sl1 = e.addBasketBought(app1, b1);
+        TestUtils.moveSlOnSupplier(e, sl1, c1, new double[]{515, 256});
+        Trader app2 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app2.setDebugInfoNeverUseInCode("application2");
+        app2.getSettings()
+                .setProviderMustClone(true)
+                .setMaxDesiredUtil(0.75)
+                .setMinDesiredUtil(0.65);
+        Optional.ofNullable(app2.getCommoditySold(b2.get(0)).getSettings().getUpdatingFunction())
+                .filter(UpdatingFunctionFactory::isMM1DistributionFunction)
+                .map(MM1Distribution.class::cast).ifPresent(uf -> uf.setMinDecreasePct(0.5F));
+        ShoppingList sl2 = e.addBasketBought(app2, b1);
+        TestUtils.moveSlOnSupplier(e, sl2, c2, new double[]{515, 256});
+        Trader svc = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, Collections.singletonList(0L),
+                Collections.emptyList(), new double[]{}, true, true);
+        svc.setDebugInfoNeverUseInCode("service");
+        ShoppingList sl3 = e.addBasketBought(svc, b2);
+        TestUtils.moveSlOnSupplier(e, sl3, app1, new double[]{20000});
+        ShoppingList sl4 = e.addBasketBought(svc, b2);
+        TestUtils.moveSlOnSupplier(e, sl4, app2, new double[]{20000});
+
+        // Populate market
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+        Ledger ledger = new Ledger(e);
+
+        // Calculate the before RoI
+        ledger.calculateExpRevForTraderAndGetTopRevenue(e, app1);
+        final double beforeRoI = ledger.getTraderIncomeStatements()
+                .get(app1.getEconomyIndex()).getROI();
+
+        // Start provision simulation
+        List<Action> actions = Provision.provisionDecisions(e, ledger);
+
+        // Calculate the after RoI
+        ledger.calculateExpRevForTraderAndGetTopRevenue(e, app1);
+        final double afterRoI = ledger.getTraderIncomeStatements()
+                .get(app1.getEconomyIndex()).getROI();
+
+        // Assert one provision, two actions (app clone, and container clone)
+        assertEquals(2, actions.size());
+        assertEquals(TestUtils.APP_TYPE, actions.get(0).getActionTarget().getType());
+        assertEquals(TestUtils.CONTAINER_TYPE, actions.get(1).getActionTarget().getType());
+        // Assert afterRoI is larger than beforeRoI
+        assertEquals(8.104297636827229E21, beforeRoI, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(1.4152927953194494E22, afterRoI, TestUtils.FLOATING_POINT_DELTA);
+        assertTrue(afterRoI > beforeRoI);
+    }
+
+    /**
+     * Test provision by supply with MM1 distribution and a 50% stop condition.
+     *
+     * <p>The app sells 300(ms) response time. The service requests 20000(ms) response time.
+     * The app has a max desired util of 0.75 and min desired util 0f 0.65.
+     * The response time commodity has MM1Distribution with one dependent VCPU commodity of default
+     * elasticity 1.0, and a minimum desired quantity drop percentage of 0.5 (i.e., 50%).
+     * The container sells 575(MHz) VCPU. The application requests 515(MHz) VCPU.
+     * After one provision, the service should request 1890(ms) response time.
+     * After another provision, the service should request 992(ms) response time, which is larger
+     * than the desired response time of 1890 * 0.5 = 945, so the second provision should be rejected.
+     * The overall number of provisions should be 2, i.e., one application provision, and one
+     * container provision due to providerMustClone.
+     */
+    @Test
+    public void testProvisionBySupplyWithMM1DistributionStopCondition() {
+        Economy e = new Economy();
+        // Create svc
+        Trader svc = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, Collections.singletonList(0L),
+                Collections.emptyList(), new double[]{}, true, true);
+        svc.setDebugInfoNeverUseInCode("service");
+        // Create app
+        Trader app = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app.setDebugInfoNeverUseInCode("application");
+        app.getSettings()
+                .setProviderMustClone(true)
+                .setMaxDesiredUtil(0.75)
+                .setMinDesiredUtil(0.65);
+        // Set minimum desired quantity drop percentage to be 50%
+        Basket bSvc = new Basket(TestUtils.RESPONSE_TIME);
+        Optional.ofNullable(app.getCommoditySold(bSvc.get(0)).getSettings().getUpdatingFunction())
+                .filter(UpdatingFunctionFactory::isMM1DistributionFunction)
+                .map(MM1Distribution.class::cast).ifPresent(uf -> uf.setMinDecreasePct(0.5F));
+        // Create shopping list for svc, and places it on app
+        ShoppingList slSvc = e.addBasketBought(svc, bSvc);
+        TestUtils.moveSlOnSupplier(e, slSvc, app, new double[]{20000});
+        // Create shopping list for app
+        Basket bApp = new Basket(TestUtils.VCPU, TestUtils.VMEM);
+        ShoppingList slApp = e.addBasketBought(app, bApp);
+        // Create container
+        Trader container = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        container.setDebugInfoNeverUseInCode("container");
+        // Place app on container
+        TestUtils.moveSlOnSupplier(e, slApp, container, new double[]{515, 256});
+        // Populate market
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+        Ledger ledger = new Ledger(e);
+        List<Action> actions = Provision.provisionDecisions(e, ledger);
+        // Two actions (app clone, and container clone)
+        assertEquals(2, actions.size());
+        assertEquals(TestUtils.APP_TYPE, actions.get(0).getActionTarget().getType());
+        assertEquals(TestUtils.CONTAINER_TYPE, actions.get(1).getActionTarget().getType());
+        // Provision once 20000 -> 1890
+        // Provision twice 1890 -> 992 > (1890 * 0.5 = 945), rejected
+        final double expected = 20000D * (575D - 515D) / (575D * 2 - 515D);
+        assertEquals(expected, actions.get(0).getActionTarget().getCustomers().get(0).getQuantity(0),
+                TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected, slSvc.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Case: One service consume on one apps hosted by a container.
+     * The app sells 300(ms) response time. The service requests 2000(ms) response time from the app.
+     * The container sells 575(MHz) VCPU. The application requests 515(MHz) VCPU.
+     * Provision through MM1Distribution with dependent commodities:
+     * - VCPU with default elasticity 1.0
+     * - VMEM with elasticity 0.0
+     * After one provision, the service should request 378(ms) response time from each of the 2 apps.
+     * After rollback of the provision, the service should request 3944(ms) from the original app
+     * because the projected VCPU after rollback will be capped.
+     */
+    @Test
+    public void testTakeAndRollbackOfProvisionBySupplyWithMM1Distribution() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(TestUtils.VCPU, TestUtils.VMEM);
+        Basket b2 = new Basket(TestUtils.RESPONSE_TIME);
+        Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app1.getSettings().setProviderMustClone(true);
+        ShoppingList sl1 = e.addBasketBought(app1, b1);
+        TestUtils.moveSlOnSupplier(e, sl1, c1, new double[]{515, 1024});
+        Trader svc = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, Collections.singletonList(0L),
+                Collections.emptyList(), new double[]{}, true, true);
+        ShoppingList sl3 = e.addBasketBought(svc, b2);
+        TestUtils.moveSlOnSupplier(e, sl3, app1, new double[]{2000});
+        // Provision
+        ProvisionBySupply provision = (ProvisionBySupply)
+                new ProvisionBySupply(e, app1, TestUtils.RESPONSE_TIME).take();
+        // 2000 -> 189
+        final double expected1 = 2000D * (575D - 515D) / (575D * 2 - 515D);
+        assertEquals(expected1, provision.getActionTarget().getCustomers().get(0).getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected1, sl3.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        // Rollback
+        provision.rollback();
+        // Assert projected VCPU used is capped when it is larger than capacity
+        // 189 -> 2000
+        final double expected2 = expected1 * (575D * 2 - 515D) / (575D - 515D);
+        assertEquals(expected2, sl3.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Test provision by supply with a max replicas constraint.
+     *
+     * <p>The app sells 300(ms) response time. The service requests 20000(ms) response time.
+     * The app has a max desired util of 0.75 and min desired util 0f 0.65.
+     * The app has a minReplicas=1, and maxReplicas=3.
+     * The response time commodity has MM1Distribution with one dependent VCPU commodity of default
+     * elasticity 1.0, and a default stop condition of 20%.
+     * The container sells 575(MHz) VCPU. The application requests 515(MHz) VCPU.
+     * There should be at most 3 applications (1 original, and 2 cloned)
+     */
+    @Test
+    public void testProvisionBySupplyWithMaxReplicas() {
+        Economy e = new Economy();
+        final int minReplicas = 1;
+        final int maxReplicas = 3;
+        // Create svc
+        Trader svc = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, Collections.singletonList(0L),
+                Collections.emptyList(), new double[]{}, true, true);
+        svc.setDebugInfoNeverUseInCode("service");
+        // Create app
+        Trader app = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app.setDebugInfoNeverUseInCode("application");
+        app.getSettings()
+                .setProviderMustClone(true)
+                .setMaxDesiredUtil(0.75)
+                .setMaxDesiredUtil(0.65)
+                .setMinReplicas(minReplicas)
+                .setMaxReplicas(maxReplicas);
+        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.APPLICATION),
+                new double[]{1E22}, true, false);
+        app1.setDebugInfoNeverUseInCode("sidecar");
+        // Set stop condition to be 20%
+        Basket bSvc = new Basket(TestUtils.RESPONSE_TIME);
+        Optional.ofNullable(app.getCommoditySold(bSvc.get(0)).getSettings().getUpdatingFunction())
+                .filter(UpdatingFunctionFactory::isMM1DistributionFunction)
+                .map(MM1Distribution.class::cast).ifPresent(uf -> uf.setMinDecreasePct(0.2F));
+        // Create shopping list for svc, and place svc on app
+        ShoppingList slSvc = e.addBasketBought(svc, bSvc);
+        TestUtils.moveSlOnSupplier(e, slSvc, app, new double[]{20000});
+        Basket bSvc1 = new Basket(TestUtils.APPLICATION);
+        ShoppingList slSvc1 = e.addBasketBought(svc, bSvc1);
+        TestUtils.moveSlOnSupplier(e, slSvc1, app1, new double[]{1});
+        // Create shopping list for app
+        Basket bApp = new Basket(TestUtils.VCPU, TestUtils.VMEM);
+        ShoppingList slApp = e.addBasketBought(app, bApp);
+        // Create container
+        Trader container = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        container.setDebugInfoNeverUseInCode("container");
+        // Place app on container
+        TestUtils.moveSlOnSupplier(e, slApp, container, new double[]{515, 256});
+        // Populate market
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+        Ledger ledger = new Ledger(e);
+        List<Action> actions = Provision.provisionDecisions(e, ledger);
+        final long numOfClonedApps = actions.stream()
+                .map(Action::getActionTarget)
+                .filter(target -> target.getType() == TestUtils.APP_TYPE)
+                .count();
+        assertEquals(maxReplicas, numOfClonedApps + 1);
+    }
+
+    /**
+     * Test provision by supply with a max replicas constraint, and with some replica missing
+     * SLO metrics.
+     *
+     * <p>One service consume three apps, each hosted by a container.
+     * The service requests 20000(ms) response time from app1.
+     * App1 sells 300(ms) response time, requests 515(MHz) VCPU, 256(MB) memory. The provider
+     * container sells 575(MHz) VCPU, 65536(MB) memory.
+     * App2 is the peer of App1 (i.e., share the same Application commodity key), but does not
+     * sell SLO commodity.
+     * App3 is a sidecar app, and is not a peer of App1 or App2.
+     *
+     * <p>The app has a max desired util of 0.75 and min desired util 0f 0.65.
+     * The app has a policy of minReplicas=1, and maxReplicas=3.
+     * The response time commodity has MM1Distribution with one dependent VCPU commodity of default
+     * elasticity 1.0, and a default stop condition of 20%.
+     *
+     */
+    @Test
+    public void testProvisionBySupplyWithMaxReplicasAndMissingSLOMetric() {
+        Economy e = new Economy();
+        final int minReplicas = 1;
+        final int maxReplicas = 3;
+        Basket bAppContainer = new Basket(TestUtils.VCPU, TestUtils.VMEM);
+        Basket bSvcAppWithSLO = new Basket(TestUtils.RESPONSE_TIME, TestUtils.APPLICATION);
+        Basket bSvcAppWithoutSLO = new Basket(TestUtils.APPLICATION);
+        Basket bSvcSidecarApp = new Basket(TestUtils.SIDECAR_APPLICATION);
+        // Container hosting app with SLO
+        Trader cntAppWithSLO = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        cntAppWithSLO.setDebugInfoNeverUseInCode("containerWithSLO");
+        // Container hosting app without SLO
+        Trader cntAppWithoutSLO = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        cntAppWithoutSLO.setDebugInfoNeverUseInCode("containerWithoutSLO");
+        // Container hosting sidecar app
+        Trader cntSidecarApp = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        cntSidecarApp.setDebugInfoNeverUseInCode("containerSidecar");
+        // Application with SLO
+        Trader appWithSLO = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.RESPONSE_TIME, TestUtils.APPLICATION),
+                new double[]{300, 1E22}, true, false);
+        appWithSLO.setDebugInfoNeverUseInCode("appWithSLO");
+        appWithSLO.getSettings()
+                .setProviderMustClone(true)
+                .setMaxDesiredUtil(0.75)
+                .setMaxDesiredUtil(0.65)
+                .setMinReplicas(minReplicas)
+                .setMaxReplicas(maxReplicas);
+        Optional.ofNullable(appWithSLO.getCommoditySold(bSvcAppWithSLO.get(0)).getSettings().getUpdatingFunction())
+                .filter(UpdatingFunctionFactory::isMM1DistributionFunction)
+                .map(MM1Distribution.class::cast).ifPresent(uf -> uf.setMinDecreasePct(0.2F));
+        ShoppingList slAppWithSLOContainer = e.addBasketBought(appWithSLO, bAppContainer);
+        TestUtils.moveSlOnSupplier(e, slAppWithSLOContainer, cntAppWithSLO, new double[]{515, 256});
+        // Application without SLO
+        Trader appWithoutSLO = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.APPLICATION),
+                new double[]{1E22}, true, false);
+        appWithoutSLO.setDebugInfoNeverUseInCode("appWithoutSLO");
+        appWithoutSLO.getSettings().setProviderMustClone(true);
+        ShoppingList slAppWithoutSLOContainer = e.addBasketBought(appWithoutSLO, bAppContainer);
+        TestUtils.moveSlOnSupplier(e, slAppWithoutSLOContainer, cntAppWithoutSLO, new double[]{50, 64});
+        // Sidecar Application
+        Trader appSidecar = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.SIDECAR_APPLICATION),
+                new double[]{1E22}, true, false);
+        appSidecar.setDebugInfoNeverUseInCode("appSidecar");
+        appSidecar.getSettings().setProviderMustClone(true);
+        ShoppingList slSidecarAppContainer = e.addBasketBought(appSidecar, bAppContainer);
+        TestUtils.moveSlOnSupplier(e, slSidecarAppContainer, cntSidecarApp, new double[]{50, 64});
+        // Service
+        Trader svc = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, Collections.singletonList(0L),
+                Collections.emptyList(), new double[]{}, true, true);
+        svc.setDebugInfoNeverUseInCode("service");
+        ShoppingList slSvcAppWithSLO = e.addBasketBought(svc, bSvcAppWithSLO);
+        TestUtils.moveSlOnSupplier(e, slSvcAppWithSLO, appWithSLO, new double[]{2000});
+        ShoppingList slSvcAppWithoutSLO = e.addBasketBought(svc, bSvcAppWithoutSLO);
+        TestUtils.moveSlOnSupplier(e, slSvcAppWithoutSLO, appWithoutSLO, new double[]{0});
+        ShoppingList slSvcSidecarApp = e.addBasketBought(svc, bSvcSidecarApp);
+        TestUtils.moveSlOnSupplier(e, slSvcSidecarApp, appSidecar, new double[]{0});
+        // Populate market
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+        Ledger ledger = new Ledger(e);
+        List<Action> actions = Provision.provisionDecisions(e, ledger);
+        final long numOfClonedApps = actions.stream()
+                .map(Action::getActionTarget)
+                .filter(target -> target.getType() == TestUtils.APP_TYPE)
+                .count();
+        // The expected number of cloned application is 1, plus the original model app and the
+        // app that does not sell SLO metric, we reach the maxReplicas of 3.
+        assertEquals(1, numOfClonedApps);
+    }
+
+    /**
+     * Case: Two containers on one pm, each container hosts one app.Both containers sell
+     * 100 VCPU and buy 100 CPU from pm. The pm sells only 250 CPU.
+     *
+     * Expected: if provisionBySupply of app occurs, a container will be cloned to
+     * host the app. The new container will bootstrap a new clone of pm to place it.
+     * If provisionBySupply is rolled back, economy contains original traders.
+     */
+
+    @Test
+    public void testTakeAndRollback_provisionBySupplyWithUnplacedClones() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(TestUtils.VCPU);
+        Basket b2 = new Basket(TestUtils.CPU);
+        Trader pm1 = TestUtils.createTrader(e, TestUtils.PM_TYPE, Arrays.asList(0l),
+                                           Arrays.asList(TestUtils.CPU),
+                                           new double[]{250}, true, false);
+        Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Arrays.asList(0l),
+                                           Arrays.asList(TestUtils.VCPU),
+                                           new double[]{100}, true, false);
+        ShoppingList sl1 = e.addBasketBought(c1, b2);
+        TestUtils.moveSlOnSupplier(e, sl1, pm1, new double[]{100});
+        Trader c2 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Arrays.asList(0l),
+                                           Arrays.asList(TestUtils.VCPU),
+                                           new double[]{100}, true, false);
+        ShoppingList sl2 = e.addBasketBought(c2, b2);
+        TestUtils.moveSlOnSupplier(e, sl2, pm1, new double[]{100});
+        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
+                                             Arrays.asList(TestUtils.TRANSACTION),
+                                             new double[]{50}, true, false);
+        app1.getSettings().setProviderMustClone(true);
+        ShoppingList sl3 = e.addBasketBought(app1, b1);
+        TestUtils.moveSlOnSupplier(e, sl3, c1, new double[]{50});
+        Trader app2 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
+                                             Arrays.asList(TestUtils.TRANSACTION),
+                                             new double[]{50}, true, false);
+        app2.getSettings().setProviderMustClone(true);
+        ShoppingList sl4 = e.addBasketBought(app2, b1);
+        TestUtils.moveSlOnSupplier(e, sl4, c2, new double[]{50});
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+        ProvisionBySupply provision = (ProvisionBySupply)new ProvisionBySupply(e, app1, CPU).take();
+        // assert that clone is suspendable
+        assertTrue(((ProvisionBySupply)provision).getProvisionedSeller().getSettings().isSuspendable());
+        assertTrue(e.getTraders().size() == 8);
+        assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.CONTAINER_TYPE)
+                   .count() == 3);
+        assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.PM_TYPE)
+                   .count() == 2);
+        // assert that the number of consumers is 2 for commodities sold by pm1
+        pm1.getCommoditiesSold()
+                .forEach(commoditySold -> assertEquals(2, commoditySold.getNumConsumers()));
+        // assert that the number of consumers is 1 for commodities sold by the cloned pm
+        e.getTraders().stream()
+                .filter(t -> t.getType() == TestUtils.PM_TYPE)
+                .filter(t -> !t.equals(pm1))
+                .map(Trader::getCommoditiesSold)
+                .flatMap(List::stream)
+                .forEach(commoditySold -> assertEquals(1, commoditySold.getNumConsumers()));
+        provision.rollback();
+        assertTrue(e.getTraders().size() == 5);
+        assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.CONTAINER_TYPE)
+                   .count() == 2);
+        assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.PM_TYPE)
+                   .count() == 1);
+    }
+
+    @Test
+    public void testTakeWithCloneCommodityWithNewType() {
+        Economy e = new Economy();
+        int appCommBaseType = 100;
+        int appCommType = 200;
+        // appCommodity has cloneWithNewType = true
+        CommoditySpecification appCs = new CommoditySpecification(appCommType, appCommBaseType, true);
+        Basket b1 = new Basket(appCs, TestUtils.VCPU);
+        Basket b2 = new Basket(TestUtils.TRANSACTION);
+        Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Arrays.asList(0l),
+                                           Arrays.asList(TestUtils.VCPU, appCs),
+                                           new double[]{100, 1000}, true, false);
+        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
+                                             Arrays.asList(TestUtils.TRANSACTION),
+                                             new double[]{150}, true, false);
+        app1.getSettings().setProviderMustClone(true);
+        // application buys the appCommodity
+        ShoppingList sl1 = e.addBasketBought(app1, b1);
+        TestUtils.moveSlOnSupplier(e, sl1, c1, new double[]{70, 1});
+        Trader vapp = TestUtils.createTrader(e, TestUtils.VAPP_TYPE, Arrays.asList(0l),
+                                             Arrays.asList(), new double[]{}, true, true);
+        ShoppingList sl2 = e.addBasketBought(vapp, b2);
+        TestUtils.moveSlOnSupplier(e, sl2, app1, new double[]{70});
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        ProvisionBySupply provision = (ProvisionBySupply)new ProvisionBySupply(e, app1, CPU).take();
+        boolean findAppCommInContainerClone = false;
+        for (Action a : provision.getSubsequentActions()) {
+            if (a instanceof ProvisionBySupply) {
+                // clone of container hosting the new application clone should have a different appComm
+                // type but same base type
+                for (CommoditySpecification cs : a.getActionTarget().getBasketSold()) {
+                    if (cs.getBaseType() == appCommBaseType) {
+                        findAppCommInContainerClone = true;
+                        assertTrue(cs.getType() != appCommType);
+                    } else {
+                        assertTrue(((ProvisionBySupply)a).getModelSeller().getBasketSold().contains(cs));
+                    }
+                }
+            }
+        }
+        assertTrue(findAppCommInContainerClone);
+    }
+
+    /**
+     * Test extractCommodityIds and createActionWithNewCommodityId.
+     *
+     * @throws ActionCantReplayException ActionCantReplayException
+     */
+    @Test
+    public void testCreateActionWithNewCommodityId() throws ActionCantReplayException {
+        final CommoditySpecification reasonCommodity = new CommoditySpecification(0, 1);
+        final Map<CommoditySpecification, CommoditySpecification> commToReplaceMap = ImmutableMap.of(
+            new CommoditySpecification(2, 3), new CommoditySpecification(4, 5),
+            new CommoditySpecification(6, 7), new CommoditySpecification(8, 9)
+        );
+        final ProvisionBySupply provision = new ProvisionBySupply(
+            new Economy(), mock(TraderWithSettings.class), commToReplaceMap, reasonCommodity);
+
+        assertEquals(ImmutableSet.of(0, 2, 6), provision.extractCommodityIds());
+
+        // Create mapping
+        final Int2IntOpenHashMap commodityIdMapping = new Int2IntOpenHashMap();
+        commodityIdMapping.defaultReturnValue(NumericIDAllocator.nonAllocableId);
+        commodityIdMapping.put(0, 10);
+        commodityIdMapping.put(2, 20);
+        commodityIdMapping.put(6, 60);
+
+        final ProvisionBySupply newProvision = provision.createActionWithNewCommodityId(commodityIdMapping);
+        assertEquals(new CommoditySpecification(10, 1), newProvision.getReason());
+        assertEquals(ImmutableMap.of(
+            new CommoditySpecification(20, 3), new CommoditySpecification(4, 5),
+            new CommoditySpecification(60, 7), new CommoditySpecification(8, 9)),
+            newProvision.getCommSoldToReplaceMap());
+    }
+
+    /**
+     * Test createActionWithNewCommodityId thorws an exception.
+     *
+     * @throws ActionCantReplayException ActionCantReplayException
+     */
+    @Test
+    public void testCreateActionWithNewCommodityIdThrowException() throws ActionCantReplayException {
+        expectedException.expect(ActionCantReplayException.class);
+
+        final CommoditySpecification reasonCommodity = new CommoditySpecification(0, 1);
+        final ProvisionBySupply provision = new ProvisionBySupply(
+            new Economy(), mock(TraderWithSettings.class), reasonCommodity);
+
+        assertEquals(ImmutableSet.of(0), provision.extractCommodityIds());
+
+        // Create mapping
+        final Int2IntOpenHashMap commodityIdMapping = new Int2IntOpenHashMap();
+        commodityIdMapping.defaultReturnValue(NumericIDAllocator.nonAllocableId);
+
+        // Throws an exception
+        provision.createActionWithNewCommodityId(commodityIdMapping);
+    }
 } // end ProvisionBySupplyTest class

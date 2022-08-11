@@ -16,8 +16,9 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.AttributesImpl;
@@ -38,6 +39,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
 
 /**
@@ -119,10 +121,10 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     /**
      * A constructor that uses the class logger for logging.
-     * The class logger is Logger.getLogger(EMF2MarketHandler.class)
+     * The class logger is LogManager.getLogger(EMF2MarketHandler.class)
      */
     public EMF2MarketHandler() {
-        this(Logger.getLogger(EMF2MarketHandler.class));
+        this(LogManager.getLogger(EMF2MarketHandler.class));
     }
 
     public LegacyTopology getTopology() {
@@ -192,7 +194,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
     }
 
     private void printAttributes(String prefix, Attributes attributes, Level level) {
-        if (!logger.isEnabledFor(level)) return;
+        if (logger.isEnabled(level))
+            return;
         if (attributes == null) {
             logger.log(level, prefix + null);
             return;
@@ -312,7 +315,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             // Keys are the same as above
             // Values are the commodities that consume commodities from this seller
             Map<Attributes, List<Attributes>> sellerAttr2commsBoughtAttr = Maps.newLinkedHashMap();
-            // Key is the uuid of the trader and value is the bilique keys bought from that trader
+            // Key is the uuid of the trader and value is the biclique keys bought from that trader
             Map<String ,String> traderUuid2bcKeysBought = new HashMap<>();
             for (Attributes commBoughtAttr : trader2commoditiesBought.get(traderUuid)) {
                 printAttributes("    Buys ", commBoughtAttr, Level.TRACE);
@@ -421,6 +424,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
                 }
             }
         }
+        topology.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         // Set various properties of commodity sold
         logger.info("Set commodity properties");
@@ -461,9 +465,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             commSold.getSettings().setUtilizationUpperBound(utilThreshold);
             PriceFunction pf = priceFunction(commSoldAttr);
             commSold.getSettings().setPriceFunction(pf);
-         }
-
-        topology.addQuantityFunction(StorageLatency, Math::max);
+        }
 
         logger.info("Processing placement");
         for (Entry<ShoppingList, String> entry : placement.entrySet()) {
@@ -624,21 +626,21 @@ final public class EMF2MarketHandler extends DefaultHandler {
     PriceFunction priceFunction(Attributes commodity) {
         String type = commodity.xsitype();
         switch(type) {
-        case "Abstraction:StorageAmount":
-        case "Abstraction:StorageProvisioned":
-        case "Abstraction:VStorage":
-            return PriceFunction.Cache.createStepPriceFunction(commodity.value("utilThreshold", 1.0), 0.0, 20000.0);
-        case "Abstraction:Power":
-        case "Abstraction:Cooling":
-        case "Abstraction:Space":
-            return PriceFunction.Cache.createConstantPriceFunction(27.0);
-        case "Abstraction:SegmentationCommodity":
-        case "Abstraction:DrsSegmentationCommodity":
-        case "Abstraction:ClusterCommodity":
-        case "Abstraction:StorageClusterCommodity":
-            return PriceFunction.Cache.createConstantPriceFunction(0.0);
-        default:
-            return PriceFunction.Cache.createStandardWeightedPriceFunction(1.0);
+            case "Abstraction:StorageAmount":
+            case "Abstraction:StorageProvisioned":
+            case "Abstraction:VStorage":
+                return PriceFunctionFactory.createStepPriceFunction(commodity.value("utilThreshold", 1.0), 0.0, 20000.0);
+            case "Abstraction:Power":
+            case "Abstraction:Cooling":
+            case "Abstraction:Space":
+                return PriceFunctionFactory.createConstantPriceFunction(27.0);
+            case "Abstraction:SegmentationCommodity":
+            case "Abstraction:DrsSegmentationCommodity":
+            case "Abstraction:ClusterCommodity":
+            case "Abstraction:StorageClusterCommodity":
+                return PriceFunctionFactory.createConstantPriceFunction(0.0);
+            default:
+                return PriceFunctionFactory.createStandardWeightedPriceFunction(1.0);
         }
     }
 

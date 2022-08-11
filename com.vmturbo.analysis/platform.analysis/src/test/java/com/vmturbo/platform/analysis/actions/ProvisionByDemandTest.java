@@ -1,28 +1,43 @@
 package com.vmturbo.platform.analysis.actions;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.google.common.collect.ImmutableSet;
+
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ede.EdeCommon;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
 
 /**
  * A test case for the {@link ProvisionByDemand} class.
@@ -36,18 +51,82 @@ public class ProvisionByDemandTest {
 
     // Methods
 
+    /**
+     * This test is testing the case where model buyer is a clone.
+     * Make sure that the model buyer of the action is the shopping list of the original entity.
+     */
+    @Test
+    public final void testModelBuyer() {
+        Economy e = new Economy();
+        CommoditySpecification commSpec1 = new CommoditySpecification(0, 1);
+        CommoditySpecification commSpec2 = new CommoditySpecification(0, 2);
+
+        Trader origin = e.addTrader(0, TraderState.ACTIVE, EMPTY);
+        ShoppingList originSL1 = e.addBasketBought(origin, new Basket(commSpec1));
+        ShoppingList originSL2 = e.addBasketBought(origin, new Basket(commSpec2));
+
+        Trader clone = e.addTrader(0, TraderState.ACTIVE, EMPTY);
+        ShoppingList cloneSL1 = e.addBasketBought(clone, new Basket(commSpec1));
+        ShoppingList cloneSL2 = e.addBasketBought(clone, new Basket(commSpec2));
+        clone.setCloneOf(origin);
+
+        Trader modelSeller = e.addTrader(0, TraderState.ACTIVE, new Basket(commSpec1));
+        ProvisionByDemand provision = new ProvisionByDemand(e, cloneSL1, modelSeller);
+        assertEquals(originSL1, provision.getModelBuyer());
+
+        modelSeller = e.addTrader(0, TraderState.ACTIVE, new Basket(commSpec2));
+        provision = new ProvisionByDemand(e, cloneSL2, modelSeller);
+        assertEquals(originSL2, provision.getModelBuyer());
+    }
+
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: new ProvisionByDemand({0},{1}, {2})")
+    @TestCaseName("Test #{index}: new ProvisionByDemand({0},{1},{2},{3])")
     public final void testProvisionByDemand(@NonNull Economy economy,
-                    @NonNull ShoppingList modelBuyer, @NonNull Trader modelSeller) {
+                    @NonNull ShoppingList modelBuyer, @NonNull Trader modelSeller, boolean isProvisionUseful) {
+        double[] quoteBefore = EdeCommon.quote(economy, modelBuyer, modelSeller, Double.POSITIVE_INFINITY, false)
+            .getQuoteValues();
+
+        if (isProvisionUseful) {
+            assertTrue(Double.isInfinite(quoteBefore[0]));
+        }
+        TraderSettings modelSellerSettings = modelSeller.getSettings();
+        modelSellerSettings.setMinDesiredUtil(0.65);
+        modelSellerSettings.setMinDesiredUtil(0.75);
+
+        // Check resizable setting is copied over correctly for commodities.
+        modelSeller.getCommoditiesSold().get(0).getSettings().setResizable(false);
+
         @NonNull
-        ProvisionByDemand provision = new ProvisionByDemand(economy, modelBuyer, modelSeller);
+        ProvisionByDemand provision = (ProvisionByDemand)(new ProvisionByDemand(economy, modelBuyer,
+            ImmutableSet.of(new CommoditySpecification(0)), modelSeller)).take();
+        TraderSettings provisionedTraderSettings = provision.getActionTarget().getSettings();
+
+        // verify that the settings are updated correctly on the provisionedTrader
+        assertEquals(modelSellerSettings.getMaxDesiredUtil(), provisionedTraderSettings.getMaxDesiredUtil(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(modelSellerSettings.getMinDesiredUtil(), provisionedTraderSettings.getMinDesiredUtil(), TestUtils.FLOATING_POINT_DELTA);
+        assertTrue(provisionedTraderSettings.isSuspendable());
+        assertEquals(modelSellerSettings.isGuaranteedBuyer(), provisionedTraderSettings.isGuaranteedBuyer());
+        assertFalse(provisionedTraderSettings.isCloneable());
+        assertFalse(provision.getActionTarget().getCommoditySold(modelSeller.getBasketSold().get(0)).getSettings().isResizable());
+
+        // verify if all the modified commodities are added to commodityNewCapacityMap_
+        assertEquals(provision.getCommodityNewCapacityMap().isEmpty(), !isProvisionUseful);
+        if (!provision.getCommodityNewCapacityMap().isEmpty()) {
+            // Assert commSpec and new capacity
+            assertEquals(1, provision.getCommodityNewCapacityMap().size());
+            assertEquals(new CommoditySpecification(0), provision.getCommodityNewCapacityMap().keySet().iterator().next());
+            assertEquals(100.0 / 0.875, provision.getCommodityNewCapacityMap().values().iterator().next(), 1e-8);
+        }
+
+        double[] quoteAfter = EdeCommon.quote(economy, modelBuyer, provision.getProvisionedSeller(), 0, false)
+            .getQuoteValues();
+        assertTrue(Double.isFinite(quoteAfter[0]));
 
         assertSame(economy, provision.getEconomy());
         assertSame(modelBuyer, provision.getModelBuyer());
         assertSame(modelSeller, provision.getModelSeller());
-        assertNull(provision.getProvisionedSeller());
+        assertNotNull(provision.getProvisionedSeller());
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -63,18 +142,21 @@ public class ProvisionByDemandTest {
                 0,
                 TraderState.ACTIVE,
                 new Basket(new CommoditySpecification(0),
-                new CommoditySpecification(1))
+                new CommoditySpecification(1), new CommoditySpecification(2))
         );
-        model.getCommoditiesSold().get(1).setCapacity(Double.MAX_VALUE).setQuantity(0);
+        model.getCommoditiesSold().get(0).setCapacity(75).setQuantity(0);
+        model.getCommoditiesSold().get(1).setCapacity(75).setQuantity(0);
+        model.getCommoditiesSold().get(2).setCapacity(75).setQuantity(0);
         model.setDebugInfoNeverUseInCode(DEBUG_INFO);
-        b3.setQuantity(0, 5).setPeakQuantity(0, 6.5);
+        b3.setQuantity(0, 100).setPeakQuantity(0, 6.5);
 
         ShoppingList b4 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
-            new Basket(new CommoditySpecification(0), new CommoditySpecification(1)));
-        b4.setQuantity(0, 2.2).setPeakQuantity(0, 6.5);
-        b4.setQuantity(1, 100).setPeakQuantity(1, 101.3);
+            new Basket(new CommoditySpecification(0), new CommoditySpecification(1), new CommoditySpecification(2)));
+        b4.setQuantity(0, 90).setPeakQuantity(0, 100);
+        b4.setQuantity(1, 2.2).setPeakQuantity(1, 6.5);
+        b4.setQuantity(2, 100).setPeakQuantity(2, 100);
 
-        return new Object[][] {{e1, b1, model}, {e1, b2, model}, {e1, b3, model}, {e1, b4, model}};
+        return new Object[][] {{e1, b1, model, false}, {e1, b2, model, false}, {e1, b3, model, true}, {e1, b4, model, true}};
     }
 
     @Test
@@ -109,9 +191,11 @@ public class ProvisionByDemandTest {
     @Test
     @Parameters(method = "parametersForTestProvisionByDemand")
     @TestCaseName("Test #{index}: new ProvisionByDemand({0},{1},{2}).take().rollback()")
-    public final void testTakeRollback(@NonNull Economy economy, @NonNull ShoppingList modelBuyer, @NonNull Trader modelSeller) {
+    public final void testTakeRollback(@NonNull Economy economy, @NonNull ShoppingList modelBuyer, @NonNull Trader modelSeller
+                    , boolean isProvisionUseful) {
         final int oldSize = economy.getTraders().size();
-        @NonNull ProvisionByDemand provision = new ProvisionByDemand(economy, modelBuyer, modelSeller);
+        @NonNull ProvisionByDemand provision = new ProvisionByDemand(economy, modelBuyer,
+            ImmutableSet.of(new CommoditySpecification(0), new CommoditySpecification(2)), modelSeller);
 
         assertEquals(modelSeller, provision.getModelSeller());
         assertSame(provision, provision.take());
@@ -122,8 +206,8 @@ public class ProvisionByDemandTest {
                 DEBUG_INFO + " clone #" + provisionedSeller.getEconomyIndex());
         assertTrue(economy.getTraders().contains(provisionedSeller));
         assertEquals(oldSize+1, economy.getTraders().size());
-        assertTrue(EdeCommon.quote(economy, modelBuyer, provisionedSeller, Double.POSITIVE_INFINITY, false)[0]
-                                    < Double.POSITIVE_INFINITY);
+        assertTrue(EdeCommon.quote(economy, modelBuyer, provisionedSeller, Double.POSITIVE_INFINITY, false)
+            .getQuoteValue() < Double.POSITIVE_INFINITY);
         // assert that it can fit.
 
         assertSame(provision, provision.rollback());
@@ -145,6 +229,8 @@ public class ProvisionByDemandTest {
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestDebugDescription() {
+        IdentityGenerator.initPrefix(0);
+
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
         Trader t1 = topology1.addTrader("id1", "name1", "VM",TraderState.ACTIVE, Arrays.asList());
@@ -224,5 +310,112 @@ public class ProvisionByDemandTest {
                     boolean expect) {
         assertEquals(expect, provisionByDemand1.equals(provisionByDemand2));
         assertEquals(expect, provisionByDemand1.hashCode() == provisionByDemand2.hashCode());
+    }
+
+    @Test
+    public final void testTake_checkModelSellerWithCliques() {
+        Set<Long> cliques = new HashSet<>(Arrays.asList(0l));
+        Economy e = new Economy();
+        Basket b1 = new Basket(new CommoditySpecification(100));
+        Basket b2 = new Basket(new CommoditySpecification(200));
+        Trader t1 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Trader t2 = e.addTrader(0, TraderState.ACTIVE, b2, cliques);
+        ShoppingList shop1 = e.addBasketBought(t1, b2);
+        shop1.move(t2);
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        Action action = new ProvisionByDemand(e, shop1, t2).take();
+        // check cliques are cloned
+        assertEquals(cliques, ((ProvisionByDemand)action).getProvisionedSeller().getCliques());
+    }
+
+
+    /**
+     * The test checks that the newly provisioned seller has the same context as model seller.
+     */
+    @Test
+    public void testContextOfProvSeller() {
+        //Test setup
+        Economy e1 = new Economy();
+        ShoppingList sl = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
+                new Basket(new CommoditySpecification(0)));
+        sl.setQuantity(0, 100).setPeakQuantity(0, 100);
+        Trader modelSeller = e1.addTrader(0, TraderState.ACTIVE,
+                new Basket(new CommoditySpecification(0))
+        );
+        modelSeller.getCommoditiesSold().get(0).setCapacity(75).setQuantity(0);
+        modelSeller.setDebugInfoNeverUseInCode(DEBUG_INFO);
+        modelSeller.getSettings().setContext(new Context(1L, 1L,
+                new BalanceAccount(1, 1, 1L, 1L)));
+        // call provision by demand
+        ProvisionByDemand provision = (ProvisionByDemand)(new
+                ProvisionByDemand(e1, sl, modelSeller)).take();
+        Trader provSeller = provision.getProvisionedSeller();
+        //Asserts
+        assertEquals(modelSeller.getSettings().getContext(), provSeller.getSettings().getContext());
+    }
+
+
+    /**
+     * We set up a shopping list request 100 units of commSpec0. There is a model seller which sells
+     * 75 units of commSpec0, 75 units of commSpec1 and 5 units of commSpec2.
+     * The test checks that the newly provisioned seller sells greater than 75 units of commSpec0.
+     * The remaining commSpecs (1 and 2) should be the same capacity as of model seller.
+     *
+     */
+    @Test
+    public void testCapacitiesOfProvSeller() {
+        //Test setup
+        Economy e1 = new Economy();
+        CommoditySpecification cs = new CommoditySpecification(0);
+        ShoppingList sl = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
+                new Basket(cs));
+        sl.setQuantity(0, 100).setPeakQuantity(0, 100);
+        Trader modelSeller = e1.addTrader(0, TraderState.ACTIVE,
+                new Basket(cs,
+                        new CommoditySpecification(1),
+                        new CommoditySpecification(2))
+        );
+        modelSeller.getCommoditiesSold().get(0).setCapacity(75).setQuantity(0);
+        modelSeller.getCommoditiesSold().get(1).setCapacity(75).setQuantity(0);
+        modelSeller.getCommoditiesSold().get(2).setCapacity(5).setQuantity(0);
+        modelSeller.setDebugInfoNeverUseInCode(DEBUG_INFO);
+        // call provision by demand
+        ProvisionByDemand provision = (ProvisionByDemand)(new
+                ProvisionByDemand(e1, sl, Collections.singleton(cs), modelSeller)).take();
+        Trader provSeller = provision.getProvisionedSeller();
+        //Asserts
+        assertEquals(true,provSeller.getCommoditiesSold().get(0).getCapacity() >
+                modelSeller.getCommoditiesSold().get(0).getCapacity());
+        assertEquals(modelSeller.getCommoditiesSold().get(1).getCapacity(),
+                provSeller.getCommoditiesSold().get(1).getCapacity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(modelSeller.getCommoditiesSold().get(2).getCapacity(),
+                provSeller.getCommoditiesSold().get(2).getCapacity(), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Check to see that we specify ProvisionByDemand reason commodity in map when peak overhead
+     * being high is what leads to the provision by demand.
+     */
+    @Test
+    public void testPeakOverHeadReason() {
+        double oldCap = 100;
+        double highPeak = 150;
+        CommoditySpecification cs = new CommoditySpecification(0);
+        Economy e = new Economy();
+        e.getCommsToAdjustOverhead().add(cs);
+        ShoppingList sl = e.addBasketBought(e.addTrader(0, TraderState.ACTIVE, EMPTY),
+                new Basket(cs));
+        sl.setQuantity(0, 10).setPeakQuantity(0, 20);
+        Trader seller = e.addTrader(0, TraderState.ACTIVE,
+                new Basket(cs));
+        seller.getCommoditiesSold().get(0).setCapacity(oldCap).setQuantity(20)
+            .setPeakQuantity(highPeak);
+        ProvisionByDemand provision = new ProvisionByDemand(e, sl, Collections.singleton(cs), seller);
+        assertTrue(provision.getCommodityNewCapacityMap().isEmpty());
+        provision.take();
+        assertTrue(!provision.getCommodityNewCapacityMap().isEmpty());
+        double newCap = provision.getCommodityNewCapacityMap().get(new CommoditySpecification(0));
+        assertTrue(newCap > oldCap);
     }
 } // end ProvisionByDemandTest class

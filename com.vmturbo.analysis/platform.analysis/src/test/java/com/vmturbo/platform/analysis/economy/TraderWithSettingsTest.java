@@ -1,20 +1,29 @@
 package com.vmturbo.platform.analysis.economy;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import java.util.HashSet;
+import java.util.Set;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
+
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.utility.CollectionTests;
 import com.vmturbo.platform.analysis.utility.ListTests;
 import com.vmturbo.platform.analysis.utility.MapTests;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
+import com.vmturbo.platform.analysis.utility.SetTests;
 
 /**
  * A test case for the combined TraderWithSettings class.
@@ -26,9 +35,9 @@ import junitparams.naming.TestCaseName;
 @RunWith(JUnitParamsRunner.class)
 public final class TraderWithSettingsTest {
     // Fields
-    private static final CommoditySpecification A = new CommoditySpecification(0,1000,0,0);
-    private static final CommoditySpecification B = new CommoditySpecification(0,1000,0,100);
-    private static final CommoditySpecification C = new CommoditySpecification(1,1001,0,100);
+    private static final CommoditySpecification A = new CommoditySpecification(0,1000);
+    private static final CommoditySpecification B = new CommoditySpecification(1,1001);
+    private static final CommoditySpecification C = new CommoditySpecification(2,1001);
 
     private static final Integer[] validIndices = {0, 1, 100, Integer.MAX_VALUE};
     private static final Integer[] invalidIndices = {-1, -100, Integer.MIN_VALUE};
@@ -195,7 +204,7 @@ public final class TraderWithSettingsTest {
             {new Basket(A,B,C),A,3},
             {new Basket(A,B,C),B,3},
             {new Basket(A,B,C),C,3},
-            {new Basket(A,B,C),new CommoditySpecification(0),4},
+            {new Basket(A,B,C),new CommoditySpecification(0),3},
         };
     }
 
@@ -222,31 +231,55 @@ public final class TraderWithSettingsTest {
             {new Basket(),B,0},
             {new Basket(A),A,0},
             {new Basket(A),B,1},
+            {new Basket(A,B),new CommoditySpecification(0),1},
             {new Basket(A,B),A,1},
             {new Basket(A,B),B,1},
             {new Basket(A,B),C,2},
             {new Basket(A,B,C),A,2},
             {new Basket(A,B,C),B,2},
             {new Basket(A,B,C),C,2},
-            {new Basket(A,B,C),new CommoditySpecification(0),3},
+            {new Basket(A,B,C),new CommoditySpecification(0),2},
         };
     }
 
     @Test
     public final void testGetCliques() {
-        ListTests.verifyUnmodifiableValidOperations(fixture_.getCliques(), 42);
-        ListTests.verifyUnmodifiableInvalidOperations(fixture_.getCliques(), 42);
+        SetTests.verifyUnmodifiableValidOperations(fixture_.getCliques(), 42L);
+        SetTests.verifyUnmodifiableInvalidOperations(fixture_.getCliques(), 42L);
     }
 
     @Test
     public final void testGetModifiableCliques() {
-        ListTests.verifyModifiable(fixture_.getModifiableCliques(), 42);
+        SetTests.verifyModifiable(fixture_.getModifiableCliques(), 42L);
     }
 
     @Test
     public final void testGetCustomers() {
         ListTests.verifyUnmodifiableValidOperations(fixture_.getCustomers(), new ShoppingList(fixture_,EMPTY));
         ListTests.verifyUnmodifiableInvalidOperations(fixture_.getCustomers(), new ShoppingList(fixture_,EMPTY));
+    }
+
+    @Test
+    public final void testGetCustomersOfMarket() {
+        Basket b = new Basket();
+        TraderWithSettings t1 = new TraderWithSettings(0, 0, TraderState.ACTIVE, b);
+        ShoppingList sl1 = new ShoppingList(t1, b);
+        TraderWithSettings t2 = new TraderWithSettings(0, 0, TraderState.ACTIVE, b);
+        ShoppingList sl2 = new ShoppingList(t2, b);
+        TraderWithSettings t3 = new TraderWithSettings(0, 0, TraderState.ACTIVE, b);
+        ShoppingList sl3 = new ShoppingList(t3, b);
+        // Sl1 and Sl2 are buyers in Market
+        Market m = new Market(new Basket());
+        m.addBuyer(t1, sl1);
+        m.addBuyer(t2, sl2);
+        // Sl1 and Sl3 are customers of fixture
+        fixture_.getModifiableCustomers().add(sl1);
+        fixture_.getModifiableCustomers().add(sl3);
+
+        Set<ShoppingList> customersInMarket = fixture_.getCustomers(m);
+
+        assertEquals(1, customersInMarket.size());
+        assertEquals(sl1, customersInMarket.iterator().next());
     }
 
     @Test
@@ -263,6 +296,33 @@ public final class TraderWithSettingsTest {
     @Test
     public final void testGetSettings() {
         assertSame(fixture_, fixture_.getSettings());
+    }
+
+    @Test
+    public void testClearShoppingAndMarketData() {
+        Basket b = new Basket();
+        TraderWithSettings t1 = new TraderWithSettings(0, 0, TraderState.ACTIVE, b);
+        ShoppingList sl1 = new ShoppingList(t1, b);
+        TraderWithSettings t2 = new TraderWithSettings(0, 0, TraderState.ACTIVE, b);
+        ShoppingList sl2 = new ShoppingList(t2, b);
+        TraderWithSettings t3 = new TraderWithSettings(0, 0, TraderState.ACTIVE, b);
+        ShoppingList sl3 = new ShoppingList(t3, b);
+        // Sl1 and Sl2 are buyers in Market
+        Market m = new Market(new Basket());
+        m.addBuyer(t1, sl1);
+        m.addBuyer(t2, sl2);
+
+        t1.getMarketsAsBuyer().put(sl1, m);
+        t3.getMarketsAsSeller().add(m);
+
+        assertEquals(1, t1.getMarketsAsBuyer().size());
+        assertEquals(1, t3.getMarketsAsSeller().size());
+
+        t1.clearShoppingAndMarketData();
+        t3.clearShoppingAndMarketData();
+
+        assertEquals(0, t1.getMarketsAsBuyer().size());
+        assertEquals(0, t3.getMarketsAsSeller().size());
     }
 
     @Test
@@ -340,7 +400,7 @@ public final class TraderWithSettingsTest {
     public final void testGetSetMaxDesiredUtil_NormalInput(double minDesiredUtilization, double maxDesiredUtilization) {
         fixture_.setMinDesiredUtil(minDesiredUtilization);
         fixture_.setMaxDesiredUtil(maxDesiredUtilization);
-        assertEquals(maxDesiredUtilization, fixture_.getMaxDesiredUtil(), 0.0);
+        assertEquals(maxDesiredUtilization, fixture_.getMaxDesiredUtil(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -361,7 +421,7 @@ public final class TraderWithSettingsTest {
     public final void testGetSetMinDesiredUtil_NormalInput(double minDesiredUtilization, double maxDesiredUtilization) {
         fixture_.setMaxDesiredUtil(maxDesiredUtilization);
         fixture_.setMinDesiredUtil(minDesiredUtilization);
-        assertEquals(minDesiredUtilization, fixture_.getMinDesiredUtil(), 0.0);
+        assertEquals(minDesiredUtilization, fixture_.getMinDesiredUtil(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -374,4 +434,11 @@ public final class TraderWithSettingsTest {
         fixture_.setMinDesiredUtil(minDesiredUtilization);
     }
 
+    @Test
+    public void testTraderOidSet() {
+        final TraderWithSettings trader = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket());
+        assertFalse(trader.isOidSet());
+        trader.setOid(123L);
+        assertTrue(trader.isOidSet());
+    }
 } // end class TraderWithSettingsTest

@@ -1,25 +1,35 @@
 package com.vmturbo.platform.analysis.economy;
 
+import static com.vmturbo.platform.analysis.testUtilities.TestUtils.VM_TYPE;
 import static org.junit.Assert.*;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.DoubleBinaryOperator;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.junit.Before;
 import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 import com.vmturbo.platform.analysis.utility.CollectionTests;
 import com.vmturbo.platform.analysis.utility.ListTests;
 import com.vmturbo.platform.analysis.utility.MapTests;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
  * A test case for the {@link Economy} class.
@@ -30,43 +40,26 @@ public class EconomyTest {
 
     // CommoditySpecifications to use in tests
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
-    private static final CommoditySpecification CPU_ANY = new CommoditySpecification(0,1000,1,Integer.MAX_VALUE);
-    private static final CommoditySpecification CPU_4 = new CommoditySpecification(0,1000,4,4);
-    private static final CommoditySpecification CPU_1to8 = new CommoditySpecification(0,1000,1,8);
     private static final CommoditySpecification MEM = new CommoditySpecification(1);
-    private static final CommoditySpecification ST_OVER1000 = new CommoditySpecification(2,1002,1000,Integer.MAX_VALUE);
-    private static final CommoditySpecification ST_UPTO1200 = new CommoditySpecification(2,1002,0,1200);
-    private static final CommoditySpecification VM1 = new CommoditySpecification(3,1003,0,0);
-    private static final CommoditySpecification VM2 = new CommoditySpecification(3,1003,1,1);
-    private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4,1004,0,0);
-    private static final CommoditySpecification CLUSTER_B = new CommoditySpecification(4,1004,1,1);
-    private static final CommoditySpecification SEGMENT_1 = new CommoditySpecification(5,1005,0,0);
-    private static final CommoditySpecification SEGMENT_2 = new CommoditySpecification(5,1005,1,1);
+    private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4,1004);
+    private static final CommoditySpecification SEGMENT_1 = new CommoditySpecification(5,1005);
+    private static final CommoditySpecification CPU_1 = new CommoditySpecification(6,1000);
+    private static final CommoditySpecification CPU_2 = new CommoditySpecification(7,1000);
+    private static final CommoditySpecification CPU_4 = new CommoditySpecification(8,1000);
+    private static final CommoditySpecification CPU_8 = new CommoditySpecification(9,1000);
 
     // Baskets to use in tests
     private static final Basket EMPTY = new Basket();
-    private static final Basket PM_ANY = new Basket(CPU_ANY,MEM);
+    private static final Basket PM_ANY = new Basket(CPU,MEM);
     private static final Basket PM_4CORE = new Basket(CPU_4,MEM);
-    private static final Basket PM_SELL = new Basket(CPU_1to8,MEM);
-    private static final Basket ST_BUY = new Basket(ST_OVER1000);
-    private static final Basket ST_SELL = new Basket(ST_UPTO1200);
-    private static final Basket APP_1 = new Basket(VM1);
-    private static final Basket APP_2 = new Basket(VM2);
-    private static final Basket PM_A = new Basket(CPU_ANY,MEM,CLUSTER_A);
-    private static final Basket PM_B = new Basket(CPU_ANY,MEM,CLUSTER_B);
-    private static final Basket PM_SELL_A = new Basket(CPU_1to8,MEM,CLUSTER_A);
-    private static final Basket PM_SELL_B = new Basket(CPU_1to8,MEM,CLUSTER_B);
-    private static final Basket ST_A1 = new Basket(ST_OVER1000,CLUSTER_A,SEGMENT_1);
-    private static final Basket ST_A2 = new Basket(ST_OVER1000,CLUSTER_A,SEGMENT_2);
-    private static final Basket ST_SELL_A1 = new Basket(ST_UPTO1200,CLUSTER_A,SEGMENT_1);
-    private static final Basket ST_SELL_A2 = new Basket(ST_UPTO1200,CLUSTER_A,SEGMENT_2);
+    private static final Basket PM_SELL = new Basket(CPU_1, CPU_2, CPU_4, CPU_8,MEM);
     private static final Basket PMtoVM = new Basket(CPU,
         new CommoditySpecification(1), // MEM
-        new CommoditySpecification(2), // Datastore commodity with key 1
-        new CommoditySpecification(3));// Datastore commodity with key 2
+        new CommoditySpecification(10), // Datastore commodity with key 1
+        new CommoditySpecification(11));// Datastore commodity with key 2
     private static final Basket STtoVM = new Basket(
-        new CommoditySpecification(4), // Storage Amount (no key)
-        new CommoditySpecification(5));// DSPM access commodity with key A
+        new CommoditySpecification(12), // Storage Amount (no key)
+        new CommoditySpecification(13));// DSPM access commodity with key A
 
     private static final int[] types = {0,1};
     private static final TraderState[] states = {TraderState.ACTIVE,TraderState.INACTIVE};
@@ -75,7 +68,7 @@ public class EconomyTest {
     private static final Market independentMarket = new Market(EMPTY);
     private static final TraderWithSettings independentTrader = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
     private static final ShoppingList independentShoppingList = new ShoppingList(independentTrader, EMPTY);
-    private static final @NonNull DoubleBinaryOperator DUMMY_FUNCTION = Math::max;
+    private static final @NonNull UpdatingFunction DUMMY_FUNCTION = UpdatingFunctionFactory.ADD_COMM;
 
     // TODO (Vaptistis): Eventually, all parameterized tests that share the same parameters can be
     // refactored in a single parameterized test, but until we implement copying of Economies the
@@ -233,23 +226,96 @@ public class EconomyTest {
             UnmodifiableEconomy economy = new Economy();
             assertTrue(economy.getMarkets().isEmpty());
             assertTrue(economy.getTraders().isEmpty());
-            assertTrue(economy.getQuantityFunctions().isEmpty());
             assertNotNull(economy.getSettings());
         }
 
         @Test
-        public final void testGetModifiableQuantityFunctions() {
-            Economy economy = new Economy();
-            MapTests.verifyModifiable(economy.getModifiableQuantityFunctions(), CPU, DUMMY_FUNCTION);
+        public void testResetMarketsPopulatedFlag () throws NoSuchFieldException, SecurityException,
+                IllegalArgumentException, IllegalAccessException {
+            Economy eco = new Economy();
+            eco.populateMarketsWithSellersAndMergeConsumerCoverage();
+            Field marketsPopulated = Economy.class.getDeclaredField("marketsPopulated");
+            marketsPopulated.setAccessible(true);
+            assertTrue((boolean)marketsPopulated.get(eco));
+            eco.resetMarketsPopulatedFlag();
+            assertFalse((boolean)marketsPopulated.get(eco));
         }
 
         @Test
-        public final void testGetQuantityFunctions() {
-            UnmodifiableEconomy economy = new Economy();
-            MapTests.verifyUnmodifiableValidOperations(economy.getQuantityFunctions(), CPU, DUMMY_FUNCTION);
-            MapTests.verifyUnmodifiableInvalidOperations(economy.getQuantityFunctions(), CPU, DUMMY_FUNCTION);
+        public void testGetPeerShoppingLists() {
+            int[] config = {2, 4};
+            Economy economy = new Economy();
+            Trader[] traders = makeTraders(economy, config);
+            // traders[0] is in sg-1 and traders[2] is in sg-2
+            assertEquals(1, economy.getPeerShoppingLists(getSl(economy, traders[0])).size());
+            assertEquals(3, economy.getPeerShoppingLists(getSl(economy, traders[2])).size());
         }
     } // end TestEconomy class
+
+    public static class TraderAndPopulateTests {
+        private final Economy economy = new Economy();
+        private final Basket emptyBasket = new Basket();
+        private final Basket cpuBasket = new Basket(new CommoditySpecification(0));
+        private final Basket memBasket = new Basket(new CommoditySpecification(1));
+        private final Trader cpuBuyer = economy.addTrader(0, TraderState.ACTIVE, emptyBasket, cpuBasket);
+        private final Trader memBuyer = economy.addTrader(0, TraderState.ACTIVE, emptyBasket, memBasket);
+        private Trader modelSeller;
+
+        @Rule
+        public ExpectedException expectedException = ExpectedException.none();
+
+        @Before
+        public void setup() {
+            modelSeller = economy.addTrader(0, TraderState.ACTIVE, cpuBasket);
+        }
+
+        @Test
+        public void testAddTraderByModelSellerSameBasketSold() {
+            assertEquals(2, economy.getMarkets().size());
+            economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+            assertEquals(1, getActiveSellerCountForBuyerMarkets(cpuBuyer));
+            assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
+
+            economy.addTraderByModelSeller(modelSeller, TraderState.ACTIVE, cpuBasket,
+                            modelSeller.getCliques());
+            assertEquals(2, getActiveSellerCountForBuyerMarkets(cpuBuyer));
+            assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
+        }
+
+        @Test
+        public void testAddTraderByModelSellerDifferentBasketSold() {
+            economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+            assertEquals(1, getActiveSellerCountForBuyerMarkets(cpuBuyer));
+            assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
+
+            economy.addTraderByModelSeller(modelSeller, TraderState.ACTIVE, memBasket,
+                            modelSeller.getCliques());
+            assertEquals(1, getActiveSellerCountForBuyerMarkets(cpuBuyer));
+            assertEquals(1, getActiveSellerCountForBuyerMarkets(memBuyer));
+        }
+
+        @Test
+        public void testPopulateMarketsWithSellersAndMergeConsumerCoverage() {
+            assertEquals(0, getActiveSellerCountForBuyerMarkets(cpuBuyer));
+            assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
+
+            economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+            assertEquals(1, getActiveSellerCountForBuyerMarkets(cpuBuyer));
+            assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
+        }
+
+        @Test
+        public void testPopulateMarketsWithSellersThrowsOnMultipleCalls() {
+            economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+            expectedException.expect(IllegalArgumentException.class);
+            economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+        }
+
+        private int getActiveSellerCountForBuyerMarkets(final Trader buyer) {
+            return economy.getMarketsAsBuyer(buyer).values().iterator().next().getActiveSellers().size();
+        }
+    }
 
     @RunWith(Parameterized.class)
     public static class EconomyReadOnlyMethods extends CommonMembersOfParameterizedTests{
@@ -312,11 +378,11 @@ public class EconomyTest {
 
                         // test quantity between commodities
                         double quantity = commodityBought1.getQuantity();
-                        assertEquals(quantity, commodityBought2.getQuantity(), 0);
+                        assertEquals(quantity, commodityBought2.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
                         commodityBought1.setQuantity(quantity += 1.5);
-                        assertEquals(quantity, commodityBought2.getQuantity(), 0);
+                        assertEquals(quantity, commodityBought2.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
                         commodityBought2.setQuantity(quantity += 1.5);
-                        assertEquals(quantity, commodityBought1.getQuantity(), 0);
+                        assertEquals(quantity, commodityBought1.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
 
                         // resetting quantity. If qnty > peakQnty, we reset peakQnty to qnty
                         quantity=0;
@@ -324,27 +390,27 @@ public class EconomyTest {
                         commodityBought2.setQuantity(quantity);
                         // test peak quantity between commodities
                         double peakQuantity = commodityBought1.getPeakQuantity();
-                        assertEquals(peakQuantity, commodityBought2.getPeakQuantity(), 0);
+                        assertEquals(peakQuantity, commodityBought2.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
                         commodityBought1.setPeakQuantity(peakQuantity += 1.5);
-                        assertEquals(peakQuantity, commodityBought2.getPeakQuantity(), 0);
+                        assertEquals(peakQuantity, commodityBought2.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
                         commodityBought2.setPeakQuantity(peakQuantity += 1.5);
-                        assertEquals(peakQuantity, commodityBought1.getPeakQuantity(), 0);
+                        assertEquals(peakQuantity, commodityBought1.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
 
                         // test quantity between commodity and vector
                         quantity = commodityBought1.getQuantity();
-                        assertEquals(quantity, shoppingList.getQuantities()[i], 0);
+                        assertEquals(quantity, shoppingList.getQuantities()[i], TestUtils.FLOATING_POINT_DELTA);
                         commodityBought1.setQuantity(quantity += 1.5);
-                        assertEquals(quantity, shoppingList.getQuantities()[i], 0);
+                        assertEquals(quantity, shoppingList.getQuantities()[i], TestUtils.FLOATING_POINT_DELTA);
                         shoppingList.getQuantities()[i] = quantity += 1.5;
-                        assertEquals(quantity, commodityBought1.getQuantity(), 0);
+                        assertEquals(quantity, commodityBought1.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
 
                         // test peak quantity between commodity and vector
                         peakQuantity = commodityBought1.getPeakQuantity();
-                        assertEquals(peakQuantity, shoppingList.getPeakQuantities()[i], 0);
+                        assertEquals(peakQuantity, shoppingList.getPeakQuantities()[i], TestUtils.FLOATING_POINT_DELTA);
                         commodityBought1.setPeakQuantity(peakQuantity += 1.5);
-                        assertEquals(peakQuantity, shoppingList.getPeakQuantities()[i], 0);
+                        assertEquals(peakQuantity, shoppingList.getPeakQuantities()[i], TestUtils.FLOATING_POINT_DELTA);
                         shoppingList.getPeakQuantities()[i] = quantity += 1.5;
-                        assertEquals(quantity, commodityBought1.getPeakQuantity(), 0);
+                        assertEquals(quantity, commodityBought1.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
                     }
                 }
             }
@@ -473,7 +539,7 @@ public class EconomyTest {
     public static class AddCommodityBought extends CommonMembersOfParameterizedTests {
         @Test
         public final void testAddCommodityBought() {
-            final CommoditySpecification[] specifications = {CLUSTER_A,SEGMENT_1,CPU_ANY};
+            final CommoditySpecification[] specifications = {CLUSTER_A,SEGMENT_1,CPU};
             double quantity = 45;
             double peakQuantity = 45;
 
@@ -495,8 +561,8 @@ public class EconomyTest {
                         addedCommodity.setPeakQuantity(peakQuantity);
 
                         for (CommodityBought commodityBought : economy.getCommoditiesBought(newShoppingList)) {
-                            assertEquals(quantity, commodityBought.getQuantity(), 0);
-                            assertEquals(peakQuantity, commodityBought.getPeakQuantity(), 0);
+                            assertEquals(quantity, commodityBought.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+                            assertEquals(peakQuantity, commodityBought.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
                         }
 
                         quantity += 1.1;
@@ -511,7 +577,7 @@ public class EconomyTest {
     public static class RemoveCommodityBought extends CommonMembersOfParameterizedTests {
         @Test
         public final void testRemoveCommodityBought() {
-            final CommoditySpecification[] specifications = {CLUSTER_A,CPU_1to8,MEM};
+            final CommoditySpecification[] specifications = {CLUSTER_A, CPU_1, CPU_2, CPU_4, CPU_8, MEM};
             double quantity = 45;
             double peakQuantity = 45;
 
@@ -529,8 +595,8 @@ public class EconomyTest {
                         assertFalse(economy.getMarket(newShoppingList).getBasket().contains(specification));
 
                         for (CommodityBought commodityBought : economy.getCommoditiesBought(newShoppingList)) {
-                            assertEquals(quantity, commodityBought.getQuantity(), 0);
-                            assertEquals(peakQuantity, commodityBought.getPeakQuantity(), 0);
+                            assertEquals(quantity, commodityBought.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+                            assertEquals(peakQuantity, commodityBought.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
                         }
 
                         quantity += 1.1;
@@ -548,9 +614,60 @@ public class EconomyTest {
             economy.clear();
             assertTrue(economy.getTraders().isEmpty());
             assertTrue(economy.getMarkets().isEmpty());
-            assertTrue(economy.getQuantityFunctions().isEmpty());
             // TODO: compare with newly constructed object when we implement equals.
         }
     } // end Clear class
 
+    /*
+     * Support routines for scaling group tests
+     */
+    private static ShoppingList getSl(Economy economy, Trader trader) {
+        // Return the first (and only) ShoppingList for buyer
+        return economy.getMarketsAsBuyer(trader).keySet().iterator().next();
+    }
+
+    private static Trader makeTrader(Economy economy, int id, String groupName, int groupFactor) {
+        Trader trader = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY);
+        trader.setDebugInfoNeverUseInCode("buyer-" + (id + 1));
+        trader.setScalingGroupId(groupName);
+        trader.getSettings().setQuoteFactor(0.999).setMoveCostFactor(0);
+        ShoppingList shoppingList = economy.addBasketBought(trader, PM_ANY).setMovable(true);
+        shoppingList.setGroupFactor(groupFactor);
+        economy.registerShoppingListWithScalingGroup(groupName, shoppingList);
+        return trader;
+    }
+
+    /**
+     * Create a group of Traders in a scaling group.
+     * @param economy the economy
+     * @param baseId base trader ID
+     * @param numTraders number of Traders
+     * @param groupNumber scaling group number, for naming purposes
+     * @return list of Traders
+     */
+    private static List<Trader> makeGroupOfTraders(Economy economy, int baseId,
+                                            int numTraders, int groupNumber) {
+        String groupName = "sg=" + groupNumber;
+        return IntStream.range(0, numTraders)
+            .mapToObj(tn -> makeTrader(economy, baseId + tn, groupName, numTraders))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Create some traders in some number of different scaling groups.
+     * @param economy economy
+     * @param traderList list of traders.  Each element of the list will represent the number of
+     *                  traders in each scaling group.  Each trader is named "trader-n" and each
+     *                   scaling group is named "sg-n".
+     */
+    private static Trader[] makeTraders(Economy economy, int[] traderList) {
+        int groupNum = 1;
+        int baseId = 0;
+        List<Trader> traders = new ArrayList<>();
+        for (int groupSize : traderList) {
+            traders.addAll(makeGroupOfTraders(economy, baseId, groupSize, groupNum++));
+            baseId += groupSize;
+        }
+        return traders.toArray(new Trader[0]);
+    }
 } // end EconomyTest class

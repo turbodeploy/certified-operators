@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>analysis-parent</artifactId>
-        <version>2.0.0-SNAPSHOT</version>
+        <version>${market-revision}</version>
     </parent>
 
     <artifactId>platform.analysis.protobuf</artifactId>
@@ -17,26 +17,30 @@
     </description>
 
     <properties>
-        <protobuf.version>3.0.0-beta-2</protobuf.version>
+        <protobuf.version>3.20.0</protobuf.version>
     </properties>
 
     <build>
         <extensions>
+            <!-- Exposes OS properties in mavenized format.
+                 Required for protobuf-maven-plugin
+                 (to download the right protobuf compiler) -->
             <extension>
                 <groupId>kr.motd.maven</groupId>
                 <artifactId>os-maven-plugin</artifactId>
-                <version>1.4.0.Final</version>
+                <version>1.4.1.Final</version>
             </extension>
         </extensions>
 
         <plugins>
+            <!-- Configuration for protobuf generation. -->
             <plugin>
-            	<!-- There is an alternative plugin called "protoc-jar-maven-plugin".
-            	     I'm not sure which is best. This has a somewhat simpler configuration. -->
                 <groupId>org.xolstice.maven.plugins</groupId>
                 <artifactId>protobuf-maven-plugin</artifactId>
                 <version>0.5.0</version>
                 <configuration>
+                    <protoSourceRoot>src/main/protobuf</protoSourceRoot>
+                    <!-- os.detected.classifier provided by os-maven-plugin -->
                     <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
                 </configuration>
                 <executions>
@@ -46,6 +50,13 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <configuration>
+                    <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+                </configuration>
             </plugin>
         </plugins>
     </build>

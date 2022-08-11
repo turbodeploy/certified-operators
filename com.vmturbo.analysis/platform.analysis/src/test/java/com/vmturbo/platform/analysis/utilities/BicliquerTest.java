@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.utilities;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 import org.junit.Test;
 
@@ -28,10 +29,10 @@ public class BicliquerTest {
         bicliquer.compute();
         assertEquals(1, bicliquer.size());
         assertEquals(Sets.newHashSet("A-0"), bicliquer.getBcKeys("A1"));
-        assertEquals(Sets.newHashSet(0), bicliquer.getBcIDs("A1"));
+        assertEquals(Sets.newHashSet(0L), bicliquer.getBcIDs("A1"));
         assertEquals("A-0", bicliquer.getBcKey("A1", "B1"));
         assertEquals(Sets.newHashSet("B-0"), bicliquer.getBcKeys("B1"));
-        assertEquals(Sets.newHashSet(0), bicliquer.getBcIDs("B1"));
+        assertEquals(Sets.newHashSet(0L), bicliquer.getBcIDs("B1"));
         assertEquals("B-0", bicliquer.getBcKey("B1", "A1"));
     }
 
@@ -47,10 +48,10 @@ public class BicliquerTest {
         bicliquer.compute();
         assertEquals(1, bicliquer.size());
         assertEquals(Sets.newHashSet("A-0"), bicliquer.getBcKeys("A1"));
-        assertEquals(Sets.newHashSet(0), bicliquer.getBcIDs("A1"));
+        assertEquals(Sets.newHashSet(0L), bicliquer.getBcIDs("A1"));
         assertEquals("A-0", bicliquer.getBcKey("A1", "B1"));
         assertEquals(Sets.newHashSet("B-0"), bicliquer.getBcKeys("B1"));
-        assertEquals(Sets.newHashSet(0), bicliquer.getBcIDs("B1"));
+        assertEquals(Sets.newHashSet(0L), bicliquer.getBcIDs("B1"));
         assertEquals("B-0", bicliquer.getBcKey("B1", "A1"));
     }
 
@@ -65,10 +66,10 @@ public class BicliquerTest {
         bicliquer.compute();
         assertEquals(2, bicliquer.size());
         assertEquals(Sets.newHashSet("A-0"), bicliquer.getBcKeys("A1"));
-        assertEquals(Sets.newHashSet(0), bicliquer.getBcIDs("A1"));
+        assertEquals(Sets.newHashSet(0L), bicliquer.getBcIDs("A1"));
         // B1 belongs to two bicliques
         assertEquals(Sets.newHashSet("B-0", "B-1"), bicliquer.getBcKeys("B1"));
-        assertEquals(Sets.newHashSet(0, 1), bicliquer.getBcIDs("B1"));
+        assertEquals(Sets.newHashSet(0L, 1L), bicliquer.getBcIDs("B1"));
         // All edges belong to bicliques
         assertEquals(0, bicliquer.getBcID("A1", "B1"));
         assertEquals(0, bicliquer.getBcID("A1", "B2"));
@@ -168,6 +169,6 @@ public class BicliquerTest {
         BiCliquer bicliquer = new BiCliquer();
         bicliquer.edge("A", "B");
         bicliquer.compute();
-        bicliquer.getBcIDs("A").add(5);
+        bicliquer.getBcIDs("A").add(5L);
     }
 }

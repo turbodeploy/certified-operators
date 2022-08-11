@@ -5,50 +5,40 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>analysis-parent</artifactId>
-        <version>2.0.0-SNAPSHOT</version>
+        <version>${market-revision}</version>
     </parent>
 
     <artifactId>platform.analysis</artifactId>
-    <name>Analysis Server</name>
+    <name>Analysis Library</name>
     <description>The main module for the analysis server that accepts a topology and produces actions.</description>
-    <packaging>war</packaging>
+    <packaging>jar</packaging>
 
     <properties>
         <!-- Dependency Versions. -->
-        <junit.version>4.12</junit.version>
-        <JUnitParams.version>1.0.4</JUnitParams.version>
-        <guava.version>18.0</guava.version>
         <checker-qual.version>1.9.5</checker-qual.version>
-        <log4j.version>1.2.17</log4j.version>
         <websocket.version>1.1</websocket.version>
-        <!-- A variable for developers to be able to redirect output of the resulting war to a
-             directory were the web server would pick it up from within the Eclipse run configuration.
-             It defaults to were the maven-war-plugin outputDirectory defaults. -->
-        <war.build.dir>${project.build.directory}</war.build.dir>
     </properties>
 
     <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-war-plugin</artifactId>
-                <configuration>
-                    <warName>analysis</warName>
-                    <outputDirectory>${war.build.dir}</outputDirectory>
-                    <attachClasses>true</attachClasses>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <exclude>com/vmturbo/platform/analysis/demos/*</exclude>
-                        <exclude>com/vmturbo/platform/analysis/drivers/*</exclude>
-                        <exclude>com/vmturbo/platform/analysis/benchmarks/*</exclude>
-                    </excludes>
-                </configuration>
-            </plugin>
+      <plugins>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <configuration>
+          <excludes>
+            <exclude>com/vmturbo/platform/analysis/demos/*</exclude>
+            <exclude>com/vmturbo/platform/analysis/drivers/*</exclude>
+            <exclude>com/vmturbo/platform/analysis/benchmarks/*</exclude>
+          </excludes>
+        </configuration>
+      </plugin>
+          <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-checkstyle-plugin</artifactId>
+              <configuration>
+                  <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+              </configuration>
+          </plugin>
         </plugins>
     </build>
 
@@ -62,19 +52,14 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>${junit.version}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>pl.pragmatists</groupId>
             <artifactId>JUnitParams</artifactId>
-            <version>${JUnitParams.version}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>${guava.version}</version>
         </dependency>
         <dependency>
             <groupId>org.checkerframework</groupId>
@@ -82,15 +67,77 @@
             <version>${checker-qual.version}</version>
         </dependency>
         <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
-            <version>${log4j.version}</version>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-web</artifactId>
+            <version>${log4j2Version}</version>
+        </dependency>
+        <dependency>
+            <groupId>javax.servlet</groupId>
+            <artifactId>javax.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.javatuples</groupId>
+            <artifactId>javatuples</artifactId>
+            <version>1.2</version>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>platform.analysis.protobuf</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.commons</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.communication</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.communication.matrix</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>3.5.11</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>it.unimi.dsi</groupId>
+            <artifactId>fastutil</artifactId>
+        </dependency>
     </dependencies>
-
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.commons</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.communication</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.communication.matrix</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+    <distributionManagement>
+        <repository>
+            <id>vmturbo</id>
+            <name>Internal Releases</name>
+            <url>http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo</url>
+        </repository>
+        <snapshotRepository>
+            <id>snapshots</id>
+            <name>Internal Snapshots</name>
+            <url>http://build.vmturbo.com:8081/nexus/content/repositories/snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>

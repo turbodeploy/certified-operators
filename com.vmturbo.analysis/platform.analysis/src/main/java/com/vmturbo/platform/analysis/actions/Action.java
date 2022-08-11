@@ -1,25 +1,28 @@
 package com.vmturbo.platform.analysis.actions;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
-import java.util.stream.Collectors;
+import java.util.function.IntUnaryOperator;
 
-import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
-import static com.google.common.base.Preconditions.checkArgument;
 
-import com.google.common.collect.Lists;
+import com.vmturbo.commons.analysis.NumericIDAllocator;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO;
+import com.vmturbo.platform.analysis.utilities.exceptions.ActionCantReplayException;
 
 /**
  * The root of the action hierarchy.
@@ -28,9 +31,24 @@ import com.vmturbo.platform.analysis.economy.Trader;
 // generate them?
 public interface Action {
 
-    static final Logger logger = Logger.getLogger(Action.class);
-    static final Function<Trader, String> ECONOMY_INDEX = t -> String.valueOf(t.getEconomyIndex());
+   /**
+    * Get unique Action ID.
+    *
+    * @return Action ID.
+    */
+   long getId();
+
    // Methods
+    boolean setExecutable(boolean executable);
+    boolean isExecutable();
+    // Extract some Action that isn't normally extracted from the provision analysis round of
+    // main market.
+    // For example a Resize action in a ResizeThroughSupplier flow.
+    boolean isExtractAction();
+    void enableExtractAction();
+
+
+    ActionType getType();
 
     /**
      * Returns a String representation of {@code this} action suitable for transmission to the
@@ -46,12 +64,21 @@ public interface Action {
     @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid);
 
     /**
+     * Returns the economy of {@code this} action. i.e. the economy containing the action target.
+     *
+     * @see #getActionTarget()
+     */
+    @Pure
+    @NonNull Economy getEconomy(@ReadOnly Action this);
+
+    /**
      * Returns the {@link Trader} that this action operates on. If the action has a getTrader
      * method then usually it will return the value of that method.
+     *
      * @return the {@link Trader} that this action operates on
      */
     @Pure
-    @NonNull Trader getActionTarget();
+    @NonNull Trader getActionTarget(@ReadOnly Action this);
 
     /**
      * Takes {@code this} action on a specified {@link Economy}.
@@ -75,6 +102,92 @@ public interface Action {
      * @return {@code this}
      */
     @NonNull Action rollback();
+
+    // Design Notes: Analyzing existing code and considering requirements from current effort to
+    // replay provision actions, it seems that there are 3 fundamental questions that need to be
+    // answered regarding the replay of actions:
+    //
+    // 1. Can the action be physically applied to a different economy than the one it was generated
+    //    for?
+    // 2. Would this action respect settings and policies if it were to be taken on a given economy?
+    // 3. Would this action bring a given economy closer to its desired state if it was to be taken?
+    //
+    // Past experience shows that not all of these questions need to be answered in all contexts and
+    // that the answer remains more stable, while new features are added, for some than for others.
+    // As a result I decided to implement them as separate methods. Since these are now virtual
+    // methods, the long if-elseif-else statements to select the appropriate implementation aren't
+    // needed and the client code can comply with the open-closed principle.
+    //
+    // The 3rd question is really only asked for Deactivate for now, and there were some existing
+    // methods covering that, so no new methods are created for it for the time being.
+    //
+    // For 'port', which answers the 1st question while also creating the new action object that can
+    // be applied to the new economy, a dependency injection technique was used so that action
+    // classes can remain agnostic to concepts like topologies and OIDs and to provide more
+    // flexibility while testing.
+    //
+    // Note that 'isValid', which answers the 2nd question, is intended to do relatively cheap tests
+    // and in any case not make calls to the analysis algorithms.
+    //
+    // Another difference between 'isValid' and a method that would test if an action is towards the
+    // desired state is that it never makes sense for an analysis algorithm to produce an invalid
+    // action but it does make sense to produce actions that are not towards the desired state,
+    // either as a prerequisite to other actions or in order to escape a local optimum and find a
+    // better one. As a result 'isValid' can be used in testing of the analysis algorithms in
+    // addition to replaying actions.
+
+    /**
+     * Ports {@code this} action from the current {@link Economy} to a new one, iff possible.
+     *
+     * <p>Actions are generated by algorithms running on an economy and make sense for that economy.
+     * It is possible that they also make sense for another economy that doesn't differ too much.
+     * </p>
+     *
+     * <p>This method will do the necessary checks and transformations to produce a new action that,
+     * when applied, will effect the new economy in a way that is analogous to the way that the old
+     * action would effect the old economy. e.g. The action target could be mapped to the trader
+     * with the same OID in the new economy.</p>
+     *
+     * <p>It is possible that the new action doesn't make sense for the new economy. e.g. A trader
+     * with the same OID as the action's target might not exist there. In this case, a
+     * {@link NoSuchElementException} should be thrown.</p>
+     *
+     * <p>It is also possible that the new action doesn't bring the target economy closer to its
+     * desired state, but in this case the new action will be returned to be further processed by a
+     * higher-level method.</p>
+     *
+     * @param destinationEconomy The economy {@code this} action should be ported to.
+     * @param destinationTrader The function that should be used to map a trader in the source
+     *                          economy to one in the destination economy. If such a mapping doesn't
+     *                          exist, the function should throw a {@link NoSuchElementException}.
+     * @param destinationShoppingList The function that should be used to map a shopping list in the
+     *                                source economy to one in the destination economy. If such a
+     *                                mapping doesn't exist, the function should throw a
+     *                                {@link NoSuchElementException}.
+     * @return The ported action iff {@code this} action can be ported to <b>destinationEconomy</b>.
+     * @throws NoSuchElementException Iff the action can't be ported to <b>destinationEconomy</b>
+     *                                using the specified mapping.
+     */
+    @Pure
+    @NonNull Action port(@NonNull Economy destinationEconomy,
+         @NonNull Function<@NonNull Trader, @NonNull Trader> destinationTrader,
+         @NonNull Function<@NonNull ShoppingList, @NonNull ShoppingList> destinationShoppingList);
+
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>It does not concern itself with whether the economy will be closer to the desired state
+     * after taking {@code this} action. It only considers settings like whether its target is
+     * resizable, movable, etc. and current state like whether target is active or placed on source.
+     * </p>
+     *
+     * <p>The exact set of constraints considered differs by implementation and is documented there.
+     * </p>
+     *
+     * @return Whether {@code this} action respects constraints and can be taken.
+     */
+    @Pure
+    boolean isValid();
 
     /**
      * Returns a human-readable description of {@code this} action for debugging purposes.
@@ -115,6 +228,7 @@ public interface Action {
 
     /**
      * A key to look up "combinable" actions - actions that can be {@link #combine}d
+     *
      * @return the key identifying actions that can be combined
      */
     @Pure
@@ -126,9 +240,10 @@ public interface Action {
      * Computes an {@link Action} that, when {@link #take}n, achieves the same result as
      * taking {@code this} action and then the argument action. The default behavior is
      * to return {@code action}, i.e. the next action cancels the previous one.
+     *
      * @param action an {@link Action} to combine with {@code this}
      * @return the combined {@link Action}. Null means the actions cancel each other.
-     * @see #collapsed
+     * @see ActionCollapse#collapsed
      */
     @Pure
     default @Nullable Action combine(@NonNull @ReadOnly Action action) {
@@ -137,153 +252,65 @@ public interface Action {
     }
 
     /**
-     * Collapses a list of {@link Action}s by combining "combinable" actions.
-     * Two actions are said to be combinable if they can be replaced by one action that,
-     * when {@link #take}n, achieves the same result as taking the pair of actions in order.
-     * @param actions a list of actions to collapse. Assume the list is consistent, e.g. a Move
-     * TO trader A cannot be followed by a Move FROM a different trader B.
-     * @return a list of actions that represents the same outcome as the argument list.
-     * @see #combine
+     * Returns the 'reason' commodity for this action.
+     *
+     * <p>For example : commodity specification that led to activation/provision.</p>
      */
+    // TODO : Generalize this to return "Reason" for all actions.
     @Pure
-    static @NonNull List<@NonNull Action> collapsed(@NonNull @ReadOnly List<@NonNull @ReadOnly Action> actions) {
-        Map<Object, @NonNull Action> combined = new LinkedHashMap<>();
-        Map<Trader, List<Action>> perTargetMap = new LinkedHashMap<>();
-        // Insert to map, combine actions
-        for (Action action : actions) {
-            Trader target = action.getActionTarget();
-            // get or create list entry
-            List<Action> perTargetList = perTargetMap.compute(target, (t, l) -> l == null ? new LinkedList<>() : l);
-            int perTargetLastIndex = perTargetList.size() - 1;
-            if (action instanceof Activate) {
-                Action lastAction = perTargetList.isEmpty() ? null : perTargetList.get(perTargetLastIndex);
-                if (lastAction instanceof Deactivate) {
-                    // Activate after Deactivate cancels it
-                    perTargetList.remove(perTargetLastIndex);
-                    combined.remove(lastAction);
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("Remove Deactivate/Activate for trader " + target.getEconomyIndex());
-                    }
-                    continue;
-                }
-            }
-            Object key = action.getCombineKey();
-            Action previousAction = combined.get(key);
-            if (previousAction == null) {
-                combined.put(key, action);
-                perTargetList.add(action);
-            } else {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("1. " + previousAction.serialize(ECONOMY_INDEX));
-                    logger.trace("2. " + action.serialize(ECONOMY_INDEX));
-                }
-                Action collapsedAction = previousAction.combine(action);
-                if (collapsedAction == null) {
-                    // The actions cancel each other
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("    Cancel each other");
-                    }
-                    combined.remove(key);
-                    perTargetList.remove(previousAction);
-                } else {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("   Merged to " + collapsedAction.serialize(ECONOMY_INDEX));
-                    }
-                    combined.put(key, collapsedAction);
-                    perTargetList.remove(previousAction);
-                    perTargetList.add(collapsedAction);
-                }
-            }
-        }
-        List<Action> result = Lists.newArrayList(combined.values());
-        for (List<Action> list : perTargetMap.values()) {
-            // If the list ends with a Deactivate then
-            if (!list.isEmpty() && list.get(list.size() -1 ) instanceof Deactivate) {
-                Action firstAction = list.get(0);
-                List<Action> remove = (firstAction instanceof Activate
-                                || firstAction instanceof ProvisionBySupply
-                                || firstAction instanceof ProvisionByDemand)
-                        // If the list starts with an Activate, ProvisionByDemand or
-                        // ProvisionBySupply remove all the actions,
-                        // including the Activate and the Deactivate
-                        ? Lists.newArrayList(list)
-                        // If the list doesn't start with an Activate ProvisionByDemand or
-                        // ProvisionBySupply then remove everything
-                        // but keep the Deactivate
-                        : Lists.newArrayList(list.subList(0, list.size() - 1));
-                result.removeAll(remove);
-                list.removeAll(remove);
-            }
-        }
-        return result;
+    default @Nullable CommoditySpecification getReason() {
+        return null;
+    }
+
+    @NonNull List<Action> getSubsequentActions();
+
+    /**
+     * Returns list of {@link RelatedActionTO} of current action.
+     *
+     * @return list of {@link RelatedActionTO} of current action.
+     */
+    @NonNull List<RelatedActionTO> getRelatedActions();
+
+    /**
+     * Add a {@link RelatedActionTO} to current action.
+     *
+     * @param relatedActionTO Given RelatedActionTO to be added to current action.
+     */
+    void addRelatedAction(RelatedActionTO relatedActionTO);
+
+    /**
+     * Return the list of this action as well as any subsequent actions.  This does not recurse.
+     * @return List of all actions represented by this action.
+     */
+    default @NonNull List<Action> getAllActions() {
+        List<Action> actions = new ArrayList<>();
+        actions.add(this);
+        actions.addAll(getSubsequentActions());
+        return actions;
     }
 
     /**
-     * Group actions of same type together, and the sequence for actions should follow the order:
-     * provision-> move(initial move) -> resize-> move-> suspension.
+     * Extract commodity ids that appear in the action.
+     * This method is declared as default so that actions, which won't replay, don't need to implement this method.
      *
-     * @param initialMoves The {@link Move} actions that are the first placement for any trader
-     * @param collapsedActions The {@link Action} that has gone through collapsing and needs to
-     * be grouped by type.
-     *
-     * @return The list of <b>actions</b> grouped and reordered
-     * The action order should be provision-> move(initial move) -> resize-> move-> suspension.
+     * @return commodity ids that appear in the action
      */
-    @Deterministic
-    public static @NonNull List<@NonNull Action> groupActionsByTypeAndReorderBeforeSending(
-                    @NonNull @ReadOnly List<@NonNull @ReadOnly Action> initialMoves,
-                    @NonNull @ReadOnly List<@NonNull @ReadOnly Action> collapsedActions) {
-        @NonNull
-        List<@NonNull Action> reorderedActions = new ArrayList<@NonNull Action>();
-        // group the collapsed actions by type
-        Map<Class<? extends Action>, List<Action>> collapsedActionsPerType =
-                        collapsedActions.stream().collect(Collectors.groupingBy(Action::getClass));
-
-        if (collapsedActionsPerType.containsKey(ProvisionBySupply.class)) {
-            reorderedActions.addAll(collapsedActionsPerType.get(ProvisionBySupply.class));
-        }
-        if (collapsedActionsPerType.containsKey(ProvisionByDemand.class)) {
-            reorderedActions.addAll(collapsedActionsPerType.get(ProvisionByDemand.class));
-        }
-        // put the initial move actions before any resize actions
-        reorderedActions.addAll(initialMoves);
-
-        if (collapsedActionsPerType.containsKey(Resize.class)) {
-            reorderedActions.addAll(collapsedActionsPerType.get(Resize.class));
-        }
-        if (collapsedActionsPerType.containsKey(Move.class)) {
-            reorderedActions.addAll(collapsedActionsPerType.get(Move.class));
-        }
-        if (collapsedActionsPerType.containsKey(Deactivate.class)) {
-            reorderedActions.addAll(collapsedActionsPerType.get(Deactivate.class));
-        }
-        return reorderedActions;
+    default @NonNull Set<Integer> extractCommodityIds() {
+        return Collections.emptySet();
     }
 
     /**
-     * Filter {@link Move} actions that set the initial placement for a trader and
-     * remove them from the {@link Action} list which will go through collapsing.
+     * Create the same type of action with new commodity ids.
      *
-     * <p>
-     * The state for the argument being passed in could change.
-     * </p>
-     *
-     * @param actions The {@link Action} list that will be processed to filter out initial moves
-     *
-     * @return The {@link Move} that sets the initial placement for a trader
+     * @param commodityIdMapping a mapping from old commodity id to new commodity id.
+     *                           If the returned value is {@link NumericIDAllocator#nonAllocableId},
+     *                           it means no mapping is available for the input and we thrown an
+     *                           {@link ActionCantReplayException}
+     * @return a new action
+     * @throws ActionCantReplayException ActionCantReplayException
      */
-    public static @NonNull List<@NonNull Action>
-                    preProcessBeforeCollapse(@NonNull List<@NonNull Action> actions) {
-        // initial move actions are special move actions with null as source trader
-        // they are equivalent as Start in legacy market and needs to be sent
-        // before resize
-        List<Action> initialMove = new ArrayList<@NonNull Action>();
-        initialMove = actions.stream()
-                        .filter(m -> m instanceof Move && ((Move)m).getSource() == null)
-                        .collect(Collectors.toList());
-        // remove all initial moves from the action list because otherwise collapsing may
-        // merge initial move with regular move if both have same action target
-        actions.removeAll(initialMove);
-        return initialMove;
+    default @NonNull Action createActionWithNewCommodityId(
+            final IntUnaryOperator commodityIdMapping) throws ActionCantReplayException {
+        return this;
     }
 } // end Action interface

@@ -8,6 +8,7 @@ import java.util.stream.IntStream;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -15,6 +16,10 @@ import org.junit.runner.RunWith;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
+
+import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
  * A test case for the {@link ShoppingList} class.
@@ -25,8 +30,8 @@ public class ShoppingListTest {
     private static final Basket EMPTY = new Basket();
     private static final Trader trader1 = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
     private static final Trader trader2 = new TraderWithSettings(0, 0, TraderState.INACTIVE, EMPTY);
-    private static final Trader trader3 = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket(new CommoditySpecification(0, 1000, 0, 0)));
-    private static final Trader trader4 = new TraderWithSettings(0, 0, TraderState.INACTIVE, new Basket(new CommoditySpecification(0, 1000, 0, 0)));
+    private static final Trader trader3 = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket(new CommoditySpecification(0, 1000)));
+    private static final Trader trader4 = new TraderWithSettings(0, 0, TraderState.INACTIVE, new Basket(new CommoditySpecification(0, 1000)));
 
     private static final Trader[] validBuyers = {trader1, trader2, trader3, trader4};
     private static final Trader[] validSuppliers = {null,trader1, trader2, trader3, trader4};
@@ -62,6 +67,18 @@ public class ShoppingListTest {
         assertEquals(nCommodities, shoppingList.getPeakQuantities().length);
     }
 
+    /**
+     * Test the move context on the shopping list.
+     */
+    @Test
+    public final void testShoppingListMoveContext() {
+        Context moveContext = Context.newBuilder().setRegionId(TestUtils.REGION_COMM_TYPE)
+                .setBalanceAccount(BalanceAccountDTO.newBuilder().setId(20L).build()).build();
+        fixture_.setContext(moveContext);
+        Assert.assertEquals( 20L, fixture_.getContext().get().getBalanceAccount().getId());
+        Assert.assertEquals(TestUtils.REGION_COMM_TYPE, fixture_.getContext().get().getRegionId());
+    }
+
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestShoppingList_NormalInput() {
         Object[][] output = new Object[validBuyers.length*validSizes.length][];
@@ -92,13 +109,27 @@ public class ShoppingListTest {
     @Test
     public final void testGetQuantities() {
         double increased = ++fixture_.getQuantities()[2];
-        assertEquals(increased, fixture_.getQuantities()[2], 0.0);
+        assertEquals(increased, fixture_.getQuantities()[2], TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
     public final void testGetPeakQuantities() {
         double increased = ++fixture_.getPeakQuantities()[2];
-        assertEquals(increased, fixture_.getPeakQuantities()[2], 0.0);
+        assertEquals(increased, fixture_.getPeakQuantities()[2], TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    @Test
+    public final void testGetDebugInfoNeverUseInCode() {
+        fixture_.getBuyer().setDebugInfoNeverUseInCode("foo");
+
+        assertEquals("SL_foo|" + fixture_.getShoppingListId(), fixture_.getDebugInfoNeverUseInCode());
+    }
+
+    @Test
+    public final void testToString() {
+        fixture_.getBuyer().setDebugInfoNeverUseInCode("foo");
+
+        assertEquals("SL_foo|" + fixture_.getShoppingListId(), fixture_.toString());
     }
 
     @Test
@@ -106,8 +137,8 @@ public class ShoppingListTest {
     @TestCaseName("Test #{index}: (set|get)Quantity({0},{1})")
     public final void testSetGetQuantity_NormalInput(int index, double quantity) {
         assertSame(fixture_, fixture_.setQuantity(index, quantity));
-        assertEquals(quantity, fixture_.getQuantity(index), 0.0);
-        assertEquals(quantity, fixture_.getQuantities()[index], 0.0);
+        assertEquals(quantity, fixture_.getQuantity(index), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(quantity, fixture_.getQuantities()[index], TestUtils.FLOATING_POINT_DELTA);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -129,8 +160,8 @@ public class ShoppingListTest {
     @TestCaseName("Test #{index}: (set|get)PeakQuantity({0},{1})")
     public final void testSetGetPeakQuantity_NormalInput(int index, double peakQuantity) {
         assertSame(fixture_, fixture_.setPeakQuantity(index, peakQuantity));
-        assertEquals(peakQuantity, fixture_.getPeakQuantity(index), 0.0);
-        assertEquals(peakQuantity, fixture_.getPeakQuantities()[index], 0.0);
+        assertEquals(peakQuantity, fixture_.getPeakQuantity(index), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(peakQuantity, fixture_.getPeakQuantities()[index], TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IndexOutOfBoundsException.class)

@@ -1,247 +1,491 @@
 package com.vmturbo.platform.analysis.drivers;
 
-
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Collectors;
 
-import javax.websocket.CloseReason;
-import javax.websocket.OnClose;
-import javax.websocket.OnError;
-import javax.websocket.OnMessage;
-import javax.websocket.OnOpen;
-import javax.websocket.Session;
-import javax.websocket.server.ServerEndpoint;
+import javax.annotation.Nonnull;
 
-import org.apache.log4j.Logger;
-import org.checkerframework.checker.javari.qual.ReadOnly;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.communication.ITransport;
+import com.vmturbo.communication.ITransport.EventHandler;
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionImpl;
+import com.vmturbo.platform.analysis.actions.Activate;
+import com.vmturbo.platform.analysis.actions.Deactivate;
+import com.vmturbo.platform.analysis.actions.ProvisionBase;
+import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
+import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.Ede;
+import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisCommand;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.StartDiscoveredTopology;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.EconomySettingsTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
+import com.vmturbo.platform.analysis.utilities.StatsUtils;
+
 
 /**
- * The WebSocket server endpoint for the analysis server. It is the entry point of the application.
- *
- * <p>
- *  Currently it can receive a topology as a sequence of Protobuf messages, run a round of placement
- *  on the resulting economy and send back a list of proposed actions.
- * </p>
- *
- * <p>
- *  This is intended to be accessed via wss://localhost:9400/analysis/server
- * </p>
+ * AnalysisServer is a single instance, that handle incoming requests from client and sends
+ * responses back.
  */
-@ServerEndpoint("/server")
-public final class AnalysisServer {
-    // Fields
+public class AnalysisServer implements AutoCloseable {
 
-    // A logger to be used for all logging by this class.
-    private static final Logger logger = Logger.getLogger(AnalysisServer.class);
-
-    // It is possible that some exceptional event, like a connection drop will result in an
-    // incomplete topology. e.g. if we receive a START_DISCOVERED_TOPOLOGY, then some
-    // DISCOVERED_TRADER messages and then the connection resets and we receive a
-    // START_DISCOVERED_TOPOLOGY again. In that context, lastComplete_ is the last complete topology
-    // we've received and currentPartial_ is the topology we are currently populating.
-    private @NonNull Topology lastComplete_ = new Topology();
-    private @NonNull Topology currentPartial_ = new Topology();
-    // a flag to decide if move should use shoptpgether algorithm or not
-    boolean isShopTogetherEnabled = false;
-    // a flag to decide if provision algorithm should run or not
-    boolean isProvisionEnabled = true;
-    // a flag to decide if suspension algorithm should run or not
-    boolean isSuspensionEnabled = true;
-    // a flag to decide if resize algorithm should run or not
-    boolean isResizeEnabled = true;
-
-    // Constructors
-
-    // Methods
-
+    private final Logger logger = LogManager.getLogger(AnalysisServer.class);
+    // the maximum number of task queue allowed to process client message
+    private static final int MAX_QUEUE_SIZE = 100;
+    // the thread pool used for handling message sent from client side
+    private final ExecutorService executorService;
+    // map that associates every topology with a instanceInfo that has the topology and some associated settings
+    private final Map<Long, AnalysisInstanceInfo> analysisInstanceInfoMap = new
+            ConcurrentHashMap<>();
+    // map that associates every market name with actions from last run
+    private final Map<String, @NonNull ReplayActions> replayActionsMap = new ConcurrentHashMap<>();
+    // a queue to save the AnalysisResult message that was not sent to client side
+    private final BlockingQueue<AnalysisResults> resultsToSend = new LinkedBlockingQueue<>();
+    // websocket transport handler
+    private final Set<ITransport<AnalysisResults, AnalysisCommand>> endpoints =
+            Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Object newEndpointNotifier = new Object();
     /**
-     * Logs the initialization of new connections. Doesn't change internal state.
-     *
-     * @param session see {@link OnOpen}
+     * Task to poll outgoing message, when available to send using transports.
      */
-    @OnOpen
-    public synchronized void logConnectionInitiation(@ReadOnly AnalysisServer this, @NonNull Session session) {
-        logger.info("New " + (session.isSecure() ? "secure" : "insecure") + " connection with id = \""
-                    + session.getId() + "\" established.");
-        logger.info("Request URI:                     " + session.getRequestURI());
-        logger.info("Protocol version:                " + session.getProtocolVersion());
-        logger.info("Negotiated subprotocol:          " + session.getNegotiatedSubprotocol());
-        logger.info("Number of negotiated extentions: " + session.getNegotiatedExtensions().size());
-        logger.info("Max session timeout:             " + session.getMaxBinaryMessageBufferSize() + "ms.");
-        logger.info("Max binary buffer size:          " + session.getMaxIdleTimeout() + "bytes.");
-        logger.info("");
-        // Would be nice to log the remote IP address but I couldn't find a way...
+    private final Future<?> pollOutgoingTask;
+
+    public AnalysisServer(@Nonnull ExecutorService threadPool) {
+        executorService = Objects.requireNonNull(threadPool);
+        pollOutgoingTask = threadPool.submit(this::pollOutgoingMessages);
     }
 
     /**
-     * Handles any of the messages {@code this} server is expected to receive.
-     *
-     * @param session see {@link OnMessage}
-     * @param message A single serialized {@link AnalysisCommand} Protobuf message.
-     * Also see {@link OnMessage}.
+     * Performs polling for new analysis results, ready for send. As soon as they arrive, this
+     * method will try to send them to analysis client.
      */
-    @OnMessage
-    public synchronized void handleMessage(@NonNull Session session, @NonNull InputStream message) {
+    private void pollOutgoingMessages() {
         try {
-            AnalysisCommand command = AnalysisCommand.parseFrom(message);
-            switch (command.getCommandTypeCase()) {
-                case START_DISCOVERED_TOPOLOGY:
-                    isShopTogetherEnabled =
-                                    command.getStartDiscoveredTopology().getEnableShopTogether();
-                    currentPartial_.clear();
-                    EconomySettingsTO settingsTO = command.getStartDiscoveredTopology()
-                                    .getEconomySettings();
-                    EconomySettings settings = currentPartial_.getEconomy().getSettings();
-                    settings.setRightSizeLower(settingsTO.getRightsizeLowerWatermark());
-                    settings.setRightSizeUpper(settingsTO.getRightsizeUpperWatermark());
-                    break;
-                case DISCOVERED_TRADER:
-                    ProtobufToAnalysis.addTrader(currentPartial_, command.getDiscoveredTrader());
-                    break;
-                case END_DISCOVERED_TOPOLOGY:
-                    // Finish topology
-                    ProtobufToAnalysis.populateUpdatingFunctions(command.getEndDiscoveredTopology(),
-                                                                         currentPartial_);
-                    ProtobufToAnalysis.populateCommodityResizeDependencyMap(
-                                    command.getEndDiscoveredTopology(),
-                                    currentPartial_);
-                    ProtobufToAnalysis.populateRawCommodityMap(command.getEndDiscoveredTopology(),
-                                                               currentPartial_);
+            for (;;) {
+                final AnalysisResults msg = resultsToSend.take();
+                sendSingleMessage(msg);
+            }
+        } catch (InterruptedException e) {
+            logger.info("Thread interrupted, Can not send the failed message from previous " +
+                    "session", e);
+        }
+    }
 
-                    isProvisionEnabled = command.getEndDiscoveredTopology().getEnableProvision();
-                    isSuspensionEnabled =
-                                    command.getEndDiscoveredTopology().getEnableSuspension();
-                    isResizeEnabled = command.getEndDiscoveredTopology().getEnableResize();
+    /**
+     * Sends single analysis result using on of the transports available. If no transport is
+     * available, it will hang to await new transport to appear.
+     *
+     * @param result analysis result to send
+     * @throws InterruptedException in thread has been interrupted while sending or waiting
+     */
+    private void sendSingleMessage(@Nonnull AnalysisResults result) throws InterruptedException {
+        for (;;) {
+            for (ITransport<AnalysisResults, AnalysisCommand> transport : endpoints) {
+                try {
+                    transport.send(result);
+                    logger.info("Successfully send market results " + result.getTopologyId());
+                    return;
+                } catch (CommunicationException e) {
+                    logger.error("Communication error occurred, while sending market results " +
+                            result.getTopologyId(), e);
+                    transport.close();
+                }
+            }
+            synchronized (newEndpointNotifier) {
+                newEndpointNotifier.wait();
+            }
+        }
+    }
 
-                    // create a new thread to run the analysis algorithm so that
-                    // it does not block the server to receive messages from M1
-                    Runnable runAnalysis = new Runnable() {
-                        @Override
-                        public void run() {
-                            runAnalysis(session);
+    /**
+     * Registers new endpoint, able to request market analysis, so AnalysisServer will receive
+     * requests from this endpoint and send responses to it.
+     *
+     * @param endpoint new endpoint appeared
+     */
+    public void registerEndpoint(@Nonnull ITransport<AnalysisResults, AnalysisCommand> endpoint) {
+        endpoints.add(Objects.requireNonNull(endpoint));
+        endpoint.addEventHandler(new EventHandler<AnalysisCommand>() {
+            @Override
+            public void onMessage(AnalysisCommand message) {
+                handleAllMessagesSentFromClient(message);
+            }
+
+            @Override
+            public void onClose() {
+                unregisterEndpoint(endpoint);
+            }
+        });
+        synchronized (newEndpointNotifier) {
+            newEndpointNotifier.notify();
+        }
+    }
+
+    /**
+     * Unregisters endpoint, when it is no longer needed (closed). This endpoint will no longer
+     * be used for sending responses.
+     *
+     * @param endpoint endpoint to unregister.
+     */
+    private void unregisterEndpoint(
+            @Nonnull ITransport<AnalysisResults, AnalysisCommand> endpoint) {
+        logger.info("Endpoint closed: " + endpoint);
+        endpoints.remove(Objects.requireNonNull(endpoint));
+    }
+
+    /**
+     * Populates {@link EconomySettings} by parsing {@link StartDiscoveredTopology}
+     */
+    private AnalysisInstanceInfo parseStartDiscoveredTopology(AnalysisCommand message) {
+        StartDiscoveredTopology discovered = message.getStartDiscoveredTopology();
+        AnalysisInstanceInfo instInfo = new AnalysisInstanceInfo();
+        instInfo.setClassifyActions(discovered.getClassifyActions());
+        instInfo.setReplayActions(discovered.getReplayActions());
+        instInfo.getLastComplete().setTopologyId(message.getTopologyId());
+        instInfo.setMarketName(message.getMarketName());
+        instInfo.setRealTime(discovered.getRealTime());
+        instInfo.setBalanceDeploy(discovered.getBalanceDeploy());
+        instInfo.setMarketData(message.getMarketData());
+        Topology currentPartial = instInfo.getCurrentPartial();
+        currentPartial.setTopologyId(message.getTopologyId());
+        EconomySettingsTO settingsTO =
+                        message.getStartDiscoveredTopology().getEconomySettings();
+        EconomySettings settings = currentPartial.getEconomy().getSettings();
+        settings.setRightSizeLower(settingsTO.getRightsizeLowerWatermark());
+        settings.setRightSizeUpper(settingsTO.getRightsizeUpperWatermark());
+        settings.setUseExpenseMetricForTermination(
+                        settingsTO.getUseExpenseMetricForTermination());
+        settings.setExpenseMetricFactor(settingsTO.getExpenseMetricFactor());
+        settings.setEstimatesEnabled(settingsTO.getEstimates());
+        settings.setQuoteFactor(settingsTO.getQuoteFactor());
+        settings.setMaxPlacementIterations(settingsTO.getMaxPlacementIterations());
+        settings.setSortShoppingLists(settingsTO.getSortShoppingLists());
+        if (settingsTO.hasDiscountedComputeCostFactor()) {
+            settings.setDiscountedComputeCostFactor(settingsTO.getDiscountedComputeCostFactor());
+        }
+        return instInfo;
+    }
+
+    /**
+     * Populates {@link EconomySettings} by parsing {@link EndDiscoveredTopology}
+     */
+    private void parseEndDiscoveredTopology(AnalysisCommand message) {
+        // Finish topology
+        EndDiscoveredTopology endDiscMsg = message.getEndDiscoveredTopology();
+        AnalysisInstanceInfo instInfoAfterDisc =
+                        analysisInstanceInfoMap.get(message.getTopologyId());
+        Topology currPartial = instInfoAfterDisc.getCurrentPartial();
+        currPartial.populateMarketsWithSellersAndMergeConsumerCoverage();
+        ProtobufToAnalysis.populateCommodityResizeDependencyMap(endDiscMsg,
+                        currPartial);
+        ProtobufToAnalysis.populateRawCommodityMap(endDiscMsg, currPartial);
+        ProtobufToAnalysis.populateCommodityProducesDependancyMap(endDiscMsg, currPartial);
+        ProtobufToAnalysis.populateHistoryBasedResizeDependencyMap(endDiscMsg, currPartial);
+        ProtobufToAnalysis.commToAdjustOverhead(endDiscMsg, currPartial);
+
+        if (message.getMarketName().equals("Deploy")) {
+            instInfoAfterDisc.setProvisionEnabled(false);
+            instInfoAfterDisc.setSuspensionEnabled(false);
+            instInfoAfterDisc.setResizeEnabled(false);
+        } else {
+            instInfoAfterDisc.setProvisionEnabled(endDiscMsg.getEnableProvision());
+            instInfoAfterDisc.setSuspensionEnabled(endDiscMsg.getEnableSuspension());
+            instInfoAfterDisc.setResizeEnabled(endDiscMsg.getEnableResize());
+        }
+        instInfoAfterDisc.setMarketName(message.getMarketName());
+        instInfoAfterDisc.setMarketData(message.getMarketData());
+        instInfoAfterDisc.setMovesThrottling(endDiscMsg.getMovesThrottling());
+        instInfoAfterDisc.setSuspensionsThrottlingConfig(endDiscMsg.getSuspensionsThrottlingConfig());
+    }
+
+    /**
+     * Calls {@link Economy#setForceStop} with true when receiving {@link com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.ForcePlanStop}
+     */
+    private void forceStopAnalysis(AnalysisCommand message) {
+        logger.info("Received a message to stop running analysis");
+        AnalysisInstanceInfo analysisInstance =
+                        analysisInstanceInfoMap.get(message.getTopologyId());
+        if (analysisInstance != null) {
+            analysisInstance.getCurrentPartial().getEconomy().setForceStop(true);
+            analysisInstance.getLastComplete().getEconomy().setForceStop(true);
+        }
+    }
+    /**
+     * Handles all messages coming from client side.
+     *
+     * @param message Message received from the client side
+     */
+    private void handleAllMessagesSentFromClient(AnalysisCommand message) {
+        switch (message.getCommandTypeCase()) {
+            case START_DISCOVERED_TOPOLOGY:
+                analysisInstanceInfoMap.put(message.getTopologyId(),
+                                parseStartDiscoveredTopology(message));
+                break;
+            case DISCOVERED_TRADER:
+                if (message.getDiscoveredTrader().getTemplateForHeadroom()) {
+                    analysisInstanceInfoMap.get(message.getTopologyId())
+                                    .getCurrentPartial().addTradersForHeadroom(message.getDiscoveredTrader());
+                } else {
+                    try {
+                        ProtobufToAnalysis.addTrader(
+                            analysisInstanceInfoMap.get(message.getTopologyId())
+                                .getCurrentPartial(), message.getDiscoveredTrader());
+                    } catch (Exception e) {
+                        throw new RuntimeException(String.format("Error when adding trader %s",
+                            message.getDiscoveredTrader().getDebugInfoNeverUseInCode()), e);
+                    }
+                }
+                break;
+            case END_DISCOVERED_TOPOLOGY:
+                parseEndDiscoveredTopology(message);
+                // once finished constructing economy, start analysis in a separate thread to
+                // release endpoint
+                if (((ThreadPoolExecutor)executorService).getQueue().size() >= MAX_QUEUE_SIZE) {
+                    logger.error("Exceeding client message processing queue size " + MAX_QUEUE_SIZE
+                                    + " Can not trigger analysis on topology with name "
+                                    + message.getMarketName());
+                    try {
+                        sendResult(AnalysisResults.newBuilder().setTopologyId(message.getTopologyId())
+                                        .setAnalysisFailed(true).build());
+                    } catch (InterruptedException e) {
+                        logger.error("Shutting down thread pool when sending result back to client", e);
+                    }
+                    return;
+                }
+                executorService.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            long topologyId = message.getTopologyId();
+                            // remove topologyInfo from the map if result is sent successfully
+                            AnalysisResults results;
+                            results = runAnalysis(topologyId);
+                            logger.info("Preparing to send back analysis result to client side");
+                            sendResult(results);
+                            analysisInstanceInfoMap.remove(topologyId);
+                        } catch (InterruptedException e) {
+                            logger.error("Shutting down thread pool when sending result back to client", e);
                         }
-                    };
-                    new Thread(runAnalysis).start();
-                    break;
-                case FORCE_PLAN_STOP:
-                    logger.info("Received a message to stop running analysis from session "
-                                    + session.getId());
-                    currentPartial_.getEconomy().setForceStop(true);
-                    break;
-                case COMMANDTYPE_NOT_SET:
-                default:
-                    logger.warn("Unknown command received from remote endpoint with case = \""
-                                    + command.getCommandTypeCase() + "\" from session "
-                                    + session.getId());
-            }
-        } catch (Throwable error) {
-            logger.error("Exception thrown while processing message from session "
-                            + session.getId(), error);
+
+                    }
+                });
+                break;
+            case FORCE_PLAN_STOP:
+                forceStopAnalysis(message);
+                break;
+            case COMMANDTYPE_NOT_SET:
+            default:
+                logger.warn("Unknown command received from remote endpoint with case = \""
+                                + message.getCommandTypeCase());
         }
+
     }
 
     /**
-     * Logs the termination of existing connections. Doesn't change internal state.
+     * Sends the result message to the server side.
+     */
+    private void sendResult(@Nonnull AnalysisResults result) throws InterruptedException {
+        resultsToSend.add(Objects.requireNonNull(result));
+    }
+
+    /**
+     * Run the analysis algorithm which generates actions.
      *
-     * @param session see {@link OnClose}
-     * @param reason see {@link OnClose}
+     * @param topologyId Topology  Id of the topology for which analysis is being run.
+     * @return AnalysisResults the object containing result
      */
-    @OnClose
-    public synchronized void logConnectionTermination(@ReadOnly AnalysisServer this,
-                                                      @NonNull Session session, @NonNull CloseReason reason) {
-        logger.info("Existing " + (session.isSecure() ? "secure" : "insecure") + " connection with id = \""
-                    + session.getId() + "\" terminated with reason \"" + reason + "\".");
-    }
-
-    /**
-     * Logs the receipt of errors from the remote endpoint. Doesn't change internal state.
-     *
-     * @param error see {@link OnError}
-     */
-    @OnError
-    public synchronized void logError(@ReadOnly AnalysisServer this, @NonNull Throwable error) {
-        logger.error("Received an error from remote endpoint!", error);
-    }
-
-    /**
-     * Create a new thread to execute the analysis algorithm which
-     * generates actions.
-     */
-    private void runAnalysis(@NonNull Session session) {
-        // Swap topologies
-        Topology temp = lastComplete_;
-        lastComplete_ = currentPartial_;
-        currentPartial_ = temp;
-        // Run one round of placement measuring time-to-process
-        long start = System.nanoTime();
-        PriceStatement priceStatement = new PriceStatement();
-        Economy economy = (Economy)lastComplete_.getEconomy();
-        priceStatement.computePriceIndex(economy, true);
-        @NonNull List<@NonNull Action> actions = new Ede().generateActions(
-                        economy, isShopTogetherEnabled, isProvisionEnabled, isSuspensionEnabled,
-                        isResizeEnabled);
-        priceStatement.computePriceIndex(economy, false);
-        // if the analysis was forced to stop, send a planStopped message back
-        // to M1 which can further clear the plan related data
-        if (lastComplete_.getEconomy().getForceStop()) {
-            try (OutputStream stream = session.getBasicRemote().getSendStream()) {
-                AnalysisResults.newBuilder().setPlanStopped(true).build().writeTo(stream);
-            } catch (Throwable error) {
-                logger.error("Exception thrown while sending back stop message from session "
-                                + session.getId(), error);
+    private @NonNull AnalysisResults runAnalysis(long topologyId) {
+        AnalysisResults results;
+        AnalysisInstanceInfo instInfo = analysisInstanceInfoMap.get(topologyId);
+        Topology temp = instInfo.getLastComplete();
+        Topology lastComplete = instInfo.getCurrentPartial();
+        instInfo.setLastComplete(lastComplete);
+        instInfo.setCurrentPartial(temp);
+        try {// Swap topologies
+            results = generateAnalysisResult(instInfo, lastComplete);
+            // if the analysis was forced to stop, send a planStopped message back
+            // to M1 which can further clear the plan related data
+            if (((Economy)lastComplete.getEconomy()).getForceStop()) {
+                results = AnalysisResults.newBuilder().setPlanStopped(true)
+                                .setTopologyId(topologyId).build();
             }
-            return;
+        } catch (RuntimeException error) {
+            // if exceptions occur when running analysis, send back a message
+            // with analysis_failed=true
+            logger.error("Encounter invalid data during topology analysis", error);
+            StatsUtils statsUtils = new StatsUtils("m2stats-" + instInfo.getMarketName(), false);
+            statsUtils.write("Encounter invalid data during topology analysis: " + error + "\n",
+                            true);
+            // since running analysis throws exceptions, we send a failure
+            // message with topology id back to notify ops manager
+            results = AnalysisResults.newBuilder().setTopologyId(topologyId).setAnalysisFailed(true)
+                            .build();
+            return results;
         }
-        // Filter the initial moves and remove them from the action list which will go
-        // through collapsing. The variable "actions" being passed into this method will
-        // change
-        List<@NonNull Action> initialMoves = Action.preProcessBeforeCollapse(actions);
-        // Collapsing all actions except for the initial moves
-        List<@NonNull Action> collapsedActionsWithoutInitialMoves = Action.collapsed(actions);
-        // Group all actions of same type together, use the following order when
-        // sending actions to the legacy market side, provision->move(initial move)
-        // ->resize->move-> suspension. We need to do it because after action
-        // collapsing, the order of actions are not maintained, it does not guarantee
-        // provision comes before move actions, which means move actions may have
-        // destination with null OID! The initial placement for any trader is
-        // considered as "Start" in legacy market and start will set up consumes
-        // relation on legacy market. Resize would require the consumes to be populated
-        // so initial moves have to be sent before any resize. As for resize, it should
-        // be sent before non-initial moves because a trader may require resize down
-        // itself to fit in the destination.
-        // TODO: we should be careful when we want to generate actions for main
-        // market instead of plan, because collapsing and grouping actions will
-        // break the inherent cohesion between different actions. For example, to
-        // execute a suspension, it would often require move actions which move the
-        // customer out of the suspension candidate.
-        @NonNull
-        List<@NonNull Action> reorderedActions = Action.groupActionsByTypeAndReorderBeforeSending(
-                        initialMoves, collapsedActionsWithoutInitialMoves);
-
-        long stop = System.nanoTime();
-
         // Send back the results
-        try (OutputStream stream = session.getBasicRemote().getSendStream()) {
-            AnalysisToProtobuf.analysisResults(reorderedActions, lastComplete_.getTraderOids(),
-                            lastComplete_.getShoppingListOids(), stop - start, lastComplete_)
-                            .writeTo(stream);
-        } catch (Throwable error) {
-            logger.error("Exception thrown while sending back actions!", error);
-        }
-        return;
+        return results;
     }
-} // end AnalysisServer class
+
+    /**
+     * Run provision, placement, resize and suspension algorithm to produce actions that
+     * contributes to the desired state.
+     *
+     * @param instInfo the given topology wrapper object
+     * @param lastComplete the most recent complete topology
+     * @return actionDTOs, projected traderDTOs and priceIndex
+     */
+    @VisibleForTesting
+    AnalysisResults generateAnalysisResult(AnalysisInstanceInfo instInfo,
+                    Topology lastComplete) {
+        List<Action> actions;
+        AnalysisResults results;
+        Economy economy = (Economy)lastComplete.getEconomy();
+        String mktName = instInfo.getMarketName();
+        String mktData = instInfo.getMarketData();
+        long start = System.nanoTime();
+        PriceStatement startPriceStatement = new PriceStatement().computePriceIndex(economy);
+        if (!economy.getTradersForHeadroom().isEmpty()) {
+            actions = new Ede().generateHeadroomActions(economy, false, false, false, true);
+            long stop = System.nanoTime();
+            results = AnalysisToProtobuf.analysisResults(actions,
+                lastComplete.getShoppingListOids(), stop - start, lastComplete, startPriceStatement, true);
+        } else {
+            // if there are no templates to be added this is not a headroom plan
+            Ede ede = new Ede();
+            boolean isReplayOrRealTime = instInfo.isReplayActions() || instInfo.isRealTime();
+            final @NonNull ReplayActions seedActions = isReplayOrRealTime
+                ? replayActionsMap.getOrDefault(mktName, new ReplayActions())
+                : new ReplayActions();
+            actions = ede.generateActions(economy, instInfo.isClassifyActions(),
+                instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
+                instInfo.isResizeEnabled(), true, seedActions, mktData, instInfo.isRealTime(),
+                instInfo.getSuspensionsThrottlingConfig(), Optional.empty());
+            if (instInfo.isBalanceDeploy()) {
+                Set<Trader> placedVMSet = economy.getPlacementEntities().stream()
+                    .filter(vm -> economy.getMarketsAsBuyer(vm).keySet().stream()
+                        .allMatch(sl -> sl.getSupplier() != null)).collect(Collectors.toSet());
+                if (!placedVMSet.isEmpty()) {
+                    Collections.reverse(actions);
+                    actions.stream().filter(action -> ((ActionImpl)action).isActionTaken())
+                        .forEach(action -> action.rollback());
+                    economy.getTraders().stream()
+                        .filter(trader -> !placedVMSet.contains(trader))
+                            .forEach(trader -> {
+                                economy.getMarketsAsBuyer(trader).keySet()
+                                                .forEach(sl -> sl.setMovable(false));
+                            });
+                    actions = ede.generateActions(economy, instInfo.isClassifyActions(),
+                        instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
+                        instInfo.isResizeEnabled(), true, seedActions, mktData,
+                        instInfo.isRealTime(), instInfo.getSuspensionsThrottlingConfig(),
+                        Optional.empty());
+                }
+            }
+            long stop = System.nanoTime();
+            results = AnalysisToProtobuf.analysisResults(actions,
+                            lastComplete.getShoppingListOids(), stop - start, lastComplete,
+                            startPriceStatement, true);
+            if (instInfo.isRealTime() && instInfo.isProvisionEnabled()) {
+                // Clear Unquoted Commodities list for Provision round in order to Provision
+                // enough supply as expected.
+                economy.getMarkets().forEach(m -> m.getBuyers().stream().forEach(sl -> {
+                        sl.getModifiableUnquotedCommoditiesBaseTypeList().clear();
+                        sl.getUnquotedCommoditiesBaseTypeList().clear();
+                    })
+                );
+                // run another round of analysis on the new state of the economy with provisions enabled
+                // and resize disabled. We add only the provision recommendations to the list of actions generated.
+                // We neglect suspensions since there might be associated moves that we don't want to include
+                @NonNull List<Action> secondRoundActions = new ArrayList<>();
+                AnalysisResults.Builder builder = results.toBuilder();
+                economy.getSettings().setResizeDependentCommodities(false);
+                secondRoundActions.addAll(
+                    ede.generateActions(economy, instInfo.isClassifyActions(), true, true,
+                                        false, true, false, new ReplayActions(), mktData,
+                                        instInfo.getSuspensionsThrottlingConfig(), Optional.empty())
+                        .stream().filter(action -> action instanceof ProvisionBase
+                                      || action instanceof Activate
+                                        // Extract resizes that explicitly set extractAction to true as part
+                                        // of resizeThroughSupplier provision actions.
+                                      || (action instanceof Resize && action.isExtractAction()))
+                        .collect(Collectors.toList()));
+                for (Action action : secondRoundActions) {
+                    ActionTO actionTO = AnalysisToProtobuf.actionTO(action,
+                                    lastComplete.getShoppingListOids(), lastComplete);
+                    if (actionTO != null) {
+                        builder.addActions(actionTO);
+                    }
+                }
+                builder.addAllNewShoppingListToBuyerEntry(
+                                AnalysisToProtobuf.createNewShoppingListToBuyerMap(lastComplete));
+
+                // Recreate TraderTO in order to send back the updated TraderTO after actions from
+                // this provision round may have updated the trader.
+                Set<Trader> preferentialTraders = economy.getPreferentialShoppingLists().stream()
+                                .map(sl -> sl.getBuyer()).collect(Collectors.toSet());
+
+                for (Trader trader : secondRoundActions.stream().map(Action::getActionTarget)
+                                .collect(Collectors.toSet())) {
+                    if (!trader.isClone()) {
+                        builder.setProjectedTopoEntityTO(trader.getEconomyIndex(),
+                                        AnalysisToProtobuf.traderTO(economy, trader,
+                                                        lastComplete.getShoppingListOids(),
+                                                        preferentialTraders));
+                    }
+                }
+                results = builder.build();
+            }
+            if (isReplayOrRealTime) {
+                ReplayActions newReplayActions = new ReplayActions();
+                // the OIDs have to be updated after analysisResults
+                if (instInfo.isReplayActions()) {
+                    newReplayActions = new ReplayActions(actions, ImmutableList.of());
+                } else if (instInfo.isRealTime()) {
+                    // if replay is disabled, perform selective replay to deactivate entities in RT
+                    // (OM-19855)
+                    newReplayActions = new ReplayActions(ImmutableList.of(),
+                                                actions.stream()
+                                                    .filter(action -> action instanceof Deactivate)
+                                                    .map(action -> (Deactivate)action)
+                                                    .collect(Collectors.toList()));
+                }
+                replayActionsMap.put(mktName, newReplayActions);
+            }
+
+        }
+        return results;
+    }
+
+    @Override
+    public void close() {
+        pollOutgoingTask.cancel(true);
+    }
+}

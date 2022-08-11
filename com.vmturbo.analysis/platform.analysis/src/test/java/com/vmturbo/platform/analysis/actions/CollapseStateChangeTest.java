@@ -1,24 +1,30 @@
 package com.vmturbo.platform.analysis.actions;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
 import com.google.common.collect.Lists;
-import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
-import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.economy.TraderState;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
+
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
+import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 @RunWith(JUnitParamsRunner.class)
 public class CollapseStateChangeTest {
@@ -38,6 +44,14 @@ public class CollapseStateChangeTest {
     private static Trader lastMoveTo;
 
     /**
+     * Initialize IdentityGenerator.
+     */
+    @BeforeClass
+    public static void init() {
+        IdentityGenerator.initPrefix(0);
+    }
+
+    /**
      * Use a String representation of a list of {@link #Action}s where A stands for {@link Activate},
      * D for {@link Deactivate} and M for {@link Move}.
      * All actions operate on {@link #vm} and the Moves are for different shopping lists,
@@ -53,7 +67,7 @@ public class CollapseStateChangeTest {
     @Test
     public void testCollapseActionsDifferentBPs(String actionsString, String expectedCollapsedString) {
         List<Action> actions = stringToActionsDifferentBPs(actionsString);
-        List<Action> collapsed = Action.collapsed(actions);
+        List<Action> collapsed = ActionCollapse.collapsed(actions);
         String collapsedString = actionsToString(collapsed);
         assertEquals(expectedCollapsedString, collapsedString);
     }
@@ -137,7 +151,7 @@ public class CollapseStateChangeTest {
     public void testCollapseActionsSameBP(String actionsString, String expectedCollapsedString) {
         lastMoveTo = null;
         List<Action> actions = stringToActionsSameBP(actionsString);
-        List<Action> collapsed = Action.collapsed(actions);
+        List<Action> collapsed = ActionCollapse.collapsed(actions);
         String collapsedString = actionsToString(collapsed);
         assertEquals(expectedCollapsedString, collapsedString);
         // Verify that if there is a Move then it is from the source of the first Move in actions
@@ -229,12 +243,12 @@ public class CollapseStateChangeTest {
     private Action actionDifferentBP(int c) {
         switch (c) {
         case 'A':
-            return new Activate(EC, vm1, EC.getMarket(EMPTY), vm2);
+            return new Activate(EC, vm1, EMPTY, vm2, TestUtils.CPU);
         case 'M':
             ShoppingList bp = EC.addBasketBought(vm1, BASKET);
             return new Move(EC, bp, pm1, pm2);
         case 'D':
-            return new Deactivate(EC, vm1, EC.getMarket(EMPTY));
+            return new Deactivate(EC, vm1, EMPTY);
         default:
             throw new IllegalArgumentException("Action " + c);
         }
@@ -270,7 +284,7 @@ public class CollapseStateChangeTest {
     private Action actionSameBP(int c) {
         switch (c) {
         case 'A':
-            return new Activate(EC, vm1, EC.getMarket(EMPTY), vm2);
+            return new Activate(EC, vm1, EMPTY, vm2, TestUtils.CPU);
         case 'M':
             Trader moveFrom = lastMoveTo == null ? pm1 : lastMoveTo;
             Trader newMoveTo = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
@@ -278,7 +292,7 @@ public class CollapseStateChangeTest {
             lastMoveTo = newMoveTo;
             return move;
         case 'D':
-            return new Deactivate(EC, vm1, EC.getMarket(EMPTY));
+            return new Deactivate(EC, vm1, EMPTY);
         default:
             throw new IllegalArgumentException("Action " + c);
         }
@@ -303,45 +317,45 @@ public class CollapseStateChangeTest {
         Trader pm3 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
 
         // Trader 1 : AMDAM -> AMM (two BPs)
-        Action A1_1 = new Activate(EC, vm1, EC.getMarket(EMPTY), vm2);
-        Action A1_2 = new Move(EC, bp1_1, pm1, pm2);
-        Action A1_3 = new Deactivate(EC, vm1, EC.getMarket(EMPTY));
-        Action A1_4 = new Activate(EC, vm1, EC.getMarket(EMPTY), vm2);
-        Action A1_5 = new Move(EC, bp1_2, pm1, pm2);
+        Action a1_1 = new Activate(EC, vm1, EMPTY, vm2, TestUtils.CPU);
+        Action a1_2 = new Move(EC, bp1_1, pm1, pm2);
+        Action a1_3 = new Deactivate(EC, vm1, EMPTY);
+        Action a1_4 = new Activate(EC, vm1, EMPTY, vm2, TestUtils.CPU);
+        Action a1_5 = new Move(EC, bp1_2, pm1, pm2);
 
         // Trader 2 : MMDA -> [] (one BP moves from pm1 to pm2 and back to to pm1)
-        Action A2_1 = new Move(EC, bp2_1, pm1, pm2);
-        Action A2_2 = new Move(EC, bp2_1, pm2, pm1);
-        Action A2_3 = new Deactivate(EC, vm2, EC.getMarket(EMPTY));
-        Action A2_4 = new Activate(EC, vm2, EC.getMarket(EMPTY), vm1);
+        Action a2_1 = new Move(EC, bp2_1, pm1, pm2);
+        Action a2_2 = new Move(EC, bp2_1, pm2, pm1);
+        Action a2_3 = new Deactivate(EC, vm2, EMPTY);
+        Action a2_4 = new Activate(EC, vm2, EMPTY, vm1, TestUtils.CPU);
 
         // Trader 3 : MDAMD -> D (two BPs)
-        Action A3_1 = new Move(EC, bp3_1, pm1, pm2);
-        Action A3_2 = new Deactivate(EC, vm3, EC.getMarket(EMPTY));
-        Action A3_3 = new Activate(EC, vm3, EC.getMarket(EMPTY), vm1);
-        Action A3_4 = new Move(EC, bp3_2, pm2, pm3);
-        Action A3_5 = new Deactivate(EC, vm3, EC.getMarket(EMPTY));
+        Action a3_1 = new Move(EC, bp3_1, pm1, pm2);
+        Action a3_2 = new Deactivate(EC, vm3, EMPTY);
+        Action a3_3 = new Activate(EC, vm3, EMPTY, vm1, TestUtils.CPU);
+        Action a3_4 = new Move(EC, bp3_2, pm2, pm3);
+        Action a3_5 = new Deactivate(EC, vm3, EMPTY);
 
         // Test 1 : Sequential concatenation
         List<Action> actionsSequential = Lists.newArrayList(
-                A1_1, A1_2, A1_3, A1_4, A1_5,
-                A2_1, A2_2, A2_3, A2_4,
-                A3_1, A3_2, A3_3, A3_4, A3_5
+                a1_1, a1_2, a1_3, a1_4, a1_5,
+                a2_1, a2_2, a2_3, a2_4,
+                a3_1, a3_2, a3_3, a3_4, a3_5
         );
         List<Action> expectedCollapsed = Lists.newArrayList(
-                A1_1, A1_2, A1_5, A3_5
+                a1_1, a1_2, a1_5, a3_5
         );
-        List<Action> collapsedSequential = Action.collapsed(actionsSequential);
+        List<Action> collapsedSequential = ActionCollapse.collapsed(actionsSequential);
         assertEquals(expectedCollapsed, collapsedSequential);
 
         // Test 2 : Interleaved
         List<Action> actionsInterleaved = Lists.newArrayList(
-                A1_1, A2_1, A3_1,
-                A1_2, A2_2, A3_2,
-                A1_3, A2_3, A3_3,
-                A1_4, A2_4, A3_4,
-                A1_5, A3_5);
-        List<Action> collapsedInterleaved = Action.collapsed(actionsInterleaved);
+                a1_1, a2_1, a3_1,
+                a1_2, a2_2, a3_2,
+                a1_3, a2_3, a3_3,
+                a1_4, a2_4, a3_4,
+                a1_5, a3_5);
+        List<Action> collapsedInterleaved = ActionCollapse.collapsed(actionsInterleaved);
         assertEquals(expectedCollapsed, collapsedInterleaved);
     }
 
@@ -352,10 +366,10 @@ public class CollapseStateChangeTest {
     public final void testCollapse() {
         List<Action> actions = Lists.newArrayList();
         actions.add(new Move(EC, bp0, pm1, pm2));
-        actions.add(new Deactivate(EC, vm1, EC.getMarket(EMPTY)));
-        actions.add(new Activate(EC, vm1, EC.getMarket(EMPTY), vm2));
+        actions.add(new Deactivate(EC, vm1, EMPTY));
+        actions.add(new Activate(EC, vm1, EMPTY, vm2, TestUtils.CPU));
         actions.add(new Move(EC, bp0, pm2, pm1));
-        List<Action> collapsed = Action.collapsed(actions);
+        List<Action> collapsed = ActionCollapse.collapsed(actions);
         assertTrue(collapsed.isEmpty());
     }
 

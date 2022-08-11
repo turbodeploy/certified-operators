@@ -7,9 +7,9 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ede.Ede;
@@ -59,7 +59,8 @@ public class TypicalSupplyChain {
         System.out.print("Producing Actions:    ");
         final @NonNull Ede ede = new Ede();
         start = System.nanoTime();
-        List<Action> actions = ede.generateActions(economy, false, true, true, true);
+        List<Action> actions = ede.generateActions(economy, true, true, true, true,
+                                                   "typicalsupplychain");
         System.out.printf("%,20dns\n", System.nanoTime()-start);
         System.out.printf("Number of actions: %,8d\n", actions.size());
         System.out.println("Done!");

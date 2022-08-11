@@ -4,6 +4,8 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.platform.analysis.economy.Market;
+
 /**
  * Purchasing tendency of an entity that trades/is traded in a {@link Market}.
  *
@@ -21,11 +23,13 @@ public class IncomeStatement {
     private double maxDesiredExpenses_;
     private double minDesiredRevenues_;
     private double maxDesiredRevenues_;
+    private double desiredRevenues_;
+    private double desiredExpenses_;
 
     // Constructors
 
     /**
-     * Constructs a new IncomeStatement instance
+     * Constructs a new IncomeStatement instance.
      *
      */
     public IncomeStatement() {
@@ -35,6 +39,8 @@ public class IncomeStatement {
         maxDesiredExpenses_ = 0;
         minDesiredRevenues_ = 0;
         maxDesiredRevenues_ = 0;
+        desiredRevenues_ = 0;
+        desiredExpenses_ = 0;
     }
 
 
@@ -44,11 +50,11 @@ public class IncomeStatement {
      *
      * <p>
      *  For a commodity, it is the amount the commodity spends on all the commodities it is chargedBy and
-     *  for a trader, it is the expense of the trader on its suppliers
+     *  for a trader, it is the expense of the trader on its suppliers.
      * </p>
      *
      * @return expense of this entity.
-     * @see #setExpenses()
+     * @see #setExpenses(double)
      */
     public double getExpenses() {
         return expenses_;
@@ -67,20 +73,19 @@ public class IncomeStatement {
      * @see #getExpenses()
      */
     protected @NonNull IncomeStatement setExpenses(double expenses) {
-        checkArgument(expenses >= 0, "expenses = " + expenses);
+        checkArgument(expenses >= 0, "expenses = %s", expenses);
         expenses_ = expenses;
         return this;
     }
 
     /**
      *
-     * <p>
-     *  for a trader, it is the amount the commodity earns from all the rawMaterials it made up of and
-     *  for a trader, it is the revenue of the trader from its customers
+     * <p>For a commodity, it is the amount the commodity earns from all the rawMaterials it made up
+     *  of, and for a trader, it is the revenue of the trader from its customers.
      * </p>
      *
      * @return revenue of this entity.
-     * @see #setRevenues()
+     * @see #setRevenues(double)
      */
     public double getRevenues() {
         return revenues_;
@@ -99,8 +104,22 @@ public class IncomeStatement {
      * @see #getRevenues()
      */
     protected @NonNull IncomeStatement setRevenues(double revenues) {
-        checkArgument(revenues >= 0, "revenues = " + revenues);
+        checkArgument(revenues >= 0, "revenues = %s", revenues);
         revenues_ = revenues;
+        return this;
+    }
+
+    /**
+     * Updates the value of the <b>revenues_</b> field by adding the new revenue.
+     *
+     * @param revenue the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getRevenues()
+     */
+    protected @NonNull IncomeStatement addRevenue(double revenue) {
+        checkArgument(revenue >= 0, "revenue = %s", revenue);
+        revenues_ += revenue;
         return this;
     }
 
@@ -116,7 +135,7 @@ public class IncomeStatement {
      * </p>
      *
      * @return minDesiredExpense for this entity
-     * @see #setMinDesiredExpenses()
+     * @see #setMinDesiredExpenses(double)
      */
     public double getMinDesiredExpenses() {
         return minDesiredExpenses_;
@@ -135,7 +154,7 @@ public class IncomeStatement {
      * @see #getMinDesiredExpenses()
      */
     protected @NonNull IncomeStatement setMinDesiredExpenses(double minDesiredExpenses) {
-        checkArgument(minDesiredExpenses >= 0, "minDesiredExpenses = " + minDesiredExpenses);
+        checkArgument(minDesiredExpenses >= 0, "minDesiredExpenses = %s", minDesiredExpenses);
         minDesiredExpenses_ = minDesiredExpenses;
         return this;
     }
@@ -152,7 +171,7 @@ public class IncomeStatement {
     * </p>
     *
     * @return maxDesiredExpense for this entity
-    * @see #setMaxDesiredExpenses()
+    * @see #setMaxDesiredExpenses(double)
     */
     public double getMaxDesiredExpenses() {
         return maxDesiredExpenses_;
@@ -172,7 +191,7 @@ public class IncomeStatement {
      * @see #getMaxDesiredExpenses()
      */
     protected @NonNull IncomeStatement setMaxDesiredExpenses(double maxDesiredExpenses) {
-        checkArgument(maxDesiredExpenses >= 0, "maxDesiredExpenses = " + maxDesiredExpenses);
+        checkArgument(maxDesiredExpenses >= 0, "maxDesiredExpenses = %s", maxDesiredExpenses);
         maxDesiredExpenses_ = maxDesiredExpenses;
         return this;
     }
@@ -188,7 +207,7 @@ public class IncomeStatement {
     * </p>
     *
     * @return minDesiredRevenue for this entity
-    * @see #setMinDesiredRevenues()
+    * @see #setMinDesiredRevenues(double)
     */
     public double getMinDesiredRevenues() {
         return minDesiredRevenues_;
@@ -207,11 +226,24 @@ public class IncomeStatement {
      * @see #getMinDesiredRevenues()
      */
     protected @NonNull IncomeStatement setMinDesiredRevenues(double minDesiredRevenues) {
-        checkArgument(minDesiredRevenues >= 0, "minDesiredRevenues = "+ minDesiredRevenues);
+        checkArgument(minDesiredRevenues >= 0, "minDesiredRevenues = %s", minDesiredRevenues);
         minDesiredRevenues_ = minDesiredRevenues;
         return this;
     }
 
+    /**
+     * Updates the value of the <b>minDesiredRevenues_</b> field by adding the new minDesiredRevenue.
+     *
+     * @param minDesiredRevenue the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getMinDesiredRevenues()
+     */
+    protected @NonNull IncomeStatement  addMinDesiredRevenue(double minDesiredRevenue) {
+        checkArgument(minDesiredRevenue >= 0, "minDesiredRevenue = %s", minDesiredRevenue);
+        minDesiredRevenues_ += minDesiredRevenue;
+        return this;
+    }
 
     /**
      *
@@ -223,7 +255,7 @@ public class IncomeStatement {
      * </p>
      *
      * @return maxDesiredRevenue for this entity
-     * @see #setMaxDesiredRevenues()
+     * @see #setMaxDesiredRevenues(double)
      */
     public double getMaxDesiredRevenues() {
         return maxDesiredRevenues_;
@@ -242,23 +274,110 @@ public class IncomeStatement {
      * @see #getMaxDesiredRevenues()
      */
     protected @NonNull IncomeStatement setMaxDesiredRevenues(double maxDesiredRevenues) {
-        checkArgument(maxDesiredRevenues >= 0, "maxDesiredRevenues = " + maxDesiredRevenues);
+        checkArgument(maxDesiredRevenues >= 0, "maxDesiredRevenues = %s", maxDesiredRevenues);
         maxDesiredRevenues_ = maxDesiredRevenues;
         return this;
     }
 
     /**
-     * Returns the "Return On Investment" of a Trader or a Commodity sold, using the corresponding revenues and expenses of the Trader or Commodity
+     * Updates the value of the <b>maxDesiredRevenue_</b> field by adding the new maxDesiredRevenue.
      *
-     * @see #setRevenues()
-     * @see #setExpenses()
+     * @param maxDesiredRevenue the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getMaxDesiredRevenues()
+     */
+    protected @NonNull IncomeStatement addMaxDesiredRevenue(double maxDesiredRevenue) {
+        checkArgument(maxDesiredRevenue >= 0, "maxDesiredRevenue = %s", maxDesiredRevenue);
+        maxDesiredRevenues_ += maxDesiredRevenue;
+        return this;
+    }
+
+    /**
+    *
+    * <p>
+    *  For a trader T: the desired revenues of T, while all the commodities it sells to its customers are within the desired utilization range.
+    *  For a commodity C sold by a trader: the desired revenues of C, while C remains within the desired utilization range.
+    *  For a commodity C bought by a trader: N/A
+    * </p>
+    *
+    * @return desired revenue for this entity
+    * @see #setDesiredRevenues(double)
+    */
+    public double getDesiredRevenues() {
+        return desiredRevenues_;
+    }
+
+    /**
+     * Sets the value of the <b>desiredRevenues_</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param desiredRevenues the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getDesiredRevenues()
+     */
+    protected @NonNull IncomeStatement setDesiredRevenues(final double desiredRevenues) {
+        this.desiredRevenues_ = desiredRevenues;
+        return this;
+    }
+
+    /**
+     * @return the desired expenses.
+     */
+    public double getDesiredExpenses() {
+        return desiredExpenses_;
+    }
+
+    /**
+     * @param desiredExpenses - the desired expenses.
+     * @return the IS
+     */
+    protected @NonNull IncomeStatement setDesiredExpenses(final double desiredExpenses) {
+        this.desiredExpenses_ = desiredExpenses;
+        return this;
+    }
+
+    /**
+     * Updates the value of the <b>desiredRevenues_</b> field by adding the new desiredRevenue.
+     *
+     * @param desiredRevenue the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getRevenues()
+     */
+    protected @NonNull IncomeStatement  addDesiredRevenue(double desiredRevenue) {
+        checkArgument(desiredRevenue >= 0, "desiredRevenue = %s", desiredRevenue);
+        desiredRevenues_ += desiredRevenue;
+        return this;
+    }
+
+    /**
+     * Returns the "Return On Investment" of a Trader or a Commodity sold, using the corresponding
+     * revenues and expenses of the Trader or Commodity.
+     *
+     * @see #setRevenues(double)
+     * @see #setExpenses(double)
      */
     public double getROI() {
-        // checkArgument(0 < expenses_, "expenses = " + expenses_);
         if (expenses_ == 0) {
             return revenues_;
         } else {
-            return revenues_/expenses_;
+            return revenues_ / expenses_;
+        }
+    }
+
+    /**
+     * Returns the desired ROI.
+     */
+    public double getDesiredROI() {
+        if (desiredExpenses_ == 0) {
+            return desiredRevenues_;
+        } else {
+            return desiredRevenues_ / desiredExpenses_;
         }
     }
 
@@ -266,15 +385,14 @@ public class IncomeStatement {
      * Returns the min Return On Investment of a Trader or a Commodity sold, while all commodities contributing to the expenses and revenues remain
      * within the Desired utilization range.
      *
-     * @see #setMinDesiredRevenues()
-     * @see #setMaxDesiredExpenses()
+     * @see #setMinDesiredRevenues(double)
+     * @see #setMaxDesiredExpenses(double)
      */
     public double getMinDesiredROI() {
-        // checkArgument(0 < maxDesiredExpenses_, "maxDesiredExpenses = " + maxDesiredExpenses_);
         if (maxDesiredExpenses_ == 0) {
             return minDesiredRevenues_;
         } else {
-            return minDesiredRevenues_/maxDesiredExpenses_;
+            return minDesiredRevenues_ / maxDesiredExpenses_;
         }
     }
 
@@ -282,15 +400,14 @@ public class IncomeStatement {
      * Returns the max Return On Investment of a Trader or a Commodity sold, while all commodities contributing to the expenses and revenues remain
      * within the Desired utilization range.
      *
-     * @see #setMaxDesiredRevenues()
-     * @see #setMinDesiredExpenses()
+     * @see #setMaxDesiredRevenues(double)
+     * @see #setMinDesiredExpenses(double)
      */
     public double getMaxDesiredROI() {
-        // checkArgument(0 < minDesiredExpenses_, "minDesiredExpenses = " + minDesiredExpenses_);
         if (minDesiredExpenses_ == 0) {
             return maxDesiredRevenues_;
         } else {
-            return maxDesiredRevenues_/minDesiredExpenses_;
+            return maxDesiredRevenues_ / minDesiredExpenses_;
         }
     }
 
@@ -302,8 +419,9 @@ public class IncomeStatement {
         maxDesiredExpenses_ = 0;
         minDesiredRevenues_ = 0;
         maxDesiredRevenues_ = 0;
+        desiredRevenues_ = 0;
+        desiredExpenses_ = 0;
 
         return this;
     }
-
 } // end class IncomeStatement

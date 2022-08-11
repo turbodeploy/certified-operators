@@ -5,6 +5,7 @@ import static org.junit.Assert.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -13,12 +14,14 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
 
 import junitparams.JUnitParamsRunner;
@@ -51,8 +54,8 @@ public class ResizeTest {
 
         assertSame(sellingTrader, resize.getSellingTrader());
         assertSame(resizedCommodity, resize.getResizedCommoditySpec());
-        assertEquals(oldCapacity, resize.getOldCapacity(), 0f);
-        assertEquals(newCapacity, resize.getNewCapacity(), 0f);
+        assertEquals(oldCapacity, resize.getOldCapacity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(newCapacity, resize.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
@@ -67,8 +70,8 @@ public class ResizeTest {
 
         assertSame(sellingTrader, resize.getSellingTrader());
         assertSame(resizedCommodity, resize.getResizedCommoditySpec());
-        assertEquals(oldCapacity, resize.getOldCapacity(), 0f);
-        assertEquals(newCapacity, resize.getNewCapacity(), 0f);
+        assertEquals(oldCapacity, resize.getOldCapacity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(newCapacity, resize.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -187,9 +190,9 @@ public class ResizeTest {
 
         return new Object[][]{
             {new Resize(e1, t1, specifications[0], 10, 15),oid,"<action type=\"resize\" sellingTrader=\"id1\" "
-                + "commoditySpecification=\"<0, 0, MAX_VALUE>\" oldCapacity=\"10.0\" newCapacity=\"15.0\" />"},
+                + "commoditySpecification=\"<0>\" oldCapacity=\"10.0\" newCapacity=\"15.0\" />"},
             {new Resize(e1, t2, specifications[1], 0, 1),oid,"<action type=\"resize\" sellingTrader=\"id2\" "
-                + "commoditySpecification=\"<2, 0, MAX_VALUE>\" oldCapacity=\"0.0\" newCapacity=\"1.0\" />"}
+                + "commoditySpecification=\"<2>\" oldCapacity=\"0.0\" newCapacity=\"1.0\" />"}
         };
     }
 
@@ -201,10 +204,10 @@ public class ResizeTest {
         @NonNull Resize resize = new Resize(economy, sellingTrader, resizedCommodity, oldCapacity, newCapacity);
 
         assertSame(resize, resize.take());
-        assertEquals(newCapacity, sellingTrader.getCommoditySold(resizedCommodity).getCapacity(), 0f);
+        assertEquals(newCapacity, sellingTrader.getCommoditySold(resizedCommodity).getCapacity(), TestUtils.FLOATING_POINT_DELTA);
 
         assertSame(resize, resize.rollback());
-        assertEquals(oldCapacity, sellingTrader.getCommoditySold(resizedCommodity).getCapacity(), 0f);
+        assertEquals(oldCapacity, sellingTrader.getCommoditySold(resizedCommodity).getCapacity(), TestUtils.FLOATING_POINT_DELTA);
         // TODO: test that sellingTrader is otherwise left unchanged by both operations.
     }
 
@@ -219,6 +222,8 @@ public class ResizeTest {
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestDebugDescription() {
+        IdentityGenerator.initPrefix(0);
+
         @NonNull LegacyTopology topology1 = new LegacyTopology();
         @NonNull Economy e1 = (Economy) topology1.getEconomy();
 
@@ -301,5 +306,36 @@ public class ResizeTest {
                     boolean expect) {
         assertEquals(expect, resize1.equals(resize2));
         assertEquals(expect, resize1.hashCode() == resize2.hashCode());
+    }
+
+    @SuppressWarnings("unused")
+    private static Object[] parametersForTestResize_Combine() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(new CommoditySpecification(100));
+        Trader t1 = e.addTrader(0, TraderState.ACTIVE, b1);
+
+        Resize resize1 = new Resize(e, t1, new CommoditySpecification(100), 200);
+        return new Object[] {e, t1, resize1};
+    }
+
+    @Test
+    @Parameters(method = "parametersForTestResize_Combine")
+    @TestCaseName("Test #{index}: Resize Combine for {0}, {1}, {2}")
+    public final void testResize_Combine(@NonNull Economy economy,
+        @NonNull Trader sellingTrader, @NonNull Resize resize) {
+        sellingTrader.getSettings().setResizeThroughSupplier(true);
+        Trader provider1 = economy.addTrader(1, TraderState.ACTIVE, new Basket(specifications));
+        Trader provider2 = economy.addTrader(1, TraderState.ACTIVE, new Basket(specifications));
+        resize.getResizeTriggerTraders().put(provider1, new HashSet<>(specifications[0].getBaseType()));
+
+        @NonNull Resize resize2 = new Resize(economy, sellingTrader, resize.getResizedCommoditySpec(), resize.getNewCapacity() + 100);
+        resize2.getResizeTriggerTraders().put(provider2, new HashSet<>(specifications[1].getBaseType()));
+
+        Resize combined = (Resize)resize.combine(resize2);
+
+        assertSame(sellingTrader, combined.getSellingTrader());
+        assertTrue(combined.getOldCapacity() == resize.getOldCapacity());
+        assertTrue(combined.getNewCapacity() == resize2.getNewCapacity());
+        assertTrue(combined.getResizeTriggerTraders().size() == 2);
     }
 } // end ResizeTest class

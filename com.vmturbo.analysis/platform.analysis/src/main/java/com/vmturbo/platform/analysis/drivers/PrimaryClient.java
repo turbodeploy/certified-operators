@@ -12,7 +12,8 @@ import javax.websocket.OnMessage;
 import javax.websocket.OnOpen;
 import javax.websocket.Session;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -26,7 +27,7 @@ import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 @ClientEndpoint
 public class PrimaryClient {
     // Fields
-    private static final Logger logger = Logger.getLogger(PrimaryClient.class);
+    private static final Logger logger = LogManager.getLogger(PrimaryClient.class);
     private final @NonNull Session browserSession_;
     private final @NonNull LegacyTopology topology_;
 
@@ -57,18 +58,21 @@ public class PrimaryClient {
         try {
             logger.info("Start sending messages!");
             try (OutputStream stream = session.getBasicRemote().getSendStream()) {
-                AnalysisCommand.newBuilder().setStartDiscoveredTopology(StartDiscoveredTopology.newBuilder()).build().writeTo(stream);
+                AnalysisCommand.newBuilder().setStartDiscoveredTopology(StartDiscoveredTopology
+                                            .newBuilder()).build().writeTo(stream);
                 logger.info("Sent start discovered topology message!");
             }
             for (@NonNull @ReadOnly Trader trader : topology_.getEconomy().getTraders()) {
                 try (OutputStream stream = session.getBasicRemote().getSendStream()) {
                     AnalysisCommand.newBuilder().setDiscoveredTrader(
-                         AnalysisToProtobuf.traderTO(topology_.getEconomy(), trader)).build().writeTo(stream);
+                         AnalysisToProtobuf.traderTO(topology_.getEconomy(), trader, null, null)).build()
+                            .writeTo(stream);
                     logger.info("Sent discovered trader message!");
                 }
             }
             try (OutputStream stream = session.getBasicRemote().getSendStream()) {
-                AnalysisCommand.newBuilder().setEndDiscoveredTopology(EndDiscoveredTopology.newBuilder()).build().writeTo(stream);
+                AnalysisCommand.newBuilder().setEndDiscoveredTopology(EndDiscoveredTopology
+                                            .newBuilder()).build().writeTo(stream);
                 logger.info("Sent end discovered topology message!");
             }
         }
@@ -100,4 +104,4 @@ public class PrimaryClient {
         logger.error("Received error: \"" + error + "\" from remote endpoint!");
     }
 
-} // end PrimayClient class
+} // end PrimaryClient class

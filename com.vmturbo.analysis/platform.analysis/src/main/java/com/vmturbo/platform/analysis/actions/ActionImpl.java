@@ -1,18 +1,31 @@
 package com.vmturbo.platform.analysis.actions;
 
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.RelatedActionTO;
 
 /**
  * The implementation for Action interface. This class is the superclass for any kind of
  * {@link Action}. It keeps the common implementation for methods defined in {@link Action}.
  * It also keeps track of the state of an action instance whether it is being taken or not.
  */
-public class ActionImpl implements Action {
+public abstract class ActionImpl implements Action {
+    // Action ID
+    private final long id_;
+
+    // Fields
+    private final @NonNull Economy economy_; // whether we can avoid this field is under investigation.
 
     // a flag to indicate if the action is taken or not
     private boolean actionTaken = false;
@@ -20,9 +33,60 @@ public class ActionImpl implements Action {
     // measure of importance of an action
     private double importance_ = 0;
 
+    private boolean executable_ = true;
+
+    // Extract some Action that isn't normally extracted from the provision analysis round of
+    // main market.
+    private boolean extractAction_ = false;
+
+    private @NonNull List<Action> subsequentActions_ = new LinkedList<>();
+
+    private final @NonNull List<RelatedActionTO> relatedActions_ = new ArrayList<>();
+
+    // Constructors
+
+    /**
+     * Constructs a new ActionImpl object. It's not intended to be used independently, but rather as
+     * the base object of concrete actions.
+     *
+     * @param economy The economy of {@code this} action.
+     */
+    ActionImpl(@NonNull Economy economy) {
+        id_ = IdentityGenerator.next();
+        economy_ = economy;
+    }
+
+    // Methods
+
+    @Override
+    public long getId() {
+        return id_;
+    }
+
+    @Pure
+    @Override
+    public @NonNull Economy getEconomy(@ReadOnly ActionImpl this) {
+        return economy_;
+    }
+
+    @Override
+    public ActionType getType() {
+        return ActionType.UNKNOWN;
+    }
+
+    @Override
+    public boolean setExecutable(boolean executable) {
+        return executable_ = executable;
+    }
+
+    @Override
+    public boolean isExecutable() {
+        return executable_;
+    }
+
     /**
      * @return the importance of this action
-     * @see #setImportance()
+     * @see ActionImpl#setImportance
      */
     public double getImportance() {
         return importance_;
@@ -34,7 +98,13 @@ public class ActionImpl implements Action {
      * @see #getImportance()
      */
     public @NonNull Action setImportance(double importance) {
-        importance_ = importance;
+        if (importance < -Double.MAX_VALUE) {
+            importance_ = -Double.MAX_VALUE;
+        } else if (importance < Double.MAX_VALUE) {
+            importance_ = importance;
+        } else {
+            importance_ = Double.MAX_VALUE;
+        }
         return this;
     }
 
@@ -102,5 +172,52 @@ public class ActionImpl implements Action {
         return null;
     }
 
+    /**
+     * A getter for the flag regarding whether the action that isn't normally extracted from the
+     * provision round of analysis of the main market should be extracted.
+     *
+     * @return Whether the item should be extracted.
+     */
+    @Override
+    public boolean isExtractAction() {
+        return extractAction_;
+    }
 
+    /**
+     * Set the flag regarding whether the action that isn't normally extracted from the
+     * provision round of analysis of the main market to true.
+     */
+    @Override
+    public void enableExtractAction() {
+        extractAction_ = true;
+    }
+
+    /**
+     * Returns the actions that were triggered after taking {@code this} action
+     * @return a list of actions followed by {@code this}
+     */
+    @Pure
+    public @NonNull List<Action> getSubsequentActions() {
+        return subsequentActions_;
+    }
+
+    /**
+     * Returns list of {@link RelatedActionTO} of current action.
+     *
+     * @return List of {@link RelatedActionTO} of current action.
+     */
+    @Override
+    public @NonNull List<RelatedActionTO> getRelatedActions() {
+        return relatedActions_;
+    }
+
+    /**
+     * Add a {@link RelatedActionTO} to current action.
+     *
+     * @param relatedActionTO Given RelatedActionTO to be added to current action.
+     */
+    @Override
+    public void addRelatedAction(RelatedActionTO relatedActionTO) {
+        relatedActions_.add(relatedActionTO);
+    }
 }

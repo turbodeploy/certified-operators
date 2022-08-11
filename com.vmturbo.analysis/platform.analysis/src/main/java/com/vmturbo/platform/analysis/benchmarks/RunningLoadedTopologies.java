@@ -7,8 +7,13 @@ import java.util.List;
 
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.LoggerConfig;
+
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
@@ -36,7 +41,7 @@ import com.vmturbo.platform.analysis.utilities.M2Utils;
  */
 public final class RunningLoadedTopologies {
     // Fields
-    private static final Logger logger = Logger.getLogger(RunningLoadedTopologies.class);
+    private static final Logger logger = LogManager.getLogger(RunningLoadedTopologies.class);
 
     // Methods
     public static void main(String[] topologies) {
@@ -47,7 +52,11 @@ public final class RunningLoadedTopologies {
         }
 
         List<Economy> economies = new ArrayList<>(topologies.length);
-        logger.setLevel(Level.ERROR);
+        LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        Configuration config = ctx.getConfiguration();
+        LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
+        loggerConfig.setLevel(Level.ERROR);
+        ctx.updateLoggers();
 
         for (int i = 0 ; i < topologies.length ; ++i) {
             try {
@@ -68,7 +77,7 @@ public final class RunningLoadedTopologies {
             for (int i = 0 ; i < 3 ; ++i) {
                 Ede ede = new Ede();
                 long start = System.nanoTime();
-                ede.generateActions(economy, false, true, true, true);
+                ede.generateActions(economy, true, true, true, true, "runloadtopo");
                 System.out.print(System.nanoTime()-start + "\t");
             }
             System.out.println();

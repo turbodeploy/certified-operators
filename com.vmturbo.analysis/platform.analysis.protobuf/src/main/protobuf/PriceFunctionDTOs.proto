@@ -1,0 +1,95 @@
+syntax = "proto2";
+package com.vmturbo.platform.analysis.protobuf;
+
+// Any one from a small set of functions that can be used to compute the price a certain quantity of
+// a commodity sold is offered at.
+// The intention is to use this message only temporarily and replace it with a one expressing price
+// functions as univariate Non Uniform Rational B-Splines (NURBS) in the future, so that we won't
+// have to update the protobuf messages and analysis code every time a new function needs to be
+// added.
+message PriceFunctionTO {
+    // The standard price function used by most commodities in the first incarnation of the market.
+    // The formula is P(u) = min(w / (1-u)^2, 1e22)
+    message StandardWeighted {
+        optional float weight = 1 [default = 1.0]; // The 'w' in the above formula.
+    }
+
+    // A constant function. Can be used e.g. for data center and access commodities.
+    // The formula is P(u) = v
+    message Constant {
+        optional float value = 1; // The 'v' in the above formula.
+    }
+
+    // A step function. Can be used e.g. for storage amount related commodities.
+    // The formula is P(u) = if u < u' then P0 else P1
+    message Step {
+        // The utilization value to step at. u' in the above formula
+        optional float step_at = 1;
+
+        // The price for utilizations below the step_at value. P0 in the above formula.
+        optional float price_below = 2;
+
+        // The price for utilizations above the step_at value. P1 in the above formula.
+        optional float price_above = 3 [default = 1.0];
+    }
+
+    // Same as standard price function but returns finite value (1e22) for utilization >= 1.
+    message FiniteStandardWeighted {
+        optional float weight = 1 [default = 1.0]; // The 'w' in the above formula.
+    }
+
+    message StepForCloud {
+    }
+
+    message Inverse {
+        optional float weight = 1 [default = 1.0];
+    }
+
+    message ExternalPriceFunction {
+    }
+
+    // The price function that considers bought utilization and prefers lesser excess capacity.
+    // The formula is P(u) = min(w / (u^2), 1e22)
+    message SquaredReciprocalBought {
+        optional float weight = 1 [default = 1.0]; // The 'w' in the above formula.
+    }
+
+    // A constant function that remains constant for the income statement but returns infinite
+    // price for SLs looking for price for placement.
+    message IgnoreUtilization {
+        optional float value = 1;
+    }
+
+    message ScaledCapacityStandardWeighted {
+        optional float weight = 1 [default = 1.0];
+        optional float scale = 2 [default = 1.0];
+    }
+
+    // Price function for risk based over-provision commodities.
+    message OverProvision {
+        optional float weight = 1 [default = 1.0];
+        optional float constant = 2 [default = 1.0];
+        optional float stepOne = 3 [default = 1.0];
+        optional float stepTwo = 4 [default = 2.0];
+    }
+
+    // Price function for checking if consumer's consumption fits within seller's capacity.
+    message ConsumerFits {
+    }
+
+    // Which one of the available functions this message contains.
+    oneof price_function_type {
+        StandardWeighted standard_weighted = 1;
+        Constant constant = 2;
+        Step step = 3;
+        StepForCloud step_for_cloud = 4;
+        Inverse inverse = 5;
+        FiniteStandardWeighted finite_standard_weighted = 6;
+        ExternalPriceFunction external_price_function = 7;
+        SquaredReciprocalBought squared_reciprocal_bought = 8;
+        IgnoreUtilization ignore_utilization = 9;
+        ScaledCapacityStandardWeighted scaled_capacity_standard_weighted = 10;
+        OverProvision over_provision = 11;
+        ConsumerFits consumer_fits = 12;
+    }
+}

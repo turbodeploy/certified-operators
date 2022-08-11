@@ -1,16 +1,23 @@
 package com.vmturbo.platform.analysis.economy;
 
-import java.util.function.DoubleBinaryOperator;
+import static org.junit.Assert.assertTrue;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
-import com.vmturbo.platform.analysis.ede.EdeCommon;
+import java.util.Arrays;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
-import static org.junit.Assert.*;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
+import com.vmturbo.platform.analysis.ede.EdeCommon;
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
+import com.vmturbo.platform.analysis.utilities.CostFunction;
 
 /**
  * A test case for the {@link Basket} class.
@@ -24,11 +31,11 @@ public class EdeCommonTest {
     private static final double expectedQuote = 5.11;
 
     // CommoditySpecifications to use in tests
-    private static final CommoditySpecification CPU_ANY = new CommoditySpecification(0, 1000, 1, Integer.MAX_VALUE);
+    private static final CommoditySpecification CPU_ANY = new CommoditySpecification(0, 1000);
     private static final CommoditySpecification MEM = new CommoditySpecification(1);
-    private static final CommoditySpecification ST_OVER1000 = new CommoditySpecification(2, 1002, 1000, Integer.MAX_VALUE);
-    private static final CommoditySpecification ST_LAT = new CommoditySpecification(3, 1003, 0, 100);
-    private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4, 1004, 0, 0);
+    private static final CommoditySpecification ST_OVER1000 = new CommoditySpecification(2, 1002);
+    private static final CommoditySpecification ST_LAT = new CommoditySpecification(3, 1003);
+    private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4, 1004);
 
 
     // Baskets to use in tests
@@ -69,7 +76,7 @@ public class EdeCommonTest {
 
         consumerShoppingList.setSupplier(oldSupplierPresent ? providingTrader : null);
         assertTrue(expectedQuote ==  Math.round(EdeCommon.quote(economy, consumerShoppingList, providingTrader,
-                        Double.POSITIVE_INFINITY, false)[0]*100d)/100d);
+                        Double.POSITIVE_INFINITY, false).getQuoteValue()*100d)/100d);
 
     }
 
@@ -107,16 +114,16 @@ public class EdeCommonTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestQuote_quantityFunction_Double_boolean() {
         return new Object[][]{
-            {new DoubleBinaryOperator[]{(sold, bought) -> sold + bought, Math::max}, new double[]{4,9},
-                                        new double[] {5,9}, true},
-            {new DoubleBinaryOperator[]{(sold, bought) -> sold + bought, Math::max}, new double[]{7,9},
-                                        new double[] {5,9}, false},// large quantity for commodity1
-            {new DoubleBinaryOperator[]{(sold, bought) -> sold + bought, (sold, bought) -> sold + bought},
-                                        new double[]{9,4}, new double[] {9,4}, false},// large quantity for commodity1
-            {new DoubleBinaryOperator[]{(sold, bought) -> sold + bought, (sold, bought) -> sold + bought},
-                                        new double[]{4,4}, new double[] {9,4}, false},// large peakQuantity for commodity1
-            {new DoubleBinaryOperator[]{(sold, bought) -> sold + bought, (sold, bought) -> sold + bought},
-                                        new double[]{4,4}, new double[] {4,5}, true},
+                {new UpdatingFunction[]{UpdatingFunctionFactory.ADD_COMM, UpdatingFunctionFactory.MAX_COMM}, new double[]{4, 9},
+                        new double[]{5, 9}, true},
+                {new UpdatingFunction[]{UpdatingFunctionFactory.ADD_COMM, UpdatingFunctionFactory.MAX_COMM}, new double[]{7, 9},
+                        new double[]{5, 9}, false},// large quantity for commodity1
+                {new UpdatingFunction[]{UpdatingFunctionFactory.ADD_COMM, UpdatingFunctionFactory.ADD_COMM},
+                        new double[]{9, 4}, new double[]{9, 4}, false},// large quantity for commodity1
+                {new UpdatingFunction[]{UpdatingFunctionFactory.ADD_COMM, UpdatingFunctionFactory.ADD_COMM},
+                        new double[]{4, 4}, new double[]{9, 4}, false},// large peakQuantity for commodity1
+                {new UpdatingFunction[]{UpdatingFunctionFactory.ADD_COMM, UpdatingFunctionFactory.ADD_COMM},
+                        new double[]{4, 4}, new double[]{4, 5}, true},
         };
     }
 
@@ -124,8 +131,8 @@ public class EdeCommonTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: Quote({0},{1},{2},{3})")
-    public final void testQuote_quantityFunction_Double_boolean(DoubleBinaryOperator quantityFunction[], double quantity[],
-                                                                double peakQuantity[], boolean isCorrect) {
+    public final void testQuote_quantityFunction_Double_boolean(UpdatingFunction[] quantityFunction, double[] quantity,
+                                                                double[] peakQuantity, boolean isCorrect) {
         Economy economy = new Economy();
         Basket basket = ST_SELL;
         Trader seller = economy.addTrader(0, TraderState.ACTIVE, basket); // u can create a trader only by adding it to the market
@@ -135,14 +142,69 @@ public class EdeCommonTest {
         basketSold.forEach(item->{
             int indexOfItem = basketSold.indexOf(item);
             // change the capacity of the commSold to 12 of which 5 units are used
-            seller.getCommoditySold(item).setCapacity(commodityCapacity).setQuantity(commodityUsed).setPeakQuantity(commodityUsed);
-            economy.getModifiableQuantityFunctions().put(item, quantityFunction[indexOfItem]);
+            seller.getCommoditySold(item).setCapacity(commodityCapacity).setQuantity(commodityUsed).setPeakQuantity(commodityUsed)
+                .getSettings().setUpdatingFunction(quantityFunction[indexOfItem]);
             consumerShoppingList.setQuantity(indexOfItem, quantity[indexOfItem]).setPeakQuantity(indexOfItem, peakQuantity[indexOfItem]);
         });
 
-        boolean qInf = Double.isInfinite(EdeCommon.quote(economy, consumerShoppingList, seller, Double.POSITIVE_INFINITY, false)[0]);
+        boolean qInf = Double.isInfinite(EdeCommon
+            .quote(economy, consumerShoppingList, seller, Double.POSITIVE_INFINITY, false).getQuoteValue());
         assertTrue(isCorrect != qInf);
     }
 
+    /**
+     * Case: vm1 requests 100GB and 200 iops and it is on io1.
+     * Expected: vm1's gets cheaper quote from gp2
+     */
+    @Test
+    public void testQuote() {
+        Economy economy = new Economy();
+        CostFunction io1CostFunc = TestUtils.setUpIO1CostFunction();
+        CostFunction gp2CostFunc = TestUtils.setUpGP2CostFunction();
+        final long zoneId = 0L;
+        BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
+        Trader gp2 = TestUtils.createTrader(economy, TestUtils.ST_TYPE, Arrays.asList(4l),
+                        Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS),
+                        new double[] {16 * 1024, 10000}, true, false);
+        gp2.getSettings().setContext(new Context(10L, zoneId, ba));
+        gp2.getSettings().setQuoteFunction(
+                        QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
+        gp2.getSettings().setCostFunction(gp2CostFunc);
+        Trader io1 = TestUtils.createStorage(economy, Arrays.asList(0l), 4, false);
+        io1.getSettings().setContext(new Context(10L, zoneId, ba));
+        io1.getSettings().setCostFunction(io1CostFunc);
+        Trader vm1 = TestUtils.createVM(economy);
+        vm1.getSettings().setContext(new Context(10L, zoneId, ba));
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm1,
+                        new double[] {100, 200}, gp2);
+        assertTrue(EdeCommon.quote(economy, sl1, gp2, Double.POSITIVE_INFINITY,
+                        false).getQuoteValue() < EdeCommon.quote(economy, sl1, io1, Double.POSITIVE_INFINITY,
+                                        false).getQuoteValue());
+
+    }
+
+    @Test
+    public void testFullPriceQuote() {
+        Economy e = new Economy();
+        Basket consumerBasketSold = new Basket(TestUtils.VMEM);
+        Basket consumerBasketBought = new Basket(TestUtils.MEM);
+        Basket providerBasketSold1 = new Basket(TestUtils.MEM);
+        Basket providerBasketSold2 = new Basket(TestUtils.MEM);
+        Trader consumer = e.addTrader(0, TraderState.ACTIVE, consumerBasketSold);
+        Trader provider1 = e.addTrader(1, TraderState.ACTIVE, providerBasketSold1);
+        Trader provider2 = e.addTrader(2, TraderState.ACTIVE, providerBasketSold2);
+        provider1.getCommoditiesSold().get(0).setCapacity(1000).setQuantity(200);
+        provider2.getCommoditiesSold().get(0).setCapacity(10).setQuantity(1);
+        ShoppingList consumerShoppingList = e.addBasketBought(consumer, consumerBasketBought);
+        consumerShoppingList.setQuantity(0, 1);
+        assertTrue(EdeCommon.computeCommodityCost(e, consumerShoppingList, provider1, 0, 0,
+                false)[0] < EdeCommon.computeCommodityCost(e, consumerShoppingList, provider2, 0, 0,
+                        false)[0]);
+        e.getSettings().setFullPriceForQuote(true);
+        assertTrue(EdeCommon.computeCommodityCost(e, consumerShoppingList, provider1, 0, 0,
+                false)[0] > EdeCommon.computeCommodityCost(e, consumerShoppingList, provider2, 0, 0,
+                        false)[0]);
+    }
 
 } // end class QuoteTest

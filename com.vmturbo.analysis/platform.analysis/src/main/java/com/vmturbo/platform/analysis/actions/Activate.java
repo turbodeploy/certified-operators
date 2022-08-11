@@ -1,23 +1,31 @@
 package com.vmturbo.platform.analysis.actions;
 
-import java.util.List;
+import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
+
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.IntUnaryOperator;
+
+import javax.annotation.Nullable;
+
+import com.google.common.base.Preconditions;
+import com.google.common.hash.Hashing;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.google.common.hash.Hashing;
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 
+import com.vmturbo.commons.analysis.NumericIDAllocator;
+import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
+import com.vmturbo.platform.analysis.utilities.exceptions.ActionCantReplayException;
 
 /**
  * An action to activate a deactivated {@link Trader trader}.
@@ -25,20 +33,24 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 public class Activate extends StateChangeBase { // inheritance for code reuse
 
     private final @NonNull Trader modelSeller_;
-    private final @NonNull Economy economy_;
+    private @Nullable CommoditySpecification reasonCommodity;
     // Constructors
 
     /**
      * Constructs a new Activate action with the specified target.
      *
+     * @param economy The economy containing <b>target</b>.
      * @param target The trader that will be activated as a result of taking {@code this} action.
-     * @param sourceMarket The market that benefits from activating target.
-     * @param modelSeller the trader which will be used  the shopping
+     * @param triggeringBasket The basket of the market that benefits from activating target.
+     * @param modelSeller The trader whose high profits led to activation.
+     * @param commCausingActivation commodity that led to activation
      */
-    public Activate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller) {
-        super(target,sourceMarket);
+    public Activate(@NonNull Economy economy, @NonNull Trader target,
+                    @NonNull Basket triggeringBasket, @NonNull Trader modelSeller,
+                    @Nullable CommoditySpecification commCausingActivation) {
+        super(economy, target, triggeringBasket);
         modelSeller_ = modelSeller;
-        economy_ = economy;
+        reasonCommodity = commCausingActivation;
     }
 
     // Methods
@@ -51,12 +63,9 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
        return modelSeller_;
    }
 
-    /**
-    * Returns the economy in which the trader will be added.
-    */
-   @Pure
-   public @NonNull Economy getEconomy(@ReadOnly Activate this) {
-       return economy_;
+   @Override
+   public CommoditySpecification getReason() {
+       return reasonCommodity;
    }
 
     @Override
@@ -73,13 +82,9 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
     @Override
     public @NonNull Activate take() {
         super.take();
-        checkArgument(!getTarget().getState().isActive());
+        Preconditions.checkState(!getTarget().getState().isActive(),
+            "Trying to activate %s which is already Active", getTarget());
         getTarget().changeState(TraderState.ACTIVE);
-        // when activate an inactive trader, update its relation with guaranteed buyers if any
-        List<ShoppingList> shoppingLists = GuaranteedBuyerHelper.findShoppingListForGuaranteedBuyer(
-                                            getEconomy(), getModelSeller());
-        GuaranteedBuyerHelper.addShoppingListForGuaranteedBuyers(getEconomy(), shoppingLists, getTarget(),
-                        shoppingLists.size() != 0 ? shoppingLists.get(0).getBasket() : null);
         return this;
     }
 
@@ -89,13 +94,31 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
     @Override
     public @NonNull Activate rollback() {
         super.rollback();
-        checkArgument(getTarget().getState().isActive());
+        Preconditions.checkState(getTarget().getState().isActive(),
+            "Trying to deactivate %s which is already Inactive", getTarget());
         getTarget().changeState(TraderState.INACTIVE);
-        // when roll back an activate action, remove the shoppingList for the target and its guaranteed buyers
-        GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(),
-                        GuaranteedBuyerHelper.findShoppingListForGuaranteedBuyer(getEconomy(),
-                                        getTarget()), getTarget());
         return this;
+    }
+
+    @Override
+    public @NonNull Activate port(@NonNull final Economy destinationEconomy,
+            @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
+            @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
+                                                                        destinationShoppingList) {
+        return new Activate(destinationEconomy, destinationTrader.apply(getTarget()),
+            getTriggeringBasket(), destinationTrader.apply(getModelSeller()), getReason());
+    }
+
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently an activate is considered valid iff the model seller is cloneable and inactive.
+     * </p>
+     */
+    // TODO: Do we want to check if some other trader is cloneable or if this one is activate-able?
+    @Override
+    public boolean isValid() {
+        return getModelSeller().getSettings().isCloneable() && !getTarget().getState().isActive();
     }
 
     // TODO: update description and reason when we create the corresponding matrix.
@@ -119,7 +142,7 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
                                        @NonNull IntFunction<@NonNull String> commodityType,
                                        @NonNull IntFunction<@NonNull String> traderType) {
         return new StringBuilder()
-            .append("To satisfy increased demand for ").append(getSourceMarket().getBasket())
+            .append("To satisfy increased demand for ").append(getTriggeringBasket())
             .append(".").toString(); // TODO: print basket in human-readable form.
     }
 
@@ -129,13 +152,13 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
     @Override
     @Pure
     public boolean equals(@ReadOnly Activate this,@ReadOnly Object other) {
-        if (other == null || !(other instanceof Activate)) {
+        if (!(other instanceof Activate)) {
             return false;
         }
         Activate otherActivate = (Activate)other;
         return otherActivate.getEconomy() == getEconomy()
                         && otherActivate.getTarget() == getTarget()
-                        && otherActivate.getSourceMarket() == getSourceMarket()
+                        && otherActivate.getTriggeringBasket().equals(getTriggeringBasket())
                         && otherActivate.getModelSeller() == getModelSeller();
     }
 
@@ -146,7 +169,62 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
     @Pure
     public int hashCode() {
         return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
-                        .putInt(getTarget().hashCode()).putInt(getSourceMarket().hashCode())
+                        .putInt(getTarget().hashCode()).putInt(getTriggeringBasket().hashCode())
                         .putInt(getModelSeller().hashCode()).hash().asInt();
+    }
+
+    @Override
+    public ActionType getType() {
+        return ActionType.ACTIVATE;
+    }
+
+    /**
+     * Extract commodity ids that appear in the action,
+     * which includes reasonCommodity and triggeringBasket.
+     *
+     * @return commodity ids that appear in the action
+     */
+    @Override
+    public @NonNull Set<Integer> extractCommodityIds() {
+        final IntOpenHashSet commodityIds = new IntOpenHashSet();
+        for (CommoditySpecification commSpec : getTriggeringBasket()) {
+            commodityIds.add(commSpec.getType());
+        }
+        if (reasonCommodity != null) {
+            commodityIds.add(reasonCommodity.getType());
+        }
+        return commodityIds;
+    }
+
+    /**
+     * Create the same type of action with new commodity ids.
+     * Here we create a new reasonCommodity and a new triggeringBasket.
+     *
+     * @param commodityIdMapping a mapping from old commodity id to new commodity id.
+     *                           If the returned value is {@link NumericIDAllocator#nonAllocableId},
+     *                           it means no mapping is available for the input and we thrown an
+     *                           {@link ActionCantReplayException}
+     * @return a new action
+     * @throws ActionCantReplayException ActionCantReplayException
+     */
+    @Override
+    public @NonNull Activate createActionWithNewCommodityId(
+            final IntUnaryOperator commodityIdMapping) throws ActionCantReplayException {
+        for (int id : extractCommodityIds()) {
+            if (commodityIdMapping.applyAsInt(id) == NumericIDAllocator.nonAllocableId) {
+                throw new ActionCantReplayException(id);
+            }
+        }
+
+        CommoditySpecification newReasonCommodity = null;
+        if (reasonCommodity != null) {
+            newReasonCommodity = reasonCommodity.createCommSpecWithNewCommodityId(
+                commodityIdMapping.applyAsInt(reasonCommodity.getType()));
+        }
+
+        final Basket newTriggeringBasket =
+            getTriggeringBasket().createBasketWithNewCommodityId(commodityIdMapping);
+        return new Activate(getEconomy(), getTarget(), newTriggeringBasket,
+            getModelSeller(), newReasonCommodity);
     }
 } // end Activate class

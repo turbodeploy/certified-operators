@@ -1,0 +1,185 @@
+syntax = "proto2";
+package com.vmturbo.platform.analysis.protobuf;
+
+import "ActionDTOs.proto";
+import "CommodityDTOs.proto";
+import "EconomyDTOs.proto";
+import "UpdatingFunctionDTOs.proto";
+import "PriceIndexDTOs.proto";
+
+// Market 2.0 isn't concerned with segments, groups, etc. because it's enough to know about
+// commodities. Thus we need a limited number of messages.
+
+// The intention is that the client (Validator or other component) sends a StartDiscoveredTopology
+// message when it has a new validated topology, followed by a TraderTO message for each trader in
+// the topology, followed by an EndDiscoveredTopology message. This will incur a 2-4 byte overhead
+// per trader, but will guarantee WebSocket messages don't exceed the size supported by the
+// implementation and allow the sender to start sending without converting the whole topology to
+// Protobuf in memory first.
+
+// The communication messages are expected to evolve as we change the way the analysis server and
+// other XL components communicate with each other. e.g. if we change from sending a full topology
+// to sending incremental changes.
+
+// The message to send before any trader of a new full topology.
+message StartDiscoveredTopology {
+    // The flag to indicate if we should classify Actions
+    required bool classifyActions = 1;
+
+    // The flag to indicate if we we should replay Actions
+    required bool replayActions = 2;
+
+    // Economy Settings
+    required EconomySettingsTO economySettings = 3;
+
+    // The flag to indicate if this analysis run is for realtime
+    required bool realTime = 4;
+
+    // The flag to indicate if this analysis run is for deploy market that should be balanced
+    // prior to finding placement.
+    optional bool balanceDeploy = 5 [default = false];
+}
+
+// The message to force a running plan to stop
+message ForcePlanStop {
+}
+
+enum SuspensionsThrottlingConfig {
+    DEFAULT = 0; // Default M2 Suspension behavior.
+    CLUSTER = 1; // One suspension per cluster or storage cluster.
+}
+
+// The intention is that the Analysis server will keep information in a staging area and atomically
+// replace the old real-time topology with the new when it receives the EndDiscoveredTopology
+// message. That way the Analysis server will have a valid topology at any time.
+
+// The message to send after the last trader is sent, to finalize a new full topology.
+message EndDiscoveredTopology {
+    // A map entry message to use for sending a map from commodity specifications to quantity
+    // updating functions since Protobuf maps don't support keys of non-scalar type. Protobuf won't
+    // check that the same key doesn't appear twice though...
+    message MapEntry {
+        optional CommoditySpecificationTO key = 1;
+        optional UpdatingFunctionTO value = 2;
+    }
+
+    // The type of dependent commodity.
+    // If it is to be set to the minimum of its and the resized commodity's value
+    // otherwise it is set to the resized commodity value.
+    message CommodityResizeDependency {
+        required int32 dependentCommodityType = 1;
+        required UpdatingFunctionTO incrementFunction = 2;
+        required UpdatingFunctionTO decrementFunction = 3;
+    }
+
+    // An entry of dependent commodity in map.
+    message CommodityResizeDependencyEntry {
+        required int32 commodityType = 1;
+        repeated CommodityResizeDependency commodityResizeDependency = 2;
+    }
+
+    // The entry that represents a dependency that should be skipped
+    message ResizeDependencySkipEntry {
+        required int32 commodityType = 1;
+        repeated int32 dependentCommodities = 2;
+    }
+
+    // An entry in raw to processed commodity map. The raw (bought) commodity
+    // is the key and the processed (sold) commodity is the value.
+    message CommodityRawMaterialEntry {
+        required int32 processedCommodityType = 1;
+        repeated RawMaterial rawCommodities = 2;
+    }
+
+    message RawMaterial {
+        optional int32 commodityType = 1;
+        optional bool hasCoMaterial_ = 2 [default = false];
+        optional bool isHardConstraint_ = 3 [default = true];
+    }
+
+    message ResizeProducesDependancyEntry {
+        // commodity that produces a list of dependant commodities
+        // eg, vMem will have an entry with heap and dbMem
+        optional int32 baseCommodityType = 1;
+        // vMem has heap and dbMem as the commodities it produces
+        repeated int32 coDependantCommoditiesType = 2;
+    }
+
+    // A map from commodity specifications to functions to use when updating the quantities sold
+    // of commodities with that specification when a customer moves in or out. No MapEntry.keys
+    // should be the same.
+    repeated MapEntry updating_function_entry = 1;
+
+    // We need a map from commodity type to a list of dependent commodities for use in resize down.
+    // For the dependent commodity we also need to know if it should be a min of its and the resized value
+    // or has to be set to the resized value.
+    repeated CommodityResizeDependencyEntry resize_dependency = 2;
+
+    // A map from the raw (bought) commodity to the processed (sold) commodity.
+    // This map links the bought commodity to the sold commodity
+    repeated CommodityRawMaterialEntry raw_material_entry = 3;
+
+	// A flag to indicate if provision algorithm should be triggered or not
+    optional bool enableProvision = 4;
+    // A flag to indicate if suspension algorithm should be triggered or not
+    optional bool enableSuspension = 5;
+    // A flag to indicate if resize algorithm should be triggered or not
+    optional bool enableResize = 6;
+    // specifies what commodities to allow overhead for in clones
+    repeated CommoditySpecificationTO commToAllowOverheadInClone = 7;
+    // This field specifies if moves throttling is enabled
+    optional bool movesThrottling = 8 [default = false];
+    // This field specifies the suspensions throttling behavior
+    optional SuspensionsThrottlingConfig suspensionsThrottlingConfig = 9 [default = DEFAULT];
+
+    // This keeps the list of commodity dependencies that will be skipped when
+    // simulating resize based on historical data
+    repeated ResizeDependencySkipEntry skipListForHistoryBasedResize = 10;
+
+    repeated ResizeProducesDependancyEntry producesEntry = 11;
+}
+
+// A compound message to encapsulate any one of command messages.
+message AnalysisCommand {
+    // Which one of the available commands this message contains.
+    oneof command_type {
+        StartDiscoveredTopology start_discovered_topology = 1;
+        TraderTO discovered_trader = 2;
+        EndDiscoveredTopology end_discovered_topology = 3;
+        ForcePlanStop force_plan_stop = 4;
+    }
+    optional int64 topology_id = 5;
+    optional string market_name = 6;
+    optional string market_data = 7;
+}
+
+// It shouldn't matter if the connection is dropped and reestablished at any point between messages.
+
+// Since in M2 there is no distinction between actions generated by the real-time market and by
+// plans, we have a single results message for both
+
+// The client (e.g. Validator) shouldn't expect this as a response to an EndDiscoveredTopology
+// message, but rather be prepared to accept it at any time. This will allow analysis to choose
+// whether it is best to run every time it has new data, or at specified intervals, or both.
+message AnalysisResults {
+    // The list of actions proposed by the economic decision engine.
+    repeated ActionTO actions = 1;
+    // The PriceIndex of the traders in the economy
+    optional PriceIndexMessage priceIndexMsg = 2;
+	// The boolean to indicate if plan is forced to stop state
+	optional bool plan_stopped = 3;
+    // Just-for-fun field to allow showing how long it took to compute the results. (Like the
+    // indication in Google Search) The value is in nanoseconds.
+    optional int64 time_to_analyze_ns = 4;
+    // The map which keeps relation for new shopping list and its buyer
+    repeated NewShoppingListToBuyerEntry new_shopping_list_to_buyer_entry = 5;
+    // list of traders after the completion of the plan
+    repeated TraderTO projectedTopoEntityTO = 6;
+	// An entry for new shopping list to its buyer
+    message NewShoppingListToBuyerEntry {
+        required int64 new_shopping_list = 1;
+        required int64 buyer = 2;
+    }
+    optional int64 topology_id = 7;
+    optional bool analysis_failed = 8;
+}

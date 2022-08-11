@@ -9,16 +9,22 @@ import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
 
-final class CommoditySoldWithSettings extends CommoditySold implements CommoditySoldSettings {
+public final class CommoditySoldWithSettings extends CommoditySold implements CommoditySoldSettings {
     // Fields for CommoditySoldSettings
     private boolean resizable_ = true;
+    private boolean resold_ = false;
+    private boolean cloneWithNewType_ = false;
     private double capacityLowerBound_ = 0.0;
     private double capacityUpperBound_ = Double.MAX_VALUE;
     private double capacityIncrement_ = 1;
     private double utilizationUpperBound_ = 1.0;
-    private @NonNull PriceFunction priceFunction_ = PriceFunction.Cache.createStandardWeightedPriceFunction(1.0);
-
+    private double origUtilizationUpperBound_ = 1.0;
+    private @NonNull PriceFunction priceFunction_ = PriceFunctionFactory.createStandardWeightedPriceFunction(1.0);
+    private UpdatingFunction updatingFunction_;
+    private boolean utilizationCheckForCongestion_ = true;
     // Constructors
 
     /**
@@ -41,12 +47,24 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
         return getUtilizationUpperBound()*getCapacity();
     }
 
+    @Override
+    @Pure
+    public double getEffectiveStartCapacity(@ReadOnly CommoditySoldWithSettings this) {
+        return getUtilizationUpperBound() * getStartCapacity();
+    }
+
     // Methods for CommoditySoldSettings
 
     @Override
     @Pure
     public boolean isResizable(@ReadOnly CommoditySoldWithSettings this) {
         return resizable_;
+    }
+
+    @Override
+    @Pure
+    public boolean isResold(@ReadOnly CommoditySoldWithSettings this) {
+        return resold_;
     }
 
     @Override
@@ -80,6 +98,11 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     }
 
     @Override
+    public boolean isCloneWithNewType() {
+        return cloneWithNewType_;
+    }
+
+    @Override
     @Deterministic
     public @NonNull CommoditySoldSettings setResizable(boolean resizable) {
         resizable_ = resizable;
@@ -88,8 +111,16 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
 
     @Override
     @Deterministic
+    public @NonNull CommoditySoldSettings setResold(boolean resold) {
+        resold_ = resold;
+        return this;
+    }
+
+    @Override
+    @Deterministic
     public @NonNull CommoditySoldSettings setCapacityUpperBound(double capacityUpperBound) {
-        checkArgument(getCapacityLowerBound() <= capacityUpperBound, "capacityUpperBound = " + capacityUpperBound);
+        checkArgument(getCapacityLowerBound() <= capacityUpperBound,
+                "capacityUpperBound = %s", capacityUpperBound);
         capacityUpperBound_ = capacityUpperBound;
         return this;
     }
@@ -97,7 +128,8 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Override
     @Deterministic
     public @NonNull CommoditySoldSettings setCapacityLowerBound(double capacityLowerBound) {
-        checkArgument(0 <= capacityLowerBound, "capacityLowerBound = " + capacityLowerBound);
+        checkArgument(0 <= capacityLowerBound,
+                "capacityLowerBound = %s", capacityLowerBound);
         checkArgument(capacityLowerBound <= getCapacityUpperBound());
         capacityLowerBound_ = capacityLowerBound;
         return this;
@@ -106,7 +138,8 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Override
     @Deterministic
     public @NonNull CommoditySoldSettings setCapacityIncrement(double capacityIncrement) {
-        checkArgument(0 <= capacityIncrement, "capacityIncrement = " + capacityIncrement);
+        checkArgument(0 <= capacityIncrement,
+                "capacityIncrement = %s", capacityIncrement);
         capacityIncrement_ = capacityIncrement;
         return this;
     }
@@ -115,7 +148,7 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Deterministic
     public @NonNull CommoditySoldSettings setUtilizationUpperBound(double utilizationUpperBound) {
         checkArgument(0.0 < utilizationUpperBound && utilizationUpperBound <= 1.0,
-                      "utilizationUpperBound = " + utilizationUpperBound);
+                      "utilizationUpperBound = %s", utilizationUpperBound);
         utilizationUpperBound_ = utilizationUpperBound;
         return this;
     }
@@ -124,6 +157,51 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Deterministic
     public @NonNull CommoditySoldSettings setPriceFunction(@NonNull PriceFunction priceFunction) {
         priceFunction_ = priceFunction;
+        return this;
+    }
+
+    @Override
+    public @NonNull CommoditySoldSettings
+                    setOrigUtilizationUpperBound(double origUtilizationUpperBound) {
+          checkArgument(0.0 < origUtilizationUpperBound && origUtilizationUpperBound <= 1.0,
+                        "origUtilizationUpperBound = %s", origUtilizationUpperBound);
+          origUtilizationUpperBound_ = origUtilizationUpperBound;
+          return this;
+    }
+
+    @Override
+    @Pure
+    public double getOrigUtilizationUpperBound(@ReadOnly CommoditySoldWithSettings this) {
+        return origUtilizationUpperBound_;
+    }
+
+    @Override
+    @Pure
+    public UpdatingFunction getUpdatingFunction() {
+        return updatingFunction_;
+    }
+
+    @Override
+    public CommoditySoldSettings setUpdatingFunction(UpdatingFunction updatingFunction) {
+        updatingFunction_ = updatingFunction;
+        return this;
+    }
+
+    @Override
+    public @NonNull CommoditySoldSettings setCloneWithNewKey(boolean cloneWithNewType) {
+        cloneWithNewType_ = cloneWithNewType;
+        return this;
+    }
+
+    @Override
+    public boolean getUtilizationCheckForCongestion() {
+        return utilizationCheckForCongestion_;
+    }
+
+    @Override
+    public @NonNull CommoditySoldSettings
+                    setUtilizationCheckForCongestion(boolean utilizationCheckForCongestion) {
+        utilizationCheckForCongestion_ = utilizationCheckForCongestion;
         return this;
     }
 

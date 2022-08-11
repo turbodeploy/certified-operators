@@ -2,13 +2,15 @@ package com.vmturbo.platform.analysis.drivers;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.ArrayList;
 import java.util.List;
 
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionCollapse;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
@@ -20,7 +22,7 @@ import com.vmturbo.platform.analysis.utilities.M2Utils;
  */
 public final class RunPlan {
     // Fields
-    private static final Logger logger = Logger.getLogger(RunPlan.class);
+    private static final Logger logger = LogManager.getLogger(RunPlan.class);
 
     // Methods
     public static void main(String[] args) {
@@ -34,29 +36,22 @@ public final class RunPlan {
 
         try {
             LegacyTopology topology = M2Utils.loadFile(args[0]);
-            List<Action> allActions = new ArrayList<>();
-            boolean keepRunning = true;
-            int i = 0;
-            while (keepRunning) {
-                logger.info("Cycle " + (++i));
-                Ede ede = new Ede();
-                // TODO: remove cast to Economy!
-                List<Action> actions =
-                                ede.generateActions((Economy)topology.getEconomy(), false,
-                                                true, true, true);
-                logger.info(actions.size() + " actions");
-                for (Action action : actions) {
-                    logger.info("What: " + action.debugDescription(topology.getUuids()::get, topology.getNames()::get,
-                        topology.getCommodityTypes()::getName, topology.getTraderTypes()::getName));
-                    logger.info("Why: " + action.debugReason(topology.getUuids()::get, topology.getNames()::get,
-                        topology.getCommodityTypes()::getName, topology.getTraderTypes()::getName));
-                    logger.info("");
-                }
-                keepRunning = !actions.isEmpty();
-                allActions.addAll(actions);
+            Ede ede = new Ede();
+            // TODO: remove cast to Economy!
+            List<Action> actions = ede.generateActions((Economy)topology.getEconomy(), true,
+                            true, true, true, "runplan");
+            logger.info(actions.size() + " actions");
+            for (Action action : actions) {
+                logger.info("What: " + action.debugDescription(topology.getUuids()::get,
+                                topology.getNames()::get, topology.getCommodityTypes()::getName,
+                                topology.getTraderTypes()::getName));
+                logger.info("Why: " + action.debugReason(topology.getUuids()::get,
+                                topology.getNames()::get, topology.getCommodityTypes()::getName,
+                                topology.getTraderTypes()::getName));
+                logger.info("");
             }
-            logger.info("Before collapse : " + allActions.size());
-            List<Action> collapsedActions = Action.collapsed(allActions);
+            logger.info("Before collapse : " + actions.size());
+            List<Action> collapsedActions = ActionCollapse.collapsed(actions);
             logger.info("After collapse : " + collapsedActions.size());
         } catch (IOException | ParseException | ParserConfigurationException e) {
             logger.error(e.toString());

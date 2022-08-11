@@ -19,7 +19,9 @@ import org.checkerframework.dataflow.qual.Pure;
 public enum TraderState {
     // Enumerators
     ACTIVE,
-    INACTIVE;
+    INACTIVE,
+    // only VMs can be IDLE
+    IDLE;
 
     // Methods
 

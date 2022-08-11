@@ -7,9 +7,11 @@ import java.util.function.IntFunction;
 
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+
 import com.google.common.base.Strings;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -30,7 +32,7 @@ import com.vmturbo.platform.analysis.utilities.M2Utils;
 public final class ExportForVisualisation {
     // Fields
 
-    private static final Logger logger = Logger.getLogger(ExportForVisualisation.class);
+    private static final Logger logger = LogManager.getLogger(ExportForVisualisation.class);
 
     // Methods
 
@@ -53,7 +55,8 @@ public final class ExportForVisualisation {
                          topology.getCommodityTypes()::getName,topology.getTraderTypes()::getName);
 
             Ede ede = new Ede();
-            ede.generateActions((Economy)topology.getEconomy(), false, true, true, true); // TODO: remove cast
+            ede.generateActions((Economy)topology.getEconomy(), true, true, true, true,
+                                "exportvisual"); // TODO: remove cast
             printEconomy(topology.getEconomy(), "Optimized",topology.getUuids()::get,topology.getNames()::get,
                          topology.getCommodityTypes()::getName,topology.getTraderTypes()::getName);
         } catch (IOException | ParseException | ParserConfigurationException e) {

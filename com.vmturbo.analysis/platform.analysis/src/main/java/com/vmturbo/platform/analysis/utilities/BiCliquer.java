@@ -6,11 +6,17 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import java.util.Map.Entry;
+import javax.annotation.Nonnull;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.google.common.collect.BiMap;
 
 // TODO: take out the prefixes.
 /**
@@ -20,6 +26,8 @@ import java.util.Map.Entry;
  * A complete bipartite graph (a biclique) is a bipartite graph where each TYPE1 node is connected to every TYPE2 node.
  */
 public class BiCliquer {
+
+    static final Logger logger = LogManager.getLogger(BiCliquer.class);
 
     private boolean computed = false;
 
@@ -33,10 +41,10 @@ public class BiCliquer {
     // The key and value in each entry in this map are two sets of nodes (TYPE1 and TYPE2) that form one biclique
     private final Map<Set<String>, Set<String>> bicliques = new LinkedHashMap<>();
     // map(nid1, nid2) is the biclique number of the biclique that contains the edge between nodes nid1 and nid2
-    private final Map<String, Map<String, Integer>> nids2bcNumber = new HashMap<>();
+    private final Map<String, Map<String, Long>> nids2bcNumber = new HashMap<>();
     // Map from node id to the set of all biclique keys associated with the node
     private final Map<String, Set<String>> nid2bcKeys = new HashMap<>();
-    private final Map<String, Set<Integer>> nid2bcNumbers = new HashMap<>();
+    private final Map<String, Set<Long>> nid2bcNumbers = new HashMap<>();
 
     /**
      * Constructs a new {@code BiCliquer} with biclique-key prefixes "T1-" and "T2-".
@@ -54,12 +62,18 @@ public class BiCliquer {
         type2Prefix = prefix2;
     }
 
+    //TODO Asjad Remove after XL changes are done
+    public void compute() {
+        compute(null);
+    }
+
     /**
      * Compute the biclique cover based on the edges added so far.
      * Lock {@code this} instance from accepting new edges.
+     * @param oidToUuidMap BiMap for Oid to Uuid mapping
      * @throws IllegalStateException when invoked more than once.
      */
-    public void compute() {
+    public void compute(BiMap<Long, String> oidToUuidMap) {
         if (computed) {
             throw new IllegalStateException("Bicliques already computed");
         }
@@ -72,7 +86,16 @@ public class BiCliquer {
         bicliques_.forEach((k, v) -> bicliques.put(Collections.unmodifiableSet(k), Collections.unmodifiableSet(v)));
 
         // The rest of this method is helper maps
-        int cliqueNum = 0;
+        if (oidToUuidMap == null || oidToUuidMap.isEmpty()) {
+            genCliqueIds();
+        } else {
+            genCliqueIds(oidToUuidMap);
+        }
+    }
+
+    //TODO Asjad Remove after XL changes are done
+    private void genCliqueIds() {
+        long cliqueNum = 0;
         for (Entry<Set<String>, Set<String>> clique : bicliques.entrySet()) {
             for (String nid2 : clique.getValue()) {
                 nid2bcKeys.compute(nid2, (key, val) -> val == null ? new HashSet<>() : val).add(type1Prefix + cliqueNum);
@@ -91,10 +114,49 @@ public class BiCliquer {
     }
 
     /**
+     * Generate the BiClique ids
+     *
+     * @param oidToUuidMap BiMap for Oid to Uuid mapping
+     */
+    private void genCliqueIds(BiMap<Long, String> oidToUuidMap) {
+        for (Entry<Set<String>, Set<String>> clique : bicliques.entrySet()) {
+            long cliqueNum = getMinOid(clique, oidToUuidMap);
+            for (String nid2 : clique.getValue()) {
+                nid2bcKeys.compute(nid2, (key, val) -> val == null ? new HashSet<>() : val).add(type1Prefix + cliqueNum);
+                nid2bcNumbers.compute(nid2, (key, val) -> val == null ? new HashSet<>() : val).add(cliqueNum);
+            }
+            for (String nid1 : clique.getKey()) {
+                nid2bcKeys.compute(nid1, (key, val) -> val == null ? new HashSet<>() : val).add(type2Prefix + cliqueNum);
+                nid2bcNumbers.compute(nid1, (key, val) -> val == null ? new HashSet<>() : val).add(cliqueNum);
+                nids2bcNumber.putIfAbsent(nid1, new HashMap<>());
+                for (String nid2 : clique.getValue()) {
+                    nids2bcNumber.get(nid1).putIfAbsent(nid2, cliqueNum);
+                }
+            }
+        }
+    }
+
+    private long getMinOid(Entry<Set<String>, Set<String>> clique,
+                          BiMap<Long, String> oidToUuidMap) {
+        long minOid = Long.MAX_VALUE;
+        for (String storageUuid : clique.getValue()) {
+            Long oid = oidToUuidMap.inverse().get(storageUuid);
+            if (oid == null) {
+                // Should never happen as we assign Oids before calling compute()
+                logger.error("Biclique compute could not find oid for " + storageUuid);
+            }
+            if (oid != null && oid < minOid) {
+                minOid = oid;
+            }
+        }
+        return minOid;
+    }
+
+    /**
      * Add an edge between nodes {@code nid1} and {@code nid2} in the underlying graph.
      * @param nid1 ID of TYPE1 node
      * @param nid2 ID of TYPE2 node
-     * @throws IllegalStateException when invoked after the biclqiues were computed
+     * @throws IllegalStateException when invoked after the bicliques were computed
      * @see #compute
      */
     public void edge(String nid1, String nid2) {
@@ -105,10 +167,10 @@ public class BiCliquer {
     }
 
     /**
-     * Get the biclque keys that a node is associated with.
+     * Get the biclique keys that a node is associated with.
      * @param nid ID of a node (either TYPE1 or TYPE2)
      * @return an unmodifiable set of biclique keys
-     * @throws IllegalStateException when invoked before the biclqiues were computed
+     * @throws IllegalStateException when invoked before the bicliques were computed
      */
     public Set<String> getBcKeys(String nid) {
         if (!computed) {
@@ -126,13 +188,13 @@ public class BiCliquer {
      * @param nid2 ID of the other node (either TYPE2 or TYPE1)
      * @return a biclique key, which is the correct prefix prepended by biclique ID
      * (only expected if the two nodes are not connected in the underlying graph)..
-     * @throws IllegalStateException when invoked before the biclqiues were computed
+     * @throws IllegalStateException when invoked before the bicliques were computed
      * @see #getBcID(String, String)
      */
     public String getBcKey(String nid1, String nid2) {
-        Integer bcNumber = -1;
+        Long bcNumber = -1L;
         String bcPrefix = null;
-        Map<String, Integer> map = nids2bcNumber.get(nid1);
+        Map<String, Long> map = nids2bcNumber.get(nid1);
         if (map != null) {
             bcNumber = map.get(nid2);
             bcPrefix = type2Prefix;
@@ -152,14 +214,15 @@ public class BiCliquer {
      * that is connected to the node.
      * @param nid ID of a node
      * @return an unmodifiable set of biclique numbers
-     * @throws IllegalStateException when invoked before the biclqiues were computed
+     * @throws IllegalStateException when invoked before the bicliques were computed
      */
-    public Set<Integer> getBcIDs(String nid) {
+    @Nonnull
+    public Set<Long> getBcIDs(String nid) {
         if (!computed) {
             throw new IllegalStateException("Bicliques not computed yet");
         }
-        Set<Integer> bcNumbers = nid2bcNumbers.get(nid);
-        return bcNumbers == null ? null : Collections.unmodifiableSet(bcNumbers);
+        Set<Long> bcNumbers = nid2bcNumbers.get(nid);
+        return bcNumbers == null ? Collections.emptySet() : Collections.unmodifiableSet(bcNumbers);
     }
 
     /**
@@ -168,14 +231,14 @@ public class BiCliquer {
      * @param nid2 ID of the other node (either TYPE2 or TYPE1)
      * @return a biclique number, or -1 if there is no biclique that covers the edge between the two nodes
      * (only expected if the two nodes are not connected in the underlying graph)..
-     * @throws IllegalStateException when invoked before the biclqiues were computed
+     * @throws IllegalStateException when invoked before the bicliques were computed
      */
-    public int getBcID(String nid1, String nid2) {
+    public long getBcID(String nid1, String nid2) {
         if (!computed) {
             throw new IllegalStateException("Bicliques not computed yet");
         }
-        Integer bcNumber = -1;
-        Map<String, Integer> map = nids2bcNumber.get(nid1);
+        Long bcNumber = -1L;
+        Map<String, Long> map = nids2bcNumber.get(nid1);
         if (map != null) {
             bcNumber = map.get(nid2);
         } else {
@@ -189,7 +252,7 @@ public class BiCliquer {
 
     /**
      * @return the number of bicliques
-     * @throws IllegalStateException when invoked before the biclqiues were computed
+     * @throws IllegalStateException when invoked before the bicliques were computed
      */
     public int size() {
         if (!computed) {
@@ -200,7 +263,7 @@ public class BiCliquer {
 
     /**
      * @return an unmodifiable view of the bicliques
-     * @throws IllegalStateException when invoked before the biclqiues were computed
+     * @throws IllegalStateException when invoked before the bicliques were computed
      */
     public Map<Set<String>, Set<String>> getBicliques() {
         if (!computed) {

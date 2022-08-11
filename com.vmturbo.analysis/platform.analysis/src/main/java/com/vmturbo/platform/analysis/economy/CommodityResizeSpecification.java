@@ -1,12 +1,13 @@
 package com.vmturbo.platform.analysis.economy;
 
-import java.util.function.DoubleBinaryOperator;
+import java.io.Serializable;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.google.common.hash.Hashing;
+import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 
 /**
  * Holds the values in Commodity Resize Dependency Map that
@@ -19,16 +20,16 @@ import com.google.common.hash.Hashing;
  * Provisioned (sold) of the host.
  *
  */
-public final class CommodityResizeSpecification {
+public final class CommodityResizeSpecification implements Serializable {
 
     // Fields
 
     // The dependent commodity type
     private final @NonNull int dependentCommodityType_;
     // The function used to adjust its value in case of resize up
-    private final @NonNull DoubleBinaryOperator incrementFunction_;
+    private final @NonNull DoubleTernaryOperator incrementFunction_;
     // The limit function used to adjust its value in case of resize down
-    private final @NonNull DoubleBinaryOperator decrementFunction_;
+    private final @NonNull DoubleTernaryOperator decrementFunction_;
 
     // Constructors
 
@@ -41,8 +42,8 @@ public final class CommodityResizeSpecification {
      * @param decrementFunction The limit function to be used to adjust it in case of resize down.
      */
     public CommodityResizeSpecification(@NonNull int dependentCommodityType,
-                                        @NonNull DoubleBinaryOperator incrementFunction,
-                                        @NonNull DoubleBinaryOperator decrementFunction) {
+                                        @NonNull DoubleTernaryOperator incrementFunction,
+                                        @NonNull DoubleTernaryOperator decrementFunction) {
         dependentCommodityType_ = dependentCommodityType;
         incrementFunction_ = incrementFunction;
         decrementFunction_ = decrementFunction;
@@ -59,19 +60,17 @@ public final class CommodityResizeSpecification {
 
     @NonNull
     /**
-     *
-     * @return The function to be used to adjust the commodity bought in case of resize up.
+     * Returns the function to be used to adjust the commodity bought in case of resize up.
      */
-    public DoubleBinaryOperator getIncrementFunction() {
+    public DoubleTernaryOperator getIncrementFunction() {
         return incrementFunction_;
     }
 
     @NonNull
     /**
-     *
-     * @return The limit function to be used to adjust the commodity bought in case of resize down.
+     * Returns the limit function to be used to adjust the commodity bought in case of resize down.
      */
-    public DoubleBinaryOperator getDecrementFunction() {
+    public DoubleTernaryOperator getDecrementFunction() {
         return decrementFunction_;
     }
 

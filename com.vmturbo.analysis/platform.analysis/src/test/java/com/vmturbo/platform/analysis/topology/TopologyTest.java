@@ -13,7 +13,6 @@ import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -41,8 +40,7 @@ public class TopologyTest {
         @NonNull Topology topology = new Topology();
         assertTrue(topology.getEconomy().getTraders().isEmpty());
         assertTrue(topology.getEconomy().getMarkets().isEmpty());
-        assertTrue(topology.getModifiableQuantityFunctions().isEmpty());
-        assertTrue(topology.getTraderOids().isEmpty());
+        assertTrue(topology.getTradersByOid().isEmpty());
         assertTrue(topology.getShoppingListOids().isEmpty());
         assertTrue(topology.getDanglingShoppingLists().isEmpty());
     }
@@ -66,11 +64,6 @@ public class TopologyTest {
     }
 
     @Test
-    public final void testGetModifiableQuantityFunctions() {
-        MapTests.verifyModifiable(fixture_.getModifiableQuantityFunctions(), new CommoditySpecification(0), Math::max);
-    }
-
-    @Test
     public final void testGetEconomy() {
         assertNotNull(fixture_.getEconomy()); // It's essentially tested together with
             // the add* operations but, may think of something useful to test for the individual
@@ -81,10 +74,8 @@ public class TopologyTest {
     public final void testGetTraderOids() {
         @NonNull Trader trader = new Economy().addTrader(0, TraderState.ACTIVE, new Basket());
 
-        MapTests.verifyUnmodifiableValidOperations(fixture_.getTraderOids(), trader, 0L); // TODO: test bimap operations instead
-        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getTraderOids(), trader, 0L);
-        MapTests.verifyUnmodifiableValidOperations(fixture_.getTraderOids().inverse(), 0L, trader); // TODO: test bimap operations instead
-        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getTraderOids().inverse(), 0L, trader);
+        MapTests.verifyUnmodifiableValidOperations(fixture_.getTradersByOid(), 0L, trader); // TODO: test bimap operations instead
+        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getTradersByOid(), 0L, trader);
     }
 
     @Test

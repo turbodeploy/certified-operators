@@ -1,0 +1,117 @@
+syntax = "proto2";
+package com.vmturbo.platform.analysis.protobuf;
+
+import "PriceFunctionDTOs.proto";
+import "UpdatingFunctionDTOs.proto";
+// A detailed, exact statement of particulars about a commodity a buyer needs to buy (but may not be
+// currently buying) or a seller is able to sell (but may not be currently selling).
+message CommoditySpecificationTO {
+    // quality_bounds using index 3, 4 has been deleted.
+    reserved 3, 4;
+    // The type of the commodity provided or requested. e.g. CPU or Memory. Using an int32 instead
+    // of an enum keeps us agnostic and lets us support all types that may be added in the future.
+    required int32 type = 1;
+
+    // The base type of the commodity. This does not include information about the subtype that
+    // is part of the type field above.
+    required int32 base_type = 2;
+
+    // The field contains info about commodity's eclass and key, it is used for debugging only
+    optional string debug_info_never_use_in_code = 5;
+
+    // If clone the commodity, whether new type should be given to the clone.
+    optional bool clone_with_new_type = 6;
+}
+
+// A commodity that is bought or needs to be bought by a particular buyer from a particular seller
+// as part of a particular shopping list. It includes the amount(s) bought or requested.
+message CommodityBoughtTO {
+    // Defines the type and quality that needs to be bought.
+    required CommoditySpecificationTO specification = 1;
+
+    // The quantity that is currently bought or needs to be bought.
+    optional float quantity = 2;
+
+    // The peak quantity that is currently bought or needs to be bought. The relationship
+    // quantity <= peak_quantity must hold.
+    optional float peak_quantity = 3;
+
+    // The assigned capacity related to commodity sold by buyer.
+    // Added for shoppingList representing cloud volume, preserving commodity sold capacity for volume.
+    // Initially it will be set to volume current commodity capacity, which is used in M2 to compare with
+    // desired demand and generate action for commodity resize case.
+    // After M2 analysis, value will be adjusted to new capacity which reflects volume scaling result.
+    optional float assigned_capacity_for_buyer = 4;
+
+    // Average quantity that was bought during a certain historical period (e.g. one month).
+    optional float historical_quantity = 5;
+}
+
+// The settings associated with and controlling the behavior of a single commodity sold.
+message CommoditySoldSettingsTO {
+    // Whether the analysis engine is allowed to change the commodity's  capacity.
+    optional bool resizable = 1;
+
+    // The lowest value the analysis engine can resize the capacity to.
+    optional float capacity_lower_bound = 2;
+
+    // The highest value the analysis engine can resize the capacity to. The default is intended to
+    // be Double.MAX_VALUE. The relationship capacity_lower_bound <= capacity_upper_bound must hold.
+    optional float capacity_upper_bound = 3 [default = 3.402823e+38];
+
+    // When the analysis engine resizes a commodity sold's capacity, the new value must be an
+    // integer multiple of this value.
+    optional float capacity_increment = 4 [default = 1.0];
+
+    // The analysis engine should produce actions to prevent utilization above this limit.
+    optional float utilization_upper_bound = 5 [default = 1.0];
+
+    // A function from quantity sold to the price charged for this quantity.
+    optional PriceFunctionTO price_function = 6;
+
+    // A function from comm sold to the method used to update its quantity.
+    optional UpdatingFunctionTO update_function = 7;
+
+    // Should utilization be checked to determine if there is congestion.
+    optional bool utilizationCheckForCongestion = 8;
+
+    // A resold commodity is designed to model situations in which the true source of supply for that resold commodity
+    // is further down the supply chain rather than directly at the trader providing the commodity. In these cases, the
+    // true supplier is responsible for setting the price of the resold commodity. For a real-life economic analogy,
+    // consider the case of buying a BigMac at McDonald's - the individual restaurant does not get to set the price.
+    // Instead, the price may be set by the franchise based on national or regional prices of its ingredients along
+    // with other factors.
+    optional bool resold = 9 [default = false];
+}
+
+// A commodity sold by a single trader. It includes the quantity(s) sold and a number of settings.
+message CommoditySoldTO {
+    // Defines the type and quality that are offered.
+    optional CommoditySpecificationTO specification = 1;
+
+    // The quantity that is currently sold.
+    optional float quantity = 2;
+
+    // The peak quantity that is currently sold.
+    optional float peak_quantity = 3;
+
+    // The max quantity sold.
+    optional float max_quantity = 4;
+
+    // The maximum quantity and peak quantity that can potentially be sold. The default is intended
+    // to be Double.MAX_VALUE.
+    optional float capacity = 5 [default = 3.402823e+38];
+
+    // Whether this commodity is thin provisioned. This is related to
+    // <a href="https://en.wikipedia.org/wiki/Thin_provisioning">thin provisioning</a>.
+    optional bool thin = 6;
+
+    // The settings associated with and controlling the behavior of this commodity sold.
+    optional CommoditySoldSettingsTO settings = 7;
+
+    // number of consumers for this commodity
+    optional int32 numConsumers = 8;
+
+    // The quantity that represent historical usage of commodity
+    optional float historicalQuantity = 9;
+}

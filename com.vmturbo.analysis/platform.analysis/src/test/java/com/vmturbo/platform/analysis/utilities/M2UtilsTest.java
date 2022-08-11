@@ -1,34 +1,44 @@
 package com.vmturbo.platform.analysis.utilities;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.text.ParseException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.List;
 
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
+import com.google.common.base.Charsets;
+import com.google.common.io.Resources;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
 
 /**
  * A test case for the {@link M2Utils} class.
@@ -43,33 +53,36 @@ public class M2UtilsTest {
      * verify that applications don't buy from VMs
      */
 
-    private static Logger loggerOff = Logger.getLogger("Test.OFF");
-    private static Logger loggerTrace = Logger.getLogger("Test.TRACE");
+    private static Logger loggerOff = LogManager.getLogger("Test.OFF");
+    private static Logger loggerTrace = LogManager.getLogger("Test.TRACE");
     static {
-        loggerOff.setLevel(Level.OFF);
-        loggerTrace.setLevel(Level.TRACE);
+        LoggerContext ctx = (LoggerContext)LogManager.getContext(false);
+        Configuration config = ctx.getConfiguration();
+        LoggerConfig loggerConfig1 = config.getLoggerConfig(loggerOff.getName());
+        loggerConfig1.setLevel(Level.OFF);
+        LoggerConfig loggerConfig2 = config.getLoggerConfig(loggerTrace.getName());
+        loggerConfig2.setLevel(Level.TRACE);
+        ctx.updateLoggers();
     }
 
-    private static final String REPOS_PATH = "src/test/resources/data/repos/";
-
-    private static final String XML_TOP = fileToString(REPOS_PATH + "xml_top.xml");
-    private static final String XML_BOTTOM = fileToString(REPOS_PATH + "xml_bottom.xml");
-    private static final String DC_2 = fileToString(REPOS_PATH + "dc-2.xml");
-    private static final String VM_1277 = fileToString(REPOS_PATH + "vm-1277.xml");
-    private static final String VM_733 = fileToString(REPOS_PATH + "vm-733.xml");
-    private static final String VM_1544 = fileToString(REPOS_PATH + "vm-1544.xml");
-    private static final String PM_9 = fileToString(REPOS_PATH + "host-9.xml");
-    private static final String DS_902 = fileToString(REPOS_PATH + "datastore-902.xml");
-    private static final String APP_733 = fileToString(REPOS_PATH + "GuestLoad-vm-733.xml");
-    private static final String EDGE = fileToString(REPOS_PATH + "edge-cases.xml");
-    private static final String BICLIQUES = fileToString(REPOS_PATH + "bicliques.xml");
+    private static final String XML_TOP = resourceToString("xml_top.xml");
+    private static final String XML_BOTTOM = resourceToString("xml_bottom.xml");
+    private static final String DC_2 = resourceToString("dc-2.xml");
+    private static final String VM_1277 = resourceToString("vm-1277.xml");
+    private static final String VM_733 = resourceToString("vm-733.xml");
+    private static final String VM_1544 = resourceToString("vm-1544.xml");
+    private static final String PM_9 = resourceToString("host-9.xml");
+    private static final String DS_902 = resourceToString("datastore-902.xml");
+    private static final String APP_733 = resourceToString("GuestLoad-vm-733.xml");
+    private static final String EDGE = resourceToString("edge-cases.xml");
+    private static final String BICLIQUES = resourceToString("bicliques.xml");
 
     // Test that a full file loads with no exception.
     @Test
     @Ignore // need to find a real file that is small enough to include in SVN and test with
     public void testLoadFullFile() {
         try {
-            M2Utils.loadFile(REPOS_PATH + "small.repos.topology");
+            M2Utils.loadFile("data/repos/small.repos.topology");
         } catch (IOException | ParseException | ParserConfigurationException e) {
             // Have to catch this because the method throws it. Other exceptions will implicitly fail the test.
             fail("File not found : " + e);
@@ -213,18 +226,18 @@ public class M2UtilsTest {
         // StorageAmount
         CommoditySold storageAmount = ds.getCommoditySold(new CommoditySpecification(
              topology.getCommodityTypes().getId("Abstraction:StorageAmount")));
-        assertEquals(673442.4, storageAmount.getCapacity(), 1e-9);
-        assertEquals(96092.0, storageAmount.getQuantity(), 1e-9);
-        assertEquals(0.0, storageAmount.getPeakQuantity(), 1e-9);
-        assertEquals(0.14268778, storageAmount.getUtilization(), 1e-5);
+        assertEquals(673442.4, storageAmount.getCapacity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(96092.0, storageAmount.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(0.0, storageAmount.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(0.14268778, storageAmount.getUtilization(), TestUtils.FLOATING_POINT_DELTA);
 
         CommoditySoldSettings storageAmountSettings = storageAmount.getSettings();
-        assertEquals(0.9, storageAmountSettings.getUtilizationUpperBound(), 1e-9);
+        assertEquals(0.9, storageAmountSettings.getUtilizationUpperBound(), TestUtils.FLOATING_POINT_DELTA);
         // StorageAccess
         CommoditySold storageAccess = ds.getCommoditiesSold().get(1);
         CommoditySoldSettings storageAccessSettings = storageAccess.getSettings();
         // When unset, utilThreshold should be 1.0
-        assertEquals(1.0, storageAccessSettings.getUtilizationUpperBound(), 1e-9);
+        assertEquals(1.0, storageAccessSettings.getUtilizationUpperBound(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
@@ -294,13 +307,12 @@ public class M2UtilsTest {
         return M2Utils.loadStream(new ByteArrayInputStream(xml.getBytes()), logger);
     }
 
-    private static String fileToString(String fileName) {
+    private static String resourceToString(String fileName) {
         try {
-            return new String(Files.readAllBytes(Paths.get(fileName)));
-        } catch (IOException ioe) {
-            ioe.printStackTrace();
-            fail("Exception trying to load file : " + ioe);
-            return null;
+            return Resources.toString(M2UtilsTest.class.getClassLoader()
+                            .getResource("data/repos/" + fileName), Charsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Test resource not found " + fileName, e);
         }
     }
 }
