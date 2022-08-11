@@ -159,6 +159,7 @@ public class WidgetsetMapperTest {
 
         // Assert
         verify(groupServiceBackend).getGroups(GetGroupsRequest.newBuilder()
+                        .setAtomicRequest(false)
                         .setGroupFilter(GroupFilter.newBuilder()
                                         .addId(7)
                                         )
@@ -224,6 +225,7 @@ public class WidgetsetMapperTest {
 
         // Assert
         verify(groupServiceBackend).getGroups(GetGroupsRequest.newBuilder()
+                        .setAtomicRequest(false)
                         .setGroupFilter(GroupFilter.newBuilder()
                                         .addId(7)
                                         .addId(8)
@@ -296,6 +298,7 @@ public class WidgetsetMapperTest {
 
         // Assert
         verify(groupServiceBackend).getGroups(GetGroupsRequest.newBuilder()
+                        .setAtomicRequest(false)
                         .setGroupFilter(GroupFilter.newBuilder()
                                         .addId(7)
                                         )
@@ -336,6 +339,7 @@ public class WidgetsetMapperTest {
 
         // Assert
         verify(groupServiceBackend).getGroups(GetGroupsRequest.newBuilder()
+                        .setAtomicRequest(false)
                         .setGroupFilter(GroupFilter.newBuilder()
                                         .addId(7)
                                         )

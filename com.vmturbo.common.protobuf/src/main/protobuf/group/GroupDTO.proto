@@ -426,6 +426,11 @@ message GetGroupsRequest {
     // of entities which are accessible through supply chain traversal starting from these scopes
     // for example: limit the Clusters to be in a DataCenter scope.
     repeated int64 scopes = 3;
+    // flag to instruct implementation in case of user is not authorized to access at least one
+    // of the requested groups.
+    // If true [default] none of the groups will be returned.
+    // If false, only the groups allowed by user scope will be returned (filtered response).
+    optional bool atomicRequest = 4 [default = true];
 }
 
 message GetMembersRequest {
