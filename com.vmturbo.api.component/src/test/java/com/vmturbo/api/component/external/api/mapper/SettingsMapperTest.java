@@ -276,15 +276,18 @@ public class SettingsMapperTest {
         assertEquals("marketsettingsmanager", mktomgr.getUuid());
         assertEquals("Operational Constraints", mktomgr.getDisplayName());
         assertEquals("Analysis", mktomgr.getCategory());
-        assertEquals(4, mktomgr.getSettings().size());
 
         final SettingApiDTO<?> teSettingApiDTO = mktomgr.getSettings().get(0);
         assertEquals("excludedTemplatesOids", teSettingApiDTO.getUuid());
         assertEquals("Excluded templates", teSettingApiDTO.getDisplayName());
         assertNull(teSettingApiDTO.getDefaultValue());
 
+        // Here we are checking the excludedTemplatesOids from marketsettingsmanager section of
+        // settingManagersTest.json, this will include the list of entity types that are in the
+        // ExcludedTemplates EntitySettingSpecs enum, listed out here
         assertThat(mktomgr.getSettings().stream().map(SettingApiDTO::getEntityType).collect(Collectors.toList()),
-            containsInAnyOrder("VirtualMachine", "Database", "DatabaseServer", "VirtualVolume"));
+            containsInAnyOrder("VirtualMachine", "Database", "DatabaseServer",
+                    "VirtualVolume", "VirtualMachineSpec"));
         assertEquals(InputValueType.LIST, teSettingApiDTO.getValueType());
 
         // verify the label for osmigrationmanager is set correctly

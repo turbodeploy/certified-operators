@@ -38,6 +38,10 @@ public class PercentileSettingSpecs {
                 EntitySettingSpecs.MaxObservationPeriodVirtualMachine,
                 EntitySettingSpecs.PercentileAggressivenessVirtualMachine,
                 EntitySettingSpecs.MinObservationPeriodVirtualMachine))
+            .put(EntityType.VIRTUAL_MACHINE_SPEC, new EntityTypePercentileSettings(
+                EntitySettingSpecs.MaxObservationPeriodVirtualMachineSpec,
+                EntitySettingSpecs.PercentileAggressivenessVirtualMachineSpec,
+                EntitySettingSpecs.MinObservationPeriodVirtualMachineSpec))
             .put(EntityType.VIRTUAL_VOLUME, new EntityTypePercentileSettings(
                 EntitySettingSpecs.MaxObservationPeriodVirtualVolume,
                 EntitySettingSpecs.PercentileAggressivenessVirtualVolume,
