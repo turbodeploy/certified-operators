@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.template;
 
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -34,9 +35,11 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.ResourcePath;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -146,6 +149,10 @@ public class HCIPhysicalMachineEntityConstructorTest {
         Assert.assertEquals(StorageType.VSAN,
                 newStorage.getTypeSpecificInfo().getStorage().getStorageType());
 
+        // Ensure that the required sold commodities are resizable
+        ensurePresentAndResizable(newStorage, CommodityType.STORAGE_PROVISIONED);
+        ensurePresentAndResizable(newStorage, CommodityType.STORAGE_AMOUNT);
+        ensurePresentAndResizable(newStorage, CommodityType.STORAGE_ACCESS);
         // Check if the provider storages are marked for replacement
         for (TopologyEntity.Builder host : hosts) {
             for (Long oid : host.getProviderIds()) {
@@ -157,6 +164,25 @@ public class HCIPhysicalMachineEntityConstructorTest {
                 }
             }
         }
+    }
+
+    /**
+     * Ensure that a commodity sold in an entity is present and is resizable.
+     *
+     * @param entity topology entity to test
+     * @param commodityType commodity type to check
+     */
+    private static void ensurePresentAndResizable(TopologyEntityImpl entity,
+            CommodityType commodityType) {
+        for (CommoditySoldView commSold : entity.getCommoditySoldListList()) {
+            if (commSold.getCommodityType().getType() != commodityType.getNumber()) {
+                continue;
+            }
+            assertTrue(commSold.getIsResizeable());
+            return;
+        }
+        // Commodity sold isn't present, so fail the test.
+        Assert.fail("Required commodity sold not present: " + commodityType);
     }
 
     @Nonnull
