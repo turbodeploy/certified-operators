@@ -1,0 +1,162 @@
+syntax = "proto2";
+package com.vmturbo.platform.analysis.protobuf;
+
+import "CommodityDTOs.proto";
+
+// A message to help build up the cloud cost information
+message CostDTO {
+    // the type of cost DTO that will be used to create cost function
+    oneof cost_type {
+       ComputeTierCostDTO compute_tier_cost = 1;
+       StorageTierCostDTO storage_tier_Cost = 2;
+       DatabaseTierCostDTO database_tier_Cost = 3;
+       CbtpCostDTO cbtp_resource_bundle = 4;
+       DatabaseServerTierCostDTO database_server_tier_cost  = 5;
+    }
+
+    // The DTOs specifically define discounted cost by reserved instances
+    message CbtpCostDTO {
+        required int32 couponBaseType = 1;
+        required double discountPercentage = 2;
+        // Pricing to be used in case the Percentage RI Pricing flag is enabled
+        optional CostTuple cost_tuple = 4 [deprecated = true];
+        // Pricing per price id or account id to be used for Percentage RI Pricing or on-demand RI
+        // License rate
+        repeated CostTuple cost_tuple_list = 5;
+        optional int32 license_commodity_base_type = 6;
+        // CBTP scope ID:
+        reserved 7;
+        //CBTB scope IDs:
+        // - for shared RIs - billing family ID
+        // - for scoped RIs - business account IDs.
+        repeated int64 scopeIds = 8;
+    }
+
+    // The DTOs used in XL to carry the pricing information and commodity dependency constraint for
+    // compute tier service
+    message ComputeTierCostDTO {
+        // the base commodity and its dependent commodity type. The sum of base and
+        // dependent commodity for a given shopping list should be within the capacity
+        // of the base commodity sold by a given seller
+        message ComputeResourceDependency {
+            required CommoditySpecificationTO base_resource_type = 1;
+            required CommoditySpecificationTO dependent_resource_type = 2;
+        }
+        repeated CostTuple cost_tuple_list = 1; // a list of cost tuple info
+        repeated ComputeResourceDependency compute_resource_depedency = 2;// a list of dependency constraint
+        optional int32 license_commodity_base_type = 3; // the base type of license commodity
+        required int32 couponBaseType = 4;
+        optional int32 region_commodity_base_type = 5;
+    }
+
+    message CostTuple {
+        // if license does not exist, the license comm type should be -1
+        optional int32 license_commodity_type = 1;
+        optional double price = 2;
+        // some business account can be used for applying discount, id of business account
+        // maps to the discounted price of resource
+        optional int64 business_account_id = 3;
+        oneof location {
+            int64 region_id = 4;
+            int64 zone_id = 5;
+        }
+
+        // The core commodity and price_by_num_cores map are used to represent core-based license
+        // fees for a CBTP, in which the license fee is based on the matching TP of the buyer.
+        optional int32 core_commodity_type = 6;
+        map<int64, double> price_by_num_cores = 7;
+
+        // Dependent cost tuples
+        repeated DependentCostTuple dependent_cost_tuples = 8;
+
+        repeated StorageResourceRatioDependency storage_resource_ratio_dependency = 9;
+
+        message DependentCostTuple {
+            // The resource type of the dependent cost tuple
+            optional CommoditySpecificationTO dependent_resource_type = 1;
+            // The resource options of the dependent cost tuple
+            repeated DependentResourceOption dependent_resource_options = 2;
+            // Is the commodity decisive (can it be explicitly changed)?
+            optional bool isDecisive = 3;
+            message DependentResourceOption {
+                // The increment of the option
+                optional int64 absolute_increment = 4;
+                // The end range of the option
+                optional int64 end_range = 2;
+                // The price of the option
+                optional double price = 3;
+            }
+        }
+    }
+
+    // the dependency commodity and its base commodity and the max ratio between dependent
+    // commodity's capacity and base commodity's capacity
+    message StorageResourceRatioDependency {
+        optional CommoditySpecificationTO base_resource_type = 1;
+        optional CommoditySpecificationTO dependent_resource_type = 2;
+        optional double max_ratio = 3;
+        optional double min_ratio = 4;
+        optional bool increase_base_default_supported = 5;
+    }
+
+    message StorageTierCostDTO {
+        // the commodity specification to min and max capacity limitation mapping
+        message StorageResourceLimitation {
+            optional CommoditySpecificationTO resource_type = 1;
+            optional double min_capacity = 2;
+            optional double max_capacity = 3;
+            optional bool check_min_capacity = 4;
+        }
+        // the dependency commodity, its base commodity, and the range relationship between
+        // dependent commodity's capacity and base commodity's capacity
+        message StorageResourceRangeDependency {
+            optional CommoditySpecificationTO base_resource_type = 1;
+            optional CommoditySpecificationTO dependent_resource_type = 2;
+            repeated RangeTuple range_tuple = 3;
+        }
+        message RangeTuple {
+            optional double base_max_capacity = 1; // base commodity amount upper bound
+            optional double dependent_max_capacity = 2; // dependent commodity max capacity
+        }
+        // the price information. Consists of multiple cost tuples representing a region and
+        // business account.
+        message StorageTierPriceData {
+            optional double upper_bound = 1; // the commodity amount upper bound
+            optional bool is_unit_price = 2; // if the price is unit price or total price
+            optional bool is_accumulative_cost = 3; // if the cost should be accumulated
+            repeated CostTuple cost_tuple_list = 4;
+
+            // Defines whether the price must be applied to commodity historical quantity.
+            optional bool applied_to_historical_quantity = 5;
+        }
+        // the commodity specification and its price data list
+        // The price data list is repeated as each instance might correspond to a different type of cost.
+        // For example, iops Cost and storage Amount cost.
+        message StorageResourceCost {
+            required CommoditySpecificationTO resource_type = 1;
+            repeated StorageTierPriceData storage_tier_price_data =2;
+        }
+        repeated StorageResourceCost storage_resource_cost = 1; // a list of commodity's pricing information
+        repeated StorageResourceLimitation storage_resource_limitation = 2;// a list of commodity's capacity limitation
+        repeated StorageResourceRatioDependency storage_resource_ratio_dependency = 3; // a list of ratio dependency information
+        repeated StorageResourceRangeDependency storage_resource_range_dependency = 4;// a list of range dependency information
+    }
+
+    // The DTOs used in XL to carry the pricing information and commodity dependency constraint for
+    // database tier service
+    message DatabaseTierCostDTO {
+        repeated CostTuple cost_tuple_list = 1; // a list of cost tuple info
+        optional int32 license_commodity_base_type = 2; // the base type of license commodity
+        optional int32 region_commodity_base_type = 3; // the base type of region commodity
+        required int32 couponBaseType = 4;
+    }
+
+    // The DTOs used in XL to carry the pricing information and commodity dependency constraint for
+    // database server tier service
+    message DatabaseServerTierCostDTO {
+        repeated CostTuple cost_tuple_list = 1;
+        optional int32 license_commodity_base_type = 2;
+        optional int32 region_commodity_base_type = 3;
+        required int32 couponBaseType = 4;
+    }
+}

@@ -1,0 +1,44 @@
+syntax = "proto2";
+package com.vmturbo.platform.analysis.protobuf;
+
+// The values of the current and projected price index values for a single service entity.
+message PriceIndexMessagePayload {
+
+    // The SE OID.
+    required int64 oid = 1;
+
+    // The current price index.
+    required double priceindex_current = 2;
+
+    // The projected price index.
+    required double priceindex_projected = 3;
+}
+
+// This is a price index message.
+// This message will be published by the Market (currently) to
+// any subscribers that need it.
+// The message contains market id and array of messages with the
+// current and projected price index for a given Service Entity (as identified by oid),
+// and supplied by a given market.
+message PriceIndexMessage {
+
+    // The market id.
+    optional int64 market_id = 1;
+
+    // The topology context id
+    optional int64 topology_context_id = 4;
+
+    // The topology ID required by the repository in order to distinguish between multiple
+    // topologies.
+    optional int64 topology_id = 2;
+
+    // Array of payload messages.
+    repeated PriceIndexMessagePayload payload = 3;
+
+    // The time of the origianl topology created.
+    optional int64 source_topology_creation_time = 5;
+}
+
+// This is a null-response message.
+message PriceIndexResponse {
+}

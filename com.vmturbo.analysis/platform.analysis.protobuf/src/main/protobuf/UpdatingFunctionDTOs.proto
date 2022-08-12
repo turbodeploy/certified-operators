@@ -1,0 +1,104 @@
+syntax = "proto2";
+package com.vmturbo.platform.analysis.protobuf;
+
+// Any one from a small set of functions that can be used to update the quantity sold by a supplier
+// when one or more customers move in or out.
+
+// The intention is to use this message only temporarily and replace it with a one expressing
+// quantity updating functions as bivariate Non Uniform Rational B-Splines (NURBS) in the future, so
+// that we won't have to update the protobuf messages and analysis code every time a new function
+// needs to be added.
+
+// Since we currently use this only for latency in practice, the message is more complex than needed.
+message UpdatingFunctionTO {
+    // The 'max' bivariate function.
+    message Max {
+    }
+
+    message Min {
+    }
+
+    message ProjectSecond {
+    }
+
+    message Delta {
+    }
+
+    message Average {
+    }
+
+    message UpdateExpenses {
+        option deprecated = true;
+    }
+
+    message IgnoreConsumption {
+    }
+
+    message UpdateCoupon {
+    }
+
+    message ExternalUpdateFunction {
+    }
+
+    // The update function which distributes SLO commodity values based on workload
+    // conservation model.
+    // Provision: projected = current x N/(N+1)
+    // Suspension: projected = current x N/(N-1)
+    message StandardDistribution {
+    }
+
+    // The dependent resource commodity required for MM1 commodity distribution.
+    message MM1Commodity {
+        // The type of the resource commodity.
+        required int32 commodity_type = 1;
+        // The elasticity of the resource commodity.
+        optional float elasticity = 2 [default = 1.0];
+    }
+
+    // The distribution function which distributes SLO commodity values based on M/M/1 queue model.
+    // projected = current x (current headroom/projected headroom)^elasticity
+    // headroom = commodity capacity - commodity quantity
+    // For example, during a provision of application due to response time congestion, market will
+    // project the response time after a new app is cloned. Based on the MM1 distribution, the
+    // response time of an application is dependent on the VCPU headroom
+    // (i.e., VCPU capacity - VCPU used). In this case, MM1Distribution updating function is set on
+    // the Response Time commodity, and the dependent commodity is VCPU.
+    message MM1Distribution {
+        repeated MM1Commodity dependent_commodities = 1;
+        // The min_decrease_pct is the minimum desired percentage drop of quantity after a provision.
+        // If after a provision, the percentage drop of quantity is not larger than min_decrease_pct,
+        // then the provision will be rolled back. Default to 0.2, i.e., 20%.
+        optional float min_decrease_pct = 2 [default = 0.2];
+    }
+
+    // The update function which projects commodity values based on the inverse square formula.
+    // projected = current x (old_capacity / new_capacity) ^ 2
+    message InverseSquare {
+    }
+
+    /**
+     * Update peak values using merged peaks.  Using the peak merging updating function, the results
+     * are calculated as follows:
+     * - Used = current used + new used
+     * - Peak = current used + new used + sqrt((current peak - current used)^2 + (new peak - new used)^2)
+     */
+    message MergedPeak {
+    }
+
+    // Which one of the available functions this message contains.
+    oneof updating_function_type {
+        Max max = 1;
+        Min min = 2;
+        ProjectSecond project_second = 3;
+        Delta delta = 4;
+        Average avg_add = 5;
+        UpdateExpenses update_expenses = 6 [deprecated = true];
+        IgnoreConsumption ignore_consumption = 7;
+        ExternalUpdateFunction external_update = 8;
+        UpdateCoupon update_coupon = 9;
+        StandardDistribution standard_distribution = 10;
+        MM1Distribution mm1_distribution = 11;
+        InverseSquare inverse_square = 12;
+        MergedPeak merged_peak = 13;
+    }
+}

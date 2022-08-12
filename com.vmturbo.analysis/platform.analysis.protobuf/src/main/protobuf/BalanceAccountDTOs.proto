@@ -1,0 +1,16 @@
+syntax = "proto2";
+package com.vmturbo.platform.analysis.protobuf;
+
+// An entry containing spent, budget and the traders which share the budget
+message BalanceAccountDTO {
+    // the spent associates with the business account
+    optional float spent = 1 [default = 0];
+    // the budget associates with the business account
+    optional double budget = 2 [default = 0];
+    // the id of the account
+    optional int64 id = 3;
+    // id of the price offering associated with this account
+    optional int64 priceId = 4 [default = 0];
+    // ID of trader's parent account (e.g. billing family)
+    optional int64 parentId = 5;
+}
