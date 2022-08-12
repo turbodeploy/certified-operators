@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -12,6 +11,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.common.dto.Discovery.DerivedTargetSpecificationDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
@@ -89,7 +89,7 @@ public class DerivedTargetParser {
                                     targetName, e);
                         }
                     }
-                } catch (InvalidTargetException | IdentityStoreException e) {
+                } catch (InvalidTargetException | IdentityStoreException | TargetNotFoundException | IdentifierConflictException e) {
                     logger.error("Parse derived target {} failed", targetName, e);
                 }
             } catch (InvalidTargetException e) {

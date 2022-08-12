@@ -196,7 +196,19 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
     @Nonnull
     @Override
     public Target createTarget(@Nonnull final TargetSpec spec)
-        throws InvalidTargetException, IdentityStoreException, DuplicateTargetException {
+        throws InvalidTargetException, IdentityStoreException, DuplicateTargetException,
+            TargetNotFoundException, IdentifierConflictException {
+        return createOrUpdateExistingTarget(spec, false);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public Target createOrUpdateExistingTarget(@Nonnull final TargetSpec spec, boolean update)
+        throws InvalidTargetException, IdentityStoreException, DuplicateTargetException,
+            TargetNotFoundException, IdentifierConflictException {
         synchronized (storeLock) {
             final IdentityStoreUpdate<TargetSpec> identityStoreUpdate = identityStore
                 .fetchOrAssignItemOids(Arrays.asList(spec));
@@ -211,6 +223,11 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
             } else if (!oldItems.isEmpty()) {
                 final long existingTargetId = oldItems.values().iterator().next();
                 if (targetsById.containsKey(existingTargetId)) {
+                    if (update) {
+                        return updateTarget(existingTargetId, spec.getAccountValueList(),
+                            Optional.ofNullable(spec.getCommunicationBindingChannel()),
+                            spec.getLastEditingUser());
+                    }
                     // If the target already exists, throw an exception.
                     // Note - we don't check the backend because we always keep the local cache
                     // in sync with the backend.

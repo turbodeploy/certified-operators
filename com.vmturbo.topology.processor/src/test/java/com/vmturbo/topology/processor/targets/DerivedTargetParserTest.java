@@ -18,6 +18,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
@@ -159,7 +160,7 @@ public class DerivedTargetParserTest {
     }
 
     private Target createParentTarget()
-        throws DuplicateTargetException, InvalidTargetException, IdentityStoreException {
+        throws DuplicateTargetException, InvalidTargetException, IdentityStoreException, TargetNotFoundException, IdentifierConflictException {
         return targetStore.createTarget(TargetSpec.newBuilder()
             .addAccountValue(TopologyProcessorDTO.AccountValue.newBuilder()
                 .setKey(addressField)
@@ -182,7 +183,7 @@ public class DerivedTargetParserTest {
     @SuppressWarnings("unchecked")
     @Test
     public void testInstantiateDerivedTargetsForAddressField()
-        throws DuplicateTargetException, InvalidTargetException, IdentityStoreException {
+        throws DuplicateTargetException, InvalidTargetException, IdentityStoreException, TargetNotFoundException, IdentifierConflictException {
         Target parent = createParentTarget();
         derivedTargetParser.instantiateDerivedTargets(parent.getId(), Arrays.asList(dto1, dto2));
 
@@ -220,7 +221,7 @@ public class DerivedTargetParserTest {
     @SuppressWarnings("unchecked")
     @Test
     public void testInstantiateDerivedTargetsForNameField()
-        throws DuplicateTargetException, InvalidTargetException, IdentityStoreException {
+        throws DuplicateTargetException, InvalidTargetException, IdentityStoreException, TargetNotFoundException, IdentifierConflictException {
         Target parent = createParentTarget();
         derivedTargetParser.instantiateDerivedTargets(parent.getId(), Arrays.asList(dto4));
 
@@ -289,7 +290,7 @@ public class DerivedTargetParserTest {
      */
     @Test
     public void testInstantiateDerivedTargetsWithChannel()
-        throws DuplicateTargetException, InvalidTargetException, IdentityStoreException {
+        throws DuplicateTargetException, InvalidTargetException, IdentityStoreException, TargetNotFoundException, IdentifierConflictException  {
         final String communicationBindingChannel = "channel-1";
         Target parent = targetStore.createTarget(TargetSpec.newBuilder()
             .addAccountValue(TopologyProcessorDTO.AccountValue.newBuilder()

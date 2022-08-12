@@ -38,6 +38,7 @@ import org.junit.rules.ExpectedException;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
+import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.IdentityStoreUpdate;
@@ -1089,7 +1090,7 @@ public class CachingTargetStoreTest {
      */
     @Test
     public void testDerivedTargetChangesIdentifyingFieldValue()
-        throws IdentityStoreException, DuplicateTargetException, InvalidTargetException {
+        throws IdentityStoreException, DuplicateTargetException, InvalidTargetException, TargetNotFoundException, IdentifierConflictException {
         final long parentProbeId = 1L;
         final long derivedProbeId = 2L;
         final String firstNameValue = "foo";

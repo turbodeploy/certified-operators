@@ -39,6 +39,7 @@ import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * This subclass of {@link RemoteMediationServer} moves permit control from
@@ -84,6 +85,7 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
      * discoveries that can be carried out in parallel per probe container.
      * @param discoveryWorkerPollingTimeoutSecs maximum time to wait (in seconds) when polling for
      * the next discovery.
+     * @param targetStore target store for targets.
      */
     public RemoteMediationServerWithDiscoveryWorkers(@Nonnull final ProbeStore probeStore,
             @Nonnull ProbePropertyStore probePropertyStore,
@@ -91,8 +93,9 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
             @Nonnull AggregatingDiscoveryQueue discoveryQueue,
             int maxConcurrentTargetDiscoveriesPerContainerCount,
             int maxConcurrentTargetIncrementalDiscoveriesPerContainerCount,
-            long discoveryWorkerPollingTimeoutSecs) {
-        super(probeStore, probePropertyStore, containerChooser);
+            long discoveryWorkerPollingTimeoutSecs,
+            @Nonnull final TargetStore targetStore) {
+        super(probeStore, probePropertyStore, containerChooser, targetStore);
         this.discoveryQueue = discoveryQueue;
         this.maxConcurrentTargetDiscoveriesPerContainerCount =
                 maxConcurrentTargetDiscoveriesPerContainerCount;
