@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 
 import org.junit.Assert;
+import org.mockito.Mockito;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
@@ -35,7 +36,8 @@ public class TestRemoteMediationServer extends RemoteMediationServer {
      */
     public TestRemoteMediationServer(ProbeStore probeStore, TargetStore targetStore) {
         super(probeStore, null, new ProbeContainerChooserImpl(probeStore, targetStore,
-                mock(ScheduledExecutorService.class), 0));
+                mock(ScheduledExecutorService.class), 0),
+                Mockito.mock(TargetStore.class));
     }
 
     @Override

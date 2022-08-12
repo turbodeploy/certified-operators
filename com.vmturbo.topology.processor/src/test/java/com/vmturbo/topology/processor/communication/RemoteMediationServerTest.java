@@ -79,7 +79,8 @@ public class RemoteMediationServerTest {
         new RemoteMediationServer(probeStore,
                                   Mockito.mock(ProbePropertyStore.class),
             new ProbeContainerChooserImpl(probeStore, targetStore,
-                    mock(ScheduledExecutorService.class), 0)));
+                    mock(ScheduledExecutorService.class), 0),
+                    Mockito.mock(TargetStore.class)));
 
     private final DiscoveryMessageHandler mockOperationMessageHandler =
         mock(DiscoveryMessageHandler.class);
@@ -190,7 +191,8 @@ public class RemoteMediationServerTest {
                 new RemoteMediationServer(mockProbeStore,
                         Mockito.mock(ProbePropertyStore.class),
                         new ProbeContainerChooserImpl(mockProbeStore, targetStore,
-                                mock(ScheduledExecutorService.class), 0)));
+                                mock(ScheduledExecutorService.class), 0),
+                                Mockito.mock(TargetStore.class)));
         // Simulate an unchecked exception when we try to register the probe with the probeStore
         final String errorMessage = "Test Exception";
         final RuntimeException exception = new RuntimeException();

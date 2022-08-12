@@ -22,6 +22,9 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.communication.chunking.MessageChunker;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
+import com.vmturbo.identity.exceptions.IdentifierConflictException;
+import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.kvstore.KeyValueStoreOperationException;
 import com.vmturbo.platform.common.dto.PlanExport.PlanExportDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
@@ -37,10 +40,14 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.PlanExportRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeTargetInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.sdk.server.common.SdkWebsocketServerTransportHandler.TransportRegistrar;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue.PropertyValueList;
 import com.vmturbo.topology.processor.communication.ExpiringMessageHandler.HandlerStatus;
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
 import com.vmturbo.topology.processor.operation.Operation;
@@ -56,7 +63,11 @@ import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.DuplicateTargetException;
+import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetNotFoundException;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreException;
 
 /**
@@ -69,6 +80,8 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
     private final ProbePropertyStore probePropertyStore;
 
     protected final ProbeStore probeStore;
+
+    protected final TargetStore targetStore;
 
     protected final ProbeContainerChooser containerChooser;
     // counter used to store the messageID that we need
@@ -97,10 +110,12 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
      * @param probeStore probes registry
      * @param probePropertyStore probe and target-specific properties registry
      * @param containerChooser it will route the requests to the right transport
+     * @param targetStore target store for targets.
      */
     public RemoteMediationServer(@Nonnull final ProbeStore probeStore,
                                  @Nonnull ProbePropertyStore probePropertyStore,
-                                 @Nonnull ProbeContainerChooser containerChooser) {
+                                 @Nonnull ProbeContainerChooser containerChooser,
+                                 @Nonnull final TargetStore targetStore) {
         Objects.requireNonNull(probeStore);
         this.probeStore = probeStore;
         this.probePropertyStore = probePropertyStore;
@@ -110,6 +125,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         messageHandlers = Collections.synchronizedMap(expiringHandlerMap);
         messageHandlerExpirationClock = expiringHandlerMap.getExpirationClock();
         this.containerChooser = Objects.requireNonNull(containerChooser);
+        this.targetStore = targetStore;
     }
 
     /**
@@ -156,6 +172,78 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         // Note: This is safe, because we expect the serverEndpoint to play back any
         // queued messages when the first handler is registered.
         registerTransportHandlers(serverEndpoint);
+
+        for (final ProbeInfo probeInfo : containerInfo.getProbesList()) {
+            if (probeInfo.hasProbeTargetInfo()) {
+                if (!FeatureFlags.ENABLE_TP_PROBE_SECURITY.isEnabled() && serverEndpoint.isExternal()) {
+                    logger.warn("Probe security must be enabled for external probe to add target {}",
+                            probeInfo.getProbeType() + "-" + probeInfo.getDisplayName());
+                    continue;
+                }
+                logger.info("Attempting to add target for probe: "
+                    + probeInfo.getProbeType() + " - " + probeInfo.getDisplayName());
+                addProbeTarget(probeInfo);
+            }
+        }
+    }
+
+    /**
+     * Add a Target to the Probe.
+     *
+     * @param probeInfo the probe info.
+     */
+    private void addProbeTarget(ProbeInfo probeInfo) {
+        try {
+            final Optional<Long> probeId = probeStore.getProbeIdForType(probeInfo.getProbeType());
+            if (!probeId.isPresent()) {
+                logger.error("Could not find probe {} for adding target", probeInfo.getProbeType());
+                return;
+            }
+            targetStore.createOrUpdateExistingTarget(buildTargetSpec(probeInfo.getProbeTargetInfo(),
+                probeId.get(), probeInfo.getProbeType()), true);
+        } catch (InvalidTargetException | DuplicateTargetException | IdentityStoreException
+                    | TargetNotFoundException | IdentifierConflictException e) {
+            logger.error(e);
+        }
+    }
+
+    /**
+     * Creates a TargetSpec for adding the probe target.
+     *
+     * @param ProbeTargetInfo the probe info.
+     * @param probeId the probe id.
+     * @param probeType the probe type.
+     * @return TargetSpec.
+     */
+    private TargetSpec buildTargetSpec(ProbeTargetInfo probeTargetInfo, long probeId, String probeType) {
+        TargetSpec.Builder targetSpecBuilder = TargetSpec.newBuilder();
+        targetSpecBuilder.setProbeId(probeId);
+        probeTargetInfo.getInputValuesList().forEach(discAccountValue -> {
+            targetSpecBuilder.addAccountValue(accountValueConverter(discAccountValue));
+        });
+        targetSpecBuilder.setLastEditingUser(probeType);
+        if (probeTargetInfo.hasCommunicationBindingChannel()) {
+            targetSpecBuilder.setCommunicationBindingChannel(probeTargetInfo.getCommunicationBindingChannel());
+        }
+        return targetSpecBuilder.build();
+    }
+
+    /**
+     * We have 2 protobuf definitions for AccountValue. One is opsmgr Discovery and one in XL TopologyProcessorDTO.
+     * We need to convert the discovery one to TP one for target addition.
+     *
+     * @param discoveryAccountValue AccountValue from discovery.
+     * @return AccountValue for TP.
+     */
+    private AccountValue accountValueConverter(com.vmturbo.platform.common.dto.Discovery.AccountValue discoveryAccountValue) {
+        AccountValue.Builder tpAccountValue = AccountValue.newBuilder();
+        tpAccountValue.setKey(discoveryAccountValue.getKey());
+        tpAccountValue.setStringValue(discoveryAccountValue.getStringValue());
+        discoveryAccountValue.getGroupScopePropertyValuesList().forEach(propValList -> {
+            tpAccountValue.addGroupScopePropertyValues(PropertyValueList.newBuilder()
+                .addAllValue(propValList.getValueList()));
+        });
+        return tpAccountValue.build();
     }
 
     @Override

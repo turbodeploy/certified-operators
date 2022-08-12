@@ -20,6 +20,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -29,6 +30,7 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
@@ -36,6 +38,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueueImpl;
@@ -54,6 +57,13 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * Test functionality of TransportDiscoveryWorker.
  */
 public class RemoteMediationServerWithDiscoveryWorkersTest {
+
+    /**
+     * Feature flag rule.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+            FeatureFlags.ENABLE_TP_PROBE_SECURITY);
 
     private static final String VC_PROBE_TYPE = "VC";
 
@@ -191,7 +201,8 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
                         probeContainerChooser,
                         queue,
                         1,
-                        1, discoveryWorkerPollingTimeoutSecs));
+                        1, discoveryWorkerPollingTimeoutSecs,
+                        Mockito.mock(TargetStore.class)));
     }
 
     private void setupBundles() {

@@ -70,10 +70,30 @@ public interface TargetStore extends RequiresDataInitialization {
      * @throws InvalidTargetException If the target spec is invalid.
      * @throws DuplicateTargetException If the target is already exist.
      * @throws IdentityStoreException If no old or new oid fetched.
+     * @throws TargetNotFoundException Target is not found.
+     * @throws IdentifierConflictException identifier exception.
      */
     @Nonnull
     Target createTarget(@Nonnull final TargetSpec spec) throws InvalidTargetException,
-            DuplicateTargetException, IdentityStoreException;
+        IdentityStoreException, DuplicateTargetException, TargetNotFoundException, IdentifierConflictException;
+
+    /**
+     * Stores the information for a new target.
+     * If the target described by the spec already exists the
+     * method succeeds and assigns a new ID.
+     *
+     * @param spec Target information.
+     * @param update Update target if it exists.
+     * @return The newly created target.
+     * @throws InvalidTargetException If the target spec is invalid.
+     * @throws DuplicateTargetException If the target is already exist.
+     * @throws IdentityStoreException If no old or new oid fetched.
+     * @throws TargetNotFoundException Target is not found.
+     * @throws IdentifierConflictException identifier exception.
+     */
+    @Nonnull
+    Target createOrUpdateExistingTarget(@Nonnull final TargetSpec spec, boolean update) throws InvalidTargetException,
+        IdentityStoreException, DuplicateTargetException, TargetNotFoundException, IdentifierConflictException;
 
     /**
      * Retores the information from serialized string with given oid. Does not validate account values.

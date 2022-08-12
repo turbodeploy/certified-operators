@@ -195,7 +195,7 @@ public class TargetController {
                 return errorResponse(new ForbiddenException("Target probe was not found: "
                     + targetSpec.getProbeId()), HttpStatus.NOT_FOUND);
             }
-        } catch (TopologyProcessorException | IdentityStoreException | DuplicateTargetException e) {
+        } catch (TopologyProcessorException | IdentityStoreException | DuplicateTargetException | TargetNotFoundException | IdentifierConflictException e) {
             return errorResponse(e, HttpStatus.BAD_REQUEST);
         } catch (InvalidTargetException e) {
             final TargetInfo resp = error(e.getErrors());

@@ -105,10 +105,11 @@ public class SdkServerConfig {
                 targetConfig.probeContainerChooser(), discoveryQueue(),
                 maxConcurrentTargetDiscoveriesPerProbeCount,
                 maxConcurrentTargetIncrementalDiscoveriesPerProbeCount,
-                discoveryWorkerPollingTimeoutSecs)
+                discoveryWorkerPollingTimeoutSecs, targetConfig.targetStore())
                 : new RemoteMediationServer(probeConfig.probeStore(),
                         targetConfig.probePropertyStore(),
-                        targetConfig.probeContainerChooser());
+                        targetConfig.probeContainerChooser(),
+                        targetConfig.targetStore());
     }
 
     /**

@@ -32,6 +32,7 @@ import junitparams.Parameters;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -46,6 +47,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -64,6 +66,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.NotificationCategoryDTO;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.communication.ProbeContainerChooser;
 import com.vmturbo.topology.processor.communication.RemoteMediationServerWithDiscoveryWorkers;
@@ -97,6 +100,13 @@ import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
  */
 @RunWith(JUnitParamsRunner.class)
 public class OperationManagerWithQueueTest {
+
+    /**
+     * Feature flag rule.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+            FeatureFlags.ENABLE_TP_PROBE_SECURITY);
 
     private final IdentityProvider identityProvider = mock(IdentityProvider.class);
 
@@ -148,7 +158,8 @@ public class OperationManagerWithQueueTest {
 
     private final RemoteMediationServerWithDiscoveryWorkers remoteMediationServer =
             spy(new RemoteMediationServerWithDiscoveryWorkers(probeStore, probePropertyStore,
-                    containerChooser, discoveryQueue, 1, 1, 10));
+                    containerChooser, discoveryQueue, 1, 1, 10,
+                    Mockito.mock(TargetStore.class)));
 
     private OperationManager operationManager;
 

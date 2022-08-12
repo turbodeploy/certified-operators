@@ -14,16 +14,19 @@ import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo.TargetIdSet;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -51,6 +54,13 @@ import com.vmturbo.topology.processor.util.Probes;
  * <p>Load the TargetConfig to provide a target store to use for RemoteMediationServer.
  */
 public class ProbeRegistrationTest {
+
+    /**
+     * Feature flag rule.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+            FeatureFlags.ENABLE_TP_PROBE_SECURITY);
 
     private static final String DEFAULT_PROBE_TYPE = "Some probe type";
 
@@ -80,7 +90,8 @@ public class ProbeRegistrationTest {
                 eq(TimeUnit.SECONDS))).thenReturn(mock(ScheduledFuture.class));
         remoteMediation = new RemoteMediationServer(probeStore,
             Mockito.mock(ProbePropertyStore.class), new ProbeContainerChooserImpl(probeStore,
-                Mockito.mock(TargetStore.class), scheduledExecutorService, 0));
+                Mockito.mock(TargetStore.class), scheduledExecutorService, 0),
+            Mockito.mock(TargetStore.class));
         probeInfoBuilder = ProbeInfo.newBuilder(Probes.defaultProbe);
     }
 
