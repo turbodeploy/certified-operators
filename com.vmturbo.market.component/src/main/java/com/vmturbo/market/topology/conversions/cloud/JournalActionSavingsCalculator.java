@@ -318,17 +318,16 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
         final Optional<ChangeProvider> tierChange = getCloudTierChangeProvider(moveAction.getChangesList());
         final TopologyEntityDTO targetEntity;
 
-        // For volume move action, there is `resource` in `tierChange`,
-        // id of the disk can be retrieved in the `resource`,
-        // `targetEntity` here should be the disk.
-        // Otherwise, the `tierChange` can be the vm.
-        if (tierChange.get().getResourceCount() == 1) {
-            targetEntity = sourceTopologyMap.get(tierChange.get().getResource(0).getId());
-        } else {
-            targetEntity = sourceTopologyMap.get(moveAction.getTarget().getId());
-        }
-
         if (tierChange.isPresent()) {
+            // For volume move action, there is `resource` in `tierChange`,
+            // id of the disk can be retrieved in the `resource`,
+            // `targetEntity` here should be the disk.
+            // Otherwise, the `tierChange` can be the vm.
+            if (tierChange.get().getResourceCount() == 1) {
+                targetEntity = sourceTopologyMap.get(tierChange.get().getResource(0).getId());
+            } else {
+                targetEntity = sourceTopologyMap.get(moveAction.getTarget().getId());
+            }
 
             final TopologyEntityDTO sourceTier = sourceTopologyMap.get(tierChange.get().getSource().getId());
             final ProjectedTopologyEntity destinationTier = projectedTopologyMap.get(tierChange.get().getDestination().getId());
