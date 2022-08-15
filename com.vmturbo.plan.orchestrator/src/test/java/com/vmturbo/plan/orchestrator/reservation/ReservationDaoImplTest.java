@@ -272,6 +272,26 @@ public class ReservationDaoImplTest extends MultiDbTestBase {
         assertThat(reservation.get(), Matchers.is(createdReservation));
     }
 
+    /**
+     * Test GetReservationById will return empty if reservation is not found using blocking call.
+     * @throws DuplicateTemplateException if template is duplicate.
+     */
+    @Test
+    public void testGetReservationByIdReturnEmptyOnFailedAttempts() throws DuplicateTemplateException {
+        Reservation reservationWithTemplate = createReservationWithTemplate(testFirstReservation);
+        Reservation createdReservation = reservationDao.createReservation(reservationWithTemplate);
+        createdReservation = createdReservation.toBuilder().setStatus(ReservationStatus.RESERVED).build();
+        try {
+            reservationDao.updateReservation(createdReservation.getId(), createdReservation);
+        } catch (NoSuchObjectException e) {
+            e.printStackTrace();
+        }
+
+        reservationDao.setReservationByIdPollTime(2L);
+        Optional<Reservation> reservation = reservationDao.getReservationById(createdReservation.getId() + 1, true);
+        assertEquals(Optional.empty(), reservation);
+    }
+
     @Test
     public void testGetAllReservation() throws DuplicateTemplateException {
         Reservation reservationWithTemplateFirst = createReservationWithTemplate(testFirstReservation);

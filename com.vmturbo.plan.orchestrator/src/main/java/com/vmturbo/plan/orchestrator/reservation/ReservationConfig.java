@@ -1,6 +1,11 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
 import java.sql.SQLException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +52,9 @@ public class ReservationConfig {
 
     @Value("${delayedDeletionTimeInMillis:172800000}")
     private long delayedDeletionTimeInMillis;
+
+    @Value("${numReservationDeletionCleanupThreads:1}")
+    private int numReservationDeletionCleanupThreads;
 
     @Bean
     public ReservationDao reservationDao() {
@@ -99,6 +107,19 @@ public class ReservationConfig {
         return new ReservationManager(reservationDao(), reservationNotificationSender(),
                 initialPlacementService(), templatesConfig.templatesDao(), planConfig.planDao(),
                 planConfig.planService(), prepareReservationCache,
-                planConfig.groupServiceBlockingStub());
+                planConfig.groupServiceBlockingStub(), startReservationDeletionCleanupThreadPool());
+    }
+
+    /**
+     * create a ExecutorService.
+     *
+     * @return a new ExecutorService
+     */
+    @Bean(destroyMethod = "shutdownNow")
+    public ExecutorService startReservationDeletionCleanupThreadPool() {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("reservation-deletion-cleanup-worker-%d")
+                .build();
+        return Executors.newFixedThreadPool(Math.max(1, numReservationDeletionCleanupThreads), threadFactory);
     }
 }

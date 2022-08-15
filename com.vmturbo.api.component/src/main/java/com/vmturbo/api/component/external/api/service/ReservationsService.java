@@ -15,6 +15,7 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.StopWatch;
 
 import com.google.common.base.Strings;
 
@@ -37,7 +38,6 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.enums.ReservationAction;
-import com.vmturbo.api.enums.ReservationEditAction;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IReservationsService;
@@ -253,7 +253,6 @@ public class ReservationsService implements IReservationsService {
 
     @Override
     public DemandReservationApiDTO createReservationForDemand(
-            @Nonnull Boolean apiCallBlock,
             @Nonnull ReservationAction demandAction,
             @Nonnull DemandReservationApiInputDTO demandApiInputDTO) throws Exception {
         // We do not support deployment in XL
@@ -298,14 +297,8 @@ public class ReservationsService implements IReservationsService {
     }
 
     @Override
-    public DemandReservationApiDTO doActionOnReservationByID(Boolean callBlock,
-                                                             ReservationEditAction action, String reservationID) throws Exception {
-        throw ApiUtils.notImplementedInXL();
-    }
-
-    @Override
     public Boolean deleteReservationByID(String reservationID, Boolean deployed, Boolean forceDelete) throws Exception {
-        if(forceDelete){
+        if (forceDelete) {
             final DeleteReservationByIdRequest deleteRequest = DeleteReservationByIdRequest.newBuilder()
                     .setReservationId(Long.valueOf(reservationID))
                     .setDeployed(!forceDelete)
@@ -313,22 +306,29 @@ public class ReservationsService implements IReservationsService {
             reservationService.deleteReservationById(deleteRequest);
             return true;
         }
-
+        final StopWatch stopWatch = new StopWatch("ReservationService-deleteReservationByID");
+        stopWatch.start("get reservation");
         final GetReservationByIdRequest getRequest = GetReservationByIdRequest.newBuilder()
                 .setReservationId(Long.valueOf(reservationID))
                 .setApiCallBlock(false)
                 .build();
         final Reservation reservation =
                 reservationService.getReservationById(getRequest);
-        if(!forceDelete && (reservation.hasDeployed() && reservation.getDeployed())){
+        if (!forceDelete && (reservation.hasDeployed() && reservation.getDeployed())) {
             throw new OperationFailedException("Delete failed reservation already deleted");
         }
+        stopWatch.stop();
 
+        stopWatch.start("delete reservation");
         final DeleteReservationByIdRequest deleteRequest = DeleteReservationByIdRequest.newBuilder()
                 .setReservationId(Long.valueOf(reservationID))
                 .setDeployed(deployed)
                 .build();
         reservationService.deleteReservationById(deleteRequest);
+        stopWatch.stop();
+
+        logger.info(stopWatch::prettyPrint);
+
         return true;
     }
 

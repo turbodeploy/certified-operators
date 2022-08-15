@@ -20,6 +20,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -322,7 +323,7 @@ public class ReservationManagerTest {
 
         reservationManager = new ReservationManager(reservationDao, resNotificationSender,
                 initialPlacementServiceBlockingStub, templatesDao, planDao, planService, true,
-                GroupServiceGrpc.newBlockingStub(mockServer.getChannel()));
+                GroupServiceGrpc.newBlockingStub(mockServer.getChannel()), Executors.newFixedThreadPool(1));
     }
 
     /**
