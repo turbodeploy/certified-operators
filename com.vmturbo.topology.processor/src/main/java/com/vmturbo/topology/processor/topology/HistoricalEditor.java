@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.HistoricalValuesImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderImpl;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.TopologyEntity;
@@ -847,12 +848,14 @@ public class HistoricalEditor {
         // Construct the commType to commSold map of the original entity.
         final Map<CommodityTypeView, CommoditySoldImpl> originalCommTypeToCommSold =
             getCommTypeToCommSold(originalEntityBuilder);
-
-        copyCommodityHistoricalValuesToClonedEntities(
-            clonedEntityBuilder, originalEntityBuilder,
-            clonedCommTypeToCommSold, originalCommTypeToCommSold,
-                CommoditySoldImpl::getOrCreateHistoricalUsed,
-                CommoditySoldImpl::getOrCreateHistoricalPeak);
+        if(originalEntityBuilder.getEntityType() != EntityType.PHYSICAL_MACHINE_VALUE &&
+                originalEntityBuilder.getEntityType() != EntityType.STORAGE_VALUE) {
+            copyCommodityHistoricalValuesToClonedEntities(
+                    clonedEntityBuilder, originalEntityBuilder,
+                    clonedCommTypeToCommSold, originalCommTypeToCommSold,
+                    CommoditySoldImpl::getOrCreateHistoricalUsed,
+                    CommoditySoldImpl::getOrCreateHistoricalPeak);
+        }
     }
 
     /**
