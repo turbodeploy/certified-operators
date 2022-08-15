@@ -94,6 +94,8 @@ import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
+import com.vmturbo.market.runner.wasted.WastedEntityResults;
+import com.vmturbo.market.runner.wasted.applicationservice.WastedApplicationServiceResults;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -1024,6 +1026,44 @@ public class TopologyConverterToMarketTest {
                 REALTIME_TOPOLOGY_INFO, true, Optional.empty(), reservedCapacity, Collections.emptyList());
         assertThat(resizedCapacity[0], is(reservedCapacity));
         assertEquals(peak, resizedCapacity[1], DELTA);
+    }
+
+    /**
+     * Test to check if an entityId is part of wastedEntityId, trader is not created.
+     */
+    @Test
+    public void testWastedEntityIdTraderCreation(){
+            TopologyEntityDTO entityDTO1 =
+                    TopologyEntityDTO.newBuilder()
+                            .setEntityType(EntityType.VIRTUAL_MACHINE_SPEC_VALUE)
+                            .setOid(1).build();
+        TopologyEntityDTO entityDTO2 =
+                TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_SPEC_VALUE)
+                        .setOid(2).build();
+        TopologyEntityDTO entityDTO3 =
+                TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_SPEC_VALUE)
+                        .setOid(3).build();
+        TopologyEntityDTO entityDTO4 =
+                TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .setOid(4).build();
+
+        Set<Long> wastedEntitiesIds = ImmutableSet.of(entityDTO1.getOid(), entityDTO4.getOid());
+        WastedEntityResults wastedEntityResults = mock(WastedEntityResults.class);
+        when(wastedEntityResults.getEntityIds()).thenReturn(wastedEntitiesIds);
+
+        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
+                marketCloudRateExtractor,
+                ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
+                reversibilitySettingFetcher);
+        converter.addAllWastedEntityResults(Collections.singleton(wastedEntityResults));
+        assertEquals(2, converter.convertToMarket(
+                        Stream.of(entityDTO1, entityDTO2, entityDTO3, entityDTO4)
+                                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())),
+                        Collections.EMPTY_SET).size());
+        converter.getSkippedEntities().containsKey(entityDTO4.getOid());
     }
 
     @Test
@@ -2836,5 +2876,24 @@ public class TopologyConverterToMarketTest {
                 }
             }
         }
+    }
+
+    @Test
+    public void testScaleDownForVirtualMachineSpec() {
+        double used = 10;
+        double peak = 30;
+        double max = 40;
+        final double commSoldCap = 100;
+        final double commSoldRtu = 1;
+        final double lowerBoundForResizeUp = 110f;
+        CommodityCapacityLimit commodityCapacityLimit = CommodityCapacityLimit.newBuilder()
+                .setCapacity((float)lowerBoundForResizeUp)
+                .setCommodityType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build();
+        double[] resizedCapacity = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_SPEC_VALUE,
+                CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
+                CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, used, peak, max,
+                commSoldCap, commSoldRtu, 0.8d, 0.8d, EnvironmentType.CLOUD, null, null,
+                REALTIME_TOPOLOGY_INFO, true, Optional.of(commodityCapacityLimit), 0.0d, Collections.emptyList());
+        assertThat(resizedCapacity[0], is(commSoldCap * 0.8d));
     }
 }

@@ -62,6 +62,8 @@ public class CloudRateExtractorTest {
 
     private static final long AWS_COMPUTE_TIER_ID = 95348;
     private static final long AZURE_COMPUTE_TIER_ID = 25387;
+
+    private static final long AZURE_ASP_COMPUTE_TIER_ID = 43567;
     private static final int NUM_OF_CORES = 4;
 
     private static final long STORAGE_TIER_ID = 77;
@@ -71,6 +73,9 @@ public class CloudRateExtractorTest {
 
     // Base Price
     private static final double LINUX_PRICE = 0.096;
+
+    private static final double LINUX_ASP_PRICE = 0.068;
+    private static final double WINDOWS_ASP_PRICE = 0.136;
 
     // Price Adjustments
     private static final double WINDOWS_PRICE_ADJUSTMENT = 0.092;
@@ -87,6 +92,9 @@ public class CloudRateExtractorTest {
     private static final String RHEL = "RHEL";
     private static final String WINDOWS = "Windows";
     private static final String WINDOWS_WITH_SQL_WEB = "Windows_SQL_Web";
+
+    private static final String LINUX_APPSERVICEPLAN = "Linux_AppServicePlan";
+    private static final String WINDOWS_APPSERVICEPLAN = "Windows_AppServicePlan";
     private static final boolean BURSTABLE_CPUS = true;
     private static final boolean NOT_BURSTABLE_CPUS = !BURSTABLE_CPUS;
 
@@ -104,6 +112,13 @@ public class CloudRateExtractorTest {
             .isBurstableCPU(false)
             .build();
 
+    private static final ComputeTierConfig AZURE_ASP_COMPUTE_TIER_CONFIG = ComputeTierConfig.builder()
+            .computeTierOid(AZURE_ASP_COMPUTE_TIER_ID)
+            .numCoupons(0)
+            .numCores(NUM_OF_CORES)
+            .isBurstableCPU(false)
+            .build();
+
     private static final PriceTable COMPUTE_PRICE_TABLE = PriceTable.newBuilder()
         .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
             .putComputePricesByTierId(AWS_COMPUTE_TIER_ID,
@@ -115,6 +130,10 @@ public class CloudRateExtractorTest {
                 createComputeTierPriceList(OSType.LINUX,
                     Arrays.asList(createComputeTierConfigPrice(OSType.LINUX, LINUX_PRICE),
                         createComputeTierConfigPrice(OSType.WINDOWS, WINDOWS_PRICE_ADJUSTMENT))))
+            .putComputePricesByTierId(AZURE_ASP_COMPUTE_TIER_ID,
+                    createAzureAspComputeTierPriceList(
+                            Arrays.asList(createComputeTierConfigPrice(OSType.LINUX, LINUX_ASP_PRICE),
+                                    createComputeTierConfigPrice(OSType.WINDOWS, WINDOWS_ASP_PRICE))))
             .build())
         .build();
 
@@ -151,6 +170,12 @@ public class CloudRateExtractorTest {
         }
 
         return computePriceList.build();
+    }
+
+
+    private static ComputeTierPriceList createAzureAspComputeTierPriceList(List<ComputeTierConfigPrice> prices) {
+        ComputeTierPriceList.Builder computePriceList =  ComputeTierPriceList.newBuilder();
+        return computePriceList.addAllPerConfigurationPriceAdjustments(prices).build();
     }
 
     /**
@@ -208,6 +233,18 @@ public class CloudRateExtractorTest {
         .addCommoditySoldList(createCommoditySoldDTO(WINDOWS_WITH_SQL_WEB))
         .addCommoditySoldList(createCommoditySoldDTO(RHEL))
         .build();
+
+
+    private static final TopologyEntityDTO AZURE_ASP_COMPUTE_TIER = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+            .setOid(AZURE_ASP_COMPUTE_TIER_ID)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setComputeTier(ComputeTierInfo.newBuilder()
+                            .setNumOfCores(NUM_OF_CORES)
+                            .build())
+                    .build())
+            .addCommoditySoldList(createCommoditySoldDTO(LINUX_APPSERVICEPLAN))
+            .addCommoditySoldList(createCommoditySoldDTO(WINDOWS_APPSERVICEPLAN))
+            .build();
 
     private static final CommodityType FOO_STORAGE_ACCESS_COMM = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE)
@@ -280,6 +317,7 @@ public class CloudRateExtractorTest {
         when(topology.getEntity(AWS_COMPUTE_TIER_ID)).thenReturn(Optional.of(AWS_COMPUTE_TIER));
         when(topology.getEntity(AZURE_COMPUTE_TIER_ID)).thenReturn(Optional.of(AZURE_COMPUTE_TIER));
         when(topology.getEntity(STORAGE_TIER_ID)).thenReturn(Optional.of(STORAGE_TIER));
+        when(topology.getEntity(AZURE_ASP_COMPUTE_TIER_ID)).thenReturn(Optional.of(AZURE_ASP_COMPUTE_TIER));
         when(topology.getEntity(IO2_TIER_ID)).thenReturn(Optional.of(IO2_STORAGE_TIER));
         /*initializeAWSLicensePriceTuples();
         initializeAzureLicensePriceTuples();*/
@@ -335,6 +373,17 @@ public class CloudRateExtractorTest {
             .thenReturn(redHatLpPriceTuple);
     }
 
+    private void initializeAzureASPLicensePriceTuples(Long businessAccountId) {
+        ComputeTierPriceList priceList = getComputePriceList(AZURE_ASP_COMPUTE_TIER_ID);
+        LicensePriceTuple emptyLicenseTuple = createLicensePriceTuple(0.0, 0.0);
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(AZURE_ASP_COMPUTE_TIER_CONFIG, OSType.LINUX, priceList))
+                .thenCallRealMethod();
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(AZURE_ASP_COMPUTE_TIER_CONFIG, OSType.WINDOWS, priceList))
+                .thenCallRealMethod();
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getReservedLicensePrice(AZURE_ASP_COMPUTE_TIER_CONFIG, OSType.LINUX)).thenReturn(Optional.empty());
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getReservedLicensePrice(AZURE_ASP_COMPUTE_TIER_CONFIG, OSType.WINDOWS)).thenReturn(Optional.empty());
+    }
+
     /**
      * Test Aws compute prices with no discount.
      */
@@ -383,6 +432,41 @@ public class CloudRateExtractorTest {
                         .osType(OSType.RHEL)
                         .hourlyComputeRate(LINUX_PRICE)
                         .hourlyLicenseRate(RHEL_PRICE_ADJUSTMENT)
+                        .isBasePrice(false)
+                        .build()));
+    }
+
+    /**
+     * Check correctness of CostDTOs based on ASP Compute tier.
+     */
+    @Test
+    public void testAzureASPComputePrice() {
+        final long baId = 7L;
+        final CloudRateExtractor mktPriceTable = new CloudRateExtractor(topology, infoExtractor);
+
+        AccountPricingData<TopologyEntityDTO> accountPricingData1 =
+                Mockito.mock(AccountPricingData.class);
+        when(accountPricingData1.getDiscountApplicator()).thenReturn(DiscountApplicator.noDiscount());
+        when(accountPricingData1.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(accountPricingData1.getAccountPricingDataOid()).thenReturn(baId);
+        when(cloudCostData.getAccountPricingData(baId))
+                .thenReturn(Optional.of(accountPricingData1));
+        initializeAzureASPLicensePriceTuples(baId);
+        ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(AZURE_ASP_COMPUTE_TIER, REGION_ID, accountPricingData1);
+
+        assertThat(priceBundle.getPrices(), containsInAnyOrder(
+                ComputePrice.builder()
+                        .accountId(baId)
+                        .osType(OSType.LINUX)
+                        .hourlyComputeRate(0.0)
+                        .hourlyLicenseRate(LINUX_ASP_PRICE)
+                        .isBasePrice(false)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(baId)
+                        .osType(OSType.WINDOWS)
+                        .hourlyComputeRate(0.0)
+                        .hourlyLicenseRate(WINDOWS_ASP_PRICE)
                         .isBasePrice(false)
                         .build()));
     }

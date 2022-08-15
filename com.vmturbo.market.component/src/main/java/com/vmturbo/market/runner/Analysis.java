@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
@@ -433,12 +434,13 @@ public class Analysis {
      * Creates a {@link ConvertedTopology} containing a {@link Topology} from the
      * {@link TopologyEntityDTO}s provided to the analysis constructor.
      *
-     * @param enableThrottling If throttling should be enabled.
+     * @param enableThrottling                If throttling should be enabled.
      * @return The {@link ConvertedTopology} containing the {@link Topology}, as well as some
-     *         metadata.
+     * metadata.
      */
     @Nonnull
-    private ConvertedTopology createM2Topology(final boolean enableThrottling) {
+    private ConvertedTopology createM2Topology(
+            final boolean enableThrottling) {
         final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.labels(contextType).startTimer();
         // remove any (scoped) traders that may have been flagged for removal
         // We are doing this after the convertToMarket() function because we need the original
@@ -558,16 +560,15 @@ public class Analysis {
         final Set<Long> suppressActionsForOids = new HashSet<>();
 
         // Execute wasted file analysis
-        final WastedFilesResults wastedFilesAnalysis;
+        final WastedFilesResults wastedFilesAnalysisResult;
         if (topologyInfo.getAnalysisTypeList().contains(AnalysisType.WASTED_FILES)) {
             try (TracingScope ignored = Tracing.trace("wasted_file_analysis")) {
-                wastedFilesAnalysis = wastedFilesAnalysisEngine.analyze(
+                wastedFilesAnalysisResult = wastedFilesAnalysisEngine.analyze(
                         topologyInfo, topologyDTOs, topologyCostCalculator, originalCloudTopology);
             }
         } else {
-            wastedFilesAnalysis = WastedFilesResults.EMPTY;
+            wastedFilesAnalysisResult = WastedFilesResults.EMPTY;
         }
-
         // Execute wasted App Service Plan analysis
         final WastedApplicationServiceResults wastedApplicationServiceResults;
         if (topologyInfo.getAnalysisTypeList().contains(AnalysisType.WASTED_APP_SERVICE_PLANS)) {
@@ -578,6 +579,15 @@ public class Analysis {
         } else {
             wastedApplicationServiceResults = WastedApplicationServiceResults.EMPTY;
         }
+        // adding wastedEntityResults to TopologyConvertor for additional processing.
+        this.converter.addAllWastedEntityResults(
+                ImmutableSet.of(wastedFilesAnalysisResult, wastedApplicationServiceResults));
+
+        // Get the IDs of the entities that are recommended for deletion so we can mark deleted in the projected topology.
+        final Set<Long> wastedEntityIds = new HashSet<Long>() {{
+            addAll(wastedFilesAnalysisResult.getEntityIds());
+            addAll(wastedApplicationServiceResults.getEntityIds());
+        }};
 
         // Calculate reservedCapacity and generate resize actions
         // Do not generate reservations for cloud migration plans.
@@ -770,7 +780,7 @@ public class Analysis {
                                         projectedTraderDTO,
                                         topologyDTOs,
                                         priceIndexMessage, reservedCapacityResults,
-                                        wastedFilesAnalysis);
+                                        wastedFilesAnalysisResult);
 
                                 if (topologyInfo.hasPlanInfo()) {
                                     attachUnplacementReasons(unplacedReasonMap, projectedEntities);
@@ -791,11 +801,6 @@ public class Analysis {
                                     }
                                 }
 
-                                // Get the IDs of the entities that are recommended for deletion so we can mark deleted in the projected topology.
-                                Set<Long> wastedEntityIds = new HashSet<Long>() {{
-                                    addAll(wastedFilesAnalysis.getEntityIds());
-                                    addAll(wastedApplicationServiceResults.getEntityIds());
-                                }};
                                 // Set deleted entities as deleted in the projected topology will ensure that the after action price is $0.
                                 copySkippedEntitiesToProjectedTopology(
                                         wastedEntityIds,
@@ -937,7 +942,7 @@ public class Analysis {
                     converter.clearStateNeededForActionInterpretation();
                     // TODO move wasted files action out of main analysis once we have a framework
                     // to support multiple analyses for the same topology ID
-                    actionPlanBuilder.addAllAction(wastedFilesAnalysis.getActions());
+                    actionPlanBuilder.addAllAction(wastedFilesAnalysisResult.getActions());
                     actionPlanBuilder.addAllAction(wastedApplicationServiceResults.getActions());
                     actionPlanBuilder.addAllAction(reservedCapacityResults.getActions());
 
