@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.UpdateActionChangeWindowResp
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.util.TestUtils;
 
@@ -180,6 +181,42 @@ public class CachedSavingsActionStoreTest {
      */
     @Test
     public void initialize() throws SavingsException {
+        // Initialize cache.
+        ((CachedSavingsActionStore)savingsActionStore).initialize(false);
+
+        // Verify store is ready
+        assertEquals(3, getCacheSize());
+    }
+
+    /**
+     * Test the initialization where pagination is needed for retrieving the action windows from AO.
+     *
+     * @throws Exception any errors.
+     */
+    @Test
+    public void initializeWithPaging() throws Exception {
+        final ExecutedActionsChangeWindow.Builder vmBuilder11 = ExecutedActionsChangeWindow.newBuilder();
+        TestUtils.loadProtobufBuilder(vmTemplateFilePath, vm1ScaleNewTierAtoB, vmBuilder11);
+
+        final ExecutedActionsChangeWindow.Builder vmBuilder12 = ExecutedActionsChangeWindow.newBuilder();
+        TestUtils.loadProtobufBuilder(vmTemplateFilePath, vm1ScaleLiveTierBtoC, vmBuilder12);
+
+        final ExecutedActionsChangeWindow.Builder vmBuilder2 = ExecutedActionsChangeWindow.newBuilder();
+        TestUtils.loadProtobufBuilder(vmTemplateFilePath, vm2ScaleLiveTierBtoC, vmBuilder2);
+
+        final List<ExecutedActionsChangeWindow> changeWindowsPage1 = ImmutableList.of(vmBuilder11.build(), vmBuilder12.build());
+        final List<ExecutedActionsChangeWindow> changeWindowsPage2 = ImmutableList.of(vmBuilder2.build());
+
+        final GetActionChangeWindowResponse response1 = GetActionChangeWindowResponse.newBuilder()
+                .addAllChangeWindows(changeWindowsPage1)
+                .setPaginationResponse(PaginationResponse.newBuilder().setNextCursor(Long.toString(vmEntityId1)).build())
+                .build();
+        final GetActionChangeWindowResponse response2 = GetActionChangeWindowResponse.newBuilder()
+                .addAllChangeWindows(changeWindowsPage2)
+                .build();
+        when(actionServiceMole.getActionChangeWindows(any(GetActionChangeWindowRequest.class)))
+                .thenReturn(response1, response2);
+
         // Initialize cache.
         ((CachedSavingsActionStore)savingsActionStore).initialize(false);
 
