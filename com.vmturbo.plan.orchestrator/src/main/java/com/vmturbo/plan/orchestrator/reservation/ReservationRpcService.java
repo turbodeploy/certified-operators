@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.util.StopWatch;
 
 import com.vmturbo.common.protobuf.plan.ReservationDTO.CreateReservationRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.DeleteReservationByIdRequest;
@@ -209,10 +210,14 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                             "reservation id").asException());
             return;
         }
+        final StopWatch stopWatch = new StopWatch("ReservationRpcService-deleteReservationById");
         try {
+            stopWatch.start("delete reservation");
             boolean hasBeenDeployed = request.hasDeployed() && request.getDeployed();
             final Reservation reservation = reservationDao.deleteReservationById(request.getReservationId(),
                     hasBeenDeployed, delayedDeletionTimeInMillis);
+            stopWatch.stop();
+            logger.debug(stopWatch::prettyPrint);
             responseObserver.onNext(reservation);
             responseObserver.onCompleted();
         } catch (NoSuchObjectException e) {

@@ -267,7 +267,7 @@ public class ReservationServiceTest {
         Mockito.when(reservationMapper.generateReservationApiDto(any()))
                 .thenReturn(demandReservationApiDTO);
         final DemandReservationApiDTO result =
-                reservationsService.createReservationForDemand(false, RESERVATION,
+                reservationsService.createReservationForDemand(RESERVATION,
                         demandApiInputDTO);
         Mockito.verify(reservationServiceMole, Mockito.times(1))
                 .createReservation(any(), any());
@@ -284,7 +284,7 @@ public class ReservationServiceTest {
     public void testCreateReservationValidation() throws Exception {
         final DemandReservationApiInputDTO demandApiInputDTO =
                 getDemandReservationApiInputDTO(MAXIMUM_PLACEMENT_COUNT + 1);
-        reservationsService.createReservationForDemand(false, RESERVATION, demandApiInputDTO);
+        reservationsService.createReservationForDemand(RESERVATION, demandApiInputDTO);
     }
 
     /**

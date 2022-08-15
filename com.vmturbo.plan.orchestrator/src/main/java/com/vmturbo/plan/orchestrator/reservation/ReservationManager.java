@@ -11,6 +11,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -18,8 +20,6 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
@@ -27,12 +27,12 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.springframework.util.StopWatch;
 
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.market.InitialPlacement;
 import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
@@ -115,6 +115,7 @@ public class ReservationManager implements ReservationDeletedListener {
 
     private final GroupServiceBlockingStub groupServiceBlockingStub;
 
+    private final ExecutorService asyncTaskExecutor;
     /**
      * Track reservation counts.
      */
@@ -137,17 +138,20 @@ public class ReservationManager implements ReservationDeletedListener {
      * @param planDao the planDao.
      * @param planService the plan rpc service.
      * @param prepareReservationCache if false don't run reservation.
-     * @param groupServiceBlockingStub
+     * @param groupServiceBlockingStub used to get info from groups component
+     * @param ReservationDeletionCleanupExecutor used to perform expensive tasks during reservation clean up
      */
     public ReservationManager(@Nonnull final ReservationDao reservationDao,
             @Nonnull final ReservationNotificationSender reservationNotificationSender,
             @Nonnull final InitialPlacementServiceBlockingStub initialPlacementServiceBlockingStub,
             @Nonnull final TemplatesDao templatesDao, @Nonnull final PlanDao planDao,
             @Nonnull final PlanRpcService planService, final boolean prepareReservationCache,
-            @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub) {
+            @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
+            ExecutorService reservationDeletionCleanupExecutor) {
         this.reservationDao = Objects.requireNonNull(reservationDao);
         this.reservationNotificationSender = Objects.requireNonNull(reservationNotificationSender);
         this.groupServiceBlockingStub = groupServiceBlockingStub;
+        this.asyncTaskExecutor = reservationDeletionCleanupExecutor;
         this.reservationDao.addListener(this);
         this.initialPlacementServiceBlockingStub =
                 Objects.requireNonNull(initialPlacementServiceBlockingStub);
@@ -992,8 +996,16 @@ public class ReservationManager implements ReservationDeletedListener {
         logger.info(logPrefix + " Deleted reservation: " + reservation.getName()
                 + " id: " + reservation.getId());
         RESERVATION_STATUS_COUNTER.labels(DELETED_STATUS).increment();
-        deleteReservationFromMarketCache(Collections.singleton(reservation), deployed);
-        checkAndStartReservationPlan();
+        CompletableFuture.runAsync(() -> {
+            final StopWatch stopWatch = new StopWatch("ReservationManager-onReservationDeleted");
+            stopWatch.start("deleteReservationFromMarketCache");
+            deleteReservationFromMarketCache(Collections.singleton(reservation), deployed);
+            stopWatch.stop();
+            stopWatch.start("checkAndStartReservationPlan");
+            checkAndStartReservationPlan();
+            stopWatch.stop();
+            logger.debug(stopWatch::prettyPrint);
+        }, asyncTaskExecutor);
     }
 
     /**
