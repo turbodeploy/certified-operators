@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -99,15 +100,14 @@ public class CostDTOCreatorTest {
 
     /**
      * This test ensures that all the values in Enum OSType have a mapping in
-     * CostDTOCreator::OSTypeMapping, except "Windows Server" and "Windows server Burst".
+     * CostDTOCreator::OSTypeMapping, except "Windows Server" and "Windows server Burst" .
      */
     @Test
     public void testOSTypeMappings() {
         List<OSType> osWithoutMapping = new ArrayList<>();
-        Map<OSType, String> inversedOSTypeMapping = CloudRateExtractor.OS_TYPE_MAP.entrySet().stream().collect(
-                Collectors.toMap(Entry::getValue, Entry::getKey));
+        Collection<OSType> osTypes = new HashSet<>(CloudRateExtractor.OS_TYPE_MAP.values());
         for (OSType os : OSType.values()) {
-            if (!inversedOSTypeMapping.containsKey(os)) {
+            if (!osTypes.contains(os)) {
                 osWithoutMapping.add(os);
             }
         }

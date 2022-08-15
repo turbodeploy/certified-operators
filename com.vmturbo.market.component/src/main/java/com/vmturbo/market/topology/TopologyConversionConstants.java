@@ -27,8 +27,7 @@ public class TopologyConversionConstants {
                     Sets.newHashSet(EntityType.COMPUTE_TIER_VALUE, EntityType.STORAGE_TIER_VALUE,
                             EntityType.DATABASE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
                             EntityType.REGION_VALUE, EntityType.AVAILABILITY_ZONE_VALUE,
-                            EntityType.BUSINESS_ACCOUNT_VALUE, EntityType.VIRTUAL_VOLUME_VALUE,
-                            EntityType.VIRTUAL_MACHINE_SPEC_VALUE));
+                            EntityType.BUSINESS_ACCOUNT_VALUE, EntityType.VIRTUAL_VOLUME_VALUE));
 
     /**
      * Character (as opposed to string) separator in commodity key.
@@ -52,7 +51,7 @@ public class TopologyConversionConstants {
                     .put(CommodityType.CPU_PROVISIONED_VALUE, CommodityType.VCPU_VALUE)
                     .put(CommodityType.MEM_VALUE, CommodityType.VMEM_VALUE)
                     .put(CommodityType.CPU_VALUE, CommodityType.VCPU_VALUE)
-                    // mapping for AWS DatabaseServer/Database commodities
+                    // mapping for AWS DatabaseServer/Database commodities and Azure Virtual machine spec.
                     .put(CommodityType.VMEM_VALUE, CommodityType.VMEM_VALUE)
                     .put(CommodityType.VCPU_VALUE, CommodityType.VCPU_VALUE)
                     // mapping for Azure Database commodities

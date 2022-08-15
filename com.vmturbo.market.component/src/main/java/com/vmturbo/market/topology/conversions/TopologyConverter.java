@@ -1,6 +1,5 @@
 package com.vmturbo.market.topology.conversions;
 
-import static com.google.common.base.Predicates.not;
 import static com.vmturbo.commons.analysis.RawMaterialsMap.rawMaterialsMap;
 import static com.vmturbo.market.topology.conversions.MarketAnalysisUtils.ACCESS_COMMODITY_TYPES;
 import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.CLOUD_VOLUME_COMMODITIES_UNIT_CONVERSION;
@@ -22,6 +21,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -98,7 +98,6 @@ import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cloud.common.topology.CloudTopology;
-import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.group.api.GroupAndMembers;
@@ -108,8 +107,7 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.FakeEntityCreator;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
-import com.vmturbo.market.runner.wasted.applicationservice.WastedApplicationServiceAnalysisEngine;
-import com.vmturbo.market.runner.wasted.applicationservice.WastedApplicationServiceResults;
+import com.vmturbo.market.runner.wasted.WastedEntityResults;
 import com.vmturbo.market.runner.wasted.files.WastedFilesResults;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.settings.MarketSettings;
@@ -269,6 +267,14 @@ public class TopologyConverter {
         EntityType.DATABASE_SERVER_VALUE,
         EntityType.VIRTUAL_MACHINE_SPEC_VALUE
     );
+
+    private static final BiPredicate<Integer, Integer> IS_CLOUD_VM = (providerType, entityType) -> {
+        Map<Integer, Collection<Integer>> entityTypeInScalingGroup =
+                ImmutableMap.of(EntityType.COMPUTE_TIER_VALUE,
+                        ImmutableSet.of(EntityType.VIRTUAL_MACHINE_VALUE));
+        return entityTypeInScalingGroup.containsKey(providerType)
+                && entityTypeInScalingGroup.get(providerType).contains(entityType);
+    };
 
     /**
      * A map from the entity type to the commodities. Turbonomic should preserve the old capacities
@@ -471,6 +477,8 @@ public class TopologyConverter {
     private float customUtilizationThreshold;
 
     private FakeEntityCreator fakeEntityCreator;
+
+    private Collection<WastedEntityResults> wastedEntityResults = new HashSet<>();
 
     /**
      * Constructor with includeGuaranteedBuyer parameter. Entry point from Analysis.
@@ -872,6 +880,7 @@ public class TopologyConverter {
         conversionErrorCounts.startPhase(Phase.CONVERT_TO_MARKET);
         long convertToMarketStartTime = System.currentTimeMillis();
         final Set<Long> tierExcluderEntityOids = new HashSet<>();
+        final Collection<Long> wastedEntityIds = extractWastedEntityIds();
         final Set<Integer> tierExcluderEntityTypeScope = EntitySettingSpecs.ExcludedTemplates
             .getEntityTypeScope().stream().map(EntityType::getNumber).collect(Collectors.toSet());
         try {
@@ -879,7 +888,8 @@ public class TopologyConverter {
                 try {
                     final int entityType = entity.getEntityType();
                     if (MarketAnalysisUtils.SKIPPED_ENTITY_TYPES.contains(entityType)
-                            || !includeByType(entityType)) {
+                            || !includeByType(entityType)
+                            || wastedEntityIds.contains(entity.getOid())) {
                         logger.debug("Skipping trader creation for entity name = {}, entity type = {}, " +
                                 "entity state = {}", entity.getDisplayName(),
                             EntityType.forNumber(entityType), entity.getEntityState());
@@ -931,9 +941,12 @@ public class TopologyConverter {
                                 entity, EntityType.DATABASE_VALUE, topology);
                             List<TopologyEntityDTO> dbss = TopologyDTOUtil.getConnectedEntitiesOfType(
                                 entity, EntityType.DATABASE_SERVER_VALUE, topology);
+                            List<TopologyEntityDTO> virtualMachineSpecs = TopologyDTOUtil.getConnectedEntitiesOfType(
+                                entity, EntityType.VIRTUAL_MACHINE_SPEC_VALUE, topology);
                             vms.forEach(vm -> cloudEntityToBusinessAccount.put(vm, entity));
                             dbs.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
                             dbss.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
+                            virtualMachineSpecs.forEach(v -> cloudEntityToBusinessAccount.put(v, entity));
                             businessAccounts.add(entity);
                             if (cloudTc.getAccountPricingIdFromBusinessAccount(entity.getOid()).isPresent()) {
                                 cloudTc.insertIntoAccountPricingDataByBusinessAccountOidMap(entity.getOid(),
@@ -1308,7 +1321,7 @@ public class TopologyConverter {
      * @param projectedTopology The projected topology. All entities involved in the action are
      *                          expected to be in the projected topology.
      * @param originalCloudTopology {@link CloudTopology} of the original {@link TopologyEntityDTO}s  received by Analysis
-     * @param projectedCosts  A map of id of projected topologyEntityDTO -> {@link CostJournal} for the entity with that ID.
+     * @param actionSavingsCalculator  Calculates cloud savings for an action.
      *
      *
      * @return The {@link Action} describing the recommendation in a topology-specific way.
@@ -3858,10 +3871,11 @@ public class TopologyConverter {
                         provider.getAnalysisSettings().getControllable()));
         isMovable = isMovable && isControllable;
 
+        final boolean isCloudVM = IS_CLOUD_VM.test(commBoughtGroupingForSL.getProviderEntityType(), entityType);
         //SMA is not supported for Migrate to Cloud plan
         final boolean addShoppingListToSMA = MarketMode.isEnableSMA(marketMode) && !isCloudMigration
                 && includeByType(commBoughtGroupingForSL.getProviderEntityType())
-                && commBoughtGroupingForSL.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE;
+                && isCloudVM;
 
         //SMA doesn't care about isMovable, we only use it to fill cloudVmComputeShoppingListIDs
         //if isMovable==false, we won't add SHoppingListTo to this set and VM will remains on the
@@ -3870,7 +3884,7 @@ public class TopologyConverter {
             cloudVmComputeShoppingListIDs.add(id);
         }
 
-        if (commBoughtGroupingForSL.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+        if (isCloudVM) {
             // Turn off movable for cloud scaling group members that are not group leaders.
             isMovable &= addGroupFactor && consistentScalingHelper.getGroupFactor(entityForSL) > 0;
         }
@@ -5377,5 +5391,27 @@ public class TopologyConverter {
             }
         }
         return 0.0f;
+    }
+
+    /**
+     * Get list of entity ids with delete actions generated from
+     * {@link com.vmturbo.market.runner.wasted.WastedEntityResults}.
+     *
+     * @return list of entity ids.
+     */
+    private Collection<Long> extractWastedEntityIds() {
+        final Collection<Long> wastedEntityIds = new HashSet<>();
+        wastedEntityResults.forEach(result ->
+                wastedEntityIds.addAll(result.getEntityIds()));
+        return wastedEntityIds;
+    }
+
+    /**
+     * Set list of entity ids with delete actions generated from {@link Analysis#execute()}.
+     *
+     * @param result list of {@link WastedEntityResults}.
+     */
+    public void addAllWastedEntityResults(Collection<WastedEntityResults> result) {
+        wastedEntityResults.addAll(result);
     }
 }

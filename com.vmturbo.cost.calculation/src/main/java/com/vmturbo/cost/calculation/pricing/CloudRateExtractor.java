@@ -15,9 +15,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Multimap;
@@ -87,13 +86,15 @@ public class CloudRateExtractor {
      * A mapping between the OS string indicated by the license access commodity key
      * and the corresponding {@link CloudCostDTO.OSType}.
      */
-    public static final BiMap<String, OSType> OS_TYPE_MAP = ImmutableBiMap.<String, CloudCostDTO.OSType>builder()
+    public static final Map<String, OSType> OS_TYPE_MAP = ImmutableMap.<String, CloudCostDTO.OSType>builder()
             .put("Linux", OSType.LINUX)
+            .put("Linux_AppServicePlan", OSType.LINUX)
             .put("RHEL", OSType.RHEL)
             .put("SUSE", OSType.SUSE)
             .put("Ubuntu_Pro", OSType.UBUNTU_PRO)
             .put("UNKNOWN", OSType.UNKNOWN_OS)
             .put("Windows", OSType.WINDOWS)
+            .put("Windows_AppServicePlan", OSType.WINDOWS)
             .put("Windows_SQL_Standard", OSType.WINDOWS_WITH_SQL_STANDARD)
             .put("Windows_SQL_Web", OSType.WINDOWS_WITH_SQL_WEB)
             .put("Windows_SQL_Server_Enterprise", OSType.WINDOWS_WITH_SQL_ENTERPRISE)
@@ -152,9 +153,13 @@ public class CloudRateExtractor {
         }
 
         final OSType baseOsType = computeTierPrices.getBasePrice().getGuestOsType();
-        final double baseHourlyPrice =
-                computeTierPrices.getBasePrice().getPricesList().get(0).getPriceAmount().getAmount();
-
+        final double baseHourlyPrice;
+        if (computeTierPrices.hasBasePrice()) {
+            baseHourlyPrice = computeTierPrices.getBasePrice().getPricesList().get(0).getPriceAmount().getAmount();
+        } else {
+            // applies to Azure ASP based Compute Tiers only, uses tier adjustment prices.
+            baseHourlyPrice = 0.0d;
+        }
         DiscountApplicator<TopologyEntityDTO> discountApplicator = accountPricingData.getDiscountApplicator();
         entityInfoExtractor.getComputeTierConfig(tier).ifPresent(computeTierConfig -> {
             final double discount = (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue());
