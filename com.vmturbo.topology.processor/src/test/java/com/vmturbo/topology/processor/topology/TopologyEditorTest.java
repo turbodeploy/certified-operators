@@ -251,6 +251,49 @@ public class TopologyEditorTest {
                     .addCommoditySoldList(new CommoditySoldImpl()
                                                   .setCommodityType(TAINT_NODE_TO_POD_2))
     );
+
+    private static final TopologyEntity.Builder vm_less_usage = TopologyEntityUtils.topologyEntityBuilder(
+            new TopologyEntityImpl()
+                    .setOid(vmId)
+                    .setDisplayName("VM")
+                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .setEnvironmentType(EnvironmentType.CLOUD)
+                    .setEntityState(EntityState.POWERED_ON)
+                    .setTypeSpecificInfo(new TypeSpecificInfoImpl().setVirtualMachine(
+                            new VirtualMachineInfoImpl().setNumCpus(8)))
+                    .addConnectedEntityList(new ConnectedEntityImpl()
+                            .setConnectedEntityId(clusterId)
+                            .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
+                    .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
+                            .setProviderId(pmId)
+                            .addCommodityBought(new CommodityBoughtImpl().setCommodityType(MEM)
+                                    .setUsed(80d))
+                            .addCommodityBought(new CommodityBoughtImpl().setCommodityType(CPU)
+                                    .setUsed(80d)))
+                    .addCommoditiesBoughtFromProviders(new CommoditiesBoughtFromProviderImpl()
+                            .setProviderId(stId)
+                            .addCommodityBought(new CommodityBoughtImpl().setCommodityType(LATENCY).setUsed(80d))
+                            .addCommodityBought(new CommodityBoughtImpl().setCommodityType(IOPS)
+                                    .setUsed(80d)))
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                            .setCommodityType(VCPU)
+                            .setUsed(USED)
+                            .setCapacity(VCPU_CAPACITY))
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                            .setCommodityType(VMEM)
+                            .setUsed(USED)
+                            .setCapacity(VMEM_CAPACITY))
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                            .setCommodityType(CLUSTER_KEYED))
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                            .setCommodityType(VMPM_NODE_TO_POD))
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                            .setCommodityType(TAINT_NODE_TO_POD_1))
+                    .addCommoditySoldList(new CommoditySoldImpl()
+                            .setCommodityType(TAINT_NODE_TO_POD_2))
+    );
+
+
     private static final TopologyEntity.Builder vm = TopologyEntityUtils.topologyEntityBuilder(
         new TopologyEntityImpl()
             .setOid(vmId)
@@ -1066,7 +1109,20 @@ public class TopologyEditorTest {
      */
     @Test
     public void testTopologyAdditionHostAndStorageClones() throws Exception {
-        Map<Long, TopologyEntity.Builder> topology = Stream.of(vm, pm, st)
+        final TopologyEntity.Builder pm = createPM(pmId, "PM");
+        final TopologyEntity.Builder st = TopologyEntityUtils.topologyEntityBuilder(
+                new TopologyEntityImpl()
+                        .setOid(stId)
+                        .setDisplayName("ST")
+                        .setEntityType(EntityType.STORAGE_VALUE)
+                        .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(LATENCY)
+                                .setAccesses(vmId).setUsed(USED))
+                        .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(IOPS)
+                                .setAccesses(vmId).setUsed(USED))
+                        .addCommoditySoldList(new CommoditySoldImpl().setCommodityType(DSPM)
+                                .setAccesses(pmId))
+        );
+        Map<Long, TopologyEntity.Builder> topology = Stream.of(vm_less_usage, pm, st)
                         .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
 
         // Add hosts and storages
@@ -1130,8 +1186,13 @@ public class TopologyEditorTest {
                    // add storage id we find access to
                    connectedStoragesFound.add(comm.getAccesses());
                });
-               // Each clone should be connected to all storages
+               // Each clone used value should be overhead
                assertTrue(connectedStoragesFound.equals(connectedStorages));
+               CommoditySoldView memComm = pmClone.getTopologyEntityImpl().getCommoditySoldListList().stream()
+                        .filter(commSold -> commSold.getCommodityType().getType() == MEM.getType())
+                       .findFirst().get();
+                // Each clone should have the comm sold used set to over head 100 - 80 = 20
+               assertEquals(memComm.getUsed(), 20d, 0.01d);
             });
 
         // Check if storage clones' DSPM commodity is added and its access set to
@@ -1154,6 +1215,11 @@ public class TopologyEditorTest {
                });
                // Each clone should be connected to all hosts
                assertTrue(connectedHostsFound.equals(connectedHosts));
+               CommoditySoldView latencyComm = stClone.getTopologyEntityImpl().getCommoditySoldListList().stream()
+                        .filter(commSold -> commSold.getCommodityType().getType() == LATENCY.getType())
+                        .findFirst().get();
+               // Each clone should have the comm sold used set to over head 100 - 80 = 20
+                assertEquals(latencyComm.getUsed(), 20d, 0.01d);
             });
 
     }

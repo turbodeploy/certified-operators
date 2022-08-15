@@ -37,6 +37,9 @@ public final class EntityCloneEditorFactory {
                     return new WorkloadControllerCloneEditor();
                 case EntityType.NAMESPACE_VALUE:
                     return new NamespaceCloneEditor();
+                case EntityType.PHYSICAL_MACHINE_VALUE:
+                case EntityType.STORAGE_VALUE:
+                    return new DSPMCloneEditor();
                 case EntityType.CONTAINER_SPEC_VALUE:
                 default:
                     return new DefaultEntityCloneEditor();
