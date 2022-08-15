@@ -327,7 +327,7 @@ public class ReservationsService implements IReservationsService {
         reservationService.deleteReservationById(deleteRequest);
         stopWatch.stop();
 
-        logger.info(stopWatch::prettyPrint);
+        logger.debug(stopWatch::prettyPrint);
 
         return true;
     }
