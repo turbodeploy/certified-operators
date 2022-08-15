@@ -66,6 +66,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationServiceInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CustomControllerInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DeploymentInfo;
@@ -779,6 +780,11 @@ public class TopologyFilterFactoryTest {
         Assert.assertThat(propertyFilter.test(vm2, graph), CoreMatchers.is(false));
     }
 
+    @Test
+    public void testSearchFilterAppCount() {
+        checkObjectIntegerFilterForVirtualMachineSpecs(ApplicationServiceInfo.Builder::setAppCount, SearchableProperties.VIRTUAL_MACHINE_SPEC_SERVICE_APP_COUNT);
+    }
+
     private void checkObjectIntegerFilter(
                     BiFunction<VirtualMachineInfo.Builder, Integer, VirtualMachineInfo.Builder> builderConfigurator,
                     String property) {
@@ -849,6 +855,29 @@ public class TopologyFilterFactoryTest {
         });
     }
 
+    private void checkObjectIntegerFilterForVirtualMachineSpecs(
+            BiFunction<ApplicationServiceInfo.Builder, Integer, ApplicationServiceInfo.Builder> builderConfigurator,
+            String property) {
+        final TestGraphEntity vmSpec1 = createVirtualMachineSpecWithProperty(1L, builderConfigurator, 1);
+        final TestGraphEntity vmSpec2 = createVirtualMachineSpecWithProperty(2L, builderConfigurator, 2);
+        final TestGraphEntity vmSpec3 = createVirtualMachineSpecWithProperty(3L, builderConfigurator, 3);
+        final ImmutableTable.Builder<ComparisonOperator, TestGraphEntity, Boolean> dataBuilder =
+                ImmutableTable.builder();
+        dataBuilder.put(ComparisonOperator.EQ, vmSpec1, false);
+        dataBuilder.put(ComparisonOperator.EQ, vmSpec2, true);
+        dataBuilder.put(ComparisonOperator.EQ, vmSpec3, false);
+        final Table<ComparisonOperator, TestGraphEntity, Boolean> data = dataBuilder.build();
+        data.rowMap().forEach((operator, entityToFilterResult) -> {
+            final SearchFilter searchFilter = createSearchFilterForVirtualMachineSpecIntegerProperty(property, operator, 2);
+            final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+            assertTrue(filter instanceof PropertyFilter);
+            final PropertyFilter<TestGraphEntity> propertyFilter =
+                    (PropertyFilter<TestGraphEntity>)filter;
+            entityToFilterResult.forEach((entity, result) -> Assert.assertThat(
+                    propertyFilter.test(entity, graph), CoreMatchers.is(result)));
+        });
+    }
+
     private static SearchFilter createSearchFilterForVolIntegerProperty(String property,
                                                                        ComparisonOperator operator, int comparisonValue) {
         final Search.PropertyFilter numericPropertyFilter =
@@ -875,6 +904,15 @@ public class TopologyFilterFactoryTest {
                                         .build()).build()).build();
     }
 
+    private static SearchFilter createSearchFilterForVirtualMachineSpecIntegerProperty(String property,
+            ComparisonOperator operator, int comparisonValue) {
+        return SearchFilter.newBuilder().setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(property)
+                .setNumericFilter(NumericFilter.newBuilder()
+                        .setComparisonOperator(operator).setValue(comparisonValue)
+                        .build()).build()).build();
+    }
+
     private static TestGraphEntity createVmWithProperty(long oid,
                     @Nonnull BiFunction<VirtualMachineInfo.Builder, Integer, VirtualMachineInfo.Builder> propertySetter,
                     int value) {
@@ -882,6 +920,15 @@ public class TopologyFilterFactoryTest {
                         TypeSpecificInfo.newBuilder().setVirtualMachine(
                                         propertySetter.apply(VirtualMachineInfo.newBuilder(), value)
                                                         .build()).build()).build();
+    }
+
+    private static TestGraphEntity createVirtualMachineSpecWithProperty(long oid,
+            @Nonnull BiFunction<ApplicationServiceInfo.Builder, Integer, ApplicationServiceInfo.Builder> propertySetter,
+            int value) {
+        return TestGraphEntity.newBuilder(oid, ApiEntityType.VIRTUAL_MACHINE_SPEC).setTypeSpecificInfo(
+                TypeSpecificInfo.newBuilder().setApplicationService(
+                        propertySetter.apply(ApplicationServiceInfo.newBuilder(), value)
+                                .build()).build()).build();
     }
 
     private static TestGraphEntity createVolWithProperty(long oid,

@@ -439,7 +439,11 @@
 
   "VirtualMachineSpec" : {
     "criteria" : [
-      {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "virtualMachineSpecsByName"}
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "virtualMachineSpecsByName"},
+        {"inputType": "s", "elements": "tier", "filterType": "virtualMachineSpecsByTier", "loadOptions": true},
+        {"inputType": "#", "elements": "appCount", "filterCategory": "property", "filterType": "virtualMachineSpecsByAppCount"},
+        {"inputType": "*", "elements": "Region:displayName:AGGREGATES:VirtualMachineSpec", "filterCategory": "entity", "filterType": "virtualMachineSpecsByRegionName"},
+        {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "virtualMachineSpecsByResourceGroup", "loadOptions": true}
     ]
   },
 
