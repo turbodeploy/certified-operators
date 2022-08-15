@@ -396,4 +396,24 @@ public interface SearchableProps {
 
         String getServiceTier();
     }
+
+    /**
+     * Searchable properties for virtual machine spec.
+     */
+    interface VirtualMachineSpecProps extends SearchableProps {
+        /**
+         * Get Tier.
+         *
+         * @return Tier
+         */
+        String getTier();
+
+        /**
+         * Get App Count.
+         *
+         * @return App Count
+         */
+
+        Integer getAppCount();
+    }
 }

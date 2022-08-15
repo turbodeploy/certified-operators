@@ -247,6 +247,16 @@ public class SearchableProperties {
     public static final String DB_SERVICE_TIER = "dbServiceTier";
 
     /**
+     * Virtual Machine Spec Service Tier.
+     */
+    public static final String VIRTUAL_MACHINE_SPEC_SERVICE_TIER = "tier";
+
+    /**
+     * Virtual Machine Spec Service App Count.
+     */
+    public static final String VIRTUAL_MACHINE_SPEC_SERVICE_APP_COUNT = "appCount";
+
+    /**
      * Info about a VM, Whether it belongs to an azure VDI instance or not.
      */
     public static final String IS_VDI = "isVdi";

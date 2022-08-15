@@ -47,6 +47,7 @@ import com.vmturbo.topology.graph.SearchableProps.PmProps;
 import com.vmturbo.topology.graph.SearchableProps.ServiceProps;
 import com.vmturbo.topology.graph.SearchableProps.StorageProps;
 import com.vmturbo.topology.graph.SearchableProps.VmProps;
+import com.vmturbo.topology.graph.SearchableProps.VirtualMachineSpecProps;
 import com.vmturbo.topology.graph.SearchableProps.VolumeProps;
 import com.vmturbo.topology.graph.SearchableProps.WorkloadControllerProps;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
@@ -181,6 +182,8 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
             case SearchableProperties.ASSOCIATED_TARGET_ID:
                 return PropertyFilter.typeSpecificFilter(
                         BusinessAccountProps::hasAssociatedTargetId, BusinessAccountProps.class);
+            case SearchableProperties.VIRTUAL_MACHINE_SPEC_SERVICE_APP_COUNT:
+                return PropertyFilter.typeSpecificFilter(d -> d.getAppCount() == (int)numericCriteria.getValue(), VirtualMachineSpecProps.class);
             default:
                 throw new IllegalArgumentException("Unknown numeric property named: " + propertyName);
         }
@@ -409,6 +412,12 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                 return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getServiceTier()),
                         DatabaseProps.class);
             }
+
+            case SearchableProperties.VIRTUAL_MACHINE_SPEC_SERVICE_TIER: {
+                return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getTier()),
+                        VirtualMachineSpecProps.class);
+            }
+
             case SearchableProperties.IS_VDI: {
                 final boolean regex = !StringUtils.isEmpty(stringCriteria.getStringPropertyRegex());
                 if (regex) {

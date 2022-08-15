@@ -70,6 +70,7 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.ApplicationServiceTier;
 import com.vmturbo.api.enums.ClusterRole;
 import com.vmturbo.api.enums.DatabasePricingModel;
 import com.vmturbo.api.enums.DatabaseServiceTier;
@@ -262,6 +263,8 @@ public class SearchService implements ISearchService {
                 .put(SearchableProperties.DB_REPLICATION_ROLE,(a, b, c) -> getEnumFilterOptions(ReplicationRole.class))
                 .put(SearchableProperties.DB_PRICING_MODEL,(a, b, c) -> getEnumFilterOptions(DatabasePricingModel.class))
                 .put(SearchableProperties.DB_SERVICE_TIER,(a, b, c) -> getEnumFilterOptions(DatabaseServiceTier.class))
+                .put(SearchableProperties.VIRTUAL_MACHINE_SPEC_SERVICE_TIER,(a,b,c) -> getEnumFilterOptions(
+                        ApplicationServiceTier.class))
                 .put(StringConstants.DISPLAY_NAME_ATTR, this::getDisplayNameOptions)
                 .put(EntityFilterMapper.CONTAINER_NAMESPACE, (a,b,c) -> getNamespaceOptions())
                 .put(EntityFilterMapper.CONTAINER_POD_NAMESPACE, (a,b,c) -> getNamespaceOptions())

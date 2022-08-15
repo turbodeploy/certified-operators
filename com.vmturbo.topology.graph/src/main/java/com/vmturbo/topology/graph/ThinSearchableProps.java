@@ -12,6 +12,7 @@ import org.apache.commons.lang3.StringUtils;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationServiceInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ServiceInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
@@ -159,6 +160,8 @@ public class ThinSearchableProps implements SearchableProps {
                 return new ThinDatabaseServerProps(tagIndex, commodities, entity);
             case DATABASE:
                 return new ThinDatabaseProps(tagIndex, commodities, entity);
+            case VIRTUAL_MACHINE_SPEC:
+                return new ThinVirtualMachineSpecProps(tagIndex, commodities, entity);
             case SERVICE:
                 return new ThinServiceProps(tagIndex, commodities, info);
             default:
@@ -565,6 +568,38 @@ public class ThinSearchableProps implements SearchableProps {
         @Override
         public String getServiceTier() {
             return serviceTier;
+        }
+    }
+
+    /**
+     * VmSpec properties.
+     */
+    public static class ThinVirtualMachineSpecProps extends ThinSearchableProps implements VirtualMachineSpecProps {
+        private final String tier;
+        private final Integer appCount;
+
+        private ThinVirtualMachineSpecProps(@Nonnull final TagIndex tagIndex,
+                @Nonnull final CommodityValueFetcher commodities,
+                @Nonnull final TopologyEntityDTO entityDTO) {
+            super(tagIndex, commodities);
+            final TypeSpecificInfo typeSpecificInfo = entityDTO.getTypeSpecificInfo();
+            final ApplicationServiceInfo applicationServiceInfo = typeSpecificInfo.getApplicationService();
+
+            final boolean hasTier = applicationServiceInfo.hasTier();
+            final boolean hasAppCount = applicationServiceInfo.hasAppCount();
+
+            tier = hasTier ? applicationServiceInfo.getTier().name() : UNKNOWN;
+            appCount = hasAppCount ? applicationServiceInfo.getAppCount() : -1;
+        }
+
+        @Override
+        public String getTier() {
+            return tier;
+        }
+
+        @Override
+        public Integer getAppCount() {
+            return appCount;
         }
     }
 }

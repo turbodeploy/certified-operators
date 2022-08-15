@@ -68,6 +68,8 @@ public class ThickSearchableProps implements SearchableProps {
                 return new ThickDatabaseServerProps(entity);
             case DATABASE:
                 return new ThickDatabaseProps(entity);
+            case VIRTUAL_MACHINE_SPEC:
+                return  new ThickVirtualMachineSpecProps(entity);
             case SERVICE:
                 return new ThickServiceProps(entity);
             default:
@@ -443,6 +445,26 @@ public class ThickSearchableProps implements SearchableProps {
         @Override
         public String getServiceTier() {
             return entity.getEntityPropertyMapOrDefault(StringConstants.DB_SERVICE_TIER, null);
+        }
+    }
+
+    /**
+     * VmSpec properties.
+     */
+    public static class ThickVirtualMachineSpecProps extends ThickSearchableProps implements VirtualMachineSpecProps {
+
+        private ThickVirtualMachineSpecProps(@Nonnull final TopologyEntityView entity) {
+            super(entity);
+        }
+
+        @Override
+        public String getTier() {
+            return entity.getTypeSpecificInfo().getApplicationService().getTier().name();
+        }
+
+        @Override
+        public Integer getAppCount() {
+            return entity.getTypeSpecificInfo().getApplicationService().getAppCount();
         }
     }
 
