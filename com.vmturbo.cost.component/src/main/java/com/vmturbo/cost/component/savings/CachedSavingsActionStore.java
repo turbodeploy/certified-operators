@@ -529,6 +529,8 @@ public class CachedSavingsActionStore implements SavingsActionStore {
                     logger.debug(message, nfe);
                     throw new SavingsException(message, nfe);
                 }
+            } else {
+                nextCursor = Optional.empty();
             }
         } while (nextCursor.isPresent());
     }
