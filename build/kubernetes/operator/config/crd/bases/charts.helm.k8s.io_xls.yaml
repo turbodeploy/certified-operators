@@ -360,6 +360,13 @@ spec:
               # Configure platform
               consul:
                 properties:
+                  persistence:
+                    description: consul persistence options
+                    properties:
+                      size:
+                        description: consul persistent volume size
+                        type: string
+                    type: object
                   annotations:
                     description: component specific pod annotations list
                     type: object
