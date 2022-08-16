@@ -2,7 +2,9 @@ package com.vmturbo.topology.graph;
 
 import java.util.Collection;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -72,6 +74,8 @@ public class ThickSearchableProps implements SearchableProps {
                 return  new ThickVirtualMachineSpecProps(entity);
             case SERVICE:
                 return new ThickServiceProps(entity);
+            case COMPUTE_TIER:
+                return new ThickComputeTierProps(entity);
             default:
                 return new ThickSearchableProps(entity);
         }
@@ -465,6 +469,33 @@ public class ThickSearchableProps implements SearchableProps {
         @Override
         public Integer getAppCount() {
             return entity.getTypeSpecificInfo().getApplicationService().getAppCount();
+        }
+    }
+
+    /**
+     * Searchable ComputeTier properties.
+     */
+    public static class ThickComputeTierProps extends ThickSearchableProps implements ComputeTierProps {
+        private final Set<EntityType> consumerEntityTypes;
+
+        private ThickComputeTierProps(@Nonnull final TopologyEntityView entity) {
+            super(entity);
+            consumerEntityTypes = getConsumerEntityTypes(entity);
+        }
+
+        @Override
+        public Set<EntityType> getConsumerEntityTypes() {
+            return consumerEntityTypes;
+        }
+
+        private Set<EntityType> getConsumerEntityTypes(TopologyEntityView entity) {
+            return entity.getOrigin()
+                    .getDiscoveryOrigin()
+                    .getDiscoveredTargetDataMap()
+                    .values()
+                    .stream()
+                    .map(e -> ComputeTierProps.getConsumerEntityType(e.getVendorId()))
+                    .collect(Collectors.toSet());
         }
     }
 

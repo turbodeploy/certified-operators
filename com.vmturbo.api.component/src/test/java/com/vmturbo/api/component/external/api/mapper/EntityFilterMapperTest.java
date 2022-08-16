@@ -93,6 +93,7 @@ public class EntityFilterMapperTest {
     private static final String FOO = "foo";
     private static final String BAR = "bar";
     private static final String VM_TYPE = "VirtualMachine";
+    private static final String CT_TYPE = "ComputeTier";
     private static final String SERVICE_TYPE = "Service";
     private static final String PM_TYPE = "PhysicalMachine";
     private static final String DS_TYPE = "Storage";
@@ -107,6 +108,7 @@ public class EntityFilterMapperTest {
     private static final PropertyFilter TYPE_IS_SERVICE =
             SearchProtoUtil.entityTypeFilter(SERVICE_TYPE);
     private static final PropertyFilter TYPE_IS_VM = SearchProtoUtil.entityTypeFilter(VM_TYPE);
+    private static final PropertyFilter TYPE_IS_CT = SearchProtoUtil.entityTypeFilter(CT_TYPE);
     private static final PropertyFilter TYPE_IS_PM = SearchProtoUtil.entityTypeFilter(PM_TYPE);
     private static final PropertyFilter TYPE_IS_DS = SearchProtoUtil.entityTypeFilter(DS_TYPE);
     private static final PropertyFilter TYPE_IS_DISK_ARRAY =
@@ -1086,6 +1088,44 @@ public class EntityFilterMapperTest {
         } else {
             assertFalse(mapFilter.getPositiveMatch());
         }
+    }
+
+    @Test
+    public void testComputeTiersByConsumerEntityType() throws OperationFailedException {
+        // Tests the following from groupBuilderUsecases.json:
+        // {"inputType": "*", "elements": "computeTierConsumerEntityType", "filterCategory": "property", "filterType": "computeTiersByConsumerEntityType"},
+        String expVal = "VirtualMachineSpec";
+        GroupApiDTO inputDTO = groupApiDTO(AND, CT_TYPE,
+                filterDTO(EntityFilterMapper.EQUAL, expVal, "computeTiersByConsumerEntityType"));
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+                inputDTO.getCriteriaList(), inputDTO.getClassName());
+        assertEquals(1, parameters.size());
+        /*
+        Validate that we have the following search params:
+        starting_filter {
+          property_name: "entityType"
+          numeric_filter {
+            comparison_operator: EQ
+            value: 56
+          }
+        }
+        search_filter {
+          property_filter {
+            property_name: "computeTierConsumerEntityType"
+            string_filter {
+              positive_match: true
+              case_sensitive: false
+              options: "VirtualMachineSpec"
+            }
+          }
+        }
+         */
+        SearchParameters searchParams = parameters.iterator().next();
+        assertEquals(TYPE_IS_CT, searchParams.getStartingFilter());
+        assertEquals(1, searchParams.getSearchFilterCount());
+        StringFilter sf = searchParams.getSearchFilter(0).getPropertyFilter().getStringFilter();
+        assertEquals(expVal, sf.getOptions(0));
+        assertTrue(sf.getPositiveMatch());
     }
 
 }

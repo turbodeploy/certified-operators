@@ -112,6 +112,7 @@ public class BaseTopologyStoreTest {
                 .setEntityState(EntityState.POWERED_OFF)
                 .setDisplayName("foo")
                 .build();
+
         final TopologyEntityDTO host1PoweredOn = originalHost.toBuilder()
                 .setEntityState(EntityState.POWERED_ON)
                 .build();
@@ -125,37 +126,53 @@ public class BaseTopologyStoreTest {
                 .setCreationTime(0)
                 .build();
 
+        final long origHostId = originalHost.getOid();
+        final TestSearchableTopologyBuilder bldr1 = testTopologyStore.newRealtimeSourceTopology(tInfo);
+        bldr1.addEntity(originalHost);
+        bldr1.finish();
+        final TestSearchableTopology topo1 = testTopologyStore.getSourceTopology().get();
+        // Check the topology contains the expected state of the originalHost
+        Assert.assertEquals(EntityState.POWERED_OFF,
+                topo1.entityGraph().getEntity(origHostId).get().getEntityState());
+
+        // Test state change for POWERED_ON
         EntitiesWithNewState poweredOnStateChange = EntitiesWithNewState
                 .newBuilder().addTopologyEntity(host1PoweredOn)
                 .setStateChangeId(1)
                 .build();
+        testTopologyStore.setEntityWithUpdatedState(poweredOnStateChange);
+        Assert.assertEquals(EntityState.POWERED_ON,
+                topo1.entityGraph().getEntity(origHostId).get().getEntityState());
 
+        // Test state change for MAINTENANCE
         EntitiesWithNewState maintenanceStateChange = EntitiesWithNewState
                 .newBuilder().addTopologyEntity(host1InMaintenance)
                 .setStateChangeId(2)
                 .build();
-
-        testTopologyStore.setEntityWithUpdatedState(poweredOnStateChange);
         testTopologyStore.setEntityWithUpdatedState(maintenanceStateChange);
-
-        final TestSearchableTopologyBuilder bldr = testTopologyStore.newRealtimeSourceTopology(tInfo);
-        bldr.addEntity(originalHost);
-        bldr.finish();
-        final TestSearchableTopology topo = testTopologyStore.getSourceTopology().get();
-
-        // Check the topology is updated with the host state in the entityWithNewState cache
         Assert.assertEquals(EntityState.MAINTENANCE,
-                topo.entityGraph().getEntity(originalHost.getOid()).get().getEntityState());
+                topo1.entityGraph().getEntity(origHostId).get().getEntityState());
 
-        // New topology, with a more updated time stamp then the host state change, should not
+        // New topology, using the original tInfo builder, so it is WITHOUT a more updated time
+        // stamp then the host state change, should still see the last entityWithNewStateCache
+        final TestSearchableTopologyBuilder bldr2 = testTopologyStore
+                .newRealtimeSourceTopology(tInfo.toBuilder().build());
+        bldr2.addEntity(originalHost);
+        bldr2.finish();
+        final TestSearchableTopology topo2 = testTopologyStore.getSourceTopology().get();
+        Assert.assertEquals(EntityState.MAINTENANCE,
+                topo2.entityGraph().getEntity(origHostId).get().getEntityState());
+
+        // New topology, WITH a more updated time stamp then the host state change, should not
         // get affected by the entityWithNewStateCache
-        final TestSearchableTopologyBuilder updatedBldr = testTopologyStore
-                .newRealtimeSourceTopology(tInfo.toBuilder().setTopologyId(3).build());
-        updatedBldr.addEntity(originalHost);
-        updatedBldr.finish();
-        final TestSearchableTopology updatedTopo = testTopologyStore.getSourceTopology().get();
-        Assert.assertEquals(EntityState.POWERED_ON,
-                updatedTopo.entityGraph().getEntity(originalHost.getOid()).get().getEntityState());
+        final long updatedTopoId = maintenanceStateChange.getStateChangeId() + 1;
+        final TestSearchableTopologyBuilder bldr3 = testTopologyStore.newRealtimeSourceTopology(
+                tInfo.toBuilder().setTopologyId(updatedTopoId).build());
+        bldr3.addEntity(originalHost);
+        bldr3.finish();
+        final TestSearchableTopology topo3 = testTopologyStore.getSourceTopology().get();
+        Assert.assertEquals(EntityState.POWERED_OFF,
+                topo3.entityGraph().getEntity(origHostId).get().getEntityState());
     }
 
     /**

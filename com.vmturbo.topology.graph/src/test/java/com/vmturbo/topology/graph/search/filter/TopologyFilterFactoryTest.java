@@ -64,7 +64,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResi
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationServiceInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
@@ -1816,6 +1820,82 @@ public class TopologyFilterFactoryTest {
         assertTrue(propertyFilter.test(entity1, graph));
         assertTrue(propertyFilter.test(entity2, graph));
         assertFalse(propertyFilter.test(entity3, graph));
+    }
+
+    @Test
+    public void testSearchFilterForComputeTierConsumerEntityType() {
+        // This TestGraphEntity entity has no vendor info
+        // Should not match VirtualMachineSpec or VirtualMachine
+        final TestGraphEntity compTierNoVendorId = TestGraphEntity.newBuilder(TopologyEntityDTO.newBuilder().setOid(1234L)
+                        .setEntityType(EntityType.COMPUTE_TIER.getNumber())
+                        .build())
+                .build();
+        // TestGraphEntity built from a TopologyEntityDTO with a VMSPECPROFILE vendorId
+        // Should match VirtualMachineSpec but not VirtualMachine
+        final TestGraphEntity compTierVmSpecProfile = TestGraphEntity.newBuilder(TopologyEntityDTO.newBuilder().setOid(1234L)
+                        .setEntityType(EntityType.COMPUTE_TIER.getNumber())
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                        .putDiscoveredTargetData(123L,
+                                                PerTargetEntityInformation.newBuilder()
+                                                        .setVendorId("azure::VMSPECPROFILE::F1")
+                                                        .build())
+                                        .build()))
+                        .build())
+                .build();
+        // TestGraphEntity built from a TopologyEntityDTO with a VMPROFILE vendorId
+        // Should match VirtualMachine but not VirtualMachineSpec
+        final TestGraphEntity compTierVmProfile = TestGraphEntity.newBuilder(TopologyEntityDTO.newBuilder().setOid(1234L)
+                        .setEntityType(EntityType.COMPUTE_TIER.getNumber())
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                        .putDiscoveredTargetData(123L,
+                                                PerTargetEntityInformation.newBuilder()
+                                                        .setVendorId("azure::VMPROFILE::Standard_D4s_v3")
+                                                        .build())
+                                        .build()))
+                        .build())
+                .build();
+
+        final PropertyFilter<TestGraphEntity> vmSpecFilter =
+                getComputeTierConsumerEntityTypeSearchFilter("VirtualMachineSpec", true);
+        final PropertyFilter<TestGraphEntity> notVmSpecFilter =
+                getComputeTierConsumerEntityTypeSearchFilter("VirtualMachineSpec", false);
+        final PropertyFilter<TestGraphEntity> vmFilter =
+                getComputeTierConsumerEntityTypeSearchFilter("VirtualMachine", true);
+        final PropertyFilter<TestGraphEntity> notVmFilter =
+                getComputeTierConsumerEntityTypeSearchFilter("VirtualMachine", false);
+
+        assertFalse(vmSpecFilter.test(compTierNoVendorId, graph));
+        assertTrue(vmSpecFilter.test(compTierVmSpecProfile, graph));
+        assertFalse(vmSpecFilter.test(compTierVmProfile, graph));
+
+        assertFalse(vmFilter.test(compTierNoVendorId, graph));
+        assertFalse(vmFilter.test(compTierVmSpecProfile, graph));
+        assertTrue(vmFilter.test(compTierVmProfile, graph));
+
+        assertTrue(notVmSpecFilter.test(compTierNoVendorId, graph));
+        assertFalse(notVmSpecFilter.test(compTierVmSpecProfile, graph));
+        assertTrue(notVmSpecFilter.test(compTierVmProfile, graph));
+
+        assertTrue(notVmFilter.test(compTierNoVendorId, graph));
+        assertTrue(notVmFilter.test(compTierVmSpecProfile, graph));
+        assertFalse(notVmFilter.test(compTierVmProfile, graph));
+    }
+
+    private PropertyFilter<TestGraphEntity> getComputeTierConsumerEntityTypeSearchFilter(
+            String consumerEntityType, boolean positiveMatch) {
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setStringFilter(StringFilter.newBuilder()
+                                .setPositiveMatch(positiveMatch)
+                                .addOptions(consumerEntityType)
+                                .build())
+                        .setPropertyName(SearchableProperties.COMPUTE_TIER_CONSUMER_ENTITY_TYPE))
+                .build();
+        final TopologyFilter<TestGraphEntity> topologyFilter = filterFactory.filterFor(searchFilter);
+        assertTrue(topologyFilter instanceof PropertyFilter);
+        return (PropertyFilter<TestGraphEntity>)topologyFilter;
     }
 
     /**

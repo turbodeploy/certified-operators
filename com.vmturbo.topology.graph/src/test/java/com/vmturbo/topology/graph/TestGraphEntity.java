@@ -3,7 +3,6 @@ package com.vmturbo.topology.graph;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -56,6 +55,7 @@ public class TestGraphEntity extends BaseGraphEntity<TestGraphEntity> implements
     private final Map<String, List<String>> tags = new HashMap<>();
 
     private AnalysisSettings analysisSettings = AnalysisSettings.getDefaultInstance();
+    private TopologyEntityDTO entityDTO = null;
 
     private TestGraphEntity(final long oid, final ApiEntityType type) {
         super(TopologyEntityDTO.newBuilder()
@@ -64,6 +64,11 @@ public class TestGraphEntity extends BaseGraphEntity<TestGraphEntity> implements
                 .setDisplayName(Long.toString(oid))
                 .build());
         refreshSearchableProps();
+    }
+
+    private TestGraphEntity(final TopologyEntityDTO entityDTO) {
+        super(entityDTO);
+        this.entityDTO = entityDTO;
     }
 
     @Override
@@ -115,6 +120,10 @@ public class TestGraphEntity extends BaseGraphEntity<TestGraphEntity> implements
     @Nonnull
     public static Builder newBuilder(final long oid, final ApiEntityType entityType) {
         return new Builder(oid, entityType);
+    }
+
+    public static Builder newBuilder(TopologyEntityDTO entityDTO) {
+        return new Builder(entityDTO);
     }
 
     /**
@@ -202,14 +211,20 @@ public class TestGraphEntity extends BaseGraphEntity<TestGraphEntity> implements
                     .build());
         });
         TagIndex tags = DefaultTagIndex.singleEntity(getOid(), t.build());
-        searchableProps = ThinSearchableProps.newProps(tags, this,
-                TopologyEntityDTO.newBuilder()
-                        .setOid(getOid())
-                        .setDisplayName(getDisplayName())
-                        .setEntityType(getEntityType())
-                        .setTypeSpecificInfo(typeSpecificInfo)
-                        .setAnalysisSettings(analysisSettings)
-                        .build());
+        if (this.entityDTO != null) {
+            // We need to be able to pass the real entityDTO into ThinSearchableProps
+            // in order to replicate actual product behavior
+            searchableProps = ThinSearchableProps.newProps(tags, this, this.entityDTO);
+        } else {
+            searchableProps = ThinSearchableProps.newProps(tags, this,
+                    TopologyEntityDTO.newBuilder()
+                            .setOid(getOid())
+                            .setDisplayName(getDisplayName())
+                            .setEntityType(getEntityType())
+                            .setTypeSpecificInfo(typeSpecificInfo)
+                            .setAnalysisSettings(analysisSettings)
+                            .build());
+        }
     }
 
     /**
@@ -234,10 +249,10 @@ public class TestGraphEntity extends BaseGraphEntity<TestGraphEntity> implements
         /**
          * New builder.
          *
-         * @param dto The entity DTO.
+         * @param entityDTO The entity DTO.
          */
-        public Builder(TopologyEntityDTO dto) {
-            super(dto, new TestGraphEntity(dto.getOid(), ApiEntityType.fromType(dto.getEntityType())));
+        public Builder(TopologyEntityDTO entityDTO) {
+            super(entityDTO, new TestGraphEntity(entityDTO));
         }
 
         public Builder addConnectedEntity(long connectedEntityId, ConnectionType connectionType) {

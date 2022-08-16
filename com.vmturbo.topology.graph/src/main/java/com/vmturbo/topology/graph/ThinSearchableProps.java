@@ -3,6 +3,8 @@ package com.vmturbo.topology.graph;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -164,6 +166,8 @@ public class ThinSearchableProps implements SearchableProps {
                 return new ThinVirtualMachineSpecProps(tagIndex, commodities, entity);
             case SERVICE:
                 return new ThinServiceProps(tagIndex, commodities, info);
+            case COMPUTE_TIER:
+                return new ThinComputeTierProps(tagIndex, commodities, entity);
             default:
                 return new ThinSearchableProps(tagIndex, commodities);
         }
@@ -600,6 +604,35 @@ public class ThinSearchableProps implements SearchableProps {
         @Override
         public Integer getAppCount() {
             return appCount;
+        }
+    }
+
+    /**
+     * Searchable ComputeTier properties.
+     */
+    public static class ThinComputeTierProps extends ThinSearchableProps implements ComputeTierProps {
+        private final Set<EntityType> consumerEntityTypes;
+
+        private ThinComputeTierProps(@Nonnull final TagIndex tagIndex,
+                @Nonnull final CommodityValueFetcher commodities,
+                @Nonnull final TopologyEntityDTO entity) {
+            super(tagIndex, commodities);
+            consumerEntityTypes = getConsumerEntityTypes(entity);
+        }
+
+        @Override
+        public Set<EntityType> getConsumerEntityTypes() {
+            return consumerEntityTypes;
+        }
+
+        private Set<EntityType> getConsumerEntityTypes(TopologyEntityDTO entity) {
+            return entity.getOrigin()
+                    .getDiscoveryOrigin()
+                    .getDiscoveredTargetDataMap()
+                    .values()
+                    .stream()
+                    .map(e -> ComputeTierProps.getConsumerEntityType(e.getVendorId()))
+                    .collect(Collectors.toSet());
         }
     }
 }

@@ -261,5 +261,10 @@ public class SearchableProperties {
      */
     public static final String IS_VDI = "isVdi";
 
+    /**
+     * The consumer entity type of a compute tier.
+     */
+    public static final String COMPUTE_TIER_CONSUMER_ENTITY_TYPE = "computeTierConsumerEntityType";
+
     private SearchableProperties() {}
 }
