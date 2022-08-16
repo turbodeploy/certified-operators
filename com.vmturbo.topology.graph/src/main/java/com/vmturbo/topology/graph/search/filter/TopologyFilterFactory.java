@@ -185,7 +185,8 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                 return PropertyFilter.typeSpecificFilter(
                         BusinessAccountProps::hasAssociatedTargetId, BusinessAccountProps.class);
             case SearchableProperties.VIRTUAL_MACHINE_SPEC_SERVICE_APP_COUNT:
-                return PropertyFilter.typeSpecificFilter(d -> d.getAppCount() == (int)numericCriteria.getValue(), VirtualMachineSpecProps.class);
+                IntPredicate predicate = intPredicate(numericCriteria);
+                return PropertyFilter.typeSpecificFilter(virtualMachineSpecProps -> predicate.test(virtualMachineSpecProps.getAppCount()), VirtualMachineSpecProps.class);
             default:
                 throw new IllegalArgumentException("Unknown numeric property named: " + propertyName);
         }
