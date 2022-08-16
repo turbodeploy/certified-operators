@@ -100,6 +100,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -239,7 +240,7 @@ public class SearchService implements ISearchService {
                 .put(CONNECTED_STORAGE_TIER_FILTER_PATH,
                         (a, b, c) -> getConnectionStorageTierOptions())
                 .put(CONNECTED_COMPUTE_TIER_FILTER_PATH,
-                        (a, b, c) -> getComputeTierOptions())
+                        (a, b, c) -> getComputeTierOptions(b))
                 .put(REGION_FILTER_PATH, (a, b, c) -> getRegionFilterOptions())
                 .put("discoveredBy:cloudProvider", (a, b, c) -> getCloudProviderOptions())
                 .put("discoveredBy:probeType", (a, b, c) -> getProbeTypeOptions())
@@ -1284,11 +1285,21 @@ public class SearchService implements ISearchService {
     }
 
     @Nonnull
-    private List<CriteriaOptionApiDTO> getComputeTierOptions() {
+    private List<CriteriaOptionApiDTO> getComputeTierOptions(String entityType) {
+        // This method returns the options in the Instance Type filter drop down for VirtualMachines
+        // and VirtualMachineSpecs when creating new groups. Each entity type consumes its own set
+        // of ComputeTiers, so we need to filter by consumer entity type.
+        final PropertyFilter consumerEntityTypeFilter = SearchProtoUtil.stringPropertyFilterExact(
+                SearchableProperties.COMPUTE_TIER_CONSUMER_ENTITY_TYPE,
+                Arrays.asList(entityType),
+                true,
+                false);
+        final SearchParameters params = SearchProtoUtil.makeSearchParameters(
+                        SearchProtoUtil.entityTypeFilter(ApiEntityType.COMPUTE_TIER.apiStr()))
+                .addSearchFilter(SearchProtoUtil.searchFilterProperty(consumerEntityTypeFilter))
+                .build();
         final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
-        repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-                                SearchProtoUtil.entityTypeFilter(ApiEntityType.COMPUTE_TIER.apiStr()))
-                        .build())
+        repositoryApi.newSearchRequest(params)
                 .getMinimalEntities()
                 .forEach(tier -> {
                     CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();

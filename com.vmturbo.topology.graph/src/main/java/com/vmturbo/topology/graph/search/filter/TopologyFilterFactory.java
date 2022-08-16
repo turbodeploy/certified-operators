@@ -39,8 +39,10 @@ import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.SearchableProps;
 import com.vmturbo.topology.graph.SearchableProps.BusinessAccountProps;
+import com.vmturbo.topology.graph.SearchableProps.ComputeTierProps;
 import com.vmturbo.topology.graph.SearchableProps.DatabaseProps;
 import com.vmturbo.topology.graph.SearchableProps.DatabaseServerProps;
 import com.vmturbo.topology.graph.SearchableProps.PmProps;
@@ -427,7 +429,16 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                             VmProps.class);
                 }
             }
-
+            case SearchableProperties.COMPUTE_TIER_CONSUMER_ENTITY_TYPE: {
+                if (stringCriteria.getOptionsCount() == 1) {
+                    final String consumerType = stringCriteria.getOptions(0);
+                    final EntityType entityType = ApiEntityType.fromString(consumerType).sdkType();
+                    return PropertyFilter.typeSpecificFilter(
+                            ctp -> ctp.getConsumerEntityTypes().contains(entityType)
+                                    == stringCriteria.getPositiveMatch(),
+                            ComputeTierProps.class);
+                }
+            }
             default:
                 throw new IllegalArgumentException("Unknown string property: " + propertyName
                         + " with criteria: " + stringCriteria);

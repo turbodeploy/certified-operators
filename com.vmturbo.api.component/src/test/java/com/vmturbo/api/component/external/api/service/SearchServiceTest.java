@@ -2086,7 +2086,7 @@ public class SearchServiceTest {
         final SearchRequest mockRequest = ApiTestUtils.mockSearchMinReq(computeTierEntities);
         when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(mockRequest);
         final List<CriteriaOptionApiDTO> result =
-                searchService.getCriteriaOptions(CONNECTED_COMPUTE_TIER_FILTER_PATH, null, null, null);
+                searchService.getCriteriaOptions(CONNECTED_COMPUTE_TIER_FILTER_PATH, null, ApiEntityType.VIRTUAL_MACHINE.apiStr(), null);
         assertEquals(computeTierEntities.size(), result.size());
         computeTierEntities.forEach(entity ->
                 assertTrue(result.stream().anyMatch(dto ->

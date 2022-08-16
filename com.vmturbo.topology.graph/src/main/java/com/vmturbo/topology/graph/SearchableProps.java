@@ -416,4 +416,54 @@ public interface SearchableProps {
 
         Integer getAppCount();
     }
+
+    /**
+     * Searchable properties for the ComputeTier entity type.
+     */
+    interface ComputeTierProps extends SearchableProps {
+
+        /**
+         * VirtualMachine profile portion in the vendor ID of the ComputeTier.
+         */
+        String VMPROFILE = "VMPROFILE";
+
+        /**
+         * VirtualMachineSpec profile portion in the vendor ID of the ComputeTier.
+         */
+        String VMSPECPROFILE = "VMSPECPROFILE";
+
+        /**
+         * Get the consumer entity types of a ComputeTier.
+         *
+         * @return a list of {@link EntityType}s.
+         */
+        Set<EntityType> getConsumerEntityTypes();
+
+        /**
+         * Get the consumer {@link EntityType} associated with the given vendorId. Given
+         * azure::VMPROFILE::Standard_D4s_v3, the VirtualMachine EntityType would be
+         * returned, given azure::VMSPECPROFILE::F1 the VirtualMachineSpec EntityTYpe would
+         * be returned.
+         *
+         * @param vendorId The vendor ID.
+         * @return The entity type associated with the vendor ID.
+         */
+        static EntityType getConsumerEntityType(String vendorId) {
+            if (vendorId == null) {
+                return null;
+            }
+            final String[] vendorIdParts = vendorId.split("::");
+            if (vendorIdParts.length != 3) {
+                return null;
+            }
+            switch (vendorIdParts[1]) {
+                case VMPROFILE:
+                    return EntityType.VIRTUAL_MACHINE;
+                case VMSPECPROFILE:
+                    return EntityType.VIRTUAL_MACHINE_SPEC;
+                default:
+                    return null;
+            }
+        }
+    }
 }
