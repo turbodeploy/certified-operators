@@ -452,17 +452,20 @@ public interface SearchableProps {
             if (vendorId == null) {
                 return null;
             }
+            // Vendor ID for azure compute tiers the vendorId is:
+            // azure::VMPROFILE::Standard_D4s_v3
+            // but for aws and gcp the compute tier the vendorId is changed and only include display
+            // name, so we will assume by default the consumer entity type of a compute tier is a VM
             final String[] vendorIdParts = vendorId.split("::");
             if (vendorIdParts.length != 3) {
-                return null;
+                return EntityType.VIRTUAL_MACHINE;
             }
             switch (vendorIdParts[1]) {
-                case VMPROFILE:
-                    return EntityType.VIRTUAL_MACHINE;
                 case VMSPECPROFILE:
                     return EntityType.VIRTUAL_MACHINE_SPEC;
+                case VMPROFILE:
                 default:
-                    return null;
+                    return EntityType.VIRTUAL_MACHINE;
             }
         }
     }

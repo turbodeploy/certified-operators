@@ -3,6 +3,7 @@ package com.vmturbo.topology.graph.search.filter;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -86,6 +87,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.topology.graph.TestGraphEntity;
+import com.vmturbo.topology.graph.ThinSearchableProps.ThinComputeTierProps;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToPropertyFilter;
@@ -1822,6 +1824,9 @@ public class TopologyFilterFactoryTest {
         assertFalse(propertyFilter.test(entity3, graph));
     }
 
+    /**
+     * Indirectly tests ThinComputeTierProps.
+     */
     @Test
     public void testSearchFilterForComputeTierConsumerEntityType() {
         // This TestGraphEntity entity has no vendor info
@@ -1856,6 +1861,19 @@ public class TopologyFilterFactoryTest {
                                         .build()))
                         .build())
                 .build();
+        // TestGraphEntity built from a TopologyEntityDTO with a vendorId containing neither VMPROFILE nor VMSPECPROFILE
+        // Should default to VirtualMachine
+        final TestGraphEntity compTierNoProfile = TestGraphEntity.newBuilder(TopologyEntityDTO.newBuilder().setOid(1234L)
+                        .setEntityType(EntityType.COMPUTE_TIER.getNumber())
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                        .putDiscoveredTargetData(123L,
+                                                PerTargetEntityInformation.newBuilder()
+                                                        .setVendorId("t3.small")
+                                                        .build())
+                                        .build()))
+                        .build())
+                .build();
 
         final PropertyFilter<TestGraphEntity> vmSpecFilter =
                 getComputeTierConsumerEntityTypeSearchFilter("VirtualMachineSpec", true);
@@ -1866,21 +1884,29 @@ public class TopologyFilterFactoryTest {
         final PropertyFilter<TestGraphEntity> notVmFilter =
                 getComputeTierConsumerEntityTypeSearchFilter("VirtualMachine", false);
 
+        // VMSPECPROFILE filter
         assertFalse(vmSpecFilter.test(compTierNoVendorId, graph));
         assertTrue(vmSpecFilter.test(compTierVmSpecProfile, graph));
         assertFalse(vmSpecFilter.test(compTierVmProfile, graph));
+        assertFalse(vmSpecFilter.test(compTierNoProfile, graph));
 
+        // VMPROFILE filter
         assertFalse(vmFilter.test(compTierNoVendorId, graph));
         assertFalse(vmFilter.test(compTierVmSpecProfile, graph));
         assertTrue(vmFilter.test(compTierVmProfile, graph));
+        assertTrue(vmFilter.test(compTierNoProfile, graph));
 
+        // not VMSPECPROFILE filter
         assertTrue(notVmSpecFilter.test(compTierNoVendorId, graph));
         assertFalse(notVmSpecFilter.test(compTierVmSpecProfile, graph));
         assertTrue(notVmSpecFilter.test(compTierVmProfile, graph));
+        assertTrue(notVmSpecFilter.test(compTierNoProfile, graph));
 
+        // not VMPROFILE filter
         assertTrue(notVmFilter.test(compTierNoVendorId, graph));
         assertTrue(notVmFilter.test(compTierVmSpecProfile, graph));
         assertFalse(notVmFilter.test(compTierVmProfile, graph));
+        assertFalse(notVmFilter.test(compTierNoProfile, graph));
     }
 
     private PropertyFilter<TestGraphEntity> getComputeTierConsumerEntityTypeSearchFilter(
@@ -1896,6 +1922,42 @@ public class TopologyFilterFactoryTest {
         final TopologyFilter<TestGraphEntity> topologyFilter = filterFactory.filterFor(searchFilter);
         assertTrue(topologyFilter instanceof PropertyFilter);
         return (PropertyFilter<TestGraphEntity>)topologyFilter;
+    }
+
+    /**
+     * Directly tests ThinComputeTierProps and that it handles vendorIds correctly.
+     */
+    @Test
+    public void testGetComputeTierConsumerEntityType() {
+        testGetComputeTierConsumerEntityType(getComputeTierTopologyEntity("azure::VMSPECPROFILE::F1"),
+                EntityType.VIRTUAL_MACHINE_SPEC);
+        testGetComputeTierConsumerEntityType(getComputeTierTopologyEntity("azure::VMPROFILE::Standard_D4s_v3"),
+                EntityType.VIRTUAL_MACHINE);
+        testGetComputeTierConsumerEntityType(getComputeTierTopologyEntity("t3.small"),
+                EntityType.VIRTUAL_MACHINE);
+    }
+
+    private void testGetComputeTierConsumerEntityType(TopologyEntityDTO computeTierEntity,
+            EntityType expectedEntityType) {
+        final ThinComputeTierProps ctProps = new ThinComputeTierProps(null, null,
+                computeTierEntity);
+        final Set<EntityType> types = ctProps.getConsumerEntityTypes();
+        assertThat(types.size(), equalTo(1));
+        assertThat(types.iterator().next(), equalTo(expectedEntityType));
+    }
+
+    private TopologyEntityDTO getComputeTierTopologyEntity(String vendorId) {
+        return TopologyEntityDTO.newBuilder()
+                .setOid(1234L)
+                .setEntityType(EntityType.COMPUTE_TIER.getNumber())
+                .setOrigin(Origin.newBuilder()
+                        .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                .putDiscoveredTargetData(123L,
+                                        PerTargetEntityInformation.newBuilder()
+                                                .setVendorId(vendorId)
+                                                .build())
+                                .build()))
+                .build();
     }
 
     /**
