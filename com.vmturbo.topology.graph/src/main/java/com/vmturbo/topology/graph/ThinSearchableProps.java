@@ -613,7 +613,14 @@ public class ThinSearchableProps implements SearchableProps {
     public static class ThinComputeTierProps extends ThinSearchableProps implements ComputeTierProps {
         private final Set<EntityType> consumerEntityTypes;
 
-        private ThinComputeTierProps(@Nonnull final TagIndex tagIndex,
+        /**
+         * Creates a new ThinComputeTierProps for a given topology entity.
+         *
+         * @param tagIndex The tag index
+         * @param commodities The commodity value fetcher
+         * @param entity The topology entity
+         */
+        public ThinComputeTierProps(@Nonnull final TagIndex tagIndex,
                 @Nonnull final CommodityValueFetcher commodities,
                 @Nonnull final TopologyEntityDTO entity) {
             super(tagIndex, commodities);
