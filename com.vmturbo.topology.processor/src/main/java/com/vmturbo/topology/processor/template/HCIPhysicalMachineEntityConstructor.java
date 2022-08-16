@@ -108,6 +108,7 @@ public class HCIPhysicalMachineEntityConstructor {
 
         setResizable(newStorage, CommodityType.STORAGE_AMOUNT);
         setResizable(newStorage, CommodityType.STORAGE_PROVISIONED);
+        setResizable(newStorage, CommodityType.STORAGE_ACCESS);
         setStoragePolicy(newStorage);
         List<TopologyEntityImpl> result = new ArrayList<>();
         result.add(newStorage);
