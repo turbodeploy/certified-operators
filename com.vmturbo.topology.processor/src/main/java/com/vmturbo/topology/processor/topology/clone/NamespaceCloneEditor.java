@@ -10,7 +10,6 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityBoughtView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -49,9 +48,8 @@ public class NamespaceCloneEditor extends DefaultEntityCloneEditor {
 
     @Override
     protected boolean shouldCopyBoughtCommodity(@Nonnull CommodityBoughtView commodityBought,
-                                                @Nonnull CloneContext cloneContext,
-                                                @Nonnull TopologyEntityView entity) {
-        if (super.shouldCopyBoughtCommodity(commodityBought, cloneContext, entity)) {
+                                                @Nonnull CloneContext cloneContext) {
+        if (super.shouldCopyBoughtCommodity(commodityBought, cloneContext)) {
             // If the commodity does not have a key, keep it
             return true;
         }

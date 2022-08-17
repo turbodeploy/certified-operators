@@ -12,7 +12,6 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommodityTypeView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.AnalysisSettingsImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
-import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -60,17 +59,10 @@ public class ContainerPodCloneEditor extends DefaultEntityCloneEditor {
 
     @Override
     protected boolean shouldCopyBoughtCommodity(@Nonnull CommodityBoughtView commodityBought,
-                                                @Nonnull final CloneContext cloneContext,
-                                                @Nonnull final TopologyEntityView entity) {
-        if (super.shouldCopyBoughtCommodity(commodityBought, cloneContext, entity)) {
+                                                @Nonnull final CloneContext cloneContext) {
+        if (super.shouldCopyBoughtCommodity(commodityBought, cloneContext)) {
             // If the commodity does not have a key, keep it
             return true;
-        }
-        if (entity.getAnalysisSettings() != null && entity.getAnalysisSettings().getDaemon()) {
-            // Ensure daemon pods will always be placed.  This is a workaround while waiting for
-            // the ultimate solution for the market analysis to handle initial placement (in plan)
-            // for daemons.
-            return false;
         }
         if (cloneContext.shouldApplyConstraints() || cloneContext.isMigrateContainerWorkloadPlan()) {
             final Map<CommodityType, Set<String>> nodeCommodities =

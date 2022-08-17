@@ -273,6 +273,7 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>platform.analysis</artifactId>
+            <version>${market.version}</version>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
