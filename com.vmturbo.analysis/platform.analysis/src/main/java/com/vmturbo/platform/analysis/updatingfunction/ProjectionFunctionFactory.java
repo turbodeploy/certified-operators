@@ -73,7 +73,7 @@ public class ProjectionFunctionFactory {
         public DoubleUnaryOperator project(Trader seller, CommoditySold resizingCommodity, double byProductUtilization) {
             return u -> {
                 if (u <= 0 || resizingCommodity.getHistoricalOrElseCurrentQuantity() <= 0) {
-                    logger.warn("This inverse-square projection function only works when both "
+                    logger.debug("This inverse-square projection function only works when both "
                             + "the projected utilization and current quantity are greater than 0, "
                             + "but at least one of them is not: projection utilization = {} and "
                             + "current quantity = {}", u,
