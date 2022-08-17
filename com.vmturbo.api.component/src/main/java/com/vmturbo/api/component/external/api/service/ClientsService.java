@@ -25,6 +25,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.api.dto.client.ClientInputDTO;
 import com.vmturbo.api.dto.client.ClientNetworkTokenApiDTO;
+import com.vmturbo.api.dto.client.ClientNetworkTokensMetadataApiDTO;
 import com.vmturbo.api.dto.client.ClientServiceApiDTO;
 import com.vmturbo.api.serviceinterfaces.IClientsService;
 import com.vmturbo.auth.api.auditing.AuditAction;
@@ -230,5 +231,32 @@ public class ClientsService implements IClientsService {
             client.setId(response.getBody().get("id").getAsString());
             client.setTokenData(response.getBody().get(SecurityConstant.TOKEN).getAsString());
             return client;
+    }
+
+    @Override
+    public List<ClientNetworkTokensMetadataApiDTO> getClientNetworksTokens() throws Exception {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            ResponseEntity<JsonArray> response = restTemplate
+                .getForEntity(prepareClientNetworkUri(SecurityConstant.TOKENS).toUriString(), JsonArray.class);
+            List<ClientNetworkTokensMetadataApiDTO> clientNetworkList = new ArrayList<>();
+            response.getBody().forEach(client -> {
+                try {
+                    clientNetworkList.add(buildClientNetworkTokensMetadataApiDTO((JsonObject)client));
+                } catch (Exception e) {
+                    logger.error(e);
+                }
+            });
+            return clientNetworkList;
+    }
+
+    protected ClientNetworkTokensMetadataApiDTO buildClientNetworkTokensMetadataApiDTO(JsonObject clientJson) {
+        ClientNetworkTokensMetadataApiDTO client = new ClientNetworkTokensMetadataApiDTO();
+        client.setId(clientJson.get(SecurityConstant.TOKEN_NAME).getAsString());
+        client.setCreated(clientJson.get(SecurityConstant.CREATED).getAsString());
+        client.setClaimsMade(clientJson.get(SecurityConstant.CLAIMS_MADE).getAsInt());
+        client.setClaimsRemaining(clientJson.get(SecurityConstant.CLAIMS_REMAINING).getAsInt());
+        client.setClaimExpiration(clientJson.get(SecurityConstant.CLAIMS_EXPIRATION).getAsString());
+        return client;
     }
 }
