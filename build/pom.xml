@@ -11,7 +11,6 @@
 
     <properties>
         <revision>8.6.3-SNAPSHOT</revision>
-        <market.version>4.6.3-SNAPSHOT</market.version>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
@@ -328,6 +327,7 @@
         <profile>
             <id>market-component</id>
             <modules>
+                <module>../com.vmturbo.analysis</module>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.communication.matrix</module>
@@ -1026,6 +1026,7 @@
             <id>development</id>
             <modules>
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.analysis</module>
                 <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
@@ -1115,6 +1116,7 @@
             <id>platform</id>
             <modules>
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.analysis</module>
                 <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
@@ -1249,6 +1251,7 @@
                 <module>kubernetes</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.analysis</module>
                 <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
@@ -1413,6 +1416,7 @@
                 <module>kubernetes</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.analysis</module>
                 <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
@@ -1582,6 +1586,7 @@
                 <module>../protoc-spring-rest</module>
                 <module>../protoc-pojo-gen</module>
                 <module>../protoc-grpc-moles</module>
+                <module>../com.vmturbo.analysis</module>
                 <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
@@ -2990,8 +2995,18 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.communication.matrix</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>platform.analysis</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
                 <artifactId>platform.analysis.protobuf</artifactId>
-                <version>${market.version}</version>
+                <version>${vmturbo.mt.branch.version}</version>
             </dependency>
             <!-- com.turbonomic dependencies -->
             <dependency>
