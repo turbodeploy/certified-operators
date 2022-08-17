@@ -20,6 +20,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableSet;
 
 import io.grpc.StatusRuntimeException;
 
@@ -137,6 +138,12 @@ public class StitchingManager {
         .withHelp("Duration of execution of all post-stitching operations.")
         .build()
         .register();
+
+    /**
+     * A set that includes the type of the target which staleness could be applied to.
+     */
+    private static final Set<ProbeCategory> STALENESS_APPLICABLE_TYPE
+            = ImmutableSet.of(ProbeCategory.HYPERVISOR, ProbeCategory.CLOUD_NATIVE);
 
     /**
      * A store of the operations to be applied during the Stitching phase.
@@ -349,21 +356,19 @@ public class StitchingManager {
         if (FeatureFlags.DELAYED_DATA_HANDLING.isEnabled()) {
             stitchingJournal.recordMessage(String.format(STITCHING_JOURNAL_FORMAT, "START",
                             "Set the controllable flag to false for stale entities"));
-            // staleness atm should affect only on-prem, ignore it for the purpose of setting controllable
-            // for everything but hypervisors
-            // TODO remove to make this logic uniform when staleness is defined at finer granularity
-            final Set<Long> hypervisorTargets = targetStore.getAll().stream()
+            // Filter to the targets which staleness could be applied to
+            final Set<Long> stalenessApplicableTargets = targetStore.getAll().stream()
                             .map(Target::getId)
                             .filter(targetId -> targetStore.getProbeCategoryForTarget(targetId)
                                 .filter(Objects::nonNull)
-                                .map(category -> category == ProbeCategory.HYPERVISOR)
+                                .map(category -> STALENESS_APPLICABLE_TYPE.contains(category))
                                 .orElse(false))
                             .collect(Collectors.toSet());
 
             final StitchingResultBuilder resultBuilder = new StitchingResultBuilder(
                     scopeFactory.getStitchingContext());
             scopeFactory.globalScope().entities().forEach(e -> {
-                if (e.isStale() && !hypervisorTargets.contains(e.getTargetId())) {
+                if (e.isStale() && !stalenessApplicableTargets.contains(e.getTargetId())) {
                     resultBuilder.queueUpdateEntityAlone(e, en -> ((TopologyStitchingEntity)en).setStale(false));
                     return;
                 }
@@ -392,7 +397,7 @@ public class StitchingManager {
                     }
                 } else {
                     if (e.isStale()) {
-                        if (hypervisorTargets.contains(e.getTargetId())) {
+                        if (stalenessApplicableTargets.contains(e.getTargetId())) {
                             resultBuilder.queueUpdateEntityAlone(e, en -> en.getEntityBuilder()
                                             .getConsumerPolicyBuilder()
                                             .setControllable(false));
