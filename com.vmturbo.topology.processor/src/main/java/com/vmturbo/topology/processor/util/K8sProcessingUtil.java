@@ -1,13 +1,17 @@
 package com.vmturbo.topology.processor.util;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -105,10 +109,7 @@ public final class K8sProcessingUtil {
         @Nonnull TopologyEntity.Builder containerCluster) {
         final Map<CommodityType, Set<String>> nodeCommodities = new HashMap<>();
         // Iterate through all nodes in the cluster, and collect commodities from these nodes
-        containerCluster.getAggregatedEntities()
-            .stream()
-            .filter(entity -> EntityType.VIRTUAL_MACHINE_VALUE == entity.getEntityType())
-            .map(TopologyEntity::getTopologyEntityImpl)
+        getNodes(containerCluster)
             .forEach(node -> node.getTags()
                 .getTagsMap()
                 .forEach((key, valueList) -> {
@@ -132,5 +133,28 @@ public final class K8sProcessingUtil {
                 }));
 
         return nodeCommodities;
+    }
+
+    /**
+     * Return a collection of oids of the nodes in the given container cluster.
+     *
+     * @param containerCluster the given container cluster
+     * @return the collection of oids of the nodes in the container cluster
+     */
+    public static Set<Long> getProviderNodeOids(@Nonnull TopologyEntity.Builder containerCluster) {
+        return getNodes(containerCluster).stream()
+                .filter(node -> node.getAnalysisSettings() != null
+                        && node.getAnalysisSettings().getIsAvailableAsProvider())
+                .map(TopologyEntityImpl::getOid)
+                .collect(Collectors.toSet());
+    }
+
+    private static Collection<TopologyEntityImpl> getNodes(@Nonnull TopologyEntity.Builder containerCluster) {
+        return Objects.requireNonNull(containerCluster).getAggregatedEntities()
+                .stream()
+                .filter(entity -> EntityType.VIRTUAL_MACHINE_VALUE == entity.getEntityType())
+                .map(TopologyEntity::getTopologyEntityImpl)
+                .collect(Collectors.toList());
+
     }
 }
