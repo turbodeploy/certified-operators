@@ -138,14 +138,14 @@ public class PolicyManager {
      * @param graph The topology graph on which to apply the policies.
      * @param changes list of plan changes to be applied to the policies
      * @param groupResolver The group resolver to use for resolving groups
-     * @param policyGroups Bind sources to destinations for migrations.
+     * @param placementPolicies Placement policies mainly in migration plans
      * @return Map from (type of policy) -> (num of policies of the type)
      */
     public PolicyApplicator.Results applyPolicies(@Nonnull final TopologyPipelineContext context,
                                                   @Nonnull final TopologyGraph<TopologyEntity> graph,
                                                   @Nonnull final List<ScenarioChange> changes,
                                                   @Nonnull final GroupResolver groupResolver,
-                                                  @Nonnull final Set<Pair<Grouping, Grouping>> policyGroups) {
+                                                  @Nonnull final List<PlacementPolicy> placementPolicies) {
         try (DataMetricTimer timer = POLICY_APPLICATION_SUMMARY.startTimer()) {
             final long startTime = System.currentTimeMillis();
             final List<Policy> livePolicies = new ArrayList<>();
@@ -183,10 +183,7 @@ public class PolicyManager {
 
             // Bind sources (consumers) to destinations (providers) in case of migration
             // NOTE: the resulting BindToGroupPolicy binds source entities to destination (PM/tier).
-            policyGroups.forEach(policyPair -> {
-                policiesToApply.add(createPlacementPolicy(policyPair.getFirst(),
-                    policyPair.getSecond()));
-            });
+            policiesToApply.addAll(placementPolicies);
 
             // If we are doing migration, on-prem policies should be excluded.
             if (!TopologyDTOUtil.isCloudMigrationPlan(context.getTopologyInfo())) {
@@ -377,9 +374,16 @@ public class PolicyManager {
             .collect(Collectors.toList());
     }
 
+    /**
+     * Create and return a {@link BindToGroupPolicy}.
+     *
+     * @param source the source grouping
+     * @param destination the destination grouping
+     * @return the created {@link BindToGroupPolicy}
+     */
     @Nonnull
-    private PlacementPolicy createPlacementPolicy(@Nonnull final Grouping source,
-                                                  @Nonnull final Grouping destination) {
+    public static PlacementPolicy createPlacementPolicy(@Nonnull final Grouping source,
+            @Nonnull final Grouping destination) {
         final Policy bindToGroupPolicy = generateBindToGroupPolicy(
                 destination.getId(), source.getId());
         return new BindToGroupPolicy(bindToGroupPolicy,
@@ -395,8 +399,8 @@ public class PolicyManager {
      * @param consumerGroupId the ID of a consumer {@link Grouping}
      * @return a BindToGroup {@link Policy} definition
      */
-    public static Policy generateBindToGroupPolicy(final long providerGroupId,
-                                                   final long consumerGroupId) {
+    private static Policy generateBindToGroupPolicy(final long providerGroupId,
+            final long consumerGroupId) {
         return Policy.newBuilder()
                 .setId(IdentityGenerator.next())
                 .setPolicyInfo(PolicyInfo.newBuilder()
@@ -435,5 +439,46 @@ public class PolicyManager {
                                 .setDescription(description)).build())
                 .build();
         return staticGroup;
+    }
+
+    /**
+     * Create and return a {@link AtMostNPolicy}.
+     *
+     * @param source the source grouping
+     * @param destination the destination grouping
+     * @param n the "N" in the {@link AtMostNPolicy}
+     * @return the created {@link AtMostNPolicy}
+     */
+    @Nonnull
+    public static PlacementPolicy createAtMostNPlacementPolicy(@Nonnull final Grouping source,
+            @Nonnull final Grouping destination, final int n) {
+        final Policy bindToGroupPolicy = generateAtMostNPolicy(
+                destination.getId(), source.getId(), n);
+        return new AtMostNPolicy(bindToGroupPolicy,
+                new PolicyFactory.PolicyEntities(source),
+                new PolicyFactory.PolicyEntities(destination));
+    }
+
+    /**
+     * Generate a {@link AtMostNPolicy} associating provider and consumer groups represented by
+     * {@param providerGroupId} and {@param consumerGroupId}.
+     *
+     * @param providerGroupId the ID of a provider {@link Grouping}
+     * @param consumerGroupId the ID of a consumer {@link Grouping}
+     * @param n the "N" in the {@link AtMostNPolicy}
+     * @return a {@link AtMostNPolicy} definition
+     */
+    private static Policy generateAtMostNPolicy(final long providerGroupId,
+            final long consumerGroupId, final int n) {
+        return Policy.newBuilder()
+                .setId(IdentityGenerator.next())
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                        .setEnabled(true)
+                        .setAtMostN(PolicyInfo.AtMostNPolicy.newBuilder()
+                                .setCapacity(n)
+                                .setConsumerGroupId(consumerGroupId)
+                                .setProviderGroupId(providerGroupId)
+                                .build()))
+                .build();
     }
 }
