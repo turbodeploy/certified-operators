@@ -21,6 +21,7 @@ import org.springframework.web.client.RestTemplate;
 
 import com.vmturbo.api.dto.client.ClientInputDTO;
 import com.vmturbo.api.dto.client.ClientNetworkTokenApiDTO;
+import com.vmturbo.api.dto.client.ClientNetworkTokensMetadataApiDTO;
 import com.vmturbo.api.dto.client.ClientServiceApiDTO;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 
@@ -37,6 +38,10 @@ public class ClientsServiceTest {
 
     private static final String networkTokenId = "testNetworkTokenId";
     private static final String networkTokenData = "testNetworkTokenData";
+    private static final String networkTokenCreated = "testNetworkTokenCreated";
+    private static final Integer networkTokenClaimsMade = 0;
+    private static final Integer networkTokenClaimsRemaining = 1;
+    private static final String networkTokenClaimsExpiration = "testNetworkTokenClaimsExpiration";
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -189,5 +194,43 @@ public class ClientsServiceTest {
             .thenReturn(response);
         ClientNetworkTokenApiDTO responseDTO = clientsService.createClientNetworkToken();
         assertClientNetworkTokenInfo(responseDTO);
+    }
+
+    private JsonObject setupNetworkTokenMetadataJsonResponse() {
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty(SecurityConstant.TOKEN_NAME, networkTokenId);
+        jsonObject.addProperty(SecurityConstant.CREATED, networkTokenCreated);
+        jsonObject.addProperty(SecurityConstant.CLAIMS_MADE, networkTokenClaimsMade);
+        jsonObject.addProperty(SecurityConstant.CLAIMS_REMAINING, networkTokenClaimsRemaining);
+        jsonObject.addProperty(SecurityConstant.CLAIMS_EXPIRATION, networkTokenClaimsExpiration);
+        return jsonObject;
+    }
+
+    private void assertClientNetworkTokenMetadataInfo(ClientNetworkTokensMetadataApiDTO clientDTO) {
+        Assert.assertEquals(clientDTO.getId(), networkTokenId);
+        Assert.assertEquals(clientDTO.getCreated(), networkTokenCreated);
+        Assert.assertEquals(clientDTO.getClaimsMade(), networkTokenClaimsMade);
+        Assert.assertEquals(clientDTO.getClaimsRemaining(), networkTokenClaimsRemaining);
+        Assert.assertEquals(clientDTO.getClaimExpiration(), networkTokenClaimsExpiration);
+    }
+
+    /**
+     * Test get client network tokens.
+     *
+     * @throws Exception exception.
+     */
+    @Test
+    public void testgetClientNetworksTokens() throws Exception {
+        JsonArray clientNetworkTokenArray = new JsonArray();
+        clientNetworkTokenArray.add(setupNetworkTokenMetadataJsonResponse());
+        ResponseEntity<JsonArray> response
+            = new ResponseEntity<JsonArray>(clientNetworkTokenArray, HttpStatus.OK);
+        Mockito.when(mockRestTemplate
+            .getForEntity(clientsService.prepareClientNetworkUri(SecurityConstant.TOKENS).toUriString(), JsonArray.class))
+            .thenReturn(response);
+        List<ClientNetworkTokensMetadataApiDTO> tokenList = clientsService.getClientNetworksTokens();
+        tokenList.forEach(token -> {
+            assertClientNetworkTokenMetadataInfo(token);
+        });
     }
 }

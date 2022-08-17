@@ -227,6 +227,11 @@ public class SecurityConstant {
     public static final String TOKEN = "token";
 
     /**
+     * Tokens.
+     */
+    public static final String TOKENS = "tokens";
+
+    /**
      * Default ip.
      */
     public static final String DEFAULT_IP = "UNKNOWN";
@@ -245,6 +250,15 @@ public class SecurityConstant {
      * Constant for client network.
      */
     public static final String CLIENT_NETWORK = "client-network";
+
+    /**
+     * Constant for client network token metadata.
+     */
+    public static final String TOKEN_NAME = "name";
+    public static final String CREATED = "created";
+    public static final String CLAIMS_MADE = "claimsMade";
+    public static final String CLAIMS_REMAINING = "claimsRemaining";
+    public static final String CLAIMS_EXPIRATION = "claimExpiration";
 
     /**
      * Constant for client network port.
