@@ -3,7 +3,7 @@
 # versions as a list of <name>:<version> pairs. 
 # Note: Any versions released privately have distinct properties. Include <name> of private
 # release grafana version(s) as a list of strings.
-ARG grafana_versions="embedded-reporting:8.3.9 saas-reporting:7.5.10"
+ARG grafana_versions="embedded-reporting:8.5.3 saas-reporting:7.5.10"
 ARG private_releases=("embedded-reporting")
 
 # The grafana.ini config file is, in our case, created by the helm chart responsible for the
@@ -84,9 +84,9 @@ RUN dnf install -y wget && \
     for version in $grafana_versions ; do \
        name=${version%:*}; \
        v=${version#*:}; \
-       path="enterprise/release" && [[ ${private_releases[*]} =~ ${name} ]]  && path="private-releases/enterprise"; \
-       wget https://dl.grafana.com/$path/grafana-enterprise-$v.linux-amd64.tar.gz \
-           -nv --show-progress --progres=bar:force:noscroll:giga; \
+       path="oss/release" && [[ ${private_releases[*]} =~ ${name} ]]  && path="private-releases/oss"; \
+       wget https://dl.grafana.com/$path/grafana-$v.linux-amd64.tar.gz \
+           -nv --show-progress --progres=bar:force:noscrolls:giga; \
     done
 
 WORKDIR /grafana-fetch
@@ -97,7 +97,7 @@ USER grafana
 
 RUN for version in $grafana_versions; do \
       v=${version#*:}; \
-      tar -zxf /grafana-enterprise-$v.linux-amd64.tar.gz; \
+      tar -zxf /grafana-$v.linux-amd64.tar.gz; \
     done
 
 FROM registry.access.redhat.com/ubi8
@@ -148,20 +148,7 @@ COPY CentOS-Base.repo /etc/yum.repos.d/
 RUN curl http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-Official -s -o /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-Official
     # Install common libs that every component has
 RUN curl https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm -s -o /etc/yum.repos.d/epel-release-latest-8.noarch.rpm && \
-    dnf install -y --nobest rsyslog procps-ng \
-    # Install specific dependencies that the grafana renderer plugins need. Taken from lib list for centos:
-    # https://grafana.com/docs/grafana/latest/administration/image_rendering/
-    libXcomposite libXdamage libXtst cups libXScrnSaver pango atk adwaita-cursor-theme adwaita-icon-theme \
-    at at-spi2-atk at-spi2-core cairo-gobject colord-libs dconf desktop-file-utils ed emacs-filesystem gdk-pixbuf2 \
-    glib-networking gnutls gsettings-desktop-schemas gtk-update-icon-cache gtk3 hicolor-icon-theme jasper-libs json-glib \
-    libappindicator-gtk3 libdbusmenu libdbusmenu-gtk3 libepoxy liberation-fonts liberation-narrow-fonts \
-    liberation-sans-fonts liberation-serif-fonts libgusb libindicator-gtk3 libmodman libproxy libsoup libwayland-cursor \
-    libwayland-egl libxkbcommon m4 mailx nettle patch psmisc redhat-lsb-core redhat-lsb-submod-security rest spax time \
-    trousers xdg-utils xkeyboard-config alsa-lib \
-    # the below libs were not in the grafana doc list, but without those the pdf generation was not working.
-    # those were found by running this command: "ldd /var/lib/grafanax/plugins/grafana-image-renderer/chrome-linux/chrome"
-    # from inside the grafana image, and check which lib was missing
-    libX11-xcb libdrm libgbm && \
+    dnf install -y --nobest rsyslog procps-ng && \
     # clean up
     dnf clean all
 
@@ -224,20 +211,9 @@ RUN find /grafana-dashboards/*/ -type f -iname '*.yaml' -print0 | xargs -0 /util
 RUN cli_version="${grafana_versions% *}" && cli_version="${cli_version%:*}"  && \
     /grafana-$cli_version-runtime/bin/grafana-cli \
         --pluginsDir /grafana-plugins \
-        --pluginUrl https://github.com/grafana/grafana-image-renderer/releases/download/$grafana_img_renderer_version/plugin-linux-x64-glibc.zip \
-        plugins install grafana-image-renderer && \
-    /grafana-$cli_version-runtime/bin/grafana-cli \
-        --pluginsDir /grafana-plugins \
-        --pluginUrl https://storage.googleapis.com/datacloud-grafana-datasource/datacloud-grafana-datasource-7428f43a.zip \
-        plugins install turbonomic-datacloud-grafana-datasource && \
-    /grafana-$cli_version-runtime/bin/grafana-cli \
-        --pluginsDir /grafana-plugins \
         --pluginUrl https://grafana.com/api/plugins/marcusolsson-treemap-panel/versions/0.9.1/download \
         plugins install marcusolsson-treemap-panel
 
-# This command is only used to have a visual indication during the build that all the chrome dependencies are satisfied
-RUN echo "IMPORTANT! Make sure that in the list below all the chrome dependencies are satisfied." && \
-    ldd /grafana-plugins/grafana-image-renderer/chrome-linux/chrome
 
 # This is our python script to manage the server, responding to newly uploaded licenses, SMTP
 # config changes in turbonomic, etc.
