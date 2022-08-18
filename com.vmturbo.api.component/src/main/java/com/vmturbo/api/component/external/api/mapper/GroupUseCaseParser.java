@@ -5,8 +5,10 @@ import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.nio.charset.Charset;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -61,17 +63,20 @@ public class GroupUseCaseParser {
             private String filterCategory;
             private String filterType;
             private boolean loadOptions;
+            private boolean hidden;
 
             public GroupUseCaseCriteria(String inputType,
                                         String elements,
                                         String filterCategory,
                                         String filterType,
-                                        boolean loadOptions) {
+                                        boolean loadOptions,
+                                        boolean hidden) {
                 this.inputType = inputType;
                 this.elements = elements;
                 this.filterCategory = filterCategory;
                 this.filterType = filterType;
                 this.loadOptions = loadOptions;
+                this.hidden = hidden;
             }
 
             public String getInputType() {
@@ -94,6 +99,14 @@ public class GroupUseCaseParser {
                 return loadOptions;
             }
 
+            /**
+             * Returns whether the criteria item is hidden. The default is false.
+             * @return true if hidden, false if not hidden.
+             */
+            public boolean isHidden() {
+                return hidden;
+            }
+
             @Override
             public String toString() {
                 return getClass().getSimpleName() + "[" + filterType + "]";
@@ -108,6 +121,13 @@ public class GroupUseCaseParser {
             return this.criteria;
         }
 
+        boolean containsHiddenCriteria() {
+            if (this.criteria != null) {
+                return criteria.stream().anyMatch(GroupUseCaseCriteria::isHidden);
+            }
+            return false;
+        }
+
         @Override
         public String toString() {
             return criteria == null ? "<empty>" : criteria.toString();
@@ -116,7 +136,28 @@ public class GroupUseCaseParser {
 
     @Nonnull
     public Map<String, GroupUseCase> getUseCases() {
-        return this.useCases;
+        return getUseCases(true);
+    }
+
+    public Map<String, GroupUseCase> getUseCases(boolean includeHiddenCriteria) {
+        if (includeHiddenCriteria) {
+            return this.useCases;
+        } else {
+            final Map<String, GroupUseCase> filteredUseCases = new HashMap<>(this.useCases.size());
+            for (Entry<String, GroupUseCase> entry : this.useCases.entrySet()) {
+                final GroupUseCase useCase = entry.getValue();
+                if (useCase.containsHiddenCriteria()) {
+                    final List<GroupUseCaseCriteria> filteredCrit = useCase.getCriteria()
+                            .stream()
+                            .filter(crit -> !crit.isHidden())
+                            .collect(Collectors.toList());
+                    filteredUseCases.put(entry.getKey(), new GroupUseCase(filteredCrit));
+                } else {
+                    filteredUseCases.put(entry.getKey(), useCase);
+                }
+            }
+            return filteredUseCases;
+        }
     }
 
     @Nonnull

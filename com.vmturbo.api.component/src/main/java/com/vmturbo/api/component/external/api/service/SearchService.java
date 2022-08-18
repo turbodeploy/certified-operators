@@ -1078,7 +1078,7 @@ public class SearchService implements ISearchService {
 
     @Override
     public Map<String, Object> getGroupBuilderUsecases() {
-        return groupUseCaseParser.getUseCases().entrySet().stream()
+        return groupUseCaseParser.getUseCases(false).entrySet().stream()
                 .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
 
