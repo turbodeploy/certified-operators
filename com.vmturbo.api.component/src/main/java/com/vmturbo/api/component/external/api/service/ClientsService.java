@@ -42,6 +42,8 @@ public class ClientsService implements IClientsService {
 
     private String clientMessage = "%s client request %s for client: %s";
 
+    private String clientNetworkTokenMessage = "%s client network token %s for token: %s";
+
     private final RestTemplate restTemplate;
 
     private final String clientServiceHost;
@@ -258,5 +260,16 @@ public class ClientsService implements IClientsService {
         client.setClaimsRemaining(clientJson.get(SecurityConstant.CLAIMS_REMAINING).getAsInt());
         client.setClaimExpiration(clientJson.get(SecurityConstant.CLAIMS_EXPIRATION).getAsString());
         return client;
+    }
+
+    @Override
+    public Boolean deleteClientNetworkToken(String tokenId) throws Exception {
+        try {
+            restTemplate.delete(prepareClientNetworkUri(SecurityConstant.TOKEN + "/" + tokenId).toUri());
+        } catch (RestClientException e) {
+            logger.error(String.format(clientNetworkTokenMessage, "Delete", "failed", tokenId), e);
+            throw e;
+        }
+        return true;
     }
 }

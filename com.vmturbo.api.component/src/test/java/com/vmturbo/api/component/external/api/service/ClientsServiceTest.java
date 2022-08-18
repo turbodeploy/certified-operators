@@ -233,4 +233,17 @@ public class ClientsServiceTest {
             assertClientNetworkTokenMetadataInfo(token);
         });
     }
+
+    /**
+     * Test client network token delete.
+     *
+     * @throws Exception exception.
+     */
+    @Test
+    public void testDeleteClientNetworkToken() throws Exception {
+        Mockito.doNothing().when(mockRestTemplate)
+            .delete(clientsService.prepareClientNetworkUri(SecurityConstant.TOKEN + "/" + networkTokenId).toUri());
+        Boolean resp = clientsService.deleteClientNetworkToken(networkTokenId);
+        Assert.assertTrue(resp);
+    }
 }
