@@ -115,6 +115,7 @@ public class LicenseManagerServiceTest {
     }
 
     // test bad workload licenses
+    @Ignore
     @Test
     public void testTamperedLicense() throws IOException {
 
