@@ -46,6 +46,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>cloud-common</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>platform.analysis.protobuf</artifactId>
+        </dependency>
 
         <!-- START Dependencies for cost journal serialization to readable format -->
         <dependency>

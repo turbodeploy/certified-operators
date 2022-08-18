@@ -9,6 +9,7 @@ The goal is for the module to become - and remain - clear of violations.
 -->
 
 <suppressions>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]commons[/\\]analysis[/\\]CommodityResizeDependencyMap.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]platform[/\\]analysis[/\\]actions[/\\]Action.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]platform[/\\]analysis[/\\]actions[/\\]ActionCollapse.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]platform[/\\]analysis[/\\]actions[/\\]ActionImpl.java" />
