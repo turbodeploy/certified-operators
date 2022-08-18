@@ -9,11 +9,10 @@ import java.util.Set;
 
 import com.google.common.reflect.TypeToken;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.components.common.pipeline.PipelineContext.PipelineContextMemberDefinition;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
+import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.group.settings.SettingPolicyEditor;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
 
@@ -90,19 +89,17 @@ public class TopologyPipelineContextMembers {
             list -> "size=" + list.size());
 
     /**
-     * Grouping info (if set) that is used to create placement policies later in PolicyStage.
-     * This is mainly used for cloud migration case, where first element of pair is the grouping
-     * for source entities being migrated, and second element is the target region group that the
-     * entities are being migrated to.
-     * These groupings are later used by PolicyManager for creating placement policies.
+     * Placement policies to be applied later in PolicyStage.  This is mainly used for migration
+     * cases, where a group of source entities being migrated is restricted being placed within a
+     * group of destination entities.
      */
     @SuppressWarnings("unchecked")
-    public static final PipelineContextMemberDefinition<Set<Pair<Grouping, Grouping>>> POLICY_GROUPS =
+    public static final PipelineContextMemberDefinition<List<PlacementPolicy>> PLACEMENT_POLICIES =
         PipelineContextMemberDefinition.memberWithDefault(
-            (Class<Set<Pair<Grouping, Grouping>>>)(new TypeToken<Set<Pair<Grouping, Grouping>>>(){ }).getRawType(),
-            () -> "policyGroups",
-            HashSet::new,
-            set -> "size=" + set.size());
+            (Class<List<PlacementPolicy>>)(new TypeToken<List<PlacementPolicy>>(){ }).getRawType(),
+            () -> "placementPolicies",
+            ArrayList::new,
+            list -> "size=" + list.size());
 
     /**
      * This context is storing Groups with their members, this is useful in case of Dynamic Group

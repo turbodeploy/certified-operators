@@ -1,8 +1,11 @@
 package com.vmturbo.topology.processor.topology.clone;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -21,6 +24,7 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.Comm
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.OriginView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.PlanScenarioOriginImpl;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -123,7 +127,7 @@ public class DefaultEntityCloneEditor {
                             .setMovable(movable)
                             .setProviderEntityType(bought.getProviderEntityType());
             bought.getCommodityBoughtList().forEach(commodityBought -> {
-                if (shouldCopyBoughtCommodity(commodityBought, cloneContext)) {
+                if (shouldCopyBoughtCommodity(commodityBought, cloneContext, entityImpl)) {
                     final CommodityTypeView commodityType = commodityBought.getCommodityType();
                     if (shouldReplaceBoughtKey(commodityType, bought.getProviderEntityType())) {
                         final CommodityTypeView newType = getReplacedBoughtCommodity(
@@ -209,11 +213,13 @@ public class DefaultEntityCloneEditor {
      *
      * @param commodityBought the commodity bought DTO
      * @param cloneContext the clone context
+     * @param entity the entity to clone
      * @return true if we should copy the bought commodity; otherwise, return false.
      */
     protected boolean shouldCopyBoughtCommodity(
             @Nonnull final CommodityBoughtView commodityBought,
-            @Nonnull final CloneContext cloneContext) {
+            @Nonnull final CloneContext cloneContext,
+            @Nonnull final TopologyEntityView entity) {
          return !Objects.requireNonNull(commodityBought).getCommodityType().hasKey();
     }
 
@@ -321,8 +327,9 @@ public class DefaultEntityCloneEditor {
      * @param cloneInfo the clone change info
      * @param relation the relation to the original entity
      * @param entityType the entity type to clone
+     * @return the collection of cloned topology entityies in the builder form
      */
-    protected void cloneRelatedEntities(@Nonnull final Builder origEntity,
+    protected Collection<Builder> cloneRelatedEntities(@Nonnull final Builder origEntity,
                                         @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                                         @Nonnull final CloneContext cloneContext,
                                         @Nonnull final CloneInfo cloneInfo,
@@ -341,13 +348,14 @@ public class DefaultEntityCloneEditor {
                 sourceEntities = origEntity.getOwnedEntities();
                 break;
             default:
-                return;
+                return Collections.emptyList();
         }
-        sourceEntities.stream()
+        return sourceEntities.stream()
                 .map(TopologyEntity::getTopologyEntityImpl)
                 .filter(entity -> entity.getEntityType() == entityType)
-                .forEach(entity -> entityCloneEditor.clone(entity, topologyGraph,
-                                                           cloneContext, cloneInfo));
+                .map(entity -> entityCloneEditor.clone(entity, topologyGraph,
+                                                           cloneContext, cloneInfo))
+                .collect(Collectors.toList());
     }
 
     /**

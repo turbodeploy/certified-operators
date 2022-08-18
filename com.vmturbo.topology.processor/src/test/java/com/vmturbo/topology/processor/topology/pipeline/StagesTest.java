@@ -107,6 +107,7 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
+import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
@@ -307,7 +308,7 @@ public class StagesTest {
         final PlanScopingStage cloudScopingStage = spy(new PlanScopingStage(scopeEditor, scope, searchResolver,
             new ArrayList<ScenarioChange>(), groupServiceClient, searchFilterResolver));
         final TopologyPipelineContext context = createStageContext(cloudScopingStage, cloudTopologyInfo,
-            TopologyPipelineContextMembers.POLICY_GROUPS, Collections.emptySet());
+            TopologyPipelineContextMembers.PLACEMENT_POLICIES, Collections.emptyList());
         when(cloudScopingStage.getContext()).thenReturn(context);
         when(context.getTopologyInfo()).thenReturn(cloudTopologyInfo);
         when(scopeEditor.scopeTopology(cloudTopologyInfo, graph, Collections.emptySet()))
@@ -490,7 +491,7 @@ public class StagesTest {
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
         stage.execute(Collections.emptyMap());
         verify(topologyEditor).editTopology(eq(Collections.emptyMap()), eq(scope),
-            eq(Collections.emptyList()), any(), any(GroupResolver.class), anySet(), anySet());
+            eq(Collections.emptyList()), any(), any(GroupResolver.class), anySet(), anySet(), any());
     }
 
     @Test
@@ -543,10 +544,10 @@ public class StagesTest {
         final PolicyStage policyStage = new PolicyStage(policyManager);
 
         final GroupResolver groupResolver = mock(GroupResolver.class);
-        final Set<Pair<Grouping, Grouping>> policyGroups = new HashSet<>();
+        final List<PlacementPolicy> placementPolicies = new ArrayList<>();
         final TopologyPipelineContext context = createStageContext(policyStage, TEST_TOPOLOGY_INFO,
             new MemberDef<>(TopologyPipelineContextMembers.GROUP_RESOLVER, groupResolver),
-            new MemberDef<>(TopologyPipelineContextMembers.POLICY_GROUPS, policyGroups));
+            new MemberDef<>(TopologyPipelineContextMembers.PLACEMENT_POLICIES, placementPolicies));
 
         final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
 
@@ -556,13 +557,13 @@ public class StagesTest {
         when(results.getTotalAddedCommodityCounts()).thenReturn(Collections.emptyMap());
 
         when(policyManager.applyPolicies(eq(context), eq(topologyGraph),
-                eq(Collections.emptyList()), eq(groupResolver), eq(policyGroups)))
+                eq(Collections.emptyList()), eq(groupResolver), eq(placementPolicies)))
             .thenReturn(results);
 
         policyStage.execute(topologyGraph);
 
         verify(policyManager).applyPolicies(eq(context), eq(topologyGraph),
-            eq(Collections.emptyList()), eq(groupResolver), eq(policyGroups));
+            eq(Collections.emptyList()), eq(groupResolver), eq(placementPolicies));
     }
 
     /**

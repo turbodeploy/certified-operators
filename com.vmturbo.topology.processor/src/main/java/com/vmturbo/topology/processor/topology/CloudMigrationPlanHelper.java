@@ -16,6 +16,7 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIR
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE;
+import static com.vmturbo.topology.processor.group.policy.PolicyManager.createPlacementPolicy;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -95,7 +96,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
@@ -283,8 +283,8 @@ public class CloudMigrationPlanHelper {
      * @param changes Migration changes specified by user.
      * @param sourceEntities The source entities for the plan.
      * @param destinationEntities The destination entities for the plan.
-     * @param policyGroups Policy groups for the plan. New policy groups may be
-     *                     added when the stage executes.
+     * @param placementPolicies Placement policies for the plan. New placement policies may be
+     *                          added when the stage executes.
      * @param settingPolicyEditors The list of setting policy editors for the plan.
      *
      * @return Output graph, mostly same as input, except non-migrating workloads/volumes removed.
@@ -299,7 +299,7 @@ public class CloudMigrationPlanHelper {
             @Nonnull final List<ScenarioChange> changes,
             @Nonnull final Set<Long> sourceEntities,
             @Nonnull final Set<Long> destinationEntities,
-            @Nonnull final Set<Pair<Grouping, Grouping>> policyGroups,
+            @Nonnull final List<PlacementPolicy> placementPolicies,
             @Nonnull final List<SettingPolicyEditor> settingPolicyEditors,
             @Nonnull final GroupResolver groupResolver,
             @Nonnull final Map<Long, ResolvedGroup> resolvedGroupMap)
@@ -347,7 +347,7 @@ public class CloudMigrationPlanHelper {
             sourceEntities, isDestinationAws);
         prepareProviders(outputGraph, context.getTopologyInfo(), sourceToProducerToMaxStorageAccess,
                 isDestinationAws);
-        savePolicyGroups(context, outputGraph, migrationChange, sourceEntities, policyGroups);
+        savePlacementPolicies(context, outputGraph, migrationChange, sourceEntities, placementPolicies);
 
         if (migrationChange.getDestinationEntityType()
             .equals(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)) {
@@ -1458,23 +1458,23 @@ public class CloudMigrationPlanHelper {
 
     /**
      * Creates and saves policy groupings into the plan pipeline context, so that they can later
-     * be used by PolicyManager to create segmentation policies for workoads and volumes, needed
+     * be used by PolicyManager to create segmentation policies for workloads and volumes, needed
      * for migration to work (to force workloads to new target compute/storage tiers).
      *
      * @param context Plan pipeline context
      * @param graph Topology graph.
      * @param migrationChange User specified migration scenario change.
      * @param sourceEntities The source entities for the plan.
-     * @param policyGroups The set of policy groupings.
+     * @param placementPolicies The set of policy groupings.
      */
-    private void savePolicyGroups(@Nonnull final TopologyPipelineContext context,
-                                  @Nonnull final TopologyGraph<TopologyEntity> graph,
-                                  @Nonnull final TopologyMigration migrationChange,
-                                  @Nonnull final Set<Long> sourceEntities,
-                                  @Nonnull final Set<Pair<Grouping, Grouping>> policyGroups) {
-        policyGroups.clear();
-        saveWorkloadPolicyGroups(graph, migrationChange, sourceEntities, policyGroups);
-        saveVolumePolicyGroups(context, graph, sourceEntities, policyGroups);
+    private void savePlacementPolicies(@Nonnull final TopologyPipelineContext context,
+                                       @Nonnull final TopologyGraph<TopologyEntity> graph,
+                                       @Nonnull final TopologyMigration migrationChange,
+                                       @Nonnull final Set<Long> sourceEntities,
+                                       @Nonnull final List<PlacementPolicy> placementPolicies) {
+        placementPolicies.clear();
+        saveWorkloadPlacementPolicies(graph, migrationChange, sourceEntities, placementPolicies);
+        saveVolumePlacementPolicies(context, graph, sourceEntities, placementPolicies);
     }
 
     /**
@@ -1488,12 +1488,12 @@ public class CloudMigrationPlanHelper {
      * @param graph Topology graph to look up entities.
      * @param topologyMigration the object symbolizing an entity/group to migrate
      * @param sourceEntities the source entities for a plan.
-     * @param policyGroups The set of policy groupings.
+     * @param placementPolicies The list of placement policies.
      */
-    private void saveWorkloadPolicyGroups(
+    private void saveWorkloadPlacementPolicies(
         @Nonnull final TopologyGraph<TopologyEntity> graph,
         @Nonnull final TopologyMigration topologyMigration,
-        @Nonnull final Set<Long> sourceEntities, Set<Pair<Grouping, Grouping>> policyGroups) {
+        @Nonnull final Set<Long> sourceEntities, List<PlacementPolicy> placementPolicies) {
         final Set<Long> sourceEntityOids = sourceEntities;
         final EntityType workloadType = topologyMigration.getDestinationEntityType().equals(
                 TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)
@@ -1506,8 +1506,8 @@ public class CloudMigrationPlanHelper {
         final Map<EntityType, List<MigrationReference>> refsByProviderType =
                 getWorkloadProviders(graph, sourceEntityOids);
         refsByProviderType
-                .forEach((entityType, migrationReferenceList) -> createPolicyGroup(policyGroups,
-                        migrationReferenceList, workloadType,
+                .forEach((entityType, migrationReferenceList) -> createPolicyGroup(
+                        placementPolicies, migrationReferenceList, workloadType,
                         topologyMigration.getDestinationList(), entityType));
     }
 
@@ -1517,12 +1517,12 @@ public class CloudMigrationPlanHelper {
      *  @param context Pipeline context to save policy group in.
      * @param graph Topology graph.
      * @param sourceEntities The source entities for the plan.
-     * @param policyGroups The set of policy groupings.
+     * @param placementPolicies The list of placement policies.
      */
-    private void saveVolumePolicyGroups(
+    private void saveVolumePlacementPolicies(
         @Nonnull final TopologyPipelineContext context,
         @Nonnull final TopologyGraph<TopologyEntity> graph,
-        @Nonnull final Set<Long> sourceEntities, Set<Pair<Grouping, Grouping>> policyGroups) {
+        @Nonnull final Set<Long> sourceEntities, List<PlacementPolicy> placementPolicies) {
         final TopologyInfo topologyInfo = context.getTopologyInfo();
         for (Long oid : sourceEntities) {
             final TopologyEntity sourceEntity = graph.getEntity(oid)
@@ -1546,7 +1546,7 @@ public class CloudMigrationPlanHelper {
                     .forEach((providerType, sourceVolumeRefs) -> {
                         for (MigrationReference volumeRef : sourceVolumeRefs) {
                             // Save a policy group for each volume id.
-                            createPolicyGroup(policyGroups, Collections.singletonList(volumeRef),
+                            createPolicyGroup(placementPolicies, Collections.singletonList(volumeRef),
                                     VIRTUAL_VOLUME,
                                     destinationTierRefs, providerType);
                         }
@@ -1719,13 +1719,13 @@ public class CloudMigrationPlanHelper {
     /**
      * Creates and adds one policy grouping to the set of policy groups.
      *
-     * @param policyGroups The policy groups for the plan.
+     * @param placementPolicies list of placement policies to be created in the policy stage.
      * @param sourceRefs List of source entity references, typically 1 workload being migrated.
      * @param sourceType Type of source workload.
      * @param destinationRefs Destination region reference.
      * @param destinationType Type of destination tier.
      */
-    private void createPolicyGroup(@Nonnull final Set<Pair<Grouping, Grouping>> policyGroups,
+    private void createPolicyGroup(@Nonnull final List<PlacementPolicy> placementPolicies,
                                  @Nonnull final List<MigrationReference> sourceRefs,
                                  EntityType sourceType,
                                  @Nonnull final List<MigrationReference> destinationRefs,
@@ -1734,7 +1734,8 @@ public class CloudMigrationPlanHelper {
                 sourceType.getNumber());
         final Grouping destination = getStaticMigrationGroup(destinationRefs,
                 destinationType.getNumber());
-        policyGroups.add(new Pair<>(source, destination));
+        final PlacementPolicy policy = createPlacementPolicy(source, destination);
+        placementPolicies.add(policy);
     }
 
     /**

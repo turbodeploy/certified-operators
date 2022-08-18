@@ -23,6 +23,7 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.AbstractMessage;
 
+import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.listeners.HistoryVolumesListener;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -35,7 +36,6 @@ import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceStub;
@@ -71,7 +71,6 @@ import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -759,6 +758,8 @@ public class Stages {
             requiresFromContext(TopologyPipelineContextMembers.PLAN_SOURCE_ENTITIES);
         private FromContext<Set<Long>> destinationEntities =
             requiresFromContext(TopologyPipelineContextMembers.PLAN_DESTINATION_ENTITIES);
+        private FromContext<List<PlacementPolicy>> placementPolicies =
+                requiresFromContext(TopologyPipelineContextMembers.PLACEMENT_POLICIES);
 
         public TopologyEditStage(@Nonnull final TopologyEditor topologyEditor,
                                  @Nonnull final SearchResolver<TopologyEntity> searchResolver,
@@ -786,7 +787,7 @@ public class Stages {
                     searchFilterResolver);
             try {
                 topologyEditor.editTopology(input, scope, changes, getContext(), groupResolver,
-                                            sourceEntities.get(), destinationEntities.get());
+                                            sourceEntities.get(), destinationEntities.get(), placementPolicies.get());
             } catch (GroupResolutionException | TopologyEditorException e) {
                 throw new PipelineStageException(e);
             }
@@ -1189,8 +1190,8 @@ public class Stages {
         private final List<ScenarioChange> changes;
         private FromContext<GroupResolver> groupResolver =
             requiresFromContext(TopologyPipelineContextMembers.GROUP_RESOLVER);
-        private FromContext<Set<Pair<Grouping, Grouping>>> policyGroups =
-            requiresFromContext(TopologyPipelineContextMembers.POLICY_GROUPS);
+        private FromContext<List<PlacementPolicy>> placementPolicies =
+            requiresFromContext(TopologyPipelineContextMembers.PLACEMENT_POLICIES);
 
         public PolicyStage(@Nonnull final PolicyManager policyManager) {
             this(policyManager, Collections.emptyList());
@@ -1214,7 +1215,7 @@ public class Stages {
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> input) {
             final PolicyApplicator.Results applicationResults =
                     policyManager.applyPolicies(getContext(), input, changes,
-                        groupResolver.get(), policyGroups.get());
+                        groupResolver.get(), placementPolicies.get());
             final StringJoiner statusMsg = new StringJoiner("\n")
                 .setEmptyValue("No policies to apply.");
             final boolean errors = applicationResults.getErrors().size() > 0;
@@ -2041,8 +2042,8 @@ public class Stages {
             requiresFromContext(TopologyPipelineContextMembers.PLAN_SOURCE_ENTITIES);
         private FromContext<Set<Long>> destinationEntities =
             requiresFromContext(TopologyPipelineContextMembers.PLAN_DESTINATION_ENTITIES);
-        private FromContext<Set<Pair<Grouping, Grouping>>> policyGroups =
-            requiresFromContext(TopologyPipelineContextMembers.POLICY_GROUPS);
+        private FromContext<List<PlacementPolicy>> placementPolicies =
+            requiresFromContext(TopologyPipelineContextMembers.PLACEMENT_POLICIES);
         private FromContext<List<SettingPolicyEditor>> settingPolicyEditors =
             requiresFromContext(TopologyPipelineContextMembers.SETTING_POLICY_EDITORS);
         private FromContext<Set<String>> postStitchingOperationsToSkip =
@@ -2082,7 +2083,7 @@ public class Stages {
                 throws PipelineStageException {
             final TopologyGraph<TopologyEntity> outputGraph = cloudMigrationPlanHelper.executeStage(
                     getContext(), inputGraph, planScope, changes,
-                sourceEntities.get(), destinationEntities.get(), policyGroups.get(),
+                sourceEntities.get(), destinationEntities.get(), placementPolicies.get(),
                 settingPolicyEditors.get(), groupResolverContext.get(), resolvedGroups.get());
 
             if (cloudMigrationPlanHelper.isApplicable(getContext(), planScope)) {

@@ -59,11 +59,13 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.Repl
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 import com.vmturbo.topology.processor.topology.clone.CloneContext;
@@ -115,6 +117,7 @@ public class TopologyEditor {
      * @param groupResolver The resolver to use when resolving group membership.
      * @param sourceEntities The source entities for the plan.
      * @param destinationEntities The destination entities for the plan.
+     * @param placementPolicies Placement policies to be included for the plan.
      * @throws GroupResolutionException Thrown when we could not resolve groups.
      */
     public void editTopology(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
@@ -123,7 +126,8 @@ public class TopologyEditor {
                              @Nonnull final TopologyPipelineContext context,
                              @Nonnull final GroupResolver groupResolver,
                              @Nonnull final Set<Long> sourceEntities,
-                             @Nonnull final Set<Long> destinationEntities)
+                             @Nonnull final Set<Long> destinationEntities,
+                             @Nonnull final List<PlacementPolicy> placementPolicies)
             throws GroupResolutionException, TopologyEditorException {
         final TopologyInfo topologyInfo = context.getTopologyInfo();
         // Set shopTogether to false for all entities if it's not a alleviate pressure plan,
@@ -308,7 +312,7 @@ public class TopologyEditor {
         }
         // Create the clone context to be shared by all clones
         final CloneContext cloneContext = CloneContext.createContext(
-                topologyInfo, identityProvider, topology, scope);
+                topologyInfo, identityProvider, topology, scope, placementPolicies);
         entitiesToAdd.forEach((oid, addCount) -> Optional.ofNullable(topology.get(oid))
                 .ifPresent(entityBuilder -> {
                     // Create or get the cached clone function based on entity type
