@@ -410,7 +410,6 @@ public class LicenseDeserializerTest {
     @Test
     @Parameters({
         "LicenseDeserializationTest_license_v1.xml, 0",
-        "LicenseDeserializationTest_license_v2.xml, 0",
         "LicenseDeserializationTest_cwom_premier_license_1.lic, 1",
     })
     @TestCaseName("Test #{index}: LicenseUtil.validate({0}) returns {1} error(s).")
