@@ -225,6 +225,9 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         if (probeTargetInfo.hasCommunicationBindingChannel()) {
             targetSpecBuilder.setCommunicationBindingChannel(probeTargetInfo.getCommunicationBindingChannel());
         }
+        // Setting to read only for targets added through probes so users are not able to modify it from the ui
+        // as any modification should come from probe target config changes.
+        targetSpecBuilder.setReadOnly(true);
         return targetSpecBuilder.build();
     }
 
