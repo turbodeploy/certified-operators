@@ -41,6 +41,7 @@ import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
+import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.rollup.RollupConfig;
 import com.vmturbo.cost.component.savings.bottomup.ActionListener;
 import com.vmturbo.cost.component.savings.bottomup.AuditLogWriter;
@@ -110,6 +111,9 @@ public class EntitySavingsConfig {
 
     @Autowired
     private CostNotificationConfig costNotificationConfig;
+
+    @Autowired
+    private PricingConfig pricingConfig;
 
     /**
      * Chunk size configuration.
@@ -595,8 +599,10 @@ public class EntitySavingsConfig {
             return new SavingsTracker(new SqlBillingRecordStore(dbAccessConfig.dsl()),
                     new GrpcActionChainStore(actionsService()),
                     (SavingsStore)entitySavingsStore(), supportedProviderTypes,
-                    getEntitySavingsRetentionConfig().getVolumeDeleteRetentionMs(), getClock(), cloudTopologyFactory(), repositoryClient,
-                    dbAccessConfig.dsl(), realtimeTopologyContextId, persistEntityCostChunkSize);
+                    getEntitySavingsRetentionConfig().getVolumeDeleteRetentionMs(), getClock(),
+                    cloudTopologyFactory(), repositoryClient, dbAccessConfig.dsl(),
+                    pricingConfig.businessAccountPriceTableKeyStore(), pricingConfig.priceTableStore(),
+                    realtimeTopologyContextId, persistEntityCostChunkSize);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();

@@ -10,7 +10,7 @@ import javax.annotation.Nonnull;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-import org.jooq.Record11;
+import org.jooq.Record13;
 
 import com.vmturbo.cost.component.db.tables.BilledCostDaily;
 import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
@@ -53,6 +53,8 @@ public class SqlBillingRecordStore implements BillingRecordStore {
         return dsl.select(t1.SAMPLE_TIME,
                         t1.ENTITY_ID,
                         t1.ENTITY_TYPE,
+                        t1.ACCOUNT_ID,
+                        t1.REGION_ID,
                         t1.PRICE_MODEL,
                         t1.COST_CATEGORY,
                         t1.PROVIDER_ID,
@@ -77,6 +79,8 @@ public class SqlBillingRecordStore implements BillingRecordStore {
         return dsl.select(BILLED_COST_DAILY.SAMPLE_TIME,
                 BILLED_COST_DAILY.ENTITY_ID,
                 BILLED_COST_DAILY.ENTITY_TYPE,
+                BILLED_COST_DAILY.ACCOUNT_ID,
+                BILLED_COST_DAILY.REGION_ID,
                 BILLED_COST_DAILY.PRICE_MODEL,
                 BILLED_COST_DAILY.COST_CATEGORY,
                 BILLED_COST_DAILY.PROVIDER_ID,
@@ -99,18 +103,20 @@ public class SqlBillingRecordStore implements BillingRecordStore {
      */
     @Nonnull
     private BillingRecord createChangeRecord(
-            Record11<LocalDateTime, Long, Short, Short, Short, Long, Short, Short, Double, Double, Long> dbRecord) {
+            Record13<LocalDateTime, Long, Short, Long, Long, Short, Short, Long, Short, Short, Double, Double, Long> dbRecord) {
         return new BillingRecord.Builder()
                 .sampleTime(dbRecord.get(0, LocalDateTime.class))
                 .entityId(dbRecord.get(1, Long.class))
                 .entityType(dbRecord.get(2, Short.class))
-                .priceModel(PriceModel.forNumber(dbRecord.get(3, Short.class)))
-                .costCategory(CostCategory.forNumber(dbRecord.get(4, Short.class)))
-                .providerId(dbRecord.get(5, Long.class))
-                .providerType(dbRecord.get(6, Short.class))
-                .commodityType(dbRecord.get(7, Short.class))
-                .usageAmount(dbRecord.get(8, Double.class))
-                .cost(dbRecord.get(9, Double.class))
-                .lastUpdated(dbRecord.get(10, Long.class)).build();
+                .accountId(dbRecord.get(3, Long.class))
+                .regionId(dbRecord.get(4, Long.class))
+                .priceModel(PriceModel.forNumber(dbRecord.get(5, Short.class)))
+                .costCategory(CostCategory.forNumber(dbRecord.get(6, Short.class)))
+                .providerId(dbRecord.get(7, Long.class))
+                .providerType(dbRecord.get(8, Short.class))
+                .commodityType(dbRecord.get(9, Short.class))
+                .usageAmount(dbRecord.get(10, Double.class))
+                .cost(dbRecord.get(11, Double.class))
+                .lastUpdated(dbRecord.get(12, Long.class)).build();
     }
 }

@@ -37,8 +37,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopedStore;
+import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
+import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.savings.calculator.Calculator;
 import com.vmturbo.cost.component.savings.calculator.SavingsValues;
+import com.vmturbo.cost.component.savings.calculator.StorageAmountResolver;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -85,6 +88,8 @@ public class SavingsTracker extends SQLCloudScopedStore implements ScenarioDataH
 
     private final long realtimeTopologyContextId;
 
+    private final StorageAmountResolver storageAmountResolver;
+
     /**
      * Creates a new tracker.
      *
@@ -102,6 +107,8 @@ public class SavingsTracker extends SQLCloudScopedStore implements ScenarioDataH
             @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
             @Nonnull RepositoryClient repositoryClient,
             @Nonnull final DSLContext dsl,
+            @Nonnull BusinessAccountPriceTableKeyStore priceTableKeyStore,
+            @Nonnull PriceTableStore priceTableStore,
             long realtimeTopologyContextId,
             final int chunkSize) {
         super(dsl, chunkSize);
@@ -110,10 +117,11 @@ public class SavingsTracker extends SQLCloudScopedStore implements ScenarioDataH
         this.savingsStore = savingsStore;
         this.supportedProviderTypes = supportedProviderTypes;
         this.clock = clock;
-        this.calculator = new Calculator(deleteActionRetentionMs, clock);
         this.cloudTopologyFactory = cloudTopologyFactory;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.repositoryClient = repositoryClient;
+        this.storageAmountResolver = new StorageAmountResolver(priceTableKeyStore, priceTableStore);
+        this.calculator = new Calculator(deleteActionRetentionMs, clock, storageAmountResolver);
     }
 
     /**

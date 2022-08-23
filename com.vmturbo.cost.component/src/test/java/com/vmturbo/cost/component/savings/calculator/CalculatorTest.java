@@ -1,5 +1,10 @@
 package com.vmturbo.cost.component.savings.calculator;
 
+import static org.mockito.Matchers.anyDouble;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -42,10 +47,14 @@ public class CalculatorTest {
     private final long lastProcessedDate = getTimestamp(date(2022, 3, 24));
     private final Comparator<ExecutedActionsChangeWindow> changeWindowComparator =
             GrpcActionChainStore.changeWindowComparator;
+    private final StorageAmountResolver storageAmountResolver = mock(StorageAmountResolver.class);
 
     public CalculatorTest() {
         long volumeExpiryMs = 10; // dummy value
-        this.calculator = new Calculator(volumeExpiryMs, clock);
+        when(storageAmountResolver.getEndRangeInPriceTier(anyDouble(), anyLong(), anyLong(), anyLong()))
+                .thenAnswer(invocation ->
+                        invocation.getArgumentAt(0, Double.class));
+        this.calculator = new Calculator(volumeExpiryMs, clock, storageAmountResolver);
     }
 
     /**
@@ -379,6 +388,8 @@ public class CalculatorTest {
                 .providerId(providerId)
                 .entityId(vmOid)
                 .entityType(EntityType.VIRTUAL_MACHINE.getValue())
+                .accountId(1L)
+                .regionId(2L)
                 .providerType(EntityType.COMPUTE_TIER.getValue())
                 .commodityType(CommodityType.UNKNOWN_VALUE)
                 .costCategory(costCategory)
@@ -395,6 +406,8 @@ public class CalculatorTest {
                 .providerId(providerId)
                 .entityId(volumeOid)
                 .entityType(EntityType.VIRTUAL_VOLUME.getValue())
+                .accountId(1L)
+                .regionId(2L)
                 .providerType(EntityType.STORAGE_TIER.getValue())
                 .commodityType(commType)
                 .costCategory(CostCategory.STORAGE)
@@ -517,7 +530,7 @@ public class CalculatorTest {
     private List<SavingsValues> runDeleteTest(LocalDateTime referenceTime, LocalDateTime lastProcessed, int volumeExpiryDays) {
         long lastProcessedInMillis = TimeUtil.localTimeToMillis(lastProcessed, clock);
         long volumeExpiryMs = TimeUnit.DAYS.toMillis(volumeExpiryDays);
-        Calculator calculator = new Calculator(volumeExpiryMs, clock);
+        Calculator calculator = new Calculator(volumeExpiryMs, clock, storageAmountResolver);
         final long storageTierOid = 2323232323L;
         Set<BillingRecord> records = new HashSet<>();
         double storageCostPerHour = 0.05;
@@ -1091,6 +1104,79 @@ public class CalculatorTest {
     }
 
     /**
+     * Scale volume by changing storage amount, IOPS and IO Throughput. (Azure Ultra disk)
+     * This ultra disk originally has storage of 14GB, IOPS of 100 and IO Throughput of 1MBPS.
+     *
+     * <p>Action 1: June 1 10am: Change disk commodities: IOPS 100 to 200; IO_Throughput 1MBps to 2MBps, storage amount 14GB to 30GB.
+     * Action 2: June 3 1pm: Change disk commodities: IOPS 200 to 150.
+     */
+    @Test
+    public void testVolumeScaleSameProviderChange3Comm() {
+        when(storageAmountResolver.getEndRangeInPriceTier(anyDouble(), anyLong(), anyLong(), anyLong()))
+                .thenAnswer(invocation -> {
+                    double storageAmount = invocation.getArgumentAt(0, Double.class);
+                    if (storageAmount > 8 && storageAmount <= 16) {
+                        return 16;
+                    } else if (storageAmount > 16 && storageAmount <= 32) {
+                        return 32;
+                    }
+                    return storageAmount;
+                });
+        final long tierA = 1212121212L;
+        final double storageAccessRate = 0.000068;
+        final double ioThroughputRate = 0.00047;
+        final double storageAmountRate = 0.000163159;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 100 * 10 + 200 * 14, (100 * 10 + 200 * 14) * storageAccessRate, tierA, CommodityType.STORAGE_ACCESS_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 10 + 2 * 14, (10 + 2 * 14) * ioThroughputRate, tierA, CommodityType.IO_THROUGHPUT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 16 * 10 + 32 * 14, (16 * 10 + 32 * 14) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 2), 200 * 24, (200 * 24) * storageAccessRate, tierA, CommodityType.STORAGE_ACCESS_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 2), 2 * 24, (2 * 24) * ioThroughputRate, tierA, CommodityType.IO_THROUGHPUT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 2), 32 * 24, (32 * 24) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 3), 200 * 13 + 150 * 11, (200 * 13 + 150 * 11) * storageAccessRate, tierA, CommodityType.STORAGE_ACCESS_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 3), 2 * 24, (2 * 24) * ioThroughputRate, tierA, CommodityType.IO_THROUGHPUT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 3), 32 * 24, (32 * 24) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+
+        List<ResizeInfo> resizeInfoList = new ArrayList<>();
+        resizeInfoList.add(ScenarioGenerator.createResizeInfo(CommodityType.STORAGE_AMOUNT, 14, 30));
+        resizeInfoList.add(ScenarioGenerator.createResizeInfo(CommodityType.STORAGE_ACCESS, 100, 200));
+        resizeInfoList.add(ScenarioGenerator.createResizeInfo(CommodityType.IO_THROUGHPUT, 1, 2));
+        double sourceOnDemandRate = (100 * storageAccessRate + ioThroughputRate + 16 * storageAmountRate); // cost per hour
+        double destOnDemandRate = (200 * storageAccessRate + 2 * ioThroughputRate + 32 * storageAmountRate); // cost per hour
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(changeWindowComparator);
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 1, 10, 0),
+                sourceOnDemandRate, destOnDemandRate, tierA, tierA,
+                null, LivenessState.SUPERSEDED, resizeInfoList));
+
+        List<ResizeInfo> resizeInfoList2 = new ArrayList<>();
+        resizeInfoList2.add(ScenarioGenerator.createResizeInfo(CommodityType.STORAGE_ACCESS, 200, 150));
+        double sourceOnDemandRate2 = (200 * storageAccessRate + 2 * ioThroughputRate + 32 * storageAmountRate); // cost per hour
+        double destOnDemandRate2 = (150 * storageAccessRate + 2 * ioThroughputRate + 32 * storageAmountRate); // cost per hour
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 3, 13, 0),
+                sourceOnDemandRate2, destOnDemandRate2, tierA, tierA,
+                null, LivenessState.LIVE, resizeInfoList2));
+
+        double day1Investment = destOnDemandRate * 14 - sourceOnDemandRate * 14;
+        double day2Investment = destOnDemandRate * 24 - sourceOnDemandRate * 24;
+        // On June 3, value of sourceOnDemandRate is the low watermark.
+        double day3Investment = (destOnDemandRate - sourceOnDemandRate) * 13 + (destOnDemandRate2 - sourceOnDemandRate) * 11;
+        // On June 3, value of sourceOnDemandRate2 is the high watermark.
+        double day3Savings = (sourceOnDemandRate2 - destOnDemandRate2) * 11;
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(0).investments(day1Investment)
+                .timestamp(date(2022, 6, 1)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(0).investments(day2Investment)
+                .timestamp(date(2022, 6, 2)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(day3Savings).investments(day3Investment)
+                .timestamp(date(2022, 6, 3)).build());
+        List<SavingsValues> result = calculator.calculate(volumeOid, records, actionSpecs,
+                getTimestamp(date(2022, 5, 31)), date(2022, 6, 4));
+        validateResults(result, expectedResults);
+    }
+
+    /**
      * Test the case when the bill only included the costs for part of a day.
      *
      * <p>Action 1: June 1 10am: Change disk commodities: IOPS 100 to 200; IO_Throughput 1MBps to 2MBps.
@@ -1208,7 +1294,6 @@ public class CalculatorTest {
     @Test
     public void testFirstSegment1Provider2ActionsOneDay() {
         final long tierA = 1212121212L;
-        final long tierB = 2323232323L;
         final double storageAccessRate = 0.000068;
         final double ioThroughputRate = 0.00047;
         final double storageAmountRate = 0.000163159;
@@ -1234,7 +1319,7 @@ public class CalculatorTest {
         double destOnDemandRate2 = (300 * storageAccessRate + 2 * ioThroughputRate + 16 * storageAmountRate); // cost per hour
         actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
                 LocalDateTime.of(2022, 6, 1, 17, 0),
-                destOnDemandRate, destOnDemandRate2, tierA, tierB,
+                destOnDemandRate, destOnDemandRate2, tierA, tierA,
                 null, LivenessState.LIVE, resizeInfoList2));
 
         double day1Investment = (destOnDemandRate - sourceOnDemandRate) * 7 + (destOnDemandRate2 - sourceOnDemandRate) * 7;
@@ -1243,6 +1328,65 @@ public class CalculatorTest {
                 .timestamp(date(2022, 6, 1)).build());
         List<SavingsValues> result = calculator.calculate(volumeOid, records, actionSpecs,
                 getTimestamp(date(2022, 5, 31)), date(2022, 6, 2));
+        validateResults(result, expectedResults);
+    }
+
+    /**
+     * Scale volume within one service tier by change storage amount only. 5GB is billed for 8GB.
+     *
+     * <p>Action 1: June 1 10am: scale volume from 5GB to 15GB. Cost changed from $1/hr to #3/hr.
+     *                        Volumes 4-8GB cost $1/hr and volumes 8-16 costs $3/hr.
+     * Action 2: June 3 3pm:  scale volume to a different provider. Cost changed from $3/hr to #1/hr.
+     *                        Disk size changed from 15GB to 7GB.
+     */
+    @Test
+    public void testVolumeScaleAdjustStorageAmount() {
+        when(storageAmountResolver.getEndRangeInPriceTier(anyDouble(), anyLong(), anyLong(), anyLong()))
+                .thenAnswer(invocation -> {
+                    double storageAmount = invocation.getArgumentAt(0, Double.class);
+                    if (storageAmount > 4 && storageAmount <= 8) {
+                        return 8;
+                    } else if (storageAmount > 8 && storageAmount <= 16) {
+                        return 16;
+                    }
+                    return storageAmount;
+                });
+        final long tierA = 1212121212L;
+        final double storageAmountRate = 0.000163159;
+        Set<BillingRecord> records = new HashSet<>();
+        records.add(createVolumeBillRecord(date(2022, 6, 1), 8 * 10 + 16 * 14, (8 * 10 + 16 * 14) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 2), 16 * 24, (16 * 24) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+        records.add(createVolumeBillRecord(date(2022, 6, 3), 16 * 15 + 8 * 9, (16 * 15 + 8 * 9) * storageAmountRate, tierA, CommodityType.STORAGE_AMOUNT_VALUE));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(changeWindowComparator);
+        List<ResizeInfo> resizeInfoList = new ArrayList<>();
+        resizeInfoList.add(ScenarioGenerator.createResizeInfo(CommodityType.STORAGE_AMOUNT, 5, 15));
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 1, 10, 0),
+                8 * storageAmountRate, 16 * storageAmountRate, tierA, tierA,
+                LocalDateTime.of(2022, 6, 3, 15, 0), LivenessState.SUPERSEDED, resizeInfoList));
+
+        List<ResizeInfo> resizeInfoList2 = new ArrayList<>();
+        resizeInfoList2.add(ScenarioGenerator.createResizeInfo(CommodityType.STORAGE_AMOUNT, 15, 7));
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(volumeOid,
+                LocalDateTime.of(2022, 6, 3, 15, 0),
+                16 * storageAmountRate, 8 * storageAmountRate, tierA, tierA,
+                null, LivenessState.LIVE, resizeInfoList2));
+
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        final double day1Investment = (16 - 8) * storageAmountRate * 14;
+        final double day2Investment = (16 - 8) * storageAmountRate * 24;
+        final double day3Investment = (16 - 8) * storageAmountRate * 15;
+        final double day3Savings = (16 - 8) * storageAmountRate * 9;
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(0).investments(day1Investment)
+                .timestamp(date(2022, 6, 1)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(0).investments(day2Investment)
+                .timestamp(date(2022, 6, 2)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(day3Savings).investments(day3Investment)
+                .timestamp(date(2022, 6, 3)).build());
+
+        List<SavingsValues> result = calculator.calculate(volumeOid, records, actionSpecs,
+                getTimestamp(date(2022, 5, 31)), date(2022, 6, 4));
         validateResults(result, expectedResults);
     }
 }

@@ -64,6 +64,8 @@ import com.vmturbo.cost.component.billedcosts.BilledCostStore;
 import com.vmturbo.cost.component.billedcosts.SqlBilledCostStore;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
+import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
+import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
 import com.vmturbo.cost.component.savings.bottomup.AggregatedSavingsStats;
@@ -267,9 +269,9 @@ public class SavingsProcessorTest extends MultiDbTestBase {
                         savingsStore,
                         supportedProviderTypes,
                         TimeUnit.DAYS.toMillis(365),
-                        clock, mock(
-                        TopologyEntityCloudTopologyFactory.class),
-                        null, dsl, 777777, chunkSize),
+                        clock, mock(TopologyEntityCloudTopologyFactory.class),
+                        null, dsl, mock(BusinessAccountPriceTableKeyStore.class),
+                        mock(PriceTableStore.class), 777777, chunkSize),
                 mock(DataRetentionProcessor.class));
     }
 

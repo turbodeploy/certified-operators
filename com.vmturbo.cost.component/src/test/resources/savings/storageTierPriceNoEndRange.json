@@ -1,0 +1,10 @@
+{
+  "cloudStoragePrice": [{
+    "prices": [{
+      "unit": "MONTH",
+      "priceAmount": {
+        "amount": 10.0
+      }
+    }]
+  }]
+}

@@ -399,6 +399,8 @@ public class ScenarioGeneratorTest {
                 .sampleTime(date)
                 .entityId(entityId)
                 .entityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .accountId(1L)
+                .regionId(2L)
                 .priceModel(priceModel)
                 .costCategory(costCategory)
                 .providerId(ScenarioGenerator.generateProviderIdFromRate(tierRate))

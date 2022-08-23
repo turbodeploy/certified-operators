@@ -76,6 +76,20 @@ public interface BillingRecord {
     int getCommodityType();
 
     /**
+     * Account ID.
+     *
+     * @return account ID
+     */
+    long getAccountId();
+
+    /**
+     * Region ID.
+     *
+     * @return region ID
+     */
+    long getRegionId();
+
+    /**
      * For VM usage, this is how many hours in the day that usage was billed for. Not applicable
      * for volumes.
      *
