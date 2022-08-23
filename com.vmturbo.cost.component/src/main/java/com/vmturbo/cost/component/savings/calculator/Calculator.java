@@ -46,6 +46,7 @@ public class Calculator {
     private final Logger logger = LogManager.getLogger();
     private final long deleteActionExpiryMs;
     private final Clock clock;
+    private final StorageAmountResolver storageAmountResolver;
 
     /**
      * Constructor.
@@ -53,9 +54,10 @@ public class Calculator {
      * @param deleteActionExpiryMs Volume expiry time in milliseconds
      * @param clock clock
      */
-    public Calculator(long deleteActionExpiryMs, Clock clock) {
+    public Calculator(long deleteActionExpiryMs, Clock clock, StorageAmountResolver storageAmountResolver) {
         this.deleteActionExpiryMs = deleteActionExpiryMs;
         this.clock = clock;
+        this.storageAmountResolver = storageAmountResolver;
     }
 
     /**
@@ -426,10 +428,16 @@ public class Calculator {
                                 long segmentStartTime = Math.max(scaleActionDataPoint.getTimestamp(), startOfDay);
                                 if (isFirstSegmentForProvider && providerRemoveUsageBeforeFirstSegment == providerId) {
                                     double oldCapacity = commCapMap.get(commType).lowerEntry(segmentStartTime).getValue();
+                                    if (commType == CommodityType.STORAGE_AMOUNT_VALUE) {
+                                        oldCapacity = adjustStorageAmount(oldCapacity, recordsByCommType.get(commType));
+                                    }
                                     usageRemaining -= oldCapacity
                                             * TimeUnit.MILLISECONDS.toHours(segment.getActionDataPoint().getTimestamp() - startOfDay);
                                 }
                                 double newCapacity = commCapMap.get(commType).floorEntry(segmentStartTime).getValue();
+                                if (commType == CommodityType.STORAGE_AMOUNT_VALUE) {
+                                    newCapacity = adjustStorageAmount(newCapacity, recordsByCommType.get(commType));
+                                }
                                 double quantityTimesHours = newCapacity * segment.duration / MILLIS_IN_HOUR;
                                 if (usageRemaining - quantityTimesHours < 0) {
                                     segment.duration = Double.valueOf(usageRemaining / newCapacity).longValue() * MILLIS_IN_HOUR;
@@ -446,6 +454,15 @@ public class Calculator {
                 }
             }
         }
+    }
+
+    private double adjustStorageAmount(double capacity, List<BillingRecord> billingRecords) {
+        if (billingRecords != null && !billingRecords.isEmpty()) {
+            BillingRecord record = billingRecords.get(0);
+            return storageAmountResolver.getEndRangeInPriceTier(capacity,
+                    record.getAccountId(), record.getRegionId(), record.getProviderId());
+        }
+        return capacity;
     }
 
     /**

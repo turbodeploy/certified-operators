@@ -54,6 +54,8 @@ import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
+import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.savings.DataInjectionMonitor.ScriptEvent;
 import com.vmturbo.cost.component.savings.bottomup.AggregatedSavingsStats;
 import com.vmturbo.cost.component.savings.bottomup.SqlEntitySavingsStore;
@@ -116,7 +118,9 @@ public class ScenarioSavingsTest {
                 supportedProviderTypes,
                 TimeUnit.DAYS.toMillis(365),
                 clock, mock(
-                TopologyEntityCloudTopologyFactory.class), null, dsl, 777777, chunkSize);
+                TopologyEntityCloudTopologyFactory.class), null, dsl,
+                mock(BusinessAccountPriceTableKeyStore.class),
+                mock(PriceTableStore.class), 777777, chunkSize);
     }
 
     /**
