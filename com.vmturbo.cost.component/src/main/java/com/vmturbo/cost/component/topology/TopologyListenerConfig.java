@@ -427,7 +427,7 @@ public class TopologyListenerConfig {
     }
 
     /**
-     * Bean for the Entity savings topology monitor.
+     * Bean for the Entity savings (bottom-up) topology monitor.
      *
      * @return An instance of the entity savings topology monitor.
      */
