@@ -4,12 +4,19 @@ import static com.vmturbo.clustermgr.api.ClusterMgrClient.COMPONENT_VERSION_KEY;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.TelemetryEnabled;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.TelemetryTermsAccepted;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -17,6 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -27,6 +35,12 @@ import com.google.gson.Gson;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.KafkaException;
+import org.apache.kafka.common.PartitionInfo;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -62,6 +76,7 @@ import com.vmturbo.api.enums.health.HealthCategory;
 import com.vmturbo.api.enums.health.HealthState;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.TelemetryException;
 import com.vmturbo.api.serviceinterfaces.IAdminService;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
@@ -116,6 +131,8 @@ public class AdminService implements IAdminService {
     @VisibleForTesting
     static final String PROXY_PORT_NUMBER = "proxyPortNumber";
 
+    private static final byte[] NEWLINE = "\n".getBytes(StandardCharsets.UTF_8);
+
     @VisibleForTesting
     static final ExportNotification EXPORTED_DIAGNOSTICS_SUCCEED = ExportNotification.newBuilder()
         .setStatusNotification(ExportStatusNotification.newBuilder()
@@ -138,6 +155,12 @@ public class AdminService implements IAdminService {
     private final KeyValueStore keyValueStore;
 
     private final ApiWebsocketHandler apiWebsocketHandler;
+
+    /**
+     * There can only be a single consumer of the telemetry topic at a time. Otherwise, the events
+     * in the topic will be distributed evenly over all concurrent consumers.
+     */
+    private static final ReentrantLock kafkaMutex = new ReentrantLock();
 
     @Value("${publicVersionString}")
     private String publicVersionString;
@@ -653,5 +676,80 @@ public class AdminService implements IAdminService {
         return healthAggregator.getAggregatedHealth(healthCategory).stream()
             .filter(categoryResponse -> healthStateFilter(categoryResponse, state))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Retrieve telemetry data from Kafka and send it to the provided output stream.
+     *
+     * @param outputStream output stream to send the telemetry data to.
+     * @return StreamingResponseBody with response containing telemetry records.
+     * @throws IOException (including TelemetryException) on failure to retrieve telemetry data
+     *      due to a Kafka or environment error.
+     */
+    @Override
+    public void getTelemetryData(OutputStream outputStream) throws IOException {
+        final Properties props = new Properties();
+        final String bootStrapServers = System.getenv("kafkaServers");
+        final String namespace = System.getenv("NAMESPACE");
+        if (bootStrapServers == null || namespace == null) {
+            logger.error("Invalid environment: bootstrapServers = '{}', NAMESPACE = '{}'",
+                    bootStrapServers, namespace);
+            throw new TelemetryException("Invalid kafka environment");
+        }
+        props.setProperty("bootstrap.servers", bootStrapServers);
+        props.setProperty("group.id", "telemetry-api");
+        props.setProperty("enable.auto.commit", "false");
+        props.setProperty("key.deserializer",
+                "org.apache.kafka.common.serialization.StringDeserializer");
+        props.setProperty("value.deserializer",
+                "org.apache.kafka.common.serialization.StringDeserializer");
+
+        KafkaConsumer<String, String> consumer = null;
+        try {
+            kafkaMutex.lock();
+            final String topic = namespace + ".telemetry";
+            consumer = new KafkaConsumer<>(props);
+            Map<String, List<PartitionInfo>> topics = consumer.listTopics(Duration.ofMillis(5000L));
+            if (topics == null || !topics.containsKey(topic)) {
+                final String topicNotFoundMsg = "Failed to return telemetry: topic "
+                        + topic + " not present";
+                logger.error(topicNotFoundMsg);
+                throw new TelemetryException(topicNotFoundMsg);
+            }
+            consumer.subscribe(Arrays.asList(topic));
+
+            // Get all partitions. Partitions aren't assigned until after the first poll, so we
+            // need to issue a dummy poll to start.
+            Set<TopicPartition> partitions = Collections.emptySet();
+            while (partitions.isEmpty()) {
+                consumer.poll(Duration.ofMillis(0L));
+                partitions = consumer.assignment();
+            }
+
+            // We only support one partition, so get the end offset for the first partition.
+            Map<TopicPartition, Long> endOffsets =
+                    consumer.endOffsets(partitions, Duration.ofMillis(3000L));
+            Long endOffset = endOffsets.values().iterator().next() - 1;
+            consumer.seekToBeginning(partitions);
+
+            for (long lastOffset = 0L; lastOffset < endOffset; ) {
+                ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(500L));
+                for (ConsumerRecord<String, String> record : records) {
+                    outputStream.write(record.value().getBytes(StandardCharsets.UTF_8));
+                    outputStream.write(NEWLINE);
+                    lastOffset = record.offset();
+                }
+            }
+        } catch (KafkaException | IllegalArgumentException | IllegalStateException e) {
+            // The Kafka constructor (KafkaException), subscription (IllegalArgumentException),
+            // or poll (IllegalStateException) operations threw an exception.
+            throw new TelemetryException(e.getMessage());
+        } finally {
+            if (consumer != null) {
+                consumer.unsubscribe();
+                consumer.close();
+            }
+            kafkaMutex.unlock();
+        }
     }
 }
