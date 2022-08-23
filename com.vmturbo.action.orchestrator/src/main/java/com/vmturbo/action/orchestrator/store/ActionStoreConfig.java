@@ -186,7 +186,7 @@ public class ActionStoreConfig {
         final List<ActionEventListener> listeners = new ArrayList<>();
         listeners.add(loggingActionEventListener());
         listeners.add(affectedEntitiesManager());
-        if (FeatureFlags.EXECUTED_ACTIONS_CHANGE_WINDOW.isEnabled()) {
+        if (FeatureFlags.ENABLE_BILLING_BASED_SAVINGS.isEnabled()) {
             listeners.add(actionChangeWindowUpdater());
         }
         return new ActionFactory(actionModeCalculator(), listeners);

@@ -248,10 +248,11 @@ public class EntitySavingsConfig {
             ImmutableSet.of(ActionType.SCALE, ActionType.DELETE, ActionType.ALLOCATE);
 
     /**
-     * Return whether entity savings tracking is enabled.
+     * Return whether bottom-up entity savings tracking is enabled.
+     *
      * @return True if entity savings tracking is enabled.
      */
-    public boolean isEnabled() {
+    public boolean isBottomUpSavingsEnabled() {
         return this.enableEntitySavings && !isBillSavingsEnabled();
     }
 
@@ -260,8 +261,7 @@ public class EntitySavingsConfig {
      * @return True if bill based is enabled.
      */
     public boolean isBillSavingsEnabled() {
-        return FeatureFlags.ENABLE_BILLING_BASED_SAVINGS.isEnabled()
-                && FeatureFlags.EXECUTED_ACTIONS_CHANGE_WINDOW.isEnabled();
+        return FeatureFlags.ENABLE_BILLING_BASED_SAVINGS.isEnabled();
     }
 
     /**
@@ -319,6 +319,7 @@ public class EntitySavingsConfig {
 
     /**
      * Action listener: Listen for action events and insert records in event journal.
+     * For bottom-up savings only.
      *
      * @return singleton instance of action listener
      */
@@ -334,7 +335,7 @@ public class EntitySavingsConfig {
                 entityStateStore(),
                 rollupConfig.entitySavingsRollupTimesStore(),
                 getClock());
-        if (isEnabled()) {
+        if (isBottomUpSavingsEnabled()) {
             logger.info("Registering action listener with AO to receive action events.");
             // Register listener with the action orchestrator to receive action events.
             aoClientConfig.actionOrchestratorClient().addListener(actionListener);
@@ -377,6 +378,7 @@ public class EntitySavingsConfig {
 
     /**
      * Task that executes once an hour to process entity events.
+     * For bottom-up savings only.
      *
      * @return singleton instance of EntitySavingsProcessor
      */
@@ -388,7 +390,7 @@ public class EntitySavingsConfig {
                         entitySavingsStore(), entityEventsJournal(), getClock(),
                         dataRetentionProcessor(), costNotificationConfig.costNotificationSender());
 
-        if (isEnabled()) {
+        if (isBottomUpSavingsEnabled()) {
             int initialDelayMinutes = getInitialStartDelayMinutes();
             Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(
                     entitySavingsProcessor::execute, initialDelayMinutes, 60, TimeUnit.MINUTES);
@@ -468,6 +470,7 @@ public class EntitySavingsConfig {
 
     /**
      * Gets access to events store.
+     * Only for bottom-up savings.
      *
      * @return Events store.
      */
@@ -515,6 +518,7 @@ public class EntitySavingsConfig {
 
     /**
      * Gets the audit log writer.
+     * Only used for bottom-up savings.
      *
      * @return Audit log writer.
      */
@@ -522,7 +526,7 @@ public class EntitySavingsConfig {
     public AuditLogWriter auditLogWriter() {
         try {
             return new SqlAuditLogWriter(dbAccessConfig.dsl(), getClock(),
-                    persistEntityCostChunkSize, isEnabled() && entitySavingsAuditLogEnabled);
+                    persistEntityCostChunkSize, isBottomUpSavingsEnabled() && entitySavingsAuditLogEnabled);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();

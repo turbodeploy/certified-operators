@@ -126,7 +126,7 @@ public class ActionStateUpdaterTest {
      * Rule to manage feature flag enablement to make sure FeatureFlagManager store is set up.
      */
     @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(FeatureFlags.EXECUTED_ACTIONS_CHANGE_WINDOW);
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(FeatureFlags.ENABLE_BILLING_BASED_SAVINGS);
 
     /**
      * Sets up the tests.
