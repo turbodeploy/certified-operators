@@ -93,6 +93,7 @@ public class EntityFilterMapperTest {
     private static final String FOO = "foo";
     private static final String BAR = "bar";
     private static final String VM_TYPE = "VirtualMachine";
+    private static final String VM_SPEC_TYPE = "VirtualMachineSpec";
     private static final String CT_TYPE = "ComputeTier";
     private static final String SERVICE_TYPE = "Service";
     private static final String PM_TYPE = "PhysicalMachine";
@@ -108,6 +109,7 @@ public class EntityFilterMapperTest {
     private static final PropertyFilter TYPE_IS_SERVICE =
             SearchProtoUtil.entityTypeFilter(SERVICE_TYPE);
     private static final PropertyFilter TYPE_IS_VM = SearchProtoUtil.entityTypeFilter(VM_TYPE);
+    private static final PropertyFilter TYPE_IS_VM_SPEC = SearchProtoUtil.entityTypeFilter(VM_SPEC_TYPE);
     private static final PropertyFilter TYPE_IS_CT = SearchProtoUtil.entityTypeFilter(CT_TYPE);
     private static final PropertyFilter TYPE_IS_PM = SearchProtoUtil.entityTypeFilter(PM_TYPE);
     private static final PropertyFilter TYPE_IS_DS = SearchProtoUtil.entityTypeFilter(DS_TYPE);
@@ -1126,6 +1128,98 @@ public class EntityFilterMapperTest {
         StringFilter sf = searchParams.getSearchFilter(0).getPropertyFilter().getStringFilter();
         assertEquals(expVal, sf.getOptions(0));
         assertTrue(sf.getPositiveMatch());
+    }
+
+    @Test
+    public void testVirtualMachineSpecsByTag() throws OperationFailedException {
+        // Tests the following from groupBuilderUsecases.json:
+        // {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "virtualMachineSpecsByTag", "loadOptions": true}
+
+        // Test Equals
+        String key = "turbo_lifetime";
+        String value = "99";
+        String expVal = "\\" + key + "=" + value;
+        final String filterType = "virtualMachineSpecsByTag";
+        GroupApiDTO inputDTO = groupApiDTO(AND, VM_SPEC_TYPE,
+                filterDTO(EntityFilterMapper.EQUAL, expVal, filterType));
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+                inputDTO.getCriteriaList(), inputDTO.getClassName());
+        assertEquals(1, parameters.size());
+
+        /**
+         * starting_filter {
+         *   property_name: "entityType"
+         *   numeric_filter {
+         *     comparison_operator: EQ
+         *     value: 75
+         *   }
+         * }
+         * search_filter {
+         *   property_filter {
+         *     property_name: "tags"
+         *     map_filter {
+         *       key: " turbo_lifetime"
+         *       values: "99"
+         *       positive_match: true
+         *     }
+         *   }
+         * }
+         * source_filter_specs {
+         *   expression_type: "EQ"
+         *   expression_value: "\\ turbo_lifetime=99"
+         *   filter_type: "virtualMachineSpecsByTag"
+         *   is_case_sensitive: false
+         * }
+         */
+
+        SearchParameters searchParams = parameters.iterator().next();
+        assertEquals(TYPE_IS_VM_SPEC, searchParams.getStartingFilter());
+        assertEquals(1, searchParams.getSearchFilterCount());
+        MapFilter mapFilter = searchParams.getSearchFilter(0).getPropertyFilter().getMapFilter();
+        assertEquals(key, mapFilter.getKey());
+        assertEquals(value, mapFilter.getValues(0));
+        assertEquals(true, mapFilter.getPositiveMatch());
+
+        //Test Not equals
+        GroupApiDTO inputDTONotEquals = groupApiDTO(AND, VM_SPEC_TYPE,
+                filterDTO(EntityFilterMapper.NOT_EQUAL, expVal, filterType));
+        Collection<SearchParameters> parametersNotEquals = entityFilterMapper.convertToSearchParameters(
+                inputDTONotEquals.getCriteriaList(), inputDTONotEquals.getClassName());
+        assertEquals(1, parameters.size());
+
+        /**
+         * starting_filter {
+         *   property_name: "entityType"
+         *   numeric_filter {
+         *     comparison_operator: EQ
+         *     value: 75
+         *   }
+         * }
+         * search_filter {
+         *   property_filter {
+         *     property_name: "tags"
+         *     map_filter {
+         *       key: " turbo_lifetime"
+         *       values: "99"
+         *       positive_match: false
+         *     }
+         *   }
+         * }
+         * source_filter_specs {
+         *   expression_type: "NEQ"
+         *   expression_value: "\\ turbo_lifetime=99"
+         *   filter_type: "virtualMachineSpecsByTag"
+         *   is_case_sensitive: false
+         * }
+         */
+
+        SearchParameters searchParamsNotEquals = parametersNotEquals.iterator().next();
+        assertEquals(TYPE_IS_VM_SPEC, searchParamsNotEquals.getStartingFilter());
+        assertEquals(1, searchParamsNotEquals.getSearchFilterCount());
+        MapFilter mapFilterNotEquals = searchParamsNotEquals.getSearchFilter(0).getPropertyFilter().getMapFilter();
+        assertEquals(key, mapFilterNotEquals.getKey());
+        assertEquals(value, mapFilterNotEquals.getValues(0));
+        assertEquals(false, mapFilterNotEquals.getPositiveMatch());
     }
 
 }
