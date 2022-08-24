@@ -581,7 +581,7 @@ public class Analysis {
         }
         // adding wastedEntityResults to TopologyConvertor for additional processing.
         this.converter.addAllWastedEntityResults(
-                ImmutableSet.of(wastedFilesAnalysisResult, wastedApplicationServiceResults));
+                ImmutableSet.of(wastedApplicationServiceResults));
 
         // Get the IDs of the entities that are recommended for deletion so we can mark deleted in the projected topology.
         final Set<Long> wastedEntityIds = new HashSet<Long>() {{
