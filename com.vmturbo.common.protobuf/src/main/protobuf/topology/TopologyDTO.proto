@@ -93,6 +93,10 @@ message TypeSpecificInfo {
             PREMIUMV3 = 7;
             ISOLATED = 8;
             ISOLATEDV2 = 9;
+            PREMIUMCONTAINER = 10;
+            ELASTICPREMIUM = 11;
+            WORKFLOWSTANDARD = 12;
+            DYNAMIC = 13;
         }
     }
 
