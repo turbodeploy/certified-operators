@@ -136,7 +136,7 @@ public class FabricPMStitchingOperation extends FabricStitchingOperation {
                 // Merge the fabric-probe discovered PM (required for USC-D action execution)
                 // ignore the sold commodities from fabricPM, and only keep those from hypervisorPM
                 .queueEntityMerger(MergeEntities.mergeEntity(fabricPM).onto(hypervisorPM,
-                    MergeEntities.DROP_ALL_FROM_COMMODITIES_STRATEGY));
+                    MergeEntities.DROP_ALL_FROM_COMMODITIES_AND_IGNORE_POWER_STRATEGY));
     }
 
     private static List<CommoditiesBought> mergeBoughtCommodities(StitchingEntity toUpdate,
