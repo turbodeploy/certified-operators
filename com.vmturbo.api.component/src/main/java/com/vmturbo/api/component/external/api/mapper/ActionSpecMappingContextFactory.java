@@ -390,7 +390,8 @@ public class ActionSpecMappingContextFactory {
             .collect(Collectors.toSet());
     }
 
-    private Map<Long, BaseApiDTO> getEntityClusters(Map<Long, ApiPartialEntity> entitiesById) {
+    private Map<Long, BaseApiDTO> getEntityClusters(Map<Long, ApiPartialEntity> entitiesById)
+            throws ExecutionException, InterruptedException {
         // Get physical machine entities involved in the action
         Set<Long> entitiesToGetClusterFor = entitiesById
             .values()
@@ -404,12 +405,14 @@ public class ActionSpecMappingContextFactory {
         }
 
         // call to get the clusters for pms
-        GroupDTO.GetGroupsForEntitiesResponse groupsForEntitiesResponse = groupsService
+        // avoid user scoping check by making the rpc call in a separate thread, like what we are
+        // doing for other rpc calls in method createActionSpecMappingContext
+        GroupDTO.GetGroupsForEntitiesResponse groupsForEntitiesResponse = executorService.submit(() -> groupsService
             .getGroupsForEntities(GroupDTO.GetGroupsForEntitiesRequest.newBuilder()
             .addAllEntityId(entitiesToGetClusterFor)
             .addGroupType(CommonDTO.GroupDTO.GroupType.COMPUTE_HOST_CLUSTER)
             .setLoadGroupObjects(true)
-            .build());
+            .build())).get();
 
         // create a map from groups to display name
         final Map<Long, String> groupToDisplayName = groupsForEntitiesResponse.getGroupsList()
