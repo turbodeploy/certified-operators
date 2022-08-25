@@ -205,4 +205,14 @@ public final class CommoditySoldWithSettings extends CommoditySold implements Co
         return this;
     }
 
+    @Override
+    public void copyFrom(CommoditySoldSettings originalCommSoldSettings) {
+        setPriceFunction(originalCommSoldSettings.getPriceFunction())
+                .setResold(originalCommSoldSettings.isResold())
+                .setCapacityIncrement(originalCommSoldSettings.getCapacityIncrement())
+                .setUpdatingFunction(originalCommSoldSettings.getUpdatingFunction())
+                .setUtilizationUpperBound(originalCommSoldSettings.getUtilizationUpperBound());
+    }
+
+
 } // end class CommoditySoldWithSettings

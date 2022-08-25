@@ -285,4 +285,6 @@ public interface CommoditySoldSettings {
     @Pure
     @NonNull CommoditySoldSettings setUtilizationCheckForCongestion(boolean utilizationCheckForCongestion);
 
+    void copyFrom(CommoditySoldSettings originalCommoditySoldSettings);
+
 } // end CommoditySoldSettings interface
