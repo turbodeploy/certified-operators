@@ -578,6 +578,10 @@ public class SdkToTopologyEntityConverter {
             } else if (entityDTO.getPhysicalMachineData().getPmState().getFailover()) {
                 entityState = EntityState.FAILOVER;
             }
+        } else if (entityDTO.getEntityType() == EntityType.STORAGE) {
+            if (entityDTO.getMaintenance()) {
+                entityState = EntityState.MAINTENANCE;
+            }
         }
 
         return entityState;

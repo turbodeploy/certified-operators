@@ -72,6 +72,7 @@ public class ControllableManager {
         oidModified.addAll(markVMsOnFailoverOrUnknownHostAsNotControllable(topologyGraph));
         oidModified.addAll(markSuspendedEntitiesAsNotControllable(topologyGraph));
         oidModified.addAll(applyControllableAutomationLevel(topologyGraph));
+        oidModified.addAll(setStoragesInMaintenanceToNonControllable(topologyGraph));
         oidModified.addAll(keepControllableFalseAfterExitingMaintenanceMode(topology));
         return oidModified.size();
     }
@@ -218,6 +219,25 @@ public class ControllableManager {
                 return entity.getOid();
             })
             .collect(Collectors.toSet());
+    }
+
+    /**
+     * Set controllable to false for Storages in maintenance mode.
+     *
+     * @param topology a topology graph.
+     * @return a set of modified entity oids.
+     */
+    private Set<Long> setStoragesInMaintenanceToNonControllable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+        return topology.entitiesOfType(EntityDTO.EntityType.STORAGE)
+                .map(TopologyEntity::getTopologyEntityImpl)
+                .filter(entity -> entity.getEntityState() == EntityState.MAINTENANCE)
+                .map(entity -> {
+                    entity.getOrCreateAnalysisSettings().setControllable(false);
+                    logger.trace("Mark entity in maintenance {}({}) as not controllable",
+                            entity.getDisplayName(), entity.getOid());
+                    return entity.getOid();
+                })
+                .collect(Collectors.toSet());
     }
 
     /**
