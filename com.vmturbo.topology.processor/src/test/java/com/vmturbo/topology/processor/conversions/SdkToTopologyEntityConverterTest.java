@@ -27,7 +27,9 @@ import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.builders.EntityBuilders;
@@ -112,6 +114,44 @@ public class SdkToTopologyEntityConverterTest {
                         .build());
         assertEquals(Optional.empty(), SdkToTopologyEntityConverter
                 .calculateSuspendabilityWithStitchingEntity(proxyStitchingEntity));
+    }
+
+    /**
+     * Test whether the Storages that are coming in as inMaintenance=true are being set to EntityState.MAINTENANCE.
+     */
+    @Test
+    public void testStoragesInMaintenanceSetAsInMaintenance() {
+        TopologyStitchingEntity proxyStitchingEntity = new TopologyStitchingEntity(
+                StitchingEntityData
+                        .newBuilder(EntityDTO.newBuilder()
+                                .setId("foo")
+                                .setEntityType(EntityType.STORAGE)
+                                .setMaintenance(true)
+                                .addCommoditiesSold(CommodityDTO.newBuilder()
+                                        .setCommodityType(CommodityType.MEM_PROVISIONED)
+                                        .setCapacity(100)))
+                        .build());
+
+        TopologyStitchingEntity proxyStitchingEntity2 = new TopologyStitchingEntity(
+                StitchingEntityData
+                        .newBuilder(EntityDTO.newBuilder()
+                                .setId("foo2")
+                                .setEntityType(EntityType.STORAGE)
+                                .setMaintenance(false)
+                                .addCommoditiesSold(CommodityDTO.newBuilder()
+                                        .setCommodityType(CommodityType.CPU_PROVISIONED)
+                                        .setCapacity(3)))
+                        .build());
+
+        TopologyDTO.TopologyEntityDTO.Builder proxyTopologyEntity1 =
+                SdkToTopologyEntityConverter.newTopologyEntityDTO(proxyStitchingEntity,
+                        resoldCommodityCache);
+        TopologyDTO.TopologyEntityDTO.Builder proxyTopologyEntity2 =
+                SdkToTopologyEntityConverter.newTopologyEntityDTO(proxyStitchingEntity2,
+                        resoldCommodityCache);
+
+        assertEquals(EntityState.MAINTENANCE, proxyTopologyEntity1.getEntityState());
+        assertEquals(EntityState.POWERED_ON, proxyTopologyEntity2.getEntityState());
     }
 
     /**

@@ -87,6 +87,12 @@ public class ControllableManagerTest {
         .setAnalysisSettings(new AnalysisSettingsImpl()
             .setControllable(true))
         .setEntityState(EntityState.MAINTENANCE);
+    private final TopologyEntityImpl storageInMaintenance = new TopologyEntityImpl()
+            .setOid(777)
+            .setEntityType(EntityType.STORAGE_VALUE)
+            .setAnalysisSettings(new AnalysisSettingsImpl()
+                    .setControllable(true))
+            .setEntityState(EntityState.MAINTENANCE);
     private final TopologyEntityImpl pmPoweredOn = new TopologyEntityImpl()
         .setOid(5)
         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
@@ -221,6 +227,7 @@ public class ControllableManagerTest {
         topology.put(pmPoweredOn.getOid(), TopologyEntity.newBuilder(pmPoweredOn)
             .addConsumer(topology.get(vmBazEntityBuilder.getOid())));
 
+        topology.put(storageInMaintenance.getOid(), TopologyEntity.newBuilder(storageInMaintenance));
         topology.put(vmMaintenance1.getOid(), TopologyEntity.newBuilder(vmMaintenance1));
         topology.put(vmMaintenance2.getOid(), TopologyEntity.newBuilder(vmMaintenance2));
         topology.put(pmInMaintenance1.getOid(), TopologyEntity.newBuilder(pmInMaintenance1)
@@ -472,6 +479,16 @@ public class ControllableManagerTest {
         for (CommoditySoldView commSold : vmBazEntityBuilder.getCommoditySoldListList()) {
             assertTrue(commSold.getIsResizeable());
         }
+    }
+
+    /**
+     * Test if storages in maintenance are set to not controllable.
+     */
+    @Test
+    public void testMarkStoragesOnMaintenanceAsNotResizable() {
+        int numModified = controllableManager.applyControllable(topologyGraph);
+
+        assertFalse(storageInMaintenance.getAnalysisSettings().getControllable());
     }
 
     /**
