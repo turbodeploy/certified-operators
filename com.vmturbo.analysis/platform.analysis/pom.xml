@@ -18,15 +18,12 @@
         <checker-qual.version>1.9.5</checker-qual.version>
         <websocket.version>1.1</websocket.version>
 
-        <!-- ****************************************** -->
-        <!-- If you change the the mockito version, update the bytebuddy version to something that works.
-            For some reason, the staging ci build pulls in the correct dependency and runs the test fine.
-            The nightly build pulls in the wrong 1.8.X dependency and we get NoSuchMethodError.
-            We workaround this by forcing maven to use a particular version of byte buddy that works.
+        <!-- We use 3.5.11 instead of 1.10.19 like the rest of XL so that we can use the mockito plugin that enables mocking of statics.
+            We need to be extra careful with our maven configuration because 3.5.11 requires byte-buddy 1.10.13. Other projects in XL
+            depend on byte buddy 1.8.12 as a COMPILE dependency due to a transitive dependency from swagger. As a result, that
+            can sneak into the classpath and mess up the tests for analysis.
         -->
         <mockito.version>3.5.11</mockito.version>
-        <bytebuddy.version>1.10.13</bytebuddy.version>
-        <!-- ****************************************** -->
     </properties>
 
     <build>
@@ -112,12 +109,6 @@
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
             <version>${mockito.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>net.bytebuddy</groupId>
-            <artifactId>byte-buddy</artifactId>
-            <version>${bytebuddy.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
