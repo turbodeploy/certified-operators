@@ -20,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
 import com.vmturbo.api.dto.client.ClientInputDTO;
+import com.vmturbo.api.dto.client.ClientNetworkSitesMetadataApiDTO;
 import com.vmturbo.api.dto.client.ClientNetworkTokenApiDTO;
 import com.vmturbo.api.dto.client.ClientNetworkTokensMetadataApiDTO;
 import com.vmturbo.api.dto.client.ClientServiceApiDTO;
@@ -42,6 +43,9 @@ public class ClientsServiceTest {
     private static final Integer networkTokenClaimsMade = 0;
     private static final Integer networkTokenClaimsRemaining = 1;
     private static final String networkTokenClaimsExpiration = "testNetworkTokenClaimsExpiration";
+
+    private static final String SITE_ID = "testSiteId";
+    private static final String SITE_NAME = "testSiteName";
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -206,12 +210,24 @@ public class ClientsServiceTest {
         return jsonObject;
     }
 
+    private JsonObject setupNetworkSitesMetadataJsonResponse() {
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty(SecurityConstant.SITE_ID, SITE_ID);
+        jsonObject.addProperty(SecurityConstant.SITE_NAME, SITE_NAME);
+        return jsonObject;
+    }
+
     private void assertClientNetworkTokenMetadataInfo(ClientNetworkTokensMetadataApiDTO clientDTO) {
         Assert.assertEquals(clientDTO.getId(), networkTokenId);
         Assert.assertEquals(clientDTO.getCreated(), networkTokenCreated);
         Assert.assertEquals(clientDTO.getClaimsMade(), networkTokenClaimsMade);
         Assert.assertEquals(clientDTO.getClaimsRemaining(), networkTokenClaimsRemaining);
         Assert.assertEquals(clientDTO.getClaimExpiration(), networkTokenClaimsExpiration);
+    }
+
+    private void assertClientNetworkSitesMetadataInfo(ClientNetworkSitesMetadataApiDTO siteDTO) {
+        Assert.assertEquals(siteDTO.getId(), SITE_ID);
+        Assert.assertEquals(siteDTO.getName(), SITE_NAME);
     }
 
     /**
@@ -235,6 +251,26 @@ public class ClientsServiceTest {
     }
 
     /**
+     * Test get client network sites returns the skupper sites list.
+     *
+     * @throws Exception exception.
+     */
+    @Test
+    public void testGetClientNetworksSitesWithResponse() throws Exception {
+        JsonArray clientNetworkSitesArray = new JsonArray();
+        clientNetworkSitesArray.add(setupNetworkSitesMetadataJsonResponse());
+        ResponseEntity<JsonArray> response
+                = new ResponseEntity<JsonArray>(clientNetworkSitesArray, HttpStatus.OK);
+        Mockito.when(mockRestTemplate
+                        .getForEntity(clientsService.prepareClientNetworkUri(SecurityConstant.SITES).toUriString(), JsonArray.class))
+                .thenReturn(response);
+        List<ClientNetworkSitesMetadataApiDTO> siteList = clientsService.getClientNetworksSites();
+        siteList.forEach(site -> {
+            assertClientNetworkSitesMetadataInfo(site);
+        });
+    }
+
+    /**
      * Test client network token delete.
      *
      * @throws Exception exception.
@@ -246,4 +282,5 @@ public class ClientsServiceTest {
         Boolean resp = clientsService.deleteClientNetworkToken(networkTokenId);
         Assert.assertTrue(resp);
     }
+
 }
