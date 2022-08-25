@@ -985,16 +985,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         for (int commIndex = 0; commIndex < commoditiesSold.size(); commIndex++) {
             CommoditySold commSold = commoditiesSold.get(commIndex);
             CommoditySold cloneCommSold = cloneCommoditiesSold.get(commIndex);
-            final CommoditySoldSettings commSoldSettings = commSold.getSettings();
-            final CommoditySoldSettings cloneCommSoldSettings = cloneCommSold.getSettings();
-            cloneCommSold.setCapacity(commSold.getCapacity());
-            cloneCommSold.setQuantity(commSold.getQuantity());
-            cloneCommSold.setPeakQuantity(commSold.getPeakQuantity());
-            cloneCommSoldSettings.setPriceFunction(commSoldSettings.getPriceFunction())
-                .setResold(commSoldSettings.isResold())
-                .setCapacityIncrement(commSoldSettings.getCapacityIncrement())
-                .setUpdatingFunction(commSoldSettings.getUpdatingFunction())
-                .setUtilizationUpperBound(commSoldSettings.getUtilizationUpperBound());
+            cloneCommSold.copyFrom(commSold);
         }
     }
 

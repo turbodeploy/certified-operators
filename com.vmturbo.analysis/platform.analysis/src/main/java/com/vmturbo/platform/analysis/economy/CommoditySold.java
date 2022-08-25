@@ -42,6 +42,20 @@ public abstract class CommoditySold implements Serializable {
     public abstract @NonNull @PolyRead CommoditySoldSettings getSettings(@PolyRead CommoditySold this);
 
     /**
+     * Copy the commodity sold attributes from the originalCommSold.
+     * @param originalCommSold the original commodity sold from which the values are copied.
+     */
+    public void copyFrom(CommoditySold originalCommSold) {
+        setCapacity(originalCommSold.getCapacity());
+        setQuantity(originalCommSold.getQuantity());
+        setPeakQuantity(originalCommSold.getPeakQuantity());
+        setNumConsumers(originalCommSold.getNumConsumers());
+        final CommoditySoldSettings originalCommSoldSettings = originalCommSold.getSettings();
+        final CommoditySoldSettings commoditySoldSettings = getSettings();
+        commoditySoldSettings.copyFrom(originalCommSoldSettings);
+    }
+
+    /**
      * Returns the <b>utilization</b> of {@code this} commodity.
      *
      * @return {@link #getQuantity()}/{@link #getCapacity()}.

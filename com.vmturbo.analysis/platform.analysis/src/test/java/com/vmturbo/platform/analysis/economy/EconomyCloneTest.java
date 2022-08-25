@@ -33,6 +33,7 @@ public class EconomyCloneTest {
         commSold.setCapacity(100);
         commSold.setQuantity(20);
         commSold.setPeakQuantity(30);
+        commSold.setNumConsumers(10);
         commSold.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
 
         Trader buyer = economy.addTrader(2, TraderState.ACTIVE, empty)
@@ -75,6 +76,8 @@ public class EconomyCloneTest {
         assertEquals(quote, cloneQuote, TestUtils.FLOATING_POINT_DELTA);
         assertTrue(cloneSeller.isOidSet());
         assertEquals(seller.getOid(), cloneSeller.getOid());
+        assertEquals(seller.getCommoditiesSold().get(0).getNumConsumers(),
+                cloneSeller.getCommoditiesSold().get(0).getNumConsumers());
     }
 
     /**
