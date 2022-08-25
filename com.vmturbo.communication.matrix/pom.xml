@@ -4,9 +4,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <groupId>com.vmturbo</groupId>
-        <artifactId>com.vmturbo.components</artifactId>
+        <artifactId>Turbonomic-XL</artifactId>
         <version>${revision}</version>
-        <relativePath>../com.vmturbo.components/pom.xml</relativePath>
+        <relativePath>../build/pom.xml</relativePath>
     </parent>
 
     <modelVersion>4.0.0</modelVersion>
