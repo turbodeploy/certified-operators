@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -226,9 +227,12 @@ public class ActionInterpreter {
                                 originalCloudTopology));
                     } else {
                         action = createAction(actionTO);
-                        action.getInfoBuilder().setMove(interpretCompoundMoveAction(actionTO.getCompoundMove(),
-                                projectedTopology, originalCloudTopology));
-                        actionList.add(ActionData.of(actionTO, action));
+                        Optional<ActionDTO.Move> compoundMoveOpt = interpretCompoundMoveAction(actionTO.getCompoundMove(),
+                                projectedTopology, originalCloudTopology);
+                        compoundMoveOpt.ifPresent(compoundMove -> {
+                            action.getInfoBuilder().setMove(compoundMove);
+                            actionList.add(ActionData.of(actionTO, action));
+                        });
                     }
                     break;
                 case RECONFIGURE:
@@ -416,7 +420,8 @@ public class ActionInterpreter {
      * @return {@link ActionDTO.Move} representing the compound move
      */
     @Nonnull
-    private ActionDTO.Move interpretCompoundMoveAction(
+    @VisibleForTesting
+    Optional<ActionDTO.Move> interpretCompoundMoveAction(
             @Nonnull final CompoundMoveTO compoundMoveTO,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
             @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
@@ -437,14 +442,21 @@ public class ActionInterpreter {
         }
         Long targetOid = targetIds.iterator().next();
 
-        return ActionDTO.Move.newBuilder()
-            .setTarget(createActionEntity(
-                targetIds.iterator().next(), projectedTopology))
-            .addAllChanges(moves.stream()
+        List<ChangeProvider> changeProviders = moves.stream()
                 .map(move -> createChangeProviders(move, projectedTopology, originalCloudTopology, targetOid))
                 .flatMap(List::stream)
-                .collect(Collectors.toList()))
-                .build();
+                .collect(Collectors.toList());
+
+        if (changeProviders.isEmpty()) {
+            logger.warn("Analysis suggested a compound move which translated to an XL move " +
+                    "without any change providers. CompoundMoveTO: {}", compoundMoveTO);
+            return Optional.empty();
+        }
+        return Optional.of(ActionDTO.Move.newBuilder()
+            .setTarget(createActionEntity(
+                targetIds.iterator().next(), projectedTopology))
+            .addAllChanges(changeProviders)
+                .build());
     }
 
     private ActionDTO.Provision interpretProvisionByDemand(
@@ -517,6 +529,9 @@ public class ActionInterpreter {
                     builder.setScalingGroupId(moveTO.getScalingGroupId());
                 }
                 return Optional.of(builder.build());
+            } else {
+                logger.warn("Analysis suggested a move which translated to an XL move " +
+                        "without any change providers. MoveTO: {}", moveTO);
             }
         }
         return Optional.empty();

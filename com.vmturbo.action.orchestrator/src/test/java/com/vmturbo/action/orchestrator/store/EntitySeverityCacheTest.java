@@ -127,6 +127,35 @@ public class EntitySeverityCacheTest {
         assertEquals(Severity.CRITICAL, entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID).get());
     }
 
+    /**
+     * Create a move without any changes. This will cause an IndexOutOfBounds exception in
+     * ActionDTOUtil.getSeverityEntity.
+     * But inspite of this, the cache refresh should continue with other entities.
+     */
+    @Test
+    public void testRefreshContinuesOnException() {
+        ActionDTO.Action.Builder moveBuilder = executableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1,
+                Severity.MINOR).toBuilder();
+        moveBuilder.getInfoBuilder().getMoveBuilder().removeChanges(0).build();
+        ActionDTO.Action moveWithNoChanges = moveBuilder.build();
+        ActionView action1 = actionView(moveWithNoChanges);
+        ActionView action2 = actionView(executableMove(
+                3, 2, 1, 4, 1, Severity.CRITICAL));
+        ActionView action3 = actionView(executableMove(
+                5, 2, 1, 6, 1, Severity.MAJOR));
+
+        when(actionStore.getActionViews()).thenReturn(new MapBackedActionViews(ImmutableMap.of(
+                action1.getRecommendation().getId(), action1,
+                action2.getRecommendation().getId(), action2,
+                action3.getRecommendation().getId(), action3)));
+
+        entitySeverityCache.refresh(actionStore);
+        // For the action which causes the exception, the associated entity's severity should just be the default - Normal.
+        assertEquals(Severity.NORMAL, entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID).get());
+        // The other actions should still be processed, and we should get severity for them.
+        assertEquals(Severity.CRITICAL, entitySeverityCache.getSeverity(2).get());
+    }
+
     @Test
     public void testRefreshIndividualAction() {
         ActionView action1 = actionView(executableMove(
