@@ -455,6 +455,14 @@ public class InterpretActionTest {
             configVolumeMove, projectedTopology, originalCloudTopology);
         assertFalse(moveOptional.isPresent());
 
+        // When Analysis produces a compound move for a config volume, we should not be
+        // creating a move action for it.
+        final CompoundMoveTO compoundMoveForConfigVolume = CompoundMoveTO.newBuilder()
+                .addMoves(configVolumeMove).build();
+        final Optional<Move> compMoveOptional = interpreter.interpretCompoundMoveAction(
+                compoundMoveForConfigVolume, projectedTopology, originalCloudTopology);
+        assertFalse(compMoveOptional.isPresent());
+
         final MoveTO regularVolumeMove = MoveTO.newBuilder()
             .setShoppingListToMove(shoppingListId2)
             .setSource(source.getOid())

@@ -725,7 +725,7 @@ public class EntitySeverityCache {
                     newSeverities.put(entity, newSeverity);
                 }
             }
-        } catch (UnsupportedActionException e) {
+        } catch (Exception e) {
             logger.warn("Unable to handle action severity for action {}", actionView);
         }
     }
