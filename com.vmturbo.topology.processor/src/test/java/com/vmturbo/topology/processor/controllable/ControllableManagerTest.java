@@ -351,7 +351,7 @@ public class ControllableManagerTest {
         when(entityActionDao.getNonControllableEntityIds())
             .thenReturn(Collections.emptySet());
         int numModified = controllableManager.applyControllable(topologyGraph);
-        assertEquals(3, numModified);
+        assertEquals(4, numModified);
         assertTrue(container1.getAnalysisSettings().getControllable());
         assertTrue(pod1.getAnalysisSettings().getControllable());
         assertTrue(pod2.getAnalysisSettings().getControllable());
@@ -374,7 +374,7 @@ public class ControllableManagerTest {
             .thenReturn(Collections.emptySet());
         assertEquals(EntityState.UNKNOWN, pmFailover.getEntityState());
         int numModified = controllableManager.applyControllable(topologyGraph);
-        assertEquals(3, numModified);
+        assertEquals(4, numModified);
         assertFalse(vm1.getAnalysisSettings().getControllable());
         assertFalse(vm2.getAnalysisSettings().getControllable());
         assertFalse(pmInMaintenance2.getAnalysisSettings().getControllable());
@@ -411,7 +411,7 @@ public class ControllableManagerTest {
         Mockito.when(entityActionDao.getNonControllableEntityIds())
             .thenReturn(Collections.emptySet());
         int numModified = controllableManager.applyControllable(topologyGraph);
-        assertEquals(5, numModified);
+        assertEquals(6, numModified);
         assertFalse(vm1.getAnalysisSettings().getControllable());
         assertFalse(vm2.getAnalysisSettings().getControllable());
         assertFalse(pmInMaintenance2.getAnalysisSettings().getControllable());
@@ -425,7 +425,7 @@ public class ControllableManagerTest {
     @Test
     public void testApplyControllableAutomationLevel() {
         int numModified = controllableManager.applyControllable(topologyGraph);
-        assertEquals(3, numModified);
+        assertEquals(4, numModified);
         assertTrue(pmInMaintenance.getAnalysisSettings().getControllable());
         assertTrue(pmInMaintenance1.getAnalysisSettings().getControllable());
         assertFalse(pmInMaintenance2.getAnalysisSettings().getControllable());
@@ -508,7 +508,7 @@ public class ControllableManagerTest {
                         .thenReturn(ImmutableMap.of(pmPoweredOn.getOid(), (long)(NOW_MS * Units.MILLI - windowMin * 2 * 60),
                                         pmFailover.getOid(), (long)((NOW_MS * Units.MILLI - windowMin * 60))));
         int numModified = controllableManager.applyControllable(topologyGraph);
-        assertEquals(4, numModified);
+        assertEquals(5, numModified);
         assertTrue(pmPoweredOn.getAnalysisSettings().getControllable());
         assertTrue(pmInMaintenance.getAnalysisSettings().getControllable());
         assertFalse(pmFailover.getAnalysisSettings().getControllable());
@@ -536,7 +536,7 @@ public class ControllableManagerTest {
                         pmPoweredOn.getOid(),
                         (long)(NOW_MS * Units.MILLI - defaultWindow * Units.MINUTE - 1)));
         int numModified = controllableManager.applyControllable(topologyGraph);
-        assertEquals(3, numModified);
+        assertEquals(4, numModified);
         assertTrue(pmPoweredOn.getAnalysisSettings().getControllable());
         assertTrue(pmInMaintenance.getAnalysisSettings().getControllable());
         assertTrue(pmFailover.getAnalysisSettings().getControllable());
