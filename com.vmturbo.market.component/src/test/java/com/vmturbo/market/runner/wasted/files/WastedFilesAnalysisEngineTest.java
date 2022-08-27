@@ -280,34 +280,35 @@ public class WastedFilesAnalysisEngineTest {
         analysis = wastedFilesAnalysisEngine.analyze(planTopologyInfo,
                 topology, cloudCostCalculator, originalCloudTopology);
         verifyResults(analysis);
+        assertEquals(3, analysis.getActionsByEntityType(EntityType.STORAGE_VALUE).size());
     }
 
     private void verifyResults(WastedFilesResults analysis) {
         // expect 3 actions since we no longer filter files by size here
-        assertEquals(3, analysis.getActions().size());
+        assertEquals(3, analysis.getAllActions().size());
         // make sure actions have the correct files in them
         assertEquals(ImmutableSet.copyOf(filePathsWastedOnPrem),
-            analysis.getActions().stream()
+            analysis.getAllActions().stream()
                 .map(Action::getInfo)
                 .map(ActionInfo::getDelete)
                 .map(Delete::getFilePath)
                 .collect(Collectors.toSet()));
         // make sure action explanations have the right values
         assertEquals(Arrays.stream(wastedSizesKbOnPrem).boxed().collect(Collectors.toSet()),
-            analysis.getActions().stream()
+            analysis.getAllActions().stream()
                 .map(Action::getExplanation)
                 .map(Explanation::getDelete)
                 .map(DeleteExplanation::getSizeKb)
                 .collect(Collectors.toSet()));
         // make sure action explanations have correct modification times
         assertEquals(Arrays.stream(wastedModTimeMsOnPrem).boxed().collect(Collectors.toSet()),
-            analysis.getActions().stream()
+            analysis.getAllActions().stream()
                 .map(Action::getExplanation)
                 .map(Explanation::getDelete)
                 .map(DeleteExplanation::getModificationTimeMs)
                 .collect(Collectors.toSet()));
         // make sure storage is the target of each action
-        analysis.getActions().forEach(action -> {
+        analysis.getAllActions().forEach(action -> {
             ActionEntity target = action.getInfo().getDelete().getTarget();
             assertEquals(EntityType.STORAGE_VALUE, target.getType());
             assertEquals(EnvironmentType.ON_PREM, target.getEnvironmentType());
@@ -343,11 +344,11 @@ public class WastedFilesAnalysisEngineTest {
             cloudTopology, cloudCostCalculator, originalCloudTopology);
 
 
-        assertEquals("There should be two actions for cloud wasted storage", 2, analysis.getActions().size());
+        assertEquals("There should be two actions for cloud wasted storage", 2, analysis.getAllActions().size());
 
         assertEquals("Ensure Action has the virtual volume oid as the delete target",
             ImmutableSet.of(2L, 3L),
-            analysis.getActions().stream()
+            analysis.getAllActions().stream()
                 .map(Action::getInfo)
                 .map(ActionInfo::getDelete)
                 .map(Delete::getTarget)
@@ -356,7 +357,7 @@ public class WastedFilesAnalysisEngineTest {
 
         assertEquals("Ensure Action has the storage tier oid as the source target",
             ImmutableSet.of(6L, 6L),
-            analysis.getActions().stream()
+            analysis.getAllActions().stream()
                 .map(Action::getInfo)
                 .map(ActionInfo::getDelete)
                 .map(Delete::getSource)
@@ -369,13 +370,13 @@ public class WastedFilesAnalysisEngineTest {
             .put(4L, 40d)
             .put(5L, 50d)
             .build();
-        analysis.getActions().forEach(action ->
+        analysis.getAllActions().forEach(action ->
             assertEquals("Ensure action has the right savings",
                 costMap.get(action.getInfo().getDelete().getTarget().getId()),
                 Double.valueOf(action.getSavingsPerHour().getAmount()))
         );
 
-        analysis.getActions().forEach(action -> {
+        analysis.getAllActions().forEach(action -> {
             assertTrue(action.hasExplanation());
             assertTrue(action.getExplanation().hasDelete());
             assertTrue(action.getExplanation().getDelete().hasSizeKb());
@@ -385,7 +386,7 @@ public class WastedFilesAnalysisEngineTest {
         });
 
         // make sure storage tier is the target of each action
-        analysis.getActions().forEach(action -> {
+        analysis.getAllActions().forEach(action -> {
             assertEquals("Each file path are empty", "", action.getInfo().getDelete().getFilePath());
             assertTrue("Each action should be executable", action.getExecutable());
 
@@ -397,6 +398,8 @@ public class WastedFilesAnalysisEngineTest {
             assertEquals(EntityType.STORAGE_TIER_VALUE, source.getType());
             assertEquals(6L, source.getId());
         });
+        assertEquals(2, analysis.getActionsByEntityType(EntityType.VIRTUAL_VOLUME_VALUE).size());
+        assertTrue(analysis.getActionsByEntityType(EntityType.STORAGE_VALUE).isEmpty());
     }
 
     /**
@@ -423,11 +426,11 @@ public class WastedFilesAnalysisEngineTest {
             cloudTopology, cloudCostCalculator, originalCloudTopology);
 
 
-        assertEquals("There should be one actions for cloud wasted storage", 1, analysis.getActions().size());
+        assertEquals("There should be one actions for cloud wasted storage", 1, analysis.getAllActions().size());
 
         assertEquals("Ensure Action has the virtual volume oid as the delete target",
             ImmutableSet.of(2L),
-            analysis.getActions().stream()
+            analysis.getAllActions().stream()
                 .map(Action::getInfo)
                 .map(ActionInfo::getDelete)
                 .map(Delete::getTarget)
@@ -436,7 +439,7 @@ public class WastedFilesAnalysisEngineTest {
 
         assertEquals("Ensure Action has the storage tier oid as the source target",
             ImmutableSet.of(6L),
-            analysis.getActions().stream()
+            analysis.getAllActions().stream()
                 .map(Action::getInfo)
                 .map(ActionInfo::getDelete)
                 .map(Delete::getSource)
@@ -449,14 +452,14 @@ public class WastedFilesAnalysisEngineTest {
             .put(4L, 40d)
             .put(5L, 50d)
             .build();
-        analysis.getActions().forEach(action ->
+        analysis.getAllActions().forEach(action ->
             assertEquals("Ensure action has the right savings",
                 costMap.get(action.getInfo().getDelete().getTarget().getId()),
                 Double.valueOf(action.getSavingsPerHour().getAmount()))
         );
 
         // make sure storage tier is the target of each action
-        analysis.getActions().forEach(action -> {
+        analysis.getAllActions().forEach(action -> {
             assertEquals("Each file path are empty", "", action.getInfo().getDelete().getFilePath());
             assertTrue("Each action should be executable", action.getExecutable());
 

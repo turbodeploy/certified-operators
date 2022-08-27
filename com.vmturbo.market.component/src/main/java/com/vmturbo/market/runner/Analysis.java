@@ -581,13 +581,8 @@ public class Analysis {
         }
         // adding wastedEntityResults to TopologyConvertor for additional processing.
         this.converter.addAllWastedEntityResults(
-                ImmutableSet.of(wastedApplicationServiceResults));
+                ImmutableSet.of(wastedFilesAnalysisResult, wastedApplicationServiceResults));
 
-        // Get the IDs of the entities that are recommended for deletion so we can mark deleted in the projected topology.
-        final Set<Long> wastedEntityIds = new HashSet<Long>() {{
-            addAll(wastedFilesAnalysisResult.getEntityIds());
-            addAll(wastedApplicationServiceResults.getEntityIds());
-        }};
 
         // Calculate reservedCapacity and generate resize actions
         // Do not generate reservations for cloud migration plans.
@@ -801,6 +796,10 @@ public class Analysis {
                                     }
                                 }
 
+                                // Get the IDs of the entities that are recommended for deletion so we can mark deleted in the projected topology.
+                                final Set<Long> wastedEntityIds = new HashSet<>();
+                                wastedEntityIds.addAll(wastedFilesAnalysisResult.getEntityIds());
+                                wastedEntityIds.addAll(wastedApplicationServiceResults.getEntityIds());
                                 // Set deleted entities as deleted in the projected topology will ensure that the after action price is $0.
                                 copySkippedEntitiesToProjectedTopology(
                                         wastedEntityIds,
@@ -942,8 +941,8 @@ public class Analysis {
                     converter.clearStateNeededForActionInterpretation();
                     // TODO move wasted files action out of main analysis once we have a framework
                     // to support multiple analyses for the same topology ID
-                    actionPlanBuilder.addAllAction(wastedFilesAnalysisResult.getActions());
-                    actionPlanBuilder.addAllAction(wastedApplicationServiceResults.getActions());
+                    actionPlanBuilder.addAllAction(wastedFilesAnalysisResult.getAllActions());
+                    actionPlanBuilder.addAllAction(wastedApplicationServiceResults.getAllActions());
                     actionPlanBuilder.addAllAction(reservedCapacityResults.getActions());
 
                     //Execute ReconfigureActionAnalysis, need to consider existing actions to avoid duplicates.

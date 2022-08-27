@@ -110,7 +110,7 @@ public class WastedApplicationServiceAnalysisEngineTest {
 
     private static TopologyEntityDTO.Builder createASP(final long oid, String name,
                                                        boolean controllable) {
-        return createASP(oid, name, controllable, EntityType.APPLICATION_COMPONENT_VALUE );
+        return createASP(oid, name, controllable, EntityType.VIRTUAL_MACHINE_SPEC_VALUE );
     }
 
     private static TopologyEntityDTO.Builder createASP(final long oid, String name,
@@ -243,7 +243,7 @@ public class WastedApplicationServiceAnalysisEngineTest {
                 wastedApplicationServiceAnalysisEngine.analyze(topologyInfo,
                         topology, cloudCostCalculator, originalCloudTopology);
         // Expect to see that no ASP sits unused.
-        Collection<Action> actions = analysis.getActions();
+        Collection<Action> actions = analysis.getAllActions();
         assertEquals(0, actions.size());
     }
 
@@ -284,11 +284,12 @@ public class WastedApplicationServiceAnalysisEngineTest {
                 wastedApplicationServiceAnalysisEngine.analyze(topologyInfo,
                         topology, cloudCostCalculator, originalCloudTopology);
         // Expect to see that one ASP sits unused.
-        Collection<Action> actions = analysis.getActions();
+        Collection<Action> actions = analysis.getAllActions();
         assertEquals(1, actions.size());
         // Make sure we got back the wasted ASP and not a different one.
         Action action = actions.toArray(actions.toArray(new Action[1]))[0];
         assertEquals(wastedPlanOid, action.getInfo().getDelete().getTarget().getId());
+        assertEquals(1, analysis.getActionsByEntityType(EntityType.VIRTUAL_MACHINE_SPEC_VALUE).size());
     }
 
     /**
@@ -325,7 +326,7 @@ public class WastedApplicationServiceAnalysisEngineTest {
                 wastedApplicationServiceAnalysisEngine.analyze(topologyInfo,
                         topology, cloudCostCalculator, originalCloudTopology);
         // Expect to see that no ASP sits unused since both have apps attached to them.
-        Collection<Action> actions = analysis.getActions();
+        Collection<Action> actions = analysis.getAllActions();
         assertEquals(0, actions.size());
     }
 
@@ -359,7 +360,7 @@ public class WastedApplicationServiceAnalysisEngineTest {
                 wastedApplicationServiceAnalysisEngine.analyze(topologyInfo,
                         topology, cloudCostCalculator, originalCloudTopology);
         // Expect to see that there are two ASPs that have delete actions
-        Collection<Action> actions = analysis.getActions();
+        Collection<Action> actions = analysis.getAllActions();
         assertEquals(2, actions.size());
     }
 
@@ -393,7 +394,7 @@ public class WastedApplicationServiceAnalysisEngineTest {
                 wastedApplicationServiceAnalysisEngine.analyze(topologyInfo,
                         topology, cloudCostCalculator, originalCloudTopology);
         // Expect to see that there are two ASPs that have delete actions
-        Collection<Action> actions = analysis.getActions();
+        Collection<Action> actions = analysis.getAllActions();
         assertEquals(2, actions.size());
     }
 
@@ -436,7 +437,7 @@ public class WastedApplicationServiceAnalysisEngineTest {
                 wastedApplicationServiceAnalysisEngine.analyze(topologyInfo,
                         topology, cloudCostCalculator, originalCloudTopology);
         // Expect to see that one ASP sits unused.
-        Collection<Action> actions = analysis.getActions();
+        Collection<Action> actions = analysis.getAllActions();
         assertEquals(1, actions.size());
         // Make sure we got back the wasted ASP and not a different one.
         Action action = actions.toArray(actions.toArray(new Action[1]))[0];
@@ -555,7 +556,7 @@ public class WastedApplicationServiceAnalysisEngineTest {
                 wastedApplicationServiceAnalysisEngine.analyze(topologyInfo,
                         topology, cloudCostCalculator, originalCloudTopology);
         // Expect to see that two ASP sit unused and the non ASPs weren't counted
-        Collection<Action> actions = analysis.getActions();
+        Collection<Action> actions = analysis.getAllActions();
         assertEquals(2, actions.size());
 
         // Make sure we got back the wasted ASPs

@@ -315,6 +315,11 @@ public class TopologyConverter {
             .of(EntityType.VIRTUAL_MACHINE_VALUE,
                     ImmutableMap.of(EntityType.PHYSICAL_MACHINE_VALUE, ImmutableSet.of(CommodityDTO.CommodityType.CPU_VALUE, CommodityDTO.CommodityType.MEM_VALUE)));
 
+    // NOTE: This set does not include VIRTUAL_VOLUME because those entities are already getting skipped through
+    // TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION.
+    private static final Set<Integer> ENTITY_TYPES_WITH_DELETE_ACTIONS = ImmutableSet.of(
+            EntityType.VIRTUAL_MACHINE_SPEC_VALUE);
+
 
     //Store the entities whose commodity usage need to be modified because of reservation during convertingToMarket
     //<buyerId, commBought, providerId>
@@ -880,7 +885,7 @@ public class TopologyConverter {
         conversionErrorCounts.startPhase(Phase.CONVERT_TO_MARKET);
         long convertToMarketStartTime = System.currentTimeMillis();
         final Set<Long> tierExcluderEntityOids = new HashSet<>();
-        final Collection<Long> wastedEntityIds = extractWastedEntityIds();
+        final Collection<Long> wastedEntityIds = extractWastedEntityIds(ENTITY_TYPES_WITH_DELETE_ACTIONS);
         final Set<Integer> tierExcluderEntityTypeScope = EntitySettingSpecs.ExcludedTemplates
             .getEntityTypeScope().stream().map(EntityType::getNumber).collect(Collectors.toSet());
         try {
@@ -5397,17 +5402,24 @@ public class TopologyConverter {
      * Get list of entity ids with delete actions generated from
      * {@link com.vmturbo.market.runner.wasted.WastedEntityResults}.
      *
+     * @param entityTypes Currently set using {@link #ENTITY_TYPES_WITH_DELETE_ACTIONS}
      * @return list of entity ids.
      */
-    private Collection<Long> extractWastedEntityIds() {
-        final Collection<Long> wastedEntityIds = new HashSet<>();
-        wastedEntityResults.forEach(result ->
-                wastedEntityIds.addAll(result.getEntityIds()));
-        return wastedEntityIds;
+    private Collection<Long> extractWastedEntityIds(@Nonnull final Collection<Integer> entityTypes) {
+        final Collection<Action> actions = new HashSet<>();
+        wastedEntityResults.forEach(result -> {
+            for (Integer entityType : entityTypes) {
+                actions.addAll(result.getActionsByEntityType(entityType));
+            }
+        });
+        return actions.stream().map(WastedEntityResults::getEntityIdFromAction).collect(Collectors.toSet());
     }
 
     /**
-     * Set list of entity ids with delete actions generated from {@link Analysis#execute()}.
+     * Set {@link WastedFilesResults} : Results from
+     * delete actions on various entityTypes generated from {@link Analysis#execute()}.
+     * See usage of {@link #ENTITY_TYPES_WITH_DELETE_ACTIONS} for how we extract entities
+     * related to delete actions.
      *
      * @param result list of {@link WastedEntityResults}.
      */
