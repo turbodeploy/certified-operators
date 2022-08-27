@@ -282,12 +282,11 @@ public class AnalysisTest {
                 mock(WastedApplicationServiceAnalysisEngine.class);
         final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
                 mock(BuyRIImpactAnalysisFactory.class);
-
         // Mocks for wasted entity results (volumes & application services (for now azure app service plans))
         final WastedFilesResults wastedFilesAnalysis = mock(WastedFilesResults.class);
         when(wastedFilesAnalysisEngine.analyze(any(), any(), any(), any()))
                 .thenReturn(wastedFilesAnalysis);
-        when(wastedFilesAnalysis.getActions())
+        when(wastedFilesAnalysis.getAllActions())
                 .thenReturn(Collections.singletonList(wastedFileAction));
         when(wastedFilesAnalysis.getEntityIds())
                 .thenReturn(ImmutableSet.of(wastedFileAction.getInfo().getDelete().getTarget().getId()));
@@ -295,7 +294,7 @@ public class AnalysisTest {
         final WastedApplicationServiceResults wastedApplicationServiceResults = mock(WastedApplicationServiceResults.class);
         when(wastedApplicationServiceAnalysisEngine.analyze(any(), any(), any(), any()))
                 .thenReturn(wastedApplicationServiceResults);
-        when(wastedApplicationServiceResults.getActions())
+        when(wastedApplicationServiceResults.getAllActions())
                 .thenReturn(Collections.singletonList(wastedAppServicePlanAction));
         when(wastedApplicationServiceResults.getEntityIds())
                 .thenReturn(ImmutableSet.of(wastedAppServicePlanAction.getInfo().getDelete().getTarget().getId()));

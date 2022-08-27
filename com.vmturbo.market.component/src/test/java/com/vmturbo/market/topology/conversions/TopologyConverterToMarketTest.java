@@ -54,6 +54,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.internal.util.reflection.Whitebox;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
@@ -95,7 +96,6 @@ import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.wasted.WastedEntityResults;
-import com.vmturbo.market.runner.wasted.applicationservice.WastedApplicationServiceResults;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -1032,7 +1032,7 @@ public class TopologyConverterToMarketTest {
      * Test to check if an entityId is part of wastedEntityId, trader is not created.
      */
     @Test
-    public void testWastedEntityIdTraderCreation(){
+    public void testWastedEntityIdTraderCreation() {
             TopologyEntityDTO entityDTO1 =
                     TopologyEntityDTO.newBuilder()
                             .setEntityType(EntityType.VIRTUAL_MACHINE_SPEC_VALUE)
@@ -1050,20 +1050,16 @@ public class TopologyConverterToMarketTest {
                         .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                         .setOid(4).build();
 
-        Set<Long> wastedEntitiesIds = ImmutableSet.of(entityDTO1.getOid(), entityDTO4.getOid());
         WastedEntityResults wastedEntityResults = mock(WastedEntityResults.class);
-        when(wastedEntityResults.getEntityIds()).thenReturn(wastedEntitiesIds);
-
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                 marketCloudRateExtractor,
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
                 reversibilitySettingFetcher);
         converter.addAllWastedEntityResults(Collections.singleton(wastedEntityResults));
-        assertEquals(2, converter.convertToMarket(
+        assertEquals(3, converter.convertToMarket(
                         Stream.of(entityDTO1, entityDTO2, entityDTO3, entityDTO4)
                                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())),
                         Collections.EMPTY_SET).size());
-        converter.getSkippedEntities().containsKey(entityDTO4.getOid());
     }
 
     @Test
