@@ -4,7 +4,8 @@ T8C-Operator Changelog
 Operator Versions
 ---------------------
 42.15
-1. Add helm charts for Azure Pricing Probe.
+1. Inject NAMESPACE into the API component environment for use by the telemetry API.
+2. Add helm charts for Azure Pricing Probe.
 
 42.14
 1. Removed containers responsible for sending telemetry to DataCloud from Prometheus server pod.
