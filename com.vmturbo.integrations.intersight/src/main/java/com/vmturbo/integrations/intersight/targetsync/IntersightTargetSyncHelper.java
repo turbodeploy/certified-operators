@@ -243,7 +243,8 @@ public class IntersightTargetSyncHelper {
         //             get it and retain the other parts unchanged
         // "Status": this is a top-level status field and is an enum and read-only;
         //           To ensure accepted by the server, this has to be passed back unchanged.
-        final String select = "$select=Moid,TargetType,Name,Connections,Services,Status,CreateTime,ModTime,Assist,Parent,TargetId";
+        final String select = "Moid,TargetType,Name,Connections,Services,Status,CreateTime,ModTime,Assist,Parent,TargetId";
+        //$select removed to fix the issue for double select
         final List<AssetTarget> assetTargets =
                 new IntersightAssetTargetQuery(select).getAllQueryInstancesOrElseThrow(intersightConnection);
         final Map<String, Optional<String>> assistToDeviceMap = getAssistToDeviceMap(assetTargets);
