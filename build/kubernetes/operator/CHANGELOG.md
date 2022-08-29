@@ -3,6 +3,9 @@ T8C-Operator Changelog
 
 Operator Versions
 ---------------------
+42.15
+1. Add helm charts for Azure Pricing Probe.
+
 42.14
 1. Removed containers responsible for sending telemetry to DataCloud from Prometheus server pod.
 2. Added container responsible for sending telemetry to a Kafka topic to Prometheus server pod.

@@ -223,6 +223,10 @@ public enum Component {
      * Azure BILLING.
      */
     MEDIATION_AZURE_BILLING("azure-billing", "com.vmturbo.mediation.azure.billing.component"),
+    /**
+     * Azure Pricing.
+     */
+    MEDIATION_AZURE_PRICING("azure-pricing", "com.vmturbo.mediation.azure.pricing.component"),
 
 
     /**

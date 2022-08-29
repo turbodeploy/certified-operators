@@ -248,6 +248,8 @@ azure:
   enabled: false
   billing:
     enabled: false
+  pricing:
+    enabled: false
 compellent:
   enabled: false
 dynatrace:
