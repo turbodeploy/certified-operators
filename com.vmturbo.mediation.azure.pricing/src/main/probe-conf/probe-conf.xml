@@ -6,5 +6,6 @@
     <category>Cloud Management</category>
     <license>cloud_targets</license>
     <version>1.0.0</version>
+    <rediscovery-interval-seconds>3600</rediscovery-interval-seconds>
     <!--<creation-mode>DERIVED</creation-mode>-->
 </probe>
