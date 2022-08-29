@@ -32,15 +32,11 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -51,7 +47,6 @@ import org.jooq.Record3;
 import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
-import org.jooq.impl.DSL;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -1138,35 +1133,5 @@ public class HistorydbIOTest extends MultiDbTestBase {
                 StatsFilter.newBuilder().build());
         assertEquals(2, nextPageInfo.getEntityOids().size());
         assertEquals(entityUuid2, nextPageInfo.getEntityOids().get(0));
-    }
-
-    /**
-     * Test createTemporaryTableFromUuids with uuids lists of various lengths.
-     *
-     */
-    @Test
-    public void testCreateTemporaryTableFromUuids() {
-        // Test boundary conditions, with lists of uuids of the following lengths
-        final List<Integer> countsToTest = Arrays.asList(0, 1, HistorydbIO.DUMMY_BATCH_SIZE - 1,
-                HistorydbIO.DUMMY_BATCH_SIZE, HistorydbIO.DUMMY_BATCH_SIZE + 1);
-
-        for (int count : countsToTest) {
-            List<Long> uuids = LongStream.range(1, count + 1).boxed().collect(Collectors.toList());
-            assertEquals(count, uuids.size());
-
-            dsl.connection(conn -> {
-                Optional<String> tempTableName = historydbIO.createTemporaryTableFromUuids(uuids,
-                        conn);
-                assertEquals(count != 0, tempTableName.isPresent());
-                if (tempTableName.isPresent()) {
-                    DSLContext connDsl = DSL.using(conn, dsl.dialect());
-                    long countInDb = connDsl.fetchCount(DSL.table(DSL.name(tempTableName.get())));
-                    assertEquals(count, countInDb);
-                    // this would happen anyway with connection close, but we'll use our method
-                    // explicitly here so it gets tested
-                    historydbIO.dropTemporaryTable(tempTableName, connDsl);
-                }
-            });
-        }
     }
 }

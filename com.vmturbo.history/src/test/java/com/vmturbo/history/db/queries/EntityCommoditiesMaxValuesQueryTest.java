@@ -6,7 +6,6 @@ import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_BY_MONTH;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
@@ -54,35 +53,23 @@ public class EntityCommoditiesMaxValuesQueryTest extends QueryTestBase {
     }
 
     /**
-     * Test that query is properly constructed if the UUID list is too small for a temp table.
+     * Test that query is properly constructed.
      */
     @Test
     public void testWithUuidListNoTempTable() {
         List<Long> uuids = Arrays.asList(1L, 2L, 3L);
         final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(VM_STATS_BY_MONTH,
                 Lists.newArrayList("CPU"), 90,
-                true, uuids, Optional.empty(), dsl).getQuery();
-        getQueryChecker(VM_STATS_BY_MONTH, true, uuids, null).check(query);
-    }
-
-    /**
-     * Test that the query is constructed correctly if a temp table is used.
-     */
-    @Test
-    public void testWithUuidListAndTempTable() {
-        List<Long> uuids = Arrays.asList(1L, 2L, 3L);
-        final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(VM_STATS_BY_MONTH,
-                Lists.newArrayList("CPU"), 90,
-                true, uuids, Optional.of("tmp_12345"), dsl).getQuery();
-        getQueryChecker(VM_STATS_BY_MONTH, true, uuids, "tmp_12345").check(query);
+                true, uuids, dsl).getQuery();
+        getQueryChecker(VM_STATS_BY_MONTH, true, uuids).check(query);
     }
 
     private QueryChecker getQueryChecker(Table<?> table) {
-        return getQueryChecker(table, false, Collections.emptyList(), null);
+        return getQueryChecker(table, false, Collections.emptyList());
     }
 
     private QueryChecker getQueryChecker(Table<?> table, boolean boughtCommodities,
-            List<Long> uuids, String tempTableName) {
+            List<Long> uuids) {
         final String tableName = table.getName();
         QueryChecker checker = new QueryChecker()
                 .withDistinct(false)
@@ -108,10 +95,7 @@ public class EntityCommoditiesMaxValuesQueryTest extends QueryTestBase {
         } else {
             checker = checker.withConditions(tableName + ".relation = 0");
         }
-        if (tempTableName != null) {
-            checker = checker.withTables(tempTableName)
-                    .withConditions(tableName + ".uuid = " + tempTableName + ".target_object_uuid");
-        } else if (!uuids.isEmpty()) {
+        if (!uuids.isEmpty()) {
             checker = checker.withConditions(
                     String.format("%s.uuid\\s+IN\\s+\\(%s\\s+\\)", tableName,
                             uuids.stream().map(uuid -> "\\s*'" + uuid + "'")

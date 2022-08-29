@@ -17,7 +17,6 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -31,7 +30,6 @@ import org.jooq.impl.DSL;
 import org.springframework.lang.Nullable;
 
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.QueryBase;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.stats.PropertySubType;
@@ -62,8 +60,7 @@ public class EntityCommoditiesMaxValuesQuery extends QueryBase {
     public EntityCommoditiesMaxValuesQuery(@Nonnull Table<?> table, @Nonnull List<String> comms,
             int lookbackDays, @Nonnull DSLContext dsl) {
         super(dsl);
-        getEntityCommoditiesMaxValuesQuery(table, comms, lookbackDays, false, null,
-                Optional.empty());
+        getEntityCommoditiesMaxValuesQuery(table, comms, lookbackDays, false, null);
     }
 
     /**
@@ -77,15 +74,12 @@ public class EntityCommoditiesMaxValuesQuery extends QueryBase {
      *                        sold commodities
      * @param uuids           the entity uuids for which stats should be gathered - if null or
      *                        empty, consider all
-     * @param tempTableName   the name of the optional temp table to use
      * @param dsl             DB access
      */
     public EntityCommoditiesMaxValuesQuery(@Nonnull Table<?> table, @Nonnull List<String> comms,
-            int lookbackDays, boolean commodityBought, @Nonnull List<Long> uuids,
-            Optional<String> tempTableName, DSLContext dsl) {
+            int lookbackDays, boolean commodityBought, @Nonnull List<Long> uuids, DSLContext dsl) {
         super(dsl);
-        getEntityCommoditiesMaxValuesQuery(table, comms, lookbackDays, commodityBought, uuids,
-                tempTableName);
+        getEntityCommoditiesMaxValuesQuery(table, comms, lookbackDays, commodityBought, uuids);
     }
 
     /**
@@ -97,15 +91,13 @@ public class EntityCommoditiesMaxValuesQuery extends QueryBase {
      * @param commodityBought whether we're interested in bought commodites - if false, consider
      * sold commodities
      * @param uuids the entity uuids for which stats should be gathered - if null or empty, consider all
-     * @param tempTableNameOptional the name of the optional temp table to use
      */
     public void getEntityCommoditiesMaxValuesQuery(
             @Nonnull final Table<?> table,
             @Nonnull final List<String> comms,
             int lookbackDays,
             final boolean commodityBought,
-            @Nullable final List<Long> uuids,
-            Optional<String> tempTableNameOptional) {
+            @Nullable final List<Long> uuids) {
         final Field<String> propertyTypeField = getStringField(table, PROPERTY_TYPE);
         final Field<String> propertySubtypeField = getStringField(table, PROPERTY_SUBTYPE);
         final Field<RelationType> relationField = getRelationTypeField(table, RELATION);
@@ -130,26 +122,16 @@ public class EntityCommoditiesMaxValuesQuery extends QueryBase {
         // on topology processor startup. Otherwise let the database choose.
         if (CollectionUtils.isEmpty(uuids)) {
             table.getIndexes().stream()
-                .filter(idx -> idx.getName().equalsIgnoreCase(FORCE_INDEX))
-                .findFirst().ifPresent(idx -> this.forceIndex(table, FORCE_INDEX));
+                    .filter(idx -> idx.getName().equalsIgnoreCase(FORCE_INDEX))
+                    .findFirst().ifPresent(idx -> this.forceIndex(table, FORCE_INDEX));
         }
         addConditions(
-                snapshotTime.greaterOrEqual(Timestamp.from(Instant.now().minus(lookbackDays, ChronoUnit.DAYS))),
+                snapshotTime.greaterOrEqual(
+                        Timestamp.from(Instant.now().minus(lookbackDays, ChronoUnit.DAYS))),
                 propertyTypeField.in(comms),
                 propertySubtypeField.eq(PropertySubType.Used.getApiParameterName()),
-                relationField.eq(commodityBought ? RelationType.COMMODITIESBOUGHT : RelationType.COMMODITIES));
-
-        boolean useTempTable = tempTableNameOptional.isPresent();
-        if (useTempTable) {
-            final String tempTableName = tempTableNameOptional.get();
-            final Table<?> tempTable = DSL.table(DSL.name(tempTableName));
-            addTable(tempTable, null, null);
-            addConditions(getStringField(table, UUID).eq(
-                    DSL.field(DSL.name(tempTableName, StringConstants.TARGET_OBJECT_UUID),
-                            String.class)
-            ));
-        } else if (CollectionUtils.isNotEmpty(uuids) && !useTempTable) {
-            addConditions(uuidField.in(uuids));
-        }
+                relationField.eq(commodityBought ? RelationType.COMMODITIESBOUGHT
+                                                 : RelationType.COMMODITIES),
+                uuids != null ? uuidField.in(uuids) : DSL.noCondition());
     }
 }

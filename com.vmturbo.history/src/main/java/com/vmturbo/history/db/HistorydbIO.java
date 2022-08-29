@@ -33,7 +33,6 @@ import static org.jooq.impl.DSL.avg;
 import static org.jooq.impl.DSL.row;
 
 import java.math.BigDecimal;
-import java.sql.Connection;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -60,7 +59,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -68,7 +66,6 @@ import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.InsertSetStep;
-import org.jooq.InsertValuesStepN;
 import org.jooq.Record;
 import org.jooq.Record1;
 import org.jooq.Record2;
@@ -79,7 +76,6 @@ import org.jooq.Select;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
-import org.jooq.impl.SQLDataType;
 import org.springframework.beans.factory.annotation.Value;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -95,7 +91,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
@@ -152,6 +147,7 @@ public class HistorydbIO {
     private static final double MAX_STATS_VALUE = 1e12D - 1;
     private static final double MIN_STATS_VALUE = -MAX_STATS_VALUE;
     private static final String SPACE = UICommodityType.SPACE.apiStr();
+    public static final int MAX_VALUES_BATCH_SIZE = 10000;
     private final DSLContext dsl;
     private final DSLContext unpooledDsl;
 
@@ -1366,79 +1362,6 @@ public class HistorydbIO {
     }
 
     /**
-     * The variables and code immediately below are carried-over directly from Classic code.
-     */
-    @VisibleForTesting
-    protected static final int DUMMY_BATCH_SIZE = 256;
-
-    /**
-     * This method will do Batch insert into the temporary table.
-     * The running time of batch insert will be 100ms to 200 ms.
-     *
-     * @param uuids         the string UUIDs to insert into a temp table
-     * @param tempTableName the name of the temp table into which we are inserting
-     * @param dsl           the SQL connection used to operate on the DB
-     * @throws DataAccessException if there's a DB problem
-     */
-    private static void insertIntoTempTableDummyBatch(@Nonnull List<String> uuids,
-            @Nonnull String tempTableName,
-            @Nonnull DSLContext dsl) throws DataAccessException {
-        Lists.partition(uuids, DUMMY_BATCH_SIZE).forEach(batch -> {
-            InsertValuesStepN<Record> insert = dsl.insertInto(DSL.table(tempTableName))
-                    // insert 1st record now so `insert` var is of type InsertValuesStepN not
-                    // InsertValuesStep (avoiding need for clumsy casts below)
-                    .values(batch.get(0));
-            batch.subList(1, batch.size()).forEach(insert::values);
-            insert.execute();
-        });
-    }
-
-    /**
-     * This method will create a temporary table with random name and insert the uuids into the
-     * temporary table using the pre-created connection.
-     *
-     * @param uuids      A list of UUIDs to include in the temporary table.
-     * @param connection A shared connection that should be used to create and drop the temporary
-     *                   table.
-     * @return the name of the temp table created
-     * @throws DataAccessException on error inserting into a temp table
-     */
-    protected Optional<String> createTemporaryTableFromUuids(@Nonnull Collection<Long> uuids,
-            @Nonnull Connection connection)
-            throws DataAccessException {
-        if (uuids.isEmpty()) {
-            return Optional.empty();
-        }
-        DSLContext connDsl = DSL.using(connection, dsl.dialect());
-        // generate a highly random name for the temp table, avoiding upper-case as a precuatoin
-        // in case names are rendered sometimes with quoting and sometimes without in SQL.
-        final String tempTableName = String.format("tmp_%s",
-                java.util.UUID.randomUUID().toString().replace("-", ""));
-        try {
-            // The collation of this temp table should be unicode because the monthly and the daily stats tables have
-            // unicode collation. If the collation does not match, there could be a problem executing joins with this
-            // temp table.
-            Field<String> fTargetUuid = DSL.field(DSL.name(StringConstants.TARGET_OBJECT_UUID),
-                    SQLDataType.VARCHAR(80).nullable(false));
-            connDsl.createTemporaryTable(tempTableName)
-                    .columns(fTargetUuid)
-                    .constraint(DSL.constraint().primaryKey(fTargetUuid))
-                    .execute();
-            // Collect to set to avoid duplicates
-            final List<String> uuidStrings = uuids.stream()
-                    .distinct()
-                    .map(Object::toString)
-                    .collect(Collectors.toList());
-            insertIntoTempTableDummyBatch(uuidStrings, tempTableName, connDsl);
-            return Optional.of(tempTableName);
-        } catch (DataAccessException e) {
-            logger.error("When inserting into a temporary table, there is an error due to {}.",
-                    e.getMessage());
-            throw new DataAccessException("Error inserting into a temporary table", e);
-        }
-    }
-
-    /**
      * Compute max values aggregated over all monthly stats records for each entity-id/sold-commodity
      * combination.
      *
@@ -1488,43 +1411,23 @@ public class HistorydbIO {
                         CommodityDTO.CommodityType.forNumber(comm))).collect(Collectors.toList());
         // Query for the max of the max values from all the days in the DB for
         // each commodity in each entity.
-        // Using an unpooledConnection to automatically drop the (potentially) created temp table
         try {
-            return unpooledDsl.connectionResult(conn -> {
-                Optional<String> tempTableName = Optional.empty();
-                final boolean useTempTable = CollectionUtils.isNotEmpty(uuids)
-                        && uuids.size() > 1000;
-                if (useTempTable) {
-                    tempTableName = createTemporaryTableFromUuids(uuids, conn);
-                }
-                DSLContext connDsl = DSL.using(conn, dsl.dialect(), unpooledDsl.settings());
-                Result<?> statsRecords = connDsl.fetch(
-                        new EntityCommoditiesMaxValuesQuery(
-                                table.get(),
-                                commStrings,
-                                queryLookbackDays,
-                                isBought,
-                                uuids,
-                                tempTableName,
-                                unpooledDsl).getQuery());
-                logger.debug("Number of records fetched for table {} = {}",
-                        table.get(), statsRecords.size());
-                if (useTempTable) {
-                    // Drop the temp table
-                    dropTemporaryTable(tempTableName, connDsl);
-                }
-                return convertToEntityCommoditiesMaxValues(table.get(), isBought, statsRecords);
+            List<EntityCommoditiesMaxValues> results = new ArrayList<>();
+            Lists.partition(uuids, MAX_VALUES_BATCH_SIZE).forEach(batch -> {
+                Result<?> statsRecords = dsl.fetch(
+                        new EntityCommoditiesMaxValuesQuery(table.get(), commStrings,
+                                queryLookbackDays, isBought, batch, unpooledDsl).getQuery());
+                results.addAll(convertToEntityCommoditiesMaxValues(
+                        table.get(), isBought, statsRecords));
             });
+            logger.info("Number of records fetched max values query on {} = {}",
+                    table.get(), results.size());
+            return results;
         } catch (DataAccessException e) {
             logger.error("Error while querying max historical StorageAccess "
                     + "bought by migrating source entities: %s", e);
             throw e;
         }
-    }
-
-    @VisibleForTesting
-    void dropTemporaryTable(Optional<String> tempTableName, DSLContext connDsl) {
-        connDsl.dropTemporaryTable(tempTableName.get()).execute();
     }
 
     /**

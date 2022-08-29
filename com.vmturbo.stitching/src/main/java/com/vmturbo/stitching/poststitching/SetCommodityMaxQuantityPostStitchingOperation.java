@@ -14,6 +14,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -89,8 +90,8 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     /**
      * ConcurrentMap which stores the mapping from {EntityId,CommidtyType} -> MaxValue.
      */
-    private ConcurrentMap<EntityCommodityReference, CommodityMaxValue> entityCommodityToMaxQuantitiesMap =
-        new ConcurrentHashMap<>();
+    private final ConcurrentMap<EntityCommodityReference, CommodityMaxValue>
+            entityCommodityToMaxQuantitiesMap = new ConcurrentHashMap<>();
 
     /**
      * Map which stores the mapping from entity type -> set of oids.
@@ -159,25 +160,24 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
             .put(EntityType.VIRTUAL_MACHINE_VALUE, ImmutableSet.of(CommodityType.VCPU_VALUE, CommodityType.VMEM_VALUE))
             .build();
 
-
     /**
      * We exclude all the access commodities.
      */
-    private ImmutableSet<Integer> excludedCommodities =
-        ImmutableSet.of(
-            CommodityType.APPLICATION_VALUE,
-            CommodityType.CLUSTER_VALUE,
-            CommodityType.DATACENTER_VALUE,
-            CommodityType.DATASTORE_VALUE,
-            CommodityType.DRS_SEGMENTATION_VALUE,
-            CommodityType.DSPM_ACCESS_VALUE,
-            CommodityType.NETWORK_VALUE,
-            CommodityType.SEGMENTATION_VALUE,
-            CommodityType.STORAGE_CLUSTER_VALUE,
-            CommodityType.VAPP_ACCESS_VALUE,
-            CommodityType.VDC_VALUE,
-            CommodityType.VMPM_ACCESS_VALUE,
-            CommodityType.LICENSE_ACCESS_VALUE);
+    private final ImmutableSet<Integer> excludedCommodities =
+            ImmutableSet.of(
+                    CommodityType.APPLICATION_VALUE,
+                    CommodityType.CLUSTER_VALUE,
+                    CommodityType.DATACENTER_VALUE,
+                    CommodityType.DATASTORE_VALUE,
+                    CommodityType.DRS_SEGMENTATION_VALUE,
+                    CommodityType.DSPM_ACCESS_VALUE,
+                    CommodityType.NETWORK_VALUE,
+                    CommodityType.SEGMENTATION_VALUE,
+                    CommodityType.STORAGE_CLUSTER_VALUE,
+                    CommodityType.VAPP_ACCESS_VALUE,
+                    CommodityType.VDC_VALUE,
+                    CommodityType.VMPM_ACCESS_VALUE,
+                    CommodityType.LICENSE_ACCESS_VALUE);
 
     // In legacy, maxQuantity value is being set only for VM entities.
     // Here, we are setting maxQuantity value for all entities whose
@@ -265,10 +265,10 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                                             .addAllUuids(oids)
                                             .build();
                             Iterator<EntityCommoditiesMaxValues> response = statsHistoryClient.getEntityCommoditiesMaxValues(request);
-                            updateEntityCommodityToMaxQuantitiesMap(response);
+                            int valueCount = updateEntityCommodityToMaxQuantitiesMap(response);
                             watch.stop();
-                            logger.info("Received and processed max for {} {}s in {} ms", oids.size(),
-                                    EntityType.forNumber(entityType).toString(), watch.elapsed(TimeUnit.MILLISECONDS));
+                            logger.info("Received and processed {} max values for {} {}s in {} ms", valueCount, oids.size(),
+                                    EntityType.forNumber(entityType).toString(),  watch.elapsed(TimeUnit.MILLISECONDS));
                         } catch (Exception e) {
                             errorsFound = true;
                             logger.error("Error fetching max values for {}s : ", EntityType.forNumber(entityType).toString(), e);
@@ -448,7 +448,8 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         Map<Integer, Set<Long>> tempEntityOidsByType = new HashMap<>();
         for (TopologyEntity entity : entitySet) {
             if (QUERY_MAP.containsKey(entity.getEntityType())) {
-                tempEntityOidsByType.computeIfAbsent(entity.getEntityType(), k -> new HashSet<>()).add(entity.getOid());
+                tempEntityOidsByType.computeIfAbsent(entity.getEntityType(), k -> new HashSet<>())
+                        .add(entity.getOid());
             }
         }
         synchronized (entityOidsLock) {
@@ -456,15 +457,15 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         }
     }
 
-    private void updateEntityCommodityToMaxQuantitiesMap(Iterator<EntityCommoditiesMaxValues> commMaxValues) {
-        commMaxValues.forEachRemaining(entityCommodityMaxValues -> {
-            entityCommodityMaxValues.getCommodityMaxValuesList()
-                .forEach(dbMaxValue -> {
+    private int updateEntityCommodityToMaxQuantitiesMap(Iterator<EntityCommoditiesMaxValues> commMaxValues) {
+        AtomicInteger count = new AtomicInteger(0);
+        commMaxValues.forEachRemaining(entityCommodityMaxValues ->
+                entityCommodityMaxValues.getCommodityMaxValuesList().forEach(dbMaxValue -> {
+                    count.incrementAndGet();
                     EntityCommodityReference key =
-                        createEntityCommodityKey(entityCommodityMaxValues.getOid(), dbMaxValue.getCommodityType());
+                            createEntityCommodityKey(entityCommodityMaxValues.getOid(), dbMaxValue.getCommodityType());
                     // Atomically set the values as the background thread may be concurrently mutating the map.
-                    CommodityMaxValue currentMax =
-                        entityCommodityToMaxQuantitiesMap
+                    CommodityMaxValue currentMax = entityCommodityToMaxQuantitiesMap
                             .compute(key, (k, currValue) -> {
                                 if (currValue == null) {
                                     return createCommodityMaxValue(ValueSource.DB, dbMaxValue.getMaxValue());
@@ -477,25 +478,27 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                                     //          OR
                                     //  (b) tp_value < db_value.
                                     if (currValue.getValueSource() == ValueSource.DB
-                                        || currValue.getAge() > statsDaysRetentionSettingInSeconds
-                                        || (Double.compare(currValue.getMaxValue(), dbMaxValue.getMaxValue()) < 0)) {
+                                            || currValue.getAge() > statsDaysRetentionSettingInSeconds
+                                            || (Double.compare(currValue.getMaxValue(), dbMaxValue.getMaxValue()) < 0)) {
                                         return createCommodityMaxValue(ValueSource.DB, dbMaxValue.getMaxValue());
                                     } else {
                                         return currValue;
                                     }
                                 }
                             });
-                });
-        });
+                }));
+        return count.get();
     }
 
     /**
      * Recreates commodity type and always sets the key even if it does not have a key.
+     *
      * @param commodityType commodityType to recreate with key
      * @return CommodityType with key
      */
     private CommodityTypeView commodityWithKey(TopologyDTO.CommodityType commodityType) {
-        return new CommodityTypeImpl().setType(commodityType.getType()).setKey(commodityType.getKey());
+        return new CommodityTypeImpl().setType(commodityType.getType()).setKey(
+                commodityType.getKey());
     }
 
     /**
