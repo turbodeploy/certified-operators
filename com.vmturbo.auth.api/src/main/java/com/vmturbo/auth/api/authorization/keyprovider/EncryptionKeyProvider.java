@@ -161,10 +161,10 @@ public class EncryptionKeyProvider implements IEncryptionKeyProvider, IKeyImport
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            logger.error("Failed to acquire encryption key lock, the thread is interrupted, : ",
+            logger.error("Failed to acquire encryption key lock, the thread is interrupted, : {}",
                     e.getMessage());
         } catch (RuntimeException e) {
-            logger.error("Failed to get encryption key.", e.getMessage());
+            logger.error("Failed to get encryption key: {}", e.getMessage());
         } finally {
             lock.unlock();
         }
