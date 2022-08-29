@@ -690,6 +690,11 @@ public class VoltronConfiguration {
         MEDIATION_AZURE_BILLING(Component.MEDIATION_AZURE_BILLING),
 
         /**
+         * Azure Pricing.
+         */
+        MEDIATION_AZURE_PRICING(Component.MEDIATION_AZURE_PRICING),
+
+        /**
          * Azure SP.
          */
         MEDIATION_AZURE_SP(Component.MEDIATION_AZURE_SP),

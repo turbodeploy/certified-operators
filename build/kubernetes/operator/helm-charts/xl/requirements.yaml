@@ -231,6 +231,10 @@ dependencies:
     repository: file://../probes/mediation-azureea
     version: 0.1.0
     condition: azure.enabled
+  - name: mediation-azurepricing
+    repository: file://../probes/mediation-azurepricing
+    version: 0.1.0
+    condition: azure.pricing.enabled
   - name: mediation-azuresp
     repository: file://../probes/mediation-azuresp
     version: 0.1.0
