@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.CommoditiesBoughtFromProviderView;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
@@ -72,7 +73,9 @@ public class ControllableManager {
         oidModified.addAll(markVMsOnFailoverOrUnknownHostAsNotControllable(topologyGraph));
         oidModified.addAll(markSuspendedEntitiesAsNotControllable(topologyGraph));
         oidModified.addAll(applyControllableAutomationLevel(topologyGraph));
-        oidModified.addAll(setStoragesInMaintenanceToNonControllable(topologyGraph));
+        if (FeatureFlags.STORAGE_MAINTENANCE_CONTROLLABLE.isEnabled()) {
+            oidModified.addAll(setStoragesInMaintenanceToNonControllable(topologyGraph));
+        }
         oidModified.addAll(keepControllableFalseAfterExitingMaintenanceMode(topology));
         return oidModified.size();
     }

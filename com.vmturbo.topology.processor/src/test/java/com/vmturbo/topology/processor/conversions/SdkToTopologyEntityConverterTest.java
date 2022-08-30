@@ -19,6 +19,7 @@ import com.google.common.collect.ImmutableSet;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -32,6 +33,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -49,6 +51,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ProviderPolicy;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.TagValues;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.stitching.ResoldCommodityCache;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
@@ -72,6 +75,13 @@ public class SdkToTopologyEntityConverterTest {
         Mockito.when(resoldCommodityCache.getIsResold(Mockito.anyLong(),
             Mockito.anyInt(), Mockito.anyInt())).thenReturn(Optional.empty());
     }
+
+    /**
+     * Rule to manage feature flag enablement.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+            FeatureFlags.STORAGE_MAINTENANCE_CONTROLLABLE);
 
     @Test
     public void testDuplicateEntityPropertiesDoesNotThrowException() {
