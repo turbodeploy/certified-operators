@@ -18,6 +18,24 @@
             <build>
                 <plugins>
                     <plugin>
+                        <artifactId>maven-assembly-plugin</artifactId>
+                        <version>3.4.2</version>
+                        <configuration>
+                            <descriptors>
+                                <descriptor>db_provision/assembly.xml</descriptor>
+                            </descriptors>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>create-archive</id>
+                                <phase>compile</phase>
+                                <goals>
+                                    <goal>single</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
                         <groupId>com.spotify</groupId>
                         <artifactId>docker-maven-plugin</artifactId>
                         <configuration>
