@@ -24,6 +24,7 @@ import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.api.dto.client.ClientInputDTO;
+import com.vmturbo.api.dto.client.ClientNetworkSitesMetadataApiDTO;
 import com.vmturbo.api.dto.client.ClientNetworkTokenApiDTO;
 import com.vmturbo.api.dto.client.ClientNetworkTokensMetadataApiDTO;
 import com.vmturbo.api.dto.client.ClientServiceApiDTO;
@@ -252,6 +253,23 @@ public class ClientsService implements IClientsService {
             return clientNetworkList;
     }
 
+    @Override
+    public List<ClientNetworkSitesMetadataApiDTO> getClientNetworksSites() throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        ResponseEntity<JsonArray> response = restTemplate
+                .getForEntity(prepareClientNetworkUri(SecurityConstant.SITES).toUriString(), JsonArray.class);
+        List<ClientNetworkSitesMetadataApiDTO> clientNetworkList = new ArrayList<>();
+        response.getBody().forEach(client -> {
+            try {
+                clientNetworkList.add(buildClientNetworkSitesMetadataApiDTO((JsonObject)client));
+            } catch (Exception e) {
+                logger.error(e);
+            }
+        });
+        return clientNetworkList;
+    }
+
     protected ClientNetworkTokensMetadataApiDTO buildClientNetworkTokensMetadataApiDTO(JsonObject clientJson) {
         ClientNetworkTokensMetadataApiDTO client = new ClientNetworkTokensMetadataApiDTO();
         client.setId(clientJson.get(SecurityConstant.TOKEN_NAME).getAsString());
@@ -260,6 +278,13 @@ public class ClientsService implements IClientsService {
         client.setClaimsRemaining(clientJson.get(SecurityConstant.CLAIMS_REMAINING).getAsInt());
         client.setClaimExpiration(clientJson.get(SecurityConstant.CLAIMS_EXPIRATION).getAsString());
         return client;
+    }
+
+    protected ClientNetworkSitesMetadataApiDTO buildClientNetworkSitesMetadataApiDTO(JsonObject clientJson) {
+        ClientNetworkSitesMetadataApiDTO clientSite = new ClientNetworkSitesMetadataApiDTO();
+        clientSite.setId(clientJson.get(SecurityConstant.SITE_ID).getAsString());
+        clientSite.setName(clientJson.get(SecurityConstant.SITE_NAME).getAsString());
+        return clientSite;
     }
 
     @Override

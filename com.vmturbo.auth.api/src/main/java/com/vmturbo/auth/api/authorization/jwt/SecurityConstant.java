@@ -261,6 +261,13 @@ public class SecurityConstant {
     public static final String CLAIMS_EXPIRATION = "claimExpiration";
 
     /**
+     * Constant for client network sites metadata.
+     */
+    public static final String SITE_ID = "id";
+    public static final String SITE_NAME = "name";
+    public static final String SITES = "sites";
+
+    /**
      * Constant for client network port.
      */
     public static final String CLIENT_NETWORK_PORT = "8080";
