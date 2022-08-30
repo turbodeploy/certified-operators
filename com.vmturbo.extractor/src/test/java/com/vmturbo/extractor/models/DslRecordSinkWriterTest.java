@@ -46,6 +46,7 @@ import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.tables.Metric;
+import com.vmturbo.extractor.schema.tables.Scope;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -124,7 +125,7 @@ public class DslRecordSinkWriterTest {
      * @throws SQLException should not happen
      */
     @Test
-    @CleanupOverrides(truncate = {Metric.class})
+    @CleanupOverrides(truncate = {Metric.class, Scope.class})
     public void testMetricInserts() throws SQLException, InterruptedException {
         metricSink.accept(createRecordByName(METRIC_TABLE, metricData1));
         metricSink.accept(createRecordByName(METRIC_TABLE, metricData2));
@@ -152,6 +153,7 @@ public class DslRecordSinkWriterTest {
      * @throws ExecutionException if exception when getting the result of the task
      */
     @Test
+    @CleanupOverrides(truncate = {Scope.class})
     public void testMainIngestionThreadNotBlocked()
             throws InterruptedException, TimeoutException, ExecutionException {
         final ScheduledExecutorService pool = Executors.newSingleThreadScheduledExecutor();
