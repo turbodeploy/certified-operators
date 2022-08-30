@@ -15,6 +15,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -36,11 +37,13 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.Remo
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.PhysicalMachineInfoImpl;
 import com.vmturbo.commons.Units;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
@@ -254,6 +257,13 @@ public class ControllableManagerTest {
 
         topologyGraph = createNoSettingsGraph(topology);
     }
+
+    /**
+     * Rule to manage feature flag enablement.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+            FeatureFlags.STORAGE_MAINTENANCE_CONTROLLABLE);
 
     /**
      * Test that the correct set of entities have their controllable bit reset given the list of ids
@@ -482,13 +492,22 @@ public class ControllableManagerTest {
     }
 
     /**
-     * Test if storages in maintenance are set to not controllable.
+     * Test if storages in maintenance are set to not controllable when flag is enabled.
      */
     @Test
-    public void testMarkStoragesOnMaintenanceAsNotResizable() {
-        int numModified = controllableManager.applyControllable(topologyGraph);
-
+    public void testMarkStoragesOnMaintenanceAsNotResizableFlagEnabled() {
+        controllableManager.applyControllable(topologyGraph);
         assertFalse(storageInMaintenance.getAnalysisSettings().getControllable());
+    }
+
+    /**
+     * Test if storages in maintenance are set to controllable when flag is disabled.
+     */
+    @Test
+    public void testMarkStoragesOnMaintenanceAsNotResizableFlagDisabled() {
+        featureFlagTestRule.disable(FeatureFlags.STORAGE_MAINTENANCE_CONTROLLABLE);
+        controllableManager.applyControllable(topologyGraph);
+        assertTrue(storageInMaintenance.getAnalysisSettings().getControllable());
     }
 
     /**

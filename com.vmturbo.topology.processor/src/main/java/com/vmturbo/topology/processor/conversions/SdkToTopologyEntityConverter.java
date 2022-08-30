@@ -45,6 +45,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.logmessagegrouper.LogMessageGrouper;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -578,11 +579,13 @@ public class SdkToTopologyEntityConverter {
             } else if (entityDTO.getPhysicalMachineData().getPmState().getFailover()) {
                 entityState = EntityState.FAILOVER;
             }
-        } else if (entityDTO.getEntityType() == EntityType.STORAGE) {
+        } else if (FeatureFlags.STORAGE_MAINTENANCE_CONTROLLABLE.isEnabled()
+                && entityDTO.getEntityType() == EntityType.STORAGE) {
             if (entityDTO.getMaintenance()) {
                 entityState = EntityState.MAINTENANCE;
             }
         }
+
 
         return entityState;
     }
