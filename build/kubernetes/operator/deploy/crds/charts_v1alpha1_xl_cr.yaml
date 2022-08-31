@@ -47,6 +47,8 @@ spec:
     enabled: true
   azure:
     enabled: true
+    billing:
+      enabled: true
   dynatrace:
     enabled: true
   gcp:
