@@ -739,7 +739,7 @@ public class Analysis {
                                         topologyDTOs.remove(fakeEntityOid);
                                     }
                                     if (config.isEnableOP()) {
-                                        fakeEntityCreator.removeClusterCommBoughtGroupingOfHosts(topologyDTOs);
+                                        fakeEntityCreator.removeClusterCommBoughtGroupingOfVms(topologyDTOs);
                                     }
 
                                     // projected topology

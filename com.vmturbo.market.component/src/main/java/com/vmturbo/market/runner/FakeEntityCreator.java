@@ -1,8 +1,10 @@
 package com.vmturbo.market.runner;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Function;
@@ -25,16 +27,20 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.group.api.GroupMemberRetriever;
+import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
- * This class has methods to create fake TopologyEntityDTOs. Fake entities are needed for Suspension throttling and cluster entities.
- * There are 2 types of fake entities created today by this class:
- * 1. Fake VMs for Suspension throttling - one VM per cluster/storage cluster
- * 2. Fake Cluster entities which sell over provisioned commodities that is used to make sure the cluster's capacity
- *    is not exceeded. Cluster is not a TopologyEntityDTO (its only a group today), so we create a fake cluster entity
+ * There is 1 type of fake entity created today by this class:
+ * Fake cluster entities that are used for 2 purposes:
+ * 1. For Suspension throttling - one VM per cluster/storage cluster
+ *    This is to ensure each cluster/storage cluster will form a unique market regardless of
+ *    segmentation constraint which may divide the cluster/storage cluster.
+ * 2. These fake Cluster entities sell over provisioned commodities that is used to make sure the cluster's capacity
+ *    is not exceeded. VMs buy OP commodities from this cluster, and the cluster buys from all the hosts that it has in it.
+ *    Cluster is not a TopologyEntityDTO (its only a group today), so we create a fake cluster entity
  *    to represent it.
  */
 public class FakeEntityCreator {
@@ -43,7 +49,14 @@ public class FakeEntityCreator {
 
     private final GroupMemberRetriever groupMemberRetriever;
 
-    private final Set<Long> fakeClusterOids = new HashSet<>();
+    private final Set<Long> fakeComputeClusterOids = new HashSet<>();
+
+    private final HashMap<Long, Long> hostIdToClusterId = new HashMap<>();
+
+    /**
+     * A static key for the provision commodities sold by cluster.
+     */
+    public static final String CLUSTER_KEY_STATIC = "CLUSTER_KEY_STATIC";
 
     /**
      * Constructor.
@@ -54,13 +67,15 @@ public class FakeEntityCreator {
     }
 
     /**
-     * <p>There are 2 types of fake entities created today by this method:
-     *  1. Fake VMs for Suspension throttling - one VM per cluster/storage cluster
-     *     This is to ensure each cluster/storage cluster will form a unique market regardless of
-     *     segmentation constraint which may divide the cluster/storage cluster.
-     *  2. Fake Cluster entities which sell over provisioned commodities that is used to make sure the cluster's capacity
-     *     is not exceeded. Cluster is not a TopologyEntityDTO (its only a group today), so we create a fake cluster entity
-     *     to represent it.
+     * <p>There is 1 type of fake entity created today by this method:
+     * Fake cluster entities that are used for 2 purposes:
+     * 1. For Suspension throttling - one VM per cluster/storage cluster
+     *    This is to ensure each cluster/storage cluster will form a unique market regardless of
+     *    segmentation constraint which may divide the cluster/storage cluster.
+     * 2. These fake Cluster entities sell over provisioned commodities that is used to make sure the cluster's capacity
+     *    is not exceeded. VMs buy OP commodities from this cluster, and the cluster buys from all the hosts that it has in it.
+     *    Cluster is not a TopologyEntityDTO (its only a group today), so we create a fake cluster entity
+     *    to represent it.
      * </p>
      * @param topologyDTOs a map of oid to the TopologyEntityDTO
      * @param enableThrottling is suspension throttling enabled
@@ -68,40 +83,71 @@ public class FakeEntityCreator {
      * @return a set of fake TopologyEntityDTOS with only cluster/storage cluster commodity in the
      * commodity bought list
      */
-    protected Map<Long, TopologyEntityDTO> createFakeTopologyEntityDTOs(
-            Map<Long, TopologyEntityDTO> topologyDTOs, boolean enableThrottling, boolean enableOP) {
+    Map<Long, TopologyEntityDTO> createFakeTopologyEntityDTOs(
+            final Map<Long, TopologyEntityDTO> topologyDTOs, boolean enableThrottling, boolean enableOP) {
         // create fake entities to help construct markets in which sellers of a compute
         // or a storage cluster serve as market sellers
         Set<TopologyEntityDTO> fakeEntityDTOs = new HashSet<>();
         try {
             Map<String, Set<TopologyEntityDTO>> clusterKeyToHost = new HashMap<>();
+            Map<String, Set<TopologyEntityDTO>> clusterKeyToVms = new HashMap<>();
+            Set<TopologyEntityDTO> unrestrictedVMs = new HashSet<>();
             Set<TopologyEntityDTO> pmEntityDTOs = getEntityDTOsInCluster(GroupType.COMPUTE_HOST_CLUSTER, topologyDTOs);
             Set<TopologyEntityDTO> dsEntityDTOs = getEntityDTOsInCluster(GroupType.STORAGE_CLUSTER, topologyDTOs);
             Set<String> dsClusterCommKeySet = new HashSet<>();
-            pmEntityDTOs.forEach(dto -> {
-                dto.getCommoditySoldListList().forEach(commSold -> {
-                    if (commSold.getCommodityType().getType() == CommodityType.CLUSTER_VALUE) {
-                        clusterKeyToHost.computeIfAbsent(commSold.getCommodityType().getKey(), val -> new HashSet<>()).add(dto);
+            for (TopologyEntityDTO pmEntityDTO : pmEntityDTOs) {
+                pmEntityDTO.getCommoditySoldListList().forEach(commSold -> {
+                    if (commSold.getCommodityType().getType()
+                            == CommodityType.CLUSTER_VALUE
+                            && commSold.getCommodityType().hasKey()) {
+                        clusterKeyToHost.computeIfAbsent(commSold.getCommodityType().getKey(), val -> new HashSet<>()).add(pmEntityDTO);
                     }
                 });
-            });
-            dsEntityDTOs.forEach(dto -> {
-                dto.getCommoditySoldListList().forEach(commSold -> {
+            }
+            for (TopologyEntityDTO ds : dsEntityDTOs) {
+                ds.getCommoditySoldListList().forEach(commSold -> {
                     if (commSold.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE
                             && isRealStorageClusterCommodity(commSold)) {
                         dsClusterCommKeySet.add(commSold.getCommodityType().getKey());
                     }
                 });
-            });
-            if (enableThrottling) {
-                clusterKeyToHost.forEach((key, hosts) -> {
-                    fakeEntityDTOs.add(createFakeDTOs(CommodityType.CLUSTER_VALUE, key));
-                });
-                dsClusterCommKeySet.forEach(key -> fakeEntityDTOs
-                        .add(createFakeDTOs(CommodityType.STORAGE_CLUSTER_VALUE, key)));
             }
-            if (enableOP) {
-                createFakeClusters(topologyDTOs, clusterKeyToHost, fakeEntityDTOs);
+            for (TopologyEntityDTO entity : topologyDTOs.values()) {
+                if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                    Optional<CommoditiesBoughtFromProvider> computeSl = entity.getCommoditiesBoughtFromProvidersList().stream()
+                            .filter(grouping -> grouping.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE).findFirst();
+                    if (computeSl.isPresent()) {
+                        Optional<String> clusterKey = computeSl.get().getCommodityBoughtList().stream()
+                                .filter(c -> c.getCommodityType().getType()
+                                        == CommodityType.CLUSTER_VALUE
+                                        && c.getCommodityType().hasKey() && c.getActive())
+                                .map(c -> c.getCommodityType().getKey())
+                                .findFirst();
+                        if (clusterKey.isPresent()) {
+                            clusterKeyToVms.computeIfAbsent(clusterKey.get(), k -> new HashSet<>()).add(entity);
+                        } else {
+                            unrestrictedVMs.add(entity);
+                        }
+                    }
+                }
+            }
+            if (enableThrottling || enableOP) {
+                clusterKeyToHost.forEach((key, hosts) -> {
+                    TopologyEntityDTO.Builder clusterBuilder = createClusterDTOs(CommodityType.CLUSTER_VALUE, key);
+                    if (enableOP) {
+                        fakeComputeClusterOids.add(clusterBuilder.getOid());
+                        linkClusterToHosts(clusterBuilder, hosts, key);
+                        addClusterCommsSold(clusterBuilder, hosts, key);
+                        linkVmsToClusters(key, clusterKeyToVms, clusterBuilder, topologyDTOs);
+                    }
+                    fakeEntityDTOs.add(clusterBuilder.build());
+                });
+                if (enableOP) {
+                    addCommBoughtToUnplacedVms(unrestrictedVMs, topologyDTOs);
+                }
+                logger.info("Created {} compute cluster entities buying from hosts", fakeComputeClusterOids.size());
+                dsClusterCommKeySet.forEach(key -> fakeEntityDTOs
+                        .add(createClusterDTOs(CommodityType.STORAGE_CLUSTER_VALUE, key).build()));
             }
         } catch (StatusRuntimeException e) {
             logger.error("Failed to get cluster members from group component due to: {}."
@@ -113,129 +159,219 @@ public class FakeEntityCreator {
     }
 
     /**
-     * Create fake clusters for each unique cluster key. The cluster entity should sell CPU_PROVISIONED and
-     * MEM_PROVISIONED and the hosts in a cluster should buy CPU_PROVISIONED and MEM_PROVISIONED from that fake cluster entity.
-     * For the provisioned commodity sold by cluster:
-     * 1. capacity is the sum of the capacities of the corresponding commodity of all the hosts in that cluster.
-     * 2. Their effective capacity percentage is the the percentage of the sum of the effective capacities of the hosts
-     * to the sum of the capacities of the hosts.
-     * 3. used is the sum of the used of the corresponding commodity of all the hosts in that cluster.
-     * @param topologyDTOs the current topology
-     * @param clusterKeyToHost map of cluster key to set of hosts in that cluster
-     * @param fakeEntityDTOs the created cluster entities need to be added to this result set
+     * Creates one shopping list per host that the cluster has. This shopping list has CPU_PROVISIONED and
+     * MEM_PROVISIONED and is supplied by a host.
+     * @param clusterBuilder the cluster
+     * @param hosts hosts that are part of this cluster
+     * @param clusterKey cluster key
      */
-    private void createFakeClusters(Map<Long, TopologyEntityDTO> topologyDTOs,
-                                    Map<String, Set<TopologyEntityDTO>> clusterKeyToHost,
-                                    Set<TopologyEntityDTO> fakeEntityDTOs) {
-        int numClustersCreated = 0;
-        for (String key : clusterKeyToHost.keySet()) {
-            Set<TopologyEntityDTO> hosts = clusterKeyToHost.get(key);
-            double clusterCpuProvCapacity = 0;
-            double clusterMemProvCapacity = 0;
-            double clusterCpuProvEffectiveCapacity = 0;
-            double clusterMemProvEffectiveCapacity = 0;
-            double clusterCpuProvUsed = 0;
-            double clusterMemProvUsed = 0;
-            TopologyEntityDTO.Builder clusterBuilder = createFakeClusterDTOBuilder(key);
+    private void linkClusterToHosts(final TopologyEntityDTO.Builder clusterBuilder, final Set<TopologyEntityDTO> hosts, String clusterKey) {
+        clusterBuilder.clearCommoditiesBoughtFromProviders();
+        for (TopologyEntityDTO host : hosts) {
             final CommodityBoughtDTO memCommBought = CommodityBoughtDTO.newBuilder()
                     .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                            .setType(CommodityType.MEM_PROVISIONED_VALUE).setKey(key).build())
+                            .setType(CommodityType.MEM_PROVISIONED_VALUE).build())
                     .build();
             final CommodityBoughtDTO cpuCommBought = CommodityBoughtDTO.newBuilder()
                     .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                            .setType(CommodityType.CPU_PROVISIONED_VALUE).setKey(key).build())
+                            .setType(CommodityType.CPU_PROVISIONED_VALUE).build())
                     .build();
-            for (TopologyEntityDTO host : hosts) {
-                TopologyEntityDTO.Builder hostBuilder = host.toBuilder();
-                hostBuilder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                        .addCommodityBought(memCommBought).addCommodityBought(cpuCommBought)
-                        .setMovable(false).setProviderId(clusterBuilder.getOid()).setProviderEntityType(EntityType.CLUSTER_VALUE));
-                for (CommoditySoldDTO.Builder commSoldBuilder : hostBuilder.getCommoditySoldListBuilderList()) {
-                    if (commSoldBuilder.getCommodityType().getType() == CommodityType.CPU_PROVISIONED_VALUE) {
-                        clusterCpuProvCapacity += commSoldBuilder.getCapacity();
-                        clusterCpuProvUsed += commSoldBuilder.getUsed();
-                        clusterCpuProvEffectiveCapacity += commSoldBuilder.getEffectiveCapacityPercentage() / 100 * commSoldBuilder.getCapacity();
-                        commSoldBuilder.setIsResold(true);
-                    } else if (commSoldBuilder.getCommodityType().getType() == CommodityType.MEM_PROVISIONED_VALUE) {
-                        clusterMemProvCapacity += commSoldBuilder.getCapacity();
-                        clusterMemProvUsed += commSoldBuilder.getUsed();
-                        clusterMemProvEffectiveCapacity += commSoldBuilder.getEffectiveCapacityPercentage() / 100 * commSoldBuilder.getCapacity();
-                        commSoldBuilder.setIsResold(true);
-                    }
-                }
-                topologyDTOs.put(hostBuilder.getOid(), hostBuilder.build());
-            }
-            double cpuEffectiveCapacityPercentage = clusterCpuProvEffectiveCapacity / clusterCpuProvCapacity * 100;
-            double memEffectiveCapacityPercentage = clusterMemProvEffectiveCapacity / clusterMemProvCapacity * 100;
-            for (CommoditySoldDTO.Builder commSoldBuilder : clusterBuilder.getCommoditySoldListBuilderList()) {
-                if (commSoldBuilder.getCommodityType().getType() == CommodityType.CPU_PROVISIONED_VALUE) {
-                    setClusterCommSoldProperties(commSoldBuilder, clusterCpuProvCapacity, cpuEffectiveCapacityPercentage, clusterCpuProvUsed);
-                } else if (commSoldBuilder.getCommodityType().getType() == CommodityType.MEM_PROVISIONED_VALUE) {
-                    setClusterCommSoldProperties(commSoldBuilder, clusterMemProvCapacity, memEffectiveCapacityPercentage, clusterMemProvUsed);
-                }
-            }
-            TopologyEntityDTO cluster = clusterBuilder.build();
-            fakeEntityDTOs.add(cluster);
-            numClustersCreated++;
+            final CommodityBoughtDTO clusterCommBought = CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                            .setType(CommodityType.CLUSTER_VALUE)
+                            .setKey(clusterKey).build())
+                    .build();
+            clusterBuilder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .addCommodityBought(cpuCommBought)
+                    .addCommodityBought(memCommBought)
+                    .addCommodityBought(clusterCommBought)
+                    .setProviderId(host.getOid())
+                    .setMovable(false)
+                    .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE));
+            hostIdToClusterId.put(host.getOid(), clusterBuilder.getOid());
         }
-        logger.info("Created {} cluster entities", numClustersCreated);
-    }
-
-    private void setClusterCommSoldProperties(CommoditySoldDTO.Builder commSoldBuilder, double capacity, double effCapPercentage, double used) {
-        commSoldBuilder.setCapacity(capacity);
-        commSoldBuilder.setEffectiveCapacityPercentage(effCapPercentage);
-        commSoldBuilder.setUsed(used);
     }
 
     /**
-     * Modifies the hosts (PHYSICAL_MACHINE) in the topology and removes the cluster commodity bought grouping from the hosts.
+     * This method sets properties like capacity, effective capacity percentage and used of commdodities sold by the cluster.
+     * For the provisioned commodity sold by cluster:
+     * a. capacity is the sum of the capacities of the corresponding commodity of all the hosts in that cluster.
+     * b. Their effective capacity percentage is the the percentage of the sum of the effective capacities of the hosts
+     *    to the sum of the capacities of the hosts.
+     * c. used is the sum of the used of the corresponding commodity of all the hosts in that cluster.
+     * @param clusterBuilder the cluster
+     * @param hosts the hosts that are part of the cluster
+     * @param clusterKey the key for the cluster
+     */
+    private void addClusterCommsSold(final TopologyEntityDTO.Builder clusterBuilder,
+                                     final Set<TopologyEntityDTO> hosts,
+                                     final String clusterKey) {
+        double clusterCpuProvCapacity = 0;
+        double clusterMemProvCapacity = 0;
+        double clusterCpuProvEffectiveCapacity = 0;
+        double clusterMemProvEffectiveCapacity = 0;
+        double clusterCpuProvUsed = 0;
+        double clusterMemProvUsed = 0;
+        for (TopologyEntityDTO host : hosts) {
+            boolean cpuProvDone = false;
+            boolean memProvDone = false;
+            for (CommoditySoldDTO commSold : host.getCommoditySoldListList()) {
+                if (cpuProvDone && memProvDone) {
+                    break;
+                }
+                if (commSold.getCommodityType().getType() == CommodityType.CPU_PROVISIONED_VALUE) {
+                    clusterCpuProvCapacity += commSold.getCapacity();
+                    clusterCpuProvUsed += commSold.getUsed();
+                    clusterCpuProvEffectiveCapacity += commSold.getEffectiveCapacityPercentage() / 100 * commSold.getCapacity();
+                    cpuProvDone = true;
+                } else if (commSold.getCommodityType().getType() == CommodityType.MEM_PROVISIONED_VALUE) {
+                    clusterMemProvCapacity += commSold.getCapacity();
+                    clusterMemProvUsed += commSold.getUsed();
+                    clusterMemProvEffectiveCapacity += commSold.getEffectiveCapacityPercentage() / 100 * commSold.getCapacity();
+                    memProvDone = true;
+                }
+            }
+        }
+        double cpuEffectiveCapacityPercentage = clusterCpuProvEffectiveCapacity / clusterCpuProvCapacity * 100;
+        double memEffectiveCapacityPercentage = clusterMemProvEffectiveCapacity / clusterMemProvCapacity * 100;
+
+        TopologyDTO.CommodityType.Builder cpuProvType = TopologyDTO.CommodityType.newBuilder()
+                .setType(CommodityType.CPU_PROVISIONED_VALUE).setKey(CLUSTER_KEY_STATIC);
+        CommoditySoldDTO.Builder cpuProvSold = CommoditySoldDTO.newBuilder()
+                .setCommodityType(cpuProvType)
+                .setCapacity(clusterCpuProvCapacity)
+                .setEffectiveCapacityPercentage(cpuEffectiveCapacityPercentage)
+                .setUsed(clusterCpuProvUsed);
+        TopologyDTO.CommodityType.Builder memProvType = TopologyDTO.CommodityType.newBuilder()
+                .setType(CommodityType.MEM_PROVISIONED_VALUE).setKey(CLUSTER_KEY_STATIC);
+        CommoditySoldDTO.Builder memProvSold = CommoditySoldDTO.newBuilder()
+                .setCommodityType(memProvType)
+                .setCapacity(clusterMemProvCapacity)
+                .setEffectiveCapacityPercentage(memEffectiveCapacityPercentage)
+                .setUsed(clusterMemProvUsed);
+        TopologyDTO.CommodityType.Builder clusterType = TopologyDTO.CommodityType.newBuilder()
+                .setType(CommodityType.CLUSTER_VALUE).setKey(clusterKey);
+        CommoditySoldDTO.Builder clusterCommSold = CommoditySoldDTO.newBuilder()
+                .setCommodityType(clusterType)
+                .setCapacity(TopologyConversionConstants.ACCESS_COMMODITY_CAPACITY);
+        clusterBuilder.addCommoditySoldList(cpuProvSold).addCommoditySoldList(memProvSold).addCommoditySoldList(clusterCommSold);
+    }
+
+    /**
+     * Creates a shopping list bought by the VMs and supplied by the cluster. The shopping list will
+     * be unplaced.
+     * @param unrestrictedVms set of unrestricted vms
+     * @param topologyDTOs the topology
+     */
+    private void addCommBoughtToUnplacedVms(Set<TopologyEntityDTO> unrestrictedVms,
+            final Map<Long, TopologyEntityDTO> topologyDTOs) {
+        for (TopologyEntityDTO vm : unrestrictedVms) {
+            TopologyEntityDTO.Builder vmBuilder = addClusterCommBoughtProviderforVM(vm, Optional.empty());
+            topologyDTOs.put(vmBuilder.getOid(), vmBuilder.build());
+        }
+    }
+
+    /**
+     * Creates a shopping list bought by the VMs and supplied by the cluster of the host this VM is on.
+     * @param key the key for the cluster
+     * @param clusterKeyToVms map of cluster key to the VMs in that cluster
+     * @param cluster the cluster object to link the VMs to
+     * @param topologyDTOs the topology
+     */
+    private void linkVmsToClusters(final String key,
+                                   final Map<String, Set<TopologyEntityDTO>> clusterKeyToVms,
+                                   final TopologyEntityDTO.Builder cluster,
+                                   final Map<Long, TopologyEntityDTO> topologyDTOs) {
+        for (TopologyEntityDTO vm : clusterKeyToVms.getOrDefault(key, new HashSet<>())) {
+            TopologyEntityDTO.Builder vmBuilder = addClusterCommBoughtProviderforVM(vm, Optional.of(cluster));
+            topologyDTOs.put(vmBuilder.getOid(), vmBuilder.build());
+        }
+    }
+
+    /**
+     * The VM will buy the comm bought provider which is derived from the comm bought from host.
+     * The provisioned commodities are copied and then a key is added to those commodities.
+     * The cluster commodity is copied directly.
+     * The bought values in both shopping list is the same.
+     *
+     * @param vm the vm which is buying.
+     * @param cluster the cluster which is selling
+     * @return vm builder with the ne comm bought provider added.
+     */
+    private TopologyEntityDTO.Builder addClusterCommBoughtProviderforVM(TopologyEntityDTO vm,
+            Optional<TopologyEntityDTO.Builder> cluster) {
+        TopologyEntityDTO.Builder vmBuilder = vm.toBuilder();
+        Optional<CommoditiesBoughtFromProvider> computeSl =
+                vm.getCommoditiesBoughtFromProvidersList().stream().filter(
+                        grouping -> grouping.getProviderEntityType()
+                                == EntityType.PHYSICAL_MACHINE_VALUE).findFirst();
+        if (computeSl.isPresent()) {
+            Optional<CommodityBoughtDTO> memProvCommBoughtFromHost =
+                    computeSl.get().getCommodityBoughtList().stream().filter(
+                            c -> c.getCommodityType().getType()
+                                    == CommodityType.MEM_PROVISIONED_VALUE).findFirst();
+            Optional<CommodityBoughtDTO> cpuProvCommBoughtFromHost =
+                    computeSl.get().getCommodityBoughtList().stream().filter(
+                            c -> c.getCommodityType().getType()
+                                    == CommodityType.CPU_PROVISIONED_VALUE).findFirst();
+            CommoditiesBoughtFromProvider.Builder commBoughtFromProvider =
+                    CommoditiesBoughtFromProvider.newBuilder();
+            if (memProvCommBoughtFromHost.isPresent() && cpuProvCommBoughtFromHost.isPresent()) {
+                final CommodityBoughtDTO memCommBought =
+                        memProvCommBoughtFromHost.get().toBuilder().setCommodityType(
+                                TopologyDTO.CommodityType.newBuilder()
+                                        .setType(CommodityType.MEM_PROVISIONED_VALUE)
+                                        .setKey(CLUSTER_KEY_STATIC)
+                                        .build()).build();
+                final CommodityBoughtDTO cpuCommBought =
+                        cpuProvCommBoughtFromHost.get().toBuilder().setCommodityType(
+                                TopologyDTO.CommodityType.newBuilder()
+                                        .setType(CommodityType.CPU_PROVISIONED_VALUE)
+                                        .setKey(CLUSTER_KEY_STATIC)
+                                        .build()).build();
+                commBoughtFromProvider.addCommodityBought(memCommBought).addCommodityBought(
+                        cpuCommBought).setProviderEntityType(EntityType.CLUSTER_VALUE);
+            } else {
+                return vmBuilder;
+            }
+            if (cluster.isPresent()) {
+                Optional<CommodityBoughtDTO> clusterCommBoughtFromHost =
+                        computeSl.get()
+                                .getCommodityBoughtList()
+                                .stream()
+                                .filter(c -> c.getCommodityType().getType()
+                                        == CommodityType.CLUSTER_VALUE && c.getCommodityType()
+                                        .hasKey() && c.getActive())
+                                .findFirst();
+                if (clusterCommBoughtFromHost.isPresent()) {
+                    final CommodityBoughtDTO clusterCommBought = clusterCommBoughtFromHost.get();
+                    commBoughtFromProvider.addCommodityBought(clusterCommBought);
+                }
+                commBoughtFromProvider.setProviderId(cluster.get().getOid());
+            }
+            vmBuilder.addCommoditiesBoughtFromProviders(commBoughtFromProvider);
+        }
+        return vmBuilder;
+    }
+
+    /**
+     * Modifies the VMs (VIRTUAL_MACHINE) in the topology and removes the cluster commodity bought grouping from the VMs.
      * @param topology the topology to be modified
      */
-    public void removeClusterCommBoughtGroupingOfHosts(Map<Long, TopologyEntityDTO> topology) {
-        topology.replaceAll((oid, entity) -> removeClusterCommBoughtGroupingOfHost(entity));
+    public void removeClusterCommBoughtGroupingOfVms(Map<Long, TopologyEntityDTO> topology) {
+        topology.replaceAll((oid, entity) -> removeClusterCommBoughtGroupingOfVm(entity));
     }
 
-    private TopologyEntityDTO removeClusterCommBoughtGroupingOfHost(TopologyEntityDTO entity) {
-        if (entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
-            TopologyEntityDTO.Builder hostBuilder = entity.toBuilder();
-            OptionalInt indexOfClusterCommBoughtGrouping = IntStream.range(0, hostBuilder.getCommoditiesBoughtFromProvidersList().size())
-                    .filter(i -> hostBuilder.getCommoditiesBoughtFromProviders(i).getProviderEntityType() == EntityType.CLUSTER_VALUE)
+    private TopologyEntityDTO removeClusterCommBoughtGroupingOfVm(TopologyEntityDTO entity) {
+        if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+            TopologyEntityDTO.Builder vmBuilder = entity.toBuilder();
+            OptionalInt indexOfClusterCommBoughtGrouping = IntStream.range(0, vmBuilder.getCommoditiesBoughtFromProvidersList().size())
+                    .filter(i -> vmBuilder.getCommoditiesBoughtFromProviders(i).getProviderEntityType() == EntityType.CLUSTER_VALUE)
                     .findFirst();
-            indexOfClusterCommBoughtGrouping.ifPresent(hostBuilder::removeCommoditiesBoughtFromProviders);
-            return hostBuilder.build();
+            indexOfClusterCommBoughtGrouping.ifPresent(vmBuilder::removeCommoditiesBoughtFromProviders);
+            return vmBuilder.build();
         }
         return entity;
-    }
-
-    /**
-     * Create a Cluster Entity TopologyEntityDTO to sell OP commodities to PMs.
-     *
-     * @param key the commodity's key
-     * @return a cluster TopologyEntityDTO.Builder to keep it mutable
-     */
-    private TopologyEntityDTO.Builder createFakeClusterDTOBuilder(String key) {
-        CommoditySoldDTO memProvSold = CommoditySoldDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                        .setType(CommodityType.MEM_PROVISIONED_VALUE)
-                        .setKey(key).build())
-                .setIsResizeable(false)
-                .build();
-        CommoditySoldDTO cpuProvSold = CommoditySoldDTO.newBuilder()
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                        .setType(CommodityType.CPU_PROVISIONED_VALUE)
-                        .setKey(key).build())
-                .setIsResizeable(false)
-                .build();
-        long id = IdentityGenerator.next();
-        fakeClusterOids.add(id);
-        return TopologyEntityDTO.newBuilder()
-                .setEntityType(EntityType.CLUSTER_VALUE)
-                .setOid(id)
-                .setDisplayName("FakeCluster-" + key)
-                .setEntityState(EntityState.POWERED_ON)
-                .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(false))
-                .addCommoditySoldList(memProvSold)
-                .addCommoditySoldList(cpuProvSold);
     }
 
     protected Set<TopologyEntityDTO> getEntityDTOsInCluster(GroupType groupType, Map<Long, TopologyEntityDTO> topologyDTOs) {
@@ -261,20 +397,19 @@ public class FakeEntityCreator {
      * @param key the commodity's key
      * @return a VM TopologyEntityDTO
      */
-    private TopologyEntityDTO createFakeDTOs(int clusterValue, String key) {
+    private TopologyEntityDTO.Builder createClusterDTOs(int clusterValue, String key) {
         final CommodityBoughtDTO clusterCommBought = CommodityBoughtDTO.newBuilder()
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                         .setType(clusterValue).setKey(key).build())
                 .build();
         return TopologyEntityDTO.newBuilder()
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEntityType(EntityType.CLUSTER_VALUE)
                 .setOid(IdentityGenerator.next())
-                .setDisplayName("FakeVM-" + clusterValue + key)
+                .setDisplayName("FakeCluster-" + clusterValue + key)
                 .setEntityState(EntityState.POWERED_ON)
                 .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(false).build())
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                        .addCommodityBought(clusterCommBought).build())
-                .build();
+                        .addCommodityBought(clusterCommBought).build());
     }
 
     /**
@@ -295,6 +430,10 @@ public class FakeEntityCreator {
      * @return true if it is a fake cluster oid
      */
     public boolean isFakeClusterOid(long oid) {
-        return fakeClusterOids.contains(oid);
+        return fakeComputeClusterOids.contains(oid);
+    }
+
+    public Map<Long, Long> getHostIdToClusterId() {
+        return Collections.unmodifiableMap(hostIdToClusterId);
     }
 }

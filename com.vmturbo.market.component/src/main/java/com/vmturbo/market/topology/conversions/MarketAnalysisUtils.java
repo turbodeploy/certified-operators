@@ -361,10 +361,6 @@ public final class MarketAnalysisUtils {
             ImmutableSet.of(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE,
                     CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE);
 
-    private static final PriceFunctionTO OP = PriceFunctionTO.newBuilder().setOverProvision(
-            PriceFunctionTO.OverProvision.newBuilder().setWeight(1.0f).setConstant(0.0f)
-                    .setStepOne(1.0f).setStepTwo(2.0f).build()).build();
-
     /**
      * Create the instance of mm1 distribution {@link UpdatingFunctionTO}.
      *
@@ -522,6 +518,9 @@ public final class MarketAnalysisUtils {
     private static final PriceFunctionTO CONSTANT_ZERO = PriceFunctionTO.newBuilder()
                     .setConstant(Constant.newBuilder().setValue(0).build()).build();
 
+    private static final PriceFunctionTO OFFSET_SWPF = PriceFunctionTO.newBuilder()
+            .setOffsetStandardWeighted(PriceFunctionTO.OffsetStandardWeighted.newBuilder().setWeight(1.0f)).build();
+
     /**
      * Biclique commodity sold settings.
      */
@@ -567,8 +566,7 @@ public final class MarketAnalysisUtils {
                             .setWeight(1 + additionalSoldWeight).build()).build();
         } else if (IMAGE_COMMODITY_SET.contains(commodityType)) {
             return SQRP;
-        } else if (FLOW_COMMODITY_SET.contains(commodityType)
-                || dto != null && dto.getEntityType() == EntityType.CLUSTER_VALUE) {
+        } else if (FLOW_COMMODITY_SET.contains(commodityType)) {
             if (commodityKey.equals(FLOW_ZERO_KEY)) {
                 return EXTERNAL;
             } else {
@@ -587,7 +585,7 @@ public final class MarketAnalysisUtils {
                     .build();
         } else if (enableOP && OVER_PROVISION_PRICE_TYPES.contains(commodityType)
                 && dto != null && dto.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
-            return OP;
+            return OFFSET_SWPF;
         } else if (commodityType == CommodityDTO.CommodityType.NUM_VCORE_VALUE
                 && dto.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
             return CFPF;

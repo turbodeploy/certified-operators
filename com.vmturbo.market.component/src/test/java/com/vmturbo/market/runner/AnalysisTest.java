@@ -34,6 +34,7 @@ import java.util.concurrent.Future;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -666,10 +667,10 @@ public class AnalysisTest {
         Analysis analysis = Mockito.spy(getAnalysis(analysisConfig, topologySet));
 
         Mockito.doReturn(topologySet).when(fakeEntityCreator)
-                .getEntityDTOsInCluster(eq(GroupType.STORAGE_CLUSTER), eq(null));
+                .getEntityDTOsInCluster(eq(GroupType.STORAGE_CLUSTER), eq(Maps.newHashMap()));
         Mockito.doReturn(new HashSet<>()).when(fakeEntityCreator)
-        .getEntityDTOsInCluster(eq(GroupType.COMPUTE_HOST_CLUSTER), eq(null));
-        Map<Long, TopologyEntityDTO> fakeEntity = fakeEntityCreator.createFakeTopologyEntityDTOs(null, true, false);
+        .getEntityDTOsInCluster(eq(GroupType.COMPUTE_HOST_CLUSTER), eq(Maps.newHashMap()));
+        Map<Long, TopologyEntityDTO> fakeEntity = fakeEntityCreator.createFakeTopologyEntityDTOs(Maps.newHashMap(), true, false);
         assertTrue(fakeEntity.size() == 1);
         TopologyEntityDTO fakeEntityDTO = fakeEntity.values().iterator().next();
         CommodityType type = CommodityType.newBuilder()
