@@ -77,6 +77,17 @@ message PriceFunctionTO {
     message ConsumerFits {
     }
 
+    // The offset standard price function. The function returns a flat price upto 100% util, and then increases from
+    // 100% to 200% (the same way standard price function rises from 0% to 100%), and then returns Infinity after 200%.
+    //
+    // The formula is
+    //          w for u < 1,
+    // P(u) =   min(w / (1-nu)^2, MAX_UNIT_PRICE) where nu = u - 1 for 1 < u < 2
+    //          Double.POSITIVE_INFINITY for u > 2.
+    message OffsetStandardWeighted {
+        optional float weight = 1 [default = 1.0]; // The 'w' in the above formula.
+    }
+
     // Which one of the available functions this message contains.
     oneof price_function_type {
         StandardWeighted standard_weighted = 1;
@@ -91,5 +102,6 @@ message PriceFunctionTO {
         ScaledCapacityStandardWeighted scaled_capacity_standard_weighted = 10;
         OverProvision over_provision = 11;
         ConsumerFits consumer_fits = 12;
+        OffsetStandardWeighted offset_standard_weighted = 13;
     }
 }

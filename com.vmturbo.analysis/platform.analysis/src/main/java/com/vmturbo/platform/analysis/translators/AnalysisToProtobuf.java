@@ -57,6 +57,7 @@ import com.vmturbo.platform.analysis.pricefunction.ConsumerFitsPriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.ExternalPriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.FiniteStandardWeightedPriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.IgnoreUtilizationPriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.OffsetStandardWeightedPriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.OverProvisionedPriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunction;
@@ -105,6 +106,7 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.FiniteStandardWeighted;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.IgnoreUtilization;
+import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.OffsetStandardWeighted;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.OverProvision;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.ScaledCapacityStandardWeighted;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.StandardWeighted;
@@ -180,6 +182,8 @@ public final class AnalysisToProtobuf {
                     .setStepTwo((float)input.getParams()[3]));
         } else if (input instanceof ConsumerFitsPriceFunction) {
             builder.setConsumerFits(PriceFunctionTO.ConsumerFits.newBuilder());
+        } else if (input instanceof OffsetStandardWeightedPriceFunction) {
+            builder.setOffsetStandardWeighted(OffsetStandardWeighted.newBuilder().setWeight((float)input.getParams()[0]));
         }
 
         return builder.build();

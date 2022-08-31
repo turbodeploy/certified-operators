@@ -79,6 +79,25 @@ public class PriceFunctionFactory {
     }
 
     /**
+     * The offset standard price function.
+     * The formula is
+     *          w for u < 1,
+     * P(u) =   min(w / (1-nu)^2, MAX_UNIT_PRICE) where nu = u - 1 for 1 < u < 2, and
+     *          Double.POSITIVE_INFINITY for u > 2.
+     * @param weight weight associated with the commodity.
+     * @return the price function.
+     */
+    public static synchronized PriceFunction createOffsetStandardWeightedPriceFunction(double weight) {
+        String key = "OSWPF-" + weight;
+        PriceFunction pf = pfMap.get(key);
+        if (pf == null) {
+            pf = new OffsetStandardWeightedPriceFunction(weight);
+            pfMap.put(key, pf);
+        }
+        return pf;
+    }
+
+    /**
      * Same as standard price function but returns finite value MAX_UNIT_PRICE for utilization > 1.
      * @param weight weight associated with the commodity.
      * @return the price function.
