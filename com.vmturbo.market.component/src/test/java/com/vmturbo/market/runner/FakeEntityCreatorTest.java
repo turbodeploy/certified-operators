@@ -7,7 +7,10 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 
 import org.junit.Assert;
@@ -17,7 +20,7 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -27,6 +30,7 @@ import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -36,8 +40,10 @@ public class FakeEntityCreatorTest {
 
     private static final String CLUSTER1_KEY = "key1";
     private static final String CLUSTER2_KEY = "key2";
+    private static final double DELTA = 0.01;
     private FakeEntityCreator fakeEntityCreator;
     private Map<Long, TopologyEntityDTO> topologyDTOs;
+    private Map<Long, TopologyEntityDTO> result;
 
     /**
      * Create 4 hosts - 2 from cluster 1 and 2 from cluster 2.
@@ -54,8 +60,16 @@ public class FakeEntityCreatorTest {
         topologyDTOs.put(host3.getOid(), host3);
         TopologyEntityDTO host4 = host(4L, CLUSTER2_KEY, 600, 800, 90, 80, 70, 80);
         topologyDTOs.put(host4.getOid(), host4);
+        TopologyEntityDTO vm1 = vm(101L, 1L, CLUSTER1_KEY);
+        topologyDTOs.put(vm1.getOid(), vm1);
+        TopologyEntityDTO vm2 = vm(102L, 2L, CLUSTER1_KEY);
+        topologyDTOs.put(vm2.getOid(), vm2);
+        TopologyEntityDTO vm3 = vm(103L, 3L, CLUSTER2_KEY);
+        topologyDTOs.put(vm3.getOid(), vm3);
+        TopologyEntityDTO vm4 = vm(104L, 4L, CLUSTER2_KEY);
+        topologyDTOs.put(vm4.getOid(), vm4);
         GroupAndMembers cluster1 = ImmutableGroupAndMembers.builder().group(Grouping.newBuilder().build())
-                .members(Arrays.asList(1L, 2L)).entities(Arrays.asList(3L, 4L)).build();
+                .members(Arrays.asList(1L, 2L)).entities(Arrays.asList(1L, 2L)).build();
         GroupAndMembers cluster2 = ImmutableGroupAndMembers.builder().group(Grouping.newBuilder().build())
                 .members(Arrays.asList(3L, 4L)).entities(Arrays.asList(3L, 4L)).build();
         GroupMemberRetriever mockGroupMemberRetriever = mock(GroupMemberRetriever.class);
@@ -64,6 +78,7 @@ public class FakeEntityCreatorTest {
         when(mockGroupMemberRetriever.getGroupsWithMembers(clusterRequest))
                 .thenReturn(Arrays.asList(cluster1, cluster2));
         fakeEntityCreator = new FakeEntityCreator(mockGroupMemberRetriever);
+        result = fakeEntityCreator.createFakeTopologyEntityDTOs(topologyDTOs, true, true);
     }
 
     /**
@@ -75,39 +90,42 @@ public class FakeEntityCreatorTest {
      *  c. Their used values should be the sum of the used values of the hosts.
      */
     @Test
-    public void testCreateClusters() {
-        Map<Long, TopologyEntityDTO> result = fakeEntityCreator.createFakeTopologyEntityDTOs(topologyDTOs, false, true);
+    public void testClustersCommSold() {
         Assert.assertEquals(2, result.size());
         int assertCount = 0;
         for (TopologyEntityDTO cluster : result.values()) {
             Assert.assertEquals(EntityType.CLUSTER_VALUE, cluster.getEntityType());
-            fakeEntityCreator.isFakeClusterOid(cluster.getOid());
+            Assert.assertTrue(fakeEntityCreator.isFakeClusterOid(cluster.getOid()));
             for (CommoditySoldDTO cs : cluster.getCommoditySoldListList()) {
                 if (cs.getCommodityType().getType() == CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE) {
-                    if (CLUSTER1_KEY.equals(cs.getCommodityType().getKey())) {
-                        Assert.assertEquals(1500, cs.getCapacity(), 0.1);
-                        Assert.assertEquals(86.66, cs.getEffectiveCapacityPercentage(), 0.1);
-                        Assert.assertEquals(40, cs.getUsed(), 0.1);
+                    if (cluster.getDisplayName().equals("FakeCluster-0key1")
+                            && FakeEntityCreator.CLUSTER_KEY_STATIC.equals(cs.getCommodityType().getKey())) {
+                        Assert.assertEquals(1500, cs.getCapacity(), DELTA);
+                        Assert.assertEquals(86.66, cs.getEffectiveCapacityPercentage(), DELTA);
+                        Assert.assertEquals(40, cs.getUsed(), DELTA);
                         assertCount++;
                     }
-                    if (CLUSTER2_KEY.equals(cs.getCommodityType().getKey())) {
-                        Assert.assertEquals(2600, cs.getCapacity(), 0.1);
-                        Assert.assertEquals(90, cs.getEffectiveCapacityPercentage(), 0.1);
-                        Assert.assertEquals(120, cs.getUsed(), 0.1);
+                    if (cluster.getDisplayName().equals("FakeCluster-0key2")
+                            && FakeEntityCreator.CLUSTER_KEY_STATIC.equals(cs.getCommodityType().getKey())) {
+                        Assert.assertEquals(2600, cs.getCapacity(), DELTA);
+                        Assert.assertEquals(90, cs.getEffectiveCapacityPercentage(), DELTA);
+                        Assert.assertEquals(120, cs.getUsed(), DELTA);
                         assertCount++;
                     }
                 }
                 if (cs.getCommodityType().getType() == CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE) {
-                    if (CLUSTER1_KEY.equals(cs.getCommodityType().getKey())) {
-                        Assert.assertEquals(3700, cs.getCapacity(), 0.1);
-                        Assert.assertEquals(88.1, cs.getEffectiveCapacityPercentage(), 0.1);
-                        Assert.assertEquals(60, cs.getUsed(), 0.1);
+                    if (cluster.getDisplayName().equals("FakeCluster-0key1")
+                            && FakeEntityCreator.CLUSTER_KEY_STATIC.equals(cs.getCommodityType().getKey())) {
+                        Assert.assertEquals(3700, cs.getCapacity(), DELTA);
+                        Assert.assertEquals(88.1, cs.getEffectiveCapacityPercentage(), DELTA);
+                        Assert.assertEquals(60, cs.getUsed(), DELTA);
                         assertCount++;
                     }
-                    if (CLUSTER2_KEY.equals(cs.getCommodityType().getKey())) {
-                        Assert.assertEquals(4800, cs.getCapacity(), 0.1);
-                        Assert.assertEquals(80, cs.getEffectiveCapacityPercentage(), 0.1);
-                        Assert.assertEquals(140, cs.getUsed(), 0.1);
+                    if (cluster.getDisplayName().equals("FakeCluster-0key2")
+                            && FakeEntityCreator.CLUSTER_KEY_STATIC.equals(cs.getCommodityType().getKey())) {
+                        Assert.assertEquals(4800, cs.getCapacity(), DELTA);
+                        Assert.assertEquals(80, cs.getEffectiveCapacityPercentage(), DELTA);
+                        Assert.assertEquals(140, cs.getUsed(), DELTA);
                         assertCount++;
                     }
                 }
@@ -117,57 +135,98 @@ public class FakeEntityCreatorTest {
     }
 
     /**
-     * The hosts should now have shopping lists supplied by the cluster.
-     * The hosts should buy CPU_PROVISIONED and MEM_PROVISIONED from the cluster.
-     * The CPU_PROVISIONED and MEM_PROVISIONED sold by the host should be marked as Resold.
+     * The Clusters should have shopping lists supplied by the hosts.
+     * The Clusters should buy CPU_PROVISIONED and MEM_PROVISIONED from the cluster.
      */
     @Test
-    public void testHostsModification() {
-        Map<Long, TopologyEntityDTO> result = fakeEntityCreator.createFakeTopologyEntityDTOs(topologyDTOs, false, true);
-        int assertCount = 0;
-        for (TopologyEntityDTO host : topologyDTOs.values()) {
-            CommoditiesBoughtFromProvider hostSl =  host.getCommoditiesBoughtFromProviders(0);
-            Assert.assertFalse(hostSl.getMovable());
-            Assert.assertEquals(hostSl.getProviderEntityType(), CommonDTO.EntityDTO.EntityType.CLUSTER_VALUE);
-            TopologyEntityDTO cluster = result.get(hostSl.getProviderId());
-            TopologyDTO.CommodityBoughtDTO cpuProv = hostSl.getCommodityBoughtList().stream().filter(comm ->
-                    CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE == comm.getCommodityType().getType()).findFirst().get();
-            TopologyDTO.CommodityBoughtDTO memProv = hostSl.getCommodityBoughtList().stream().filter(comm ->
-                    CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE == comm.getCommodityType().getType()).findFirst().get();
-            if (host.getOid() == 1L || host.getOid() == 2L) {
-                Assert.assertEquals(CLUSTER1_KEY, cpuProv.getCommodityType().getKey());
-                Assert.assertEquals(CLUSTER1_KEY, memProv.getCommodityType().getKey());
-                Assert.assertTrue(cluster.getCommoditySoldListList().stream().allMatch(cs -> CLUSTER1_KEY.equals(cs.getCommodityType().getKey())));
-                assertCount++;
+    public void testClustersCommBought() {
+        Set<Long> expectedHostSuppliers;
+        Set<CommodityType> expectedCommsBought;
+        final CommodityType memProv = CommodityType.newBuilder()
+                .setType(CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE).build();
+        final CommodityType cpuProv = CommodityType.newBuilder()
+                .setType(CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE).build();
+        for (TopologyEntityDTO cluster : result.values()) {
+            Assert.assertEquals(2, cluster.getCommoditiesBoughtFromProvidersCount());
+            if (cluster.getCommoditySoldListList().stream().anyMatch(cs -> cs.getCommodityType().getKey().equals(CLUSTER1_KEY))) {
+                expectedHostSuppliers = ImmutableSet.of(1L, 2L);
+                final CommodityType clusterComm = CommodityType.newBuilder()
+                        .setType(CommonDTO.CommodityDTO.CommodityType.CLUSTER_VALUE).setKey(CLUSTER1_KEY).build();
+                expectedCommsBought = ImmutableSet.of(memProv, cpuProv, clusterComm);
+            } else {
+                expectedHostSuppliers = ImmutableSet.of(3L, 4L);
+                final CommodityType clusterComm = CommodityType.newBuilder()
+                        .setType(CommonDTO.CommodityDTO.CommodityType.CLUSTER_VALUE).setKey(CLUSTER2_KEY).build();
+                expectedCommsBought = ImmutableSet.of(memProv, cpuProv, clusterComm);
             }
-            if (host.getOid() == 3L || host.getOid() == 4L) {
-                Assert.assertEquals(CLUSTER2_KEY, cpuProv.getCommodityType().getKey());
-                Assert.assertEquals(CLUSTER2_KEY, memProv.getCommodityType().getKey());
-                Assert.assertTrue(cluster.getCommoditySoldListList().stream().allMatch(cs -> CLUSTER2_KEY.equals(cs.getCommodityType().getKey())));
-                assertCount++;
-            }
-            for (CommoditySoldDTO commoditySoldDTO : host.getCommoditySoldListList()) {
-                if (commoditySoldDTO.getCommodityType().getType() == CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE
-                        || commoditySoldDTO.getCommodityType().getType() == CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE) {
-                    Assert.assertTrue(commoditySoldDTO.getIsResold());
-                } else {
-                    Assert.assertFalse(commoditySoldDTO.getIsResold());
-                }
+            Set<Long> actualHostSuppliers = cluster.getCommoditiesBoughtFromProvidersList().stream()
+                    .map(g -> g.getProviderId()).collect(Collectors.toSet());
+            Assert.assertEquals(expectedHostSuppliers, actualHostSuppliers);
+            for (CommoditiesBoughtFromProvider commBoughtGrouping : cluster.getCommoditiesBoughtFromProvidersList()) {
+                Set<CommodityType> actualCommBought = commBoughtGrouping.getCommodityBoughtList().stream()
+                        .map(c -> c.getCommodityType()).collect(Collectors.toSet());
+                Assert.assertEquals(expectedCommsBought, actualCommBought);
+                Assert.assertFalse(commBoughtGrouping.getMovable());
+                Assert.assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, commBoughtGrouping.getProviderEntityType());
+                Assert.assertEquals(0, commBoughtGrouping.getCommodityBoughtList().stream().mapToDouble(c -> c.getUsed()).sum(), DELTA);
             }
         }
-        Assert.assertEquals(4, assertCount);
     }
 
     /**
-     * When removeClusterCommBoughtGroupingOfHosts is called for the topology, the links between hosts and clusters
+     * Test that VMs will buy from clusters after calling createFakeTopologyEntityDTOs.
+     */
+    @Test
+    public void testLinkVmsToCluster() {
+        Map<String, TopologyEntityDTO> clusterByKey = Maps.newHashMap();
+        for (TopologyEntityDTO cluster : result.values()) {
+            String clusterKey = cluster.getCommoditySoldListList().stream().filter(commSold ->
+                    commSold.getCommodityType().getType() == CommodityDTO.CommodityType.CLUSTER_VALUE)
+                    .map(c -> c.getCommodityType().getKey()).findFirst().get();
+            clusterByKey.put(clusterKey, cluster);
+        }
+        Set<TopologyEntityDTO> vms = topologyDTOs.values().stream()
+                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE).collect(Collectors.toSet());
+        Assert.assertEquals(4, vms.size());
+        for (TopologyEntityDTO vm : vms) {
+            Assert.assertEquals(2, vm.getCommoditiesBoughtFromProvidersCount());
+            Optional<CommoditiesBoughtFromProvider> clusterSl =  vm.getCommoditiesBoughtFromProvidersList().stream()
+                    .filter(g -> g.getProviderEntityType() == EntityType.CLUSTER_VALUE)
+                    .findFirst();
+            Assert.assertTrue(clusterSl.isPresent());
+            String key;
+            if (vm.getOid() == 101L || vm.getOid() == 102L) {
+                key = CLUSTER1_KEY;
+            } else {
+                key = CLUSTER2_KEY;
+            }
+            long clusterOid = clusterByKey.get(key).getOid();
+            CommodityType cpuProvType = CommodityType.newBuilder()
+                    .setType(CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE).setKey(FakeEntityCreator.CLUSTER_KEY_STATIC).build();
+            CommodityType memProvType = CommodityType.newBuilder()
+                    .setType(CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE).setKey(FakeEntityCreator.CLUSTER_KEY_STATIC).build();
+            CommodityType clusterType = CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.CLUSTER_VALUE).setKey(key).build();
+
+            Assert.assertEquals(ImmutableSet.of(cpuProvType, memProvType, clusterType),
+                    clusterSl.get().getCommodityBoughtList().stream().map(c -> c.getCommodityType()).collect(Collectors.toSet()));
+            Assert.assertEquals(clusterOid, clusterSl.get().getProviderId());
+        }
+    }
+
+    /**
+     * When removeClusterCommBoughtGroupingOfHosts is called for the topology, the links between Vms and clusters
      * should be removed.
      */
     @Test
-    public void testRemoveClusterCommBoughtGroupingOfHost() {
-        Map<Long, TopologyEntityDTO> result = fakeEntityCreator.createFakeTopologyEntityDTOs(topologyDTOs, false, true);
-        fakeEntityCreator.removeClusterCommBoughtGroupingOfHosts(topologyDTOs);
-        for (TopologyEntityDTO host : topologyDTOs.values()) {
-            Assert.assertEquals(0, host.getCommoditiesBoughtFromProvidersCount());
+    public void testRemoveClusterCommBoughtGroupingOfVms() {
+        fakeEntityCreator.removeClusterCommBoughtGroupingOfVms(topologyDTOs);
+        Set<TopologyEntityDTO> vms = topologyDTOs.values().stream()
+                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE).collect(Collectors.toSet());
+        Assert.assertEquals(4, vms.size());
+        for (TopologyEntityDTO vm : vms) {
+            Assert.assertEquals(1, vm.getCommoditiesBoughtFromProvidersCount());
+            Assert.assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, vm.getCommoditiesBoughtFromProviders(0).getProviderEntityType());
         }
     }
 
@@ -198,6 +257,23 @@ public class FakeEntityCreatorTest {
                         Optional.empty()), cpuProvCapacity, cpuEffectiveCapPerc, cpuUsed))
                 .addCommoditySoldList(commoditySold(commodityType(CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE,
                         Optional.empty()), memProvCapacity, memEffectiveCapPerc, memUsed))
+                .build();
+    }
+
+    private TopologyEntityDTO vm(Long oid, long hostProviderOid, String clusterKey) {
+        final CommodityType clusterCommType = CommodityType.newBuilder()
+                .setType(CommonDTO.CommodityDTO.CommodityType.CLUSTER_VALUE).setKey(clusterKey).build();
+        return TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(oid)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(hostProviderOid)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                                CommodityType.newBuilder().setType(CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE).build()))
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                                CommodityType.newBuilder().setType(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE).build()))
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(clusterCommType))
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE).build())
                 .build();
     }
 }

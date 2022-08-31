@@ -482,7 +482,9 @@ public class TopologyConverter {
     private float customUtilizationThreshold;
 
     private FakeEntityCreator fakeEntityCreator;
-
+    
+    private boolean enableOP;
+    
     private Collection<WastedEntityResults> wastedEntityResults = new HashSet<>();
 
     /**
@@ -567,6 +569,7 @@ public class TopologyConverter {
         this.singleVMonHost = singleVMonHost;
         this.customUtilizationThreshold = customUtilizationThreshold;
         this.fakeEntityCreator = fakeEntityCreator;
+        this.enableOP = enableOP;
     }
 
     /**
@@ -1046,6 +1049,10 @@ public class TopologyConverter {
                     .forEach(comm -> edge(dto, comm));
                 oidToUuidMap.put(dto.getOid(), String.valueOf(dto.getOid()));
                 populateCommodityConsumesTable(dto);
+            }
+            if (enableOP) {
+                fakeEntityCreator.getHostIdToClusterId().entrySet().forEach(
+                        entry -> pmBasedBicliquer.edge(String.valueOf(entry.getKey()), String.valueOf(entry.getValue())));
             }
             // Create market tier traderTO builders
             List<TraderTO.Builder> marketTierTraderTOBuilders = cloudTc.createMarketTierTraderTOs();
