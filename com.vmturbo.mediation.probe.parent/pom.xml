@@ -39,6 +39,7 @@
         <commons-codec.version>1.15</commons-codec.version>
         <httpclient.version>4.5.13</httpclient.version>
         <httpcore.version>4.4.13</httpcore.version>
+        <snakeyaml.version>1.31</snakeyaml.version>
         <surefire.version>3.0.0-M4</surefire.version>
         <spring.version>5.3.20</spring.version>
         <bouncycastle.version>1.69</bouncycastle.version>
@@ -442,6 +443,11 @@
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bcpkix-jdk15on</artifactId>
                 <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.yaml</groupId>
+                <artifactId>snakeyaml</artifactId>
+                <version>${snakeyaml.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
