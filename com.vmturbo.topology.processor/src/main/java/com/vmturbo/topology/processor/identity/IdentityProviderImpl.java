@@ -22,6 +22,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
@@ -38,6 +39,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityIdentifyingPropertyValues;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -102,7 +104,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     private final Logger logger = LogManager.getLogger();
 
     // START Fields for Probe ID management
-    private ConcurrentMap<String, Long> probeTypeToId;
+    private final ConcurrentMap<String, Long> probeTypeToId;
 
     private final Object probeIdLock = new Object();
     // END Fields for Probe ID management
@@ -136,7 +138,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     private final ConcurrentMap<Long, ProbeInfo> existingProbeInfoById = new ConcurrentHashMap<>();
     // END Fields for Entity ID management
 
-    private StaleOidManager staleOidManager;
+    private final StaleOidManager staleOidManager;
 
     /**
      * Create a new IdentityProvider implementation.
@@ -310,7 +312,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     @Override
     public Map<Long, EntityDTO> getIdsForEntities(final long probeId,
             @Nonnull final List<EntityDTO> entityDTOs) throws IdentityServiceException {
-        Objects.requireNonNull(entityDTOs);
+        final List<EntityDTO> immutableEntityDTOs = ImmutableList.copyOf(Objects.requireNonNull(entityDTOs));
         /* We expect that the probe is already registered.
          * There is a small window in getProbeId() where concurrent calls could
          * return an ID without an associated entry in perProbeMetadata.
@@ -320,9 +322,8 @@ public class IdentityProviderImpl implements IdentityProvider {
          */
         final ServiceEntityIdentityMetadataStore probeMetadata =
                 Objects.requireNonNull(perProbeMetadata.get(probeId));
-
         final List<EntryData> entryData = new ArrayList<>(entityDTOs.size());
-        for (EntityDTO dto : entityDTOs) {
+        for (EntityDTO dto : immutableEntityDTOs) {
             // Find the identity metadata the probe provided for this
             // entity type.
             ServiceEntityIdentityMetadata entityMetadata =
@@ -333,7 +334,7 @@ public class IdentityProviderImpl implements IdentityProvider {
             if (entityMetadata != null) {
                 final EntityDescriptor descriptor =
                     IdentifyingPropertyExtractor.extractEntityDescriptor(dto, entityMetadata);
-                entryData.add(new EntryData(descriptor, entityMetadata, probeId, dto));
+                entryData.add(new EntryData(descriptor, entityMetadata, probeId, dto.getEntityType()));
             } else {
                 // If we are unable to assign an OID for an entity, abandon the attempt.
                 // One missing entity OID spoils the entire batch because of how tangled the relationships
@@ -343,23 +344,7 @@ public class IdentityProviderImpl implements IdentityProvider {
                                 + " but provides no related " + "identity metadata.");
             }
         }
-
-        final List<Long> ids;
-        synchronized (identityServiceLock) {
-            ids = identityService.getOidsForObjects(entryData);
-        }
-
-        final Map<Long, EntityDTO> retMap = new HashMap<>();
-        for (int i = 0; i < ids.size(); ++i) {
-            // All entry data objects will have entityDTOs, since we
-            // put them there when constructing the entryData list.
-            //
-            // The sizes of entryData and ids should be the same, due to
-            // the contract of identityService.getEntityOIDs.
-            retMap.put(ids.get(i), entryData.get(i).getEntityDTO().get());
-        }
-
-        return retMap;
+        return getOidsForObjects(entryData, immutableEntityDTOs);
     }
 
     @Override
@@ -485,6 +470,110 @@ public class IdentityProviderImpl implements IdentityProvider {
                         System.currentTimeMillis() - startTime, staleOids.size() - removedOids);
             }
         }
+    }
+
+    @Nonnull
+    @Override
+    public Map<Long, EntityIdentifyingPropertyValues> getIdsFromIdentifyingPropertiesValues(
+        final long probeId, @Nonnull final List<EntityIdentifyingPropertyValues> entityIdentifyingPropertyValues)
+        throws IdentityServiceException {
+        final List<EntityIdentifyingPropertyValues> immutableEntityIdentifyingPropertyValues =
+            ImmutableList.copyOf(Objects.requireNonNull(entityIdentifyingPropertyValues));
+        final List<EntryData> entryData = new ArrayList<>(immutableEntityIdentifyingPropertyValues.size());
+        final ServiceEntityIdentityMetadataStore probeMetadata = perProbeMetadata.get(probeId);
+        for (final EntityIdentifyingPropertyValues identifyingPropValues : immutableEntityIdentifyingPropertyValues) {
+            entryData.add(createEntryDataForEntityIdentifyingPropertyValues(identifyingPropValues, probeMetadata,
+                probeId));
+        }
+        return getOidsForObjects(entryData, immutableEntityIdentifyingPropertyValues);
+    }
+
+    private EntryData createEntryDataForEntityIdentifyingPropertyValues(
+        final EntityIdentifyingPropertyValues identifyingPropertyValues,
+        final ServiceEntityIdentityMetadataStore probeMetadata, final long probeId) throws IdentityServiceException {
+
+        final EntityDTO.EntityType entityType = getEntityTypeFromEntityIdentifyingPropertyValues(
+            identifyingPropertyValues);
+        final Map<String, String> identifyingProperties =
+            buildIdentifyingPropertiesMapFromEntityIdentifyingPropertyValues(identifyingPropertyValues, entityType);
+
+        final ServiceEntityIdentityMetadata entityMetadata = getEntityIdentityMetadataForEntityType(probeMetadata,
+            entityType, probeId);
+        final List<ServiceEntityProperty> entityVolatileProps = entityMetadata.getVolatileProperties();
+        final List<ServiceEntityProperty> entityNonVolatileProps = entityMetadata.getNonVolatileProperties();
+        final List<ServiceEntityProperty> entityHeuristicsProps = entityMetadata.getHeuristicProperties();
+
+        final EntityDescriptor descriptor = buildEntityDescriptor(identifyingProperties,
+            entityVolatileProps, entityNonVolatileProps, entityHeuristicsProps);
+        final EntityMetadataDescriptor metadataDescriptor = new ServiceEntityIdentityMetadata(
+            entityNonVolatileProps, entityVolatileProps, entityHeuristicsProps,
+            entityMetadata.getHeuristicThreshold());
+        return new EntryData(descriptor, metadataDescriptor, probeId, entityType);
+    }
+
+    private EntityDTO.EntityType getEntityTypeFromEntityIdentifyingPropertyValues(
+        final EntityIdentifyingPropertyValues identifyingPropertyValues) throws IdentityServiceException {
+        if (!identifyingPropertyValues.hasEntityType()) {
+            throw new IdentityServiceException("Entity type not set for EntityIdentifyingPropertyValues: "
+                + identifyingPropertyValues);
+        }
+        return identifyingPropertyValues.getEntityType();
+    }
+
+    private Map<String, String> buildIdentifyingPropertiesMapFromEntityIdentifyingPropertyValues(
+        final EntityIdentifyingPropertyValues identifyingPropertyValues, final EntityDTO.EntityType entityType)
+        throws IdentityServiceException {
+        final Map<String, String> identifyingProperties = new HashMap<>(
+            identifyingPropertyValues.getIdentifyingPropertyValuesMap());
+        final String entityTypeFieldName = entityType.getValueDescriptor().getType().getName();
+        if (!identifyingProperties.containsKey(entityTypeFieldName)) {
+            identifyingProperties.put(entityTypeFieldName, entityType.name());
+        } else {
+            if (!entityType.name().equals(identifyingProperties.get(entityTypeFieldName))) {
+                throw new IdentityServiceException(
+                    "Entity type value in the identifyingProperties does not match the type of entityType param.");
+            }
+        }
+        return identifyingProperties;
+    }
+
+    private ServiceEntityIdentityMetadata getEntityIdentityMetadataForEntityType(
+        final ServiceEntityIdentityMetadataStore probeMetadata, final EntityDTO.EntityType entityType,
+        final long probeId) throws IdentityServiceException {
+        final ServiceEntityIdentityMetadata entityMetadata = probeMetadata.getMetadata(entityType);
+        if (entityMetadata == null) {
+            throw new IdentityServiceException(
+                String.format("No Identity metadata registered for Entity type %s, probe id %s",
+                    entityType, probeId));
+        }
+        return entityMetadata;
+    }
+
+    private EntityDescriptor buildEntityDescriptor(final Map<String, String> identifyingProperties,
+                                                   final List<ServiceEntityProperty> entityVolatileProps,
+                                                   final List<ServiceEntityProperty> entityNonVolatileProps,
+                                                   final List<ServiceEntityProperty> entityHeuristicsProps)
+        throws IdentityServiceException {
+        final List<PropertyDescriptor> volatileProperties = extractProperties(identifyingProperties,
+            entityVolatileProps);
+        final List<PropertyDescriptor> nonVolatileProperties = extractProperties(identifyingProperties,
+            entityNonVolatileProps);
+        final List<PropertyDescriptor> heuristicsProperties = extractProperties(identifyingProperties,
+            entityHeuristicsProps);
+        return new EntityDescriptorImpl(nonVolatileProperties, volatileProperties, heuristicsProperties);
+    }
+
+    private <T> Map<Long, T> getOidsForObjects(final List<EntryData> entryData, final List<T> objects)
+        throws IdentityServiceException {
+        final List<Long> ids;
+        synchronized (identityServiceLock) {
+            ids = identityService.getOidsForObjects(entryData);
+        }
+        final Map<Long, T> result = new HashMap<>();
+        for (int i = 0; i < ids.size(); i++) {
+            result.put(ids.get(i), objects.get(i));
+        }
+        return result;
     }
 
     /**
