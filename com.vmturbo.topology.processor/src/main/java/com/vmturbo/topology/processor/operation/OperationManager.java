@@ -48,6 +48,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityIdentifyingPropertyValues;
 import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
@@ -1480,6 +1481,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                 entityStore.entitiesDiscovered(discovery.getProbeId(), targetId,
                                         discovery.getMediationMessageId(), discoveryType,
                                         response.getEntityDTOList());
+                                final List<EntityIdentifyingPropertyValues> entityIdentifyingPropertyValues =
+                                    response.getEntityIdentifyingPropertyValuesList();
+                                if (!entityIdentifyingPropertyValues.isEmpty()) {
+                                    entityStore.entityIdentifyingPropertyValuesDiscovered(discovery.getProbeId(),
+                                        discovery.getTargetId(), entityIdentifyingPropertyValues);
+                                }
                             } catch (DuplicateTargetException e) {
                                 logger.error("Detected duplicate for target {}: {}", targetId,
                                         e.getMessage());
