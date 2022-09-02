@@ -109,9 +109,9 @@ public class PropertiesMerger {
      */
     public Map<String, Integer> ontoPropertyMap(@Nonnull final EntityDTO.Builder onto) {
         return strategy == MergePropertiesStrategy.MERGE_NOTHING ? Collections.emptyMap()
-                : IntStream.range(0, onto.getEntityPropertiesList().size()).boxed().collect(
-                        Collectors.toMap(i -> createKey(onto.getEntityPropertiesList().get(i)),
-                                Function.identity()));
+                : IntStream.range(0, onto.getEntityPropertiesList().size()).boxed()
+                        .filter(j -> !SDKUtil.VC_TAGS_NAMESPACE.equals(onto.getEntityPropertiesList().get(j).getNamespace()))
+                        .collect(Collectors.toMap(i -> createKey(onto.getEntityPropertiesList().get(i)), Function.identity()));
     }
 
     private static String createKey(@Nonnull final EntityProperty property) {
