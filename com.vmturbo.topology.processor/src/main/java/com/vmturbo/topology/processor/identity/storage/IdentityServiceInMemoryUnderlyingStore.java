@@ -225,7 +225,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
     public void waitForInitializedStore() throws InterruptedException {
         synchronized (initializationLock) {
             while (!initialized) {
-                initializationLock.wait(initializationTimeoutMin * 60000L);
+                initializationLock.wait(initializationTimeoutMin * 60000);
             }
         }
     }
@@ -532,7 +532,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
             vmtPD = new EntityInMemoryProxyDescriptor(oid,
                     entryData.getDescriptor(),
                     entryData.getMetadata());
-            final EntityType entityType = entryData.getEntityType();
+            EntityType entityType = entryData.getEntityDTO().get().getEntityType();
             final IdentityRecord identityRecord = new IdentityRecord(entityType, vmtPD, entryData.getProbeId());
 
             //If the oid is present and the entity hasn't changed, do nothing

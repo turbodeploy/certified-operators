@@ -1,11 +1,12 @@
 package com.vmturbo.topology.processor.identity;
 
-import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
 
 /**
@@ -21,16 +22,22 @@ public class EntryData {
     // The ID of the probe of the target which discovered this entity.
     private final long probeId;
 
-    private final EntityType entityType;
+    /**
+     * The {@link EntityDTO} associated with this entry, if any.
+     * <p>
+     * Note - this is for convenience, so that users of {@link IdentityServiceUnderlyingStore}
+     * can keep track of which {@link EntityDTO}s are represented by which {@link EntryData}.
+     */
+    private final Optional<EntityDTO> entityDTO;
 
     public EntryData(@Nonnull final EntityDescriptor entityDescriptor,
                      @Nonnull final EntityMetadataDescriptor metadataDescriptor,
-                     final long probeId,
-                     @Nonnull final EntityType entityType) {
-        this.entityDescriptor = Objects.requireNonNull(entityDescriptor);
-        this.metadataDescriptor = Objects.requireNonNull(metadataDescriptor);
+                     @Nonnull final long probeId,
+                     @Nullable final EntityDTO entityDTO) {
+        this.entityDescriptor = entityDescriptor;
+        this.metadataDescriptor = metadataDescriptor;
         this.probeId = probeId;
-        this.entityType = Objects.requireNonNull(entityType);
+        this.entityDTO = Optional.ofNullable(entityDTO);
     }
 
     @Nonnull
@@ -43,12 +50,13 @@ public class EntryData {
         return metadataDescriptor;
     }
 
+    @Nonnull
     public long getProbeId() {
         return probeId;
     }
 
     @Nonnull
-    public EntityType getEntityType() {
-        return entityType;
+    public Optional<EntityDTO> getEntityDTO() {
+        return entityDTO;
     }
 }

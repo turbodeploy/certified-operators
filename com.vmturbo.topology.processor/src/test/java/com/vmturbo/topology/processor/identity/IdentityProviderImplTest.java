@@ -11,14 +11,12 @@ import static org.mockito.Mockito.when;
 import java.io.Writer;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import com.google.common.collect.ImmutableList;
 
 import org.jooq.DSLContext;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -33,7 +31,6 @@ import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityIdentifyingPropertyValues;
 import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata;
 import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata.PropertyMetadata;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -61,16 +58,11 @@ public class IdentityProviderImplTest {
 
     private ProbeInfo baseProbeInfo;
 
-    private final ProbeInfoCompatibilityChecker compatibilityChecker = mock(ProbeInfoCompatibilityChecker.class);
+    private ProbeInfoCompatibilityChecker compatibilityChecker = mock(ProbeInfoCompatibilityChecker.class);
 
     private final TopologyProcessorDBConfig dbConfig = mock(TopologyProcessorDBConfig.class);
 
     private final long assignedIdReloadReattemptIntervalSeconds = 0;
-
-    private long probeId;
-
-    private static final String ID_PROP = "id";
-    private static final String ENTITY_ID = "123";
 
     /**
      * Initializes the tests.
@@ -89,17 +81,6 @@ public class IdentityProviderImplTest {
             mock(StaleOidManagerImpl.class), false);
         identityProvider.getStore().initialize();
         baseProbeInfo = Probes.defaultProbe;
-        identityProvider.waitForInitializedStore();
-        final ProbeInfo probeInfo = ProbeInfo.newBuilder()
-            .setProbeType("test-probe-2")
-            .setProbeCategory("test-category-2")
-            .addEntityMetadata(
-                EntityIdentityMetadata.newBuilder()
-                    .setEntityType(EntityType.VIRTUAL_MACHINE)
-                    .addNonVolatileProperties(PropertyMetadata.newBuilder().setName(ID_PROP))
-            )
-            .build();
-        probeId = identityProvider.getProbeId(probeInfo);
     }
 
     /**
@@ -176,6 +157,15 @@ public class IdentityProviderImplTest {
      */
     @Test
     public void testGetEntityId() throws Exception {
+        identityProvider.waitForInitializedStore();
+        ProbeInfo probeInfo = ProbeInfo.newBuilder(baseProbeInfo)
+                .addEntityMetadata(
+                        EntityIdentityMetadata.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                                .addNonVolatileProperties(PropertyMetadata.newBuilder().setName("id"))
+                )
+                .build();
+        long probeId = identityProvider.getProbeId(probeInfo);
         EntityDTO entity = EntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE)
                 .setId("test")
@@ -206,6 +196,15 @@ public class IdentityProviderImplTest {
      */
     @Test
     public void testGetEntityIdFromProperties() throws Exception {
+        identityProvider.waitForInitializedStore();
+        ProbeInfo probeInfo = ProbeInfo.newBuilder(baseProbeInfo)
+                .addEntityMetadata(
+                        EntityIdentityMetadata.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                                .addNonVolatileProperties(PropertyMetadata.newBuilder().setName("id"))
+                )
+                .build();
+        long probeId = identityProvider.getProbeId(probeInfo);
         EntityDTO entity = EntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE)
                 .setId("test")
@@ -219,182 +218,21 @@ public class IdentityProviderImplTest {
         Map<String, String> identifyingProperties = new HashMap<String, String>();
         identifyingProperties.put("id", "test");
         identifyingProperties.put("displayName", "testName");
-        assertEquals(Optional.of(entityId),
+        assertEquals(Optional.of(Long.valueOf(entityId)),
                 identityProvider.getOidFromProperties(identifyingProperties, probeId, entity.getEntityType()));
         identifyingProperties.clear();
         // Entity with the same id and different name
         identifyingProperties.put("id", "test");
         identifyingProperties.put("displayName", "newTestName");
-        assertEquals(Optional.of(entityId),
+        assertEquals(Optional.of(Long.valueOf(entityId)),
                 identityProvider.getOidFromProperties(identifyingProperties, probeId, entity.getEntityType()));
         identifyingProperties.clear();
         // Entity with different id and same name
         identifyingProperties.put("id", "newTest");
         identifyingProperties.put("displayName", "testName");
         Optional<Long>  retrievedOid = identityProvider.getOidFromProperties(identifyingProperties, probeId, entity.getEntityType());
-        assertNotEquals(Optional.of(entityId), retrievedOid);
+        assertNotEquals(Optional.of(Long.valueOf(entityId)), retrievedOid);
         assertEquals(Optional.empty(), retrievedOid);
-    }
-
-    /**
-     * {@link IdentityProvider#getIdsFromIdentifyingPropertiesValues(long, List)}
-     * should return a Map with an oid for a provided {@link EntityIdentifyingPropertyValues} instance. When called a
-     * second time with the same input, the same oid must be returned.
-     */
-    @Test
-    public void testEntityIdentifyingPropertyValuesDiscoveredReturnSameOid() throws IdentityServiceException {
-        // given
-        final EntityIdentifyingPropertyValues identifyingPropertyValues = createIdentifyingPropertyValues(
-            EntityType.VIRTUAL_MACHINE, ID_PROP, ENTITY_ID);
-        // when
-        final Map<Long, EntityIdentifyingPropertyValues> ids = identityProvider.getIdsFromIdentifyingPropertiesValues(
-            probeId, Collections.singletonList(identifyingPropertyValues));
-        // then
-        Assert.assertEquals(1, ids.size());
-        final Map.Entry<Long, EntityIdentifyingPropertyValues> entry = ids.entrySet().iterator().next();
-        Assert.assertEquals(identifyingPropertyValues, entry.getValue());
-        final long oid = ids.keySet().iterator().next();
-
-        // Test that IdentityProvider#getIdsFromIdentifyingPropertiesValues returns the same OID when presented with the
-        // same instance of EntityIdentifyingPropertyValues
-        final Map<Long, EntityIdentifyingPropertyValues> roundTwoIds = identityProvider
-            .getIdsFromIdentifyingPropertiesValues(probeId, Collections.singletonList(identifyingPropertyValues));
-        Assert.assertEquals(oid, (long)roundTwoIds.keySet().iterator().next());
-    }
-
-    /**
-     * Test that when an {@link EntityDTO} is encountered with the same identifying properties as a
-     * {@link EntityIdentifyingPropertyValues} instance, then both resolve to the same OID.
-     */
-    @Test
-    public void testGetOidForEntityDTOAndIdentities() throws IdentityServiceException {
-        // given
-        final EntityDTO entityDTO = EntityDTO.newBuilder().setId(ENTITY_ID).setEntityType(EntityType.VIRTUAL_MACHINE)
-            .build();
-        final Map<Long, EntityDTO> entityId = identityProvider.getIdsForEntities(probeId,
-            Collections.singletonList(entityDTO));
-        final EntityIdentifyingPropertyValues identifyingPropertyValues = createIdentifyingPropertyValues(
-            EntityType.VIRTUAL_MACHINE, ID_PROP, ENTITY_ID);
-        // when
-        final Map<Long, EntityIdentifyingPropertyValues> identifyingPropertiesValuesId = identityProvider
-            .getIdsFromIdentifyingPropertiesValues(probeId, Collections.singletonList(identifyingPropertyValues));
-        // then
-        Assert.assertEquals(entityId.keySet(), identifyingPropertiesValuesId.keySet());
-    }
-
-    /**
-     * Test that when a property sent via {@link EntityIdentifyingPropertyValues} is not found in
-     * {@link EntityIdentityMetadata}, an {@link IdentityServiceException} is thrown.
-     *
-     * @throws Exception if test encounters an error.
-     */
-    @Test
-    public void testExceptionWithPropertyMismatch() throws Exception {
-        exception.expect(IdentityServiceException.class);
-        exception.expectMessage("Property id is not present in the input identifying properties");
-        final EntityIdentifyingPropertyValues identifyingPropertyValues =
-            createIdentifyingPropertyValues(EntityType.VIRTUAL_MACHINE, "displayName", "vm-1");
-        identityProvider.getIdsFromIdentifyingPropertiesValues(probeId,
-            Collections.singletonList(identifyingPropertyValues));
-    }
-
-    /**
-     * Test that when {@link EntityIdentityMetadata} is not provided for a given {@link EntityType} for a probe,
-     * {@link IdentityProvider#getIdsFromIdentifyingPropertiesValues(long, List)} throws an
-     * {@link IdentityServiceException}.
-     *
-     * @throws Exception if test encounters an error.
-     */
-    @Test
-    public void testExceptionNoIdentityMetadataRegistered() throws Exception {
-        exception.expect(IdentityServiceException.class);
-        exception.expectMessage("No Identity metadata registered for Entity type VIRTUAL_VOLUME");
-        final EntityIdentifyingPropertyValues identifyingPropertyValues =
-            createIdentifyingPropertyValues(EntityType.VIRTUAL_VOLUME, ID_PROP, ENTITY_ID);
-        identityProvider.getIdsFromIdentifyingPropertiesValues(probeId,
-            Collections.singletonList(identifyingPropertyValues));
-    }
-
-    /**
-     * Test that if {@link EntityIdentifyingPropertyValues} contains an empty
-     * {@link EntityIdentifyingPropertyValues#getIdentifyingPropertyValuesMap()}, then an
-     * {@link IdentityServiceException} is encountered.
-     *
-     * @throws Exception if test encounters an error.
-     */
-    @Test
-    public void testExceptionEmptyIdentityPropValuesMap() throws Exception {
-        exception.expect(IdentityServiceException.class);
-        exception.expectMessage("Property id is not present in the input identifying properties");
-        final EntityIdentifyingPropertyValues identifyingPropertyValues = EntityIdentifyingPropertyValues.newBuilder()
-            .setEntityId(ENTITY_ID).setEntityType(EntityType.VIRTUAL_MACHINE).build();
-        identityProvider.getIdsFromIdentifyingPropertiesValues(probeId,
-            Collections.singletonList(identifyingPropertyValues));
-    }
-
-    /**
-     * Test that if {@link EntityIdentifyingPropertyValues} does not have {@link EntityType} set, then an
-     * {@link IdentityServiceException} is encountered.
-     *
-     * @throws Exception if test encounters an error.
-     */
-    @Test
-    public void testExceptionEntityTypeNotSet() throws Exception {
-        exception.expect(IdentityServiceException.class);
-        exception.expectMessage("Entity type not set for EntityIdentifyingPropertyValues");
-        final EntityIdentifyingPropertyValues identifyingPropertyValues = EntityIdentifyingPropertyValues.newBuilder()
-            .setEntityId(ENTITY_ID).build();
-        identityProvider.getIdsFromIdentifyingPropertiesValues(probeId,
-            Collections.singletonList(identifyingPropertyValues));
-    }
-
-    /**
-     * Test that when 2 different probe types report the same identity metadata for an entity type, the OIDs returned by
-     * {@link IdentityProvider#getIdsFromIdentifyingPropertiesValues(long, List)} called with the first probe id are the
-     * same as the OIDs returned by {@link IdentityProvider#getIdsForEntities(long, List)} called with the second
-     * probe id, when the actual identifying property values are the same.
-     *
-     * @throws Exception if test encounters an error.
-     */
-    @Test
-    public void testOidRetainedAcrossDifferentProbes() throws Exception {
-        // register a new probe
-        final ProbeInfo probeInfo2 = ProbeInfo.newBuilder()
-            .setProbeType("test-probe-3")
-            .setProbeCategory("test-category-2")
-            .addEntityMetadata(
-                EntityIdentityMetadata.newBuilder()
-                    .setEntityType(EntityType.VIRTUAL_MACHINE)
-                    .addNonVolatileProperties(PropertyMetadata.newBuilder().setName(ID_PROP))
-            )
-            .build();
-        final long probeId2 = identityProvider.getProbeId(probeInfo2);
-        Assert.assertNotEquals(probeId2, probeId);
-
-        // retrieve OIDs using probe one
-        final EntityDTO entityDTO = EntityDTO.newBuilder().setId(ENTITY_ID)
-            .setEntityType(EntityType.VIRTUAL_MACHINE)
-            .build();
-        final Map<Long, EntityDTO> probeOneIds = identityProvider.getIdsForEntities(probeId,
-            Collections.singletonList(entityDTO));
-
-        // retrieve OIDs using probe two
-        final EntityIdentifyingPropertyValues identifyingPropertyValues = EntityIdentifyingPropertyValues.newBuilder()
-            .setEntityType(EntityType.VIRTUAL_MACHINE)
-            .putIdentifyingPropertyValues(ID_PROP, ENTITY_ID)
-            .setEntityId(ENTITY_ID).build();
-        final Map<Long, EntityIdentifyingPropertyValues> probeTwoIds = identityProvider
-            .getIdsFromIdentifyingPropertiesValues(probeId2, Collections.singletonList(identifyingPropertyValues));
-
-        Assert.assertEquals(probeOneIds.keySet(), probeTwoIds.keySet());
-    }
-
-    private EntityIdentifyingPropertyValues createIdentifyingPropertyValues(final EntityType entityType,
-                                                                            final String prop, final String val) {
-        return EntityIdentifyingPropertyValues.newBuilder()
-            .setEntityType(entityType)
-            .putIdentifyingPropertyValues(prop, val)
-            .build();
     }
 
     /**

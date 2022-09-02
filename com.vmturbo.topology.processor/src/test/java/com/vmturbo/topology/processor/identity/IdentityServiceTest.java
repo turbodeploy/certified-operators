@@ -253,9 +253,9 @@ public class IdentityServiceTest {
                 Collections.singletonList("Volatile2"),
                 Arrays.asList("Heuristic1", "Heuristic2"));
         EntityMetadataDescriptor metadataDescriptor = Mockito.mock(EntityMetadataDescriptor.class);
-        final EntityType entityType = entityDTO.getEntityType();
-        EntryData data1 = new EntryData(descriptor, metadataDescriptor, probeId, entityType);
-        EntryData data2 = new EntryData(descriptor, metadataDescriptor, probeId, entityType);
+
+        EntryData data1 = new EntryData(descriptor, metadataDescriptor, probeId, entityDTO);
+        EntryData data2 = new EntryData(descriptor, metadataDescriptor, probeId, entityDTO);
 
         List<Long> oids = idSvc.getOidsForObjects(Arrays.asList(data1, data2));
         Assert.assertEquals(oids.get(0), oids.get(1));
