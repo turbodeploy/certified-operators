@@ -78,7 +78,6 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
      *         assigning a new OIDs to entities.
      */
     @Override
-    @Nonnull
     public List<Long> getOidsForObjects(@Nonnull final List<EntryData> entries)
             throws IdentityServiceException {
         final List<Long> retList = new ArrayList<>(entries.size());
@@ -219,7 +218,7 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
                              final long probeId)
             throws IdentityServiceException {
         return getOidsForObjects(Collections.singletonList(
-            new EntryData(descriptor, metadataDescriptor, probeId, entityDTO.getEntityType()))).get(0);
+            new EntryData(descriptor, metadataDescriptor, probeId, entityDTO))).get(0);
     }
 
     /**

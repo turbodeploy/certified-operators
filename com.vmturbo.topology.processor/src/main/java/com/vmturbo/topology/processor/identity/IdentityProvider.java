@@ -18,7 +18,6 @@ import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityIdentifyingPropertyValues;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -166,16 +165,4 @@ public interface IdentityProvider extends DiagsRestorable<Void>, RequiresDataIni
             EntityDTO.EntityType entityType)
             throws IdentityServiceException, IdentityServiceStoreOperationException,
             IdentityUninitializedException;
-
-    /**
-     * Get or generate OIDs for provided identifyingPropertyValues.
-     *
-     * @param probeId from which identities are discovered.
-     * @param identifyingPropertyValues for which OIDs are to be retrieved or generated.
-     * @return A map from the assigned OID to the provided EntityIdentifyingPropertyValues instance.
-     * @throws IdentityServiceException if unable to fetch or persist the generated entity identities.
-     */
-    Map<Long, EntityIdentifyingPropertyValues> getIdsFromIdentifyingPropertiesValues(
-        long probeId, List<EntityIdentifyingPropertyValues> identifyingPropertyValues)
-        throws IdentityServiceException;
 }

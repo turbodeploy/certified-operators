@@ -65,7 +65,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PhysicalMachineData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityIdentifyingPropertyValues;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -196,24 +195,6 @@ public class EntityStoreTest {
         Assert.assertTrue(entityStore.getTargetEntityIdMap(targetId).isPresent());
         Assert.assertTrue(entityStore.getEntity(1L).isPresent());
         assertEquals(entitiesMap, entityStore.discoveredByTarget(targetId));
-    }
-
-    /**
-     * Test that {@link IdentityProvider#getIdsFromIdentifyingPropertiesValues(long, List)} is invoked
-     * when {@link EntityStore#entityIdentifyingPropertyValuesDiscovered(long, long, List)}
-     * is invoked with a non-empty list of {@link EntityIdentifyingPropertyValues}.
-     */
-    @Test
-    public void testEntityIdentifyingPropertyValuesDiscovered() throws IdentityServiceException {
-        final long probeId = 1L;
-        final List<EntityIdentifyingPropertyValues> identifyingPropertyValues = Collections.singletonList(
-            EntityIdentifyingPropertyValues.newBuilder()
-                .putIdentifyingPropertyValues("id", "123")
-                .setEntityType(EntityType.VIRTUAL_MACHINE)
-                .build());
-        entityStore.entityIdentifyingPropertyValuesDiscovered(probeId, 2L, identifyingPropertyValues);
-        Mockito.verify(identityProvider, Mockito.times(1)).getIdsFromIdentifyingPropertiesValues(probeId,
-            identifyingPropertyValues);
     }
 
     private EntityDTO createEntity(@Nonnull String id, @Nonnull EntityType entityType) {

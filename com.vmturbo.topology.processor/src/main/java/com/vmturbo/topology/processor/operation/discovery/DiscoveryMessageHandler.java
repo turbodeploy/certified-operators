@@ -62,8 +62,6 @@ public class DiscoveryMessageHandler extends OperationMessageHandler<Discovery, 
                             DiscoveryResponse.Builder::addAllStagesDetail)
                         .addRepeatedField(DiscoveryResponse::getCloudBillingDataList,
                                 DiscoveryResponse.Builder::addAllCloudBillingData)
-                        .addRepeatedField(DiscoveryResponse::getEntityIdentifyingPropertyValuesList,
-                                DiscoveryResponse.Builder::addAllEntityIdentifyingPropertyValues)
                         .build();
     }
 

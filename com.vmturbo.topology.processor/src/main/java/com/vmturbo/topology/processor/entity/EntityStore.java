@@ -71,7 +71,6 @@ import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.logmessagegrouper.LogMessageGrouper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityIdentifyingPropertyValues;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -880,23 +879,6 @@ public class EntityStore {
             }
         }
     }
-
-    /**
-     * Process entityIdentifyingPropertyValues by assigning OIDs to them and storing them to the repository.
-     *
-     * @param probeId of the probe by which the entityIdentifyingPropertyValues are discovered.
-     * @param targetId of the target from which the entityIdentifyingPropertyValues are discovered.
-     * @param entityIdentifyingPropertyValues that are being processed.
-     * @throws IdentityServiceException If error encountered while assigning OIDs.
-     */
-    public void entityIdentifyingPropertyValuesDiscovered(final long probeId, final long targetId,
-                                                          @Nonnull final List<EntityIdentifyingPropertyValues>
-                                                              entityIdentifyingPropertyValues)
-        throws IdentityServiceException {
-        identityProvider.getIdsFromIdentifyingPropertiesValues(probeId, Objects.requireNonNull(
-            entityIdentifyingPropertyValues));
-    }
-
 
     /**
      * Add entity information to the repository.
