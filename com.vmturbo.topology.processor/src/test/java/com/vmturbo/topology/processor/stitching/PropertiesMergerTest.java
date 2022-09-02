@@ -64,6 +64,23 @@ public class PropertiesMergerTest {
                     .setValue(VALUE)
                     .build());
 
+    private final EntityDTO.Builder duplicateKeyOnto = EntityDTO.newBuilder()
+            .addEntityProperties(EntityProperty.newBuilder()
+                    .setNamespace(SDKUtil.VC_TAGS_NAMESPACE)
+                    .setName(PROPERTY_1)
+                    .setValue(VALUE)
+                    .build())
+            .addEntityProperties(EntityProperty.newBuilder()
+                    .setNamespace(SDKUtil.VC_TAGS_NAMESPACE)
+                    .setName(PROPERTY_1)
+                    .setValue(NEW_VALUE)
+                    .build())
+            .addEntityProperties(EntityProperty.newBuilder()
+                    .setNamespace(EXISTING_NAMESPACE)
+                    .setName(PROPERTY_2)
+                    .setValue(VALUE)
+                    .build());
+
     /**
      * Test merging entity properties using
      * {@link com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MergePropertiesStrategy#MERGE_NOTHING}
@@ -146,5 +163,18 @@ public class PropertiesMergerTest {
                 .findFirst();
         Assert.assertTrue(property.isPresent());
         Assert.assertEquals(NEW_VALUE, property.get().getValue());
+    }
+
+    /**
+     * Test merging entity properties with duplicate property keys for VCTAGS namespace.
+     */
+    @Test
+    public void testMergeDuplicatePropertyKeys() {
+        final PropertiesMerger propertiesMerger = new PropertiesMerger(
+                MergePropertiesStrategy.MERGE_AND_OVERWRITE);
+        final Map<String, Integer> ontoPropertyMap = propertiesMerger.ontoPropertyMap(
+                duplicateKeyOnto);
+        Assert.assertTrue(ontoPropertyMap.size() == 1);
+        Assert.assertEquals(Integer.valueOf(2), ontoPropertyMap.get(EXISTING_NAMESPACE.concat("::").concat(PROPERTY_2)));
     }
 }
