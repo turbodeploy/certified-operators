@@ -36,7 +36,7 @@ import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsStateRecord;
-import com.vmturbo.cost.component.entity.scope.SQLCloudScopedStore;
+import com.vmturbo.cost.component.entity.scope.SQLEntityCloudScopedStore;
 import com.vmturbo.cost.component.savings.EntitySavingsException;
 import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.cost.component.savings.StateStore;
@@ -46,7 +46,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 /**
  * Implementation of EntityStateStore that persists data in entity_savings_state table.
  */
-public class SqlEntityStateStore extends SQLCloudScopedStore implements EntityStateStore<DSLContext>,
+public class SqlEntityStateStore extends SQLEntityCloudScopedStore implements EntityStateStore<DSLContext>,
         StateStore {
 
     private final Logger logger = LogManager.getLogger();

@@ -32,7 +32,7 @@ import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.common.data.TimeInterval;
-import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
+import com.vmturbo.cloud.common.entity.scope.EntityCloudScopeStore;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -81,7 +81,7 @@ public class TopologyEventsPollerTest {
 
     private final ComputeTierAllocationStore computeTierAllocationStore = mock(ComputeTierAllocationStore.class);
 
-    private final CloudScopeStore cloudScopeStore = mock(CloudScopeStore.class);
+    private final EntityCloudScopeStore cloudScopeStore = mock(EntityCloudScopeStore.class);
 
     private  CCATopologyEventProvider topologyEventProvider = mock(CCATopologyEventProvider.class);
 

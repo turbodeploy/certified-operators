@@ -19,13 +19,13 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.cloud.common.data.TimeInterval;
-import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
 import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
+import com.vmturbo.cloud.common.entity.scope.EntityCloudScopeStore;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
 
 public class InMemoryEntityUptimeStoreTest {
 
-    private CloudScopeStore cloudScopeStore = mock(CloudScopeStore.class);
+    private EntityCloudScopeStore cloudScopeStore = mock(EntityCloudScopeStore.class);
 
     private InMemoryEntityUptimeStore entityUptimeStore;
 

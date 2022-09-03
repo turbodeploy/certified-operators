@@ -25,8 +25,8 @@ import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore.EntityComputeTierAllocationSet;
 import com.vmturbo.cloud.common.data.TimeInterval;
-import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
 import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
+import com.vmturbo.cloud.common.entity.scope.EntityCloudScopeStore;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
@@ -47,7 +47,7 @@ public class CCATopologyEventProviderTest {
 
     private ComputeTierAllocationStore computeTierAllocationStore = mock(ComputeTierAllocationStore.class);
 
-    private CloudScopeStore cloudScopeStore = mock(CloudScopeStore.class);
+    private EntityCloudScopeStore cloudScopeStore = mock(EntityCloudScopeStore.class);
 
     private CCATopologyEventProvider topologyEventProvider;
 

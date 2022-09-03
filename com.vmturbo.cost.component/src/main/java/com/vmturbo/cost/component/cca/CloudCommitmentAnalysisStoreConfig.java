@@ -20,7 +20,7 @@ import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWr
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriterImpl;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.db.DbAccessConfig;
-import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
+import com.vmturbo.cost.component.entity.scope.SQLEntityCloudScopeStore;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.event.library.TopologyEventProvider;
 
@@ -95,9 +95,9 @@ public class CloudCommitmentAnalysisStoreConfig {
      * @return An instance of the CloudScopeStore.
      */
     @Bean
-    public SQLCloudScopeStore cloudScopeStore() {
+    public SQLEntityCloudScopeStore cloudScopeStore() {
         try {
-            return new SQLCloudScopeStore(dbAccessConfig.dsl(), cloudScopeCleanupScheduler(),
+            return new SQLEntityCloudScopeStore(dbAccessConfig.dsl(), cloudScopeCleanupScheduler(),
                     Duration.ofSeconds(cloudScopeCleanupPeriodSeconds), recordCommitBatchSize,
                     recordFetchBatchSize);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {

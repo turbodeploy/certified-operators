@@ -14,7 +14,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.cloud.common.data.TimeInterval;
-import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
+import com.vmturbo.cloud.common.entity.scope.EntityCloudScopeStore;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
 
 /**
@@ -22,7 +22,7 @@ import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
  */
 public class InMemoryEntityUptimeStore implements EntityUptimeStore {
 
-    private final CloudScopeStore cloudScopeStore;
+    private final EntityCloudScopeStore cloudScopeStore;
 
     private final EntityUptime defaultUptime;
 
@@ -34,12 +34,12 @@ public class InMemoryEntityUptimeStore implements EntityUptimeStore {
 
     /**
      * Constructs a new in-memory entity uptime store.
-     * @param cloudScopeStore The {@link CloudScopeStore}, used to resolve entities in scope
+     * @param cloudScopeStore The {@link EntityCloudScopeStore}, used to resolve entities in scope
      *                        of a query.
      * @param defaultUptime The default uptime to return, in the event the store does not have an uptime
      *                      calculation for a specific entity. This value may be null.
      */
-    public InMemoryEntityUptimeStore(@Nonnull CloudScopeStore cloudScopeStore,
+    public InMemoryEntityUptimeStore(@Nonnull EntityCloudScopeStore cloudScopeStore,
                                      @Nullable EntityUptime defaultUptime) {
         this.cloudScopeStore = Objects.requireNonNull(cloudScopeStore);
         this.defaultUptime = defaultUptime;
