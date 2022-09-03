@@ -6,6 +6,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 
@@ -84,7 +85,15 @@ public interface DurationStatistics {
      */
     class Collector {
 
+        private final LongSummaryStatistics secondsStats = new LongSummaryStatistics();
+
         private final LongSummaryStatistics nanosecondStats = new LongSummaryStatistics();
+
+        @Nullable
+        private Duration maxDuration = null;
+
+        @Nullable
+        private Duration minDuration = null;
 
         private final ReadWriteLock statsLock = new ReentrantReadWriteLock();
 
@@ -101,7 +110,16 @@ public interface DurationStatistics {
             statsLock.writeLock().lock();
             try {
                 // long summary stats is not thread safe
-                nanosecondStats.accept(duration.toNanos());
+                secondsStats.accept(duration.getSeconds());
+                nanosecondStats.accept(duration.getNano());
+
+                if (maxDuration == null || maxDuration.compareTo(duration) < 0) {
+                    maxDuration = duration;
+                }
+
+                if (minDuration == null || minDuration.compareTo(duration) > 0) {
+                    minDuration = duration;
+                }
             } finally {
                 statsLock.writeLock().unlock();
             }
@@ -117,11 +135,11 @@ public interface DurationStatistics {
             statsLock.readLock().lock();
             try {
                 return DurationStatistics.builder()
-                        .sum(Duration.ofNanos(nanosecondStats.getSum()))
-                        .average(Duration.ofNanos((long)nanosecondStats.getAverage()))
-                        .max(Duration.ofNanos(nanosecondStats.getMax()))
-                        .min(Duration.ofNanos(nanosecondStats.getMin()))
-                        .count(nanosecondStats.getCount())
+                        .sum(Duration.ofSeconds(secondsStats.getSum(), nanosecondStats.getSum()))
+                        .average(Duration.ofSeconds((long)secondsStats.getAverage(), (long)nanosecondStats.getAverage()))
+                        .max(maxDuration == null ? Duration.ZERO : maxDuration)
+                        .min(minDuration == null ? Duration.ZERO : minDuration)
+                        .count(secondsStats.getCount())
                         .build();
             } finally {
                 statsLock.readLock().unlock();
