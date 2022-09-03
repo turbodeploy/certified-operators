@@ -2,7 +2,6 @@ package com.vmturbo.cost.component.entity.scope;
 
 import java.time.Duration;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -33,8 +32,8 @@ import org.jooq.impl.DSL;
 import org.jooq.impl.TableImpl;
 import org.springframework.scheduling.TaskScheduler;
 
-import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
 import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
+import com.vmturbo.cloud.common.entity.scope.EntityCloudScopeStore;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
 import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
@@ -44,9 +43,9 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
- * An implementation of {@link CloudScopeStore}, backed by a SQL table.
+ * An implementation of {@link EntityCloudScopeStore}, backed by a SQL table.
  */
-public class SQLCloudScopeStore implements CloudScopeStore,
+public class SQLEntityCloudScopeStore implements EntityCloudScopeStore,
         TableDiagsRestorable<Object, EntityCloudScopeRecord> {
 
     /**
@@ -81,17 +80,17 @@ public class SQLCloudScopeStore implements CloudScopeStore,
     private final int pre816ColumnCount = 6;
 
     /**
-     * Creates a {@link SQLCloudScopeStore} instance.
+     * Creates a {@link SQLEntityCloudScopeStore} instance.
      * @param dslContext The {@link DSLContext} to use in querying and deleting cloud scope records.
      * @param taskScheduler A {@link TaskScheduler}, used to schedule invocations of {@link #cleanupCloudScopeRecords()}.
      * @param cleanupInterval The interval at which {@link #cleanupCloudScopeRecords()} should be invoked.
      * @param batchCleanupSize The number of records that should be deleted in a single SQL query during cleanup.
      */
-    public SQLCloudScopeStore(@Nonnull DSLContext dslContext,
-                              @Nonnull TaskScheduler taskScheduler,
-                              @Nonnull Duration cleanupInterval,
-                              int batchCleanupSize,
-                              int batchFetchSize) {
+    public SQLEntityCloudScopeStore(@Nonnull DSLContext dslContext,
+                                    @Nonnull TaskScheduler taskScheduler,
+                                    @Nonnull Duration cleanupInterval,
+                                    int batchCleanupSize,
+                                    int batchFetchSize) {
 
         Preconditions.checkArgument(batchCleanupSize >= 0, "Batch cleanup size must be >= 0");
         Preconditions.checkArgument(batchFetchSize >= 0, "Batch fetch size must be >= 0");
@@ -124,7 +123,7 @@ public class SQLCloudScopeStore implements CloudScopeStore,
                 selectJoinStep = selectJoinStep.leftAntiJoin(foreignKeyTable).using(Tables.ENTITY_CLOUD_SCOPE.ENTITY_OID);
             }
 
-            try (final Stream<Long> entityOidStream = selectJoinStep.stream().map(Record1::component1)) {
+            try (Stream<Long> entityOidStream = selectJoinStep.stream().map(Record1::component1)) {
                 Iterators.partition(entityOidStream.iterator(), batchCleanupSize).forEachRemaining(entityOidsToDelete -> {
                     try {
                         final int batchRecordsDelete = dslContext.deleteFrom(Tables.ENTITY_CLOUD_SCOPE)

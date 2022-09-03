@@ -14,7 +14,7 @@ import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
  * when the entity is removed from the topology. This store allows other dependent stores to track
  * historical entity data and support queries based on a cloud scope.
  */
-public interface CloudScopeStore {
+public interface EntityCloudScopeStore {
 
 
     /**

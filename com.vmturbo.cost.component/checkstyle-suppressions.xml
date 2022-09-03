@@ -26,8 +26,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]InvalidEntityCostsException.java"/>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]PlanProjectedEntityCostConverter.java"/>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]SqlEntityCostStore.java"/>
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]scope[/\\]CloudScopedStore.java"/>
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]scope[/\\]SQLCloudScopeStore.java"/>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]expenses[/\\]AccountExpenseNotFoundException.java"/>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]expenses[/\\]AccountExpensesInfoConverter.java"/>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]expenses[/\\]AccountExpensesStore.java"/>
@@ -125,7 +123,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]PlanProjectedEntityCostStoreTest.java"/>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]ProjectedEntityCostStoreTest.java"/>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]SqlEntityCostStoreTest.java"/>
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]scope[/\\]SQLCloudScopeStoreTest.java"/>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]expenses[/\\]SqlAccountExpensesStoreTest.java"/>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]flyway[/\\]CostFlywayCallbackTest.java"/>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]pricing[/\\]PricingRpcServiceTest.java"/>

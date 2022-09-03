@@ -16,17 +16,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 
-import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 
 /**
- * An abstract implementation of a SQL-backed store that is dependent on the {@link CloudScopeStore}.
- * As a SQL implementation, all subclasses extending {@link SQLCloudScopedStore} are expected to have
+ * An abstract implementation of a SQL-backed store that is dependent on the {@link EntityCloudScopedStore}.
+ * As a SQL implementation, all subclasses extending {@link SQLEntityCloudScopedStore} are expected to have
  * a foreign key relationship on the {@link com.vmturbo.cost.component.db.Tables#ENTITY_CLOUD_SCOPE}
  * table.
  */
-public abstract class SQLCloudScopedStore implements CloudScopedStore {
+public abstract class SQLEntityCloudScopedStore implements EntityCloudScopedStore {
 
     private final Logger logger = LogManager.getLogger();
 
@@ -35,7 +34,7 @@ public abstract class SQLCloudScopedStore implements CloudScopedStore {
     protected final int batchInsertionSize;
 
 
-    protected SQLCloudScopedStore(@Nonnull DSLContext dslContext,
+    protected SQLEntityCloudScopedStore(@Nonnull DSLContext dslContext,
                                   int batchInsertionSize) {
         this.dslContext = Objects.requireNonNull(dslContext);
         this.batchInsertionSize = batchInsertionSize;

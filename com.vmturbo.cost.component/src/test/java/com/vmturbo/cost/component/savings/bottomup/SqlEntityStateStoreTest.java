@@ -52,7 +52,7 @@ import com.vmturbo.cost.component.db.tables.AggregationMetaData;
 import com.vmturbo.cost.component.db.tables.EntitySavingsByDay;
 import com.vmturbo.cost.component.db.tables.EntitySavingsByMonth;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
-import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
+import com.vmturbo.cost.component.entity.scope.SQLEntityCloudScopeStore;
 import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
@@ -108,7 +108,7 @@ public class SqlEntityStateStoreTest extends MultiDbTestBase {
     /**
      * Cloud scope store.
      */
-    private SQLCloudScopeStore cloudScopeStore;
+    private SQLEntityCloudScopeStore cloudScopeStore;
 
     private final Set<Long> uuids = Collections.emptySet();
 
@@ -120,7 +120,7 @@ public class SqlEntityStateStoreTest extends MultiDbTestBase {
     @Before
     public void setup() throws Exception {
         store = new SqlEntityStateStore(dsl, 2);
-        cloudScopeStore = new SQLCloudScopeStore(
+        cloudScopeStore = new SQLEntityCloudScopeStore(
                 dsl, mock(TaskScheduler.class), Duration.ZERO, 100, 100);
     }
 

@@ -29,7 +29,7 @@ import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationS
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore.EntityComputeTierAllocationSet;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.common.data.TimeInterval;
-import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
+import com.vmturbo.cloud.common.entity.scope.EntityCloudScopeStore;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudScopeFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -54,7 +54,7 @@ public class CCATopologyEventProvider implements TopologyEventProvider, ComputeT
 
     private final ComputeTierAllocationStore computeTierAllocationStore;
 
-    private final CloudScopeStore cloudScopeStore;
+    private final EntityCloudScopeStore cloudScopeStore;
 
     private final List<TopologyEventUpdateListener> updateListeners = new ArrayList<>();
 
@@ -66,11 +66,11 @@ public class CCATopologyEventProvider implements TopologyEventProvider, ComputeT
      * Constructs a new CCA topology event provider instance.
      * @param computeTierAllocationStore The {@link ComputeTierAllocationStore}, containing CCA data
      *                                   for workloads buying from compute tiers (VMs).
-     * @param cloudScopeStore The {@link CloudScopeStore}, used to infer the discovery time of an
+     * @param cloudScopeStore The {@link EntityCloudScopeStore}, used to infer the discovery time of an
      *                        entity as a stand-in for the creation time.
      */
     public CCATopologyEventProvider(@Nonnull ComputeTierAllocationStore computeTierAllocationStore,
-                                    @Nonnull CloudScopeStore cloudScopeStore) {
+                                    @Nonnull EntityCloudScopeStore cloudScopeStore) {
         this.computeTierAllocationStore = Objects.requireNonNull(computeTierAllocationStore);
         this.cloudScopeStore = Objects.requireNonNull(cloudScopeStore);
 

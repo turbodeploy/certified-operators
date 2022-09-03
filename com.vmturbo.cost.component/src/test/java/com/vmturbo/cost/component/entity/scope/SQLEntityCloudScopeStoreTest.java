@@ -49,8 +49,8 @@ import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.component.cca.SQLComputeTierAllocationStore;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
@@ -70,7 +70,7 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.MultiDbTestBase;
 
 @RunWith(Parameterized.class)
-public class SQLCloudScopeStoreTest extends MultiDbTestBase {
+public class SQLEntityCloudScopeStoreTest extends MultiDbTestBase {
     /**
      * Provide test parameters.
      *
@@ -92,7 +92,7 @@ public class SQLCloudScopeStoreTest extends MultiDbTestBase {
      * @throws UnsupportedDialectException if dialect is bogus
      * @throws InterruptedException        if we're interrupted
      */
-    public SQLCloudScopeStoreTest(boolean configurableDbDialect, SQLDialect dialect)
+    public SQLEntityCloudScopeStoreTest(boolean configurableDbDialect, SQLDialect dialect)
             throws SQLException, UnsupportedDialectException, InterruptedException {
         super(Cost.COST, configurableDbDialect, dialect, "cost",
                 TestCostDbEndpointConfig::costEndpoint);
@@ -101,7 +101,7 @@ public class SQLCloudScopeStoreTest extends MultiDbTestBase {
 
     private final Logger logger = LogManager.getLogger();
 
-    private SQLCloudScopeStore cloudScopeStore;
+    private SQLEntityCloudScopeStore cloudScopeStore;
 
     /**
      * Entity State Store.
@@ -144,7 +144,7 @@ public class SQLCloudScopeStoreTest extends MultiDbTestBase {
     @Before
     public void before() {
         entityStateStore = new SqlEntityStateStore(dsl, 100);
-        cloudScopeStore = new SQLCloudScopeStore(
+        cloudScopeStore = new SQLEntityCloudScopeStore(
                 dsl, mock(TaskScheduler.class), Duration.ZERO, 100, 100);
         computeTierAllocationStore = new SQLComputeTierAllocationStore(dsl, mockTopologyTracker,
                 MoreExecutors.newDirectExecutorService(),
@@ -207,7 +207,7 @@ public class SQLCloudScopeStoreTest extends MultiDbTestBase {
         computeTierAllocationStore.deleteAllocations(deleteFilter);
 
         // Cleanup cloud scope records
-        long numCloudScopeRecordsRemoved = cloudScopeStore.cleanupCloudScopeRecords();
+        final long numCloudScopeRecordsRemoved = cloudScopeStore.cleanupCloudScopeRecords();
 
         final Set<EntityCloudScope> cloudScopeSetAfterDeletion = new HashSet<>();
         cloudScopeStore.streamAll(cloudScopeSetAfterDeletion::add);
@@ -260,12 +260,12 @@ public class SQLCloudScopeStoreTest extends MultiDbTestBase {
         computeTierAllocationStore.deleteAllocations(deleteFilter);
 
         // Cleanup cloud scope records
-        numCloudScopeRecordsRemoved = cloudScopeStore.cleanupCloudScopeRecords();
+        final long numRecordsRemovedSecondInvocation = cloudScopeStore.cleanupCloudScopeRecords();
 
         final Set<EntityCloudScope> cloudScopeSetAfterDeletion2ndTime = new HashSet<>();
         cloudScopeStore.streamAll(cloudScopeSetAfterDeletion2ndTime::add);
 
-        assertThat(numCloudScopeRecordsRemoved, equalTo(0L));
+        assertThat(numRecordsRemovedSecondInvocation, equalTo(0L));
         assertThat(cloudScopeSetAfterDeletion2ndTime, hasSize(2));
         List<Long> entityOidsInScopeTable = cloudScopeSetAfterDeletion2ndTime.stream()
                 .map(EntityCloudScope::entityOid).collect(Collectors.toList());

@@ -36,7 +36,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
-import com.vmturbo.cost.component.entity.scope.SQLCloudScopedStore;
+import com.vmturbo.cost.component.entity.scope.SQLEntityCloudScopedStore;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.savings.calculator.Calculator;
@@ -49,7 +49,7 @@ import com.vmturbo.repository.api.RepositoryClient;
 /**
  * Processes a chunk of entity stats for a set of given time periods.
  */
-public class SavingsTracker extends SQLCloudScopedStore implements ScenarioDataHandler {
+public class SavingsTracker extends SQLEntityCloudScopedStore implements ScenarioDataHandler {
     private final Logger logger = LogManager.getLogger();
 
     /**

@@ -17,7 +17,7 @@ import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 
 import com.vmturbo.cloud.common.data.BoundedDuration;
-import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
+import com.vmturbo.cloud.common.entity.scope.EntityCloudScopeStore;
 import com.vmturbo.common.protobuf.cost.EntityUptimeREST.EntityUptimeServiceController;
 import com.vmturbo.topology.event.library.TopologyEventProvider;
 
@@ -30,7 +30,7 @@ public class EntityUptimeSpringConfig {
     private final Logger logger = LogManager.getLogger();
 
     @Autowired
-    private CloudScopeStore cloudScopeStore;
+    private EntityCloudScopeStore cloudScopeStore;
 
     @Autowired
     private TopologyEventProvider topologyEventProvider;
