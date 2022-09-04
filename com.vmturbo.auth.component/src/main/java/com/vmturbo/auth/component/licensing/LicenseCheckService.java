@@ -113,14 +113,14 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     public static final String LICENSE_IS_ABOUT_TO_EXPIRE = "License is about to expire";
 
     @VisibleForTesting
-    public static final String TURBONOMIC_LICENSE_WILL_EXPIRE = "The product license on your" +
-        " instance %s will expire tomorrow, %s. To keep using the full power of" +
+    public static final String TURBONOMIC_LICENSE_WILL_EXPIRE = "The product license with name" +
+        " %s will expire tomorrow, %s. To keep using the full power of" +
         " this product, be sure to install an updated license. To obtain a license, contact your" +
         " sales representative or authorized dealer.";
 
     @VisibleForTesting
-    public static final String TURBONOMIC_LICENSE_IS_MISSING = "Your instance (%s) has no " +
-            "license, or your license has expired. Please install a valid license. To obtain a license, " +
+    public static final String TURBONOMIC_LICENSE_IS_MISSING = "The product has no valid license " +
+            "or license has expired. Please install a valid license. To obtain a license, " +
             "contact your sales representative or authorized dealer.";
 
     @VisibleForTesting
@@ -289,8 +289,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
 
             // if no licenses at this point, use the "no license" summary
             if (licenseDTOs.isEmpty()) {
-                notifyUI(String.format(TURBONOMIC_LICENSE_IS_MISSING, AuditLogUtils.getLocalIpAddress()),
-                    LICENSE_IS_MISSING);
+                notifyUI(String.format(TURBONOMIC_LICENSE_IS_MISSING), LICENSE_IS_MISSING);
             } else {
                 // get the workload count
                 Optional<LicensedEntitiesCount> licensedEntitiesCount =
@@ -406,7 +405,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
             final String expirationDate = LicenseUtil.getExpirationDate(licenseDTO);
             if (isGoingToExpire(expirationDate, numBeforeLicenseExpirationDays)) {
                 final String description = String.format(TURBONOMIC_LICENSE_WILL_EXPIRE,
-                        AuditLogUtils.getLocalIpAddress(), expirationDate);
+                        licenseDTO.getFilename(), expirationDate);
                 notifyLicenseExpiration(description, LICENSE_IS_ABOUT_TO_EXPIRE, licenseDTO);
             }
             licensedEntitiesCount
