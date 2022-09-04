@@ -267,7 +267,7 @@ public class LicenseCheckServiceTest {
                 .build();
         licenseCheckService.publishNotification(Collections.singleton(license), Optional.empty());
         final String description = String.format(LicenseCheckService.TURBONOMIC_LICENSE_WILL_EXPIRE,
-            AuditLogUtils.getLocalIpAddress(), expirationDate);
+                license.getFilename(), expirationDate);
         final SystemNotification notification = notification(description, LicenseCheckService.LICENSE_IS_ABOUT_TO_EXPIRE);
         verify(systemNotificationIMessageSender).sendMessage(notification);
         verify(mailManager).sendMail(Collections.singletonList(EMAIL),
@@ -283,10 +283,9 @@ public class LicenseCheckServiceTest {
     public void testEmptyLicense() throws Exception {
         when(licenseManagerService.getLicenses()).thenReturn(Collections.emptyList());
         licenseCheckService.checkLicensesForNotification();
-        SystemNotification notification =
-                    notification(String.format(LicenseCheckService.TURBONOMIC_LICENSE_IS_MISSING,
-                            AuditLogUtils.getLocalIpAddress()),
-                        LicenseCheckService.LICENSE_IS_MISSING);
+        SystemNotification notification = notification(
+                String.format(LicenseCheckService.TURBONOMIC_LICENSE_IS_MISSING),
+                LicenseCheckService.LICENSE_IS_MISSING);
         verify(systemNotificationIMessageSender).sendMessage(notification);
         verify(mailManager, never()).sendMail(anyList(), any(), any());
     }
