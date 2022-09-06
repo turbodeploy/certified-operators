@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/providers/Microsoft.Billing/billingAccounts/095c59bb-6d31-5f7d-98e2-40193a9b47ce:2d73379e-a5b1-412e-9d41-38a8236f47d1_2019-05-31/billingProfiles/2N7B-VHO5-BG7-PGB/providers/Microsoft.CostManagement/operationResults/cb3c0174-8f6c-4387-b3f7-462cf423299d?sessiontoken=0:1098434&api-version=2022-02-01-preview&OperationType=PriceSheet"
+  },
+  "response": {
+    "status": 200,
+    "body": "{\"locationHeaderUri\":null,\"asyncHeaderUri\":null,\"operationId\":null,\"errorMessage\":null,\"publishedEntity\":{\"id\":\"/providers/Microsoft.CostManagement/billingAccounts/095c59bb-6d31-5f7d-98e2-40193a9b47ce/pricesheets/default\",\"name\":\"default\",\"type\":\"Microsoft.Billing/pricesheets\",\"eTag\":null,\"properties\":{\"downloadUrl\":\"http://management.azure.com/armgtmpricesheets/Pricesheet_095c59bb-6d31-5f7d-98e2-40193a9b47ce_2N7B-VHO5-BG7-PGB_2022-07-01_2022-07-28.zip?sv=2016-05-31&sr=b&sig=aPXDtPG5LOe5QVIT%2FZi6x8vjCKpKq9T91H6kAAJNxG4%3D&spr=http&st=2022-07-28T14%3A40%3A19Z&se=2022-07-28T15%3A45%3A19Z&sp=r\",\"expiryTime\":\"07/28/2022 15:45:19\"}}}",
+    "headers": {
+      "Cache-Control": "no-cache",
+      "Pragma": "no-cache",
+      "Transfer-Encoding": "chunked",
+      "Content-Type": "application/json; charset=utf-8",
+      "Expires": "-1",
+      "Vary": "Accept-Encoding,Accept-Encoding",
+      "session-id": "e63b9c1c-c5a0-49a5-9231-65f6fbb1dc33",
+      "x-ms-request-id": "66ffdcb9-66d1-4e4c-851e-d18cba50d0cb",
+      "x-ms-correlation-id": "0f49b28e-4e05-427b-a1dc-eb12a4270463",
+      "x-ms-correlation-request-id": "89e248ea-4cbd-4885-8dea-979b08ffad99",
+      "x-ms-client-request-id": "95ce8f46-4a52-4afa-950c-96ee3c34a727",
+      "X-Powered-By": "ASP.NET",
+      "x-ms-ratelimit-remaining-tenant-reads": "11999",
+      "x-ms-routing-request-id": "CANADAEAST:20220728T144536Z:89e248ea-4cbd-4885-8dea-979b08ffad99",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+      "X-Content-Type-Options": "nosniff",
+      "Date": "Thu, 28 Jul 2022 14:45:36 GMT"
+    }
+  }
+}

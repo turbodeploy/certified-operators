@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/providers/Microsoft.Billing/billingAccounts/095c59bb-6d31-5f7d-98e2-40193a9b47ce:2d73379e-a5b1-412e-9d41-38a8236f47d1_2019-05-31/billingProfiles/2N7B-VHO5-BG7-PGB/providers/Microsoft.CostManagement/pricesheets/default/download?api-version=2022-02-01-preview&format=csv"
+  },
+  "response": {
+    "status": 202,
+    "body": "",
+    "headers": {
+      "Cache-Control": "no-cache",
+      "Pragma": "no-cache",
+      "Expires": "-1",
+      "Location": "http://management.azure.com/providers/Microsoft.Billing/billingAccounts/095c59bb-6d31-5f7d-98e2-40193a9b47ce:2d73379e-a5b1-412e-9d41-38a8236f47d1_2019-05-31/billingProfiles/2N7B-VHO5-BG7-PGB/providers/Microsoft.CostManagement/operationResults/cb3c0174-8f6c-4387-b3f7-462cf423299d?sessiontoken=0:1098431&api-version=2022-02-01-preview&OperationType=PriceSheet",
+      "Retry-After": "1",
+      "session-id": "9f4f4d93-2633-46c7-89dc-dd82cf3f2deb",
+      "x-ms-request-id": "9fb1a251-985a-4233-a81d-626e336fae39",
+      "x-ms-correlation-id": "28bacb82-0c54-4564-859f-b4a151f60ee4",
+      "Azure-Consumption-AsyncOperation": "http://management.azure.com:443/providers/Microsoft.Billing/billingAccounts/095c59bb-6d31-5f7d-98e2-40193a9b47ce:2d73379e-a5b1-412e-9d41-38a8236f47d1_2019-05-31/billingProfiles/2N7B-VHO5-BG7-PGB/providers/Microsoft.CostManagement/operationStatus/cb3c0174-8f6c-4387-b3f7-462cf423299d?sessiontoken=0:1098431&api-version=2022-02-01-preview&OperationType=PriceSheet",
+      "Azure-AsyncOperation": "http://management.azure.com:443/providers/Microsoft.Billing/billingAccounts/095c59bb-6d31-5f7d-98e2-40193a9b47ce:2d73379e-a5b1-412e-9d41-38a8236f47d1_2019-05-31/billingProfiles/2N7B-VHO5-BG7-PGB/providers/Microsoft.CostManagement/operationStatus/cb3c0174-8f6c-4387-b3f7-462cf423299d?sessiontoken=0:1098431&api-version=2022-02-01-preview&OperationType=PriceSheet",
+      "OData-EntityId": "cb3c0174-8f6c-4387-b3f7-462cf423299d",
+      "x-ms-correlation-request-id": "44d47de4-e484-41ec-a48a-e035c2309880",
+      "x-ms-client-request-id": "be296a59-64b7-46c5-a67d-3022cd58dc85",
+      "X-Powered-By": "ASP.NET",
+      "x-ms-ratelimit-remaining-tenant-writes": "1199",
+      "x-ms-routing-request-id": "CANADAEAST:20220728T144141Z:44d47de4-e484-41ec-a48a-e035c2309880",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+      "X-Content-Type-Options": "nosniff",
+      "Date": "Thu, 28 Jul 2022 14:41:41 GMT",
+      "Content-Length": "0"
+    }
+  }
+}

@@ -26,11 +26,18 @@ public class AzurePricingAccount extends BaseAzureSubscriptionAccount {
         targetId = true)
     private final String mcaBillingProfileId;
 
+    @AccountValue(
+            displayName = "Azure Plan ID",
+            description = "Azure Plan ID",
+            targetId = true)
+    private final String planId;
+
     /**
      * Constructor.
      *
      * @param mcaBillingAccountId MCA Billing Account ID.
-     * @param mcaBillingProfileId  MCA Billing Profile ID.
+     * @param mcaBillingProfileId MCA Billing Profile ID.
+     * @param planId        Azure Plan ID.
      * @param name          Target name.
      * @param tenant        Tenant ID.
      * @param client        Client ID.
@@ -42,19 +49,23 @@ public class AzurePricingAccount extends BaseAzureSubscriptionAccount {
      * @param proxyPassword - proxy password
      * @param secureProxy   - a flag to use SSL for proxy.
      */
-    private AzurePricingAccount(
-        @Nonnull final String mcaBillingAccountId,
-        @Nonnull final String mcaBillingProfileId,
-        @Nonnull final String name,
-        @Nonnull final String tenant,
-        @Nonnull final String client,
-        @Nonnull final String key,
-        @Nonnull final String cloudType,
-        @Nullable final String proxyHost, final int proxyPort,
-        @Nullable final String proxyUser, @Nullable final String proxyPassword, final boolean secureProxy) {
+    public AzurePricingAccount(
+            @Nonnull final String mcaBillingAccountId,
+            @Nonnull final String mcaBillingProfileId,
+            @Nonnull final String planId,
+            @Nonnull final String name,
+            @Nonnull final String tenant,
+            @Nonnull final String client,
+            @Nonnull final String key,
+            @Nonnull final String cloudType,
+            @Nullable final String proxyHost, final int proxyPort,
+            @Nullable final String proxyUser,
+            @Nullable final String proxyPassword,
+            final boolean secureProxy) {
         super(name, tenant, client, key, cloudType, proxyHost, proxyPort, proxyUser, proxyPassword, secureProxy);
         this.mcaBillingAccountId = mcaBillingAccountId;
         this.mcaBillingProfileId = mcaBillingProfileId;
+        this.planId = planId;
     }
 
     /**
@@ -62,7 +73,7 @@ public class AzurePricingAccount extends BaseAzureSubscriptionAccount {
      */
     @SuppressWarnings("unused")
     private AzurePricingAccount() {
-        this("", "", "", "", "", "", "", null, 0, null, null, false);
+        this("", "", "", "", "", "", "", "", null, 0, null, null, false);
     }
 
 
@@ -82,6 +93,15 @@ public class AzurePricingAccount extends BaseAzureSubscriptionAccount {
      */
     public String getMcaBillingProfileId() {
         return mcaBillingProfileId;
+    }
+
+    /**
+     * Get the Azure Pricing Plan ID.
+     *
+     * @return the Azure Pricing Plan ID.
+     */
+    public String getPlanId() {
+        return planId;
     }
 
     @Override
