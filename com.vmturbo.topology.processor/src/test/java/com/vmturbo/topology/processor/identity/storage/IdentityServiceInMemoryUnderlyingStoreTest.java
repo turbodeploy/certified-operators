@@ -105,7 +105,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         try (IdentityRecordsOperation transaction = store.createTransaction()) {
             transaction.addEntry(firstOID,
                     new EntryData(entityDescriptor, mock(EntityMetadataDescriptor.class), probeId,
-                            vmDTO));
+                            vmDTO.getEntityType()));
         }
         long oid = store.lookupByIdentifyingSet(entityDescriptor.getNonVolatileProperties(mock(EntityMetadataDescriptor.class)),
                                                 entityDescriptor.getVolatileProperties(mock(EntityMetadataDescriptor.class)));
@@ -133,7 +133,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         try (IdentityRecordsOperation transaction = store.createTransaction()) {
             transaction.addEntry(firstOID,
                     new EntryData(entityDescriptor, mock(EntityMetadataDescriptor.class), probeId,
-                            vmDTO));
+                            vmDTO.getEntityType()));
         }
 
         long oid = store.lookupByIdentifyingSet(entityDescriptor.getNonVolatileProperties(mock(EntityMetadataDescriptor.class)),
@@ -162,7 +162,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         try (IdentityRecordsOperation transaction = store.createTransaction()) {
             transaction.addEntry(firstOID,
                     new EntryData(entityDescriptor, mock(EntityMetadataDescriptor.class), probeId,
-                            vmDTO));
+                            vmDTO.getEntityType()));
         }
 
         Assert.assertEquals(1, identityCache.getOids().size() - iSizeCache);
@@ -184,7 +184,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         try (IdentityRecordsOperation transaction = store.createTransaction()) {
             transaction.addEntry(firstOID,
                     new EntryData(entityDescriptor, mock(EntityMetadataDescriptor.class), probeId,
-                            vmDTO));
+                            vmDTO.getEntityType()));
         }
         Assert.assertEquals(1, identityCache.getOids().size() - iSizeoid2Dto);
         store.removeEntry(firstOID);
@@ -207,7 +207,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         try (IdentityRecordsOperation transaction = store.createTransaction()) {
             transaction.addEntry(firstOID,
                     new EntryData(entityDescriptor, mock(EntityMetadataDescriptor.class), probeId,
-                            vmDTO));
+                            vmDTO.getEntityType()));
         }
         Assert.assertEquals(1, identityCache.getOids().size() - iSizeoid2Dto);
         store.removeEntry(secondOID);
@@ -233,7 +233,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         try (IdentityRecordsOperation transaction = store.createTransaction()) {
             transaction.addEntry(firstOID,
                     new EntryData(entityDescriptor, mock(EntityMetadataDescriptor.class), probeId,
-                            vmDTO));
+                            vmDTO.getEntityType()));
         }
 
         assertTrue(store.containsOID(firstOID));
@@ -251,7 +251,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         EntryData data1 = mock(EntryData.class);
         EntityDTO entityDTO =
                 EntityDTO.newBuilder().setId("999").setEntityType(EntityType.VIRTUAL_MACHINE).build();
-        when(data1.getEntityDTO()).thenReturn(Optional.of(entityDTO));
+        when(data1.getEntityType()).thenReturn(entityDTO.getEntityType());
         when(data1.getProbeId()).thenReturn(probeId);
         when(data1.getDescriptor()).thenReturn(
                 new EntityDescriptorMock(Arrays.asList("VM"),
@@ -266,7 +266,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
                         Arrays.asList("VM_Heuristics")));
         when(data2.getProbeId()).thenReturn(probeId);
         when(data2.getMetadata()).thenReturn(mock(EntityMetadataDescriptor.class));
-        when(data2.getEntityDTO()).thenReturn(Optional.of(entityDTO));
+        when(data2.getEntityType()).thenReturn(entityDTO.getEntityType());
 
         try (IdentityRecordsOperation transaction = store.createTransaction()) {
             transaction.addEntry(firstOID, data1);
@@ -295,7 +295,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
                         new ArrayList<String>(),
                         Arrays.asList("VM_Heuristics")));
         when(data.getProbeId()).thenReturn(probeId);
-        when(data.getEntityDTO()).thenReturn(Optional.of(entityDTO));
+        when(data.getEntityType()).thenReturn(entityDTO.getEntityType());
         when(data.getMetadata()).thenReturn(mock(EntityMetadataDescriptor.class));
 
         try {
@@ -412,7 +412,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
                 new EntityDescriptorMock(Arrays.asList("VM"), Collections.emptyList(),
                         Arrays.asList("VM_Heuristics")));
         when(data1.getMetadata()).thenReturn(mock(EntityMetadataDescriptor.class));
-        when(data1.getEntityDTO()).thenReturn(Optional.of(entityDTO));
+        when(data1.getEntityType()).thenReturn(entityDTO.getEntityType());
         when(data1.getProbeId()).thenReturn(probeId);
 
         final EntryData data2 = mock(EntryData.class);
@@ -421,7 +421,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
                         Collections.emptyList(),
                         Arrays.asList("VM_Heuristics")));
         when(data2.getMetadata()).thenReturn(mock(EntityMetadataDescriptor.class));
-        when(data2.getEntityDTO()).thenReturn(Optional.of(entityDTO));
+        when(data2.getEntityType()).thenReturn(entityDTO.getEntityType());
         when(data2.getProbeId()).thenReturn(probeId);
 
         try (IdentityRecordsOperation transaction = store.createTransaction()) {
