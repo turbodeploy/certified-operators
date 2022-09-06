@@ -159,6 +159,10 @@
                                     <converter>com.vmturbo.sql.utils.LocalDateConverter</converter>
                                 </customType>
                                 <customType>
+                                    <name>java.time.Instant</name>
+                                    <converter>com.vmturbo.sql.utils.InstantDateTimeConverter</converter>
+                                </customType>
+                                <customType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.EntityCost</name>
                                     <converter>com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostConverter</converter>
                                 </customType>
@@ -195,6 +199,11 @@
                                     <!-- DATE columns named *_date -->
                                     <name>java.time.LocalDate</name>
                                     <expression>.*\..*_date</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <!-- DATETime columns named *_ts_utc -->
+                                    <name>java.time.Instant</name>
+                                    <expression>.*\..*_ts_utc</expression>
                                 </forcedType>
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.EntityCost</name>
