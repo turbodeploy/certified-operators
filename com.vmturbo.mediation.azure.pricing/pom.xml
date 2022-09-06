@@ -42,7 +42,6 @@
             <version>${revision}</version>
         </dependency>
 
-
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.components.common</artifactId>
@@ -54,7 +53,6 @@
                 </exclusion>
             </exclusions>
         </dependency>
-
 
         <!-- tool -->
         <dependency>
@@ -92,6 +90,11 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.tomakehurst</groupId>
+            <artifactId>wiremock-jre8</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/armgtmpricesheets/Pricesheet_095c59bb-6d31-5f7d-98e2-40193a9b47ce_2N7B-VHO5-BG7-PGB_2022-07-01_2022-07-28.zip?sv=2016-05-31&sr=b&sig=aPXDtPG5LOe5QVIT%2FZi6x8vjCKpKq9T91H6kAAJNxG4%3D&spr=http&st=2022-07-28T14%3A40%3A19Z&se=2022-07-28T15%3A45%3A19Z&sp=r"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Length": "4060",
+      "Content-Type": "application/octet-stream",
+      "Content-MD5": "uQN2l+DGgbYpxAT3SrKUwg==",
+      "Last-Modified": "Thu, 28 Jul 2022 14:45:19 GMT",
+      "Accept-Ranges": "bytes",
+      "ETag": "\"0x8DA70A7CB16837C\"",
+      "Vary": "Origin",
+      "Server": "Windows-Azure-Blob/1.0 Microsoft-HTTPAPI/2.0",
+      "x-ms-request-id": "8cf7f9a3-a01e-007b-0691-a2309e000000",
+      "x-ms-version": "2016-05-31",
+      "x-ms-lease-status": "unlocked",
+      "x-ms-lease-state": "available",
+      "x-ms-blob-type": "BlockBlob",
+      "x-ms-server-encrypted": "true",
+      "Date": "Thu, 28 Jul 2022 14:50:26 GMT"
+    },
+    "bodyFileName": "pricesheet.zip"
+  }
+}
