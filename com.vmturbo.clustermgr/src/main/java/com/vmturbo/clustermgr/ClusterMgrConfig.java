@@ -61,8 +61,8 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     /**
      * Instance ID property name.
      *
-     * <p>This is also retrieved from consul and used in telemetry data sent to DataCloud. It's
-     * fine if it's shown to the customer that owns the instance, but it's important that other
+     * <p>This is also retrieved from consul and used in telemetry data sent to a central location.
+     * It's fine if it's shown to the customer that owns the instance, but it's important that other
      * customers or 3rd parties can't learn or guess the instance ID of one customer's instance.</p>
      */
     public static final String INSTANCE_ID_NAME = "instanceID";

@@ -95,7 +95,7 @@ global:
     scrapeInterval: 1d
     # Currently, XL components export ~300 metrics or ~3k time series. 10k should be big enough to
     # support growth, but still prevent a bug from creating millions of new time series, flooding
-    # DataCloud and incurring high costs.
+    # our data warehouse solution and incurring high costs.
     sampleLimit: 10000
     # Only send metrics whose name matches this regular expression.
     # Please seek the security team guidance and review before changing this regular expression.
