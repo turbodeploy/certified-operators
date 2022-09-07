@@ -3,6 +3,10 @@ T8C-Operator Changelog
 
 Operator Versions
 ---------------------
+42.16
+1. Fixed a bug where prometheus-server pod would get stuck in `ContainerCreating` state in 
+   Kubernetes `1.14.3`.
+
 42.15
 1. Inject NAMESPACE into the API component environment for use by the telemetry API.
 2. Add helm charts for Azure Pricing Probe.
