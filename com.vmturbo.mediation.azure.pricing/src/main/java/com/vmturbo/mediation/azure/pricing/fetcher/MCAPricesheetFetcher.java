@@ -183,6 +183,8 @@ public class MCAPricesheetFetcher implements PricingFileFetcher<AzurePricingAcco
         LOGGER.debug("URL: {}", url);
         CloseableHttpResponse response;
 
+        LOGGER.info("Requesting generation of pricing download file.");
+
         response = connector.getHttpResponseFromAzure(
                 url, HttpMethod.POST, "", ContentType.APPLICATION_JSON, headers);
         int statusCode = response.getStatusLine().getStatusCode();
