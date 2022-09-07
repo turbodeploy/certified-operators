@@ -23,6 +23,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.commons.Units;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
  * A savings graph is a data structure used for savings calculation. It is a representation of a
@@ -106,8 +108,8 @@ public class SavingsGraph {
                 if (action.getInfo().getScale().getCommodityResizesCount() > 0) {
                     action.getInfo().getScale().getCommodityResizesList().forEach(c ->
                         commodityResizes.add(new CommodityResize.Builder()
-                                .oldCapacity(c.getOldCapacity())
-                                .newCapacity(c.getNewCapacity())
+                                .oldCapacity(convertCommodityUnit(c.getOldCapacity(), c.getCommodityType().getType()))
+                                .newCapacity(convertCommodityUnit(c.getNewCapacity(), c.getCommodityType().getType()))
                                 .commodityType(c.getCommodityType().getType())
                                 .build())
                     );
@@ -142,6 +144,22 @@ public class SavingsGraph {
                         .build());
             }
         }
+    }
+
+    /**
+     * Convert the unit of storage amount and IO throughput to the ones used in the bill.
+     * Convert storage amount from MB to GB and IO throughput from byte/s to MBps.
+     *
+     * @param capacity capacity of the commodity
+     * @param commType commodity type
+     * @return capacity after conversion
+     */
+    private double convertCommodityUnit(double capacity, int commType) {
+        if (commType == CommodityType.STORAGE_AMOUNT_VALUE
+                || commType == CommodityType.IO_THROUGHPUT_VALUE) {
+            return capacity / Units.KIBI;
+        }
+        return capacity;
     }
 
     /**

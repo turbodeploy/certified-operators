@@ -119,6 +119,18 @@ public class ScenarioGenerator {
                                 .build());
                     }
                 }
+            } else if ("EXTMOD".equals(event.eventType)) {
+                NavigableSet<ExecutedActionsChangeWindow> changeWindows = actionChains.get(oid);
+                if (changeWindows != null) {
+                    ExecutedActionsChangeWindow lastAction = changeWindows.pollLast();
+                    if (lastAction != null) {
+                        logger.info("External modification time: {} entity OID: {}", actionDateTime, oid);
+                        changeWindows.add(lastAction.toBuilder()
+                                .setEndTime(event.timestamp)
+                                .setLivenessState(LivenessState.EXTERNAL_MODIFICATION)
+                                .build());
+                    }
+                }
             }
         }
         return actionChains;

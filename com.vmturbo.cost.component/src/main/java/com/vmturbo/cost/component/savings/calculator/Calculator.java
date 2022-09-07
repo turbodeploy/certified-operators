@@ -7,15 +7,18 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NavigableSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -161,7 +164,7 @@ public class Calculator {
             SavingsGraph savingsGraph, Set<BillingRecord> billRecords) {
         logger.debug("Calculating savings for entity {} for date {}.", entityOid, date);
         // Use the high-low graph and the bill records to determine the billing segments in the day.
-        List<Segment> segments = createBillingSegments(
+        NavigableSet<Segment> segments = createBillingSegments(
                 date.toInstant(ZoneOffset.UTC).toEpochMilli(), savingsGraph, billRecords);
         if (logger.isDebugEnabled()) {
             StringBuilder debugText = new StringBuilder();
@@ -185,14 +188,14 @@ public class Calculator {
                         .map(r -> r.getCost() * segment.commTypeToMultiplierMap.getOrDefault(r.getCommodityType(), 1.0))
                         .reduce(0d, Double::sum);
                 double investments = Math.max(0,
-                        costForProviderInSegment - dataPoint.getLowWatermark() * TimeUnit.MILLISECONDS.toHours(segment.duration));
+                        costForProviderInSegment - dataPoint.getLowWatermark() * segment.duration / MILLIS_IN_HOUR);
                 double savings = calculateSavings(billRecords, dataPoint, costForProviderInSegment, segment.duration);
                 totalDailyInvestments += investments;
                 totalDailySavings += savings;
             } else if (segment.actionDataPoint instanceof DeleteActionDataPoint) {
                 DeleteActionDataPoint deleteActionDataPoint = (DeleteActionDataPoint)segment.actionDataPoint;
                 double savingsPerHour = deleteActionDataPoint.savingsPerHour();
-                totalDailySavings += savingsPerHour * TimeUnit.MILLISECONDS.toHours(segment.duration);
+                totalDailySavings += savingsPerHour * segment.duration / MILLIS_IN_HOUR;
             }
         }
 
@@ -207,7 +210,7 @@ public class Calculator {
 
     private double calculateSavings(Set<BillingRecord> billRecords, ScaleActionDataPoint dataPoint,
             final double costForProviderInSegment, long segmentDurationMillis) {
-        double segmentDurationHours = TimeUnit.MILLISECONDS.toHours(segmentDurationMillis);
+        double segmentDurationHours = (double)(segmentDurationMillis) / MILLIS_IN_HOUR;
         double adjustedCostOfProvider = costForProviderInSegment;
         // check if the entity is covered by RI on the day
         boolean isEntityRICovered = billRecords.stream()
@@ -231,7 +234,7 @@ public class Calculator {
         return Math.max(0, (dataPoint.getHighWatermark() * segmentDurationHours - adjustedCostOfProvider));
     }
 
-    private List<Segment> createBillingSegments(long datestamp, SavingsGraph savingsGraph,
+    private NavigableSet<Segment> createBillingSegments(long datestamp, SavingsGraph savingsGraph,
             Set<BillingRecord> billRecords) {
         long segmentStart = datestamp;
         long segmentEnd;
@@ -253,11 +256,11 @@ public class Calculator {
                 logger.error("When creating segments for {}, found no watermark data points at or "
                         + "before this time, and there are no other actions executed on this day.",
                         LocalDateTime.ofInstant(Instant.ofEpochMilli(datestamp), ZoneOffset.UTC));
-                return Collections.emptyList();
+                return Collections.emptyNavigableSet();
             }
         }
 
-        final List<Segment> segments = new ArrayList<>();
+        final TreeSet<Segment> segments = new TreeSet<>(Comparator.comparingLong(s -> s.getActionDataPoint().getTimestamp()));
         // If there are one or more actions executed on this day, loop through the points.
         for (ActionDataPoint actionDatapoint : dataPointsInDay) {
             // If first point is at exactly the beginning of day (edge case), or no actions were
@@ -306,7 +309,13 @@ public class Calculator {
                 int commType = commodityResize.getCommodityType();
                 if (!capacityMap.containsKey(commType)) {
                     capacityMap.put(commType, new TreeMap<>());
-                    capacityMap.get(commType).put(datestamp, commodityResize.getOldCapacity());
+                    // Put the capacity before the first action of the day in the map.
+                    // To find the before action capacity, find the entry in the map that is strictly
+                    // less than the timestamp of the action.
+                    // Key is the timestamp for the beginning of the day minus 1 so that even if the
+                    // action is executed at exactly the beginning of the day, it can still find an
+                    // entry strictly lower than it.
+                    capacityMap.get(commType).put(datestamp - 1, commodityResize.getOldCapacity());
                 }
                 capacityMap.get(commType).put(action.getTimestamp(), commodityResize.getNewCapacity());
             }
@@ -320,7 +329,7 @@ public class Calculator {
      * @param segments all segments in the day
      * @param billRecords all bill records for the day
      */
-    private void assignDurationAndMultiplier(List<Segment> segments, Set<BillingRecord> billRecords,
+    private void assignDurationAndMultiplier(NavigableSet<Segment> segments, Set<BillingRecord> billRecords,
             long startOfDay, SortedSet<ActionDataPoint> dataPointsInDay) {
         Map<Long, List<Segment>> segmentsByProvider = segments.stream()
                 .collect(Collectors.groupingBy(s -> s.getActionDataPoint().getDestinationProviderOid()));
@@ -331,24 +340,13 @@ public class Calculator {
                     .filter(r -> r.getProviderId() == providerId)
                     .collect(Collectors.groupingBy(BillingRecord::getCommodityType));
 
-            // If there are no bill records for the specified provider, the segment duration is 0
-            // because this segment is not billed. The exception is for delete actions which accrue
-            // savings by not getting billed.
-            if (recordsByCommType.isEmpty()) {
-                for (Segment segment : providerSegmentsEntry.getValue()) {
-                    if (!(segment.getActionDataPoint() instanceof DeleteActionDataPoint)) {
-                        segment.duration = 0;
-                    }
-                }
-            }
-
             // If the first segment for the day is for this provider and it did not start from
             // the beginning of the day and the provider before the first segment is the same as
             // the first segment, we need to account for the time and cost incurred
             // before the first segment.
             long providerRemoveUsageBeforeFirstSegment = 0;
-            if (!segments.isEmpty() && segments.get(0).getActionDataPoint() instanceof ScaleActionDataPoint) {
-                ScaleActionDataPoint firstSegment = (ScaleActionDataPoint)segments.get(0).getActionDataPoint();
+            if (!segments.isEmpty() && segments.first().getActionDataPoint() instanceof ScaleActionDataPoint) {
+                ScaleActionDataPoint firstSegment = (ScaleActionDataPoint)segments.first().getActionDataPoint();
                 if (firstSegment.getTimestamp() > startOfDay
                         && providerId == firstSegment.getDestinationProviderOid()
                         && firstSegment.getSourceProviderOid() == firstSegment.getDestinationProviderOid()) {
@@ -410,8 +408,15 @@ public class Calculator {
                                     // first segment (of any provider) for the day and it does not
                                     // start at the beginning of the day.
                                     if (providerRemoveUsageBeforeFirstSegment == providerId) {
-                                        timeBeforeFirstSegment = (segments.get(0).getActionDataPoint().getTimestamp() - startOfDay);
+                                        timeBeforeFirstSegment = (segments.first().getActionDataPoint().getTimestamp() - startOfDay);
                                         totalTimeOnProvider += timeBeforeFirstSegment;
+                                    }
+                                    // If the previous segment is a revert or external modification and the before and after providers
+                                    // are the same for this segment, assume the previous segment was running on the same provider
+                                    // for the whole segment. Include the time of the previous segment to the time on provider.
+                                    Segment previousSegment = segments.lower(segment);
+                                    if (isPrevSegmentSameProvider(segment, previousSegment)) {
+                                        totalTimeOnProvider += previousSegment.duration;
                                     }
                                 }
                                 double multiplier = totalTimeOnProvider != 0
@@ -427,20 +432,44 @@ public class Calculator {
                             } else {
                                 long segmentStartTime = Math.max(scaleActionDataPoint.getTimestamp(), startOfDay);
                                 if (isFirstSegmentForProvider && providerRemoveUsageBeforeFirstSegment == providerId) {
+                                    if (commCapMap.get(commType).lowerEntry(segmentStartTime) == null) {
+                                        // Defensive check. Should not happen.
+                                        continue;
+                                    }
                                     double oldCapacity = commCapMap.get(commType).lowerEntry(segmentStartTime).getValue();
                                     if (commType == CommodityType.STORAGE_AMOUNT_VALUE) {
                                         oldCapacity = adjustStorageAmount(oldCapacity, recordsByCommType.get(commType));
                                     }
                                     usageRemaining -= oldCapacity
-                                            * TimeUnit.MILLISECONDS.toHours(segment.getActionDataPoint().getTimestamp() - startOfDay);
+                                            * (segment.getActionDataPoint().getTimestamp() - startOfDay) / MILLIS_IN_HOUR;
                                 }
+
+                                // If the previous segment is a revert or external modification and the before and after providers
+                                // are the same for this segment, assume the previous segment was running on the same provider
+                                // for the whole segment. Remove the usage amount from the usageRemaining variable.
+                                Segment previousSegment = segments.lower(segment);
+                                if (isPrevSegmentSameProvider(segment, previousSegment)) {
+                                    if (commCapMap.get(commType).lowerEntry(segmentStartTime) == null) {
+                                        // Defensive check. Should not happen.
+                                        continue;
+                                    }
+                                    double oldCapacity = commCapMap.get(commType).lowerEntry(segmentStartTime).getValue();
+                                    if (commType == CommodityType.STORAGE_AMOUNT_VALUE) {
+                                        oldCapacity = adjustStorageAmount(oldCapacity, recordsByCommType.get(commType));
+                                    }
+                                    usageRemaining -= oldCapacity * previousSegment.getDuration() / MILLIS_IN_HOUR;
+                                }
+
+                                // Calculate the product of quantity, duration and rate for entities that have varying rates.
+                                setQdrForSegment(scaleActionDataPoint, commTypeEntry.getValue(), segment);
+
                                 double newCapacity = commCapMap.get(commType).floorEntry(segmentStartTime).getValue();
                                 if (commType == CommodityType.STORAGE_AMOUNT_VALUE) {
                                     newCapacity = adjustStorageAmount(newCapacity, recordsByCommType.get(commType));
                                 }
                                 double quantityTimesHours = newCapacity * segment.duration / MILLIS_IN_HOUR;
                                 if (usageRemaining - quantityTimesHours < 0) {
-                                    segment.duration = Double.valueOf(usageRemaining / newCapacity).longValue() * MILLIS_IN_HOUR;
+                                    segment.duration = Double.valueOf(usageRemaining / newCapacity * MILLIS_IN_HOUR).longValue();
                                     quantityTimesHours = newCapacity * segment.duration / MILLIS_IN_HOUR;
                                 }
                                 segment.commTypeToMultiplierMap.put(commType, quantityTimesHours / totalUsageBilled);
@@ -454,6 +483,112 @@ public class Calculator {
                 }
             }
         }
+
+        // Adjust the multiplier for entities that have varying rates.
+        adjustMultiplierForEntitiesVaryingRates(segments, segmentsByProvider, startOfDay);
+    }
+
+    /**
+     * The cost of storage amount can increase as the size of the volume increase, even if the volume
+     * is still in the same service provider. If an entity only has one bill record for each day
+     * and it is for storage amount, we set the product of the quantity, segment duration and the
+     * cost per hour per GB in the segment. It will be used to calculate the multiplier.
+     *
+     * @param scaleActionDataPoint action data point
+     * @param recordsForComm records for the entity for the day
+     * @param segment the segment
+     */
+    private void setQdrForSegment(ScaleActionDataPoint scaleActionDataPoint, List<BillingRecord> recordsForComm, Segment segment) {
+        // If the bill only has record for one commodity type and it is storage amount,
+        // store the value of quantity x duration x after-action rate per hour (QDR) in the segment.
+        if (recordsForComm.size() == 1
+                && recordsForComm.get(0).getCommodityType() == CommodityType.STORAGE_AMOUNT_VALUE) {
+            Optional<CommodityResize> storageAmountResize = scaleActionDataPoint.getCommodityResizes().stream()
+                    .filter(r -> r.getCommodityType() == CommodityType.STORAGE_AMOUNT_VALUE)
+                    .findFirst();
+            if (storageAmountResize.isPresent()) {
+                double newCapacity = storageAmountResize.get().getNewCapacity();
+                double afterActionRatePerGBPerHour = scaleActionDataPoint.getDestinationOnDemandCost() / newCapacity;
+                segment.qdr = newCapacity * segment.duration / MILLIS_IN_HOUR * afterActionRatePerGBPerHour;
+            }
+        }
+    }
+
+    /**
+     * This method update the multiplier for segments of entities (mainly volumes) that have varying
+     * rate for storage amount.
+     * QDR is the quantity, segment duration and the cost per hour per GB in the segment.
+     * Multiplier = QDR of the segment / (sum of QDR of all segments of the same provider for the day)
+     *
+     * @param segments segments
+     * @param segmentsByProvider a map of provider ID to segments
+     * @param startOfDay timestamp of the start of the day
+     */
+    private void adjustMultiplierForEntitiesVaryingRates(NavigableSet<Segment> segments,
+            Map<Long, List<Segment>> segmentsByProvider, long startOfDay) {
+        // Loop over all providers -> segment,
+        // for each segment for each commodity, if the QDR variable is set, change the multiplier to
+        // multiplier = QDR / sum(QDR of all segments of this provider)
+        for (Entry<Long, List<Segment>> providerSegmentsEntry : segmentsByProvider.entrySet()) {
+            double totalQdr = segments.stream()
+                    .filter(s -> s.getActionDataPoint().getDestinationProviderOid() == providerSegmentsEntry.getKey())
+                    .map(s -> s.qdr)
+                    .reduce(0d, Double::sum);
+            // If segment is first segment of the day, add qdr of the period before the segment to the total.
+            ActionDataPoint firstAction = segments.first().actionDataPoint;
+            if (firstAction.getTimestamp() > startOfDay && firstAction instanceof ScaleActionDataPoint
+                    && firstAction.getDestinationProviderOid() == providerSegmentsEntry.getKey()) {
+                ScaleActionDataPoint scaleActionDataPoint = (ScaleActionDataPoint)segments.first().actionDataPoint;
+                double duration = (double)(firstAction.getTimestamp() - startOfDay) / MILLIS_IN_HOUR;
+                double quantityTimesRate = scaleActionDataPoint.getBeforeActionCost();
+                totalQdr += duration * quantityTimesRate;
+            }
+            // Go through each segment of this provider. If a segment is preceded by an action
+            // termination (revert or external modification) event and the current action does not
+            // involve change of provider, we include the QDR of the previous segment in the total.
+            for (Segment segment : providerSegmentsEntry.getValue()) {
+                if (!(segment.getActionDataPoint() instanceof ScaleActionDataPoint)) {
+                    continue;
+                }
+                Segment previousSegment = segments.lower(segment);
+                if (isPrevSegmentSameProvider(segment, previousSegment)) {
+                    ScaleActionDataPoint scaleActionDataPoint = (ScaleActionDataPoint)segment.getActionDataPoint();
+                    double duration = previousSegment.duration;
+                    double quantityTimesRate = scaleActionDataPoint.getBeforeActionCost();
+                    totalQdr += duration * quantityTimesRate;
+                }
+            }
+            if (totalQdr == 0) {
+                continue;
+            }
+            for (Segment segment : providerSegmentsEntry.getValue()) {
+                if (!(segment.getActionDataPoint() instanceof ScaleActionDataPoint)) {
+                    continue;
+                }
+                if (segment.qdr != 0) {
+                    double multiplier = segment.qdr / totalQdr;
+                    segment.commTypeToMultiplierMap.put(CommodityType.STORAGE_AMOUNT_VALUE, multiplier);
+                }
+            }
+        }
+    }
+
+    /**
+     * Return true is previous segment is associated with an action termination event (revert or
+     * external modification) but the previous segment has the same provider as the current segment.
+     * This condition check is for determining if the bill record includes the usage of the previous
+     * segment.
+     *
+     * @param segment current segment
+     * @param previousSegment previous segment
+     * @return true is previous segment is associated with an action termination event (revert or
+     *      * external modification) but the previous segment has the same provider as the current segment.
+     */
+    private boolean isPrevSegmentSameProvider(Segment segment, Segment previousSegment) {
+        ScaleActionDataPoint scaleActionDataPoint = (ScaleActionDataPoint)segment.getActionDataPoint();
+        return previousSegment != null
+                && previousSegment.getActionDataPoint() instanceof ActionChainTermination
+                && scaleActionDataPoint.getSourceProviderOid() == scaleActionDataPoint.getDestinationProviderOid();
     }
 
     private double adjustStorageAmount(double capacity, List<BillingRecord> billingRecords) {
@@ -472,6 +607,14 @@ public class Calculator {
         private long duration;
         private final ActionDataPoint actionDataPoint;
         private final Map<Integer, Double> commTypeToMultiplierMap = new HashMap<>();
+        /**
+         * qdr is the product of (quantity x duration x rate).
+         * Some entities have a varying rate within the same service tier. E.g. Azure Premium SSD
+         * has a different rate for each performance tier but they are modelled as the same service
+         * tier. In these cases, the multiplier will need to include the cost in the calculation of
+         * the ratio.
+         */
+        private double qdr;
 
         Segment(long duration, ActionDataPoint actionDataPoint) {
             this.duration = duration;
@@ -498,7 +641,7 @@ public class Calculator {
 
         @Override
         public String toString() {
-            return "Segment{" + "duration(hours)=" + TimeUnit.MILLISECONDS.toHours(duration)
+            return "Segment{" + "duration(hours)=" + (double)(duration) / MILLIS_IN_HOUR
                     + ", actionDataPoint=" + actionDataPoint + ", commTypeToMultiplierMap=" + commTypeToMultiplierMap + '}';
         }
     }
