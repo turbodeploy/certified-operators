@@ -71,6 +71,7 @@ import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -821,27 +822,29 @@ public class Stages {
     /**
      * This stage is to update entity controllable flag.
      */
-    public static class VolumesDaysUnAttachedCalcStage extends PassthroughStage<GraphWithSettings> {
-        HashMap<Long, Long> volIdToDaysUnattached = new HashMap<>();
-        public  VolumesDaysUnAttachedCalcStage(@Nonnull final HistoryVolumesListener listener){
-            volIdToDaysUnattached.putAll(listener.getVolIdToLastAttachmentTime());
-        }
+    public static class VolumesDaysUnAttachedCalcStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
 
+        private final Map<Long, Long> volIdToDaysUnattached = new HashMap<>();
+
+        public VolumesDaysUnAttachedCalcStage(@Nonnull final HistoryVolumesListener listener) {
+            volIdToDaysUnattached.putAll(Objects.requireNonNull(listener).getVolIdToLastAttachmentTime());
+        }
 
         @NotNull
         @Override
-        public Status passthrough(GraphWithSettings graph) throws PipelineStageException, InterruptedException {
-            TopologyGraph<TopologyEntity> topologyGraph = graph.getTopologyGraph();
+        public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph)
+            throws PipelineStageException, InterruptedException {
             final long currentTime = System.currentTimeMillis();
             volIdToDaysUnattached.forEach((entityId,lastAttachmentTime) -> {
-                Optional<TopologyEntity> entityOptional = topologyGraph.getEntity(entityId);
-                if(entityOptional.isPresent()) {
-                    TopologyEntityImpl entityBuilder = entityOptional.get().getTopologyEntityImpl();
-                    VirtualVolumeInfoImpl volumeInfo = entityBuilder.getOrCreateTypeSpecificInfo().getOrCreateVirtualVolume();
-                    if (volumeInfo.getAttachmentState().getNumber() == 1) {
-                        Integer days;
+                final Optional<TopologyEntity> entityOptional = Objects.requireNonNull(topologyGraph)
+                    .getEntity(entityId);
+                if (entityOptional.isPresent()) {
+                    final TopologyEntityImpl entityBuilder = entityOptional.get().getTopologyEntityImpl();
+                    final VirtualVolumeInfoImpl volumeInfo = entityBuilder.getOrCreateTypeSpecificInfo()
+                        .getOrCreateVirtualVolume();
+                    if (volumeInfo.getAttachmentState() == AttachmentState.UNATTACHED) {
                         if (currentTime > lastAttachmentTime) {
-                            days = (int) (TimeUnit.MILLISECONDS.toDays(currentTime - lastAttachmentTime));
+                            final int days = (int)TimeUnit.MILLISECONDS.toDays(currentTime - lastAttachmentTime);
                             volumeInfo.setDaysUnattached(days);
                         }
                     }
@@ -850,6 +853,7 @@ public class Stages {
             return Status.success("Updated volume Unattached Days");
         }
     }
+
     /**
      * This stage is to update entity controllable flag.
      */
