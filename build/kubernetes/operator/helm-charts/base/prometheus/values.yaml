@@ -721,9 +721,6 @@ server:
   ## Additional Prometheus server Volumes
   ##
   extraVolumes:
-    - name: datacloud-service-account # must be a valid DNS subdomain name
-      secret:
-        secretName: prometheus-datacloud-gateway # must match the name of the secret in xl/templates
     - name: prometheus-merged-config
       emptyDir: {} # Will hold file(s) that are recreated periodically from information readily
                    # available outside the volume.
