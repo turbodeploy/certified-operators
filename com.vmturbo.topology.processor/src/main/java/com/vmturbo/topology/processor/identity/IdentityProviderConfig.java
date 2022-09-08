@@ -87,7 +87,7 @@ public class IdentityProviderConfig {
     @Value("${shouldDeleteExpiredOids:false}")
     private boolean shouldDeleteExpiredOids;
 
-    @Value("${expiredRecordsRetentionDays:180}")
+    @Value("${expiredRecordsRetentionDays:60}")
     private int expiredRecordsRetentionDays;
 
     @Bean
