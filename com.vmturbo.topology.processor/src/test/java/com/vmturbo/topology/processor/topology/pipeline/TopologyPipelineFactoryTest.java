@@ -1,9 +1,12 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -11,6 +14,8 @@ import io.grpc.stub.StreamObserver;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.InOrder;
+import org.mockito.Mockito;
 
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
@@ -28,32 +33,44 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.pipeline.Pipeline;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsUploader;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
+import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingConfig;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntityCustomTagsMerger;
+import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.GroupResolverSearchFilterResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
+import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.listeners.HistoryVolumesListener;
 import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
+import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper;
@@ -67,6 +84,7 @@ import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.PostScopingTopologyEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.RequestAndLimitCommodityThresholdsInjector;
+import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
@@ -89,8 +107,24 @@ public class TopologyPipelineFactoryTest {
         .setTopologyType(TopologyType.REALTIME)
         .build();
 
+    private MatrixInterface matrixInterface;
+    private LicenseCheckClient licenseCheckClient;
     private ReservationServiceStub reservationServiceStub;
     private GroupServiceBlockingStub groupServiceBlockingStub;
+    private StitchingManager stitchingManager;
+    private EntityStore entityStore;
+    private StalenessInformationProvider stalenessInformationProvider;
+    private StitchingJournalFactory stitchingJournalFactory;
+    private EnvironmentTypeInjector environmentTypeInjector;
+    private PolicyManager policyManager;
+    private HistoryVolumesListener historyVolumesListener;
+    private EntitySettingsResolver entitySettingsResolver;
+    private TopoBroadcastManager topoBroadcastManager;
+    private StitchingContext stitchingContext;
+    private ReservationManager reservationManager;
+    private EphemeralEntityEditor ephemeralEntityEditor;
+    private ProbeActionCapabilitiesApplicatorEditor probeActionCapabilitiesApplicatorEditor;
+
 
     /**
      * Setup.
@@ -117,7 +151,99 @@ public class TopologyPipelineFactoryTest {
             }
         });
         grpcTestServerGroup.start();
+        stalenessInformationProvider = mock(StalenessInformationProvider.class);
         groupServiceBlockingStub = GroupServiceGrpc.newBlockingStub(grpcTestServerGroup.getChannel());
+        mockStitchingContext();
+        mockStitchingManager();
+        mockEntityStore();
+        mockEnvironmentInjector();
+        mockPolicyManager();
+        mockHistoryVolumesListener();
+        mockEntitySettingsResolver();
+        mockBroadcastManager();
+        mockReservationManager();
+        mockEphemeralEntityEditor();
+        mockProbeActionCapabilitiesApplicatorEditor();
+        mockMatrixInterface();
+        mockLicenseCheckClient();
+    }
+
+    private void mockStitchingContext() {
+        final IdentityProvider identityProvider = mock(IdentityProvider.class);
+        final TargetStore targetStore = mock(TargetStore.class);
+        stitchingContext = StitchingContext.newBuilder(5, targetStore).setIdentityProvider(identityProvider).build();
+    }
+
+    private void mockStitchingManager() {
+        final StitchingJournal<StitchingEntity> stitchingJournal = new StitchingJournal<>();
+        stitchingJournalFactory = mock(StitchingJournalFactory.class);
+        when(stitchingJournalFactory.stitchingJournal(any(StitchingContext.class))).thenReturn(stitchingJournal);
+        stitchingManager = mock(StitchingManager.class);
+        when(stitchingManager.stitch(any(), any())).thenReturn(stitchingContext);
+    }
+
+    private void mockEntityStore() {
+        entityStore = mock(EntityStore.class);
+        when(entityStore.constructStitchingContext(stalenessInformationProvider))
+            .thenReturn(stitchingContext);
+    }
+
+    private void mockEnvironmentInjector() {
+        environmentTypeInjector = mock(EnvironmentTypeInjector.class);
+        when(environmentTypeInjector.injectEnvironmentType(any()))
+            .thenReturn(new EnvironmentTypeInjector.InjectionSummary(0, 0, new HashMap<>()));
+    }
+
+    private void mockPolicyManager() {
+        policyManager = mock(PolicyManager.class);
+        when(policyManager.applyPolicies(any(), any(), any(), any(), any()))
+            .thenReturn(new PolicyApplicator.Results());
+    }
+
+    private void mockHistoryVolumesListener() {
+        historyVolumesListener = mock(HistoryVolumesListener.class);
+        when(historyVolumesListener.getVolIdToLastAttachmentTime()).thenReturn(new HashMap<>());
+    }
+
+    private void mockEntitySettingsResolver() {
+        entitySettingsResolver = mock(EntitySettingsResolver.class);
+        final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
+        when(topologyGraph.topSort()).thenReturn(Stream.of());
+        when(topologyGraph.entities()).thenReturn(Stream.of()).thenReturn(Stream.of());
+        when(entitySettingsResolver.resolveSettings(any(), any(), any(), any(), any(), any(), any()))
+            .thenReturn(new GraphWithSettings(topologyGraph, new HashMap<>(), new HashMap<>()));
+    }
+
+    private void mockBroadcastManager() {
+        topoBroadcastManager = mock(TopoBroadcastManager.class);
+        final TopologyBroadcast topologyBroadcast = mock(TopologyBroadcast.class);
+        when(topoBroadcastManager.broadcastLiveTopology(any())).thenReturn(topologyBroadcast);
+    }
+
+    private void mockReservationManager() {
+        reservationManager = mock(ReservationManager.class);
+        when(reservationManager.applyReservation(any())).thenReturn(Pipeline.Status.success());
+    }
+
+    private void mockEphemeralEntityEditor() {
+        ephemeralEntityEditor = mock(EphemeralEntityEditor.class);
+        when(ephemeralEntityEditor.applyEdits(any())).thenReturn(new EphemeralEntityEditor.EditSummary());
+    }
+
+    private void mockProbeActionCapabilitiesApplicatorEditor() {
+        probeActionCapabilitiesApplicatorEditor = mock(ProbeActionCapabilitiesApplicatorEditor.class);
+        when(probeActionCapabilitiesApplicatorEditor.applyPropertiesEdits(any()))
+            .thenReturn(new ProbeActionCapabilitiesApplicatorEditor.EditorSummary());
+    }
+
+    private void mockMatrixInterface() {
+        matrixInterface = mock(MatrixInterface.class);
+        when(matrixInterface.copy()).thenReturn(matrixInterface);
+    }
+
+    private void mockLicenseCheckClient() {
+        licenseCheckClient = mock(LicenseCheckClient.class);
+        when(licenseCheckClient.isDevFreemium()).thenReturn(false);
     }
 
     /**
@@ -125,11 +251,6 @@ public class TopologyPipelineFactoryTest {
      */
     @Test
     public void testLivePipeline() {
-        final MatrixInterface matrixInterface = mock(MatrixInterface.class);
-        when(matrixInterface.copy()).thenReturn(matrixInterface);
-        final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
-        when(licenseCheckClient.isDevFreemium()).thenReturn(false);
-
         final LivePipelineFactory lpf = livePipelineFactory(matrixInterface, licenseCheckClient);
         lpf.liveTopology(liveTopoInfo, Collections.emptyList(), mock(StitchingJournalFactory.class));
     }
@@ -139,11 +260,6 @@ public class TopologyPipelineFactoryTest {
      */
     @Test
     public void testFreemiumPipeline() {
-        final MatrixInterface matrixInterface = mock(MatrixInterface.class);
-        when(matrixInterface.copy()).thenReturn(matrixInterface);
-        final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
-        when(licenseCheckClient.isDevFreemium()).thenReturn(false);
-
         final LivePipelineFactory lpf = livePipelineFactory(matrixInterface, licenseCheckClient);
         lpf.liveTopology(liveTopoInfo, Collections.emptyList(), mock(StitchingJournalFactory.class));
     }
@@ -167,25 +283,48 @@ public class TopologyPipelineFactoryTest {
         ppf.planOverOldTopology(planTopoInfo, Collections.emptyList(), PlanScope.getDefaultInstance());
     }
 
+    /**
+     * Test that {@link TopologyPipeline#run(Object)} executes the VolumesDaysUnAttachedCalcStage before the
+     * SettingsResolutionStage so that the user created policies on dynamic groups of Volumes using the Days Unattached
+     * filter get properly applied to the member Volumes.
+     *
+     * @throws Pipeline.PipelineException if {@link Pipeline#run(Object)} encounters an error.
+     * @throws InterruptedException if test is interrupted.
+     */
+    @Test
+    public void testPipelineRunExecutesVolumesDaysUnAttachedCalcStageBeforeSettingsResolutionStage()
+        throws Pipeline.PipelineException, InterruptedException {
+        // given
+        final LivePipelineFactory lpf = livePipelineFactory(matrixInterface, licenseCheckClient);
+        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline = lpf
+            .liveTopology(liveTopoInfo, Collections.emptyList(), stitchingJournalFactory);
+        // when
+        pipeline.run(entityStore);
+        // then
+        final InOrder inOrder = Mockito.inOrder(historyVolumesListener, entitySettingsResolver);
+        inOrder.verify(historyVolumesListener).getVolIdToLastAttachmentTime();
+        inOrder.verify(entitySettingsResolver).resolveSettings(any(), any(), any(), any(), any(), any(), any());
+    }
+
     @Nonnull
     @SuppressWarnings("unchecked")
     private LivePipelineFactory livePipelineFactory(@Nonnull final MatrixInterface matrixInterface,
                                                     @Nonnull final LicenseCheckClient licenseCheckClient) {
         return new LivePipelineFactory(
-            mock(TopoBroadcastManager.class),
-            mock(PolicyManager.class),
-            mock(StitchingManager.class),
+            topoBroadcastManager,
+            policyManager,
+            stitchingManager,
             mock(DiscoveredTemplateDeploymentProfileNotifier.class),
             mock(DiscoveredGroupUploader.class),
             mock(DiscoveredWorkflowUploader.class),
             mock(DiscoveredCloudCostUploader.class),
             mock(DiscoveredPlanDestinationUploader.class),
-            mock(EntitySettingsResolver.class),
+            entitySettingsResolver,
             mock(EntitySettingsApplicator.class),
-            mock(EnvironmentTypeInjector.class),
+            environmentTypeInjector,
             mock(SearchResolver.class),
             groupServiceBlockingStub,
-            mock(ReservationManager.class),
+            reservationManager,
             mock(DiscoveredSettingPolicyScanner.class),
             mock(EntityValidator.class),
             mock(SupplyChainValidator.class),
@@ -195,21 +334,21 @@ public class TopologyPipelineFactoryTest {
             mock(HistoricalEditor.class),
             matrixInterface,
             mock(CachedTopology.class),
-            mock(ProbeActionCapabilitiesApplicatorEditor.class),
+            probeActionCapabilitiesApplicatorEditor,
             mock(HistoryAggregator.class),
             licenseCheckClient,
             mock(ConsistentScalingConfig.class),
             mock(ActionConstraintsUploader.class),
             mock(ActionMergeSpecsUploader.class),
             mock(RequestAndLimitCommodityThresholdsInjector.class),
-            mock(EphemeralEntityEditor.class),
+            ephemeralEntityEditor,
             reservationServiceStub,
             mock(GroupResolverSearchFilterResolver.class),
             mock(GroupScopeResolver.class),
             mock(EntityCustomTagsMerger.class),
-            mock(StalenessInformationProvider.class),
+            stalenessInformationProvider,
             10,
-            mock(HistoryVolumesListener.class));
+            historyVolumesListener);
     }
 
     private PlanPipelineFactory planPipelineFactory() {

@@ -215,14 +215,12 @@ public class StagesTest {
         volIdToLastAttachmentTime.put(1L,System.currentTimeMillis()-259200000);
         when(listener.getVolIdToLastAttachmentTime()).thenReturn(volIdToLastAttachmentTime);
         final TopologyGraph<TopologyEntity> graph = mock(TopologyGraph.class);
-        final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
-        when(graphWithSettings.getTopologyGraph()).thenReturn(graph);
         final TopologyEntity entity = mock(TopologyEntity.class);
         when(graph.getEntity(1L)).thenReturn(Optional.of(entity));
         entityImpl.getOrCreateTypeSpecificInfo().getOrCreateVirtualVolume().setAttachmentState(AttachmentState.UNATTACHED);
         when(entity.getTopologyEntityImpl()).thenReturn(entityImpl);
         final Stages.VolumesDaysUnAttachedCalcStage stage = new Stages.VolumesDaysUnAttachedCalcStage(listener);
-        assertThat(stage.passthrough(graphWithSettings).getType(), is(Status.Type.SUCCEEDED));
+        assertThat(stage.passthrough(graph).getType(), is(Status.Type.SUCCEEDED));
         assertEquals(entityImpl.getOrCreateTypeSpecificInfo().getOrCreateVirtualVolume().getDaysUnattached(),3);
     }
 

@@ -181,7 +181,7 @@ public class LivePipelineFactory {
 
     private long broadcastCount = 0;
 
-    private HistoryVolumesListener histListener;
+    private final HistoryVolumesListener histListener;
 
     public LivePipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
             @Nonnull final PolicyManager policyManager,
@@ -364,6 +364,7 @@ public class LivePipelineFactory {
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
                 .addStage(new EnvironmentTypeStage(environmentTypeInjector))
+                .addStage(new VolumesDaysUnAttachedCalcStage(histListener))
                 .addStage(SegmentDefinition
                     .addStage(new PolicyStage(policyManager))
                     .addStage(new GenerateConstraintMapStage(policyManager, groupServiceClient, reservationService))
@@ -374,7 +375,6 @@ public class LivePipelineFactory {
                 .addStage(new Stages.MatrixUpdateStage(mi))
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new ControllableStage(controllableManager))
-                .addStage(new VolumesDaysUnAttachedCalcStage(histListener))
                 .addStage(new EntityValidationStage(entityValidator, false))
                 .addStage(new SupplyChainValidationStage(supplyChainValidator,
                     supplyChainValidationFrequency, broadcastCount))
