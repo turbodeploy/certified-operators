@@ -33,8 +33,8 @@ fi
 
 cp /etc/rsyslog.conf /tmp/rsyslog.conf
 
-# Use custom max log size if specified, otherwise 100MB by default using bash parameter expansion.
-sed -i "s/turbo_maxsize_template/${LOG_MAXSIZE-104857600}/g" /tmp/rsyslog.conf
+# Use custom max log size if specified, otherwise 250MB by default using bash parameter expansion.
+sed -i "s/turbo_maxsize_template/${LOG_MAXSIZE-262144000}/g" /tmp/rsyslog.conf
 
 # Use custom logging format if specified
 if [ -n "${VMTFORMAT}" ]; then
