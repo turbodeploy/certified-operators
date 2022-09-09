@@ -1,5 +1,4 @@
-ARG BASE_IMAGE
-FROM ${BASE_IMAGE}
+FROM quay.io/skupper/skupper-router:2.0.2
 MAINTAINER "Billy O'Connell <billy.oconnell@turbonomic.com>"
 
 # Required OpenShift Labels
@@ -26,11 +25,8 @@ ADD rsyslog.conf /etc
 ADD rsyslog-entrypoint.sh /rsyslog-entrypoint.sh
 RUN chmod +x /rsyslog-entrypoint.sh
 
-ARG COMMAND
-ENV COMMAND=${COMMAND}
-
-ARG COMPONENT_NAME
-ENV COMPONENT_NAME=${COMPONENT_NAME}
+ENV COMMAND=/home/skrouterd/bin/launch.sh
+ENV COMPONENT_NAME=skupper-router
 
 # default values
 ENV RSYSLOG_SERVER_ADDRESS=rsyslog
