@@ -222,7 +222,7 @@ dependencies:
   - name: mediation-azurebilling
     repository: file://../probes/mediation-azurebilling
     version: 0.1.0
-    condition: azure.billing.enabled
+    condition: azure.enabled
   - name: mediation-azurecost
     repository: file://../probes/mediation-azurecost
     version: 0.1.0
