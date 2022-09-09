@@ -116,6 +116,12 @@ public class EntitySavingsConfig {
     private PricingConfig pricingConfig;
 
     /**
+     * Data Retention for entity_savings_daily table.
+     */
+    @Value("${dailyStatsRetentionInDays:365}")
+    private long dailyStatsRetentionInDays;
+
+    /**
      * Chunk size configuration.
      */
     @Value("${persistEntityCostChunkSize:1000}")
@@ -266,6 +272,14 @@ public class EntitySavingsConfig {
      */
     public boolean isBillSavingsEnabled() {
         return FeatureFlags.ENABLE_BILLING_BASED_SAVINGS.isEnabled();
+    }
+
+    /**
+     * No of days to retain before the data is deleted in entity_savings_daily table.
+     * @return No of Retention days or default to 365.
+     */
+    public long getDailyStatsRetentioninDays() {
+        return dailyStatsRetentionInDays;
     }
 
     /**
@@ -426,7 +440,9 @@ public class EntitySavingsConfig {
         return new DataRetentionProcessor(entitySavingsStore(),
                 eventsJournal.persistEvents() ? null : auditLogWriter(),
                 getEntitySavingsRetentionConfig(), getClock(), retentionProcessorFrequencyHours,
-                eventsJournal.persistEvents() ? eventsJournal : null);
+                eventsJournal.persistEvents() ? eventsJournal : null,
+                isBillSavingsEnabled() ? dailyStatsRetentionInDays * 24
+                        : getEntitySavingsRetentionConfig().fetchDataRetentionSettings().getDailyStatsRetentionInHours());
     }
 
     /**

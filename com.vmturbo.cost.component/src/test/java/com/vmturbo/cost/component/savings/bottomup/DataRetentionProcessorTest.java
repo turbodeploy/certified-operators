@@ -127,7 +127,7 @@ public class DataRetentionProcessorTest extends MultiDbTestBase {
         statsSavingsStore = new SqlEntitySavingsStore(dsl, clock, 5);
         AuditLogWriter auditLogWriter = new SqlAuditLogWriter(dsl, clock, 5, true);
         retentionProcessor = new DataRetentionProcessor(statsSavingsStore, auditLogWriter,
-                retentionConfig, clock, 1, null);
+                retentionConfig, clock, 1, null, 1);
     }
 
     /**

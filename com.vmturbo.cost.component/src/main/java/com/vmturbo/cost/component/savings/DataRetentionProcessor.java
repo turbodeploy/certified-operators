@@ -60,6 +60,11 @@ public class DataRetentionProcessor {
     private final long runFrequencyHours;
 
     /**
+     * Number of Hours(default to 365*24) to retain before the data gets deleted from the daily table.
+     */
+    private final long dailyStatsRetentionInHours;
+
+    /**
      * Events journal, if available (when events are persisted to DB).
      */
     @Nullable
@@ -85,7 +90,8 @@ public class DataRetentionProcessor {
                            @Nonnull final EntitySavingsRetentionConfig retentionConfig,
                            @Nonnull final Clock clock,
                            long runFrequencyHours,
-                           @Nullable final EntityEventsJournal savingsEventJournal) {
+                           @Nullable final EntityEventsJournal savingsEventJournal,
+                           long dailyStatsRetentionInHours) {
         this.savingsStore = savingsStore;
         this.auditLogWriter = auditLogWriter;
         this.retentionConfig = retentionConfig;
@@ -93,6 +99,7 @@ public class DataRetentionProcessor {
         this.runFrequencyHours = runFrequencyHours;
         this.lastTimeRan = null;
         this.persistentEventsJournal = savingsEventJournal;
+        this.dailyStatsRetentionInHours = dailyStatsRetentionInHours;
     }
 
     /**
@@ -144,7 +151,7 @@ public class DataRetentionProcessor {
         logger.info("Deleted {} hourly stats records older than {}.", rowsDeleted,
                 SavingsUtil.getLocalDateTime(timestamp));
 
-        timestamp = currentTimeMillis - hourSettings.getDailyStatsRetentionInHours() * millisInHour;
+        timestamp = currentTimeMillis - dailyStatsRetentionInHours * millisInHour;
         rowsDeleted = savingsStore.deleteOlderThanDaily(timestamp);
         logger.info("Deleted {} daily stats records older than {}.", rowsDeleted,
                 SavingsUtil.getLocalDateTime(timestamp));
