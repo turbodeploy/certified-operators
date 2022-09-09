@@ -3,17 +3,17 @@
 # logrotate for audit and extra logs
 AUDIT_FILE=/var/log/turbonomic/audit.log
 EXTRA_FILE=/home/vmtsyslog/rsyslog/extra.txt
-# The max size is 100MB by default
+# The max size is 250MB by default
 if [ -z "$LOG_MAXSIZE" ]
 then
-      MAXSIZE=104857600
+      MAXSIZE=262144000
 else
       MAXSIZE="$LOG_MAXSIZE"
 fi
 
 if [ -z "$LOG_MAXFILES" ]
 then
-      MAXFILES=100
+      MAXFILES=150
 else
       MAXFILES="$LOG_MAXFILES"
 fi
