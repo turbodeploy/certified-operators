@@ -100,7 +100,7 @@ public class HistoryAggregationConfig {
     @Value("${realtimeTopologyContextId:7777777}")
     private long realtimeTopologyContextId;
 
-    @Value("${enableExpiredOidFiltering:false}")
+    @Value("${enableExpiredOidFiltering:true}")
     private boolean enableExpiredOidFiltering;
 
     @Value("${historyAggregation.movingStatisticsEnabled:true}")
