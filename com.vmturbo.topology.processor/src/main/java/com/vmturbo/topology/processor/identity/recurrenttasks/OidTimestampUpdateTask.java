@@ -17,8 +17,6 @@ import com.google.common.collect.Iterables;
 
 import org.jooq.DSLContext;
 
-import com.vmturbo.topology.processor.identity.StaleOidManagerImpl;
-
 /**
  * Implementation of a {@link RecurrentTask} for updating the last seen on the existing records
  * in the entity store.
@@ -27,7 +25,6 @@ public class OidTimestampUpdateTask extends RecurrentTask {
 
     private final Supplier<Set<Long>> getCurrentOids;
     private static final String UPDATE_TIMESTAMPS = "update_timestamps";
-    private final StaleOidManagerImpl.OidExpirationResultRecord oidExpirationResultRecord;
 
     /**
      * Gets an instance of a {@link OidTimestampUpdateTask}.
@@ -35,14 +32,11 @@ public class OidTimestampUpdateTask extends RecurrentTask {
      * @param clock the clock to use
      * @param context the database dsl context
      * @param getCurrentOids supplier of existing oids in the system
-     * @param oidExpirationResultRecord record to store in the recurrent operations table
      */
     public OidTimestampUpdateTask(final long taskStartingTime, @Nonnull final Clock clock, @Nonnull final DSLContext context,
-                                  @Nonnull final Supplier<Set<Long>> getCurrentOids,
-                                  @Nonnull final StaleOidManagerImpl.OidExpirationResultRecord oidExpirationResultRecord) {
+                                  @Nonnull final Supplier<Set<Long>> getCurrentOids) {
         super(taskStartingTime, clock, context);
         this.getCurrentOids = getCurrentOids;
-        this.oidExpirationResultRecord = oidExpirationResultRecord;
     }
 
     @Override
@@ -56,7 +50,6 @@ public class OidTimestampUpdateTask extends RecurrentTask {
                     .set(ASSIGNED_IDENTITY.LAST_SEEN, currentTimeStamp)
                     .where(ASSIGNED_IDENTITY.ID.in(batchedOids)).execute();
         }
-        oidExpirationResultRecord.setUpdatedRecords(updatedRecords);
         OID_EXPIRATION_EXECUTION_TIME.labels(UPDATE_TIMESTAMPS).observe((double)stopwatch.elapsed(TimeUnit.SECONDS));
         return updatedRecords;
     }

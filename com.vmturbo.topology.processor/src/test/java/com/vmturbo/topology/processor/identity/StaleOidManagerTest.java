@@ -5,7 +5,6 @@ import static com.vmturbo.topology.processor.identity.recurrenttasks.RecurrentTa
 import static junitparams.JUnitParamsRunner.$;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -65,11 +64,8 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.db.tables.AssignedIdentity;
-import com.vmturbo.topology.processor.db.tables.RecurrentOperations;
 import com.vmturbo.topology.processor.db.tables.RecurrentTasks;
-import com.vmturbo.topology.processor.db.tables.records.RecurrentOperationsRecord;
 import com.vmturbo.topology.processor.db.tables.records.RecurrentTasksRecord;
-import com.vmturbo.topology.processor.identity.StaleOidManagerImpl.OidExpirationResultRecord;
 
 /**
  * Class to test a {@link StaleOidManagerImpl}. These tests heavily rely on the
@@ -105,7 +101,6 @@ public class StaleOidManagerTest {
     private final long currentTime = System.currentTimeMillis();
     private final Clock clock = mock(Clock.class);
     private ScheduledExecutorService executor;
-    private RecurrentOperationsRecord recurrentOperationsRecord;
     private RecurrentTasksRecord recurrentTaskRecord;
     private StaleOidManagerImpl.OidManagementParameters oidManagementParameters;
 
@@ -130,8 +125,6 @@ public class StaleOidManagerTest {
                         context, true, clock,
                         TimeUnit.HOURS.toMillis(VALIDATION_FREQUENCY_HRS), true, RECORD_DELETION_RETENTION_DAYS).build();
         staleOidManager = new StaleOidManagerImpl(0, executor, oidManagementParameters);
-        recurrentOperationsRecord = context.newRecord(RecurrentOperations.RECURRENT_OPERATIONS)
-                .values(LocalDateTime.now(), EXPIRATION_TASK_NAME, true, true, 10, 10, "");
         recurrentTaskRecord = context.newRecord(RecurrentTasks.RECURRENT_TASKS)
                 .values(LocalDateTime.now(), OID_TIMESTAMP_UPDATE.toString(), true, 10, "", "");
     }
@@ -243,9 +236,9 @@ public class StaleOidManagerTest {
             Assert.fail();
         } catch (CancellationException e) {
             assertEquals(Timestamp.valueOf(LocalDateTime.ofInstant(Instant.ofEpochMilli(currentTime), clock.getZone())),
-                assignedIdentityJooqProvider.getSetRecurrentOperationQuery().getExecutionTime());
+                assignedIdentityJooqProvider.getSetRecurrentTaskQuery().getExecutionTime());
             assertEquals(EXPIRATION_TASK_NAME,
-                assignedIdentityJooqProvider.getSetRecurrentOperationQuery().getOperationName());
+                assignedIdentityJooqProvider.getSetRecurrentTaskQuery().getOperationName());
         }
     }
 
@@ -301,8 +294,7 @@ public class StaleOidManagerTest {
             Assert.fail();
         } catch (CancellationException e) {
             assertEquals(assignedIdentityJooqProvider.getLastSeenQuery().get(0).getUpdatedOids(), entityStoreOids);
-            assertTrue(assignedIdentityJooqProvider.getSetRecurrentOperationQuery().isSuccessFulUpdate());
-            assertFalse(assignedIdentityJooqProvider.getSetRecurrentOperationQuery().isSuccessFulExpiration());
+            assertTrue(assignedIdentityJooqProvider.getSetRecurrentTaskQuery().isSuccessful());
         }
     }
 
@@ -319,9 +311,7 @@ public class StaleOidManagerTest {
         staleOidManagerProcess = staleOidManager.initialize(() -> entityStoreOids, set -> { });
         staleOidManager.expireOidsImmediatly();
         assertEquals(Timestamp.valueOf(LocalDateTime.ofInstant(Instant.ofEpochMilli(currentTime), clock.getZone())),
-            assignedIdentityJooqProvider.getSetRecurrentOperationQuery().getExecutionTime());
-        assertEquals(EXPIRATION_TASK_NAME,
-            assignedIdentityJooqProvider.getSetRecurrentOperationQuery().getOperationName());
+            assignedIdentityJooqProvider.getSetRecurrentTaskQuery().getExecutionTime());
         Assert.assertTrue(assignedIdentityJooqProvider.getSetExpiredRecordsQuery().getIsExpired());
         assertEquals(currentTime - TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
             assignedIdentityJooqProvider.getSetExpiredRecordsQuery().getExpirationDate().getTime());
@@ -458,7 +448,7 @@ public class StaleOidManagerTest {
         DiagnosticsAppender appender = mock(DiagnosticsAppender.class);
         staleOidManager.collectDiags(appender);
         verify(appender).appendString(eq(StaleOidManagerImpl.DIAGS_HEADER));
-        verify(appender, times(1)).appendString(eq(new OidExpirationResultRecord(recurrentOperationsRecord).toCsvLine()));
+        verify(appender, times(2)).appendString(any((String.class)));
 
         String diagsFileName = staleOidManager.getFileName();
         assertEquals(StaleOidManagerImpl.DIAGS_FILE_NAME, diagsFileName);
@@ -478,7 +468,7 @@ public class StaleOidManagerTest {
         private final DeleteRecurrentOperations deleteRecurrentOperations;
         private final int queriesPerExpirationTask;
         private List<SetLastSeenQuery> lastSeenQuery = new ArrayList<>();
-        private SetRecurrentOperationQuery setRecurrentOperationQuery;
+        private SetRecurrentTaskQuery setRecurrentTaskQuery;
         private HashMap<String, String> expirationDaysPerEntity;
         private boolean doNotReturnSuccessfulUpdates;
 
@@ -532,13 +522,12 @@ public class StaleOidManagerTest {
                     setExpiredRecordsQuery.addExpirationPerEntityType((Timestamp)ctx.bindings()[1], (Integer)ctx.bindings()[2]);
                 }
             }
-            if (isSetRecurrentOperationQuery(ctx.sql())) {
-                 setRecurrentOperationQuery =
-                     new SetRecurrentOperationQuery((Timestamp)ctx.bindings()[0],
-                             (String)ctx.bindings()[1], (Boolean)ctx.bindings()[2], (Boolean)ctx.bindings()[3], (Integer)ctx.bindings()[4], (Integer)ctx.bindings()[5],
-                             (String)ctx.bindings()[6]);
+            if (isSetRecurrentTaskQuery(ctx.sql())) {
+                 setRecurrentTaskQuery =
+                     new SetRecurrentTaskQuery((Timestamp)ctx.bindings()[0],
+                             (String)ctx.bindings()[1], (Integer)ctx.bindings()[2], (Boolean)ctx.bindings()[3], (String)ctx.bindings()[4], (String)ctx.bindings()[5]);
             }
-            if (isCountValidRecurrentOperationsQuery(ctx.sql())) {
+            if (isCountValidRecurrentTasksQuery(ctx.sql())) {
                 if (doNotReturnSuccessfulUpdates) {
                     mockResult = new MockResult();
                 } else {
@@ -547,12 +536,6 @@ public class StaleOidManagerTest {
                     result.add(create.newRecord(intField).values((int)TimeUnit.DAYS.toHours(EXPIRATION_DAYS) / VALIDATION_FREQUENCY_HRS));
                     mockResult = new MockResult(1, result);
                 }
-            }
-            if (isGetRecurrentOperationsQuery(ctx.sql())) {
-                Result<RecurrentOperationsRecord> result =
-                        create.newResult(RecurrentOperations.RECURRENT_OPERATIONS);
-                result.add(recurrentOperationsRecord);
-                mockResult = new MockResult(1, result);
             }
             if (isGetRecurrentTasksQuery(ctx.sql())) {
                 Result<RecurrentTasksRecord> result =
@@ -585,8 +568,8 @@ public class StaleOidManagerTest {
             return getExpiredRecordsQuery;
         }
 
-        public SetRecurrentOperationQuery getSetRecurrentOperationQuery() {
-            return setRecurrentOperationQuery;
+        public SetRecurrentTaskQuery getSetRecurrentTaskQuery() {
+            return setRecurrentTaskQuery;
         }
 
         public SetExpiredRecordsQuery getSetExpiredRecordsQuery() {
@@ -609,12 +592,12 @@ public class StaleOidManagerTest {
             return sql.contains("update") && sql.contains("expired") && !sql.contains("errors");
         }
 
-        private boolean isSetRecurrentOperationQuery(String sql) {
-            return sql.contains("insert") && sql.contains("recurrent_operations");
+        private boolean isSetRecurrentTaskQuery(String sql) {
+            return sql.contains("insert") && sql.contains("recurrent_tasks");
         }
 
-        private boolean isCountValidRecurrentOperationsQuery(String sql) {
-            return sql.contains("select count(*)") && sql.contains("recurrent_operations");
+        private boolean isCountValidRecurrentTasksQuery(String sql) {
+            return sql.contains("select count(*)") && sql.contains("recurrent_tasks");
         }
 
         private boolean isGetRecurrentOperationsQuery(String sql) {
@@ -717,24 +700,22 @@ public class StaleOidManagerTest {
      * Class that contains the bindings used by the query to set the results of the task into the
      * recurrent_operations table.
      */
-    private static class SetRecurrentOperationQuery {
+    private static class SetRecurrentTaskQuery {
         private final Timestamp executionTime;
         private final boolean successFulUpdate;
-        private final boolean successFulExpiration;
-        private final int updatedRecords;
-        private final int expiredRecords;
+        private final int affectedRows;
+        private String summary;
         private String errors;
         private final String operationName;
 
-        SetRecurrentOperationQuery(final Timestamp executionTime, String operationName, boolean successFulExpiration, boolean successFulUpdate,
-                int updatedRecords, int expiredRecords, String summary) {
+        SetRecurrentTaskQuery(final Timestamp executionTime, String operationName, int affectedRows, boolean successFulUpdate,
+                              String summary, String errors) {
             this.executionTime = executionTime;
             this.operationName = operationName;
             this.successFulUpdate = successFulUpdate;
-            this.successFulExpiration = successFulExpiration;
-            this.updatedRecords = updatedRecords;
-            this.expiredRecords = expiredRecords;
-            this.errors = summary;
+            this.affectedRows = affectedRows;
+            this.summary = summary;
+            this.errors = errors;
         }
 
         public String getOperationName() {
@@ -753,12 +734,8 @@ public class StaleOidManagerTest {
             this.errors = errors;
         }
 
-        public boolean isSuccessFulUpdate() {
+        public boolean isSuccessful() {
             return successFulUpdate;
-        }
-
-        public boolean isSuccessFulExpiration() {
-            return successFulExpiration;
         }
     }
 

@@ -39,7 +39,6 @@ import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
 import com.vmturbo.topology.processor.db.tables.AssignedIdentity;
-import com.vmturbo.topology.processor.identity.StaleOidManagerImpl.OidExpirationResultRecord;
 import com.vmturbo.topology.processor.identity.recurrenttasks.OidDeletionTask;
 import com.vmturbo.topology.processor.identity.recurrenttasks.OidExpirationTask;
 import com.vmturbo.topology.processor.identity.recurrenttasks.OidTimestampUpdateTask;
@@ -90,8 +89,7 @@ public class RecurrentTasksTest {
         final OidTimestampUpdateJooqProvider oidTimestampUpdateJooqProvider = new OidTimestampUpdateJooqProvider();
         final long currentTimeMs = System.currentTimeMillis();
         final DSLContext context = DSL.using(new MockConnection(oidTimestampUpdateJooqProvider), dialect);
-        final OidExpirationResultRecord oidExpirationResultRecord = mock(OidExpirationResultRecord.class);
-        final OidTimestampUpdateTask task = new OidTimestampUpdateTask(currentTimeMs, clock, context, () -> customEntityStoreOids, oidExpirationResultRecord);
+        final OidTimestampUpdateTask task = new OidTimestampUpdateTask(currentTimeMs, clock, context, () -> customEntityStoreOids);
         task.run();
         assertTrue(oidTimestampUpdateJooqProvider.isSuccessful());
         Assert.assertEquals(customEntityStoreOids.size(), oidTimestampUpdateJooqProvider.getUpdatedRecords());
@@ -112,9 +110,8 @@ public class RecurrentTasksTest {
         final long entityExpirationTimeMs = TimeUnit.DAYS.toMillis(1);
         final Consumer<Set<Long>> notifyExpiredOids = mock(Consumer.class);
         final DSLContext context = DSL.using(new MockConnection(oidExpirationJooqProvider), dialect);
-        final OidExpirationResultRecord oidExpirationResultRecord = mock(OidExpirationResultRecord.class);
         final OidExpirationTask task = new OidExpirationTask(entityExpirationTimeMs, true,
-                notifyExpiredOids, entityExpirationByEntityTimeMs, oidExpirationResultRecord, currentTimeMs, clock, context);
+                notifyExpiredOids, entityExpirationByEntityTimeMs, currentTimeMs, clock, context);
         task.run();
 
         final long expectedExpirationDate = Instant.ofEpochMilli(currentTimeMs).minus(Duration.ofDays(1)).toEpochMilli();
@@ -140,9 +137,8 @@ public class RecurrentTasksTest {
         final Consumer<Set<Long>> notifyExpiredOids = mock(Consumer.class);
 
         final DSLContext context = DSL.using(new MockConnection(oidExpirationJooqProvider), dialect);
-        final OidExpirationResultRecord oidExpirationResultRecord = mock(OidExpirationResultRecord.class);
         final OidExpirationTask task = new OidExpirationTask(entityExpirationTimeMs, true,
-                notifyExpiredOids, entityExpirationByEntityTimeMs, oidExpirationResultRecord, currentTimeMs, clock, context);
+                notifyExpiredOids, entityExpirationByEntityTimeMs, currentTimeMs, clock, context);
         task.run();
 
         assertTrue(oidExpirationJooqProvider.isSuccessful());
@@ -197,10 +193,9 @@ public class RecurrentTasksTest {
         final FailedTaskJooqProvider failedTaskJooqProvider = new FailedTaskJooqProvider();
         final long currentTimeMs = System.currentTimeMillis();
         final DSLContext context = DSL.using(new MockConnection(failedTaskJooqProvider), dialect);
-        final OidExpirationResultRecord oidExpirationResultRecord = mock(OidExpirationResultRecord.class);
-        final OidTimestampUpdateTask task = new OidTimestampUpdateTask(currentTimeMs, clock, context, () -> customEntityStoreOids, oidExpirationResultRecord);
+        final OidTimestampUpdateTask task = new OidTimestampUpdateTask(currentTimeMs, clock, context, () -> customEntityStoreOids);
         task.run();
-        Assert.assertEquals(ERROR_MESSAGE, failedTaskJooqProvider.getError());
+        Assert.assertTrue(failedTaskJooqProvider.getError().contains(ERROR_MESSAGE));
     }
 
     /**
