@@ -84,7 +84,7 @@ public class IdentityProviderConfig {
     @Value("${initialExpirationDelayMins:720}")
     private int initialExpirationDelayMin;
 
-    @Value("${shouldDeleteExpiredOids:false}")
+    @Value("${shouldDeleteExpiredOids:true}")
     private boolean shouldDeleteExpiredOids;
 
     @Value("${expiredRecordsRetentionDays:60}")

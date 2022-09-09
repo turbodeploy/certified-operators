@@ -88,7 +88,7 @@ public abstract class RecurrentTask {
             logger.info("Finished {} task successfully. Updated {} records", getRecurrentTaskType(), affectedRows);
         } catch (Exception e) {
             logger.error("Error with the {} task", getRecurrentTaskType().toString(), e);
-            recurrentTask.setFailedTaskAndStore(affectedRows, String.format(summary, stopwatch), e.getMessage(), context);
+            recurrentTask.setFailedTaskAndStore(affectedRows, String.format(summary, stopwatch), e.toString(), context);
         }
         return affectedRows;
     }

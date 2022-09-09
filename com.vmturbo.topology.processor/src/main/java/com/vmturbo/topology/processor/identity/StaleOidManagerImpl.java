@@ -2,12 +2,9 @@ package com.vmturbo.topology.processor.identity;
 
 import static com.vmturbo.topology.processor.db.Tables.RECURRENT_OPERATIONS;
 import static com.vmturbo.topology.processor.db.Tables.RECURRENT_TASKS;
-import static com.vmturbo.topology.processor.identity.recurrenttasks.OidExpirationTask.EXPIRATION_TASK_NAME;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -25,8 +22,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -34,7 +29,6 @@ import org.jooq.DSLContext;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.topology.processor.db.tables.records.RecurrentOperationsRecord;
 import com.vmturbo.topology.processor.identity.recurrenttasks.OidDeletionTask;
 import com.vmturbo.topology.processor.identity.recurrenttasks.OidExpirationTask;
 import com.vmturbo.topology.processor.identity.recurrenttasks.OidTimestampUpdateTask;
@@ -96,13 +90,9 @@ public class StaleOidManagerImpl implements StaleOidManager {
     @Override
     public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         appender.appendString(DIAGS_HEADER);
-        List<OidExpirationResultRecord> records = getLatestRecurrentOperations(N_OPERATIONS_IN_DIAGS);
-        for (OidExpirationResultRecord record : records) {
-            appender.appendString(record.toCsvLine());
-        }
         List<RecurrentTask.RecurrentTaskRecord> taskRecords = getLatestRecurrentTasks(N_OPERATIONS_IN_DIAGS);
         for (RecurrentTask.RecurrentTaskRecord record : taskRecords) {
-            appender.appendString(record.toCsvLine() + "empty");
+            appender.appendString(record.toCsvLine());
         }
     }
 
@@ -154,12 +144,6 @@ public class StaleOidManagerImpl implements StaleOidManager {
         Future<?> future = this.executorService.submit(task);
         future.get(20, TimeUnit.MINUTES);
         return task.getNumberOfExpiredOids();
-    }
-
-    private List<OidExpirationResultRecord> getLatestRecurrentOperations(final int nOperations) {
-        return context.selectFrom(RECURRENT_OPERATIONS)
-                .orderBy(RECURRENT_OPERATIONS.EXECUTION_TIME.desc()).limit(nOperations).fetch().stream().map(
-                        OidExpirationResultRecord::new).collect(Collectors.toList());
     }
 
     private List<RecurrentTask.RecurrentTaskRecord> getLatestRecurrentTasks(final int nOperations) {
@@ -319,7 +303,6 @@ public class StaleOidManagerImpl implements StaleOidManager {
      */
     private static class OidManagement implements Runnable {
         private final OidManagementParameters oidManagementParameters;
-        private final OidExpirationResultRecord oidExpirationResultRecord;
         private final Supplier<Set<Long>> getCurrentOids;
         private final Consumer<Set<Long>> expireOidsFromCache;
         private int numberOfExpiredOids;
@@ -327,7 +310,6 @@ public class StaleOidManagerImpl implements StaleOidManager {
         OidManagement(@Nonnull OidManagementParameters oidManagementParameters, final Supplier<Set<Long>> getCurrentOids,
                       @Nonnull final Consumer<Set<Long>> expireOidsFromCache) {
             this.oidManagementParameters = oidManagementParameters;
-            this.oidExpirationResultRecord = new OidExpirationResultRecord(Instant.ofEpochMilli(oidManagementParameters.getClock().millis()));
             this.getCurrentOids = getCurrentOids;
             this.expireOidsFromCache = expireOidsFromCache;
         }
@@ -342,11 +324,10 @@ public class StaleOidManagerImpl implements StaleOidManager {
                 final DSLContext context = oidManagementParameters.getContext();
                 long currentTimeMs = clock.millis();
                 final boolean shouldExpireOids = shouldExpireOids(oidManagementParameters);
-                new OidTimestampUpdateTask(currentTimeMs, clock, context.dsl(), getCurrentOids, oidExpirationResultRecord).run();
+                new OidTimestampUpdateTask(currentTimeMs, clock, context.dsl(), getCurrentOids).run();
                 numberOfExpiredOids = new OidExpirationTask(oidManagementParameters.getEntityExpirationTimeMs(), shouldExpireOids,
-                        expireOidsFromCache, oidManagementParameters.getExpirationDaysPerEntity(),
-                        oidExpirationResultRecord, currentTimeMs, clock, context.dsl()).run();
-                new OidDeletionTask(currentTimeMs, clock, context.dsl(), shouldExpireOids && oidManagementParameters.isShouldDeleteExpiredRecords(),
+                        expireOidsFromCache, oidManagementParameters.getExpirationDaysPerEntity(), currentTimeMs, clock, context.dsl()).run();
+                new OidDeletionTask(currentTimeMs, clock, context.dsl(),  oidManagementParameters.isShouldDeleteExpiredRecords(),
                         oidManagementParameters.getExpiredRecordsRetentionDays()).run();
             } catch (Throwable t) {
                 // We need to catch all the exceptions to make sure the scheduled runnable will keep going even
@@ -378,10 +359,11 @@ public class StaleOidManagerImpl implements StaleOidManager {
             final long entityExpirationTimeMs = oidManagementParameters.getEntityExpirationTimeMs();
             long entityExpirationTimeDays = TimeUnit.MILLISECONDS.toDays(entityExpirationTimeMs);
             int successfulUpdatesCount = oidManagementParameters.getContext().selectCount()
-                    .from(RECURRENT_OPERATIONS)
-                    .where(RECURRENT_OPERATIONS.EXECUTION_TIME
+                    .from(RECURRENT_TASKS)
+                    .where(RECURRENT_TASKS.EXECUTION_TIME
                             .greaterThan(LocalDateTime.now().minusDays(entityExpirationTimeDays))
-                            .and(RECURRENT_OPERATIONS.LAST_SEEN_UPDATE_SUCCESSFUL.isTrue())).fetchOne(0, int.class);
+                            .and(RECURRENT_TASKS.OPERATION_NAME.eq(RecurrentTask.RecurrentTasksEnum.OID_TIMESTAMP_UPDATE.toString()))
+                            .and(RECURRENT_TASKS.SUCCESSFUL.isTrue())).fetchOne(0, int.class);
             int expectedNumberOfSuccessfulTasks = (int)(entityExpirationTimeMs / oidManagementParameters.getValidationFrequencyMs()) / 2;
             if (successfulUpdatesCount >= expectedNumberOfSuccessfulTasks) {
                 return true;
@@ -393,92 +375,6 @@ public class StaleOidManagerImpl implements StaleOidManager {
             return false;
         }
 
-
-    }
-
-    /**
-     * Class to represent an {@link OidManagement record} to insert in the database.
-     */
-    @VisibleForTesting
-    public static class OidExpirationResultRecord {
-        private final Instant timeStamp;
-        private boolean successfulUpdate;
-        private boolean successfulExpiration;
-        private int updatedRecords;
-        private int expiredRecords;
-        private String errors;
-
-        OidExpirationResultRecord(Instant timeStamp) {
-            this.timeStamp = timeStamp;
-            this.successfulExpiration = false;
-            this.successfulUpdate = false;
-            this.updatedRecords = 0;
-            this.expiredRecords = 0;
-        }
-
-        OidExpirationResultRecord(RecurrentOperationsRecord recurrentOperationsRecord) {
-            this.timeStamp = recurrentOperationsRecord.getExecutionTime().toInstant(ZoneOffset.UTC);
-            this.successfulExpiration = recurrentOperationsRecord.getExpirationSuccessful();
-            this.successfulUpdate = recurrentOperationsRecord.getLastSeenUpdateSuccessful();
-            this.updatedRecords = recurrentOperationsRecord.getUpdatedRecords();
-            this.expiredRecords = recurrentOperationsRecord.getExpiredRecords();
-            this.errors = recurrentOperationsRecord.getErrors();
-        }
-
-        /**
-         * Set the updated records.
-         * @param updatedRecords to update
-         */
-        public void setUpdatedRecords(int updatedRecords) {
-            this.successfulUpdate = true;
-            this.updatedRecords = updatedRecords;
-        }
-
-        /**
-         * Set the expired records.
-         * @param expiredRecords records to expire
-         */
-        public void setExpiredRecords(int expiredRecords) {
-            this.successfulExpiration = true;
-            this.expiredRecords = expiredRecords;
-        }
-
-        public void setErrors(String errors) {
-            this.errors = errors;
-        }
-
-        public Instant getTimeStamp() {
-            return timeStamp;
-        }
-
-        public int getUpdatedRecords() {
-            return updatedRecords;
-        }
-
-        public int getExpiredRecords() {
-            return expiredRecords;
-        }
-
-        public String getErrors() {
-            return errors;
-        }
-
-        public boolean isSuccessfulUpdate() {
-            return successfulUpdate;
-        }
-
-        public boolean isSuccessfulExpiration() {
-            return successfulExpiration;
-        }
-
-        /**
-         * Serialize the object into a csv format for diags.
-         * @return the csv
-         */
-        public String toCsvLine() {
-            return String.format("%s, %s, %s, %s, %d, %d, %s", this.timeStamp, EXPIRATION_TASK_NAME, this.isSuccessfulUpdate(),
-                    this.isSuccessfulExpiration(), this.updatedRecords, this.expiredRecords, this.errors);
-        }
 
     }
 }

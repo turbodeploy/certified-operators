@@ -1,12 +1,10 @@
 package com.vmturbo.topology.processor.identity.recurrenttasks;
 
-import static com.vmturbo.topology.processor.db.Tables.RECURRENT_OPERATIONS;
 import static com.vmturbo.topology.processor.db.tables.AssignedIdentity.ASSIGNED_IDENTITY;
 
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -26,7 +24,6 @@ import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.topology.processor.db.tables.records.AssignedIdentityRecord;
-import com.vmturbo.topology.processor.identity.StaleOidManagerImpl;
 
 /**
  * Implementation of a {@link RecurrentTask} for setting the expiration for the oids.
@@ -35,7 +32,7 @@ public class OidExpirationTask extends RecurrentTask {
     /**
      * Name of the task run by the StaleOidManager.
      */
-    public static final String EXPIRATION_TASK_NAME = "OID_EXPIRATION_TASK";
+    public static final String EXPIRATION_TASK_NAME = "OID_EXPIRATION";
 
     /**
      * A counter metric that represents the total number of expired oids.
@@ -51,7 +48,6 @@ public class OidExpirationTask extends RecurrentTask {
     private final boolean shouldExpireOids;
     private final Consumer<Set<Long>> notifyExpiredOids;
     private final Map<Integer, Long> expirationDaysPerEntity;
-    final StaleOidManagerImpl.OidExpirationResultRecord oidExpirationResultRecord;
     final long entityExpirationTimeMs;
 
     /**
@@ -60,20 +56,17 @@ public class OidExpirationTask extends RecurrentTask {
      * @param shouldExpireOids whether the task should expire oids or not
      * @param notifyExpiredOids function that drops the oids from the cache
      * @param expirationDaysPerEntity expiration times broken down by entity type
-     * @param oidExpirationResultRecord record to store in the recurrent operations
      * @param taskStartingTime the starting time of the task
      * @param clock clock shared among other tasks
      * @param context the dsl context
      */
     public OidExpirationTask(final long entityExpirationTimeMs, final boolean shouldExpireOids, @Nonnull final Consumer<Set<Long>> notifyExpiredOids,
                              @Nonnull Map<Integer, Long> expirationDaysPerEntity,
-                             @Nonnull final StaleOidManagerImpl.OidExpirationResultRecord oidExpirationResultRecord,
                              final long taskStartingTime, @Nonnull final Clock clock, @Nonnull final DSLContext context) {
         super(taskStartingTime, clock, context);
         this.shouldExpireOids = shouldExpireOids;
         this.notifyExpiredOids = notifyExpiredOids;
         this.expirationDaysPerEntity = expirationDaysPerEntity;
-        this.oidExpirationResultRecord = oidExpirationResultRecord;
         this.entityExpirationTimeMs = entityExpirationTimeMs;
     }
 
@@ -84,16 +77,13 @@ public class OidExpirationTask extends RecurrentTask {
         try {
             if (shouldExpireOids) {
                 Set<Long> expiredOids = getRecordsToExpire(entityExpirationTimeMs, expirationDaysPerEntity);
-                numberOfExpiredOids = expireRecords(expirationDaysPerEntity, oidExpirationResultRecord);
+                numberOfExpiredOids = expireRecords(expirationDaysPerEntity);
                 notifyExpiredOids.accept(expiredOids);
                 OID_EXPIRATION_EXECUTION_TIME.labels(EXPIRE_RECORDS).observe((double)stopwatch.elapsed(TimeUnit.SECONDS));
             }
         } catch (Exception e) {
             logger.error("OID_EXPIRATION task failed due to ", e);
-            oidExpirationResultRecord.setErrors(e.getMessage().substring(0, Math.min(e.getMessage().length(), MAX_ERROR_LENGTH)));
             throw e;
-        } finally {
-            storeOidExpirationResultRecord(oidExpirationResultRecord);
         }
         return numberOfExpiredOids;
     }
@@ -126,7 +116,7 @@ public class OidExpirationTask extends RecurrentTask {
         return updatedRecords.intoSet(ASSIGNED_IDENTITY.ID);
     }
 
-    private int expireRecords(@Nonnull final Map<Integer, Long> expirationDaysPerEntity, StaleOidManagerImpl.OidExpirationResultRecord oidExpirationResultRecord) throws DataAccessException {
+    private int expireRecords(@Nonnull final Map<Integer, Long> expirationDaysPerEntity) throws DataAccessException {
         int updatedRecords = 0;
         Timestamp expirationDateMs =
                 Timestamp.from(Instant.ofEpochMilli(currentTimeMs - entityExpirationTimeMs));
@@ -147,24 +137,7 @@ public class OidExpirationTask extends RecurrentTask {
         if (updatedRecords > 0) {
             EXPIRED_ENTITIES_COUNT.increment((double)updatedRecords);
         }
-        oidExpirationResultRecord.setExpiredRecords(updatedRecords);
         return updatedRecords;
-    }
-
-    private void storeOidExpirationResultRecord(
-            @Nonnull final StaleOidManagerImpl.OidExpirationResultRecord oidExpirationResultRecord) throws DataAccessException {
-        context.insertInto(RECURRENT_OPERATIONS,
-                        RECURRENT_OPERATIONS.EXECUTION_TIME,
-                        RECURRENT_OPERATIONS.OPERATION_NAME,
-                        RECURRENT_OPERATIONS.EXPIRATION_SUCCESSFUL,
-                        RECURRENT_OPERATIONS.LAST_SEEN_UPDATE_SUCCESSFUL,
-                        RECURRENT_OPERATIONS.EXPIRED_RECORDS,
-                        RECURRENT_OPERATIONS.UPDATED_RECORDS,
-                        RECURRENT_OPERATIONS.ERRORS)
-                .values(LocalDateTime.ofInstant(Instant.ofEpochMilli(currentTimeMs), clock.getZone()),
-                        EXPIRATION_TASK_NAME, oidExpirationResultRecord.isSuccessfulExpiration(), oidExpirationResultRecord.isSuccessfulUpdate(),
-                        oidExpirationResultRecord.getExpiredRecords(), oidExpirationResultRecord.getUpdatedRecords(),
-                        oidExpirationResultRecord.getErrors()).execute();
     }
 
     private SelectQuery<Record1<Long>> getQueryForSelectingExpiredRecordsByEntity(int entityType,
