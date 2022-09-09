@@ -18,6 +18,16 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
     DOWNLOAD_PRICE_SHEET("Download price sheet"),
 
     /**
+     * Select the entries of interest in z zip file.
+     */
+    SELECT_ZIP_ENTRIES("Select entries in zip file"),
+
+    /**
+     * Open the entries in a zip file.
+     */
+    OPEN_ZIP_ENTRIES("Open zip file entries"),
+
+    /**
      * TODO remove this.
      */
     PLACEHOLDER_FINAL("Placeholder Final Stage");
@@ -46,5 +56,7 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
      */
     public static final List<MCAPricingProbeStage> DISCOVERY_STAGES = ImmutableList.of(
             DOWNLOAD_PRICE_SHEET,
+            SELECT_ZIP_ENTRIES,
+            OPEN_ZIP_ENTRIES,
             PLACEHOLDER_FINAL);
 }

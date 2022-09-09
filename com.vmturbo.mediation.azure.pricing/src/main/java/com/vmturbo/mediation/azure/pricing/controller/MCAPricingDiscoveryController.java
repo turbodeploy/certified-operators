@@ -23,7 +23,9 @@ import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipeline;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContext;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContextMembers;
 import com.vmturbo.mediation.azure.pricing.stages.FetcherStage;
+import com.vmturbo.mediation.azure.pricing.stages.OpenZipEntriesStage;
 import com.vmturbo.mediation.azure.pricing.stages.PlaceholderFinalStage;
+import com.vmturbo.mediation.azure.pricing.stages.SelectZipEntriesStage;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier.PricingIdentifierName;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
@@ -114,6 +116,8 @@ public class MCAPricingDiscoveryController extends
                 .addStage(new FetcherStage<AzurePricingAccount, MCAPricingProbeStage>(
                     this.cacher, MCAPricingProbeStage.DOWNLOAD_PRICE_SHEET, MCA_OVERRIDE_PATH
                 ))
+                .addStage(new SelectZipEntriesStage("*.csv", MCAPricingProbeStage.SELECT_ZIP_ENTRIES))
+                .addStage(new OpenZipEntriesStage(MCAPricingProbeStage.OPEN_ZIP_ENTRIES))
                 .finalStage(new PlaceholderFinalStage(MCAPricingProbeStage.PLACEHOLDER_FINAL)));
     }
 

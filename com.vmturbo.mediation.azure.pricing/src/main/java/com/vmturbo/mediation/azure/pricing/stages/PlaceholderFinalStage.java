@@ -1,6 +1,9 @@
 package com.vmturbo.mediation.azure.pricing.stages;
 
-import java.nio.file.Path;
+import java.io.InputStream;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -21,7 +24,7 @@ import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
  *   of discovery.
  */
 public class PlaceholderFinalStage<E extends ProbeStageEnum>
-        extends Stage<Path, DiscoveredPricing, PricingPipelineContext<E>> {
+        extends Stage<Stream<InputStream>, DiscoveredPricing, PricingPipelineContext<E>> {
     private E probeStage;
 
     /**
@@ -38,8 +41,10 @@ public class PlaceholderFinalStage<E extends ProbeStageEnum>
 
     @NotNull
     @Override
-    protected StageResult executeStage(@NotNull Path input) {
-        final String status = SUMMARY + input.toString();
+    protected StageResult executeStage(@NotNull Stream<InputStream> input) {
+        List<InputStream> streams = input.collect(Collectors.toList());
+
+        final String status = SUMMARY + input.toString() + " with " + streams.size() + " entries";
 
         getContext().getStageTracker().stage(probeStage).ok(status);
 
