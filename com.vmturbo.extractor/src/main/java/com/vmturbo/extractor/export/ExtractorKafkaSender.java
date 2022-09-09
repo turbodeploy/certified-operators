@@ -1,5 +1,7 @@
 package com.vmturbo.extractor.export;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -73,19 +75,39 @@ public class ExtractorKafkaSender {
         }
 
         final MutableInt successCounter = new MutableInt(0);
+        final MutableInt executionExceptionCounter = new MutableInt(0);
+        final MutableInt timeoutExceptionCounter = new MutableInt(0);
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
         try {
             for (Future<?> future : futures) {
                 try {
                     future.get(kafkaTimeoutSeconds, TimeUnit.SECONDS);
                     successCounter.increment();
-                } catch (ExecutionException | TimeoutException e) {
-                    logger.error("Failed to send object to kafka", e);
+                } catch (ExecutionException e) {
+                    if (executionExceptionCounter.intValue() == 0) {
+                        e.printStackTrace(pw);
+                    }
+                    executionExceptionCounter.increment();
+                } catch (TimeoutException e) {
+                    if (timeoutExceptionCounter.intValue() == 0) {
+                        e.printStackTrace(pw);
+                    }
+                    timeoutExceptionCounter.increment();
                 }
             }
         } catch (InterruptedException e) {
             logger.error("Interrupted while sending objects to Kafka: {} of {} sent",
                     successCounter.intValue(), futures.size(), e);
+        } finally {
+            // Log summary of exceptions with count to avoid log pollution.
+            if (executionExceptionCounter.intValue() != 0 || timeoutExceptionCounter.intValue() != 0) {
+                logger.error("Failed to send {} objects to kafka due to ExecutionException and {} objects due to TimeoutException, stacktrace of first exception of each follows: {}",
+                    executionExceptionCounter.intValue(), timeoutExceptionCounter.intValue(),  sw.toString());
+            }
+
         }
         return successCounter.intValue();
     }
+
 }
