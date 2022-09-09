@@ -1,13 +1,17 @@
 package com.vmturbo.voltron.extensions.tp;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -75,6 +79,7 @@ import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 public class CacheOnlyOperationManager extends OperationManagerWithQueue {
 
     private static final Logger logger = LogManager.getLogger(CacheOnlyOperationManager.class);
+    private static final int CACHED_DISCOVERY_RELOADED_MEDIATION_MSG_ID = 555555;
 
     private CacheOnlyDiscoveryDumper cacheOnlyDiscoveryDumper;
     private final EntityStore entityStore;
@@ -88,7 +93,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
     private final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader;
     private final MatrixInterface matrix;
     private DiscoveryDumper discoveryDumper;
-
+    private final Map<Long, LocalDateTime> discoveryTimes = new HashMap<>();
 
     private final ExecutorService resultExecutor =
             Executors.newSingleThreadExecutor(
@@ -184,8 +189,45 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
                     "Cache only discovery mode enabled, ignoring non user initiated discovery request");
             return Optional.empty();
         } else {
-            return super.startDiscovery(targetId, discoveryType, runNow);
+            // if the cached discovery last modified timestamp is newer than the last one loaded,
+            // it indicates it was modified by hand, so reload it. Otherwise do a new discovery.
+            LocalDateTime lastLoaded = discoveryTimes.get(targetId);
+            LocalDateTime lastModified = cacheOnlyDiscoveryDumper.getCachedDiscoveryTimestamp(targetId);
+            if (lastLoaded != null && lastModified != null && lastModified.isAfter(lastLoaded)) {
+                Target target = targetStore.getTarget(targetId)
+                        .orElseThrow(() -> new TargetNotFoundException(targetId));
+                logger.info("Reloading updated cached discovery file for target {}:{}",
+                        target.getDisplayName(), target.getProbeInfo().getProbeType());
+                Discovery discovery = reloadCachedDiscovery(targetId);
+                return Optional.of(discovery);
+            } else {
+                return super.startDiscovery(targetId, discoveryType, runNow);
+            }
         }
+    }
+
+    private Discovery reloadCachedDiscovery(long targetId) throws TargetNotFoundException, ProbeException {
+        Target target = targetStore.getTarget(targetId).orElseThrow(() ->
+                new TargetNotFoundException(targetId));
+        logger.info("Loading cached discovery response for target {}, {}",
+                target.getDisplayName(), target.getProbeInfo().getProbeType());
+        DiscoveryResponse dr = cacheOnlyDiscoveryDumper.getCachedDiscoveryResponse(target.getId());
+        if (dr == null) {
+            logger.error("No cached discovery response found for target {}, {}",
+                    target.getDisplayName(), target.getProbeInfo().getProbeType());
+            return null;
+        }
+        Discovery discovery = new Discovery(target.getProbeId(), targetId, identityProvider);
+        discovery.setMediationMessageId(CACHED_DISCOVERY_RELOADED_MEDIATION_MSG_ID);
+        try {
+            notifyLoadedDiscovery(discovery, dr).get(20, TimeUnit.MINUTES);
+        } catch (Exception e) {
+            logger.error(
+                    "Error in notifying the discovery result for target {}  {}",
+                    target.getDisplayName(), target.getProbeInfo().getProbeType(), e);
+            return null;
+        }
+        return discovery;
     }
 
     private boolean isUserInitiated() {
@@ -202,6 +244,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
     @Override
     public Future<?> notifyDiscoveryResult(@Nonnull final Discovery operation,
             @Nonnull final DiscoveryResponse dr) {
+        discoveryTimes.put(operation.getTargetId(), LocalDateTime.now());
         // Make the hidden derived targets visible on the DR before processing
         return resultExecutor.submit(() -> {
             processDiscoveryResponse(operation, makeHiddenDerivedTargetsVisible(dr), true);
@@ -211,6 +254,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
     @Override
     public Future<?> notifyLoadedDiscovery(@Nonnull Discovery operation,
             @Nonnull DiscoveryResponse dr) {
+        discoveryTimes.put(operation.getTargetId(), LocalDateTime.now());
         return resultExecutor.submit(() -> {
             processDiscoveryResponse(operation, makeHiddenDerivedTargetsVisible(dr), false);
         });
@@ -326,7 +370,13 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
                                 discoveryDumper.dumpDiscovery(targetName, discoveryType, response,
                                         probeInfo.get().getAccountDefinitionList());
                             }
-                            dumpDiscoveryToCache(target.get(), discoveryType, response, probeInfo.get());
+                            // If this is a discovery based on an updated cached file, don't replace the cached file.
+                            // It's unnecessary and would update the file timestamp which would prevent real discovery
+                            // from ever happening.
+                            if (discovery.getMediationMessageId() != CACHED_DISCOVERY_RELOADED_MEDIATION_MSG_ID) {
+                                dumpDiscoveryToCache(target.get(), discoveryType, response, probeInfo.get());
+                            }
+
                             // set discovery context
                             if (response.hasDiscoveryContext()) {
                                 getTargetOperationContextOrLogError(targetId).ifPresent(
