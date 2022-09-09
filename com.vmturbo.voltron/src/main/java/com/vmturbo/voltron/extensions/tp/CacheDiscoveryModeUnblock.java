@@ -101,7 +101,8 @@ public class CacheDiscoveryModeUnblock implements PipelineUnblock {
                                 Discovery operation = new Discovery(probeId, targetId,
                                         identityProvider);
 
-                                logger.info("Loaded cached discovery response for target={}", target.get().getDisplayName());
+                                logger.info("Loaded cached discovery response for target={}, type={}",
+                                        target.get().getDisplayName(), target.get().getProbeInfo().getProbeType());
                                 try {
                                     operationManager.notifyLoadedDiscovery(operation,
                                         entry.getValue()).get(20, TimeUnit.MINUTES);

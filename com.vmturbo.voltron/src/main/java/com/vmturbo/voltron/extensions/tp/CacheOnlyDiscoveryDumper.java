@@ -7,11 +7,15 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.TimeZone;
 
 import javax.annotation.Nonnull;
 
@@ -135,31 +139,12 @@ public class CacheOnlyDiscoveryDumper implements DiscoveryDumper {
      * @return a map of discovery response objects by target ID.
      */
     public Map<Long, DiscoveryResponse> restoreDiscoveryResponses(@Nonnull TargetStore targetStore) {
-        Map<Long, DiscoveryResponse> discoveryResponsesByTargetId = new HashMap<>();
-        final String[] allDiscoveryDumpFiles = dumpDirectory.list();
-        if (allDiscoveryDumpFiles == null) {
-            logger.error("Cannot get the list of discovery dump files");
-            return discoveryResponsesByTargetId;
-        }
-        for (String filename : allDiscoveryDumpFiles) {
-            // parse filename
-            final DiscoveryDumpFilename ddf = DiscoveryDumpFilename.parse(filename);
-            if (ddf == null) {
-                // not a valid dump file name
-                continue;
-            }
-            Long sanitizedTargetId = null;
-            // Expecting name like:
-            //   707867536121655_Azure_Service_Principal_EA___Development-2022.07.08.15.47.36.376-FULL.txt"
-            String[] parts = ddf.getSanitizedTargetName().split("_");
-            if (parts.length > 0) {
-                sanitizedTargetId = Longs.tryParse(parts[0]);
-            }
-            if (sanitizedTargetId == null) {
-                continue;
-            }
-            // add to corresponding caching map
+        Map<Long, DiscoveryDumpFilename> cachedDiscoveries = getCachedDiscoveryDumpsByTargetId();
+        Map<Long, DiscoveryResponse> discoveryResponsesByTargetId = new HashMap<>(cachedDiscoveries.size());
+        for (Entry<Long, DiscoveryDumpFilename> entry : cachedDiscoveries.entrySet()) {
             // If the target is no longer in the target store, delete the file
+            Long sanitizedTargetId = entry.getKey();
+            DiscoveryDumpFilename ddf = entry.getValue();
             if (!targetStore.getTarget(sanitizedTargetId).isPresent()) {
                 removeFile(ddf);
             } else {
@@ -170,6 +155,86 @@ public class CacheOnlyDiscoveryDumper implements DiscoveryDumper {
             }
         }
         return discoveryResponsesByTargetId;
+    }
+
+    /**
+     * Gets a cached discovery responses from the topology processor cache.
+     *
+     * @param targetId The target ID.
+     * @return a discovery response object.
+     */
+    public DiscoveryResponse getCachedDiscoveryResponse(final long targetId) {
+        Map<Long, DiscoveryDumpFilename> cachedDiscoveries = getCachedDiscoveryDumpsByTargetId();
+        DiscoveryDumpFilename ddf = cachedDiscoveries.get(targetId);
+        if (ddf != null) {
+            return getDiscoveryResponse(ddf);
+        }
+        return null;
+    }
+
+    /**
+     * Gets the timestamp of a cached discovery responses in the topology processor cache.
+     *
+     * @param targetId The target ID.
+     * @return The last modified time of the target's cached discovery response.
+     */
+    public LocalDateTime getCachedDiscoveryTimestamp(final long targetId) {
+        Map<Long, DiscoveryDumpFilename> cachedDiscoveries = getCachedDiscoveryDumpsByTargetId();
+        DiscoveryDumpFilename ddf = cachedDiscoveries.get(targetId);
+        if (ddf != null) {
+            File cachedDumpFile = ddf.getFile(dumpDirectory, true, false);
+            return LocalDateTime.ofInstant(Instant.ofEpochMilli(cachedDumpFile.lastModified()),
+                    TimeZone.getDefault().toZoneId());
+        }
+        return null;
+    }
+
+    private Map<Long, DiscoveryDumpFilename> getCachedDiscoveryDumpsByTargetId() {
+        Map<Long, DiscoveryDumpFilename> cachedDiscoveryDumpsByTargetId = new HashMap<>();
+        final String[] allDiscoveryDumpFiles = dumpDirectory.list();
+        if (allDiscoveryDumpFiles == null) {
+            logger.error("No cached discovery dump files found!");
+            return cachedDiscoveryDumpsByTargetId;
+        }
+        for (String filename : allDiscoveryDumpFiles) {
+            final DiscoveryDumpFileContext ddfCtx = new DiscoveryDumpFileContext(filename);
+            if (!ddfCtx.isValidDiscoveryDumpFile()) {
+                // not a valid dump file name
+                continue;
+            }
+            cachedDiscoveryDumpsByTargetId.put(ddfCtx.getSanitizedTargetId(), ddfCtx.getDiscoveryDumpFilename());
+        }
+        return cachedDiscoveryDumpsByTargetId;
+    }
+
+    /**
+     * A class holding a DiscoveryDumpFileContext and some related utility methods.
+     */
+    private class DiscoveryDumpFileContext {
+        private final DiscoveryDumpFilename ddf;
+
+        private DiscoveryDumpFileContext(String filename) {
+            this.ddf = DiscoveryDumpFilename.parse(filename);
+        }
+
+        DiscoveryDumpFilename getDiscoveryDumpFilename() {
+            return ddf;
+        }
+
+        boolean isValidDiscoveryDumpFile() {
+            return ddf != null && getSanitizedTargetId() != null;
+        }
+
+        Long getSanitizedTargetId() {
+            Long sanitizedTargetId = null;
+            // Expecting name like:
+            //   707867536121655_Azure_Service_Principal_EA___Development-2022.07.08.15.47.36.376-FULL.txt"
+            String[] parts = ddf.getSanitizedTargetName().split("_");
+            if (parts.length > 0) {
+                sanitizedTargetId = Longs.tryParse(parts[0]);
+            }
+            return sanitizedTargetId;
+        }
     }
 
     /**
