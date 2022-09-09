@@ -36,6 +36,7 @@ import org.jooq.DSLContext;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -44,6 +45,7 @@ import org.junit.runners.Parameterized.Parameters;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
@@ -67,6 +69,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.MultiDbTestBase;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Used to test savings related DB read/write codebase.
@@ -88,6 +91,10 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
     private final DSLContext dsl;
 
     private RollupTimesStore rollupTimesStore;
+
+    /** Manage feature flag settings. */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     /**
      * Create a new instance with given parameters.
@@ -795,5 +802,59 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         assertEquals(expectedValue, monthlyRecord.getStatsValue(), EPSILON_PRECISION);
         long monthlyTimeMillis = TimeUtil.localDateTimeToMilli(monthlyRecord.getStatsTime(), clock);
         assertEquals(monthEndFeb, monthlyTimeMillis);
+    }
+
+    /**
+     * Test Aggregation of daily data with bill based feature enabled.
+     * @throws EntitySavingsException Thrown on DB errors.
+     */
+    @Test
+    public void aggregateDailyStatsWithBillBasedTest() throws EntitySavingsException {
+        featureFlagTestRule.enable(FeatureFlags.ENABLE_BILLING_BASED_SAVINGS);
+        final Set<EntitySavingsStatsType> statsTypes = ImmutableSet.of(
+                EntitySavingsStatsType.REALIZED_INVESTMENTS, EntitySavingsStatsType.REALIZED_SAVINGS);
+
+        // Add Daily stats records for 12 months
+        final LocalDateTime startTime = timeExact0PM;
+        long startTimeMillis = TimeUtil.localDateTimeToMilli(startTime, clock);
+        final LocalDateTime endTime = timeExact0PM.plusMonths(11);
+        long endTimeMillis = TimeUtil.localDateTimeToMilli(endTime, clock);
+
+        final Set<EntitySavingsStats> dailyStats = new HashSet<>();
+
+        for (long tMillis = startTimeMillis; tMillis <= endTimeMillis; tMillis += TimeUnit.DAYS.toMillis(1)) {
+            LocalDateTime time = LocalDateTime.ofInstant(Instant.ofEpochMilli(tMillis), ZoneOffset.UTC);
+            setStatsValues(dailyStats, vm1Id, time, 10, statsTypes);
+        }
+        store.addDailyStats(dailyStats, dsl);
+        final double ecpectedSavings = dailyStats.stream().filter(o -> o.getType()
+                .equals(EntitySavingsStatsType.REALIZED_SAVINGS)).mapToDouble(o -> o.getValue()).sum();
+        final double expectedInvestments = dailyStats.stream().filter(o -> o.getType()
+                .equals(EntitySavingsStatsType.REALIZED_INVESTMENTS)).mapToDouble(o -> o.getValue()).sum();
+
+        Collection<Long> entityOids = ImmutableSet.of(vm1Id);
+        Collection<Integer> entityTypes = Collections.singleton(EntityType.VIRTUAL_MACHINE_VALUE);
+        Collection<Long> resourceGroups = new HashSet<>();
+
+        // query daily table ,aggregate it to monthly
+        final List<AggregatedSavingsStats> monthlyResult = store.getSavingsStats(TimeFrame.MONTH,
+                statsTypes,
+                startTimeMillis - TimeUnit.DAYS.toMillis(31), endTimeMillis + TimeUnit.DAYS.toMillis(31),
+                entityOids, entityTypes, resourceGroups);
+        assertNotNull(monthlyResult);
+        final double actualSavings = monthlyResult.stream().filter(o -> o.getType()
+                .equals(EntitySavingsStatsType.REALIZED_SAVINGS)).mapToDouble(o -> o.getValue()).sum();
+        final double actualInvestments = monthlyResult.stream().filter(o -> o.getType()
+                .equals(EntitySavingsStatsType.REALIZED_INVESTMENTS)).mapToDouble(o -> o.getValue()).sum();
+
+        // check monthly results
+        // we have a record for every distinct month in which an hourly timestamp appeared
+        assertEquals(statsTypes.size() * (12L * (endTime.getYear() - startTime.getYear())
+                        + endTime.getMonthValue() - startTime.getMonthValue() + 1),
+                monthlyResult.size());
+        // check the total of dailyStats equals the total for monthlyStats for RALIZED_INVESTMENTS
+        assertEquals(expectedInvestments, actualInvestments, 0.5);
+        // check the total of dailyStats equals the total for monthlyStats for RALIZED_SAVINGS
+        assertEquals(ecpectedSavings, actualSavings, 0.5);
     }
 }

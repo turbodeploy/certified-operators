@@ -4,6 +4,8 @@ import static com.vmturbo.cost.component.db.Tables.ENTITY_CLOUD_SCOPE;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_DAY;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_HOUR;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_MONTH;
+import static org.jooq.impl.DSL.max;
+import static org.jooq.impl.DSL.month;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -47,6 +49,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord.SavingsRec
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.db.tables.EntitySavingsByHour;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsByHourRecord;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
@@ -439,12 +442,18 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
             final Set<Integer> statsTypeCodes = statsTypes.stream()
                     .map(EntitySavingsStatsType::getNumber)
                     .collect(Collectors.toSet());
+            // Use Daily Table for Yearly/Monthly stats until OM-87933 is addressed
+            if (durationType.equals(RollupDurationType.MONTHLY) && FeatureFlags.ENABLE_BILLING_BASED_SAVINGS.isEnabled()) {
+                return aggregateDailyStats(statsTypeCodes, startTime, endTime,
+                        entityOids, entityTypes, resourceGroups);
+            }
             // Check if entity type is one of those that can be used to resolve for members using the
             // entity_cloud_scope table. Checking for only one entity type in the type list because
             // we expect all entities in the list have the same type. e.g. we cannot have VMs and accounts
             // in the list.
             boolean isCloudScopeEntity = entityTypes.size() == 1 && CLOUD_GROUP_SCOPES.containsAll(entityTypes);
             boolean isResourceGroups = !resourceGroups.isEmpty();
+
             SelectJoinStep<Record3<LocalDateTime, Integer, BigDecimal>> selectStatsStatement =
                     dsl.select(fieldInfo.timeField,
                                     fieldInfo.typeField,
@@ -476,6 +485,42 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
                     + SavingsUtil.getLocalDateTime(startTime, clock)
                     + " and " + SavingsUtil.getLocalDateTime(endTime, clock), e);
         }
+    }
+
+    /**
+     * For BillBasedSavings, aggregating the daily table to monthly.
+     */
+    @Nonnull
+    private List<AggregatedSavingsStats> aggregateDailyStats(@Nonnull Set<Integer> statsTypeCodes,
+            @Nonnull Long startTime, @Nonnull Long endTime,
+            @Nonnull Collection<Long> entityOids, @Nonnull Collection<Integer> entityTypes,
+            @Nonnull Collection<Long> resourceGroups)
+            throws EntitySavingsException {
+        final StatsTypeFields fieldInfo = statsFieldsByRollup.get(RollupDurationType.DAILY);
+        boolean isCloudScopeEntity = entityTypes.size() == 1 && CLOUD_GROUP_SCOPES.containsAll(entityTypes);
+        boolean isResourceGroups = !resourceGroups.isEmpty();
+        SelectJoinStep<Record3<LocalDateTime, Integer, BigDecimal>> selectStatsStatement =
+                dsl.select(max(fieldInfo.timeField),
+                                fieldInfo.typeField,
+                                DSL.sum(fieldInfo.valueField).as(fieldInfo.valueField))
+                        .from(fieldInfo.table);
+
+        if (isCloudScopeEntity || isResourceGroups) {
+            selectStatsStatement = selectStatsStatement.join(ENTITY_CLOUD_SCOPE)
+                    .on(fieldInfo.oidField.eq(ENTITY_CLOUD_SCOPE.ENTITY_OID));
+        }
+        final Result<Record3<LocalDateTime, Integer, BigDecimal>> records =
+                selectStatsStatement
+                        .where(generateEntityOidCondition(fieldInfo, entityOids, entityTypes,
+                                resourceGroups, isCloudScopeEntity, isResourceGroups))
+                        .and(fieldInfo.typeField.in(statsTypeCodes))
+                        .and(fieldInfo.timeField
+                                .ge(SavingsUtil.getLocalDateTime(startTime, clock))
+                                .and(fieldInfo.timeField
+                                        .lt(SavingsUtil.getLocalDateTime(endTime, clock))))
+                        .groupBy(fieldInfo.typeField, month(fieldInfo.timeField))
+                        .orderBy(month(fieldInfo.timeField).asc()).fetch();
+        return records.map(this::convertStatsDbRecord);
     }
 
     @Nonnull
