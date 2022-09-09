@@ -58,7 +58,7 @@ public class MCAPricesheetFetcherTest {
     private final Map<String, String> environ = System.getenv();
 
     /**
-     * Allocates and cleans up a directopry for temporary files for this test.
+     * Allocates and cleans up a directory for temporary files for this test.
      */
     @Rule
     public TemporaryFolder tmpFolder = new TemporaryFolder();

@@ -6,7 +6,9 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.components.common.pipeline.Pipeline.PipelineException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.mediation.azure.pricing.pipeline.DiscoveredPricing;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipeline;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContext;
@@ -22,7 +24,7 @@ import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 import com.vmturbo.platform.sdk.probe.properties.PropertySpec;
 
 /**
- * Bsse class for pricing discovery controllers.
+ * Base class for pricing discovery controllers.
  *
  * @param <A> The type of account for which pricing is to be discovered
  * @param <E> The enum for the probe discovery stages that apply to this particular kind
@@ -31,6 +33,8 @@ import com.vmturbo.platform.sdk.probe.properties.PropertySpec;
 public abstract class AbstractPricingDiscoveryController<A extends ProxyAwareAccount,
         E extends ProbeStageEnum>
         implements PricingDiscoveryController<A> {
+    private final Logger logger = LogManager.getLogger();
+
     /**
      * The directory to use for storing downloaded pricing data.
      */
@@ -61,41 +65,45 @@ public abstract class AbstractPricingDiscoveryController<A extends ProxyAwareAcc
 
         DiscoveredPricing.Key key = getKey(accountValues);
 
+        DiscoveryResponse.Builder responseBuilder = DiscoveryResponse.newBuilder();
+        ProbeStageTracker<E> stageTracker = new ProbeStageTracker<E>(getDiscoveryStages());
+
         // TODO Check the cache and use the cached value if still valid, else...
 
-        try (PricingPipelineContext context = new PricingPipelineContext(key.toString(),
-                new ProbeStageTracker<E>(getDiscoveryStages()))) {
+        PriceTable.Builder tableBuilder = null;
+
+        try (PricingPipelineContext context = new PricingPipelineContext(key.toString(), stageTracker)) {
             PricingPipeline<A, DiscoveredPricing> pipeline = buildPipeline(context, propertyProvider);
 
             DiscoveredPricing pricing = pipeline.run(accountValues);
 
             // TODO enter pricing for each DiscoveredPricing.Key into the cache
 
-            DiscoveryResponse.Builder responseBuilder = DiscoveryResponse.newBuilder();
-
-            PriceTable.Builder tableBuilder = pricing.getPricingMap().get(key);
+            tableBuilder = pricing.getPricingMap().get(key);
             if (tableBuilder != null) {
                 // TODO checksumming and returning NoChange instead of result if same
 
                 tableBuilder.addAllPriceTableKeys(key.getPricingIdentifiers());
                 responseBuilder.setPriceTable(tableBuilder);
-                responseBuilder.addAllStagesDetail(context.getStageTracker().getStageDetails());
-            } else {
-                // TODO should consider fatal if the discovery succeeded but didn't
-                // return the pricing it was asked to discover.
             }
+        } catch (Exception ex) {
+            logger.error("Exception during discovery", ex);
 
-            return responseBuilder.build();
-        } catch (PipelineException e) {
-            // TODO
-            throw new RuntimeException(e);
-        } catch (InterruptedException e) {
-            // TODO
-            throw new RuntimeException(e);
-        } catch (Exception e) {
-            // TODO
-            throw new RuntimeException(e);
+            return stageTracker.createDiscoveryError(ex.getMessage());
         }
+
+        /* if (tableBuilder == null) {
+            // This needs to be disabled until the placeholder stage is replaced with
+            // the real final stage that returns the expected pricing:
+
+            return stageTracker.createDiscoveryError(
+                "Discovery pipeline succeeded but did not include the requested pricing "
+                + key.toString());
+        }*/
+
+        responseBuilder.addAllStagesDetail(stageTracker.getStageDetails());
+
+        return responseBuilder.build();
     }
 
     /**

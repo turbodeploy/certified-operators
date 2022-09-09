@@ -18,6 +18,16 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     DOWNLOAD_PRICE_SHEET("Download price sheet"),
 
     /**
+     * Select entries from a zip file.
+     */
+    SELECT_ZIP_ENTRIES("Select entries from Zip file"),
+
+    /**
+     * Open entries from a zip file.
+     */
+    OPEN_ZIP_ENTRIES("Open entries of Zip file"),
+
+    /**
      * TODO remove this.
      */
     PLACEHOLDER_FINAL("Placeholder Final Stage");
@@ -45,5 +55,6 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
      */
     public static final List<MockPricingProbeStage> DISCOVERY_STAGES = ImmutableList.of(
             DOWNLOAD_PRICE_SHEET,
+            SELECT_ZIP_ENTRIES,
             PLACEHOLDER_FINAL);
 }

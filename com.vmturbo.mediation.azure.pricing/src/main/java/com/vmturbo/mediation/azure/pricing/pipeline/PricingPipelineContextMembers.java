@@ -1,5 +1,7 @@
 package com.vmturbo.mediation.azure.pricing.pipeline;
 
+import java.util.zip.ZipFile;
+
 import com.vmturbo.components.common.pipeline.PipelineContext.PipelineContextMemberDefinition;
 import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 
@@ -20,4 +22,11 @@ public class PricingPipelineContextMembers {
     public static final PipelineContextMemberDefinition<IPropertyProvider> PROPERTY_PROVIDER =
         PipelineContextMemberDefinition.member(IPropertyProvider.class, "Property Provider",
             propertyProvider -> null);
+
+    /**
+     * The opened zip file.
+     */
+    public static final PipelineContextMemberDefinition<ZipFile> ZIP_FILE =
+            PipelineContextMemberDefinition.member(ZipFile.class, "Opened Zip File",
+                    zipFile -> null);
 }
