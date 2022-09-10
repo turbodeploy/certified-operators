@@ -449,6 +449,7 @@ public class TopologyEntitiesHandlerTest {
 
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(
                     MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                    MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR,
                     SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false,
                     MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false)
                 .setRightsizeLowerWatermark(rightsizeLowerWatermark)
@@ -700,7 +701,7 @@ public class TopologyEntitiesHandlerTest {
     public void testNewShoppingListToBuyerEntryPopulation() {
         final AnalysisConfig analysisConfig = AnalysisConfig
                 .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
-                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR,
                         SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false,
                         MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false)
                 .build();
@@ -845,7 +846,7 @@ public class TopologyEntitiesHandlerTest {
 
         final AnalysisConfig analysisConfig = AnalysisConfig
                         .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
-                                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR,
                                         SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false,
                                         MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false)
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
@@ -962,7 +963,7 @@ public class TopologyEntitiesHandlerTest {
 
             final AnalysisConfig analysisConfig = AnalysisConfig
                             .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
-                                            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                                            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR,
                                             SuspensionsThrottlingConfig.DEFAULT,
                                             Collections.emptyMap(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
                                             false)
@@ -1106,7 +1107,7 @@ public class TopologyEntitiesHandlerTest {
 
         final AnalysisConfig analysisConfig = AnalysisConfig
                 .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
-                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR,
                         SuspensionsThrottlingConfig.DEFAULT,
                         Collections.emptyMap(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
                         false)

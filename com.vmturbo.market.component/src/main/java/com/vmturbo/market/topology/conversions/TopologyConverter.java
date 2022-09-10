@@ -47,7 +47,6 @@ import com.google.common.math.DoubleMath;
 import com.google.gson.Gson;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -416,6 +415,7 @@ public class TopologyConverter {
 
     private float quoteFactor = MarketAnalysisUtils.QUOTE_FACTOR;
     private float liveMarketMoveCostFactor = MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR;
+    private static float storageMoveCostFactor = MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR;
 
     // Add a cost of moving from source to destination.
     private static final float PLAN_MOVE_COST_FACTOR = 0.0f;
@@ -496,6 +496,7 @@ public class TopologyConverter {
      * @param marketMode the market generates compute scaling action for could vms if false.
      *                  the SMA (Stable Marriage Algorithm)  library generates them if true.
      * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
+     * @param storageMoveCostFactor used to normalize cost of storage moves.
      * @param marketCloudRateExtractor market price table
      * @param incomingCommodityConverter the commodity converter
      * @param cloudCostData cloud cost data
@@ -515,6 +516,7 @@ public class TopologyConverter {
                              final float quoteFactor,
                              final MarketMode marketMode,
                              final float liveMarketMoveCostFactor,
+                             final float storageMoveCostFactor,
                              @Nonnull final CloudRateExtractor marketCloudRateExtractor,
                              CommodityConverter incomingCommodityConverter,
                              final CloudCostData cloudCostData,
@@ -535,6 +537,7 @@ public class TopologyConverter {
         this.quoteFactor = quoteFactor;
         this.marketMode = marketMode;
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
+        this.storageMoveCostFactor = storageMoveCostFactor;
         this.consistentScalingHelper = consistentScalingHelperFactory
                 .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
         this.commodityConverter = incomingCommodityConverter != null ?
@@ -595,6 +598,7 @@ public class TopologyConverter {
                                      reversibilitySettingFetcher) {
         this(topologyInfo, INCLUDE_GUARANTEED_BUYER_DEFAULT, MarketAnalysisUtils.QUOTE_FACTOR,
                 MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                storageMoveCostFactor,
                 marketCloudRateExtractor, null, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 null, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
@@ -626,6 +630,7 @@ public class TopologyConverter {
             @Nonnull CloudTopology cloudTopology) {
         this(topologyInfo, INCLUDE_GUARANTEED_BUYER_DEFAULT, MarketAnalysisUtils.QUOTE_FACTOR,
                 MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                storageMoveCostFactor,
                 marketCloudRateExtractor, null, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 cloudTopology, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
@@ -661,7 +666,8 @@ public class TopologyConverter {
                              @Nonnull final FakeEntityCreator fakeEntityCreator) {
         this(topologyInfo, analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor(),
                 analysisConfig.getMarketMode(), analysisConfig.getLiveMarketMoveCostFactor(),
-                marketCloudRateExtractor, incomingCommodityConverter, cloudCostData,
+                analysisConfig.getStorageMoveCostFactor(), marketCloudRateExtractor, 
+                incomingCommodityConverter, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 cloudTopology, reversibilitySettingFetcher, analysisConfig.getLicensePriceWeightScale(),
                 analysisConfig.isEnableOP(), analysisConfig.useVMReservationAsUsed(),
@@ -689,7 +695,7 @@ public class TopologyConverter {
                              final boolean singleVMonHost,
                              final float customUtilizationThreshold) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, marketMode, liveMarketMoveCostFactor,
-                marketCloudRateExtractor, incomingCommodityConverter, null,
+                storageMoveCostFactor, marketCloudRateExtractor, incomingCommodityConverter, null,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 null, reversibilitySettingFetcher, licensePriceWeightScale, enableOP, useVMReservationAsUsed,
                 singleVMonHost, customUtilizationThreshold, null);
@@ -728,6 +734,7 @@ public class TopologyConverter {
                              final int licensePriceWeightScale,
                              final boolean enableOP) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
+            storageMoveCostFactor,
             marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, null, reversibilitySettingFetcher, licensePriceWeightScale,
             enableOP, true, false, 0.5f, null);
@@ -772,6 +779,7 @@ public class TopologyConverter {
             final boolean singleVMonHost,
             final float customUtilizationThreshold) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
+                storageMoveCostFactor,
                 marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
                 consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher, licensePriceWeightScale,
                 enableOP, useVMReservationAsUsed, singleVMonHost, customUtilizationThreshold, null);
@@ -3785,7 +3793,7 @@ public class TopologyConverter {
             @Nonnull final CommoditiesBoughtFromProvider additionalCommBought) {
         long entityForSLOid = entityForSL.getOid();
         TopologyDTO.TopologyEntityDTO provider = (providerOid != null) ? entityOidToDto.get(providerOid) : null;
-        float moveCost = calculateMoveCost(entityForSL, entityType, provider, commBoughtGroupingForSL);
+        final float moveCost = calculateMoveCost(entityForSL, entityType, provider, commBoughtGroupingForSL);
         final List<CommodityBoughtDTO> allCommBought;
         if (additionalCommBought.getCommodityBoughtCount() == 0) {
             allCommBought = commBoughtGroupingForSL.getCommodityBoughtList();
@@ -4219,40 +4227,15 @@ public class TopologyConverter {
     }
 
     /**
-     * The total used value of storage amount commodities bought by a buyer,
-     * summed over all the providers that it buys storage amount from.
+     * The total used value of storage amount commodities bought by a buyer.
      *
-     * @param buyer the {@link TopologyEntityDTO} of the buyer (presumably a VM)
+     * @param buyerSL the {@link CommoditiesBoughtFromProvider} of the provider (presumably a VM)
      * @return total used storage amount bought
      */
-    private double totalStorageAmountBought(@Nonnull final TopologyEntityDTO buyer) {
-        final MutableDouble result = new MutableDouble(0);
-        buyer.getCommoditiesBoughtFromProvidersList().forEach(commsBoughtFromProvider -> {
-            if (isStorage(commsBoughtFromProvider)) {
-                commsBoughtFromProvider.getCommodityBoughtList().forEach(commodity -> {
-                    if (commodity.getCommodityType().getType() ==
-                            CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
-                        result.add(commodity.getUsed());
-                    }
-                });
-            }
-        });
-        return result.doubleValue();
-    }
-
-    /**
-     * Checks whether the provider id of commodity bought group is the OID of a Storage.
-     *
-     * @param grouping a group of Commodity bought
-     * @return whether the provider id is the oid of a Storage
-     */
-
-    private boolean isStorage(CommoditiesBoughtFromProvider grouping) {
-        if (!grouping.hasProviderId()) {
-            return false;
-        }
-        TopologyDTO.TopologyEntityDTO entity = entityOidToDto.get(grouping.getProviderId());
-        return entity != null && entity.getEntityType() == EntityType.STORAGE_VALUE;
+    private double totalStorageAmountBought(@Nonnull final CommoditiesBoughtFromProvider buyerSL) {
+        return buyerSL.getCommodityBoughtList().stream().mapToDouble(commBought ->
+                commBought.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE
+                    ? commBought.getUsed() : 0).sum();
     }
 
     @Nullable
@@ -5373,35 +5356,40 @@ public class TopologyConverter {
      * @return the cost
      */
     private float calculateMoveCost(@Nonnull final TopologyEntityDTO entityForSL,
-            final int entityType,
-            @Nullable TopologyDTO.TopologyEntityDTO provider,
+            final int entityType, @Nullable TopologyDTO.TopologyEntityDTO provider,
             @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL) {
-        // Only consider move cost for real time and VMs with provider.
-        if (!isPlan() && provider != null && entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
-            // Cost of move for VM Storage consumer is determined by StorageAmount bought.
-            if (provider.getEntityType() == EntityType.STORAGE_VALUE) {
-                return (float)(totalStorageAmountBought(entityForSL) / Units.KIBI);
-            // Cost of move for a single VM on host is being set to a high value when the VM
-            // consumes most of the host's capacity for Memory to avoid disruptive moves due to
-            // potential fluctuations in memory observed and potential overhead.
-            } else if (singleVMonHost && provider.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE
+
+        boolean shouldCalculate = !isPlan() && provider != null;
+
+        // Cost of move for VM / Vol Storage consumer is determined by StorageAmount bought.
+        if (shouldCalculate && provider.getEntityType() == EntityType.STORAGE_VALUE
+                && (entityType == EntityType.VIRTUAL_MACHINE_VALUE
+                || entityType == EntityType.VIRTUAL_VOLUME_VALUE)) {
+            return storageMoveCostFactor * (float)(totalStorageAmountBought(commBoughtGroupingForSL)
+                    / Units.KIBI);
+        } else if (shouldCalculate && entityType == EntityType.VIRTUAL_MACHINE_VALUE && singleVMonHost
+                && provider.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE
                 && commBoughtGroupingForSL.getCommodityBoughtList().stream()
                     .filter(commBought -> commBought.getCommodityType().getType() == CommodityDTO.CommodityType.MEM_VALUE)
                     .anyMatch(commBought -> {
                         return numConsumersOfSoldCommTable.get(provider.getOid(), commBought.getCommodityType()) == 1
-                            && provider.getCommoditySoldListList().stream()
-                            .anyMatch(commSold -> {
-                                return commSold.getCommodityType().getType() == commBought.getCommodityType().getType()
-                                        && (commBought.hasHistoricalUsed()
-                                    ? commBought.getHistoricalUsed().getHistUtilization()
-                                        / commSold.getCapacity() >= customUtilizationThreshold
-                                    : commBought.getUsed() / commSold.getCapacity() >= customUtilizationThreshold);
-                            });
+                                && provider.getCommoditySoldListList().stream()
+                                .anyMatch(commSold -> {
+                                    return commSold.getCommodityType().getType() == commBought.getCommodityType().getType()
+                                            && (commBought.hasHistoricalUsed()
+                                            ? commBought.getHistoricalUsed().getHistUtilization()
+                                            / commSold.getCapacity() >= customUtilizationThreshold
+                                            : commBought.getUsed() / commSold.getCapacity() >= customUtilizationThreshold);
+                                });
                     })) {
+                // Cost of move for a single VM on host is being set to a high value when the VM
+                // consumes most of the host's capacity for Memory to avoid disruptive moves due to
+                // potential fluctuations in memory observed and potential overhead.
+
                 logger.info("Setting high cost of move for " + entityForSL.getDisplayName());
                 return 10000000f;
-            }
         }
+
         return 0.0f;
     }
 
