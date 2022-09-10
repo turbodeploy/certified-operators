@@ -270,7 +270,7 @@ public class AnalysisDebuggingTest {
     @Nonnull
     private Analysis analysisFromInput(@Nonnull final AnalysisInput analysisInput) {
         AnalysisConfig.Builder analysisConfig = AnalysisConfig.newBuilder(analysisInput.getQuoteFactor(),
-            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             analysisInput.getSuspensionThrottlingPerCluster() ? SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT,
                     analysisInput.getSettingsMap(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
                    false)

@@ -123,9 +123,6 @@ public class MarketRunnerConfig {
     @Value("${liveMarketMoveCostFactor:0.05}")
     private float liveMarketMoveCostFactor;
 
-    @Value("${storageMoveCostFactor:0.01}")
-    private float storageMoveCostFactor;
-
     @Value("${concurrentPlanAnalyses:1}")
     private int concurrentPlanAnalyses;
 
@@ -252,7 +249,6 @@ public class MarketRunnerConfig {
                 standardQuoteFactor,
                 marketMode,
                 liveMarketMoveCostFactor,
-                storageMoveCostFactor,
                 suspensionThrottlingPerCluster,
                 tierExcluderFactory(),
                 analysisRICoverageListener(),

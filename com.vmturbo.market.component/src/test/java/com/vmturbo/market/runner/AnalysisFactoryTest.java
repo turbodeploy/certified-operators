@@ -38,7 +38,7 @@ public class AnalysisFactoryTest {
         @Parameters({"true", "false"})
         @TestCaseName("Test #{index}: (set|get)UseQuoteCacheDuringSNM({0})")
         public final void testGetSetUseQuoteCacheDuringSNM(boolean useQuoteCacheDuringSNM) {
-            Builder builder = AnalysisConfig.newBuilder(0, 0, 1,
+            Builder builder = AnalysisConfig.newBuilder(0, 0,
                 SuspensionsThrottlingConfig.DEFAULT, new HashMap<>(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
                 false);
             assertSame(builder, builder.setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM));
@@ -54,7 +54,7 @@ public class AnalysisFactoryTest {
         @TestCaseName("Test #{index}: (set|get)ReplayProvisionsForRealTime({0})")
         public final void
                         testGetSetReplayProvisionsForRealTime(boolean replayProvisionsForRealTime) {
-            Builder builder = AnalysisConfig.newBuilder(0, 0, 1,
+            Builder builder = AnalysisConfig.newBuilder(0, 0,
                 SuspensionsThrottlingConfig.DEFAULT, new HashMap<>(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
                 false);
             assertSame(builder,

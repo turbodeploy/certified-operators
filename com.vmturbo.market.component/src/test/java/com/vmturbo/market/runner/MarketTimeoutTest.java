@@ -151,7 +151,7 @@ public class MarketTimeoutTest {
                 new AnalysisHealthTracker());
 
         AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
-            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
             Collections.emptyMap(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false);
                 doAnswer(invocation -> {
                     AnalysisConfigCustomizer configCustomizer =

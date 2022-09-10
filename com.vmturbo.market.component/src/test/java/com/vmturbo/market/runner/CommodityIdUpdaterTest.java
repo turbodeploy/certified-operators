@@ -73,7 +73,6 @@ public class CommodityIdUpdaterTest {
                 mock(GroupMemberRetriever.class), Clock.systemUTC(),
                 AnalysisConfig.newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
                         MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                        MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR,
                         SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false,
                         MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false).build(),
                 mock(TopologyEntityCloudTopologyFactory.class),

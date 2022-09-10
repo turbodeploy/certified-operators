@@ -139,7 +139,6 @@ public class MarketExceptionsTest {
             MarketAnalysisUtils.QUOTE_FACTOR,
             MarketMode.M2Only,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-            MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR,
             marketCloudRateExtractor,
             mockCommodityConverter,
             mockCCD,

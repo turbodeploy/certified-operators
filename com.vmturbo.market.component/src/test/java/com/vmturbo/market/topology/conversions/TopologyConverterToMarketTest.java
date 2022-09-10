@@ -384,11 +384,8 @@ public class TopologyConverterToMarketTest {
         ShoppingListTO dsShoppingList = shoppingLists.stream()
                 .filter(sl -> sl.getSupplier() == 205)
                 .findAny().orElseThrow(() -> new RuntimeException("cannot find supplier 205"));
-        // 2048 bought from DS based on commodities bought From provider list
-        // and divide by 1024, and then scaled by storageMoveCostFactor of 0.01.
-        // Which will result in getStorageMoveCost
-        // returning 0 rather than 0.02, due to it returning a float rather than a double
-        assertEquals(0, dsShoppingList.getStorageMoveCost(), epsilon);
+        // Buys 1024 from on DS and 2048 from another DS
+        assertEquals(3.0, dsShoppingList.getStorageMoveCost(), epsilon);
 
         final TraderTO pmTraderTO = getPmTrader(traderTOs);
         CommoditySoldTO pmSoldCPU = getCPUSold(pmTraderTO.getCommoditiesSoldList());
