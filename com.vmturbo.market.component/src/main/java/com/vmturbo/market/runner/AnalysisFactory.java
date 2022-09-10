@@ -119,6 +119,11 @@ public interface AnalysisFactory {
         private final float standardQuoteFactor;
 
         private final float liveMarketMoveCostFactor;
+        /**
+         * The factor used to normalize cost of moves for large storages
+         * See {@link AnalysisConfig}.
+         */
+        private final float storageMoveCostFactor;
 
         private final SuspensionsThrottlingConfig suspensionsThrottlingConfig;
 
@@ -178,6 +183,7 @@ public interface AnalysisFactory {
                                       final float standardQuoteFactor,
                                       final String marketModeName,
                                       final float liveMarketMoveCostFactor,
+                                      final float storageMoveCostFactor,
                                       final boolean suspensionThrottlingPerCluster,
                                       @Nonnull final TierExcluderFactory tierExcluderFactory,
                                       @Nonnull AnalysisRICoverageListener listener,
@@ -218,6 +224,7 @@ public interface AnalysisFactory {
             this.standardQuoteFactor = standardQuoteFactor;
             this.marketMode = MarketMode.fromString(marketModeName);
             this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
+            this.storageMoveCostFactor = storageMoveCostFactor;
             this.fullPriceForQuote = fullPriceForQuote;
             this.suspensionsThrottlingConfig = suspensionThrottlingPerCluster ?
                     SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT;
@@ -255,7 +262,8 @@ public interface AnalysisFactory {
             final float quoteFactor = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo) ?
                     alleviatePressureQuoteFactor : standardQuoteFactor;
             final AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilderWithSMA(marketMode, quoteFactor,
-                liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings, fullPriceForQuote,
+                liveMarketMoveCostFactor, this.storageMoveCostFactor,
+                    this.suspensionsThrottlingConfig, globalSettings, fullPriceForQuote,
                 licensePriceWeightScale, enableOP, fastProvisionEnabled, branchAndBoundEnabled, useVMReservationAsUsed,
                 singleVMonHost, customUtilizationThreshold);
             configCustomizer.customize(configBuilder);
@@ -349,6 +357,13 @@ public interface AnalysisFactory {
          * https://vmturbo.atlassian.net/browse/OM-35316 for additional details.
          */
         private final float liveMarketMoveCostFactor;
+
+        /**
+         * The storage move cost factor that set the cost of the move
+         *
+         * cost = storageMoveCostFactor * storage-size (GB)
+         */
+        private final float storageMoveCostFactor;
 
         private final SuspensionsThrottlingConfig suspensionsThrottlingConfig;
 
@@ -461,6 +476,7 @@ public interface AnalysisFactory {
         private AnalysisConfig(final MarketMode marketMode,
                               final float quoteFactor,
                               final float liveMarketMoveCostFactor,
+                              final float storageMoveCostFactor,
                               final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                               final Map<String, Setting> globalSettingsMap,
                               final boolean includeVDC,
@@ -480,6 +496,7 @@ public interface AnalysisFactory {
                               final float customUtilizationThreshold) {
             this.quoteFactor = quoteFactor;
             this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
+            this.storageMoveCostFactor = storageMoveCostFactor;
             this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
             this.globalSettingsMap = globalSettingsMap;
             this.includeVDC = includeVDC;
@@ -553,6 +570,10 @@ public interface AnalysisFactory {
 
         public float getLiveMarketMoveCostFactor() {
             return liveMarketMoveCostFactor;
+        }
+        
+        public float getStorageMoveCostFactor() { 
+            return storageMoveCostFactor; 
         }
 
         @Nonnull
@@ -638,6 +659,7 @@ public interface AnalysisFactory {
          *
          * @param quoteFactor See {@link AnalysisConfig#quoteFactor}
          * @param liveMarketMoveCostFactor See {@link AnalysisConfig#liveMarketMoveCostFactor}
+         * @param storageMoveCostFactor See {@link AnalysisConfig#storageMoveCostFactor}
          * @param suspensionsThrottlingConfig See {@link AnalysisConfig#suspensionsThrottlingConfig}.
          * @param globalSettings See {@link AnalysisConfig#globalSettingsMap}
          * @param fullPriceForQuote if quote should be the full price of the provider.
@@ -646,12 +668,12 @@ public interface AnalysisFactory {
          * @param enableOP is OverProvisioning changes enabled.
          * @return The builder, which can be further customized.
          */
-        public static Builder newBuilder(final float quoteFactor, final float liveMarketMoveCostFactor,
+        public static Builder newBuilder(final float quoteFactor, final float liveMarketMoveCostFactor, final float storageMoveCostFactor,
                                          @Nonnull final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                  @Nonnull final Map<String, Setting> globalSettings, final boolean fullPriceForQuote,
                  final int licensePriceWeightScale, final boolean enableOP) {
             return newBuilderWithSMA(MarketMode.M2Only, quoteFactor, liveMarketMoveCostFactor,
-                suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
+                storageMoveCostFactor, suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
                 enableOP, true, true, true, false, 0.5f);
         }
 
@@ -665,6 +687,7 @@ public interface AnalysisFactory {
          * @param marketMode if true SMA (Stable Marriage Algorithm) library generates compute scaling action for cloud vms. otherwise market generrates them.
          * @param quoteFactor See {@link AnalysisConfig#quoteFactor}
          * @param liveMarketMoveCostFactor See {@link AnalysisConfig#liveMarketMoveCostFactor}
+         * @param storageMoveCostFactor See {@link AnalysisConfig#storageMoveCostFactor}
          * @param suspensionsThrottlingConfig See {@link AnalysisConfig#suspensionsThrottlingConfig}.
          * @param globalSettings See {@link AnalysisConfig#globalSettingsMap}
          * @param fullPriceForQuote if quote should be the full price of the provider.
@@ -677,6 +700,7 @@ public interface AnalysisFactory {
          * @return The builder, which can be further customized.
          */
         public static Builder newBuilderWithSMA(final MarketMode marketMode, final float quoteFactor, final float liveMarketMoveCostFactor,
+                                                final float storageMoveCostFactor,
                                                 @Nonnull final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                                                 @Nonnull final Map<String, Setting> globalSettings,
                                                 final boolean fullPriceForQuote,
@@ -687,7 +711,7 @@ public interface AnalysisFactory {
                                                 final boolean useVMReservationAsUsed,
                                                 final boolean singleVMonHost,
                                                 final float customUtilizationThreshold) {
-            return new Builder(marketMode, quoteFactor, liveMarketMoveCostFactor,
+            return new Builder(marketMode, quoteFactor, liveMarketMoveCostFactor, storageMoveCostFactor,
                     suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
                     enableOP, fastProvisionEnabled, branchAndBoundEnabled, useVMReservationAsUsed,
                     singleVMonHost, customUtilizationThreshold);
@@ -707,6 +731,7 @@ public interface AnalysisFactory {
             private final MarketMode marketMode;
 
             private final float liveMarketMoveCostFactor;
+            private final float storageMoveCostFactor;
 
             private final SuspensionsThrottlingConfig suspensionsThrottlingConfig;
 
@@ -745,6 +770,7 @@ public interface AnalysisFactory {
             private Builder(final MarketMode marketMode,
                             final float quoteFactor,
                             final float liveMarketMoveCostFactor,
+                            final float storageMoveCostFactor,
                             final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                             @Nonnull final Map<String, Setting> globalSettings,
                             final boolean fullPriceForQuote,
@@ -757,6 +783,7 @@ public interface AnalysisFactory {
                             final float customUtilizationThreshold) {
                 this.quoteFactor = quoteFactor;
                 this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
+                this.storageMoveCostFactor = storageMoveCostFactor;
                 this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
                 this.globalSettings = globalSettings;
                 this.marketMode = marketMode;
@@ -873,7 +900,7 @@ public interface AnalysisFactory {
 
             @Nonnull
             public AnalysisConfig build() {
-                return new AnalysisConfig(marketMode, quoteFactor, liveMarketMoveCostFactor,
+                return new AnalysisConfig(marketMode, quoteFactor, liveMarketMoveCostFactor, storageMoveCostFactor,
                     suspensionsThrottlingConfig, globalSettings, includeVDC, maxPlacementsOverride,
                     useQuoteCacheDuringSNM, replayProvisionsForRealTime, rightsizeLowerWatermark,
                     rightsizeUpperWatermark, discountedComputeCostFactor, fullPriceForQuote,
