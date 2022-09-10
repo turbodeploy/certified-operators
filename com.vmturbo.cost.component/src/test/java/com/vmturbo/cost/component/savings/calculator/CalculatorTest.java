@@ -20,7 +20,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
@@ -31,7 +34,7 @@ import com.vmturbo.cost.component.savings.BillingRecord;
 import com.vmturbo.cost.component.savings.GrpcActionChainStore;
 import com.vmturbo.cost.component.savings.ScenarioGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingDataPoint.CostCategory;
 
@@ -42,12 +45,20 @@ public class CalculatorTest {
 
     private final long vmOid = 1234L;
     private final long volumeOid = 5555L;
+    private final long dbOid = 8888L;
     private final Calculator calculator;
     private final Clock clock = Clock.systemUTC();
     private final long lastProcessedDate = getTimestamp(date(2022, 3, 24));
     private final Comparator<ExecutedActionsChangeWindow> changeWindowComparator =
             GrpcActionChainStore.changeWindowComparator;
     private final StorageAmountResolver storageAmountResolver = mock(StorageAmountResolver.class);
+
+    @BeforeClass
+    public static void setup() {
+        // Added this line for convenience. Change this log level to DEBUG or TRACE to get more
+        // output when running test cases manually.
+        Configurator.setAllLevels("com.vmturbo.cost.component.savings", Level.INFO);
+    }
 
     public CalculatorTest() {
         long volumeExpiryMs = 10; // dummy value
@@ -387,10 +398,10 @@ public class CalculatorTest {
                 .cost(cost)
                 .providerId(providerId)
                 .entityId(vmOid)
-                .entityType(EntityType.VIRTUAL_MACHINE.getValue())
+                .entityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .accountId(1L)
                 .regionId(2L)
-                .providerType(EntityType.COMPUTE_TIER.getValue())
+                .providerType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .commodityType(CommodityType.UNKNOWN_VALUE)
                 .costCategory(costCategory)
                 .priceModel(priceModel)
@@ -405,12 +416,30 @@ public class CalculatorTest {
                 .cost(cost)
                 .providerId(providerId)
                 .entityId(volumeOid)
-                .entityType(EntityType.VIRTUAL_VOLUME.getValue())
+                .entityType(EntityType.VIRTUAL_VOLUME_VALUE)
                 .accountId(1L)
                 .regionId(2L)
-                .providerType(EntityType.STORAGE_TIER.getValue())
+                .providerType(EntityType.STORAGE_TIER_VALUE)
                 .commodityType(commType)
                 .costCategory(CostCategory.STORAGE)
+                .priceModel(PriceModel.ON_DEMAND)
+                .build();
+    }
+
+    private BillingRecord createDBBillRecord(LocalDateTime dateTime, double usageAmount,
+            double cost, long providerId, int commType, int providerType, CostCategory costCategory) {
+        return new BillingRecord.Builder()
+                .sampleTime(dateTime)
+                .usageAmount(usageAmount)
+                .cost(cost)
+                .providerId(providerId)
+                .entityId(dbOid)
+                .entityType(EntityType.DATABASE_VALUE)
+                .accountId(1L)
+                .regionId(2L)
+                .providerType(providerType)
+                .commodityType(commType)
+                .costCategory(costCategory)
                 .priceModel(PriceModel.ON_DEMAND)
                 .build();
     }
@@ -1493,6 +1522,62 @@ public class CalculatorTest {
 
         List<SavingsValues> result = calculator.calculate(volumeOid, records, actionSpecs,
                 getTimestamp(date(2022, 6, 1)), date(2022, 6, 2));
+        validateResults(result, expectedResults);
+    }
+
+    /**
+     * Test savings for scaling a DTU databases. No extra storage is involved in this use case.
+     * June 1 10am: Scale DTU Premium P1 to P4.
+     * June 3 1:30pm: Scale from Premium P4 to P2.
+     */
+    @Test
+    public void testDtuScale() {
+        final long p1DtuOid = 1212121212L; // P1
+        final long p2DtuOid = 2323232323L; // P2
+        final long p4DtuOid = 3434343434L; // P4
+        final double p1DtuRate = 0.625; // cost per hour per DB
+        final double p2DtuRate = 1.25; // cost per hour per DB
+        final double p4DtuRate = 2.5; // cost per hour per DB
+        Set<BillingRecord> records = new HashSet<>();
+
+        records.add(createDBBillRecord(date(2022, 6, 1), 10, 10 * p1DtuRate, p1DtuOid, CommodityType.UNKNOWN_VALUE,
+                EntityType.DATABASE_TIER_VALUE, CostCategory.COMPUTE_LICENSE_BUNDLE));
+        records.add(createDBBillRecord(date(2022, 6, 1), 14, 14 * p4DtuRate, p4DtuOid, CommodityType.UNKNOWN_VALUE,
+                EntityType.DATABASE_TIER_VALUE, CostCategory.COMPUTE_LICENSE_BUNDLE));
+        records.add(createDBBillRecord(date(2022, 6, 2), 24, 24 * p4DtuRate, p4DtuOid, CommodityType.UNKNOWN_VALUE,
+                EntityType.DATABASE_TIER_VALUE, CostCategory.COMPUTE_LICENSE_BUNDLE));
+        records.add(createDBBillRecord(date(2022, 6, 3), 13.5, 13.5 * p4DtuRate, p4DtuOid, CommodityType.UNKNOWN_VALUE,
+                EntityType.DATABASE_TIER_VALUE, CostCategory.COMPUTE_LICENSE_BUNDLE));
+        records.add(createDBBillRecord(date(2022, 6, 3), 10.5, 10.5 * p2DtuRate, p2DtuOid, CommodityType.UNKNOWN_VALUE,
+                EntityType.DATABASE_TIER_VALUE, CostCategory.COMPUTE_LICENSE_BUNDLE));
+
+        NavigableSet<ExecutedActionsChangeWindow> actionSpecs = new TreeSet<>(changeWindowComparator);
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(dbOid,
+                LocalDateTime.of(2022, 6, 1, 10, 0),
+                p1DtuRate, p4DtuRate, p1DtuOid, p4DtuOid,
+                LocalDateTime.of(2022, 6, 3, 13, 30),
+                LivenessState.SUPERSEDED, null));
+
+        actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(dbOid,
+                LocalDateTime.of(2022, 6, 3, 13, 30),
+                p4DtuRate, p2DtuRate, p4DtuOid, p2DtuOid,
+                null, LivenessState.LIVE, null));
+
+        final double day1Investment = 2.5 * 14 - 0.625 * 14;
+        final double day2Investment = 2.5 * 24 - 0.625 * 24;
+        final double day3Investment = (2.5 - 0.625) * 13.5 + (1.25 - 0.625) * 10.5;
+        final double day3Saving = (2.5 - 1.25) * 10.5;
+        List<SavingsValues> expectedResults = new ArrayList<>();
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(0).investments(day1Investment)
+                .timestamp(date(2022, 6, 1)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(0).investments(day2Investment)
+                .timestamp(date(2022, 6, 2)).build());
+        expectedResults.add(new SavingsValues.Builder().entityOid(volumeOid).savings(day3Saving).investments(day3Investment)
+                .timestamp(date(2022, 6, 3)).build());
+
+        List<SavingsValues> result = calculator.calculate(dbOid, records, actionSpecs,
+                getTimestamp(date(2022, 6, 1)), date(2022, 6, 3));
+
         validateResults(result, expectedResults);
     }
 }
