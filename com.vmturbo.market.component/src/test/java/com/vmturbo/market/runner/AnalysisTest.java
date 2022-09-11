@@ -157,6 +157,7 @@ public class AnalysisTest {
 
     private static final float QUOTE_FACTOR = 0.77f;
     private static final float MOVE_COST_FACTOR = 0.05f;
+    private static final float STORAGE_MOVE_COST_FACTOR = 1f;
     private static final int LICENSE_PRICE_WEIGHT_SCALE = 3;
     private static final long VOLUME_ID_DELETE_ACTION = 1111L;
     private static final long APP_SERVICE_PLAN_ID_DELETE_ACTION = 3333L;
@@ -368,7 +369,7 @@ public class AnalysisTest {
          */
     @Test
     public void testConstructor() {
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR, STORAGE_MOVE_COST_FACTOR,
                     SuspensionsThrottlingConfig.DEFAULT,
                     Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
                 .setIncludeVDC(true)
@@ -390,7 +391,7 @@ public class AnalysisTest {
     @Test
     public void testExecute() {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
-            SuspensionsThrottlingConfig.DEFAULT,
+            STORAGE_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
             Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
             .setIncludeVDC(true)
             .build();
@@ -414,7 +415,7 @@ public class AnalysisTest {
     @Test
     public void testExecuteNoWastedFiles() {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
-            SuspensionsThrottlingConfig.DEFAULT,
+            STORAGE_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
             Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
             .setIncludeVDC(true)
             .build();
@@ -462,7 +463,7 @@ public class AnalysisTest {
 
         // On Analysis execution, projected entities are populated
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
-                MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+                MOVE_COST_FACTOR, STORAGE_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
                 Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
                 .setIncludeVDC(true)
                 .build();
@@ -528,7 +529,7 @@ public class AnalysisTest {
 
         // On Analysis execution, projected entities are populated
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
-                        MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+                        MOVE_COST_FACTOR, STORAGE_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
                         Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
                 .setIncludeVDC(true)
                 .build();
@@ -572,7 +573,7 @@ public class AnalysisTest {
     @Test
     public void testTwoExecutes() {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
-                SuspensionsThrottlingConfig.DEFAULT,
+                STORAGE_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
                 Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
                 .setIncludeVDC(true)
                 .build();
@@ -587,7 +588,7 @@ public class AnalysisTest {
     @Test
     public void testActionPlanTimestamps() {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
-                SuspensionsThrottlingConfig.DEFAULT,
+                STORAGE_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
                 Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
                 .setIncludeVDC(true)
                 .build();
@@ -656,7 +657,7 @@ public class AnalysisTest {
         Set<TopologyEntityDTO> topologySet = new HashSet<>();
         topologySet.add(dsEntity1);
         topologySet.add(dsEntity2);
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR, STORAGE_MOVE_COST_FACTOR,
                     SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE,
                     false)
                 .setIncludeVDC(false)
@@ -689,7 +690,7 @@ public class AnalysisTest {
     @Test
     public void testCreateFakeEntityForSuspensionThrottlingForRealtimeAndPlan()
             throws ExecutionException, InterruptedException {
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR, STORAGE_MOVE_COST_FACTOR,
                 SuspensionsThrottlingConfig.CLUSTER, Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE,
                 false)
                 .setIncludeVDC(false)
@@ -734,7 +735,7 @@ public class AnalysisTest {
     public void testAnalysisFalseOnFailNotification() throws ExecutionException,
             InterruptedException {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
-                MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+                MOVE_COST_FACTOR, STORAGE_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
                 Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
                 .setIncludeVDC(true)
                 .build();
@@ -761,7 +762,7 @@ public class AnalysisTest {
     public void testAnalysisTrueOnSuccessNotification() throws ExecutionException,
             InterruptedException {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
-                MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+                MOVE_COST_FACTOR, STORAGE_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
                 Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
                 .setIncludeVDC(true)
                 .build();
@@ -804,7 +805,7 @@ public class AnalysisTest {
 
         // On Analysis execution, projected entities are populated
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
-                MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+                MOVE_COST_FACTOR, STORAGE_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
                 Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
                 .setIncludeVDC(true)
                 .build();
@@ -931,7 +932,7 @@ public class AnalysisTest {
     @Test
     public void testExecuteWithNamespaceQuotaResizing() {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
-            SuspensionsThrottlingConfig.DEFAULT,
+            STORAGE_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
             Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
             .setIncludeVDC(true)
             .build();
@@ -988,7 +989,7 @@ public class AnalysisTest {
      * @return the analysis config.
      */
     private AnalysisConfig createAnalysisConfigWithOverprovisioningSetting(boolean settingValue, boolean enableOP) {
-        return AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
+        return AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR, STORAGE_MOVE_COST_FACTOR,
                 SuspensionsThrottlingConfig.DEFAULT,
                 ImmutableMap.of(GlobalSettingSpecs.AllowUnlimitedHostOverprovisioning.getSettingName(),
                         Setting.newBuilder()
