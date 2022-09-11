@@ -116,7 +116,8 @@ public class EntitySavingsConfig {
     private PricingConfig pricingConfig;
 
     /**
-     * Data Retention for entity_savings_daily table.
+     * Data Retention for entity_savings_daily table. This setting is only used when the bill-based
+     * savings feature flag is turned on.
      */
     @Value("${dailyStatsRetentionInDays:365}")
     private long dailyStatsRetentionInDays;
@@ -272,14 +273,6 @@ public class EntitySavingsConfig {
      */
     public boolean isBillSavingsEnabled() {
         return FeatureFlags.ENABLE_BILLING_BASED_SAVINGS.isEnabled();
-    }
-
-    /**
-     * No of days to retain before the data is deleted in entity_savings_daily table.
-     * @return No of Retention days or default to 365.
-     */
-    public long getDailyStatsRetentioninDays() {
-        return dailyStatsRetentionInDays;
     }
 
     /**
@@ -441,8 +434,7 @@ public class EntitySavingsConfig {
                 eventsJournal.persistEvents() ? null : auditLogWriter(),
                 getEntitySavingsRetentionConfig(), getClock(), retentionProcessorFrequencyHours,
                 eventsJournal.persistEvents() ? eventsJournal : null,
-                isBillSavingsEnabled() ? dailyStatsRetentionInDays * 24
-                        : getEntitySavingsRetentionConfig().fetchDataRetentionSettings().getDailyStatsRetentionInHours());
+                dailyStatsRetentionInDays * 24);
     }
 
     /**

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.savings.bottomup.AuditLogWriter;
 import com.vmturbo.cost.component.savings.bottomup.EntityEventsJournal;
 import com.vmturbo.cost.component.savings.bottomup.EntitySavingsRetentionConfig;
@@ -62,7 +63,7 @@ public class DataRetentionProcessor {
     /**
      * Number of Hours(default to 365*24) to retain before the data gets deleted from the daily table.
      */
-    private final long dailyStatsRetentionInHours;
+    private final long billBasedDailyStatsRetentionInHours;
 
     /**
      * Events journal, if available (when events are persisted to DB).
@@ -91,7 +92,7 @@ public class DataRetentionProcessor {
                            @Nonnull final Clock clock,
                            long runFrequencyHours,
                            @Nullable final EntityEventsJournal savingsEventJournal,
-                           long dailyStatsRetentionInHours) {
+                           long billBasedDailyStatsRetentionInHours) {
         this.savingsStore = savingsStore;
         this.auditLogWriter = auditLogWriter;
         this.retentionConfig = retentionConfig;
@@ -99,7 +100,7 @@ public class DataRetentionProcessor {
         this.runFrequencyHours = runFrequencyHours;
         this.lastTimeRan = null;
         this.persistentEventsJournal = savingsEventJournal;
-        this.dailyStatsRetentionInHours = dailyStatsRetentionInHours;
+        this.billBasedDailyStatsRetentionInHours = billBasedDailyStatsRetentionInHours;
     }
 
     /**
@@ -151,6 +152,8 @@ public class DataRetentionProcessor {
         logger.info("Deleted {} hourly stats records older than {}.", rowsDeleted,
                 SavingsUtil.getLocalDateTime(timestamp));
 
+        long dailyStatsRetentionInHours = FeatureFlags.ENABLE_BILLING_BASED_SAVINGS.isEnabled()
+                ? billBasedDailyStatsRetentionInHours : hourSettings.getDailyStatsRetentionInHours();
         timestamp = currentTimeMillis - dailyStatsRetentionInHours * millisInHour;
         rowsDeleted = savingsStore.deleteOlderThanDaily(timestamp);
         logger.info("Deleted {} daily stats records older than {}.", rowsDeleted,
