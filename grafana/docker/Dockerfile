@@ -3,7 +3,7 @@
 # versions as a list of <name>:<version> pairs. 
 # Note: Any versions released privately have distinct properties. Include <name> of private
 # release grafana version(s) as a list of strings.
-ARG grafana_versions="embedded-reporting:8.5.3 saas-reporting:7.5.10"
+ARG grafana_versions="embedded-reporting:8.5.12 saas-reporting:7.5.10"
 ARG private_releases=("embedded-reporting")
 
 # The grafana.ini config file is, in our case, created by the helm chart responsible for the
