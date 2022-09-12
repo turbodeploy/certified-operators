@@ -1,4 +1,4 @@
-ARG hydra_version=v1.11.7
+ARG hydra_version=v1.11.10
 ARG hydra_user=472
 ARG hydra_group=1000
 FROM registry.access.redhat.com/ubi8 AS python
