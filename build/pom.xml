@@ -111,7 +111,7 @@
         <snakeyaml.version>1.31</snakeyaml.version>
         <javax.ws.rs-api.version>2.0</javax.ws.rs-api.version>
         <commons-collections4.version>4.1</commons-collections4.version>
-        <commons-csv.version>1.7</commons-csv.version>
+        <commons-csv.version>1.9.0</commons-csv.version>
         <jooq.version>3.12.3</jooq.version>
         <ojdbc.version>11.2.0.4.0</ojdbc.version>
         <flyway.version>4.0.3</flyway.version>

@@ -33,6 +33,11 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     BOM_AWARE_READERS("Byte Order Mark aware file reading"),
 
     /**
+     * Single stream of CSV Records from stream of Readers.
+     */
+    CHAINED_CSV_PARSERS("Initialize CSV Parsing"),
+
+    /**
      * TODO remove this.
      */
     PLACEHOLDER_FINAL("Placeholder Final Stage");

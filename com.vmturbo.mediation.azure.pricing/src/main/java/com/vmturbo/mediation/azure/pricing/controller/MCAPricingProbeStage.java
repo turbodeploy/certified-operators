@@ -33,6 +33,11 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
     BOM_AWARE_READERS("Byte Order Mark-aware file reading"),
 
     /**
+     * Single stream of CSV Records from stream of Readers.
+     */
+    CHAINED_CSV_PARSERS("Initialize CSV Parsing"),
+
+    /**
      * TODO remove this.
      */
     PLACEHOLDER_FINAL("Placeholder Final Stage");
@@ -64,5 +69,6 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
             SELECT_ZIP_ENTRIES,
             OPEN_ZIP_ENTRIES,
             BOM_AWARE_READERS,
+            CHAINED_CSV_PARSERS,
             PLACEHOLDER_FINAL);
 }

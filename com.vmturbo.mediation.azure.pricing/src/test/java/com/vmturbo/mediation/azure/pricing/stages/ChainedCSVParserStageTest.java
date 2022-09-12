@@ -4,7 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.Reader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -14,7 +13,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.io.IOUtils;
+import org.apache.commons.csv.CSVRecord;
 import org.jetbrains.annotations.NotNull;
 import org.junit.Test;
 
@@ -32,19 +31,17 @@ import com.vmturbo.platform.common.dto.Discovery.ProbeStageDetails;
 import com.vmturbo.platform.common.dto.Discovery.ProbeStageDetails.StageStatus;
 
 /**
- * Tests for BOMAwareReadersStage.
+ * Tests for ChainedCSVParserStage.
  */
-public class BOMAwareReadersStageTest {
+public class ChainedCSVParserStageTest {
     /**
-     * Test processing of BOMs at the start of CSV files. Each file has a different
-     * BOM (or none), and all should decode correctly. Test the happy path of converting
-     * InputStreams to Readers, for files with all different kinds of ByteOrderMarks.
+     * Test the happy path for reading several CSV files contained in a ZIP file.
      *
      * @throws Exception if the test fails.
      */
     @Test
     public void testSuccess() throws Exception {
-        Path bomCsvs = Paths.get(BOMAwareReadersStageTest.class.getClassLoader()
+        Path bomCsvs = Paths.get(ChainedCSVParserStageTest.class.getClassLoader()
                 .getResource("bomcsvs.zip").getPath());
 
         ProbeStageTracker<MockPricingProbeStage> tracker =
@@ -52,40 +49,31 @@ public class BOMAwareReadersStageTest {
 
         try (PricingPipelineContext<MockPricingProbeStage> context = new PricingPipelineContext("test",
                 tracker)) {
-            PricingPipeline<Path, Stream<Reader>> pipeline = makePipeline(context, false);
+            PricingPipeline<Path, Stream<CSVRecord>> pipeline = makePipeline(context, false);
 
-            List<Reader> readers = pipeline.run(bomCsvs).collect(Collectors.toList());
-            assertEquals(6, readers.size());
+            List<CSVRecord> records = pipeline.run(bomCsvs).collect(Collectors.toList());
+            assertEquals(6, records.size());
 
-            List<String> strings = readers.stream().map(reader -> {
-                try {
-                    return IOUtils.toString(reader);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }).collect(Collectors.toList());
+            assertEquals("nobom.csv,utf16be.csv,utf16le.csv,utf32be.csv,utf32le.csv,utf8.csv",
+                    records.stream().map(r -> r.get("FILENAME")).collect(Collectors.joining(",")));
 
-            assertEquals("FILENAME,CHARSET\nnobom.csv,NONE\n", strings.get(0));
-            assertEquals("FILENAME,CHARSET\nutf16be.csv,UTF-16 BE\n", strings.get(1));
-            assertEquals("FILENAME,CHARSET\nutf16le.csv,UTF-16 LE\n", strings.get(2));
-            assertEquals("FILENAME,CHARSET\nutf32be.csv,UTF-32 BE\n", strings.get(3));
-            assertEquals("FILENAME,CHARSET\nutf32le.csv,UTF-32 LE\n", strings.get(4));
-            assertEquals("FILENAME,CHARSET\nutf8.csv,UTF-8\n", strings.get(5));
+            assertEquals("NONE,UTF-16 BE,UTF-16 LE,UTF-32 BE,UTF-32 LE,UTF-8",
+                    records.stream().map(r -> r.get("CHARSET")).collect(Collectors.joining(",")));
         }
 
-        ProbeStageDetails status = tracker.getStageDetails(MockPricingProbeStage.OPEN_ZIP_ENTRIES);
+        ProbeStageDetails status = tracker.getStageDetails(MockPricingProbeStage.CHAINED_CSV_PARSERS);
         assertEquals(StageStatus.SUCCESS, status.getStatus());
-        assertEquals("Opened 6 files", status.getStatusShortExplanation());
+        assertEquals("Created CSV Parsers for 6 files", status.getStatusShortExplanation());
     }
 
     /**
-     * Test failure handling if there is an error in one of the underlying streams.
+     * Test failure handling if there is an error in one of the underlying readers.
      *
      * @throws Exception if the test fails.
      */
     @Test
     public void testFailure() throws Exception {
-        Path bomCsvs = Paths.get(BOMAwareReadersStageTest.class.getClassLoader()
+        Path bomCsvs = Paths.get(ChainedCSVParserStageTest.class.getClassLoader()
                 .getResource("bomcsvs.zip").getPath());
 
         ProbeStageTracker<MockPricingProbeStage> tracker =
@@ -93,59 +81,64 @@ public class BOMAwareReadersStageTest {
 
         try (PricingPipelineContext<MockPricingProbeStage> context = new PricingPipelineContext("test",
                 tracker)) {
-            PricingPipeline<Path, Stream<Reader>> pipeline = makePipeline(context, true);
+            PricingPipeline<Path, Stream<CSVRecord>> pipeline = makePipeline(context, true);
 
             RuntimeException ex = assertThrows(RuntimeException.class, () -> {
                 pipeline.run(bomCsvs).collect(Collectors.toList());
             });
         }
 
-        ProbeStageDetails status = tracker.getStageDetails(MockPricingProbeStage.BOM_AWARE_READERS);
+        ProbeStageDetails status = tracker.getStageDetails(MockPricingProbeStage.CHAINED_CSV_PARSERS);
         assertEquals(StageStatus.FAILURE, status.getStatus());
-        assertEquals("Failed while trying to convert stream to a reader",
-            status.getStatusShortExplanation());
+        assertEquals("Failed while trying to initialize CSV Parsing",
+                status.getStatusShortExplanation());
     }
 
     /**
      * This stage inserts a broken InputStream, in order to introduce an error for testing.
      */
-    private static class BrokenInputStreamStage extends PricingPipeline.Stage<Stream<InputStream>,
-            Stream<InputStream>, PricingPipelineContext<MockPricingProbeStage>> {
+    private static class BrokenReaderStage extends PricingPipeline.Stage<Stream<Reader>,
+            Stream<Reader>, PricingPipelineContext<MockPricingProbeStage>> {
         @NotNull
         @Override
-        protected StageResult<Stream<InputStream>> executeStage(
-                @NotNull Stream<InputStream> inputStreamStream)
+        protected StageResult<Stream<Reader>> executeStage(
+                @NotNull Stream<Reader> readerStream)
                 throws PipelineStageException, InterruptedException {
-            List<InputStream> streams = inputStreamStream.collect(Collectors.toList());
-            streams.add(1, new BrokenInputStream());
+            List<Reader> streams = readerStream.collect(Collectors.toList());
+            streams.add(1, new BrokenReader());
 
             return StageResult.withResult(streams.stream()).andStatus(Status.success("OK"));
         }
 
         /**
-         * An InputStream that always errors out.
+         * A Reader that always errors out.
          */
-        private static class BrokenInputStream extends InputStream {
+        private static class BrokenReader extends Reader {
             @Override
-            public int read() throws IOException {
-                throw new IOException("This stream is broken");
+            public int read(@NotNull char[] cbuf, int off, int len) throws IOException {
+                throw new IOException("This reader is broken");
+            }
+
+            @Override
+            public void close() throws IOException {
             }
         }
     }
 
     @Nonnull
-    private PricingPipeline<Path, Stream<Reader>> makePipeline(@Nonnull PricingPipelineContext context,
+    private PricingPipeline<Path, Stream<CSVRecord>> makePipeline(@Nonnull PricingPipelineContext context,
             boolean addBrokenStage) {
         PipelineDefinitionBuilder builder = PipelineDefinition.<MockAccount, Path,
             PricingPipelineContext<MockPricingProbeStage>>newBuilder(context)
                 .addStage(new SelectZipEntriesStage("*.csv", MockPricingProbeStage.SELECT_ZIP_ENTRIES))
-                .addStage(new OpenZipEntriesStage(MockPricingProbeStage.OPEN_ZIP_ENTRIES));
+                .addStage(new OpenZipEntriesStage(MockPricingProbeStage.OPEN_ZIP_ENTRIES))
+                .addStage(new BOMAwareReadersStage<>(MockPricingProbeStage.BOM_AWARE_READERS));
 
         if (addBrokenStage) {
-            builder.addStage(new BrokenInputStreamStage());
+            builder.addStage(new BrokenReaderStage());
         }
 
-        return new PricingPipeline<>(
-            builder.finalStage(new BOMAwareReadersStage<>(MockPricingProbeStage.BOM_AWARE_READERS)));
+        return new PricingPipeline<>(builder
+            .finalStage(new ChainedCSVParserStage<>(MockPricingProbeStage.CHAINED_CSV_PARSERS)));
     }
 }
