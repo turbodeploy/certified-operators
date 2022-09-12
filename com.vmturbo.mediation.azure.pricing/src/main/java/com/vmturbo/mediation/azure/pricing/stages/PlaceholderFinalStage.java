@@ -4,11 +4,11 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.csv.CSVRecord;
 import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
+import com.vmturbo.mediation.azure.pricing.AzureMeter;
 import com.vmturbo.mediation.azure.pricing.pipeline.DiscoveredPricing;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipeline.Stage;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContext;
@@ -22,7 +22,7 @@ import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
  *   of discovery.
  */
 public class PlaceholderFinalStage<E extends ProbeStageEnum>
-        extends Stage<Stream<CSVRecord>, DiscoveredPricing, PricingPipelineContext<E>> {
+        extends Stage<Stream<AzureMeter>, DiscoveredPricing, PricingPipelineContext<E>> {
     private E probeStage;
 
     /**
@@ -37,9 +37,9 @@ public class PlaceholderFinalStage<E extends ProbeStageEnum>
 
     @NotNull
     @Override
-    protected StageResult executeStage(@NotNull Stream<CSVRecord> input) {
+    protected StageResult executeStage(@NotNull Stream<AzureMeter> input) {
         long count = input.count();
-        final String status = "Read " + count + " CSV records.";
+        final String status = "Read " + count + " meters.";
 
         getContext().getStageTracker().stage(probeStage).ok(status);
 

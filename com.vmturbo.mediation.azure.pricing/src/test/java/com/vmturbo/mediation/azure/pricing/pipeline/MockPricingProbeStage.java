@@ -38,6 +38,11 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     CHAINED_CSV_PARSERS("Initialize CSV Parsing"),
 
     /**
+     * Single stream of CSV Records from stream of Readers.
+     */
+    DESERIALIZE_CSV("Deserialzie meters from CSV"),
+
+    /**
      * TODO remove this.
      */
     PLACEHOLDER_FINAL("Placeholder Final Stage");
@@ -64,6 +69,6 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
      * The list of stages performed as a part of discovery.
      */
     public static final List<MockPricingProbeStage> DISCOVERY_STAGES = ImmutableList.of(
-            DOWNLOAD_PRICE_SHEET, SELECT_ZIP_ENTRIES, BOM_AWARE_READERS,
+            DOWNLOAD_PRICE_SHEET, SELECT_ZIP_ENTRIES, BOM_AWARE_READERS, DESERIALIZE_CSV,
             PLACEHOLDER_FINAL);
 }
