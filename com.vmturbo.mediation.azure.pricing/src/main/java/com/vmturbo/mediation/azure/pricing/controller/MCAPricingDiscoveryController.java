@@ -23,6 +23,7 @@ import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipeline;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContext;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContextMembers;
 import com.vmturbo.mediation.azure.pricing.stages.BOMAwareReadersStage;
+import com.vmturbo.mediation.azure.pricing.stages.ChainedCSVParserStage;
 import com.vmturbo.mediation.azure.pricing.stages.FetcherStage;
 import com.vmturbo.mediation.azure.pricing.stages.OpenZipEntriesStage;
 import com.vmturbo.mediation.azure.pricing.stages.PlaceholderFinalStage;
@@ -120,6 +121,7 @@ public class MCAPricingDiscoveryController extends
                 .addStage(new SelectZipEntriesStage("*.csv", MCAPricingProbeStage.SELECT_ZIP_ENTRIES))
                 .addStage(new OpenZipEntriesStage(MCAPricingProbeStage.OPEN_ZIP_ENTRIES))
                 .addStage(new BOMAwareReadersStage(MCAPricingProbeStage.BOM_AWARE_READERS))
+                .addStage(new ChainedCSVParserStage(MCAPricingProbeStage.CHAINED_CSV_PARSERS))
                 .finalStage(new PlaceholderFinalStage(MCAPricingProbeStage.PLACEHOLDER_FINAL)));
     }
 

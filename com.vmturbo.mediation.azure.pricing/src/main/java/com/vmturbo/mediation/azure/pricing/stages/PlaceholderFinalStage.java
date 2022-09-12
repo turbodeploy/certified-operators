@@ -1,12 +1,10 @@
 package com.vmturbo.mediation.azure.pricing.stages;
 
-import java.io.Reader;
-import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.csv.CSVRecord;
 import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
@@ -24,7 +22,7 @@ import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
  *   of discovery.
  */
 public class PlaceholderFinalStage<E extends ProbeStageEnum>
-        extends Stage<Stream<Reader>, DiscoveredPricing, PricingPipelineContext<E>> {
+        extends Stage<Stream<CSVRecord>, DiscoveredPricing, PricingPipelineContext<E>> {
     private E probeStage;
 
     /**
@@ -37,14 +35,11 @@ public class PlaceholderFinalStage<E extends ProbeStageEnum>
         this.probeStage = probeStage;
     }
 
-    private static final String SUMMARY = "Created placeholder empty DiscoveredPricing from input ";
-
     @NotNull
     @Override
-    protected StageResult executeStage(@NotNull Stream<Reader> input) {
-        List<Reader> streams = input.collect(Collectors.toList());
-
-        final String status = SUMMARY + input.toString() + " with " + streams.size() + " entries";
+    protected StageResult executeStage(@NotNull Stream<CSVRecord> input) {
+        long count = input.count();
+        final String status = "Read " + count + " CSV records.";
 
         getContext().getStageTracker().stage(probeStage).ok(status);
 
