@@ -28,6 +28,11 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     OPEN_ZIP_ENTRIES("Open entries of Zip file"),
 
     /**
+     * Create Readers from InputStreams.
+     */
+    BOM_AWARE_READERS("Byte Order Mark aware file reading"),
+
+    /**
      * TODO remove this.
      */
     PLACEHOLDER_FINAL("Placeholder Final Stage");
@@ -54,7 +59,6 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
      * The list of stages performed as a part of discovery.
      */
     public static final List<MockPricingProbeStage> DISCOVERY_STAGES = ImmutableList.of(
-            DOWNLOAD_PRICE_SHEET,
-            SELECT_ZIP_ENTRIES,
+            DOWNLOAD_PRICE_SHEET, SELECT_ZIP_ENTRIES, BOM_AWARE_READERS,
             PLACEHOLDER_FINAL);
 }
