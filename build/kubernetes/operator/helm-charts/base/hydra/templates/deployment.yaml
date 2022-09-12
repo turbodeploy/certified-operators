@@ -95,12 +95,12 @@ spec:
             httpGet:
               path: /health/alive
               port: http-admin
-            {{- toYaml .Values.deployment.livenessProbe | nindent 12 }}
+            {{- include "common.getLivenessThresholds" . | indent 12 }}
           readinessProbe:
             httpGet:
               path: /health/ready
               port: http-admin
-            {{- toYaml .Values.deployment.readinessProbe | nindent 12 }}
+            {{- include "common.getReadinessThresholds" . | indent 12 }}
           env:
             {{- if .Values.hydra.dangerousForceHttp }}
             - name: HYDRA_FORCE_HTTP
