@@ -28,6 +28,11 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
     OPEN_ZIP_ENTRIES("Open zip file entries"),
 
     /**
+     * Create Readers from InputStreams.
+     */
+    BOM_AWARE_READERS("Byte Order Mark-aware file reading"),
+
+    /**
      * TODO remove this.
      */
     PLACEHOLDER_FINAL("Placeholder Final Stage");
@@ -58,5 +63,6 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
             DOWNLOAD_PRICE_SHEET,
             SELECT_ZIP_ENTRIES,
             OPEN_ZIP_ENTRIES,
+            BOM_AWARE_READERS,
             PLACEHOLDER_FINAL);
 }
