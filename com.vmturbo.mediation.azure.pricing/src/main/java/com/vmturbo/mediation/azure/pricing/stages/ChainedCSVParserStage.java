@@ -55,7 +55,7 @@ public class ChainedCSVParserStage<E extends ProbeStageEnum>
         getContext().autoClose(this);
 
         return StageResult.withResult(streams.flatMap(this::createCSVParser))
-                .andStatus(Status.success("Created stream of Readers"));
+                .andStatus(Status.success("Created CSV Parsers"));
     }
 
     @Nonnull
