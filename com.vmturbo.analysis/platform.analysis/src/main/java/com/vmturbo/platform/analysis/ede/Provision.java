@@ -20,6 +20,7 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
+import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -575,7 +576,19 @@ public class Provision {
                                                       Trader provisionedTrader, List<@NonNull Action> actions, Action provisionAction) {
         // remove IncomeStatement from ledger and rollback actions
         if (provisionAction instanceof ProvisionBySupply) {
-            Lists.reverse(((ProvisionBySupply)provisionAction).getSubsequentActions()).forEach(action -> {
+            Lists.reverse((provisionAction).getSubsequentActions()).forEach(action -> {
+                if (action instanceof Move) {
+                    // Rollback the special case where a daemon trader might be placed onto
+                    // an original trader (e.g., a daemon pod being placed on WC)
+                    final Move move = (Move)action;
+                    final ShoppingList target = move.getTarget();
+                    final Trader destination = move.getDestination();
+                    if (target.getBuyer().getSettings().isDaemon()
+                            && (destination != null && !destination.isClone())) {
+                        action.rollback();
+                        return;
+                    }
+                }
                 if (action instanceof ProvisionBase) {
                     ledger.removeTraderIncomeStatement(((ProvisionBase)action).getProvisionedSeller());
                 }

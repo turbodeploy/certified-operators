@@ -366,17 +366,17 @@ public class ProvisionTest {
         Economy economy = new Economy();
         // Add a VM
         Trader vm = economy.addTrader(TestUtils.VM_TYPE, TraderState.ACTIVE, TestCommon.VM_BASKET);
-        vm.getCommoditiesSold().stream().forEach(cs -> cs.setCapacity(100));
+        vm.getCommoditiesSold().forEach(cs -> cs.setCapacity(100));
         vm.setDebugInfoNeverUseInCode("VM").getSettings()
                 .setCloneable(true)
                 .setCanAcceptNewCustomers(true)
                 .setMaxDesiredUtil(0.75)
                 .setMinDesiredUtil(0.65)
-                .setDaemon(true);
+                .setDaemon(false);
 
         Trader wc = economy.addTrader(TestUtils.CONTROLLER_TYPE,
                 TraderState.ACTIVE, TestCommon.CONTROLLER_BASKET);
-        wc.getCommoditiesSold().stream().forEach(cs -> cs.setCapacity(100));
+        wc.getCommoditiesSold().forEach(cs -> cs.setCapacity(100));
         wc.setDebugInfoNeverUseInCode("WC").getSettings()
                 .setCloneable(false)
                 .setCanAcceptNewCustomers(true)
@@ -402,14 +402,15 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                 TestCommon.VM_BASKET.stream().collect(Collectors.toList()),
                 pod1, new double[]{10, 10, 10}, vm).setMovable(true);
-        vm.getCommoditiesSold().stream().map(cs -> cs.setNumConsumers(2));
+        vm.getCommoditiesSold().forEach(cs -> cs.setNumConsumers(2));
 
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         Assert.assertNotNull(economy);
         Ledger ledger = new Ledger(economy);
-        Provision provision = new Provision();
-
-        assertEquals(0, provision.provisionDecisions(economy, ledger).size());  // node doesnt provision.
+        // Verify that the node provision and daemon provision are rolled back, i.e., no provisions
+        assertEquals(0, Provision.provisionDecisions(economy, ledger).size());
+        // Verify that the original WC sold quantities is not changed
+        assertEquals(10, wc.getCommoditySold(TestCommon.CONTROLLER_BASKET.get(0)).getQuantity(), 0.000001);
 
         // Place the pod consuming 10% onto the VM
         Trader pod2 = economy.addTrader(TestUtils.POD_TYPE, TraderState.ACTIVE, TestCommon.POD_BASKET);
@@ -418,12 +419,16 @@ public class ProvisionTest {
                 pod2, new double[]{10, 10, 10}, vm).setMovable(true);
         pod2.setDebugInfoNeverUseInCode("POD2");
 
-        vm.getCommoditiesSold().stream().forEach(cs -> cs.setNumConsumers(3));
+        vm.getCommoditiesSold().forEach(cs -> cs.setNumConsumers(3));
         // wc contains 1 customer before provision
         assertEquals(1, wc.getCustomers().size());
-        assertEquals(4, provision.provisionDecisions(economy, new Ledger(economy)).size());  // node provisions.
-        // new customers not placed on wc
-        assertEquals(1, wc.getCustomers().size());
+        final List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
+        // Two provisions + three moves
+        assertEquals(5, actions.size());  // node provisions.
+        // Daemon is placed on wc
+        assertEquals(2, wc.getCustomers().size());
+        // WC sold quantities is updated
+        assertEquals(20, wc.getCommoditySold(TestCommon.CONTROLLER_BASKET.get(0)).getQuantity(), 0.000001);
     }
 
     /**

@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -492,9 +493,11 @@ public final class Utility {
      */
     public static void provisionDaemons(Economy economy, Trader modelSeller, Trader provisionedSeller,
                                         List<Action> actionsList, ProvisionBase action) {
-        List<Trader> daemonCustomers = modelSeller.getCustomers().stream().map(sl -> sl.getBuyer())
-            .distinct()
-            .filter(customer -> customer.getSettings().isDaemon()).collect(Collectors.toList());
+        List<Trader> daemonCustomers = modelSeller.getCustomers().stream()
+                .map(ShoppingList::getBuyer)
+                .distinct()
+                .filter(customer -> customer.getSettings().isDaemon())
+                .collect(Collectors.toList());
         // provision every daemon and place on the provisionedSeller
         for (Trader customer : daemonCustomers) {
             // provision daemon.
@@ -515,12 +518,30 @@ public final class Utility {
                 logger.error("Provisioned seller is null for daemon provision action on {}", customer.toString());
                 continue;
             }
-            // place every leg of the cloned daemon on provisionedSeller.
+            // The provisioned daemon will most likely have multiple shopping lists on multiple providers:
+            // 1. SL1 on node buying resource commodities like VCPU, VMem, VCPURequest, VMemRequest, etc
+            // 2. SL2 on workload controller or namespace buying quota commodities like VCPULimitQuota, etc
+            //    These commodities are keyed (they key is WC uid), in other words, they have only one provider
+            // SL1 needs to be placed on the newly provisioned node (i.e., the provisionedSeller).
+            // SL2 needs to be placed on the original provider
+            Set<Trader> otherSuppliers = economy.getMarketsAsBuyer(customer).keySet().stream()
+                    .map(ShoppingList::getSupplier)
+                    .filter(Objects::nonNull)
+                    .filter(supplier -> !supplier.equals(modelSeller))
+                    .collect(Collectors.toSet());
             economy.getMarketsAsBuyer(daemonProvision.getProvisionedSeller()).keySet()
-                .stream()
-                .filter(sl -> sl.getBasket().isSatisfiedBy(modelSeller.getBasketSold()))
-                .forEach(sl ->
-                        actionsList.add((new Move(economy, sl, provisionedSeller)).take()));
+                    .forEach(sl -> {
+                        // Place one leg
+                        if (sl.getBasket().isSatisfiedBy(modelSeller.getBasketSold())) {
+                            actionsList.add((new Move(economy, sl, provisionedSeller)).take());
+                            return;
+                        }
+                        // Place the other leg
+                        otherSuppliers.stream()
+                                .filter(otherSupplier -> sl.getBasket().isSatisfiedBy(otherSupplier.getBasketSold()))
+                                .findFirst()
+                                .ifPresent(supplier -> actionsList.add((new Move(economy, sl, supplier)).take()));
+                    });
         }
     }
 
