@@ -4190,4 +4190,14 @@ spec:
                       description: Store plan data in MySQL instead of ArangoDB.
                       type: boolean
                   type: object
+                rsyslog:
+                  description: rsyslog property overrides
+                  properties:
+                    logMaxFiles:
+                      description: Maximum number of log files retained
+                      type: integer
+                    logMaxSize:
+                      description: Maximum size of log file in bytes before getting rotated
+                      type: integer
+                  type: object
               type: object

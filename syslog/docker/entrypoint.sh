@@ -22,6 +22,14 @@ if [ -f "${EXTRA_FILE}" ]; then
     /usr/bin/nohup xz ${EXTRA_FILE_ARCH} >/dev/null &
 fi
 
+# Export LOG_MAXFILES variable if it is defined in the rsyslog properties in the CR.
+LOG_MAXFILES=$(yq '.customProperties.rsyslog.logMaxFiles' /etc/turbonomic/properties.yaml)
+if [[ $LOG_MAXFILES ]]; then export LOG_MAXFILES; fi
+
+# Export LOG_MAXSIZE variable if it is defined in the rsyslog properties in the CR.
+LOG_MAXSIZE=$(yq '.customProperties.rsyslog.logMaxSize' /etc/turbonomic/properties.yaml)
+if [[ $LOG_MAXSIZE ]]; then export LOG_MAXSIZE; fi
+
 # Start up the http server
 /usr/bin/nohup /diags.py >/tmp/diags.log 2>&1 &
 /usr/bin/nohup /logrotate.sh >/tmp/logrotate.log 2>&1 &
