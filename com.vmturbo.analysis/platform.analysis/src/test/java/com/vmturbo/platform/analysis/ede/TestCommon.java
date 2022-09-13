@@ -55,8 +55,10 @@ public class TestCommon {
                                 new CommoditySpecification(COMMODITY_TYPE_SORAGE_AMOUNT), // Storage Amount
                                 new CommoditySpecification(COMMODITY_TYPE_STORAGE_DSPM));// DSPM access commodity
     // VM Basket
-    static final CommoditySpecification VCPU = new CommoditySpecification(COMMODITY_TYPE_VCPU);
-    static final CommoditySpecification VMEM = new CommoditySpecification(COMMODITY_TYPE_VMEM);
+    static final CommoditySpecification VCPU = new CommoditySpecification(COMMODITY_TYPE_VCPU)
+            .setDebugInfoNeverUseInCode("VCPU");
+    static final CommoditySpecification VMEM = new CommoditySpecification(COMMODITY_TYPE_VMEM)
+            .setDebugInfoNeverUseInCode("VMEM");
     static final Basket VMtoApp = new Basket(VCPU, VMEM);
 
     // CLOUD NATIVE BASKETS

@@ -178,7 +178,8 @@ public class TestUtils {
      * @return new commodity specification
      */
     public static CommoditySpecification createNewCommSpec() {
-        CommoditySpecification c = new CommoditySpecification(commSpecCounter);
+        CommoditySpecification c = new CommoditySpecification(commSpecCounter)
+                .setDebugInfoNeverUseInCode(String.format("NewCommodity %d", commSpecCounter));
         commSpecCounter++;
         return c;
     }
