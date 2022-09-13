@@ -2,7 +2,6 @@
   {
     "eventType":"CREATE-VOL",
     "uuid":"vol-1",
-    "sourceVolumeType":"ULTRA",
     "destinationVolumeType":"ULTRA",
     "commodities":[
       {
@@ -27,15 +26,22 @@
         "destinationRate":"9.1"
       }
     ],
-    "timestamp":1661770800000,
+    "timestamp":1662202800000,
     "expirationTimestamp":1725361200000
   },
   {
     "eventType":"RESIZE-VOL",
     "uuid":"vol-1",
     "sourceVolumeType":"ULTRA",
-    "destinationVolumeType":"PREMIUM",
+    "destinationVolumeType":"ULTRA",
     "commodities":[
+      {
+        "commType":"STORAGE_ACCESS",
+        "sourceCapacity":"2000",
+        "sourceRate":"0.7",
+        "destinationCapacity":"3000",
+        "destinationRate":"0.9"
+      },
       {
         "commType":"STORAGE_AMOUNT",
         "sourceCapacity":"5",
@@ -51,7 +57,24 @@
         "destinationRate":"3.1"
       }
     ],
-    "timestamp":1661853600000,
+    "timestamp":1662285600000,
+    "expirationTimestamp":1725444000000
+  },
+  {
+    "eventType":"RESIZE-VOL",
+    "uuid":"vol-1",
+    "sourceVolumeType":"ULTRA",
+    "destinationVolumeType":"PREMIUM",
+    "commodities":[
+      {
+        "commType":"STORAGE_AMOUNT",
+        "sourceCapacity":"40",
+        "sourceRate":"1.7",
+        "destinationCapacity":"80",
+        "destinationRate":"2.0"
+      }
+    ],
+    "timestamp":1662372000000,
     "expirationTimestamp":1725530400000
   },
   {
@@ -61,28 +84,21 @@
     "destinationVolumeType":"STANDARD",
     "commodities":[
       {
-        "commType":"STORAGE_ACCESS",
-        "sourceCapacity":"2000",
-        "sourceRate":"0.7",
-        "destinationCapacity":"9000",
-        "destinationRate":"3.7"
+        "commType":"STORAGE_AMOUNT",
+        "sourceCapacity":"80",
+        "sourceRate":"2.0",
+        "destinationCapacity":"20",
+        "destinationRate":"1.0"
       }
     ],
-    "timestamp":1661954400000,
+    "timestamp":1662472800000,
     "expirationTimestamp":1725631200000
-  },
-  {
-    "eventType":"DELVOL",
-    "uuid":"vol-1",
-    "sourceOnDemandRate":0.15,
-    "timestamp":1662026400000,
-    "expirationTimestamp":1725703200000
   },
   {
     "eventType":"STOP",
     "uuid":"0",
     "purgeState":false,
-    "timestamp":1662130800000,
+    "timestamp":1662562800000,
     "expirationTimestamp":1725721200000
   }
 ]

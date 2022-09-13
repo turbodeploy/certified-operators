@@ -27,6 +27,43 @@ public class BillingDataInjector implements ScenarioDataInjector {
     private static final Logger logger = LogManager.getLogger();
 
     /**
+     * Describes Commodity in list of commodities involved in scale actions, if relevant.
+     */
+    public static class Commodity {
+        String commType;
+        float sourceCapacity;
+        double sourceRate;
+        float destinationCapacity;
+        double destinationRate;
+
+        Commodity(final String commType, final float sourceCapacity, final double sourceRate,
+                  final float destinationCapacity, final double destinationRate) {
+            this.commType = commType;
+            this.sourceCapacity = sourceCapacity;
+            this.sourceRate = sourceRate;
+            this.destinationCapacity = destinationCapacity;
+            this.destinationRate = destinationRate;
+        }
+
+        /**
+         * Return string representation of commodity.
+         *
+         * @return string representation of commodity.
+         */
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder("Commodity{");
+            sb.append("Type=").append(commType);
+            sb.append(", sourceCapacity=").append(sourceCapacity);
+            sb.append(", sourceRate=").append(sourceRate);
+            sb.append(", destinationCapacity=").append(destinationCapacity);
+            sb.append(", destinationRate=").append(destinationRate);
+            sb.append('}');
+            return sb.toString();
+        }
+    }
+
+    /**
      * Event format passed between the data generator and the event injector.
      */
     public static class BillingScriptEvent extends ScriptEvent {
@@ -35,6 +72,9 @@ public class BillingDataInjector implements ScenarioDataInjector {
         boolean purgeState;
         boolean state;
         double expectedCloudCommitment;
+        List<Commodity> commodities;
+        String sourceVolumeType;
+        String destinationVolumeType;
 
         /**
          * Return string representation of event.
@@ -44,14 +84,17 @@ public class BillingDataInjector implements ScenarioDataInjector {
         @Override
         public String toString() {
             final StringBuilder sb = new StringBuilder("BillingScriptEvent{");
-            sb.append("sourceOnDemandRate=").append(sourceOnDemandRate);
-            sb.append(", destinationOnDemandRate=").append(destinationOnDemandRate);
-            sb.append(", purgeState=").append(purgeState);
-            sb.append(", state=").append(state);
-            sb.append(", timestamp=").append(timestamp);
-            sb.append(", eventType='").append(eventType).append('\'');
+            sb.append("sourceOnDemandRate=").append(this.sourceOnDemandRate);
+            sb.append(", destinationOnDemandRate=").append(this.destinationOnDemandRate);
+            sb.append(", commodities=").append(this.commodities);
+            sb.append(", purgeState=").append(this.purgeState);
+            sb.append(", state=").append(this.state);
+            sb.append(", timestamp=").append(this.timestamp);
+            sb.append(", eventType='").append(this.eventType).append('\'');
             sb.append(", uuid='").append(uuid).append('\'');
-            sb.append(", expectedCloudCommitment='").append(expectedCloudCommitment).append('\'');
+            sb.append(", expectedCloudCommitment='").append(this.expectedCloudCommitment).append('\'');
+            sb.append(", sourceVolumeType='").append(sourceVolumeType).append('\'');
+            sb.append(", destinationVolumeType='").append(destinationVolumeType).append('\'');
             sb.append('}');
             return sb.toString();
         }

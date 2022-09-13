@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -12,12 +13,17 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,6 +49,7 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCover
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.savings.BillingDataInjector.BillingScriptEvent;
+import com.vmturbo.cost.component.savings.BillingDataInjector.Commodity;
 import com.vmturbo.cost.component.savings.BillingRecord.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -62,6 +69,63 @@ public class ScenarioGenerator {
     private static final Clock clock = Clock.systemUTC();
 
     private static final int HOURS_IN_A_MONTH = 730;
+
+    private static final Map<EntityType, List<CommodityType>> entityTypeToCommType = ImmutableMap.of(EntityType.VIRTUAL_VOLUME,
+            ImmutableList.of(CommodityType.STORAGE_ACCESS, CommodityType.STORAGE_AMOUNT, CommodityType.IO_THROUGHPUT));
+
+    private static final Map<String, Long> volumeNameToProviderId = ImmutableMap.of("STANDARDSDD", 10000L,
+            "STANDARDHDD", 20000L, "PREMIUM", 30000L, "ULTRA", 40000L, "STANDARD", 50000L);
+
+    /**
+     * Class to maintain context specific information.
+     */
+    private static class Context {
+        // Map of latest commodities for an entity (that can scale commodities), based on all it's previous
+        // resizes.
+        private Map<Long, List<Commodity>> entityCommoditiesMap = new HashMap<>();
+
+        Context() {}
+
+        /**
+         * Update entity commidities after each resize.
+         *
+         * <p>Resizes would involve one or more commodities. The current commodities for the entity are kept
+         * updated, and processed during segment creation</p>
+         * @param oid The entity Oid.
+         * @param newCommodities The new commodities being used by the entity on creation or after a resize.
+         * @param entityType The entity type.
+         */
+        private void updateCommodities(final long oid, final List<Commodity> newCommodities, final EntityType entityType) {
+            List<Commodity> existingCommodities = entityCommoditiesMap.get(oid);
+            if (existingCommodities == null) {
+                entityCommoditiesMap.put(oid, newCommodities);
+                return;
+            }
+            List<CommodityType> commTypes = entityTypeToCommType.get(entityType);
+            if (!commTypes.isEmpty() && newCommodities.size() == commTypes.size()) {
+                entityCommoditiesMap.put(oid, newCommodities);
+                return;
+            }
+
+            List<Commodity> updatedCommodities = new ArrayList<>();
+            updatedCommodities.addAll(existingCommodities);
+            for (CommodityType commType : commTypes) {
+                Optional<Commodity> newCommodity = newCommodities.stream().filter(comm -> CommodityType.valueOf(comm.commType) == commType)
+                        .findFirst();
+                if (newCommodity.isPresent()) {
+                    Optional<Commodity> existingCommodity = existingCommodities.stream()
+                            .filter(comm -> CommodityType.valueOf(comm.commType) == commType)
+                            .findFirst();
+                    if (existingCommodity.isPresent()) {
+                        updatedCommodities.remove(existingCommodity.get());
+
+                    }
+                    updatedCommodities.add(newCommodity.get());
+                }
+            }
+            entityCommoditiesMap.put(oid, updatedCommodities);
+        }
+    }
 
     private ScenarioGenerator() {
     }
@@ -97,6 +161,20 @@ public class ScenarioGenerator {
                         actionDateTime, oid, event.sourceOnDemandRate, event.destinationOnDemandRate,
                         generateProviderIdFromRate(event.sourceOnDemandRate),
                         generateProviderIdFromRate(event.destinationOnDemandRate), event.expectedCloudCommitment);
+                actionChains.computeIfAbsent(oid, c -> new TreeSet<>(GrpcActionChainStore.changeWindowComparator))
+                        .add(action);
+            } else if ("RESIZE-VOL".equals(event.eventType)) {
+                ExecutedActionsChangeWindow action = createVolumeActionChangeWindow(oid, actionDateTime,
+                        event.sourceOnDemandRate, event.destinationOnDemandRate,
+                        generateProviderIdFromVolumeType(event.sourceVolumeType),
+                        generateProviderIdFromVolumeType(event.destinationVolumeType), null,
+                        LivenessState.LIVE, createResizeInfoList(event.commodities));
+                logger.info("{} Scale action time: {}, entity OID: {}, source rate: {}, "
+                                + "destination rate: {} source provider: {}, destination provider: {}, "
+                        + "commodities: {}, expected RI coverage: {}", event.eventType,
+                        actionDateTime, oid, event.sourceOnDemandRate, event.destinationOnDemandRate,
+                        generateProviderIdFromVolumeType(event.sourceVolumeType),
+                        generateProviderIdFromVolumeType(event.destinationVolumeType), event.commodities, 0);
                 actionChains.computeIfAbsent(oid, c -> new TreeSet<>(GrpcActionChainStore.changeWindowComparator))
                         .add(action);
             } else if ("DELVOL".equals(event.eventType)) {
@@ -148,6 +226,7 @@ public class ScenarioGenerator {
     static Map<Long, Set<BillingRecord>> generateBillRecords(List<BillingScriptEvent> events,
             Map<String, Long> uuidMap, LocalDateTime startTime, LocalDateTime endTime) {
         final Map<Long, NavigableSet<BillingScriptEvent>> scaleEventsByEntity = new HashMap<>();
+        final Map<Long, NavigableSet<BillingScriptEvent>> scaleVolumeEventsByEntity = new HashMap<>();
         final Map<Long, NavigableSet<BillingScriptEvent>> powerEventsByEntity = new HashMap<>();
         final Map<Long, BillingScriptEvent> deleteEventsByEntity = new HashMap<>();
 
@@ -155,10 +234,23 @@ public class ScenarioGenerator {
                 new TreeSet<>(Comparator.comparingLong(BillingScriptEvent::getTimestamp));
         sortedEvents.addAll(events);
 
+        Context context = new Context();
+
         for (BillingScriptEvent event : sortedEvents) {
             Long oid = uuidMap.getOrDefault(event.uuid, 0L);
             if ("RESIZE".equals(event.eventType) || "EXTMOD".equals(event.eventType)) {
                 scaleEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
+                        .add(event);
+            } else if ("CREATE-VOL".equals(event.eventType)) {
+                if (!event.commodities.isEmpty()) {
+                    context.updateCommodities(oid, event.commodities, EntityType.VIRTUAL_VOLUME);
+                }
+                // Treat as a scale volume event where usage and cost go from 0 to the usage and cost of
+                // the storage created.
+                scaleVolumeEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
+                        .add(event);
+            } else if ("RESIZE-VOL".equals(event.eventType)) {
+                scaleVolumeEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
                         .add(event);
             } else if ("POWER_STATE".equals(event.eventType)) {
                 powerEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
@@ -172,6 +264,8 @@ public class ScenarioGenerator {
                 if (previousEvent != null) {
                     BillingScriptEvent revertEvent = new BillingScriptEvent();
                     revertEvent.timestamp = event.timestamp;
+                    revertEvent.eventType = event.eventType;
+                    revertEvent.uuid = event.uuid;
                     revertEvent.sourceOnDemandRate = previousEvent.destinationOnDemandRate;
                     revertEvent.destinationOnDemandRate = previousEvent.sourceOnDemandRate;
                     scaleEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
@@ -186,6 +280,8 @@ public class ScenarioGenerator {
                 if (previousEvent != null) {
                     BillingScriptEvent riCoverageEvent = new BillingScriptEvent();
                     riCoverageEvent.timestamp = event.timestamp;
+                    riCoverageEvent.eventType = event.eventType;
+                    riCoverageEvent.uuid = event.uuid;
                     riCoverageEvent.sourceOnDemandRate = previousEvent.destinationOnDemandRate;
                     riCoverageEvent.destinationOnDemandRate = previousEvent.destinationOnDemandRate;
                     riCoverageEvent.expectedCloudCommitment = event.expectedCloudCommitment;
@@ -195,18 +291,28 @@ public class ScenarioGenerator {
             }
         }
         final Map<Long, Set<BillingRecord>> billRecords = new HashMap<>();
+
         scaleEventsByEntity.forEach((oid, scaleEvents) ->
-            billRecords.put(oid, generateBillRecordForEntity(scaleEvents,
-                    powerEventsByEntity.getOrDefault(oid, Collections.emptyNavigableSet()),
-                    deleteEventsByEntity.get(oid), oid, startTime, endTime)));
-        // Generate bill records for entities that only have delete actions
+                billRecords.put(oid, generateBillRecordForEntity(scaleEvents,
+                        powerEventsByEntity.getOrDefault(oid, Collections.emptyNavigableSet()),
+                        deleteEventsByEntity.get(oid), oid, startTime, endTime, uuidMap, context, false)));
+
+        scaleVolumeEventsByEntity.forEach((oid, scaleVolumeEvents) ->
+                billRecords.put(oid, generateBillRecordForEntity(scaleVolumeEvents,
+                        powerEventsByEntity.getOrDefault(oid, Collections.emptyNavigableSet()),
+                        deleteEventsByEntity.get(oid), oid, startTime, endTime, uuidMap, context, true)));
+
+        // Generate bill records for entities that only have delete actions.
+        // We don't assume that these events are for volumes at the outset (isVolume parameter is false), however delete
+        // events are processed as events on volume entitytype, at the moment.
         deleteEventsByEntity.forEach((oid, event) -> {
-            if (!scaleEventsByEntity.containsKey(oid)) {
+            if (!scaleEventsByEntity.containsKey(oid) && !scaleVolumeEventsByEntity.containsKey(oid)) {
                 billRecords.put(oid, generateBillRecordForEntity(new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)),
                         powerEventsByEntity.getOrDefault(oid, Collections.emptyNavigableSet()), event,
-                        oid, startTime, endTime));
+                        oid, startTime, endTime, uuidMap, context, false));
             }
         });
+
         billRecords.forEach((oid, records) -> {
             logger.info("Generated bill records for entity {}:", oid);
             records.stream().sorted(Comparator.comparing(BillingRecord::getSampleTime))
@@ -231,10 +337,10 @@ public class ScenarioGenerator {
 
     private static Set<BillingRecord> generateBillRecordForEntity(NavigableSet<BillingScriptEvent> scaleEvents,
             NavigableSet<BillingScriptEvent> powerEvents, @Nullable BillingScriptEvent deleteEvent,
-            long entityOid, LocalDateTime startTime, LocalDateTime endTime) {
+            long entityOid, LocalDateTime startTime, LocalDateTime endTime, Map<String, Long> uuidMap,
+                                                      Context context, boolean isVolume) {
         // Start from the first day of the scenario.
         LocalDateTime dayStart = startTime.truncatedTo(ChronoUnit.DAYS);
-
         // Create powered off intervals, which can span over more than 1 day.
         List<Interval> poweredOffIntervals = createPoweredOffIntervals(startTime, endTime, powerEvents, deleteEvent);
 
@@ -245,7 +351,7 @@ public class ScenarioGenerator {
             LocalDateTime dayEnd = endTime.isBefore(dayStart.plusDays(1)) ? endTime
                     : dayStart.plusDays(1);
             List<Segment> segments = createSegments(dayStart, dayEnd, scaleEvents, deleteEvent,
-                    poweredOffIntervals);
+                    poweredOffIntervals, uuidMap, context);
 
             int entityType = EntityType.VIRTUAL_MACHINE_VALUE;
             CostCategory costCategory = CostCategory.COMPUTE_LICENSE_BUNDLE;
@@ -255,7 +361,11 @@ public class ScenarioGenerator {
                 entityType = EntityType.VIRTUAL_VOLUME_VALUE;
                 costCategory = CostCategory.STORAGE;
                 providerType = EntityType.STORAGE_TIER_VALUE;
-                commodityType = CommodityType.STORAGE_AMOUNT_VALUE;
+                commodityType = CommodityType.STORAGE_VALUE;
+            } else if (isVolume) {
+                entityType = EntityType.VIRTUAL_VOLUME_VALUE;
+                costCategory = CostCategory.STORAGE;
+                providerType = EntityType.STORAGE_TIER_VALUE;
             }
 
             Map<Long, Segment> providerToOnDemandSegment = new HashMap<>();
@@ -300,44 +410,151 @@ public class ScenarioGenerator {
 
             // Create bill records for each provider for the day.
             for (Segment segment : providerToOnDemandSegment.values()) {
-                if (segment.durationInHours > 0) {
+                if (segment.durationInHours > 0 && !isVolume) {
                     generatedRecords.add(new Builder()
                             .cost(segment.cost)
                             .providerId(segment.providerId)
                             .sampleTime(dayStart)
                             .entityId(entityOid)
                             .entityType(entityType)
-                            .accountId(1L)
-                            .regionId(2L)
                             .priceModel(PriceModel.ON_DEMAND)
                             .costCategory(costCategory)
                             .providerType(providerType)
                             .commodityType(commodityType)
                             .usageAmount(segment.durationInHours)
+                            .accountId(1L)
+                            .regionId(2L)
                             .build());
                 }
             }
+
             for (Segment segment : providerToReservedSegment.values()) {
-                if (segment.durationInHours > 0) {
+                if (segment.durationInHours > 0 && !isVolume) {
                     generatedRecords.add(new Builder().cost(0)
                             .providerId(segment.providerId)
                             .sampleTime(dayStart)
                             .entityId(entityOid)
                             .entityType(entityType)
-                            .accountId(1L)
-                            .regionId(2L)
                             .priceModel(PriceModel.RESERVED)
                             .costCategory(CostCategory.COMMITMENT_USAGE)
                             .providerType(providerType)
                             .commodityType(CommodityType.UNKNOWN_VALUE)
                             .usageAmount(segment.durationInHours)
+                            .accountId(1L)
+                            .regionId(2L)
                             .build());
+                }
+            }
+
+            // Billing Records based on commodities.
+            final Map<Long, List<Segment>> providerIdToSegments = segments
+                    .stream()
+                    .collect(Collectors
+                            .groupingBy(Segment::getProviderId));
+
+            for (List<Segment> providerSegments : providerIdToSegments.values()) {
+                Map<CommodityType, Double> usageAmountByCommodity = new HashMap<>();
+                usageAmountByCommodity.putAll(getUsageAmountOfCommodities(providerSegments,
+                        EntityType.VIRTUAL_VOLUME));
+                Map<CommodityType, Double> costByCommodity = new HashMap<>();
+                costByCommodity.putAll(getCostOfCommodities(providerSegments, EntityType.VIRTUAL_VOLUME));
+                if (!usageAmountByCommodity.isEmpty()) {
+                    for (CommodityType commType : usageAmountByCommodity.keySet()) {
+                        generatedRecords.add(new Builder()
+                                .cost(costByCommodity.get(commType))
+                                .providerId(providerSegments.get(0).providerId)
+                                .sampleTime(dayStart)
+                                .entityId(entityOid)
+                                .entityType(entityType)
+                                .priceModel(PriceModel.ON_DEMAND)
+                                .costCategory(costCategory)
+                                .providerType(providerType)
+                                .commodityType(commType.getNumber())
+                                .usageAmount(usageAmountByCommodity.get(commType))
+                                .accountId(1L)
+                                .regionId(2L)
+                                .build());
+                    }
                 }
             }
 
             dayStart = dayStart.plusDays(1);
         }
         return generatedRecords;
+    }
+
+    /**
+     * Get Usage by Commodities.
+     *
+     * <p>Volumes are charged on the basis of one or more commodities</p>
+     * @param segments The relevant segments for a given provider.
+     * @param entityType The entity type.
+     * @return Map of Commodity to usage Amount over all segments, for the provider.
+     */
+    private static Map<CommodityType, Double> getUsageAmountOfCommodities(final Collection<Segment> segments,
+                                                                               final EntityType entityType) {
+        Map<CommodityType, Double> usageAmountByCommodity = new HashMap<>();
+        Double commodityUsage = 0.0;
+        for (CommodityType commType : entityTypeToCommType.get(entityType)) {
+            for (Segment segment : segments) {
+                if (segment.providerId == 0 || segment.commodities.isEmpty()) {
+                    continue;
+                }
+                if (!("ULTRA").equals(segment.destinationType) && !(commType.getNumber() == CommodityType.STORAGE_AMOUNT_VALUE)) {
+                    continue;
+                }
+                Optional<Commodity> commodity = getCommodityOfType(segment.commodities, commType.name());
+                if (commodity.isPresent()) {
+                    commodityUsage = usageAmountByCommodity.getOrDefault(commType, 0.0);
+                    usageAmountByCommodity.put(commType, commodityUsage + (segment.durationInHours * commodity.get().destinationCapacity));
+                }
+            }
+        }
+
+        return usageAmountByCommodity;
+    }
+
+    /**
+     * Get Cost by Commodities.
+     *
+     * <p>Volumes are charged on the basis of one or more commodities</p>
+     * @param segments The segments for a given provider.
+     * @param entityType The entity type.
+     * @return Map of Commodity to cost of the commodity over all segments, for the provider.
+     */
+    private static Map<CommodityType, Double> getCostOfCommodities(final Collection<Segment> segments,
+                                                                        final EntityType entityType) {
+        Map<CommodityType, Double> costByCommodity = new HashMap<>();
+        Double commodityCost = 0.0;
+        for (CommodityType commType : entityTypeToCommType.get(entityType)) {
+            for (Segment segment : segments) {
+                if (segment.providerId == 0 || segment.commodities.isEmpty()) {
+                    continue;
+                }
+                if (!("ULTRA").equals(segment.destinationType) && !(commType.getNumber() == CommodityType.STORAGE_AMOUNT_VALUE)) {
+                    continue;
+                }
+                Optional<Commodity> commodity = getCommodityOfType(segment.commodities, commType.name());
+                if (commodity.isPresent()) {
+                    commodityCost = costByCommodity.getOrDefault(commType, 0.0);
+                    costByCommodity.put(commType, commodityCost + (segment.durationInHours * commodity.get().destinationRate));
+                }
+            }
+        }
+
+        return costByCommodity;
+    }
+
+    /**
+     * Get commodity of a given CommodityType from a list of commodities.
+     *
+     * @param commodities The list of commodities.
+     * @param commType The Commodity Type.
+     * @return Commodity of type commType, if present.
+     */
+    private static Optional<Commodity> getCommodityOfType(final List<Commodity> commodities, final String commType) {
+        return commodities.stream()
+                .filter(commodity -> commodity.commType.equals(commType)).findFirst();
     }
 
     private static List<Interval> createPoweredOffIntervals(LocalDateTime startTime,
@@ -382,7 +599,7 @@ public class ScenarioGenerator {
     private static List<Segment> createSegments(@Nonnull LocalDateTime dayStart,
             @Nonnull LocalDateTime dayEnd,
             NavigableSet<BillingScriptEvent> scaleEvents, BillingScriptEvent deleteEvent,
-            List<Interval> poweredOffIntervals) {
+            List<Interval> poweredOffIntervals, Map<String, Long> uuidMap, Context context) {
         final long dayStartMillis = TimeUtil.localTimeToMillis(dayStart, clock);
         final long dayEndMillis = TimeUtil.localTimeToMillis(dayEnd, clock);
         // Find all script events on the day.
@@ -403,26 +620,44 @@ public class ScenarioGenerator {
             if (event == null) {
                 if (deleteEvent != null && deleteEvent.timestamp > dayStartMillis) {
                     event = deleteEvent;
+                    event.commodities = Collections.EMPTY_LIST;
                 } else {
                     return segments;
                 }
             }
+
+            Long oid = uuidMap.getOrDefault(event.uuid, 0L);
+            List<Commodity> entityCommodities = context.entityCommoditiesMap.get(oid);
             if (event.timestamp < dayStartMillis) {
                 Segment segment = new Segment(dayStartMillis, dayEndMillis,
                         event.destinationOnDemandRate,
-                        generateProviderIdFromRate(event.destinationOnDemandRate),
-                        event.expectedCloudCommitment);
+                        event.destinationOnDemandRate != 0 ? generateProviderIdFromRate(event.destinationOnDemandRate)
+                        : generateProviderIdFromVolumeType(event.destinationVolumeType),
+                        entityCommodities,
+                        event.expectedCloudCommitment,
+                        event.destinationVolumeType);
+
                 // Exclude time when it is powered off.
                 List<Segment> segmentsToAdd = segment.exclude(poweredOffIntervals);
                 segments.addAll(segmentsToAdd);
+                if (event.destinationVolumeType != null) {
+                    context.updateCommodities(oid, event.commodities, EntityType.VIRTUAL_VOLUME);
+                }
             } else {
                 Segment segment = new Segment(dayStartMillis, dayEndMillis,
                         event.sourceOnDemandRate,
-                        generateProviderIdFromRate(event.sourceOnDemandRate),
-                        0.0);
+                        event.sourceOnDemandRate != 0 ? generateProviderIdFromRate(event.sourceOnDemandRate)
+                                : generateProviderIdFromVolumeType(event.sourceVolumeType),
+                        entityCommodities == null ?  Collections.emptyList() : entityCommodities,
+                        0.0,
+                        event.sourceVolumeType);
+
                 // Exclude time when it is powered off.
                 List<Segment> segmentsToAdd = segment.exclude(poweredOffIntervals);
                 segments.addAll(segmentsToAdd);
+                if (event.sourceVolumeType != null) {
+                    context.updateCommodities(oid, event.commodities, EntityType.VIRTUAL_VOLUME);
+                }
             }
             return segments;
         }
@@ -432,25 +667,48 @@ public class ScenarioGenerator {
         for (BillingScriptEvent event : eventsForDay) {
             BillingScriptEvent previousEvent = scaleEvents.lower(event);
             segmentEnd = event.timestamp;
+            Long oid = uuidMap.getOrDefault(event.uuid, 0L);
+            List<Commodity> entityCommodities = context.entityCommoditiesMap.get(oid);
             Segment segment = new Segment(segmentStart, segmentEnd, event.sourceOnDemandRate,
-                    generateProviderIdFromRate(event.sourceOnDemandRate),
-                    previousEvent == null ? 0.0 : previousEvent.expectedCloudCommitment);
+                    event.sourceOnDemandRate != 0 ? generateProviderIdFromRate(event.sourceOnDemandRate)
+                            : generateProviderIdFromVolumeType(event.sourceVolumeType),
+                    entityCommodities == null ?  Collections.emptyList() : entityCommodities,
+                    previousEvent == null ? 0.0 : previousEvent.expectedCloudCommitment,
+                    event.sourceVolumeType);
+
             // Exclude time when it is powered off.
             List<Segment> segmentsToAdd = segment.exclude(poweredOffIntervals);
             segments.addAll(segmentsToAdd);
             segmentStart = segmentEnd;
+            if (event.sourceVolumeType != null) {
+                context.updateCommodities(oid, event.commodities, EntityType.VIRTUAL_VOLUME);
+            }
         }
         // last segment
         if (segmentStart < dayEndMillis && !"DELVOL".equals(eventsForDay.last().eventType)) {
+            Long oid = uuidMap.getOrDefault(eventsForDay.last().uuid, 0L);
+            List<Commodity> entityCommodities = context.entityCommoditiesMap.get(oid);
             Segment segment = new Segment(segmentStart, dayEndMillis,
                     eventsForDay.last().destinationOnDemandRate,
-                    generateProviderIdFromRate(eventsForDay.last().destinationOnDemandRate),
-                    eventsForDay.last().expectedCloudCommitment);
+                    eventsForDay.last().destinationOnDemandRate != 0 ? generateProviderIdFromRate(eventsForDay.last().destinationOnDemandRate)
+                            : generateProviderIdFromVolumeType(eventsForDay.last().destinationVolumeType),
+                    entityCommodities,
+                    eventsForDay.last().expectedCloudCommitment,
+                    eventsForDay.last().destinationVolumeType);
+
             // Exclude time when it is powered off.
             List<Segment> segmentsToAdd = segment.exclude(poweredOffIntervals);
             segments.addAll(segmentsToAdd);
+            if (eventsForDay.last().destinationVolumeType != null) {
+                context.updateCommodities(oid, eventsForDay.last().commodities, EntityType.VIRTUAL_VOLUME);
+            }
         }
+
         return segments;
+    }
+
+    static long generateProviderIdFromVolumeType(final String volumeType) {
+        return volumeNameToProviderId.getOrDefault(volumeType, 0L);
     }
 
     static long generateProviderIdFromRate(double rate) {
@@ -458,11 +716,8 @@ public class ScenarioGenerator {
     }
 
     private static ActionInfo createScaleActionInfo(long entityOid, double sourceOnDemandRate, double destOnDemandRate,
-            long sourceProviderId, long destProviderId, int entityType, int tierType, double expectedRiCoverage,
-            List<ResizeInfo> resizeInfoList) {
-        if (resizeInfoList == null) {
-            resizeInfoList = new ArrayList<>();
-        }
+            long sourceProviderId, long destProviderId, int entityType, int tierType, final List<ResizeInfo> resizeInfoList,
+                                                    double expectedRiCoverage) {
         TierCostDetails.Builder destinationTierCostDetails = TierCostDetails.newBuilder()
                 .setOnDemandRate(CurrencyAmount.newBuilder()
                         .setAmount(destOnDemandRate)
@@ -488,7 +743,7 @@ public class ScenarioGenerator {
         }
 
         Scale.Builder scaleBuilder = Scale.newBuilder();
-        if (resizeInfoList.isEmpty()) {
+        if (destProviderId != sourceProviderId) {
             scaleBuilder.addChanges(ChangeProvider.newBuilder()
                     .setDestination(ActionEntity.newBuilder()
                             .setId(destProviderId)
@@ -499,31 +754,58 @@ public class ScenarioGenerator {
                             .setType(tierType)
                             .build())
                     .build());
-        } else {
+        }
+        scaleBuilder.setCloudSavingsDetails(CloudSavingsDetails.newBuilder()
+                        .setSourceTierCostDetails(TierCostDetails.newBuilder()
+                                .setOnDemandRate(CurrencyAmount.newBuilder()
+                                        .setAmount(sourceOnDemandRate)
+                                        .build())
+                                .setOnDemandCost(CurrencyAmount.newBuilder()
+                                        .setAmount(sourceOnDemandRate * 24)
+                                        .build())
+                                .build())
+                        .setProjectedTierCostDetails(destinationTierCostDetails)
+                        .build())
+                .setTarget(ActionEntity.newBuilder()
+                        .setId(entityOid)
+                        .setType(entityType)
+                        .build());
+        if (resizeInfoList != null && !resizeInfoList.isEmpty()) {
+            scaleBuilder.addAllCommodityResizes(resizeInfoList);
             scaleBuilder.setPrimaryProvider(ActionEntity.newBuilder()
                     .setId(sourceProviderId)
                     .setType(tierType)
                     .build());
         }
+
         return ActionInfo.newBuilder()
-                .setScale(scaleBuilder.setCloudSavingsDetails(CloudSavingsDetails.newBuilder()
-                                .setSourceTierCostDetails(TierCostDetails.newBuilder()
-                                        .setOnDemandRate(CurrencyAmount.newBuilder()
-                                                .setAmount(sourceOnDemandRate)
-                                                .build())
-                                        .setOnDemandCost(CurrencyAmount.newBuilder()
-                                                .setAmount(sourceOnDemandRate * 24)
-                                                .build())
-                                        .build())
-                                .setProjectedTierCostDetails(destinationTierCostDetails)
-                                .build())
-                        .setTarget(ActionEntity.newBuilder()
-                                .setId(entityOid)
-                                .setType(entityType)
-                                .build())
-                        .addAllCommodityResizes(resizeInfoList)
-                        .build())
+                .setScale(scaleBuilder.build())
                 .build();
+    }
+
+    /**
+     * Create the list of commodities related resize information to include in the scale action DTO.
+     *
+     * @param commodities The commodities being resized.
+     * @return List of ResizeInfo objects.
+     */
+    private static List<ResizeInfo> createResizeInfoList(final List<Commodity> commodities) {
+        if (commodities == null) {
+            return Collections.EMPTY_LIST;
+        }
+        final List<ResizeInfo> resizeInfoList = new ArrayList<>();
+        for (Commodity commodity : commodities) {
+            resizeInfoList.add(ResizeInfo.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType
+                            .valueOf(commodity.commType).getNumber()).build())
+                    .setOldCapacity(commodity.commType.equals("STORAGE_AMOUNT") || commodity.commType.equals("IO_THROUGHPUT")
+                            ? commodity.sourceCapacity * 1024
+                            : commodity.sourceCapacity)
+                    .setNewCapacity(commodity.commType.equals("STORAGE_AMOUNT") || commodity.commType.equals("IO_THROUGHPUT")
+                            ? commodity.destinationCapacity * 1024
+                            : commodity.destinationCapacity).build());
+        }
+        return resizeInfoList;
     }
 
     /**
@@ -595,7 +877,7 @@ public class ScenarioGenerator {
     }
 
     /**
-     * Create VM ActionSpec object.
+     * Create ExecutedActionsChangeWindow object for volume scale actions.
      *
      * @param entityOid entity OID
      * @param actionTime action time
@@ -604,7 +886,7 @@ public class ScenarioGenerator {
      * @param sourceProviderId source provider ID
      * @param destProviderId destination provider ID
      * @param expectedRiCoverage the expected RI coverage after the action (between 0 - 1)
-     * @return ActionSpec object
+     * @return ExecutedActionsChangeWindow object
      */
     public static ExecutedActionsChangeWindow createVMActionChangeWindow(long entityOid, LocalDateTime actionTime, double sourceOnDemandRate,
             double destOnDemandRate, long sourceProviderId, long destProviderId, @Nullable LocalDateTime endTime, @Nullable LivenessState state,
@@ -614,8 +896,9 @@ public class ScenarioGenerator {
         }
         ActionInfo scaleActionInfo = createScaleActionInfo(entityOid, sourceOnDemandRate, destOnDemandRate,
                 sourceProviderId, destProviderId,
-                CommonDTOREST.EntityDTO.EntityType.COMPUTE_TIER.getValue(),
-                CommonDTOREST.EntityDTO.EntityType.VIRTUAL_MACHINE.getValue(), expectedRiCoverage, new ArrayList<>());
+                EntityType.COMPUTE_TIER_VALUE,
+                EntityType.VIRTUAL_MACHINE_VALUE, new ArrayList<>(), expectedRiCoverage);
+
         ActionSpec actionSpec = createActionSpec(actionTime, scaleActionInfo,
                 sourceOnDemandRate - destOnDemandRate);
         return createExecutedActionsChangeWindow(entityOid, actionSpec, endTime, state);
@@ -642,7 +925,8 @@ public class ScenarioGenerator {
         ActionInfo scaleActionInfo = createScaleActionInfo(entityOid, sourceOnDemandRate, destOnDemandRate,
                 sourceProviderId, destProviderId,
                 EntityType.STORAGE_TIER_VALUE,
-                EntityType.VIRTUAL_VOLUME_VALUE, 0, resizeInfoList);
+                EntityType.VIRTUAL_VOLUME_VALUE, resizeInfoList, 0);
+
         ActionSpec actionSpec = createActionSpec(actionTime, scaleActionInfo,
                 sourceOnDemandRate - destOnDemandRate);
         return createExecutedActionsChangeWindow(entityOid, actionSpec, endTime, state);
@@ -691,6 +975,8 @@ public class ScenarioGenerator {
     static class Segment extends Interval {
         // Provider ID.
         private final long providerId;
+        // Commodities involved in the scale action -- type, capacity and rate at destination.
+        private List<Commodity> commodities = new ArrayList<>();
         // Cost per hour
         private final double costPerHour;
         // Cost in the segment
@@ -699,6 +985,12 @@ public class ScenarioGenerator {
         private double durationInHours;
         // expected RI coverage after action
         private double expectedRICoverage;
+        // destination type (ULTRA, PREMIUM, STANDARD SDD, etc .. for Volumes)
+        private String destinationType;
+
+        Long getProviderId() {
+            return providerId;
+        }
 
         /**
          * Constructor.
@@ -706,12 +998,20 @@ public class ScenarioGenerator {
          * @param end end time
          * @param costPerHour cost per hour
          * @param providerId provider ID
+         * @param commodities commodities involved in the resize event
+         * @param expectedRiCoverage the expected RI coverage after the action (between 0 - 1)
+         * @param destinationType the destination type, if relevant (for Volumes, ULTRA, PREMIUM, STANDARD etc)
          */
-        Segment(long start, long end, double costPerHour, long providerId, double expectedRICoverage) {
+        Segment(long start, long end, double costPerHour, long providerId, List<Commodity> commodities, double expectedRICoverage,
+                String destinationType) {
             super(start, end);
-            this.costPerHour = costPerHour;
             this.providerId = providerId;
             this.expectedRICoverage = expectedRICoverage;
+            if (commodities != null) {
+                this.commodities.addAll(commodities);
+            }
+            this.destinationType = destinationType;
+            this.costPerHour = costPerHour;
             updateCost();
         }
 
@@ -721,7 +1021,11 @@ public class ScenarioGenerator {
             this.cost = segment.cost;
             this.providerId = segment.providerId;
             this.durationInHours = segment.durationInHours;
+            if (commodities != null) {
+                this.commodities = segment.commodities;
+            }
             this.expectedRICoverage = segment.expectedRICoverage;
+            this.destinationType = segment.destinationType;
         }
 
         private void updateCost() {

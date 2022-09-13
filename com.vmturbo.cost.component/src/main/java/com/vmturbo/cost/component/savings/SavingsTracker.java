@@ -125,6 +125,40 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
     }
 
     /**
+     * Creates a new tracker for unit test purposes with a specific StorageamountResolver passed in.
+     *
+     * @param billingRecordStore Store for billing records.
+     * @param actionChainStore Action chain store.
+     * @param savingsStore Writer for final stats.
+     * @param supportedProviderTypes Provider types wer are interested in.
+     * @param storageAmountResolver The Storage Amount Resolver.
+     */
+    public SavingsTracker(@Nonnull final BillingRecordStore billingRecordStore,
+                          @Nonnull ActionChainStore actionChainStore,
+                          @Nonnull final SavingsStore savingsStore,
+                          @Nonnull final Set<Integer> supportedProviderTypes,
+                          long deleteActionRetentionMs,
+                          @Nonnull Clock clock,
+                          @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
+                          @Nonnull RepositoryClient repositoryClient,
+                          @Nonnull final DSLContext dsl,
+                          @Nonnull final StorageAmountResolver storageAmountResolver,
+                          long realtimeTopologyContextId,
+                          final int chunkSize) {
+        super(dsl, chunkSize);
+        this.billingRecordStore = billingRecordStore;
+        this.actionChainStore = actionChainStore;
+        this.savingsStore = savingsStore;
+        this.supportedProviderTypes = supportedProviderTypes;
+        this.clock = clock;
+        this.cloudTopologyFactory = cloudTopologyFactory;
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.repositoryClient = repositoryClient;
+        this.storageAmountResolver = storageAmountResolver;
+        this.calculator = new Calculator(deleteActionRetentionMs, clock, storageAmountResolver);
+    }
+
+    /**
      * Process savings for a given list of entity OIDs. A chunk of entities is processed at a time.
      *
      * @param entityIds OIDs of entities to be processed.

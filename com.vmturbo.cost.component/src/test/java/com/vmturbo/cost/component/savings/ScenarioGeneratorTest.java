@@ -6,6 +6,8 @@ import static org.junit.Assert.assertTrue;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +24,7 @@ import org.junit.Test;
 
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.savings.BillingDataInjector.BillingScriptEvent;
+import com.vmturbo.cost.component.savings.BillingDataInjector.Commodity;
 import com.vmturbo.cost.component.savings.ScenarioGenerator.Interval;
 import com.vmturbo.cost.component.savings.ScenarioGenerator.Segment;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -32,8 +35,16 @@ import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingDataPoint.CostCat
 public class ScenarioGeneratorTest {
 
     private static final String vm1 = "vm1";
+    private static final String vol1 = "vol1";
 
-    private static final Map<String, Long> uuidMap = ImmutableMap.of(vm1, 70000L);
+    private static final Map<String, Long> uuidMap = ImmutableMap.of(vm1, 70000L,
+            vol1, 10000L);
+
+    private static final long STANDARD_SDD_DISK_TIER_OID = 1L;
+    private static final long STANDARD_HDD_DISK_TIER_OID = 2L;
+    private static final long PREMIUM_DISK_TIER_OID = 3L;
+    private static final long ULTRA_DISK_TIER_OID = 4L;
+    private static final long GENERIC_TEST_DISK_TIER_OID = 5L;
 
     /**
      * Test the logic of subtracting an interval from another. It is used for adjusting the segment
@@ -49,7 +60,7 @@ public class ScenarioGeneratorTest {
 
         long start = getMillis(2022, 4, 10, 7, 0);
         long end = getMillis(2022, 4, 10, 8, 0);
-        Segment s1 = new Segment(start, end, 2, 1000L, 0);
+        Segment s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM");
         List<Segment> segments = s1.exclude(powerOffInterval);
         Assert.assertEquals(1, segments.size());
         Assert.assertEquals(start, segments.get(0).start);
@@ -57,7 +68,7 @@ public class ScenarioGeneratorTest {
 
         start = getMillis(2022, 4, 10, 7, 0);
         end = getMillis(2022, 4, 10, 11, 0);
-        s1 = new Segment(start, end, 2, 1000L, 0);
+        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM");
         segments = s1.exclude(powerOffInterval);
         Assert.assertEquals(1, segments.size());
         Assert.assertEquals(start, segments.get(0).start);
@@ -65,7 +76,7 @@ public class ScenarioGeneratorTest {
 
         start = getMillis(2022, 4, 10, 7, 0);
         end = getMillis(2022, 4, 10, 22, 0);
-        s1 = new Segment(start, end, 2, 1000L, 0);
+        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM");
         segments = s1.exclude(powerOffInterval);
         Assert.assertEquals(2, segments.size());
         Assert.assertEquals(start, segments.get(0).start);
@@ -75,13 +86,13 @@ public class ScenarioGeneratorTest {
 
         start = getMillis(2022, 4, 10, 13, 0);
         end = getMillis(2022, 4, 10, 14, 0);
-        s1 = new Segment(start, end, 2, 1000L, 0);
+        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM");
         segments = s1.exclude(powerOffInterval);
         Assert.assertEquals(0, segments.size());
 
         start = getMillis(2022, 4, 10, 13, 0);
         end = getMillis(2022, 4, 10, 22, 0);
-        s1 = new Segment(start, end, 2, 1000L, 0);
+        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM");
         segments = s1.exclude(powerOffInterval);
         Assert.assertEquals(1, segments.size());
         Assert.assertEquals(powerOnTimeMillis, segments.get(0).start);
@@ -89,7 +100,7 @@ public class ScenarioGeneratorTest {
 
         start = getMillis(2022, 4, 10, 21, 0);
         end = getMillis(2022, 4, 10, 22, 0);
-        s1 = new Segment(start, end, 2, 1000L, 0);
+        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM");
         segments = s1.exclude(powerOffInterval);
         Assert.assertEquals(1, segments.size());
         Assert.assertEquals(start, segments.get(0).start);
@@ -120,7 +131,8 @@ public class ScenarioGeneratorTest {
         List<BillingScriptEvent> events = new ArrayList<>();
 
         events.add(createScaleEvent(getMillis(2022, 4, 25, 7, 0),
-                vm1, sourceTierRate, destinationTierRate, 0));
+                vm1, sourceTierRate, destinationTierRate, Collections.emptyList(), 0,
+                "RESIZE"));
         events.add(createPowerEvent(getMillis(2022, 4, 25, 22, 0),
                 vm1, false));
         events.add(createPowerEvent(getMillis(2022, 4, 26, 2, 0),
@@ -149,6 +161,270 @@ public class ScenarioGeneratorTest {
     }
 
     /**
+     * Test Ultra Disk creation of One Billing Record, for Ultra Disk segments.
+    */
+    @Test
+    public void testGenerateUltraDisksCommScaleBillRecords() {
+        // In this test source and destination tier are the same.
+        final double sourceTierRate = 1.0;
+        final double destinationTierRate = 1.0;
+        List<BillingScriptEvent> events = new ArrayList<>();
+
+        // Initial commodities for  the entity are the same at source and destination (no scaling has happened yet in this case).
+        List<Commodity> initiaCommodities = new ArrayList<Commodity>(Arrays.asList(new Commodity("STORAGE_ACCESS", 1000, 0.5, 1000, 0.5),
+                new Commodity("STORAGE_AMOUNT", 500, 0.6, 500, 0.6),
+                new Commodity("IO_THROUGHPUT", 100, 0.4, 100, 0.4)));
+        List<Commodity> scaleCommodities = new ArrayList<Commodity>(Arrays.asList(new Commodity("STORAGE_ACCESS", 1000, 0.5, 2000, 0.7),
+                new Commodity("STORAGE_AMOUNT", 500, 0.6, 800, 0.8),
+                new Commodity("IO_THROUGHPUT", 100, 0.4, 200, 0.6)));
+        BillingScriptEvent event1 = createVolumeEvent(getMillis(2022, 4, 25, 0, 0),
+                vol1, sourceTierRate, 0, initiaCommodities, "CREATE-VOL", "ULTRA");
+        BillingScriptEvent event2 = createScaleVolumeEvent(getMillis(2022, 4, 25, 7, 0),
+                vol1, sourceTierRate, destinationTierRate, "ULTRA", "ULTRA", scaleCommodities, 0,
+                "RESIZE-VOL");
+        events.add(event1);
+        events.add(event2);
+        events.add(createPowerEvent(getMillis(2022, 4, 25, 22, 0),
+                vol1, false));
+
+        LocalDateTime scenarioStart = LocalDateTime.of(2022, 4, 25, 0, 0);
+        LocalDateTime scenarioEnd = LocalDateTime.of(2022, 4, 27, 0, 0);
+        Map<Long, Set<BillingRecord>> result =
+                ScenarioGenerator.generateBillRecords(events, uuidMap, scenarioStart, scenarioEnd);
+        Assert.assertEquals(1, result.size());
+        Set<BillingRecord> expectedRecords = new HashSet<>();
+        BillingRecord record1 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), sourceTierRate,
+                7 * 1000 + 15 * 2000, 7 * 0.5 + 15 * 0.7, CommodityType.STORAGE_ACCESS_VALUE);
+        BillingRecord record2 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), destinationTierRate,
+                7 * 500 + 15 * 800, 7 * 0.6 + 15 * 0.8, CommodityType.STORAGE_AMOUNT_VALUE);
+        BillingRecord record3 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), destinationTierRate,
+                7 * 100 + 15 * 200, 7 * 0.4 + 15 * 0.6,  CommodityType.IO_THROUGHPUT_VALUE);
+
+        expectedRecords.add(record1);
+        expectedRecords.add(record2);
+        expectedRecords.add(record3);
+        assertTrue(CollectionUtils.isEqualCollection(expectedRecords, result.get(uuidMap.get(vol1))));
+    }
+
+    /**
+     * Test Ultra Disk creation of One Billing Record, for Ultra Disk segments, when not all commodities change.
+     */
+    @Test
+    public void testGenerateUltraDisksCommScaleBillRecordsPartialCommoditiesUpdate() {
+        // In this test source and destination tier are the same.
+        final double sourceTierRate = 1.0;
+        final double destinationTierRate = 1.0;
+        List<BillingScriptEvent> events = new ArrayList<>();
+
+        // Initial commodities for  the entity are the same at source and destination (no scaling has happened yet in this case).
+        List<Commodity> initiaCommodities = new ArrayList<Commodity>(Arrays.asList(new Commodity("STORAGE_ACCESS", 1000, 0.5, 1000, 0.5),
+                new Commodity("STORAGE_AMOUNT", 500, 0.6, 500, 0.6),
+                new Commodity("IO_THROUGHPUT", 100, 0.4, 100, 0.4)));
+        List<Commodity> scaleCommodities = new ArrayList<Commodity>(Arrays.asList(new Commodity("STORAGE_ACCESS", 1000, 0.5, 2000, 0.7),
+                new Commodity("IO_THROUGHPUT", 100, 0.4, 200, 0.6)));
+        BillingScriptEvent event1 = createVolumeEvent(getMillis(2022, 4, 25, 0, 0),
+                vol1, sourceTierRate, 0, initiaCommodities, "CREATE-VOL", "ULTRA");
+        BillingScriptEvent event2 = createScaleVolumeEvent(getMillis(2022, 4, 25, 7, 0),
+                vol1, sourceTierRate, destinationTierRate, "ULTRA", "ULTRA", scaleCommodities, 0,
+                "RESIZE-VOL");
+        events.add(event1);
+        events.add(event2);
+        events.add(createPowerEvent(getMillis(2022, 4, 25, 22, 0),
+                vol1, false));
+
+        LocalDateTime scenarioStart = LocalDateTime.of(2022, 4, 25, 0, 0);
+        LocalDateTime scenarioEnd = LocalDateTime.of(2022, 4, 27, 0, 0);
+        Map<Long, Set<BillingRecord>> result =
+                ScenarioGenerator.generateBillRecords(events, uuidMap, scenarioStart, scenarioEnd);
+        Assert.assertEquals(1, result.size());
+        Set<BillingRecord> expectedRecords = new HashSet<>();
+        BillingRecord record1 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), sourceTierRate,
+                7 * 1000 + 15 * 2000, 7 * 0.5 + 15 * 0.7, CommodityType.STORAGE_ACCESS_VALUE);
+        BillingRecord record2 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), destinationTierRate,
+                (7 + 15) * 500, (7 + 15) * 0.6, CommodityType.STORAGE_AMOUNT_VALUE);
+        BillingRecord record3 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), destinationTierRate,
+                7 * 100 + 15 * 200, 7 * 0.4 + 15 * 0.6, CommodityType.IO_THROUGHPUT_VALUE);
+
+        expectedRecords.add(record1);
+        expectedRecords.add(record2);
+        expectedRecords.add(record3);
+        assertTrue(CollectionUtils.isEqualCollection(expectedRecords, result.get(uuidMap.get(vol1))));
+    }
+
+    /**
+     * Test creation of One Billing Record, for Managed Premium Disk segments.
+     */
+    @Test
+    public void testGenerateManagedPremiumScaleBillRecord() {
+        // In this test source and destination tier OID are the same, but commodities are different.
+        List<BillingScriptEvent> events = new ArrayList<>();
+
+        // Initial commodities for  the entity are the same at source and destination (no scaling has happened yet in this case).
+        List<Commodity> initiaCommodities = new ArrayList<Commodity>(Arrays.asList(new Commodity("STORAGE_ACCESS", 1000, 0.5, 1000, 0.5),
+                new Commodity("STORAGE_AMOUNT", 32, 0.6, 32, 0.6),
+                new Commodity("IO_THROUGHPUT", 100, 0.4, 100, 0.4)));
+        List<Commodity> scaleCommodities = new ArrayList<Commodity>(Arrays.asList(new Commodity("STORAGE_AMOUNT", 32, 0.6, 64, 0.8)));
+        BillingScriptEvent event1 = createVolumeEvent(getMillis(2022, 4, 25, 0, 0),
+                vol1, PREMIUM_DISK_TIER_OID, PREMIUM_DISK_TIER_OID, initiaCommodities, "CREATE-VOL", "PREMIUM");
+        BillingScriptEvent event2 = createScaleVolumeEvent(getMillis(2022, 4, 25, 7, 0),
+                vol1, PREMIUM_DISK_TIER_OID, PREMIUM_DISK_TIER_OID, "PREMIUM", "PREMIUM", scaleCommodities,
+                0, "RESIZE-VOL");
+        events.add(event1);
+        events.add(event2);
+        events.add(createPowerEvent(getMillis(2022, 4, 25, 22, 0),
+                vol1, false));
+
+        LocalDateTime scenarioStart = LocalDateTime.of(2022, 4, 25, 0, 0);
+        LocalDateTime scenarioEnd = LocalDateTime.of(2022, 4, 27, 0, 0);
+        Map<Long, Set<BillingRecord>> result =
+                ScenarioGenerator.generateBillRecords(events, uuidMap, scenarioStart, scenarioEnd);
+        Assert.assertEquals(1, result.size());
+        Set<BillingRecord> expectedRecords = new HashSet<>();
+        BillingRecord record1 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), PREMIUM_DISK_TIER_OID,
+                7 * 32 + 15 * 64, 7 * 0.6 + 15 * 0.8, CommodityType.STORAGE_AMOUNT_VALUE);
+
+        expectedRecords.add(record1);
+        System.out.println("Expected: " + expectedRecords);
+        assertTrue(CollectionUtils.isEqualCollection(expectedRecords, result.get(uuidMap.get(vol1))));
+    }
+
+    /**
+     * Test creation of one Billing Record for each Standard Tier segment.
+     */
+    @Test
+    public void testGenerateManagedStandardScaleBillRecords() {
+        List<BillingScriptEvent> events = new ArrayList<>();
+
+        // Initial commodities for  the entity are the same at source and destination (no scaling has happened yet in this case).
+        List<Commodity> initiaCommodities = new ArrayList<Commodity>(Arrays.asList(new Commodity("STORAGE_ACCESS", 1000, 0.5, 1000, 0.5),
+                new Commodity("STORAGE_AMOUNT", 32, 0.6, 32, 0.6),
+                new Commodity("IO_THROUGHPUT", 100, 0.4, 100, 0.4)));
+        List<Commodity> scaleCommodities = new ArrayList<Commodity>(Arrays.asList(new Commodity("STORAGE_AMOUNT", 32, 0.6, 48, 0.8)));
+        BillingScriptEvent event1 = createVolumeEvent(getMillis(2022, 4, 25, 0, 0),
+               vol1, STANDARD_SDD_DISK_TIER_OID, STANDARD_SDD_DISK_TIER_OID, initiaCommodities, "CREATE-VOL", "STANDARD SDD");
+        BillingScriptEvent event2 = createScaleVolumeEvent(getMillis(2022, 4, 25, 12, 0),
+                vol1, STANDARD_SDD_DISK_TIER_OID, STANDARD_HDD_DISK_TIER_OID, "STANDARD SDD", "STANDARD HDD", scaleCommodities,
+                0, "RESIZE-VOL");
+        events.add(event1);
+        events.add(event2);
+        events.add(createPowerEvent(getMillis(2022, 4, 25, 22, 0),
+                vol1, false));
+
+        LocalDateTime scenarioStart = LocalDateTime.of(2022, 4, 25, 0, 0);
+        LocalDateTime scenarioEnd = LocalDateTime.of(2022, 4, 27, 0, 0);
+        Map<Long, Set<BillingRecord>> result =
+                ScenarioGenerator.generateBillRecords(events, uuidMap, scenarioStart, scenarioEnd);
+        Assert.assertEquals(1, result.size());
+        Set<BillingRecord> expectedRecords = new HashSet<>();
+
+        BillingRecord record1 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), STANDARD_SDD_DISK_TIER_OID,
+                32 * 12, 0.6 * 12, CommodityType.STORAGE_AMOUNT_VALUE);
+        BillingRecord record2 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), STANDARD_HDD_DISK_TIER_OID,
+                48 * 10, 0.8 * 10, CommodityType.STORAGE_AMOUNT_VALUE);
+
+        expectedRecords.add(record1);
+        expectedRecords.add(record2);
+        assertTrue(CollectionUtils.isEqualCollection(expectedRecords, result.get(uuidMap.get(vol1))));
+    }
+
+    /**
+     * Test creation of one Billing Record for each Premium and Standard Tier segment.
+     * This would involve both tier and commodity changes.
+     */
+    @Test
+    public void testGenerateManagedPremiumToStandardScaleBillRecords() {
+        List<BillingScriptEvent> events = new ArrayList<>();
+
+        // Initial commodities for  the entity are the same at source and destination (no scaling has happened yet in this case).
+        List<Commodity> initiaCommodities = new ArrayList<Commodity>(Arrays.asList(new Commodity("STORAGE_ACCESS", 1000, 0.5, 1000, 0.5),
+                new Commodity("STORAGE_AMOUNT", 32, 0.6, 32, 0.6),
+                new Commodity("IO_THROUGHPUT", 100, 0.4, 100, 0.4)));
+        List<Commodity> scaleCommodities = new ArrayList<Commodity>(Arrays.asList(new Commodity("STORAGE_AMOUNT", 32, 0.6, 48, 0.8)));
+        BillingScriptEvent event1 = createVolumeEvent(getMillis(2022, 4, 25, 0, 0),
+                vol1, PREMIUM_DISK_TIER_OID, PREMIUM_DISK_TIER_OID, initiaCommodities, "CREATE-VOL", "PREMIUM");
+        BillingScriptEvent event2 = createScaleVolumeEvent(getMillis(2022, 4, 25, 7, 0),
+                vol1, PREMIUM_DISK_TIER_OID, STANDARD_HDD_DISK_TIER_OID, "PREMIUM", "STANDARD SDD", scaleCommodities,
+                0, "RESIZE-VOL");
+        events.add(event1);
+        events.add(event2);
+        events.add(createPowerEvent(getMillis(2022, 4, 25, 22, 0),
+                vol1, false));
+
+        LocalDateTime scenarioStart = LocalDateTime.of(2022, 4, 25, 0, 0);
+        LocalDateTime scenarioEnd = LocalDateTime.of(2022, 4, 27, 0, 0);
+        Map<Long, Set<BillingRecord>> result =
+                ScenarioGenerator.generateBillRecords(events, uuidMap, scenarioStart, scenarioEnd);
+        Assert.assertEquals(1, result.size());
+        Set<BillingRecord> expectedRecords = new HashSet<>();
+
+        BillingRecord record1 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), PREMIUM_DISK_TIER_OID,
+                32 * 7, 0.6 * 7, CommodityType.STORAGE_AMOUNT_VALUE);
+        BillingRecord record2 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), STANDARD_HDD_DISK_TIER_OID,
+                48 * 15, 0.8 * 15, CommodityType.STORAGE_AMOUNT_VALUE);
+
+        expectedRecords.add(record1);
+        expectedRecords.add(record2);
+        assertTrue(CollectionUtils.isEqualCollection(expectedRecords, result.get(uuidMap.get(vol1))));
+    }
+
+    /**
+     * Test successive resizes to different storage types.
+     */
+    @Test
+    public void testSuccessiveVolumeResizesToDifferentStorageTiers() {
+        // In this test source and destination tier are the same.
+        List<BillingScriptEvent> events = new ArrayList<>();
+
+        // Initial commodities for  the entity are the same at source and destination (no scaling has happened yet in this case).
+        List<Commodity> initiaCommodities = new ArrayList<Commodity>(Arrays.asList(new Commodity("STORAGE_ACCESS", 1000, 0.5, 1000, 0.5),
+                new Commodity("STORAGE_AMOUNT", 32, 0.6, 32, 0.6),
+                new Commodity("IO_THROUGHPUT", 100, 0.4, 100, 0.4)));
+        // This test passes in commodities that are not individually scaled for non-ultra disks scale ations.
+        // We will still create bill records based only on STORAGE_AMOUNT, for all non-ultra Azure disk types.
+        List<Commodity> scaleCommodities = new ArrayList<Commodity>(Arrays.asList(new Commodity("STORAGE_ACCESS", 1000, 0.5, 2000, 0.7),
+                new Commodity("IO_THROUGHPUT", 100, 0.4, 200, 0.6)));
+        BillingScriptEvent event1 = createVolumeEvent(getMillis(2022, 4, 25, 0, 0),
+                vol1, PREMIUM_DISK_TIER_OID, PREMIUM_DISK_TIER_OID, initiaCommodities, "CREATE-VOL", "PREMIUM");
+        BillingScriptEvent event2 = createScaleVolumeEvent(getMillis(2022, 4, 25, 7, 0),
+                vol1, PREMIUM_DISK_TIER_OID,  GENERIC_TEST_DISK_TIER_OID, "PREMIUM", "STANDARD SDD", scaleCommodities,
+                0, "RESIZE-VOL");
+        BillingScriptEvent event3 = createScaleVolumeEvent(getMillis(2022, 4, 25, 12, 0),
+                vol1, GENERIC_TEST_DISK_TIER_OID, ULTRA_DISK_TIER_OID, "STANDARD SDD", "ULTRA", scaleCommodities, 0,
+                "RESIZE-VOL");
+
+        events.add(event1);
+        events.add(event2);
+        events.add(event3);
+        events.add(createPowerEvent(getMillis(2022, 4, 25, 22, 0),
+                vol1, false));
+
+        LocalDateTime scenarioStart = LocalDateTime.of(2022, 4, 25, 0, 0);
+        LocalDateTime scenarioEnd = LocalDateTime.of(2022, 4, 27, 0, 0);
+        Map<Long, Set<BillingRecord>> result =
+                ScenarioGenerator.generateBillRecords(events, uuidMap, scenarioStart, scenarioEnd);
+        Assert.assertEquals(1, result.size());
+        Set<BillingRecord> expectedRecords = new HashSet<>();
+
+        BillingRecord record1 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), PREMIUM_DISK_TIER_OID,
+                32 * 7, 0.6 * 7, CommodityType.STORAGE_AMOUNT_VALUE);
+        BillingRecord record2 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), GENERIC_TEST_DISK_TIER_OID,
+                32 * 5, 0.6 * 5, CommodityType.STORAGE_AMOUNT_VALUE);
+        BillingRecord record3 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), ULTRA_DISK_TIER_OID,
+                10 * 2000, 10 * 0.7, CommodityType.STORAGE_ACCESS_VALUE);
+        BillingRecord record4 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), ULTRA_DISK_TIER_OID,
+                10 * 32, 10 * 0.6, CommodityType.STORAGE_AMOUNT_VALUE);
+        BillingRecord record5 = createVolumeBillingRecord(scenarioStart, uuidMap.get(vol1), ULTRA_DISK_TIER_OID,
+                10 * 200, 10 * 0.6,  CommodityType.IO_THROUGHPUT_VALUE);
+
+        expectedRecords.add(record1);
+        expectedRecords.add(record2);
+        expectedRecords.add(record3);
+        expectedRecords.add(record4);
+        expectedRecords.add(record5);
+        assertTrue(CollectionUtils.isEqualCollection(expectedRecords, result.get(uuidMap.get(vol1))));
+    }
+
+    /**
      * Test the generation of bill records from script events. Both scale and power events are tested.
      * Scenario:
      * 1. On Apr 25, 2022, scale vm1 from tierA to tierB at 7am.
@@ -169,9 +445,9 @@ public class ScenarioGeneratorTest {
         List<BillingScriptEvent> events = new ArrayList<>();
 
         events.add(createScaleEvent(getMillis(2022, 4, 25, 7, 0),
-                vm1, tierARate, tierBRate, 0));
+                vm1, tierARate, tierBRate, Collections.emptyList(), 0, "RESIZE"));
         events.add(createScaleEvent(getMillis(2022, 4, 26, 10, 0),
-                vm1, tierBRate, tierCRate, 0));
+                vm1, tierBRate, tierCRate, Collections.emptyList(), 0, "RESIZE"));
         events.add(createPowerEvent(getMillis(2022, 4, 26, 14, 0),
                 vm1, false));
         events.add(createPowerEvent(getMillis(2022, 4, 26, 16, 0),
@@ -224,7 +500,8 @@ public class ScenarioGeneratorTest {
 
         List<BillingScriptEvent> events = new ArrayList<>();
         events.add(createScaleEvent(getMillis(2022, 4, 25, 8, 0),
-                vm1, tierARate, tierBRate, 0.8));
+                vm1, tierARate, tierBRate, Collections.emptyList(), 0.8,
+                "RESIZE"));
 
         LocalDateTime scenarioStart = LocalDateTime.of(2022, 4, 25, 0, 0);
         LocalDateTime scenarioEnd = LocalDateTime.of(2022, 4, 27, 0, 0);
@@ -266,7 +543,8 @@ public class ScenarioGeneratorTest {
 
         List<BillingScriptEvent> events = new ArrayList<>();
         events.add(createScaleEvent(getMillis(2022, 4, 25, 7, 0),
-                vm1, tierARate, tierBRate, 0));
+                vm1, tierARate, tierBRate, Collections.emptyList(), 0,
+                "RESIZE"));
         events.add(createRICoverageEvent(getMillis(2022, 4, 27, 10, 0),
                 vm1, 1));
 
@@ -315,7 +593,8 @@ public class ScenarioGeneratorTest {
 
         List<BillingScriptEvent> events = new ArrayList<>();
         events.add(createScaleEvent(getMillis(2022, 4, 25, 7, 0),
-                vm1, tierARate, tierBRate, 0.8));
+                vm1, tierARate, tierBRate, Collections.emptyList(), 0.8,
+                "RESIZE"));
         events.add(createPowerEvent(getMillis(2022, 4, 26, 14, 0),
                 vm1, false));
         events.add(createPowerEvent(getMillis(2022, 4, 26, 16, 0),
@@ -349,14 +628,56 @@ public class ScenarioGeneratorTest {
         validateResults(expectedRecords, result.get(uuidMap.get(vm1)));
     }
 
-    private BillingScriptEvent createScaleEvent(long timestamp, String uuid, double sourceOnDemandRate,
-            double destinationOnDemandRate, double expectedRICoverage) {
+    private BillingScriptEvent createVolumeEvent(long timestamp, String uuid, double sourceOnDemandRate,
+                                                 double destinationOnDemandRate, List<Commodity> initialCommodities,
+                                                 String createType, String initialVolumeType) {
         BillingScriptEvent event = new BillingScriptEvent();
         event.timestamp = timestamp;
-        event.eventType = "RESIZE";
+        event.eventType = createType;
+        event.sourceVolumeType = initialVolumeType;
         event.uuid = uuid;
         event.sourceOnDemandRate = sourceOnDemandRate;
         event.destinationOnDemandRate = destinationOnDemandRate;
+        event.commodities = new ArrayList<>();
+        if (initialCommodities != null) {
+            event.commodities.addAll(initialCommodities);
+        }
+        event.expectedCloudCommitment = 0;
+        return event;
+    }
+
+    private BillingScriptEvent createScaleEvent(long timestamp, String uuid, double sourceOnDemandRate,
+            double destinationOnDemandRate, List<Commodity> scaleCommodities,
+                                                double expectedRICoverage, String scaleType) {
+        BillingScriptEvent event = new BillingScriptEvent();
+        event.timestamp = timestamp;
+        event.eventType = scaleType;
+        event.uuid = uuid;
+        event.sourceOnDemandRate = sourceOnDemandRate;
+        event.destinationOnDemandRate = destinationOnDemandRate;
+        event.commodities = new ArrayList<>();
+        if (scaleCommodities != null) {
+            event.commodities.addAll(scaleCommodities);
+        }
+        event.expectedCloudCommitment = expectedRICoverage;
+        return event;
+    }
+
+    private BillingScriptEvent createScaleVolumeEvent(long timestamp, String uuid, double sourceOnDemandRate,
+                                                double destinationOnDemandRate, String sourceVolumeType, String destinationVolumeType, List<Commodity> scaleCommodities,
+                                                double expectedRICoverage, String scaleType) {
+        BillingScriptEvent event = new BillingScriptEvent();
+        event.timestamp = timestamp;
+        event.eventType = scaleType;
+        event.uuid = uuid;
+        event.sourceOnDemandRate = sourceOnDemandRate;
+        event.destinationOnDemandRate = destinationOnDemandRate;
+        event.sourceVolumeType = sourceVolumeType;
+        event.destinationVolumeType = destinationVolumeType;
+        event.commodities = new ArrayList<>();
+        if (scaleCommodities != null) {
+            event.commodities.addAll(scaleCommodities);
+        }
         event.expectedCloudCommitment = expectedRICoverage;
         return event;
     }
@@ -408,6 +729,31 @@ public class ScenarioGeneratorTest {
                 .commodityType(CommodityType.UNKNOWN_VALUE)
                 .usageAmount(usageAmount)
                 .cost(cost)
+                .build();
+    }
+
+    private BillingRecord createVolumeBillingRecord(LocalDateTime date, long entityId, double tierRate,
+                                                    double usageAmount, double cost, int commTypeValue) {
+        return createVolumeBillingRecord(date, entityId, tierRate, usageAmount, cost, commTypeValue,
+                PriceModel.ON_DEMAND, CostCategory.STORAGE);
+    }
+
+    private BillingRecord createVolumeBillingRecord(LocalDateTime date, long entityId, double tierRate,
+                                              double usageAmount, double cost, int commTypeValue, PriceModel priceModel,
+                                                    CostCategory costCategory) {
+        return new BillingRecord.Builder()
+                .sampleTime(date)
+                .entityId(entityId)
+                .entityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .priceModel(priceModel)
+                .costCategory(costCategory)
+                .providerId(ScenarioGenerator.generateProviderIdFromRate(tierRate))
+                .providerType(EntityType.STORAGE_TIER_VALUE)
+                .commodityType(commTypeValue)
+                .usageAmount(usageAmount)
+                .cost(cost)
+                .regionId(2L)
+                .accountId(1L)
                 .build();
     }
 
