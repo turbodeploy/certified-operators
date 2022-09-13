@@ -4,7 +4,7 @@ import static com.vmturbo.cost.component.db.Tables.ENTITY_CLOUD_SCOPE;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_DAY;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_HOUR;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_MONTH;
-import static org.jooq.impl.DSL.max;
+import static org.jooq.impl.DSL.field;
 import static org.jooq.impl.DSL.month;
 
 import java.math.BigDecimal;
@@ -33,11 +33,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.InsertOnDuplicateSetMoreStep;
 import org.jooq.InsertValuesStepN;
 import org.jooq.Record3;
 import org.jooq.Record5;
 import org.jooq.Result;
+import org.jooq.SQLDialect;
 import org.jooq.SelectHavingStep;
 import org.jooq.SelectJoinStep;
 import org.jooq.Table;
@@ -499,8 +501,9 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
         final StatsTypeFields fieldInfo = statsFieldsByRollup.get(RollupDurationType.DAILY);
         boolean isCloudScopeEntity = entityTypes.size() == 1 && CLOUD_GROUP_SCOPES.containsAll(entityTypes);
         boolean isResourceGroups = !resourceGroups.isEmpty();
+
         SelectJoinStep<Record3<LocalDateTime, Integer, BigDecimal>> selectStatsStatement =
-                dsl.select(max(fieldInfo.timeField),
+                dsl.select(lastDayOfMonth(fieldInfo.timeField),
                                 fieldInfo.typeField,
                                 DSL.sum(fieldInfo.valueField).as(fieldInfo.valueField))
                         .from(fieldInfo.table);
@@ -518,9 +521,23 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
                                 .ge(SavingsUtil.getLocalDateTime(startTime, clock))
                                 .and(fieldInfo.timeField
                                         .lt(SavingsUtil.getLocalDateTime(endTime, clock))))
-                        .groupBy(fieldInfo.typeField, month(fieldInfo.timeField))
-                        .orderBy(month(fieldInfo.timeField).asc()).fetch();
+                        .groupBy(fieldInfo.typeField, groupByMonth(fieldInfo.timeField))
+                        .orderBy(groupByMonth(fieldInfo.timeField).asc()).fetch();
         return records.map(this::convertStatsDbRecord);
+    }
+
+    //// get the last day of the month (only for bill based)
+    private Field<LocalDateTime> lastDayOfMonth(Field<LocalDateTime> field) {
+        return dsl.dialect() == SQLDialect.POSTGRES ? field(
+                "date_trunc('month', {0}) + '1 month - 1 day'::interval", field.getType(), field)
+                : field("last_day({0})", field.getType(), field);
+    }
+
+    // group the records by month (only for bill based)
+    private Field<?> groupByMonth(Field<?> field) {
+        return dsl.dialect() == SQLDialect.POSTGRES ? field(
+                "date_trunc('month', {0})", Integer.class, field)
+                : month(field);
     }
 
     @Nonnull
