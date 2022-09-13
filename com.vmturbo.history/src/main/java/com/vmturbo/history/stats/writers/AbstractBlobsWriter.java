@@ -49,7 +49,6 @@ public abstract class AbstractBlobsWriter<P, C, W extends Record> implements Str
     private final Logger logger = LogManager.getLogger();
     private final DataSource dataSource;
     private final DataMetricTimer dataMetricTimer;
-    private final DataMetricSummary metric;
     private final Table<W> blobsTable;
 
     private Connection connection;
@@ -74,8 +73,8 @@ public abstract class AbstractBlobsWriter<P, C, W extends Record> implements Str
         this.dataSource = Objects.requireNonNull(dataSource, "DataSource should not be null");
         this.responseObserver = Objects.requireNonNull(responseObserver,
                         "Response observer should not be null");
-        dataMetricTimer = metric.startTimer();
-        this.metric = Objects.requireNonNull(metric, "DataMetricSummary cannot be null");
+        Objects.requireNonNull(metric, "DataMetricSummary cannot be null");
+        this.dataMetricTimer = metric.startTimer();
         this.blobsTable = Objects.requireNonNull(blobsTable, "Blobs table cannot be null");
     }
 
@@ -187,7 +186,11 @@ public abstract class AbstractBlobsWriter<P, C, W extends Record> implements Str
                 return;
             }
             try {
-                connection.commit();
+                if (connection != null) {
+                    connection.commit();
+                } else {
+                    logger.warn("{} never called onNext to initialize database connection.", () -> getRecordSimpleName());
+                }
                 responseObserver.onNext(newResponse());
                 logger.debug("{} data '{}' bytes in '{}' chunks for '{}' timestamp have been written successfully in '{}' seconds",
                         () -> getRecordSimpleName(), () -> totalBytesWritten, () -> processedChunks,
