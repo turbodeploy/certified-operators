@@ -16,7 +16,7 @@ RUN groupadd -g 1000 vmtsyslog && useradd -m -r -d /home/vmtsyslog -g 1000 -s /b
     passwd -l root
 
 # Install rsyslog package
-RUN dnf install -y rsyslog procps-ng zip xz python2 gnutls  && \
+RUN dnf install -y rsyslog procps-ng zip xz python2 gnutls wget  && \
     dnf clean all && \
     rm -rf /var/cache/dnf && \
     mkdir -p /home/vmtsyslog/rsyslog && \
@@ -25,6 +25,12 @@ RUN dnf install -y rsyslog procps-ng zip xz python2 gnutls  && \
     chmod a+w /var/lib/logrotate && \
     mkdir -p /var/log/turbonomic && \
     chown -R vmtsyslog:vmtsyslog /var/log/turbonomic
+
+# Install yq for yaml properties extraction.
+ARG YQ_VERSION=v4.27.3
+ARG YQ_BINARY=yq_linux_386
+RUN wget https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY} -O /usr/bin/yq && \
+    chmod +x /usr/bin/yq
 
 COPY entrypoint.sh /
 ADD rsyslog.conf /etc

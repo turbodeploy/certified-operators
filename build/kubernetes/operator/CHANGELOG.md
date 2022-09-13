@@ -7,6 +7,7 @@ Operator Versions
 1. Fixed a bug where prometheus-server pod would get stuck in `ContainerCreating` state in 
    Kubernetes `1.14.3`.
 2. Enabled Azure Billing Probe by default if azure is enabled.
+3. Support individually defined properties for syslog file size and count in CR.
 
 42.15
 1. Inject NAMESPACE into the API component environment for use by the telemetry API.
