@@ -5,7 +5,10 @@ import static com.vmturbo.cost.component.util.TestUtils.getTimeMillis;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 import java.io.File;
 import java.io.IOException;
@@ -33,6 +36,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.stream.JsonReader;
+import com.google.protobuf.Message.Builder;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.csv.CSVParser;
@@ -59,8 +63,10 @@ import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.savings.DataInjectionMonitor.ScriptEvent;
 import com.vmturbo.cost.component.savings.bottomup.AggregatedSavingsStats;
 import com.vmturbo.cost.component.savings.bottomup.SqlEntitySavingsStore;
+import com.vmturbo.cost.component.savings.calculator.StorageAmountResolver;
 import com.vmturbo.cost.component.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
@@ -100,8 +106,17 @@ public class ScenarioSavingsTest {
 
     private final String filePath;
 
+    private static final BusinessAccountPriceTableKeyStore priceTableKeyStore = mock(BusinessAccountPriceTableKeyStore.class);
+    private static final PriceTableStore priceTableStore = mock(PriceTableStore.class);
+    private static final StorageAmountResolver storageAmountResolver = spy(new StorageAmountResolver(priceTableKeyStore, priceTableStore));
+
+    private static final long STANDARD_HDD_DISK_TIER_OID = 20000L;
+    private static final long ULTRA_DISK_TIER_OID = 35000L;
+    private static final long PREMIUM_DISK_TIER_OID = 30000L;
+
     Set<Long> participatingUuids = new HashSet<>();
     Set<Long> expectedUuids = new HashSet<>();
+    private static Map<Long, StorageTierPriceList> priceListMap = new HashMap<>();
 
     @BeforeClass
     public static void setup() {
@@ -119,8 +134,23 @@ public class ScenarioSavingsTest {
                 TimeUnit.DAYS.toMillis(365),
                 clock, mock(
                 TopologyEntityCloudTopologyFactory.class), null, dsl,
-                mock(BusinessAccountPriceTableKeyStore.class),
-                mock(PriceTableStore.class), 777777, chunkSize);
+                storageAmountResolver, 777777, chunkSize);
+
+        // Create price list map.
+        final Builder standHdd = StorageTierPriceList.newBuilder();
+        assertTrue(TestUtils.loadProtobufBuilder("/savings/storageTierPriceStandardHDD.json",
+                standHdd, null));
+        priceListMap.put(STANDARD_HDD_DISK_TIER_OID, (StorageTierPriceList)(standHdd.build()));
+
+        final Builder ultra = StorageTierPriceList.newBuilder();
+        assertTrue(TestUtils.loadProtobufBuilder("/savings/storageTierPriceNoEndRange.json",
+                ultra, null));
+        priceListMap.put(ULTRA_DISK_TIER_OID, (StorageTierPriceList)(ultra.build()));
+
+        final Builder premium = StorageTierPriceList.newBuilder();
+        assertTrue(TestUtils.loadProtobufBuilder("/savings/storageTierPriceNoEndRange.json",
+                premium, null));
+        priceListMap.put(PREMIUM_DISK_TIER_OID, (StorageTierPriceList)(premium.build()));
     }
 
     /**
@@ -239,6 +269,8 @@ public class ScenarioSavingsTest {
         }
         LocalDateTime startTime = DataInjectionMonitor.makeLocalDateTime(earliestEventTime, false);
         LocalDateTime endTime = DataInjectionMonitor.makeLocalDateTime(latestEventTime, true);
+
+        doReturn(priceListMap).when(storageAmountResolver).getStoragePriceTiers(anyLong(), anyLong());
 
         // Handle the script events.
         final AtomicBoolean purgePreviousTestState = new AtomicBoolean(false);

@@ -122,7 +122,7 @@ public class StorageAmountResolver {
      * @return map of storage tier ID to storage tier price list
      */
     @Nullable
-    Map<Long, StorageTierPriceList> getStoragePriceTiers(long accountId, long regionId) {
+    public Map<Long, StorageTierPriceList> getStoragePriceTiers(long accountId, long regionId) {
         // Get the price table OID given the account ID.
         final Optional<Long> priceTableKeyOpt = priceTableKeyStore.fetchPriceTableKeyOidForAccount(accountId);
         if (!priceTableKeyOpt.isPresent()) {
