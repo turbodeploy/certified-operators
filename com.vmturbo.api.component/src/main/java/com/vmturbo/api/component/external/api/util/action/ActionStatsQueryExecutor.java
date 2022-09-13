@@ -28,6 +28,7 @@ import org.immutables.value.Value;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
@@ -83,6 +84,8 @@ public class ActionStatsQueryExecutor {
 
     private final ThinTargetCache thinTargetCache;
 
+    private final CloudTypeMapper cloudTypeMapper;
+
     /**
      * Constructor for the executor.
      *
@@ -96,6 +99,7 @@ public class ActionStatsQueryExecutor {
      * @param repositoryApi {@link RepositoryApi} for repository access.
      * @param buyRiScopeHandler {@link BuyRiScopeHandler}.
      * @param thinTargetCache {@link ThinTargetCache}
+     * @param cloudTypeMapper instance to lookup cloud types by probe type.
      */
     public ActionStatsQueryExecutor(@Nonnull final Clock clock,
                                     @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
@@ -106,7 +110,8 @@ public class ActionStatsQueryExecutor {
                                     @Nonnull final UserSessionContext userSessionContext,
                                     @Nonnull final RepositoryApi repositoryApi,
                                     @Nonnull final BuyRiScopeHandler buyRiScopeHandler,
-                                    @Nonnull final ThinTargetCache thinTargetCache) {
+                                    @Nonnull final ThinTargetCache thinTargetCache,
+                                    @Nonnull final CloudTypeMapper cloudTypeMapper) {
         this(clock, actionsServiceBlockingStub,
             userSessionContext,
             uuidMapper,
@@ -115,7 +120,7 @@ public class ActionStatsQueryExecutor {
                     userSessionContext, repositoryApi, buyRiScopeHandler, uuidMapper),
             new ActionStatsMapper(clock, actionSpecMapper),
             repositoryApi,
-            thinTargetCache);
+            thinTargetCache, cloudTypeMapper);
     }
 
     @VisibleForTesting
@@ -127,7 +132,8 @@ public class ActionStatsQueryExecutor {
                              @Nonnull final CurrentQueryMapper currentQueryMapper,
                              @Nonnull final ActionStatsMapper actionStatsMapper,
                              @Nonnull final RepositoryApi repositoryApi,
-                             @Nonnull final ThinTargetCache thinTargetCache) {
+                             @Nonnull final ThinTargetCache thinTargetCache,
+                             @Nonnull final CloudTypeMapper cloudTypeMapper) {
         this.clock = clock;
         this.actionsServiceBlockingStub = Objects.requireNonNull(actionsServiceBlockingStub);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
@@ -137,6 +143,7 @@ public class ActionStatsQueryExecutor {
         this.actionStatsMapper = Objects.requireNonNull(actionStatsMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
+        this.cloudTypeMapper = Objects.requireNonNull(cloudTypeMapper);
     }
 
     /**
@@ -260,8 +267,9 @@ public class ActionStatsQueryExecutor {
         Map<Long, PerTargetEntityInformation> target2data = idMapGetter.get();
         if (!target2data.isEmpty()) {
             for (Map.Entry<Long, PerTargetEntityInformation> info : target2data.entrySet()) {
-                thinTargetCache.getTargetInfo(info.getKey()).ifPresent(thinTargetInfo ->
-                        cloudTypeSet.add(CloudType.fromProbeType(thinTargetInfo.probeInfo().type())));
+                thinTargetCache.getTargetInfo(info.getKey())
+                    .flatMap(thinTargetInfo -> cloudTypeMapper.fromTargetType(thinTargetInfo.probeInfo().type()))
+                    .ifPresent(cloudTypeSet::add);
             }
         }
         if (cloudTypeSet.size() == 1) {

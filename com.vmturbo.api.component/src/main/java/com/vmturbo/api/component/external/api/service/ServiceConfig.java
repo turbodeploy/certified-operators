@@ -903,7 +903,8 @@ public class ServiceConfig {
             userSessionContext(),
             communicationConfig.repositoryApi(),
             mapperConfig.buyRiScopeHandler(),
-            communicationConfig.thinTargetCache());
+            communicationConfig.thinTargetCache(),
+            mapperConfig.cloudTypeMapper());
     }
 
     @Bean
