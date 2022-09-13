@@ -13,8 +13,10 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,19 +41,21 @@ import com.google.protobuf.util.JsonFormat;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedEntityInfo;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
@@ -62,11 +66,10 @@ import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
@@ -101,7 +104,13 @@ public class StatsQueryExecutorTest {
 
     private static final long MILLIS = 1_000_000;
     private static final String COOLING = "Cooling";
+    private static final String POWER = "Power";
     private static final double ERROR = 1e-7;
+
+    private static final long VCENTER_TARGET_OID = 1L;
+    private static final long FABRIC_TARGET_OID = 2L;
+
+    private static final Set<String> POWER_COOLING = ImmutableSet.of(POWER, COOLING);
 
     @Before
     public void setup() throws Exception {
@@ -114,6 +123,10 @@ public class StatsQueryExecutorTest {
         when(uuidMapper.fromUuid(any())).thenReturn(scope);
         when(scope.uuid()).thenReturn("1");
         when(scope.isEntity()).thenReturn(true);
+        when(scope.isGroup()).thenReturn(false);
+        when(scope.isRealtimeMarket()).thenReturn(false);
+        when(scope.isPlan()).thenReturn(false);
+        when(scope.isTarget()).thenReturn(false);
         ApiEntityType apiEntityType = ApiEntityType.fromType(1);
         Set<ApiEntityType> apiEntityTypeSet = new HashSet<>();
         apiEntityTypeSet.add(apiEntityType);
@@ -499,226 +512,145 @@ public class StatsQueryExecutorTest {
     }
 
     /**
-     * Test cooling and power display enable in general.
+     * Only white listed entity types should contain power and cooling stats.
      *
-     * @throws Exception exception thrown during test
+     * @throws Exception exception
      */
     @Test
-    public void testCoolingPowerStatsRequestAll() throws Exception {
+    public void testOnlyWhiteListedEntityTypesShowPowerCooling() throws Exception {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-
-        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
-        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(111L));
-        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(111L));
-
-        // One of the queries is applicable.
-        when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
-        when(statsSubQuery2.applicableInContext(statsQueryContext)).thenReturn(true);
-
         final StatApiDTO stat1 = stat(COOLING);
-        final StatApiDTO stat2 = stat("foo");
-        StatSnapshotApiDTO snapshot1 = snapshotWithStats(MILLIS, stat1);
-        StatSnapshotApiDTO snapshot2 = snapshotWithStats(MILLIS, stat2);
-        when(statsSubQuery1.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot1));
-        when(statsSubQuery2.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot2));
+        final StatApiDTO stat2 = stat(POWER);
+        initPowerTest(stat1, stat2);
 
-        // Create a list of targets.
-        List<ThinTargetInfo> thinTargetInfos = Lists.newArrayList(
-            ImmutableThinTargetInfo.builder().oid(1L).displayName("target1").isHidden(false).probeInfo(
-                ImmutableThinProbeInfo.builder().oid(3L).type("probe1").category("hypervisor").uiCategory("hypervisor").build()).build(),
-            ImmutableThinTargetInfo.builder().oid(2L).displayName("target2").isHidden(false).probeInfo(
-                ImmutableThinProbeInfo.builder().oid(4L).type("probe2").category("fabric").uiCategory("fabric").build()).build());
-        when(statsQueryContext.getTargets()).thenReturn(thinTargetInfos);
-
-        final MinimalEntity host1 = MinimalEntity.newBuilder()
-            .setOid(201L)
-            .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
-            .addDiscoveringTargetIds(1L)
-            .addDiscoveringTargetIds(2L)
-            .build();
-        final MinimalEntity host2 = MinimalEntity.newBuilder()
-            .setOid(202L)
-            .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
-            .addDiscoveringTargetIds(1L)
-            .build();
-
-        List<StatSnapshotApiDTO> stats;
-
-        /*
-         * Scope is a group
-         */
+        when(scope.isEntity()).thenReturn(false);
         when(scope.isGroup()).thenReturn(true);
-        when(scope.isEntity()).thenReturn(false);
-        //Check for PM groups
-        final CachedGroupInfo groupInfo = mock(CachedGroupInfo.class);
-        when(groupInfo.getEntityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.PHYSICAL_MACHINE));
-        when(scope.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));
-        // If the provider/consumer is not chassis, then don't show cooling and power.
-        when(scope.getCachedGroupInfo()).thenReturn(Optional.empty());
-        stats = executor.getAggregateStats(scope, period);
-        assertFalse(stats.get(0).getStatistics().stream()
-            .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
 
-        //check for group, always show cooling and power when groups contains Chassis.
-        when(groupInfo.getEntityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.CHASSIS));
-        when(scope.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));
-        stats = executor.getAggregateStats(scope, period);
-        assertTrue(stats.get(0).getStatistics().stream()
-                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
+        // An entity that is not white listed to show power and colling
+        when(scope.getScopeTypes()).thenReturn(Optional.of(Sets.newHashSet(ApiEntityType.VIRTUAL_DATACENTER)));
 
-        // if no host or DC in this group, then do not show
-        when(groupInfo.getEntityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.VIRTUAL_MACHINE));
-        when(scope.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));
-        stats = executor.getAggregateStats(scope, period);
-        assertFalse(stats.get(0).getStatistics().stream()
-                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
-
-        // If physical machine buys from a chassis, we show power and cooling
-        when(groupInfo.getEntityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.PHYSICAL_MACHINE));
-        when(groupInfo.getEntityIds()).thenReturn(Sets.newHashSet(1L));
-        final ApiPartialEntity hostBuyingFromChassis = ApiPartialEntity.newBuilder().setOid(1).setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber()).addProviders(RelatedEntity.newBuilder().setOid(2).setEntityType(ApiEntityType.CHASSIS.typeNumber())).build();
-        final ApiPartialEntity datacenterSellingToChassis = ApiPartialEntity.newBuilder().setOid(1).setEntityType(ApiEntityType.DATACENTER.typeNumber()).addConsumers(RelatedEntity.newBuilder().setOid(2).setEntityType(ApiEntityType.CHASSIS.typeNumber())).build();
-        MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiEntityReq(
-                Lists.newArrayList(hostBuyingFromChassis));
-        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
-        stats = executor.getAggregateStats(scope, period);
-        assertTrue(stats.get(0).getStatistics().stream()
-                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
-
-        // If datacenter sells to chassis, we show power and cooling
-        when(groupInfo.getEntityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.DATACENTER));
-        MultiEntityRequest multiEntityReq = ApiTestUtils.mockMultiEntityReq(
-                Lists.newArrayList(datacenterSellingToChassis));
-        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityReq);
-        stats = executor.getAggregateStats(scope, period);
-        assertTrue(stats.get(0).getStatistics().stream()
-                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
-
-
-        /*
-         * Scope is an entity
-         */
-        RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
-                .mockSingleEntityRequest(vmDto);
-        when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
-
-        when(scope.isGroup()).thenReturn(false);
-        when(scope.isEntity()).thenReturn(true);
-        when(scope.getScopeTypes()).thenReturn(Optional.of(ImmutableSet.of(
-            ApiEntityType.PHYSICAL_MACHINE)));
-        // No power and cooling when cached info is not present.
-        when(scope.getCachedEntityInfo()).thenReturn(Optional.empty());
-        stats = executor.getAggregateStats(scope, period);
-        assertFalse(stats.get(0).getStatistics().stream()
-            .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
-
-        // If the single entity is a chassis, we show power and cooling.
-        final UuidMapper.CachedEntityInfo cachedEntity = mock(UuidMapper.CachedEntityInfo.class);
-        when(cachedEntity.getEntityType()).thenReturn(ApiEntityType.CHASSIS);
-        when(scope.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntity));
-        stats = executor.getAggregateStats(scope, period);
-        assertTrue(stats.get(0).getStatistics().stream()
-            .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
-
-
-        // 1) If the single entity is physical machine and buys from chassis, show power and cooling
-        when(cachedEntity.getEntityType()).thenReturn(ApiEntityType.PHYSICAL_MACHINE);
-        when(scope.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntity));
-        multiEntityRequest = ApiTestUtils.mockMultiEntityReq(
-                Lists.newArrayList(hostBuyingFromChassis));
-        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
-        stats = executor.getAggregateStats(scope, period);
-        assertTrue(stats.get(0).getStatistics().stream()
-                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
-
-        // 2) If the single entity is data center and sells to chassis, show power and cooling.
-        when(cachedEntity.getEntityType()).thenReturn(ApiEntityType.DATACENTER);
-        when(scope.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntity));
-        multiEntityReq = ApiTestUtils.mockMultiEntityReq(
-                Lists.newArrayList(datacenterSellingToChassis));
-        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityReq);
-        stats = executor.getAggregateStats(scope, period);
-        assertTrue(stats.get(0).getStatistics().stream()
-                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
-
-        /*
-         * Scope is market
-         */
-        when(scope.isGroup()).thenReturn(false);
-        when(scope.isEntity()).thenReturn(false);
-        when(scope.isRealtimeMarket()).thenReturn(true);
-        // if it's market, then do not show cooling and power.
-        stats = executor.getAggregateStats(scope, period);
-        assertFalse(stats.get(0).getStatistics().stream()
-            .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
+        final List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
+        assertFalse(containsPowerOrCooling(stats));
     }
 
     /**
-     * Test cooling and power display enable for different types of probe category.
+     * When scoped to target, we only show power when the target is fabric
      *
-     * @throws Exception exception thrown during test
+     * @throws Exception exception
      */
     @Test
-    public void testProbePowerStatsRequestAll() throws Exception {
-        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
-        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(111L));
-        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(111L));
-
-        // One of the queries is applicable.
-        when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
-        when(statsSubQuery2.applicableInContext(statsQueryContext)).thenReturn(true);
-
+    public void testTargetScopeShouldOnlyShowPowerForFabric() throws Exception {
+        StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
         final StatApiDTO stat1 = stat(COOLING);
-        StatSnapshotApiDTO snapshot1 = snapshotWithStats(MILLIS, stat1);
-        when(statsSubQuery1.getAggregateStats(any(), any()))
-                .thenReturn(Collections.singletonList(snapshot1));
+        final StatApiDTO stat2 = stat(POWER);
+        initPowerTest(stat1, stat2);
+        when(scope.getScopeTypes()).thenReturn(Optional.of(Sets.newHashSet(ApiEntityType.CHASSIS)));
+        when(scope.isEntity()).thenReturn(false);
+        when(scope.isTarget()).thenReturn(true);
 
-        // Create a list of targets.
-        List<ThinTargetInfo> thinTargetInfos = Lists.newArrayList(
-                ImmutableThinTargetInfo.builder().oid(1L).displayName("target1").isHidden(false).probeInfo(
-                        ImmutableThinProbeInfo.builder().oid(3L).type("probe1").category("HYPERCONVERGED")
-                                .uiCategory("hyper converged").build()).build(),
-                ImmutableThinTargetInfo.builder().oid(2L).displayName("target2").isHidden(false).probeInfo(
-                        ImmutableThinProbeInfo.builder().oid(4L).type("probe2").category("HYPERVISOR")
-                                .uiCategory("hypervisor").build()).build(),
-                ImmutableThinTargetInfo.builder().oid(5L).displayName("target3").isHidden(false).probeInfo(
-                ImmutableThinProbeInfo.builder().oid(7L).type("probe3").category("Fabric")
-                                .uiCategory("fabric").build()).build());
-        when(statsQueryContext.getTargets()).thenReturn(thinTargetInfos);
+        // Scope oid of fabric target
+        when(scope.oid()).thenReturn(FABRIC_TARGET_OID);
+        final List<StatSnapshotApiDTO> fabricTargetStats = executor.getAggregateStats(scope, period);
+        assertTrue(containsPowerOrCooling(fabricTargetStats));
 
-        /*
-         * Scope is an entity
-         */
-        when(scope.isGroup()).thenReturn(false);
-        when(scope.isEntity()).thenReturn(true);
-        when(scope.getScopeTypes()).thenReturn(Optional.of(ImmutableSet.of(
-                ApiEntityType.CHASSIS)));
-        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-
-        RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
-                .mockSingleEntityRequest(vmDto);
-        when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
-        when(scope.getCachedEntityInfo()).thenReturn(Optional.empty());
-        // if targets is not hyperconverged or fabric, then don't show cooling and power.
-        List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
-        assertFalse(stats.get(0).getStatistics().stream()
-                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
-
-        // if targets is hyperconverged or fabric, then show cooling and power.
-        final UuidMapper.CachedEntityInfo ci = mock(UuidMapper.CachedEntityInfo.class);
-        when(ci.getEntityType()).thenReturn(ApiEntityType.CHASSIS);
-        when(scope.getCachedEntityInfo()).thenReturn(Optional.of(ci));
-        stats = executor.getAggregateStats(scope, period);
-        assertTrue(stats.get(0).getStatistics().stream()
-                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
-
-        stats = executor.getAggregateStats(scope, period);
-        assertTrue(stats.get(0).getStatistics().stream()
-                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
-
+        // Scope oid of hypervisor target
+        when(scope.oid()).thenReturn(VCENTER_TARGET_OID);
+        final List<StatSnapshotApiDTO> hypervisorTargetStats = executor.getAggregateStats(scope, period);
+        assertFalse(containsPowerOrCooling(hypervisorTargetStats));
     }
+
+    /**
+     * Market and Plans do not show power/cooling.
+     *
+     * @throws Exception exception
+     */
+    @Test
+    public void testPowerAndCoolingHiddenWhenScopeIsMarketOrPlan() throws Exception {
+        StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+        final StatApiDTO stat1 = stat(COOLING);
+        final StatApiDTO stat2 = stat(POWER);
+        initPowerTest(stat1, stat2);
+        when(scope.getScopeTypes()).thenReturn(Optional.of(Sets.newHashSet(ApiEntityType.CHASSIS)));
+        when(scope.isEntity()).thenReturn(false);
+
+        when(scope.isRealtimeMarket()).thenReturn(true);
+        final List<StatSnapshotApiDTO> marketStats = executor.getAggregateStats(scope, period);
+        assertFalse(containsPowerOrCooling(marketStats));
+        when(scope.isRealtimeMarket()).thenReturn(false);
+
+        when(scope.isPlan()).thenReturn(true);
+        final List<StatSnapshotApiDTO> planStats = executor.getAggregateStats(scope, period);
+        assertFalse(containsPowerOrCooling(planStats));
+    }
+
+    /**
+     * vCenter pm buying power from dc should be filtered out
+     *
+     * @throws Exception exception
+     */
+    @Test
+    public void testPMPowerCoolingBoughtFromDCShouldBeFilteredOut() throws Exception {
+        StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+        final StatApiDTO cooling = stat(COOLING);
+        final StatApiDTO power = stat(POWER);
+        final StatFilterApiDTO relation = setBoughtRelation(Sets.newHashSet(power, cooling));
+        initPowerTest(cooling, power);
+        when(scope.getScopeTypes()).thenReturn(Optional.of(Sets.newHashSet(ApiEntityType.PHYSICAL_MACHINE)));
+        when(scope.isEntity()).thenReturn(false);
+        when(scope.isGroup()).thenReturn(true);
+
+        // Setup the fabric and vcenter datacenters
+        final ApiId dcApiId = createMockDcApiId();
+        final BaseApiDTO fabricDC = new BaseApiDTO();
+        final BaseApiDTO vCenterDC = new BaseApiDTO();
+        setUpPowerCoolingCommodities(power, cooling, dcApiId, fabricDC, vCenterDC);
+
+        when(dcApiId.hasCachedEntityInfo()).thenReturn(true);
+        final List<StatSnapshotApiDTO> vcStats = executor.getAggregateStats(scope, period);
+        assertFalse(containsPowerOrCooling(vcStats));
+
+        // power/cooling bought from a non dc and power/cooling sold should not be filtered.
+        relation.setValue(StringConstants.RELATION_SOLD);
+        power.setFilters(Collections.singletonList(relation));
+        cooling.setRelatedEntity(new BaseApiDTO());
+        final List<StatSnapshotApiDTO> fabricStats = executor.getAggregateStats(scope, period);
+        assertTrue(fabricStats.get(0).getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getName().equalsIgnoreCase(POWER)));
+        assertTrue(fabricStats.get(0).getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getName().equalsIgnoreCase(COOLING)));
+    }
+
+    @Test
+    public void testCacheRetrievalWhenFilteringOutPowerCooling() throws Exception {
+        StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+        final StatApiDTO cooling = stat(COOLING);
+        final StatApiDTO power = stat(POWER);
+        setBoughtRelation(Sets.newHashSet(power, cooling));
+        initPowerTest(cooling, power);
+        when(scope.getScopeTypes()).thenReturn(Optional.of(Sets.newHashSet(ApiEntityType.PHYSICAL_MACHINE)));
+        when(scope.isEntity()).thenReturn(false);
+        when(scope.isGroup()).thenReturn(true);
+
+        // Setup the fabric and vcenter datacenters
+        final ApiId dcApiId = createMockDcApiId();
+        final BaseApiDTO fabricDC = new BaseApiDTO();
+        final BaseApiDTO vCenterDC = new BaseApiDTO();
+        setUpPowerCoolingCommodities(power, cooling, dcApiId, fabricDC, vCenterDC);
+
+        doAnswer(invocation -> {
+            when(dcApiId.hasCachedEntityInfo()).thenReturn(true);
+            return null;
+        }).when(uuidMapper).bulkResolveEntities(Sets.newHashSet(dcApiId));
+        executor.getAggregateStats(scope, period);
+        // From uuid should be called exactly twice since there are 2 stat commodities
+        Mockito.verify(uuidMapper, times(2)).fromUuid(fabricDC.getUuid());
+        Mockito.verify(uuidMapper, times(2)).fromUuid(vCenterDC.getUuid());
+
+        // When we call it again, we should only see the invocations go up by 1 for each of those
+        // stats since we would have stored provider information in the cache during the second pass
+        executor.getAggregateStats(scope, period);
+        Mockito.verify(uuidMapper, times(3)).fromUuid(fabricDC.getUuid());
+        Mockito.verify(uuidMapper, times(3)).fromUuid(vCenterDC.getUuid());
+    }
+
     /**
      * Test creation of cloud tier stats snapshots.
      *
@@ -875,4 +807,70 @@ public class StatsQueryExecutorTest {
         executor.getAggregateStats(scope, null);
     }
 
+    private void initPowerTest(@Nonnull StatApiDTO stat1, @Nonnull StatApiDTO stat2)
+            throws Exception {
+        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
+        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(111L));
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(111L));
+
+        when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
+        when(statsSubQuery2.applicableInContext(statsQueryContext)).thenReturn(true);
+
+        StatSnapshotApiDTO snapshot1 = snapshotWithStats(MILLIS, stat1);
+        StatSnapshotApiDTO snapshot2 = snapshotWithStats(MILLIS, stat2);
+        when(statsSubQuery1.getAggregateStats(any(), any()))
+                .thenReturn(Collections.singletonList(snapshot1));
+        when(statsSubQuery2.getAggregateStats(any(), any()))
+                .thenReturn(Collections.singletonList(snapshot2));
+
+        // Context containing two targets, vcenter and  ucs.
+        final List<ThinTargetInfo> thinTargetInfos = Lists.newArrayList(
+                ImmutableThinTargetInfo.builder().oid(VCENTER_TARGET_OID).displayName("target1").isHidden(false).probeInfo(
+                        ImmutableThinProbeInfo.builder().oid(3L).type("vCenter").category("hypervisor").uiCategory("hypervisor").build()).build(),
+                ImmutableThinTargetInfo.builder().oid(FABRIC_TARGET_OID).displayName("target2").isHidden(false).probeInfo(
+                        ImmutableThinProbeInfo.builder().oid(4L).type("UCS").category("fabric").uiCategory("fabric").build()).build());
+        when(statsQueryContext.getTargets()).thenReturn(thinTargetInfos);
+    }
+
+    private boolean containsPowerOrCooling(@Nonnull List<StatSnapshotApiDTO> stats) {
+        if (stats.isEmpty()) {
+            return false;
+        }
+        return stats.get(0).getStatistics().stream().anyMatch(statApiDTO -> POWER_COOLING.contains(statApiDTO.getName()));
+    }
+
+
+    private ApiId createMockDcApiId() {
+        final ApiId dcApiId = mock(ApiId.class);
+        final Set<Long> targetIds = Sets.newHashSet(FABRIC_TARGET_OID, VCENTER_TARGET_OID);
+        final CachedEntityInfo dcInfo = mock(CachedEntityInfo.class);
+
+        when(dcInfo.getEntityType()).thenReturn(ApiEntityType.DATACENTER);
+        when(dcInfo.getDiscoveringTargetIds()).thenReturn(targetIds);
+        when(dcApiId.getCachedEntityInfo()).thenReturn(Optional.of(dcInfo));
+        when(dcApiId.hasCachedEntityInfo()).thenReturn(false);
+
+        return dcApiId;
+    }
+
+    private StatFilterApiDTO setBoughtRelation(@Nonnull Set<StatApiDTO> stats) {
+        final StatFilterApiDTO relation = new StatFilterApiDTO();
+        stats.forEach(statApiDTO -> {
+            relation.setValue(StringConstants.RELATION_BOUGHT);
+            statApiDTO.setFilters(Collections.singletonList(relation));
+        });
+
+        return relation;
+    }
+
+    private void setUpPowerCoolingCommodities(@Nonnull StatApiDTO power, @Nonnull StatApiDTO cooling, @Nonnull ApiId dcId,
+            @Nonnull BaseApiDTO fabricDC, @Nonnull BaseApiDTO vCenterDC)
+            throws OperationFailedException {
+        fabricDC.setUuid("98");
+        vCenterDC.setUuid("99");
+        power.setRelatedEntity(vCenterDC);
+        cooling.setRelatedEntity(fabricDC);
+        when(uuidMapper.fromUuid(fabricDC.getUuid())).thenReturn(dcId);
+        when(uuidMapper.fromUuid(vCenterDC.getUuid())).thenReturn(dcId);
+    }
 }

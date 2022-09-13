@@ -34,7 +34,6 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
@@ -54,17 +53,12 @@ import com.vmturbo.api.utils.StatsUtils;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
-import com.vmturbo.platform.sdk.common.util.ProbeUseCase;
-import com.vmturbo.platform.sdk.common.util.ProbeUseCaseUtil;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * A shared utility class to execute stats queries, meant to be used by whichever
@@ -234,6 +228,9 @@ public class StatsQueryExecutor {
             })
             .collect(Collectors.toList());
 
+        // Filter out fake power and cooling metrics that hosts buy from DC
+        SustainabilityCommodityFilterUtils.filterOutFakePowerAndCoolingMetrics(stats, scope, uuidMapper);
+
         // If the request does not contain a start or end time and the response statistics are more
         // than one record, flatten into one record. The API expects one timestamp, the latest.
         // todo: Roman Zimine OM-52892 Allow the ability to specify which query is required.
@@ -253,7 +250,7 @@ public class StatsQueryExecutor {
         }
 
         return StatsUtils.filterStats(stats,
-            allowCoolingPowerCommodities(scope, context) ? null : Collections.emptyList());
+            SustainabilityCommodityFilterUtils.allowCoolingPowerCommodities(scope, context) ? null : Collections.emptyList());
     }
 
     @Nonnull
@@ -403,79 +400,6 @@ public class StatsQueryExecutor {
             return statSnapshotApiDTOS;
         }
         return statSnapshotApiDTOS;
-    }
-
-    /**
-     * Check if we should enable showing of cooling and power commodities. If not all the entities
-     * were discovered by Fabric, then don't allow. Suppose scope is a cluster from vc, only some
-     * hosts are stitched with Fabric target, then other hosts are 'pure' vCenter hosts, we don't
-     * want to show power/cooling commodities. If scope is a stitched host, then we want to show it.
-     * If we send this target list to StatsUtils#filterStats, the returned stats will still
-     * contain cooling and power because StatsUtils#allowCoolingPower will always return true.
-     *
-     * @param scope scope to check
-     * @param context context for the stats query
-     * @return true if allowing showing cooling and power commodities for the scope, otherwise false
-     */
-    private boolean allowCoolingPowerCommodities(@Nonnull ApiId scope, @Nonnull StatsQueryContext context) {
-        final Set<Long> fabricTargets = context.getTargets().stream()
-                .filter(t -> ProbeUseCaseUtil.isUseCaseSupported(
-                        ProbeCategory.create(t.probeInfo().category()),
-                        ProbeUseCase.ALLOW_FABRIC_COMMODITIES))
-                .map(ThinTargetInfo::oid)
-                .collect(Collectors.toSet());
-        if (scope.isGroup()) {
-            Optional<CachedGroupInfo> cachedGroupInfo = scope.getCachedGroupInfo();
-            if (!cachedGroupInfo.isPresent()) {
-                return false;
-            }
-            Set<ApiEntityType> entityTypes = cachedGroupInfo.get().getEntityTypes();
-            //Always show when the group contains chassis.
-            if (entityTypes.contains(ApiEntityType.CHASSIS)) {
-                return true;
-            }
-
-            // if no host or DC in this group, then do not show
-            if (!entityTypes.contains(ApiEntityType.PHYSICAL_MACHINE) &&
-                    !entityTypes.contains(ApiEntityType.DATACENTER)) {
-                return false;
-            }
-            // only show if all entities have fabric in their discovery target ids
-            Set<Long> entities = cachedGroupInfo.get().getEntityIds();
-            if (entities.isEmpty()) {
-                return false;
-            }
-            // only show when all the entities does not have fabric targets and have provider type as chassis
-            if (entityTypes.contains(ApiEntityType.PHYSICAL_MACHINE)) {
-                return repositoryApi.entitiesRequest(entities).getEntities().anyMatch(relatedEntity -> relatedEntity.getProvidersList().stream().anyMatch(providerEntity ->
-                        ApiEntityType.fromType(providerEntity.getEntityType()).equals(ApiEntityType.CHASSIS)));
-            }
-            // only show if all the entities have fabric target
-            if (entityTypes.contains(ApiEntityType.DATACENTER)) {
-                return repositoryApi.entitiesRequest(entities)
-                        .getEntities()
-                        .anyMatch(entity -> entity.getConsumersList().stream().anyMatch(consumerEntity -> ApiEntityType.fromType(consumerEntity.getEntityType()).equals(ApiEntityType.CHASSIS)));
-            }
-            return false;
-        } else if (scope.isTarget()) {
-            // if it's target, just check if it's fabric target
-            return fabricTargets.contains(scope.oid());
-        } else if (scope.isRealtimeMarket() || scope.isPlan()) {
-            // do not show for plan or market
-            return false;
-        }
-        // only show if all the entities does not match fabric target and contain list of host.
-        if(scope.getCachedEntityInfo().isPresent()) {
-            ApiEntityType catchedEntityType = scope.getCachedEntityInfo().get().getEntityType();
-            if (catchedEntityType.equals(ApiEntityType.PHYSICAL_MACHINE)) {
-                return repositoryApi.entitiesRequest(scope.getScopeOids()).getEntities().anyMatch(relatedEntity -> relatedEntity.getProvidersList().stream().anyMatch(providerEntity -> ApiEntityType.fromType(providerEntity.getEntityType()).equals(ApiEntityType.CHASSIS)));
-            }
-            if (catchedEntityType.equals(ApiEntityType.DATACENTER)) {
-                return repositoryApi.entitiesRequest(scope.getScopeOids()).getEntities().anyMatch(relatedEntity -> relatedEntity.getConsumersList().stream().anyMatch(consumerEntity -> ApiEntityType.fromType(consumerEntity.getEntityType()).equals(ApiEntityType.CHASSIS)));
-            }
-            return catchedEntityType.equals(ApiEntityType.CHASSIS);
-        }
-        return false;
     }
 
     /**
@@ -656,7 +580,7 @@ public class StatsQueryExecutor {
         private final Set<StatApiInputDTO> requestedStats;
 
         /**
-         * Do not use directly! Use {@link SubQueryInput#all()} or {@link SubQueryInput#stats(Set)}.
+         * Do not use directly! Use {@link SubQueryInput#all(Set)} or {@link SubQueryInput#stats(Set)}.
          */
         private SubQueryInput(final boolean requestAll,
                              final Set<StatApiInputDTO> requestedStats) {

@@ -769,6 +769,14 @@ public class UuidMapper implements RepositoryListener {
         }
 
         /**
+         * Returns whether the ApiId has cached entity information.
+         * @return boolean
+         */
+        public boolean hasCachedEntityInfo() {
+            return entityInfo.getValue().isPresent();
+        }
+
+        /**
          * Returns types in the scope. If the the scope is heterogeneous group it will more than one type.
          * @return types in the scope.
          */
