@@ -292,15 +292,14 @@ public class MergeEntities {
 
     /**
      * A strategy to drop all the sold commodities on the 'from' entity, and only keep the sold
-     * commodities (ignoring power) on the 'to' entity .
+     * commodities on the 'to' entity .
      */
-    public static final MergeCommoditySoldStrategy DROP_ALL_FROM_COMMODITIES_AND_IGNORE_POWER_STRATEGY = new MergeCommoditySoldStrategy() {
+    public static final MergeCommoditySoldStrategy DROP_ALL_FROM_COMMODITIES_STRATEGY = new MergeCommoditySoldStrategy() {
         @Nonnull
         @Override
         public Optional<Builder> onDistinctCommodity(@Nonnull final CommodityDTO.Builder commodity,
                 @Nonnull final Origin origin) {
-            return origin == Origin.ONTO_ENTITY && !commodity.getCommodityType().equals(CommodityType.POWER) ?
-                    Optional.of(commodity) : Optional.empty();
+            return origin == Origin.ONTO_ENTITY ? Optional.of(commodity) : Optional.empty();
         }
 
         @Nonnull

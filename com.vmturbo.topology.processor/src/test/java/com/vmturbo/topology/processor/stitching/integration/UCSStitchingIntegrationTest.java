@@ -97,19 +97,19 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
     @Test
     public void testUCSStitchingWithStandardOperations() throws Exception {
         testUCSStitching(Collections.singletonList(new FabricPMStitchingOperation(false)),
-                        Arrays.asList("cc1HX01"), Collections.emptyMap(), true);
+                        Arrays.asList("cc1HX01"), Collections.emptyMap());
     }
 
     @Test
     public void testUCSStitchingDCsKeptAfterStitching() throws Exception {
         testUCSStitching(Collections.singletonList(new FabricPMStitchingOperation(true)),
-                        Collections.emptyList(), ImmutableMap.of(36L, 67L, 34L, 67L), true);
+                        Collections.emptyList(), ImmutableMap.of(36L, 67L, 34L, 67L));
     }
 
     @Test
     public void testUCSStitchingWithGenericOperations() throws Exception {
         testUCSStitching(ImmutableList.of(getDataDrivenFabricStitchingOperation()),
-                        Arrays.asList("cc1HX01"), Collections.emptyMap(), false);
+                        Arrays.asList("cc1HX01"), Collections.emptyMap());
     }
 
     private StitchingOperation getDataDrivenFabricStitchingOperation() {
@@ -179,7 +179,7 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
 
     private void testUCSStitching(List<StitchingOperation<?, ?>> fabricStitchingOperationsToTest,
                     Collection<String> removedProviderDisplayNames,
-                    Map<Long, Long> chassisToDcs, boolean shouldIgnorePowerSold) throws Exception {
+                    Map<Long, Long> chassisToDcs) throws Exception {
         final Map<Long, EntityDTO> ucsEntities = sdkDtosFromFile(
                        getClass(), "protobuf/messages/cisco-ucs_data.json.zip", 1L);
         final Map<Long, EntityDTO> hypervisorEntities = sdkDtosFromFile(
@@ -300,12 +300,6 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
                 assertEquals(vcHostSoldCommoditiesBeforeStitching.get(commodityType).get(0).getCapacity(),
                     hostSoldCommoditiesAfterStitching.get(commodityType).get(0).getCapacity(), 0.0);
             });
-
-            // Sold POWER commodity for a stitched host should be disregarded
-            if (shouldIgnorePowerSold) {
-                assertTrue(vcHostSoldCommoditiesBeforeStitching.containsKey(CommodityType.POWER));
-                assertFalse(hostSoldCommoditiesAfterStitching.containsKey(CommodityType.POWER));
-            }
         });
 
         final Collection<TopologyStitchingEntity> dcs =
