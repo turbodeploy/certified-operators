@@ -58,6 +58,11 @@ public class MCAPricesheetFetcherTest {
     private final Map<String, String> environ = System.getenv();
 
     /**
+     * This can be set to true while debugging to see details of requests.
+     */
+    private boolean logWiremockRequests = false;
+
+    /**
      * Allocates and cleans up a directory for temporary files for this test.
      */
     @Rule
@@ -168,7 +173,10 @@ public class MCAPricesheetFetcherTest {
     public void testPriceSheetDownload() throws Exception {
         IPropertyProvider propertyProvider;
 
-        wireMockServer.addMockServiceRequestListener(MCAPricesheetFetcherTest::requestReceived);
+        if (logWiremockRequests) {
+            wireMockServer.addMockServiceRequestListener(MCAPricesheetFetcherTest::requestReceived);
+        }
+
         System.out.println("Stub mapping size: " + wireMockServer.getStubMappings().size());
         wireMockServer.start();
 
@@ -220,7 +228,10 @@ public class MCAPricesheetFetcherTest {
      */
     @Test
     public void testFailedRequests() throws Exception {
-        wireMockServer.addMockServiceRequestListener(MCAPricesheetFetcherTest::requestReceived);
+        if (logWiremockRequests) {
+            wireMockServer.addMockServiceRequestListener(MCAPricesheetFetcherTest::requestReceived);
+        }
+
         System.out.println("Stub mapping size: " + wireMockServer.getStubMappings().size());
         wireMockServer.start();
 

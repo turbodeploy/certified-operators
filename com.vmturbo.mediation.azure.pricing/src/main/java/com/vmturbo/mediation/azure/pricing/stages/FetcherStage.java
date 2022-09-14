@@ -13,10 +13,8 @@ import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.mediation.azure.pricing.fetcher.PricingFileFetcher;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipeline.Stage;
-import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContext;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContextMembers;
 import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
-import com.vmturbo.mediation.util.target.status.ProbeStageTracker;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.probe.ProxyAwareAccount;
 import com.vmturbo.platform.sdk.probe.properties.IProbePropertySpec;
@@ -32,9 +30,8 @@ import com.vmturbo.platform.sdk.probe.properties.PropertySpec;
  *   of discovery.
  */
 public class FetcherStage<A extends ProxyAwareAccount, E extends ProbeStageEnum>
-        extends Stage<A, Path, PricingPipelineContext<E>> {
+        extends Stage<A, Path, E> {
     private final PricingFileFetcher<A> fetcher;
-    private final E probeStage;
 
     /**
      * A path that if provided, will be returned instead of downloading to a new path.
@@ -61,8 +58,8 @@ public class FetcherStage<A extends ProxyAwareAccount, E extends ProbeStageEnum>
     public FetcherStage(@Nonnull PricingFileFetcher<A> fetcher,
             @Nonnull E probeStage,
             @Nonnull IProbePropertySpec<String> overrideProperty) {
+        super(probeStage);
         this.fetcher = fetcher;
-        this.probeStage = probeStage;
         this.overrideProperty = overrideProperty;
     }
 
@@ -81,7 +78,6 @@ public class FetcherStage<A extends ProxyAwareAccount, E extends ProbeStageEnum>
     @Override
     protected StageResult<Path> executeStage(@NotNull A account)
             throws PipelineStageException {
-        final ProbeStageTracker<E> tracker = getContext().getStageTracker();
         final String overridePath = propertyProvider.get().getProperty(overrideProperty);
         Pair<Path, String> result;
 
@@ -93,9 +89,9 @@ public class FetcherStage<A extends ProxyAwareAccount, E extends ProbeStageEnum>
             } else {
                 result = fetcher.fetchPricing(account, propertyProvider.get());
             }
-            tracker.stage(probeStage).ok(result.getSecond());
+            getStageInfo().ok(result.getSecond());
         } catch (Exception ex) {
-            tracker.stage(probeStage).fail(ex).summary(ex.getMessage());
+            getStageInfo().fail(ex).summary(ex.getMessage());
             throw new PipelineStageException("Failed to fetch pricing", ex);
         }
 

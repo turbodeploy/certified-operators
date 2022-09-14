@@ -4,7 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.Reader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -15,14 +14,10 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import org.apache.commons.io.IOUtils;
-import org.jetbrains.annotations.NotNull;
 import org.junit.Test;
 
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinition;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinitionBuilder;
-import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
-import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
-import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.mediation.azure.pricing.fetcher.MockAccount;
 import com.vmturbo.mediation.azure.pricing.pipeline.MockPricingProbeStage;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipeline;
@@ -104,33 +99,6 @@ public class BOMAwareReadersStageTest {
         assertEquals(StageStatus.FAILURE, status.getStatus());
         assertEquals("Failed while trying to convert stream to a reader",
             status.getStatusShortExplanation());
-    }
-
-    /**
-     * This stage inserts a broken InputStream, in order to introduce an error for testing.
-     */
-    private static class BrokenInputStreamStage extends PricingPipeline.Stage<Stream<InputStream>,
-            Stream<InputStream>, PricingPipelineContext<MockPricingProbeStage>> {
-        @NotNull
-        @Override
-        protected StageResult<Stream<InputStream>> executeStage(
-                @NotNull Stream<InputStream> inputStreamStream)
-                throws PipelineStageException, InterruptedException {
-            List<InputStream> streams = inputStreamStream.collect(Collectors.toList());
-            streams.add(1, new BrokenInputStream());
-
-            return StageResult.withResult(streams.stream()).andStatus(Status.success("OK"));
-        }
-
-        /**
-         * An InputStream that always errors out.
-         */
-        private static class BrokenInputStream extends InputStream {
-            @Override
-            public int read() throws IOException {
-                throw new IOException("This stream is broken");
-            }
-        }
     }
 
     @Nonnull

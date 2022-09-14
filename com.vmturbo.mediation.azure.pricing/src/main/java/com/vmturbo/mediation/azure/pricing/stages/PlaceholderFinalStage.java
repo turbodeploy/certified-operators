@@ -1,6 +1,6 @@
 package com.vmturbo.mediation.azure.pricing.stages;
 
-import java.util.stream.Stream;
+import java.util.Collection;
 
 import javax.annotation.Nonnull;
 
@@ -8,10 +8,9 @@ import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
-import com.vmturbo.mediation.azure.pricing.AzureMeter;
 import com.vmturbo.mediation.azure.pricing.pipeline.DiscoveredPricing;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipeline.Stage;
-import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContext;
+import com.vmturbo.mediation.azure.pricing.resolver.ResolvedMeter;
 import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
 
 /**
@@ -22,9 +21,7 @@ import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
  *   of discovery.
  */
 public class PlaceholderFinalStage<E extends ProbeStageEnum>
-        extends Stage<Stream<AzureMeter>, DiscoveredPricing, PricingPipelineContext<E>> {
-    private E probeStage;
-
+        extends Stage<Collection<ResolvedMeter>, DiscoveredPricing, E> {
     /**
      * Construct the placeholder stage.
      *
@@ -32,16 +29,15 @@ public class PlaceholderFinalStage<E extends ProbeStageEnum>
      *   detailed discovery status.
      */
     public PlaceholderFinalStage(@Nonnull E probeStage) {
-        this.probeStage = probeStage;
+        super(probeStage);
     }
 
     @NotNull
     @Override
-    protected StageResult executeStage(@NotNull Stream<AzureMeter> input) {
-        long count = input.count();
-        final String status = "Read " + count + " meters.";
+    protected StageResult executeStage(@NotNull Collection<ResolvedMeter> input) {
+        final String status = String.format("%d resolved meters.", input.size());
 
-        getContext().getStageTracker().stage(probeStage).ok(status);
+        getStageInfo().ok(status);
 
         return StageResult.withResult(new DiscoveredPricing())
                 .andStatus(Status.success(status));
