@@ -19,7 +19,6 @@ import org.junit.Test;
 
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinition;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinitionBuilder;
-import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.mediation.azure.pricing.fetcher.MockAccount;
@@ -98,12 +97,18 @@ public class ChainedCSVParserStageTest {
      * This stage inserts a broken InputStream, in order to introduce an error for testing.
      */
     private static class BrokenReaderStage extends PricingPipeline.Stage<Stream<Reader>,
-            Stream<Reader>, PricingPipelineContext<MockPricingProbeStage>> {
+            Stream<Reader>, MockPricingProbeStage> {
+        /**
+         * Construct a new BrokenReaderStage.
+         */
+        BrokenReaderStage() {
+            super(MockPricingProbeStage.BROKEN_INPUT_STAGE);
+        }
+
         @NotNull
         @Override
         protected StageResult<Stream<Reader>> executeStage(
-                @NotNull Stream<Reader> readerStream)
-                throws PipelineStageException, InterruptedException {
+                @NotNull Stream<Reader> readerStream) {
             List<Reader> streams = readerStream.collect(Collectors.toList());
             streams.add(1, new BrokenReader());
 

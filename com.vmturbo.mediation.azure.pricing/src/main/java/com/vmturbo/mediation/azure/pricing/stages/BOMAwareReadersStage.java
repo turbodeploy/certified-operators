@@ -14,9 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipeline.Stage;
-import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContext;
 import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
-import com.vmturbo.mediation.util.target.status.ProbeStageTracker.StageInfo;
 
 /**
  * Stage for opening InputStreams as Readers, with automatic BOM detection and character set
@@ -26,9 +24,8 @@ import com.vmturbo.mediation.util.target.status.ProbeStageTracker.StageInfo;
  *   of discovery.
  */
 public class BOMAwareReadersStage<E extends ProbeStageEnum>
-        extends Stage<Stream<InputStream>, Stream<Reader>, PricingPipelineContext<E>>
+        extends Stage<Stream<InputStream>, Stream<Reader>, E>
         implements AutoCloseable {
-    private final E probeStage;
     private Exception exceptionFromOpen = null;
     private String failedFilename = null;
     private int opened = 0;
@@ -40,7 +37,7 @@ public class BOMAwareReadersStage<E extends ProbeStageEnum>
      *   detailed discovery status.
      */
     public BOMAwareReadersStage(@Nonnull E probeStage) {
-        this.probeStage = probeStage;
+        super(probeStage);
     }
 
     @NotNull
@@ -85,11 +82,10 @@ public class BOMAwareReadersStage<E extends ProbeStageEnum>
 
     @Override
     public void close() {
-        StageInfo stage = getContext().getStageTracker().stage(probeStage);
         if (exceptionFromOpen == null) {
-            stage.ok(String.format("Created readers for %d files", opened));
+            getStageInfo().ok(String.format("Created readers for %d files", opened));
         } else {
-            stage.fail(exceptionFromOpen)
+            getStageInfo().fail(exceptionFromOpen)
                 .summary("Failed while trying to convert stream to a reader");
         }
     }

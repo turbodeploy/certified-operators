@@ -10,7 +10,8 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.pipeline.Pipeline;
-import com.vmturbo.components.common.pipeline.PipelineContext;
+import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
+import com.vmturbo.mediation.util.target.status.ProbeStageTracker.StageInfo;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -88,9 +89,39 @@ public class PricingPipeline<I, O> extends
      *
      * @param <I2> The type of the input.
      * @param <O2> The type of the output.
-     * @param <C2> The type of the context.
+     * @param <E> The enum for the probe stages that apply to this particular kind
+     *   of discovery.
      */
-    public abstract static class Stage<I2, O2, C2 extends PipelineContext> extends
-        com.vmturbo.components.common.pipeline.Stage<I2, O2, C2> {
+    public abstract static class Stage<I2, O2, E extends ProbeStageEnum> extends
+        com.vmturbo.components.common.pipeline.Stage<I2, O2, PricingPipelineContext<E>> {
+
+        private final E probeStage;
+
+        /**
+         * Constructor for a pricing pipeline stage.
+         *
+         * @param probeStage The enum value for this probe stage in discovery or validation.
+         */
+        public Stage(E probeStage) {
+            this.probeStage = probeStage;
+        }
+
+        /**
+         * Get the enum value for reporting this probe stage's status.
+         *
+         * @return the enum value for reporting this probe stage's status
+         */
+        public E getProbeStageEnum() {
+            return probeStage;
+        }
+
+        /**
+         * Get the stage info objects for reporting this probe stage's status.
+         *
+         * @return the stage info objects for reporting this probe stage's status
+         */
+        public StageInfo getStageInfo() {
+            return getContext().getStageTracker().stage(probeStage);
+        }
     }
 }

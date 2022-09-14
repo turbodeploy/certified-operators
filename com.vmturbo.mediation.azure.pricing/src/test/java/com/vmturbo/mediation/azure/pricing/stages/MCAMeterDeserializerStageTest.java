@@ -28,7 +28,7 @@ import com.vmturbo.platform.common.dto.Discovery.ProbeStageDetails.StageStatus;
 /**
  * Tests for AzureMCAMeterSerializerStage.
  */
-public class AzureMCAMeterDeserializerStageTest {
+public class MCAMeterDeserializerStageTest {
     private static final String COMPUTE_METER = "1da53aa5-3176-4fd8-9c35-61ea9c18437a";
     private static final String P30_METER = "6ecded8f-3f77-48d7-9fbe-001df000546f";
     private static final String BLOB_METER = "3375c48f-ff4c-4931-b71b-51b5545b586f";
@@ -43,7 +43,7 @@ public class AzureMCAMeterDeserializerStageTest {
      */
     @Test
     public void testSuccess() throws Exception {
-        Path metersTestFile = Paths.get(AzureMCAMeterDeserializerStageTest.class.getClassLoader()
+        Path metersTestFile = Paths.get(MCAMeterDeserializerStageTest.class.getClassLoader()
                 .getResource("tinysample.zip").getPath());
 
         ProbeStageTracker<MockPricingProbeStage> tracker =
@@ -91,6 +91,6 @@ public class AzureMCAMeterDeserializerStageTest {
                 .addStage(new OpenZipEntriesStage(MockPricingProbeStage.OPEN_ZIP_ENTRIES))
                 .addStage(new BOMAwareReadersStage<>(MockPricingProbeStage.BOM_AWARE_READERS))
                 .addStage(new ChainedCSVParserStage<>(MockPricingProbeStage.CHAINED_CSV_PARSERS))
-                .finalStage(new AzureMCAMeterDeserializerStage(MockPricingProbeStage.DESERIALIZE_CSV)));
+                .finalStage(new MCAMeterDeserializerStage(MockPricingProbeStage.DESERIALIZE_CSV)));
     }
 }

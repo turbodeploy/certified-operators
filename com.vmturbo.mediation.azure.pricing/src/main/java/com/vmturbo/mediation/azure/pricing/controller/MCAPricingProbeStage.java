@@ -43,6 +43,11 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
     DESERIALIZE_METERS("Load meters from CSV records"),
 
     /**
+     * Resolve meters, identifying their meaning.
+     */
+    RESOLVE_METERS("Resolve meters"),
+
+    /**
      * TODO remove this.
      */
     PLACEHOLDER_FINAL("Placeholder Final Stage");
@@ -76,5 +81,6 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
             BOM_AWARE_READERS,
             CHAINED_CSV_PARSERS,
             DESERIALIZE_METERS,
+            RESOLVE_METERS,
             PLACEHOLDER_FINAL);
 }

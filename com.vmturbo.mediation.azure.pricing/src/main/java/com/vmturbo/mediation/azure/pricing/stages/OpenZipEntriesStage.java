@@ -14,10 +14,8 @@ import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipeline.Stage;
-import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContext;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContextMembers;
 import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
-import com.vmturbo.mediation.util.target.status.ProbeStageTracker.StageInfo;
 
 /**
  * Stage for opening entries from a zip file as input streams.
@@ -26,9 +24,8 @@ import com.vmturbo.mediation.util.target.status.ProbeStageTracker.StageInfo;
  *   of discovery.
  */
 public class OpenZipEntriesStage<E extends ProbeStageEnum>
-        extends Stage<List<ZipEntry>, Stream<InputStream>, PricingPipelineContext<E>>
+        extends Stage<List<ZipEntry>, Stream<InputStream>, E>
         implements AutoCloseable {
-    private final E probeStage;
     private Exception exceptionFromOpen = null;
     private String failedFilename = null;
     private int opened = 0;
@@ -42,7 +39,7 @@ public class OpenZipEntriesStage<E extends ProbeStageEnum>
      *   detailed discovery status.
      */
     public OpenZipEntriesStage(@Nonnull E probeStage) {
-        this.probeStage = probeStage;
+        super(probeStage);
     }
 
     @NotNull
@@ -82,11 +79,10 @@ public class OpenZipEntriesStage<E extends ProbeStageEnum>
 
     @Override
     public void close() {
-        StageInfo stage = getContext().getStageTracker().stage(probeStage);
         if (exceptionFromOpen == null) {
-            stage.ok(String.format("Opened %s files", opened));
+            getStageInfo().ok(String.format("Opened %s files", opened));
         } else {
-            stage.fail(exceptionFromOpen)
+            getStageInfo().fail(exceptionFromOpen)
                 .summary("Failed while trying to open " + failedFilename);
         }
     }

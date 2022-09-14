@@ -14,9 +14,7 @@ import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.mediation.azure.pricing.AzureMeter;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipeline.Stage;
-import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContext;
 import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
-import com.vmturbo.mediation.util.target.status.ProbeStageTracker.StageInfo;
 
 /**
  * Stage for opening InputStreams as Readers, with automatic BOM detection and character set
@@ -25,12 +23,11 @@ import com.vmturbo.mediation.util.target.status.ProbeStageTracker.StageInfo;
  * @param <E> The enum for the probe discovery stages that apply to this particular kind
  *   of discovery.
  */
-public class AzureMCAMeterDeserializerStage<E extends ProbeStageEnum>
-        extends Stage<Stream<CSVRecord>, Stream<AzureMeter>, PricingPipelineContext<E>>
+public class MCAMeterDeserializerStage<E extends ProbeStageEnum>
+        extends Stage<Stream<CSVRecord>, Stream<AzureMeter>, E>
         implements AutoCloseable {
     private final Logger logger = LogManager.getLogger();
 
-    private final E probeStage;
     private int processed = 0;
     private int errored = 0;
 
@@ -40,8 +37,8 @@ public class AzureMCAMeterDeserializerStage<E extends ProbeStageEnum>
      * @param probeStage the enum value representing this probe discovery stage, used for reporting
      *   detailed discovery status.
      */
-    public AzureMCAMeterDeserializerStage(@Nonnull E probeStage) {
-        this.probeStage = probeStage;
+    public MCAMeterDeserializerStage(@Nonnull E probeStage) {
+        super(probeStage);
     }
 
     @NotNull
@@ -61,7 +58,7 @@ public class AzureMCAMeterDeserializerStage<E extends ProbeStageEnum>
     private AzureMeter deserializeRecord(@Nonnull CSVRecord record) {
         processed++;
         try {
-            return new AzureMCAMeter(record);
+            return new MCAMeter(record);
         } catch (Exception ex) {
             errored++;
             logger.info("{} Exception during deserialization of {}",
@@ -73,19 +70,18 @@ public class AzureMCAMeterDeserializerStage<E extends ProbeStageEnum>
 
     @Override
     public void close() {
-        final StageInfo stage = getContext().getStageTracker().stage(probeStage);
         final Double failPercent = 100.0D * errored / processed;
 
         final String status = String.format("Processed %d meters of which %d (%g%%) had errors",
             processed, errored, failPercent);
 
-        stage.ok(status);
+        getStageInfo().ok(status);
     }
 
     /**
      * An implementatuion of AzureMeter, loaded from a CSV record.
      */
-    public static class AzureMCAMeter implements AzureMeter {
+    public static class MCAMeter implements AzureMeter {
         private static final String METER_ID_COLUMN = "meterId";
         private static final String PRODUCT_ORDER_NAME = "productOrderName";
         private static final String TIER_MINIMUM_UNITS = "tierMinimumUnits";
@@ -105,7 +101,7 @@ public class AzureMCAMeterDeserializerStage<E extends ProbeStageEnum>
          *
          * @param row a row from an MCA price sheet CSV file.
          */
-        public AzureMCAMeter(@Nonnull CSVRecord row) {
+        public MCAMeter(@Nonnull CSVRecord row) {
             meterId = row.get(METER_ID_COLUMN);
             planId = row.get(PRODUCT_ORDER_NAME);
             tierMinimumUnits = Double.parseDouble(row.get(TIER_MINIMUM_UNITS));

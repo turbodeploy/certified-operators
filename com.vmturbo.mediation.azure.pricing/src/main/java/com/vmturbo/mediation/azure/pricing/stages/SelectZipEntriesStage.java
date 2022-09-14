@@ -18,10 +18,8 @@ import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipeline.Stage;
-import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContext;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContextMembers;
 import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
-import com.vmturbo.mediation.util.target.status.ProbeStageTracker.StageInfo;
 
 /**
  * Stage for enumerating and selecting entries within a zip file.
@@ -30,9 +28,8 @@ import com.vmturbo.mediation.util.target.status.ProbeStageTracker.StageInfo;
  *   of discovery.
  */
 public class SelectZipEntriesStage<E extends ProbeStageEnum>
-        extends Stage<Path, List<ZipEntry>, PricingPipelineContext<E>> {
+        extends Stage<Path, List<ZipEntry>, E> {
     private final String wildcard;
-    private final E probeStage;
     private ZipFile zipFile;
 
     /**
@@ -44,8 +41,8 @@ public class SelectZipEntriesStage<E extends ProbeStageEnum>
      *   detailed discovery status.
      */
     public SelectZipEntriesStage(@Nonnull final String wildcard, @Nonnull E probeStage) {
+        super(probeStage);
         this.wildcard = wildcard;
-        this.probeStage = probeStage;
 
         providesToContext(PricingPipelineContextMembers.ZIP_FILE, (Supplier<ZipFile>)this::getZipFile);
     }
@@ -54,7 +51,6 @@ public class SelectZipEntriesStage<E extends ProbeStageEnum>
     @Override
     protected StageResult<List<ZipEntry>> executeStage(@NotNull Path path)
             throws PipelineStageException {
-        StageInfo stage = getContext().getStageTracker().stage(probeStage);
         try {
             zipFile = new ZipFile(path.toString());
             getContext().autoClose(zipFile);
@@ -69,7 +65,7 @@ public class SelectZipEntriesStage<E extends ProbeStageEnum>
                 final String statusMessage = String.format("Found no files (out of %d) matching %s",
                         zipFile.size(), wildcard);
 
-                stage.fail(statusMessage);
+                getStageInfo().fail(statusMessage);
                 throw new PipelineStageException(statusMessage);
             } else {
                 final String statusMessage = String.format(
@@ -80,11 +76,11 @@ public class SelectZipEntriesStage<E extends ProbeStageEnum>
                 entries.stream().map(e -> String.format("\n%s (%d bytes)", e.getName(), e.getSize()))
                         .forEach(sb::append);
 
-                stage.ok(statusMessage).longExplanation(sb.toString());
+                getStageInfo().ok(statusMessage).longExplanation(sb.toString());
                 return StageResult.withResult(entries).andStatus(Status.success(statusMessage));
             }
         } catch (IOException ex) {
-            stage.fail(ex);
+            getStageInfo().fail(ex);
             throw new PipelineStageException(ex);
         }
     }

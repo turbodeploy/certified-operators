@@ -43,6 +43,16 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     DESERIALIZE_CSV("Deserialzie meters from CSV"),
 
     /**
+     * A stage that introduces some kind of brokenness to the next stage.
+     */
+    BROKEN_INPUT_STAGE("A stage that introduces some kind of brokenness to the next stage"),
+
+    /**
+     * Resolve meters, identifying their meaning.
+     */
+    RESOLVE_METERS("Resolve meters"),
+
+    /**
      * TODO remove this.
      */
     PLACEHOLDER_FINAL("Placeholder Final Stage");
@@ -70,5 +80,5 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
      */
     public static final List<MockPricingProbeStage> DISCOVERY_STAGES = ImmutableList.of(
             DOWNLOAD_PRICE_SHEET, SELECT_ZIP_ENTRIES, BOM_AWARE_READERS, DESERIALIZE_CSV,
-            PLACEHOLDER_FINAL);
+            RESOLVE_METERS, PLACEHOLDER_FINAL);
 }
