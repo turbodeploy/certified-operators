@@ -128,6 +128,8 @@ public class ReservationManager implements ReservationDeletedListener {
             .build()
             .register();
 
+    private final boolean enableOP;
+
     /**
      * constructor for ReservationManager.
      *
@@ -147,7 +149,8 @@ public class ReservationManager implements ReservationDeletedListener {
             @Nonnull final TemplatesDao templatesDao, @Nonnull final PlanDao planDao,
             @Nonnull final PlanRpcService planService, final boolean prepareReservationCache,
             @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
-            ExecutorService reservationDeletionCleanupExecutor) {
+            ExecutorService reservationDeletionCleanupExecutor,
+            boolean enableOP) {
         this.reservationDao = Objects.requireNonNull(reservationDao);
         this.reservationNotificationSender = Objects.requireNonNull(reservationNotificationSender);
         this.groupServiceBlockingStub = groupServiceBlockingStub;
@@ -160,6 +163,7 @@ public class ReservationManager implements ReservationDeletedListener {
         this.planService = planService;
         getProvidersOfExistingReservations();
         this.prepareReservationCache = prepareReservationCache;
+        this.enableOP = enableOP;
     }
 
     /**
@@ -650,7 +654,6 @@ public class ReservationManager implements ReservationDeletedListener {
                     .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
                             .CommodityType.NET_THROUGHPUT_VALUE, networkThroughput))
                     .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE);
-
             for (ReservationConstraintInfo constraintInfo
                     : reservation.getConstraintInfoCollection()
                     .getReservationConstraintInfoList()) {
@@ -710,6 +713,15 @@ public class ReservationManager implements ReservationDeletedListener {
             List<PlacementInfo.Builder> placementInfos = new ArrayList<>();
             placementInfos.addAll(storagePlacementInfos);
             placementInfos.add(computePlacementInfo);
+            if (enableOP) {
+                PlacementInfo.Builder clusterPlacementInfo =
+                        PlacementInfo.newBuilder().clearProviderId().addCommodityBought(
+                                createCommodityBoughtDTO(CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE,
+                                        Optional.of(StringConstants.CLUSTER_KEY_STATIC), numOfCpu * cpuSpeed)).addCommodityBought(
+                                createCommodityBoughtDTO(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE,
+                                        Optional.of(StringConstants.CLUSTER_KEY_STATIC), memorySize)).setProviderType(EntityType.CLUSTER_VALUE);
+                placementInfos.add(clusterPlacementInfo);
+            }
 
             for (int i = 0; i < reservationTemplateBuilder.getCount(); i++) {
                 ReservationInstance.Builder reservationInstanceBuilder = ReservationInstance

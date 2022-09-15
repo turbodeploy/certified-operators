@@ -323,7 +323,7 @@ public class ReservationManagerTest {
 
         reservationManager = new ReservationManager(reservationDao, resNotificationSender,
                 initialPlacementServiceBlockingStub, templatesDao, planDao, planService, true,
-                GroupServiceGrpc.newBlockingStub(mockServer.getChannel()), Executors.newFixedThreadPool(1));
+                GroupServiceGrpc.newBlockingStub(mockServer.getChannel()), Executors.newFixedThreadPool(1), false);
     }
 
     /**

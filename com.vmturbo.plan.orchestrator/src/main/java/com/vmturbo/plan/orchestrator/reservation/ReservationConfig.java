@@ -56,6 +56,9 @@ public class ReservationConfig {
     @Value("${numReservationDeletionCleanupThreads:1}")
     private int numReservationDeletionCleanupThreads;
 
+    @Value("${enableOP:false}")
+    private boolean enableOP;
+
     @Bean
     public ReservationDao reservationDao() {
         try {
@@ -107,7 +110,7 @@ public class ReservationConfig {
         return new ReservationManager(reservationDao(), reservationNotificationSender(),
                 initialPlacementService(), templatesConfig.templatesDao(), planConfig.planDao(),
                 planConfig.planService(), prepareReservationCache,
-                planConfig.groupServiceBlockingStub(), startReservationDeletionCleanupThreadPool());
+                planConfig.groupServiceBlockingStub(), startReservationDeletionCleanupThreadPool(), enableOP);
     }
 
     /**

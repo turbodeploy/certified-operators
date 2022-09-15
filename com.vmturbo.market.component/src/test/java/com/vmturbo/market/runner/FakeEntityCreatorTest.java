@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.GroupMemberRetriever;
@@ -99,14 +100,14 @@ public class FakeEntityCreatorTest {
             for (CommoditySoldDTO cs : cluster.getCommoditySoldListList()) {
                 if (cs.getCommodityType().getType() == CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE) {
                     if (cluster.getDisplayName().equals("FakeCluster-0key1")
-                            && FakeEntityCreator.CLUSTER_KEY_STATIC.equals(cs.getCommodityType().getKey())) {
+                            && StringConstants.CLUSTER_KEY_STATIC.equals(cs.getCommodityType().getKey())) {
                         Assert.assertEquals(1500, cs.getCapacity(), DELTA);
                         Assert.assertEquals(86.66, cs.getEffectiveCapacityPercentage(), DELTA);
                         Assert.assertEquals(40, cs.getUsed(), DELTA);
                         assertCount++;
                     }
                     if (cluster.getDisplayName().equals("FakeCluster-0key2")
-                            && FakeEntityCreator.CLUSTER_KEY_STATIC.equals(cs.getCommodityType().getKey())) {
+                            && StringConstants.CLUSTER_KEY_STATIC.equals(cs.getCommodityType().getKey())) {
                         Assert.assertEquals(2600, cs.getCapacity(), DELTA);
                         Assert.assertEquals(90, cs.getEffectiveCapacityPercentage(), DELTA);
                         Assert.assertEquals(120, cs.getUsed(), DELTA);
@@ -115,14 +116,14 @@ public class FakeEntityCreatorTest {
                 }
                 if (cs.getCommodityType().getType() == CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE) {
                     if (cluster.getDisplayName().equals("FakeCluster-0key1")
-                            && FakeEntityCreator.CLUSTER_KEY_STATIC.equals(cs.getCommodityType().getKey())) {
+                            && StringConstants.CLUSTER_KEY_STATIC.equals(cs.getCommodityType().getKey())) {
                         Assert.assertEquals(3700, cs.getCapacity(), DELTA);
                         Assert.assertEquals(88.1, cs.getEffectiveCapacityPercentage(), DELTA);
                         Assert.assertEquals(60, cs.getUsed(), DELTA);
                         assertCount++;
                     }
                     if (cluster.getDisplayName().equals("FakeCluster-0key2")
-                            && FakeEntityCreator.CLUSTER_KEY_STATIC.equals(cs.getCommodityType().getKey())) {
+                            && StringConstants.CLUSTER_KEY_STATIC.equals(cs.getCommodityType().getKey())) {
                         Assert.assertEquals(4800, cs.getCapacity(), DELTA);
                         Assert.assertEquals(80, cs.getEffectiveCapacityPercentage(), DELTA);
                         Assert.assertEquals(140, cs.getUsed(), DELTA);
@@ -202,9 +203,9 @@ public class FakeEntityCreatorTest {
             }
             long clusterOid = clusterByKey.get(key).getOid();
             CommodityType cpuProvType = CommodityType.newBuilder()
-                    .setType(CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE).setKey(FakeEntityCreator.CLUSTER_KEY_STATIC).build();
+                    .setType(CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE).setKey(StringConstants.CLUSTER_KEY_STATIC).build();
             CommodityType memProvType = CommodityType.newBuilder()
-                    .setType(CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE).setKey(FakeEntityCreator.CLUSTER_KEY_STATIC).build();
+                    .setType(CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE).setKey(StringConstants.CLUSTER_KEY_STATIC).build();
             CommodityType clusterType = CommodityType.newBuilder()
                     .setType(CommodityDTO.CommodityType.CLUSTER_VALUE).setKey(key).build();
 

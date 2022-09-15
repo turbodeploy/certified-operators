@@ -49,6 +49,7 @@ import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation;
 import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation.CommodityBundle;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -75,7 +76,7 @@ public final class InitialPlacementUtils {
      * The provider types to be included in economy cache.
      */
     public static final Set<Integer> PROVIDER_ENTITY_TYPES = ImmutableSet.of(EntityType.PHYSICAL_MACHINE_VALUE,
-            EntityType.STORAGE_VALUE);
+            EntityType.STORAGE_VALUE, EntityType.CLUSTER_VALUE);
 
     /**
      * Constructor.
@@ -105,7 +106,7 @@ public final class InitialPlacementUtils {
      * @return a copy of original economy which contains only PM and DS.
      */
     public static Economy cloneEconomy(@Nonnull final UnmodifiableEconomy originalEconomy,
-                                       boolean cloneForDiags) {
+            boolean cloneForDiags, Map<Long, Set<Long>> traderToCliques) {
         Topology t = new Topology();
         Economy cloneEconomy = t.getEconomyForTesting();
         cloneEconomy.setTopology(t);
@@ -113,7 +114,15 @@ public final class InitialPlacementUtils {
         originalEconomy.getTraders().stream()
                 .filter(trader -> PROVIDER_ENTITY_TYPES.contains(trader.getType()) || cloneForDiags)
                 .forEach(trader -> {
-                    Trader cloneTrader = cloneTraderForInitialPlacement(trader, cloneEconomy);
+                    /*
+                    We have to copy the cliques from the realtime economy to the historical economy.
+                    The clique id is the oid of the lowest host id in the clique.. If a new host is added
+                    with a lower id the the clique id has to be updated for all the hosts..Also
+                    since the clique structure will change based on merge clusters once the op feature is
+                    turned on we have to keep updating the clique in every broadcast.
+                     */
+                    Set<Long> cliques = traderToCliques.getOrDefault(trader.getOid(), trader.getCliques());
+                    Trader cloneTrader = cloneTraderForInitialPlacement(trader, cloneEconomy, cliques);
                     cloneTraderToOidMap.put(trader.getOid(), cloneTrader);
                 });
         return cloneEconomy;
@@ -126,9 +135,9 @@ public final class InitialPlacementUtils {
      * @param into economy to create clone in
      * @return new trader
      */
-    public static Trader cloneTraderForInitialPlacement(Trader trader, Economy into) {
+    public static Trader cloneTraderForInitialPlacement(Trader trader, Economy into, Set<Long> cliques) {
         Trader cloneTrader = into.addTrader(trader.getType(), trader.getState(),
-                        new Basket(trader.getBasketSold()), trader.getCliques());
+                        new Basket(trader.getBasketSold()), cliques);
         cloneTrader.setOid(trader.getOid());
 
         // Copy bare minimum trader properties
@@ -188,8 +197,17 @@ public final class InitialPlacementUtils {
             @Nonnull final Map<Long, CommodityType> clusterCommPerSl) {
         try {
             TraderTO.Builder traderTO = TraderTO.newBuilder();
+            // sort the CommoditiesBoughtFromProvider..Because market relies on the order with
+            // physical machine being the first and storages being at the end..
+
+
+            List<InitialPlacementCommoditiesBoughtFromProvider> sortedCommBoughtGrouping =
+                    buyer.getInitialPlacementCommoditiesBoughtFromProviderList().stream().sorted(
+                    (sl1, sl2) -> sl2.getCommoditiesBoughtFromProvider().getProviderEntityType()
+                            - sl1.getCommoditiesBoughtFromProvider().getProviderEntityType())
+                    .collect(Collectors.toList());
             for (InitialPlacementCommoditiesBoughtFromProvider sl
-                    : buyer.getInitialPlacementCommoditiesBoughtFromProviderList()) {
+                    : sortedCommBoughtGrouping) {
                 long slOid = sl.getCommoditiesBoughtFromProviderId();
                 CommodityType boundaryCommType = clusterCommPerSl.get(slOid);
                 List<CommodityBoughtTO> commBoughtTOs = constructCommBoughtTO(
@@ -281,6 +299,18 @@ public final class InitialPlacementUtils {
 
         }
         return commBoughtTOs;
+    }
+
+    /**
+     * delete the cluster entities from the economy.
+     * @param economy the economy of interest.
+     */
+    public static void deleteClusterEntitiesFromEconomy(Economy economy) {
+        List<Trader> clusterTraders = economy.getTraders().stream()
+                .filter(trader -> trader.getType() == CommonDTO.EntityDTO.EntityType.CLUSTER_VALUE)
+                .collect(Collectors.toList());
+        clusterTraders.forEach(trader -> economy.removeTrader(trader));
+        clusterTraders.forEach(trader -> economy.getTopology().getModifiableTraderOids().remove(trader.getOid()));
     }
 
     /**
@@ -495,7 +525,8 @@ public final class InitialPlacementUtils {
                         clusterKey = findClosestSellerClusterCommodity(closestSeller, commTypeToSpecMap,
                                 CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE);
                     }
-                } else if (closestSeller.getType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+                } else if (closestSeller.getType() == EntityType.PHYSICAL_MACHINE_VALUE
+                        || closestSeller.getType() == EntityType.CLUSTER_VALUE) {
                     // Iterate the commodities sold by closest seller and collect cluster or storage cluster
                     // commodities, populate them in the failureInfos.
                     clusterKey = findClosestSellerClusterCommodity(closestSeller, commTypeToSpecMap,
@@ -738,8 +769,6 @@ public final class InitialPlacementUtils {
                 : commoditiesByTraderOid.entrySet()) {
             Trader trader = economy.getTopology().getTradersByOid().get(entry.getKey());
             if (trader == null) {
-                logger.warn("Trader with oid {} in realtime does not exist in historical economy.",
-                        entry.getKey());
                 continue;
             }
             for (UpdateCommodityWrapper comm : entry.getValue()) {

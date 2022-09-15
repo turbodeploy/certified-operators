@@ -49,6 +49,9 @@ public class MarketRpcConfig {
     @Value("${numPlacementDiagsToRetain:0}")
     private int numPlacementDiagsToRetain;
 
+    @Value("${enableOP:false}")
+    private boolean enableOP;
+
     @Autowired
     private PlanOrchestratorClientConfig planClientConfig;
 
@@ -107,7 +110,7 @@ public class MarketRpcConfig {
         try {
             return new InitialPlacementHandler(dbAccessConfig.dsl(), getReservationService(),
                     prepareReservationCache, maxRetry, maxGroupingRetry, analysisDiagnosticsCollectorFactory(),
-                    numPlacementDiagsToRetain);
+                    numPlacementDiagsToRetain, enableOP);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -151,5 +154,9 @@ public class MarketRpcConfig {
         // hide completely in production deployments.
         return Optional.ofNullable(Boolean.getBoolean("grpc.debug.services.enabled"))
                 .orElse(false);
+    }
+
+    public boolean isEnableOP() {
+        return enableOP;
     }
 }

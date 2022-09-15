@@ -37,6 +37,11 @@ public class InitialPlacementDecision {
     public final Optional<InvalidConstraints> invalidConstraints;
 
     /**
+     * The providerType of the supplier, if it exists.
+     */
+    public final Optional<Integer> providerType;
+
+    /**
      * Constructor.
      *
      * @param slOid the shopping list oid.
@@ -48,11 +53,13 @@ public class InitialPlacementDecision {
     public InitialPlacementDecision(final long slOid, final Optional<Long> supplier,
                                     final List<FailureInfo> failureInfos,
                                     final Optional<InvalidConstraints> invalidConstraints,
-                                    final boolean isFailedInRealtimeCache) {
+                                    final boolean isFailedInRealtimeCache,
+                                    final Optional<Integer> providerType) {
         this.slOid = slOid;
         this.supplier = supplier;
         this.failureInfos = failureInfos;
         this.invalidConstraints = invalidConstraints;
         this.isFailedInRealtimeCache = isFailedInRealtimeCache;
+        this.providerType = providerType;
     }
 }

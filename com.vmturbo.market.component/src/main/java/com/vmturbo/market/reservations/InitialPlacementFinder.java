@@ -50,6 +50,8 @@ import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagn
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisMode;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * The class to support fast reservation placement.
@@ -82,6 +84,8 @@ public class InitialPlacementFinder {
      * prefix for initial placement log messages.
      */
     protected final String logPrefix = "FindInitialPlacement: ";
+
+    private final boolean enableOP;
 
     private final AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory;
 
@@ -118,7 +122,7 @@ public class InitialPlacementFinder {
             @Nonnull final ReservationServiceBlockingStub stub,
             final boolean prepareReservationCache, int maxRetry, final int maxGroupingRetry,
             AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory,
-            int numPlacementDiagsToRetain) {
+            int numPlacementDiagsToRetain, boolean enableOP) {
         economyCaches = new EconomyCaches(dsl);
         this.blockingStub = stub;
         this.prepareReservationCache = prepareReservationCache;
@@ -126,6 +130,7 @@ public class InitialPlacementFinder {
         this.maxGroupingRetry = maxGroupingRetry;
         this.analysisDiagnosticsCollectorFactory = analysisDiagnosticsCollectorFactory;
         this.numPlacementDiagsToRetain = numPlacementDiagsToRetain;
+        this.enableOP = enableOP;
     }
 
     /**
@@ -161,6 +166,39 @@ public class InitialPlacementFinder {
     }
 
     /**
+     * For all the exisiting reservation update the id of cluster provider.
+     * @param buyerOidToPlacement the existing reservations
+     * @param hostIdToClusterId the map frm host oid to cluster oid.
+     */
+    private void updateClusterIdOfExistingReservation(@Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
+            Map<Long, Long> hostIdToClusterId) {
+        // update the  id of the clustersl supplier
+        for (List<InitialPlacementDecision> placementDecisions : buyerOidToPlacement.values()) {
+            Optional<InitialPlacementDecision> clusterPlacementDecision = placementDecisions.stream()
+                    .filter(p -> p.supplier.isPresent() && p.providerType.isPresent()
+                            && p.providerType.get() == EntityType.CLUSTER_VALUE).findFirst();
+            Optional<InitialPlacementDecision> hostPlacementDecision = placementDecisions.stream()
+                    .filter(p -> p.supplier.isPresent() && p.providerType.isPresent()
+                            && p.providerType.get() == CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE).findFirst();
+            if (hostPlacementDecision.isPresent() && clusterPlacementDecision.isPresent()) {
+                Long newClusterId = hostIdToClusterId.get(hostPlacementDecision.get().supplier.get());
+                if (newClusterId != null) {
+                    placementDecisions.remove(clusterPlacementDecision.get());
+                    placementDecisions.add(new InitialPlacementDecision(
+                            clusterPlacementDecision.get().slOid,
+                            Optional.of(newClusterId),
+                            clusterPlacementDecision.get().failureInfos,
+                            clusterPlacementDecision.get().invalidConstraints,
+                            clusterPlacementDecision.get().isFailedInRealtimeCache,
+                            clusterPlacementDecision.get().providerType
+                    ));
+                }
+            }
+        }
+
+    }
+
+    /**
      * Triggers the update of economy caches.
      *
      * @param clonedEconomy the economy to be used as model updation.
@@ -169,7 +207,13 @@ public class InitialPlacementFinder {
      * historical cached economy.
      */
     public void updateCachedEconomy(@Nonnull final Economy clonedEconomy,
-            @Nonnull final Map<CommodityType, Integer> commTypeToSpecMap, final boolean isRealtime) {
+            @Nonnull final Map<CommodityType, Integer> commTypeToSpecMap, final boolean isRealtime,
+            Map<Long, Long> hostIdToClusterId) {
+        if (enableOP) {
+            updateClusterIdOfExistingReservation(buyerPlacements, hostIdToClusterId);
+        } else {
+            InitialPlacementUtils.deleteClusterEntitiesFromEconomy(clonedEconomy);
+        }
         if (isRealtime) {
             // Update the providers with the latest broadcast in real time economy cache,
             // Apply all successfully placed reservations to the same providers that were
@@ -370,7 +414,7 @@ public class InitialPlacementFinder {
                 b.getInitialPlacementCommoditiesBoughtFromProviderList().stream()
                         .map(sl -> sl.getCommoditiesBoughtFromProviderId())
                         .forEach(id -> emptyDecisions.add(new InitialPlacementDecision(
-                                b.getBuyerId(), Optional.empty(), new ArrayList<>(), Optional.empty(), false)));
+                                b.getBuyerId(), Optional.empty(), new ArrayList<>(), Optional.empty(), false, Optional.empty())));
                 initialPlacements.put(b.getBuyerId(), emptyDecisions);
             });
         }
@@ -547,7 +591,11 @@ public class InitialPlacementFinder {
                     Optional<Long> supplier = sl.getCommoditiesBoughtFromProvider().hasProviderId()
                             ? Optional.of(sl.getCommoditiesBoughtFromProvider().getProviderId())
                             : Optional.empty();
-                    decisions.add(new InitialPlacementDecision(slOid, supplier, new ArrayList<>(), Optional.empty(), false));
+                    Optional<Integer> providerType = sl.getCommoditiesBoughtFromProvider().hasProviderId()
+                            ? Optional.of(sl.getCommoditiesBoughtFromProvider().getProviderEntityType())
+                            : Optional.empty();
+                    decisions.add(new InitialPlacementDecision(slOid, supplier, new ArrayList<>(), Optional.empty(), false,
+                            providerType));
                 });
                 buyerPlacements.put(buyer.getBuyerId(), decisions);
                 if (!existingReservations.containsKey(initialPlacement.getId())) {
