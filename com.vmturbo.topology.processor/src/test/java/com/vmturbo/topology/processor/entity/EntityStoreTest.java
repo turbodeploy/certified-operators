@@ -145,7 +145,7 @@ public class EntityStoreTest {
             .build();
 
     private EntityStore entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true,
-                    Collections.singletonList(sender), Clock.systemUTC(), true));
+                    Collections.singletonList(sender), Clock.systemUTC(), Collections.emptySet(), true));
 
     /**
      * Expected exception rule.
@@ -627,7 +627,7 @@ public class EntityStoreTest {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
         entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
-                mockClock, useSerializedEntities);
+                mockClock, Collections.emptySet(), useSerializedEntities);
 
         addEntities(entities);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
@@ -717,7 +717,7 @@ public class EntityStoreTest {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
         entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
-                mockClock, useSerializedEntities);
+                mockClock, Collections.emptySet(), useSerializedEntities);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
         // treated as normal probe
         when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(Optional.of(SDKProbeType.HYPERV));
@@ -798,7 +798,7 @@ public class EntityStoreTest {
     @Parameters(method = "generateTestData")
     public void testSendEntitiesWithNewState(boolean useSerializedEntities) throws Exception {
         entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true,
-                    Collections.singletonList(sender), Clock.systemUTC(), true));
+                    Collections.singletonList(sender), Clock.systemUTC(), Collections.emptySet(), true));
 
         when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
         final long targetId1 = 2001;
@@ -1028,7 +1028,7 @@ public class EntityStoreTest {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
         entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true,
-                        Collections.singletonList(sender), mockClock, true);
+                        Collections.singletonList(sender), mockClock, Collections.emptySet(), true);
         addEntities(entities);
 
         Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))
