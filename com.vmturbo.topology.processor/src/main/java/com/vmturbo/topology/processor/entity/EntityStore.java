@@ -137,6 +137,8 @@ public class EntityStore {
      */
     private final Clock clock;
 
+    private final Set<EntityType> reducedEntityTypes;
+
     private final boolean useSerializedEntities;
 
     /**
@@ -243,14 +245,18 @@ public class EntityStore {
     public EntityStore(@Nonnull final TargetStore targetStore, @Nonnull final IdentityProvider identityProvider,
             final float duplicateTargetOverlapRatio, final boolean mergeKubernetesTypesForDuplicateDetection,
             @Nonnull final List<EntitiesWithNewStateListener> entitiesWithNewStateListeners, @Nonnull final Clock clock,
+            @Nonnull Set<EntityType> reducedEntityTypes,
             boolean useSerializedEntities) {
+
         this.targetStore = Objects.requireNonNull(targetStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.duplicateTargetDetector = new InternalDuplicateTargetDetector(entityMap, targetStore,
                 duplicateTargetOverlapRatio, mergeKubernetesTypesForDuplicateDetection);
         this.entitiesWithNewStateListeners = Objects.requireNonNull(entitiesWithNewStateListeners);
         this.clock = Objects.requireNonNull(clock);
+        this.reducedEntityTypes = ImmutableSet.copyOf(reducedEntityTypes);
         this.useSerializedEntities = useSerializedEntities;
+
         targetStore.addListener(new TargetStoreListener() {
             @Override
             public void onTargetRemoved(@Nonnull final Target target) {
@@ -568,6 +574,10 @@ public class EntityStore {
         try (TracingScope scope = Tracing.trace("desirializeEntities")) {
             Map<Long, List<Pair<Long, EntityDTO.Builder>>> deserializedEntityMap = new ConcurrentHashMap<>();
             entityMap.values().parallelStream().forEach(entity -> {
+
+                final Optional<EntityDTO.Builder> consolidatedBuilder = entity.consolidatedEntity()
+                        .map(EntityDTO::toBuilder);
+
                 entity.getTargets().forEach(target -> {
                     if (entity.getEntityInfo(target).isPresent()) {
                         try {
@@ -576,7 +586,14 @@ public class EntityStore {
                             // in the  deserializedEntityMap otherwise we may in rare circumstances wind up
                             // with a ConcurrentModificationException.
                             synchronized (entities) {
-                                entities.add(new Pair<>(target, entity.getEntityInfo(target).get().getEntityInfoBuilder()));
+
+                                final EntityDTO.Builder entityBuilder;
+                                if (consolidatedBuilder.isPresent()) {
+                                    entityBuilder = consolidatedBuilder.get();
+                                } else {
+                                    entityBuilder = entity.getEntityInfo(target).get().getEntityInfoBuilder();
+                                }
+                                entities.add(new Pair<>(target, entityBuilder));
                             }
                         } catch (InvalidProtocolBufferException e) {
                             logger.error(entity.getConversionError());
@@ -780,7 +797,7 @@ public class EntityStore {
             entitiesById.entrySet().forEach(entry -> {
                 Entity entity = entityMap.get(entry.getKey());
                 if (entity == null) {
-                    entity = new Entity(entry.getKey(), entry.getValue().getEntityType(), useSerializedEntities);
+                    entity = new Entity(entry.getKey(), entry.getValue().getEntityType(), reducedEntityTypes, useSerializedEntities);
                     addedEntities.computeIfAbsent(entity.getEntityType(), t -> new HashSet<>()).add(
                             entity);
                     entityMap.put(entry.getKey(), entity);

@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.entity;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -12,13 +13,16 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -39,6 +43,8 @@ public class Entity {
      */
     private final Map<Long, PerTargetInfo> perTargetInfo = new ConcurrentHashMap<>();
 
+    private final SetOnce<EntityDTO> consolidatedEntity = new SetOnce<>();
+
     /**
      * Type of the entity.
      */
@@ -46,13 +52,24 @@ public class Entity {
 
     private static final Logger logger = LogManager.getLogger();
 
+    final Set<EntityType> reducedEntityTypes;
+
     private final boolean useSerializedEntities;
 
 
-    public Entity(final long id, final EntityType entityType, boolean useSerializedEntities) {
+    public Entity(final long id, final EntityType entityType, final Set<EntityType> reducedEntityTypes, boolean useSerializedEntities) {
         this.id = id;
         this.entityType = entityType;
+        this.reducedEntityTypes = ImmutableSet.copyOf(reducedEntityTypes);
         this.useSerializedEntities = useSerializedEntities;
+    }
+
+    public Entity(final long id, final EntityType entityType, boolean useSerializedEntities) {
+        this(id, entityType, Collections.emptySet(), useSerializedEntities);
+    }
+
+    public Optional<EntityDTO> consolidatedEntity() {
+        return consolidatedEntity.getValue();
     }
 
     public void addTargetInfo(final long targetId, @Nonnull final EntityDTO entityDTO) {
@@ -69,11 +86,33 @@ public class Entity {
                     .collect(Collectors.joining("\n")),
                 entityDTO));
         }
+
+        /**
+         * HACK HACK HACK - currently, cloud account/project/subscription targets return duplicate static
+         * infrastructure entities. The leads to significant memory overhead in storing the EntityDTOs for
+         * each individual target and subsequently constructing builders as part of the stitching context.
+         *
+         * This code attempts to somewhat replicate the pre-stitching cloud operations, in which we effectively
+         * choose one of the entity DTOs and drop all duplicates (except for Azure regions, in which it is potentially
+         * important to merge properties across all matching regions due to quota information). The one advantage to
+         * performing the deduplication here, instead of within the pre-stitching, is in avoiding the memory overhead
+         * of keeping around all the duplicate Entity DTOs.
+         *
+         * Note: This is a short-term fix, meant to address immediate customer issues, with the intent of replacing this
+         * in the near future.
+         */
+        final EntityDTO storedEntityDTO;
+        if (reducedEntityTypes.contains(entityType)) {
+            storedEntityDTO = consolidatedEntity.ensureSet(() -> entityDTO);
+        } else {
+            storedEntityDTO = entityDTO;
+        }
+
         PerTargetInfo info;
         if (useSerializedEntities) {
-            info = new SerializedPerTargetInfo(entityDTO);
+            info = new SerializedPerTargetInfo(storedEntityDTO);
         } else {
-            info = new DeserializedPerTargetInfo(entityDTO);
+            info = new DeserializedPerTargetInfo(storedEntityDTO);
         }
         perTargetInfo.put(targetId, info);
     }

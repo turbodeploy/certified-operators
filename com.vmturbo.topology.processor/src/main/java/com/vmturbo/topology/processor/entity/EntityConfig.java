@@ -1,7 +1,13 @@
 package com.vmturbo.topology.processor.entity;
 
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Stream;
+
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -10,6 +16,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc.EntityCustomTagsServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.EntityInfoREST;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
@@ -66,14 +73,28 @@ public class EntityConfig {
     @Value("${useSerializedEntities:false}")
     private boolean useSerializedEntities;
 
+    // 43,55,56,57,58,59
+    @Value("${reducedEntityTypes:}")
+    private String reducedEntityTypes;
+
     @Bean
     public EntityStore entityStore() {
+
+        final Set<EntityType> reducedEntityTypeSet = Stream.of(reducedEntityTypes.split(","))
+                // "".split(",") will return [""]
+                .filter(StringUtils::isNotBlank)
+                .map(Integer::valueOf)
+                .map(EntityType::forNumber)
+                .filter(Objects::nonNull)
+                .collect(ImmutableSet.toImmutableSet());
+
         EntityStore store = new EntityStore(targetConfig.targetStore(),
             identityProviderConfig.identityProvider(),
             targetDeduplicationOverlapRatio,
             targetDeduplicationMergeKubernetesProbeTypes,
             Lists.newArrayList(sender, controllableConfig.entityMaintenanceTimeDao()),
             clockConfig.clock(),
+            reducedEntityTypeSet,
             useSerializedEntities);
         store.setEntityDetailsEnabled(entityDetailsEnabled);
         return store;
