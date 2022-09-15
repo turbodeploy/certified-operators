@@ -613,4 +613,9 @@ public class StringConstants {
      * Azure availability set recommend only policy prefix.
      */
     public static final String AVAILABILITY_SET_RECOMMEND_ONLY_PREFIX = "ASRO:";
+
+    /**
+     * A static key for the provision commodities sold by cluster.
+     */
+    public static final String CLUSTER_KEY_STATIC = "CLUSTER_KEY_STATIC";
 }

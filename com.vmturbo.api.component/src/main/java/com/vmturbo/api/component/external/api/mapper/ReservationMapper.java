@@ -778,16 +778,14 @@ public class ReservationMapper {
             Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional
                     .ofNullable(serviceEntityApiDTOMap
                             .get(reason.getClosestSeller()));
-            if (!serviceEntityApiDTO.isPresent()) {
-                return;
-            }
             final BaseApiDTO providerBaseApiDTO = new BaseApiDTO();
-            providerBaseApiDTO.setClassName(serviceEntityApiDTO.get().getClassName());
-            providerBaseApiDTO.setDisplayName(serviceEntityApiDTO.get().getDisplayName());
-            providerBaseApiDTO.setUuid(serviceEntityApiDTO.get().getUuid());
+            if (serviceEntityApiDTO.isPresent()) {
+                providerBaseApiDTO.setClassName(serviceEntityApiDTO.get().getClassName());
+                providerBaseApiDTO.setDisplayName(serviceEntityApiDTO.get().getDisplayName());
+                providerBaseApiDTO.setUuid(serviceEntityApiDTO.get().getUuid());
+            }
             if (reason.getFailedResourcesList().isEmpty()) {
-                logger.warn("Unplacement reason resource list is empty for service entity {}",
-                        serviceEntityApiDTO.get().getDisplayName());
+                logger.warn("Unplacement reason resource list is empty for service entity");
                 break;
             }
             FailedResources failedResource = reason.getFailedResourcesList().get(0);

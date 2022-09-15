@@ -220,7 +220,7 @@ public class AnalysisDiagnosticsCollectorTest {
                 ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
         InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 1, 5,
-                diagsCollectorFactory, 5);
+                diagsCollectorFactory, 5, false);
         BiMap<CommodityType, Integer> realtimeCachedCommTypeMap = HashBiMap.create();
         BiMap<CommodityType, Integer> historicalCachedCommTypeMap = HashBiMap.create();
         realtimeCachedCommType.stream().forEach(entry -> realtimeCachedCommTypeMap.put(entry.commodityType, entry.type));
@@ -229,9 +229,9 @@ public class AnalysisDiagnosticsCollectorTest {
         pf.getEconomyCaches().setEconomiesAndCachedCommType(historicalCachedCommTypeMap,
                 realtimeCachedCommTypeMap,
                 historicalCachedEconomy == null ? null : InitialPlacementUtils.cloneEconomy(
-                        historicalCachedEconomy, true),
+                        historicalCachedEconomy, true, new HashMap<>()),
                 realtimeCachedEconomy == null ? null : InitialPlacementUtils.cloneEconomy(
-                        realtimeCachedEconomy, true));
+                        realtimeCachedEconomy, true, new HashMap<>()));
         FindInitialPlacementRequest.Builder findInitialPlacementRequest = FindInitialPlacementRequest.newBuilder();
         findInitialPlacementRequest.addAllInitialPlacement(newBuyers);
         Table<Long, Long, InitialPlacementFinderResult> result

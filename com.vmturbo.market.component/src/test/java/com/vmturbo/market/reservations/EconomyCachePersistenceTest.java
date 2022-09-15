@@ -190,7 +190,7 @@ public class EconomyCachePersistenceTest extends MultiDbTestBase {
         when(diagsCollectorFactory.newDiagsCollector(any(), any())).thenReturn(Optional.empty());
         ReservationServiceBlockingStub stub = ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
         InitialPlacementHandler handler = new InitialPlacementHandler(dsl, stub, true, 2, 5,
-                diagsCollectorFactory, 5);
+                diagsCollectorFactory, 5, false);
         final long buyer1Oid = 1234L;
         final long buyerSl1Oid = 1000L;
         final long reservation1Oid = 1L;
@@ -217,12 +217,12 @@ public class EconomyCachePersistenceTest extends MultiDbTestBase {
         }};
         pf.buyerPlacements = new HashMap() {{
             put(buyer1Oid, Arrays.asList(new InitialPlacementDecision(buyerSl1Oid,
-                    Optional.of(1112L), new ArrayList(), Optional.empty(), false)));
+                    Optional.of(1112L), new ArrayList(), Optional.empty(), false, Optional.of(EntityType.PHYSICAL_MACHINE_VALUE))));
         }};
 
         pf.updateCachedEconomy(EconomyCachesTest.economyWithCluster(
                 new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed}), commTypeToSpecMap,
-                false);
+                false, new HashMap<>());
         // Assuming the PO returns a reservation with oid 2L that has 1 buyer. The buyer has pm4 as
         // the provider.
         final long buyer2Oid = 2234L;
@@ -240,7 +240,7 @@ public class EconomyCachePersistenceTest extends MultiDbTestBase {
 
         pf.buyerPlacements = new HashMap() {{
             put(buyer2Oid, Arrays.asList(
-                    new InitialPlacementDecision(buyerSl2Oid, Optional.of(1114L), new ArrayList(), Optional.empty(), false)));
+                    new InitialPlacementDecision(buyerSl2Oid, Optional.of(1114L), new ArrayList(), Optional.empty(), false,  Optional.of(EntityType.PHYSICAL_MACHINE_VALUE))));
         }};
         pf.existingReservations = new HashMap() {{
             put(reservation2Oid, PlanUtils.setupInitialPlacement(newBuyerList, reservation2Oid));

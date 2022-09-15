@@ -3,6 +3,7 @@ package com.vmturbo.market.reservations;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -63,9 +64,9 @@ public class InitialPlacementHandler {
     public InitialPlacementHandler(@Nonnull DSLContext dsl,
             @Nonnull final ReservationServiceBlockingStub stub,
             final boolean prepareReservationCache, int maxRetry, final int maxGroupingRetry,
-            AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory, int numPlacementDiagsToRetain) {
+            AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory, int numPlacementDiagsToRetain, boolean enableOP) {
         this.placementFinder = new InitialPlacementFinder(dsl, stub,
-            prepareReservationCache, maxRetry, maxGroupingRetry, analysisDiagnosticsCollectorFactory, numPlacementDiagsToRetain);
+            prepareReservationCache, maxRetry, maxGroupingRetry, analysisDiagnosticsCollectorFactory, numPlacementDiagsToRetain, enableOP);
         this.cacheAccessService = Executors.newFixedThreadPool(1,
                 new ThreadFactoryBuilder().setNameFormat("Economy-cache-accessor").build());
     }
@@ -91,17 +92,18 @@ public class InitialPlacementHandler {
      * @return future indicating completion of cache updation.
      */
     public Future<?> updateCachedEconomy(@Nonnull final UnmodifiableEconomy originalEconomy,
-            @Nonnull final Map<CommodityType, Integer> commTypeToSpecMap, final boolean isRealtime) {
+            @Nonnull final Map<CommodityType, Integer> commTypeToSpecMap, final boolean isRealtime,
+            @Nonnull final Map<Long, Long> hostIdToClusterId) {
 
         try {
             Instant economyCloningStartTime = clock.instant();
-            Economy clonedEconomy = InitialPlacementUtils.cloneEconomy(originalEconomy, false);
+            Economy clonedEconomy = InitialPlacementUtils.cloneEconomy(originalEconomy, false, new HashMap<>());
             Instant economyCloningEndTime = clock.instant();
             logger.info(placementFinder.logPrefix + "cloning economy for cache updation done in : "
                 + economyCloningStartTime.until(economyCloningEndTime, ChronoUnit.SECONDS) + " seconds");
 
             return cacheAccessService.submit(() ->
-                    placementFinder.updateCachedEconomy(clonedEconomy, commTypeToSpecMap, isRealtime));
+                    placementFinder.updateCachedEconomy(clonedEconomy, commTypeToSpecMap, isRealtime, hostIdToClusterId));
         } catch (Exception e) {
             logger.error(placementFinder.logPrefix + "Error cloning economy.", e);
             return CompletableFuture.completedFuture(null);

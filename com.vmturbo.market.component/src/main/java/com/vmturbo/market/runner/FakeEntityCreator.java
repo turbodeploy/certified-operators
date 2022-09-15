@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.topology.TopologyConversionConstants;
@@ -52,11 +53,6 @@ public class FakeEntityCreator {
     private final Set<Long> fakeComputeClusterOids = new HashSet<>();
 
     private final HashMap<Long, Long> hostIdToClusterId = new HashMap<>();
-
-    /**
-     * A static key for the provision commodities sold by cluster.
-     */
-    public static final String CLUSTER_KEY_STATIC = "CLUSTER_KEY_STATIC";
 
     /**
      * Constructor.
@@ -236,14 +232,14 @@ public class FakeEntityCreator {
         double memEffectiveCapacityPercentage = clusterMemProvEffectiveCapacity / clusterMemProvCapacity * 100;
 
         TopologyDTO.CommodityType.Builder cpuProvType = TopologyDTO.CommodityType.newBuilder()
-                .setType(CommodityType.CPU_PROVISIONED_VALUE).setKey(CLUSTER_KEY_STATIC);
+                .setType(CommodityType.CPU_PROVISIONED_VALUE).setKey(StringConstants.CLUSTER_KEY_STATIC);
         CommoditySoldDTO.Builder cpuProvSold = CommoditySoldDTO.newBuilder()
                 .setCommodityType(cpuProvType)
                 .setCapacity(clusterCpuProvCapacity)
                 .setEffectiveCapacityPercentage(cpuEffectiveCapacityPercentage)
                 .setUsed(clusterCpuProvUsed);
         TopologyDTO.CommodityType.Builder memProvType = TopologyDTO.CommodityType.newBuilder()
-                .setType(CommodityType.MEM_PROVISIONED_VALUE).setKey(CLUSTER_KEY_STATIC);
+                .setType(CommodityType.MEM_PROVISIONED_VALUE).setKey(StringConstants.CLUSTER_KEY_STATIC);
         CommoditySoldDTO.Builder memProvSold = CommoditySoldDTO.newBuilder()
                 .setCommodityType(memProvType)
                 .setCapacity(clusterMemProvCapacity)
@@ -321,13 +317,13 @@ public class FakeEntityCreator {
                         memProvCommBoughtFromHost.get().toBuilder().setCommodityType(
                                 TopologyDTO.CommodityType.newBuilder()
                                         .setType(CommodityType.MEM_PROVISIONED_VALUE)
-                                        .setKey(CLUSTER_KEY_STATIC)
+                                        .setKey(StringConstants.CLUSTER_KEY_STATIC)
                                         .build()).build();
                 final CommodityBoughtDTO cpuCommBought =
                         cpuProvCommBoughtFromHost.get().toBuilder().setCommodityType(
                                 TopologyDTO.CommodityType.newBuilder()
                                         .setType(CommodityType.CPU_PROVISIONED_VALUE)
-                                        .setKey(CLUSTER_KEY_STATIC)
+                                        .setKey(StringConstants.CLUSTER_KEY_STATIC)
                                         .build()).build();
                 commBoughtFromProvider.addCommodityBought(memCommBought).addCommodityBought(
                         cpuCommBought).setProviderEntityType(EntityType.CLUSTER_VALUE);

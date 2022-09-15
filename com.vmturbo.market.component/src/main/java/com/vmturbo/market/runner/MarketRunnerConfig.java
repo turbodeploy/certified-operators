@@ -155,9 +155,6 @@ public class MarketRunnerConfig {
     @Value("${licensePriceWeightScale:3}")
     private int licensePriceWeightScale;
 
-    @Value("${enableOP:false}")
-    private boolean enableOP;
-
     /**
      * Use max(reservation, used) as VM's commodity bought used.
      */
@@ -263,7 +260,7 @@ public class MarketRunnerConfig {
                 commodityIdUpdater(),
                 actionSavingsCalculatorFactory(),
                 licensePriceWeightScale,
-                enableOP,
+                marketRpcConfig.isEnableOP(),
                 fastProvisionEnabled,
                 branchAndBoundEnabled,
                 useVMReservationAsUsed,

@@ -36,7 +36,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ReservationGrouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ReservationMode;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ReconfigureConsumer;
@@ -347,15 +346,17 @@ public class EconomyCaches {
                 logger.warn(logPrefix + "Historical economy cache is not ready to be updated with commodities.");
                 return;
             }
+            InitialPlacementUtils.deleteClusterEntitiesFromEconomy(historicalCachedEconomy);
             updateAccessCommoditiesInHistoricalEconomyCache(realtimeCachedEconomy, realtimeCachedCommTypeMap);
             List<Trader> newlyAddedTraders = addNewTradersToHistoricalEconomy(realtimeCachedEconomy, historicalCachedEconomy);
             InitialPlacementUtils.updateNonAccessCommodities(realtimeCachedEconomy, realtimeCachedCommTypeMap,
                     historicalCachedEconomy, historicalCachedCommTypeMap, newlyAddedTraders);
+            Map<Long, Set<Long>> traderOidToCliques = getTraderOidToCliqueMap(realtimeCachedEconomy);
             // Clone a new historical economy with new InvertedIndex object constructed based on
             // updated traders(all new commodities will be included in the InvertedIndex look up table).
             // NOTE: the cloned economy has only host and storages, but the utilization of them
             // includes the reservation utils.
-            Economy newHistEconomy = InitialPlacementUtils.cloneEconomy(historicalCachedEconomy, false);
+            Economy newHistEconomy = InitialPlacementUtils.cloneEconomy(historicalCachedEconomy, false, traderOidToCliques);
             // In case of traders are deleted in the real time, historical cache may not catch it up
             // immediately, so we have to mark those traders in historical cache canAcceptNewCustomers false.
             updateTradersInHistoricalEconomyCache(realtimeCachedEconomy, newHistEconomy);
@@ -368,6 +369,14 @@ public class EconomyCaches {
             updateHistoricalCachedEconomy(realtimeCachedEconomy, realtimeCachedCommTypeMap,
                     new HashMap(), new HashMap());
         }
+    }
+
+    private Map<Long, Set<Long>> getTraderOidToCliqueMap(Economy economy) {
+        Map<Long, Set<Long>> traderOidToCliques = new HashMap<>();
+        for (Trader trader : economy.getTraders()) {
+            traderOidToCliques.put(trader.getOid(), trader.getCliques());
+        }
+        return traderOidToCliques;
     }
 
     /**
@@ -392,37 +401,35 @@ public class EconomyCaches {
 
     private List<Trader> addNewTradersToHistoricalEconomy(Economy realtimeEconomy, Economy histEconomy) {
         List<Trader> newlyAddedTraders = new ArrayList<>();
-        if (FeatureFlags.HEADROOM_ADD_PROVISIONED_RESOURCES.isEnabled()) {
-            Stopwatch sw = Stopwatch.createStarted();
-            Set<Long> histTraderOids = histEconomy.getTopology().getTradersByOid().keySet();
-            int added = 0;
-            for (Map.Entry<Long, Trader> oid2trader : realtimeEconomy.getTopology().getTradersByOid().entrySet()) {
-                Trader trader = oid2trader.getValue();
-                if (!histTraderOids.contains(oid2trader.getKey())
-                                && InitialPlacementUtils.PROVIDER_ENTITY_TYPES
-                                                .contains(trader.getType())) {
-                    Trader clone = InitialPlacementUtils.cloneTraderForInitialPlacement(trader, histEconomy);
-                    histEconomy.getTopology().getModifiableTraderOids().put(oid2trader.getKey(), clone);
-                    ++added;
-                    newlyAddedTraders.add(clone);
-                }
+        Stopwatch sw = Stopwatch.createStarted();
+        Set<Long> histTraderOids = histEconomy.getTopology().getTradersByOid().keySet();
+        int added = 0;
+        for (Map.Entry<Long, Trader> oid2trader : realtimeEconomy.getTopology().getTradersByOid().entrySet()) {
+            Trader trader = oid2trader.getValue();
+            if (!histTraderOids.contains(oid2trader.getKey())
+                    && InitialPlacementUtils.PROVIDER_ENTITY_TYPES
+                    .contains(trader.getType())) {
+                Trader clone = InitialPlacementUtils.cloneTraderForInitialPlacement(trader, histEconomy, trader.getCliques());
+                histEconomy.getTopology().getModifiableTraderOids().put(oid2trader.getKey(), clone);
+                ++added;
+                newlyAddedTraders.add(clone);
             }
-            if (added > 0) {
-                logger.info("{}added {} new traders to historical economy cache in {}", logPrefix, added, sw);
-                // The newly added traders are copied from the real time economy. They are
-                // already selling the access commodities same as real time economy. We have to
-                // update the historicalCachedCommTypeMap to be aware of the new access
-                // commodities sold by the new traders.
-                for (Trader t : newlyAddedTraders) {
-                    for (int i = 0; i < t.getBasketSold().size(); i++) {
-                        int realtimeCommSpecType = t.getBasketSold().get(i).getType();
-                        CommodityType realtimeComm = realtimeCachedCommTypeMap.inverse().get(realtimeCommSpecType);
-                        if (realtimeComm != null && realtimeComm.hasKey()) {
-                            if (historicalCachedCommTypeMap.inverse().containsKey(realtimeCommSpecType)) {
-                                historicalCachedCommTypeMap.inverse().remove(realtimeCommSpecType);
-                            }
-                            historicalCachedCommTypeMap.put(realtimeComm, realtimeCommSpecType);
+        }
+        if (added > 0) {
+            logger.info("{}added {} new traders to historical economy cache in {}", logPrefix, added, sw);
+            // The newly added traders are copied from the real time economy. They are
+            // already selling the access commodities same as real time economy. We have to
+            // update the historicalCachedCommTypeMap to be aware of the new access
+            // commodities sold by the new traders.
+            for (Trader t : newlyAddedTraders) {
+                for (int i = 0; i < t.getBasketSold().size(); i++) {
+                    int realtimeCommSpecType = t.getBasketSold().get(i).getType();
+                    CommodityType realtimeComm = realtimeCachedCommTypeMap.inverse().get(realtimeCommSpecType);
+                    if (realtimeComm != null && realtimeComm.hasKey()) {
+                        if (historicalCachedCommTypeMap.inverse().containsKey(realtimeCommSpecType)) {
+                            historicalCachedCommTypeMap.inverse().remove(realtimeCommSpecType);
                         }
+                        historicalCachedCommTypeMap.put(realtimeComm, realtimeCommSpecType);
                     }
                 }
             }
@@ -1024,7 +1031,9 @@ public class EconomyCaches {
                 InitialPlacementDecision resPlacement = new InitialPlacementDecision(
                     economy.getTopology().getShoppingListOids().get(sl), sl.getSupplier() == null
                     ? Optional.empty() : Optional.of(sl.getSupplier().getOid()), new ArrayList<>(),
-                        reconfigureSls.contains(sl) ? Optional.of(InvalidConstraints.getDefaultInstance()) : Optional.empty(), false);
+                        reconfigureSls.contains(sl) ? Optional.of(InvalidConstraints.getDefaultInstance()) : Optional.empty(), false,
+                        sl.getSupplier() == null
+                                ? Optional.empty() : Optional.of(sl.getSupplier().getType()));
                 if (!traderIdToPlacement.containsKey(oid)) {
                     traderIdToPlacement.put(oid, new ArrayList<>(Arrays.asList(resPlacement)));
                 } else {

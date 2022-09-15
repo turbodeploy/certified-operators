@@ -1012,7 +1012,7 @@ public class Analysis {
                 && converter.getCommodityConverter().getCommTypeAllocator() != null) {
             Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap = converter
                     .getCommodityConverter().getCommTypeAllocator().getReservationCommTypeToSpecMapping();
-            initialPlacementHandler.updateCachedEconomy(economy, commTypeToSpecMap, isRealtime);
+            initialPlacementHandler.updateCachedEconomy(economy, commTypeToSpecMap, isRealtime, fakeEntityCreator.getHostIdToClusterId());
         }
     }
 
