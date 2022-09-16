@@ -361,7 +361,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         recordRangePricesForMonth(pricesByUnit.get(Unit.MONTH),
                             volumeConfig.getAmountCapacityGb(), journal, storageTier);
                     } else {
-                        logger.error("Could not calculate cost for Virtual volume {}. Price table " +
+                        logger.warn("Could not calculate cost for Virtual volume {}. Price table " +
                                 "for region {} has no entry for tier {}. Skipping cost " +
                                 "calculation.", entityId, regionId, storageTierId);
                     }
@@ -370,11 +370,11 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                             "  This means there is some inconsistency between the topology and pricing data.", regionId);
                 }
             } else {
-                logger.error("Unable to find related storage tier for volume entity {}. " +
+                logger.warn("Unable to find related storage tier for volume entity {}. " +
                     "Skipping cost calculation.", entityId);
             }
         } else {
-            logger.error("No volume config present for volume entity {}. Skipping cost calculation.",
+            logger.warn("No volume config present for volume entity {}. Skipping cost calculation.",
                 entityId);
         }
     }
