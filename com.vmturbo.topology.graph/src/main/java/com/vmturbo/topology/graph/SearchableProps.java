@@ -449,7 +449,7 @@ public interface SearchableProps {
          * @return The entity type associated with the vendor ID.
          */
         static EntityType getConsumerEntityType(String vendorId) {
-            if (vendorId == null) {
+            if (vendorId == null || vendorId.trim().isEmpty()) {
                 return null;
             }
             // Vendor ID for azure compute tiers the vendorId is:
