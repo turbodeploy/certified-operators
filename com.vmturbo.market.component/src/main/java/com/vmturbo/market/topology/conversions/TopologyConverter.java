@@ -1517,9 +1517,6 @@ public class TopologyConverter {
                 ? projTraders.get(traderTO.getCloneOf()).getShoppingListsList()
                 : traderTO.getShoppingListsList();
             for (EconomyDTOs.ShoppingListTO sl : shoppingLists) {
-                if (isShoppingListToSkipForProjectedEntity(sl)) {
-                    continue;
-                }
                 List<TopologyDTO.CommodityBoughtDTO> commList = new ArrayList<>();
                 // Map to keep timeslot commodities from the generated timeslot families
                 // This is needed because we need to add those timeslots coming from the market later
@@ -1720,10 +1717,6 @@ public class TopologyConverter {
                 traderTO.getDebugInfoNeverUseInCode(), e.getMessage(), e);
         }
         return topologyEntityDTOs;
-    }
-
-    private boolean isShoppingListToSkipForProjectedEntity(ShoppingListTO sl) {
-        return fakeEntityCreator != null && sl.hasSupplier() && fakeEntityCreator.isFakeClusterOid(sl.getSupplier());
     }
 
     /**
@@ -3971,7 +3964,7 @@ public class TopologyConverter {
         // Add unquoted commodities, if needed.
         // This functionality is used to enable the placement of active on-prem VMs on providers
         // that are over-provisioned (OM-63941).
-        if (shouldAddUnquotedProvisionedCommodities(entityForSL)) {
+        if (shouldAddUnquotedProvisionedCommodities(entityForSL, commBoughtGroupingForSL)) {
             economyShoppingListBuilder.addUnquotedCommoditiesBaseTypeList(
                     CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE);
             economyShoppingListBuilder.addUnquotedCommoditiesBaseTypeList(
@@ -3982,19 +3975,32 @@ public class TopologyConverter {
     }
 
     /**
-     * Check if the entity should have unquoted commodities.
-     * We want to enable this functionality for active on-prem VMs in real-time topology.
-     *
+     * Check if the entity's shopping list should have unquoted commodities.
+     * The unquoted commodities are added in 2 cases:
+     * 1. Compute SLs of active on-prem VMs in real-time topology - controlled
+     *    by {@link GlobalSettingSpecs#AllowUnlimitedHostOverprovisioning}
+     * 2. Cluster SLs of on-prem VMs. Added workload will not get the unquoted
+     *    commodities because they are unplaced when coming into market. Added workload should get
+     *    infinite quote if cluster is full.
      * @param entity the entity for which the shopping list should have unquoted provisioned commodities.
+     * @param commBoughtGroupingForSL the commodity bought grouping
      * @return true if unquoted provisioned commodities should be added, false otherwise.
      */
-    private boolean shouldAddUnquotedProvisionedCommodities(TopologyEntityDTO entity) {
-        return unquotedCommoditiesEnabled
+    private boolean shouldAddUnquotedProvisionedCommodities(TopologyEntityDTO entity,
+                                                            CommoditiesBoughtFromProvider commBoughtGroupingForSL) {
+        return (unquotedCommoditiesEnabled
                 && entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
                 && entity.getEntityState() == TopologyDTO.EntityState.POWERED_ON
                 && entity.getEnvironmentType() != EnvironmentType.CLOUD
+                && commBoughtGroupingForSL.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE
                 && !isCloudMigration
-                && !isPlan();
+                && !isPlan())
+                ||
+                (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                && commBoughtGroupingForSL.hasProviderId()
+                && commBoughtGroupingForSL.getProviderEntityType() == EntityType.CLUSTER_VALUE
+                && entity.getEnvironmentType() == EnvironmentType.ON_PREM
+                && fakeEntityCreator.isFakeComputeClusterOid(commBoughtGroupingForSL.getProviderId()));
     }
 
     /**

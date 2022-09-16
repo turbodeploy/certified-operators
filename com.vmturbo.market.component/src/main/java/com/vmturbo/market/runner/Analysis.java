@@ -115,6 +115,7 @@ import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactor
 import com.vmturbo.market.topology.conversions.SMAConverter;
 import com.vmturbo.market.topology.conversions.ShoppingListInfo;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.market.topology.conversions.TopologyConversionUtils;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.market.topology.conversions.action.RelatedActionInterpreter;
 import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator;
@@ -748,6 +749,9 @@ public class Analysis {
                                             projectedTraderDTO.add(projectedDTO);
                                         }
                                     }
+                                    // Remove fake suppliers from projected traders
+                                    projectedTraderDTO = TopologyConversionUtils.removeSLsWithFakeSuppliers(
+                                            projectedTraderDTO, fakeEntityCreator);
                                 } else {
                                     projectedTraderDTO = results.getProjectedTopoEntityTOList();
                                 }

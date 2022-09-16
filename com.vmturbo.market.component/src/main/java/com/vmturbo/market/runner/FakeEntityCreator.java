@@ -131,6 +131,7 @@ public class FakeEntityCreator {
                 clusterKeyToHost.forEach((key, hosts) -> {
                     TopologyEntityDTO.Builder clusterBuilder = createClusterDTOs(CommodityType.CLUSTER_VALUE, key);
                     if (enableOP) {
+                        setAnalysisFlagsOnCluster(clusterBuilder);
                         fakeComputeClusterOids.add(clusterBuilder.getOid());
                         linkClusterToHosts(clusterBuilder, hosts, key);
                         addClusterCommsSold(clusterBuilder, hosts, key);
@@ -152,6 +153,24 @@ public class FakeEntityCreator {
         return fakeEntityDTOs.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid,
                         Function.identity()));
+    }
+
+    /**
+     * Setting controllable to true on the cluster is needed because the VM's cluster SL needs to
+     * be movable true and this depends on the controllable flag of the supplier.
+     * And because we set the controllable to true, we set all the other flags (that don't have a
+     * default in the protobuf as false) as false
+     * @param clusterBuilder cluster
+     */
+    private void setAnalysisFlagsOnCluster(TopologyEntityDTO.Builder clusterBuilder) {
+        clusterBuilder.getAnalysisSettingsBuilder()
+                .setControllable(true)
+                .setCloneable(false)
+                .setSuspendable(false)
+                .setIsAvailableAsProvider(false)
+                .setDeletable(false)
+                .setIsEligibleForScale(false)
+                .setReconfigurable(false);
     }
 
     /**
@@ -425,7 +444,7 @@ public class FakeEntityCreator {
      * @param oid the oid to check
      * @return true if it is a fake cluster oid
      */
-    public boolean isFakeClusterOid(long oid) {
+    public boolean isFakeComputeClusterOid(long oid) {
         return fakeComputeClusterOids.contains(oid);
     }
 

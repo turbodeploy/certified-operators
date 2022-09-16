@@ -2,6 +2,8 @@ package com.vmturbo.market.topology.conversions;
 
 import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -24,11 +26,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
+import com.vmturbo.market.runner.FakeEntityCreator;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -256,5 +260,35 @@ public class TopologyConversionUtils {
             return Units.KBYTE;
         }
         return 1.0f;
+    }
+
+    /**
+     * Remove the shopping lists of traderTOs that have fake suppliers.
+     * @param traderTOs the traderTOs to process
+     * @param fakeEntityCreator fake entity creator - the isFakeComputeClusterOid method of this
+     *                          is used to identify fake compute clusters
+     * @return a list of traders without any shopping lists that have fake suppliers.
+     */
+    public static List<TraderTO> removeSLsWithFakeSuppliers(List<TraderTO> traderTOs,
+                                                            FakeEntityCreator fakeEntityCreator) {
+        List<TraderTO> tradersWithoutFakeSuppliers = new ArrayList<>();
+        List<Integer> slIndexesToRemove = new ArrayList<>();
+        for (TraderTO traderTO : traderTOs) {
+            slIndexesToRemove.clear();
+            for (int i = 0; i < traderTO.getShoppingListsCount(); i++) {
+                long supplierOid = traderTO.getShoppingLists(i).getSupplier();
+                if (fakeEntityCreator.isFakeComputeClusterOid(supplierOid)) {
+                    slIndexesToRemove.add(i);
+                }
+            }
+            if (!slIndexesToRemove.isEmpty()) {
+                TraderTO.Builder traderBuilder = traderTO.toBuilder();
+                slIndexesToRemove.forEach(i -> traderBuilder.removeShoppingLists(i));
+                tradersWithoutFakeSuppliers.add(traderBuilder.build());
+            } else {
+                tradersWithoutFakeSuppliers.add(traderTO);
+            }
+        }
+        return tradersWithoutFakeSuppliers;
     }
 }
