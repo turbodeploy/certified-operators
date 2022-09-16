@@ -233,8 +233,8 @@ public class Placement {
                                 .collect(() -> new QuoteMinimizer(economy, shoppingList,
                                                                     cache, shoppingListIndex, bestTotalQuote),
                                     QuoteMinimizer::accept, QuoteMinimizer::combine);
-            if (sellers.size() > 1 && (minimizer.getBestSeller() == null
-                            || minimizer.getBestSeller() == shoppingList.getSupplier())) {
+            if (minimizer.getBestSeller() == null
+                            || minimizer.getBestSeller() == shoppingList.getSupplier()) {
                 if (!shoppingList.getUnquotedCommoditiesBaseTypeList()
                         .equals(shoppingList.getModifiableUnquotedCommoditiesBaseTypeList())) {
                     shoppingList.getModifiableUnquotedCommoditiesBaseTypeList().clear();

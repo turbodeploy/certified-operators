@@ -96,7 +96,7 @@ public class FakeEntityCreatorTest {
         int assertCount = 0;
         for (TopologyEntityDTO cluster : result.values()) {
             Assert.assertEquals(EntityType.CLUSTER_VALUE, cluster.getEntityType());
-            Assert.assertTrue(fakeEntityCreator.isFakeClusterOid(cluster.getOid()));
+            Assert.assertTrue(fakeEntityCreator.isFakeComputeClusterOid(cluster.getOid()));
             for (CommoditySoldDTO cs : cluster.getCommoditySoldListList()) {
                 if (cs.getCommodityType().getType() == CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE) {
                     if (cluster.getDisplayName().equals("FakeCluster-0key1")
