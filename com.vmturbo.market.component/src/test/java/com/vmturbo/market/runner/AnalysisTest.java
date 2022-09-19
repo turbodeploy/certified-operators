@@ -19,6 +19,7 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -30,6 +31,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -54,6 +56,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
+import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -70,6 +75,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
@@ -85,7 +91,9 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.GroupMemberRetriever;
+import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
@@ -105,6 +113,7 @@ import com.vmturbo.market.runner.wasted.files.WastedFilesAnalysisEngine;
 import com.vmturbo.market.runner.wasted.files.WastedFilesResults;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
+import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
@@ -233,7 +242,9 @@ public class AnalysisTest {
                 .thenReturn(START_INSTANT)
                 .thenReturn(END_INSTANT);
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
+        TierExcluder mockTierExcluder = mock(TierExcluder.class);
+        when(mockTierExcluder.getReasonSettings(any())).thenReturn(Optional.empty());
+        when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mockTierExcluder);
         listener = mock(AnalysisRICoverageListener.class);
         cloudTopology = mock(TopologyEntityCloudTopology.class);
         when(consistentScalingHelperFactory.newConsistentScalingHelper(any(), any()))
@@ -837,7 +848,7 @@ public class AnalysisTest {
         // disable unquoted commodities
         final AnalysisConfig analysisConfig = createAnalysisConfigWithOverprovisioningSetting(false, false);
 
-        Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts();
+        Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts(false);
 
         final Analysis analysis = getAnalysis(analysisConfig, topologySet, topologyInfo);
         analysis.execute();
@@ -859,12 +870,50 @@ public class AnalysisTest {
         // disable unquoted commodities
         final AnalysisConfig analysisConfig = createAnalysisConfigWithOverprovisioningSetting(false, true);
 
-        Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts();
+        Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts(false);
 
         final Analysis analysis = getAnalysis(analysisConfig, topologySet, topologyInfo);
         analysis.execute();
 
         // assert that no move actions are generated, because both PMs have over-provisioned CPU.
+        final ActionPlan actionPlan = analysis.getActionPlan().get();
+        assertTrue(actionPlan.getActionList().stream()
+                .anyMatch(action -> action.getInfo().hasMove()));
+    }
+
+    /**
+     *
+     * Test that when the hosts are over-provisioned, move actions are generated for a
+     * shopTogether VM when OP is enabled, and cluster is full.
+     * There are 2 hosts on 1 cluster. The cluster is full for CPU Provisioned. But we will still
+     * generate actions to balance the hosts in that cluster.
+     */
+    @Test
+    public void testMoveActionWithFullCluster() {
+        when(csm.getScalingGroupId(any())).thenReturn(Optional.empty());
+        when(csm.getScalingGroupUsage(any())).thenReturn(Optional.empty());
+
+        // disable unquoted commodities
+        final AnalysisConfig analysisConfig = createAnalysisConfigWithOverprovisioningSetting(false, true);
+
+        Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts(110, true);
+        GroupMemberRetriever groupMemberRetriever = mock(GroupMemberRetriever.class);
+        GetGroupsRequest computeClusterRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupDTO.GroupFilter.newBuilder()
+                        .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)).build();
+        GroupAndMembers computeCluster = ImmutableGroupAndMembers.builder()
+                .members(Arrays.asList(PM1_ID, PM2_ID))
+                .entities(Arrays.asList(PM1_ID, PM2_ID))
+                .group(Grouping.getDefaultInstance()).build();
+        when(groupMemberRetriever.getGroupsWithMembers(computeClusterRequest)).thenReturn(
+                Collections.singletonList(computeCluster));
+        FakeEntityCreator fakeEntityCreator = new FakeEntityCreator(groupMemberRetriever);
+
+        final Analysis analysis = getAnalysis(analysisConfig, topologySet, topologyInfo, Optional.of(fakeEntityCreator));
+        analysis.execute();
+
+        // assert that move actions are generated. Even though cluster is 220 used / 200 capacity
+        // for CPU Provisioned, we will still balance the hosts.
         final ActionPlan actionPlan = analysis.getActionPlan().get();
         assertTrue(actionPlan.getActionList().stream()
                 .anyMatch(action -> action.getInfo().hasMove()));
@@ -882,7 +931,7 @@ public class AnalysisTest {
         // disable unquoted commodities
         final AnalysisConfig analysisConfig = createAnalysisConfigWithOverprovisioningSetting(false, true);
 
-        Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts(200);
+        Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts(200, false);
 
         final Analysis analysis = getAnalysis(analysisConfig, topologySet, topologyInfo);
         analysis.execute();
@@ -905,7 +954,7 @@ public class AnalysisTest {
         // enable unquoted commodities
         final AnalysisConfig analysisConfig = createAnalysisConfigWithOverprovisioningSetting(true, false);
 
-        Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts();
+        Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts(false);
 
         final Analysis analysis = getAnalysis(analysisConfig, topologySet, topologyInfo);
         analysis.execute();
@@ -1006,8 +1055,8 @@ public class AnalysisTest {
      *
      * @return a set of the created entities.
      */
-    private Set<TopologyEntityDTO> createTopologyWithOverProvisionedHosts() {
-        return createTopologyWithOverProvisionedHosts(100);
+    private Set<TopologyEntityDTO> createTopologyWithOverProvisionedHosts(boolean isVMShopTogether) {
+        return createTopologyWithOverProvisionedHosts(100, isVMShopTogether);
     }
 
     /**
@@ -1015,7 +1064,7 @@ public class AnalysisTest {
      *
      * @return a set of the created entities.
      */
-    private Set<TopologyEntityDTO> createTopologyWithOverProvisionedHosts(double cpuProvUsed) {
+    private Set<TopologyEntityDTO> createTopologyWithOverProvisionedHosts(double cpuProvUsed, boolean isVMShopTogether) {
         TopologyDTO.TopologyEntityDTO pm1 = createCpuProvisionedPM(PM1_ID, 10, cpuProvUsed);
         TopologyDTO.TopologyEntityDTO pm2 = createCpuProvisionedPM(PM2_ID, 2, cpuProvUsed);
 
@@ -1027,14 +1076,18 @@ public class AnalysisTest {
                         .setProviderId(PM1_ID)
                         .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                         .addCommodityBought(createCommodityBoughtDTO(
-                                CommodityDTO.CommodityType.CPU_VALUE, 5))
+                                CommodityDTO.CommodityType.CPU_VALUE, Optional.empty(), 5))
                         .addCommodityBought(createCommodityBoughtDTO(
-                                CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE, 5))
+                                CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE, Optional.empty(), 5))
                         .addCommodityBought(createCommodityBoughtDTO(
-                                CommodityDTO.CommodityType.MEM_VALUE, 2))
+                                CommodityDTO.CommodityType.MEM_VALUE, Optional.empty(), 2))
                         .addCommodityBought(createCommodityBoughtDTO(
-                                CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE, 5))
+                                CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE, Optional.empty(), 5))
+                        .addCommodityBought(createCommodityBoughtDTO(
+                                CommodityDTO.CommodityType.CLUSTER_VALUE, Optional.of("test"), 1))
                         .build())
+                .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(isVMShopTogether).build())
+                .setEnvironmentType(EnvironmentType.ON_PREM)
                 .build();
 
         return ImmutableSet.of(pm1, pm2, vm);
@@ -1053,13 +1106,16 @@ public class AnalysisTest {
                 .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                 .setOid(oid)
                 .addCommoditySoldList(createCommoditySoldDTO(
-                        CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE, usedCPUProv, 100))
+                        CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE, Optional.empty(), usedCPUProv, 100))
                 .addCommoditySoldList(createCommoditySoldDTO(
-                        CommodityDTO.CommodityType.CPU_VALUE, usedCPU, 10))
+                        CommodityDTO.CommodityType.CPU_VALUE, Optional.empty(), usedCPU, 10))
                 .addCommoditySoldList(createCommoditySoldDTO(
-                        CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE, 50, 100))
+                        CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE, Optional.empty(), 50, 100))
                 .addCommoditySoldList(createCommoditySoldDTO(
-                        CommodityDTO.CommodityType.MEM_VALUE, 5, 10))
+                        CommodityDTO.CommodityType.MEM_VALUE, Optional.empty(), 5, 10))
+                .addCommoditySoldList(createCommoditySoldDTO(
+                        CommodityDTO.CommodityType.CLUSTER_VALUE, Optional.of("test"), 1,
+                        TopologyConversionConstants.ACCESS_COMMODITY_CAPACITY))
                 .build();
     }
 
@@ -1071,11 +1127,14 @@ public class AnalysisTest {
      * @param capacity the capacity value
      * @return sold commodity
      */
-    private CommoditySoldDTO createCommoditySoldDTO(int commodityType, double used, double capacity) {
+    private CommoditySoldDTO createCommoditySoldDTO(int commodityType, Optional<String> key, double used, double capacity) {
+        CommodityType.Builder commType = CommodityType.newBuilder()
+                .setType(commodityType);
+        if (key.isPresent()) {
+            commType.setKey(key.get());
+        }
         return CommoditySoldDTO.newBuilder()
-                .setCommodityType(CommodityType.newBuilder()
-                        .setType(commodityType)
-                        .build())
+                .setCommodityType(commType)
                 .setUsed(used)
                 .setCapacity(capacity)
                 .build();
@@ -1088,11 +1147,14 @@ public class AnalysisTest {
      * @param used the used value
      * @return bought commodity
      */
-    private CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, double used) {
+    private CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, Optional<String> key, double used) {
+        CommodityType.Builder commType = CommodityType.newBuilder()
+                .setType(commodityType);
+        if (key.isPresent()) {
+            commType.setKey(key.get());
+        }
         return CommodityBoughtDTO.newBuilder()
-                .setCommodityType(CommodityType.newBuilder()
-                        .setType(commodityType)
-                        .build())
+                .setCommodityType(commType)
                 .setUsed(used)
                 .build();
     }

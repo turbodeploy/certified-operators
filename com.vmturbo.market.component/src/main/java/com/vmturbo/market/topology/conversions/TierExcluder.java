@@ -303,7 +303,7 @@ public class TierExcluder {
      * @return Optional of the set of reason settings for an action. If the action was not
      * caused by tier exclusion, Optional.empty is returned.
      */
-    Optional<Set<Long>> getReasonSettings(ActionTO m2Action) {
+    public Optional<Set<Long>> getReasonSettings(ActionTO m2Action) {
         return Optional.ofNullable(m2ActionsToReasonSettings.get(m2Action));
     }
 
