@@ -219,18 +219,17 @@ public class MeterResolverStageTest {
             status.getStatusShortExplanation());
     }
 
-
     /**
      * Test failure handling if there is an error in one of the underlying streams. Because this
-     * stage consumes tyhe stream passed in, any errors in map or filter functions on the stream
+     * stage consumes the stream passed in, any errors in map or filter functions on the stream
      * will be caught in this stage, so although nothing in this stage itself can fail, it
      * can fail indirectly due to errors in earlier stages.
      *
      * @throws Exception if the test fails.
      */
     @Test
-    public void testFailure() throws Exception {
-        Path metersZip = Paths.get(BOMAwareReadersStageTest.class.getClassLoader()
+    public void testIOFailure() throws Exception {
+        Path metersZip = Paths.get(MeterResolverStageTest.class.getClassLoader()
                 .getResource("resolvertest.zip").getPath());
 
         ProbeStageTracker<MockPricingProbeStage> tracker =
@@ -239,6 +238,34 @@ public class MeterResolverStageTest {
         try (PricingPipelineContext<MockPricingProbeStage> context = new PricingPipelineContext("test",
                 tracker)) {
             PricingPipeline<Path, Collection<ResolvedMeter>> pipeline = makePipeline(context, true);
+
+            PipelineException ex = assertThrows(PipelineException.class, () -> {
+                pipeline.run(metersZip);
+            });
+        }
+
+        ProbeStageDetails status = tracker.getStageDetails(MockPricingProbeStage.RESOLVE_METERS);
+        assertEquals(StageStatus.FAILURE, status.getStatus());
+    }
+
+    /**
+     * If the stage resolves no meters, it should fail since something is very wrong,
+     * and we don't want the discovery to succeed and replace the cost component's existing
+     * pricing data with nothing.
+     *
+     * @throws Exception if the test fails.
+     */
+    @Test
+    public void testNoMeters() throws Exception {
+        Path metersZip = Paths.get(MeterResolverStageTest.class.getClassLoader()
+                .getResource("headeronly.zip").getPath());
+
+        ProbeStageTracker<MockPricingProbeStage> tracker =
+                new ProbeStageTracker<MockPricingProbeStage>(MockPricingProbeStage.DISCOVERY_STAGES);
+
+        try (PricingPipelineContext<MockPricingProbeStage> context = new PricingPipelineContext("test",
+                tracker)) {
+            PricingPipeline<Path, Collection<ResolvedMeter>> pipeline = makePipeline(context, false);
 
             PipelineException ex = assertThrows(PipelineException.class, () -> {
                 pipeline.run(metersZip);

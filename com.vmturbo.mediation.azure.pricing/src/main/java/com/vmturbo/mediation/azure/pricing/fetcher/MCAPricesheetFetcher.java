@@ -58,8 +58,22 @@ public class MCAPricesheetFetcher implements PricingFileFetcher<AzurePricingAcco
      * Configurable property for the API version to use for MCA pricesheets.
      */
     public static final IProbePropertySpec<String>
-        API_MCA_PRICESHEET_VERSION = new PropertySpec("api.mca.pricesheet.version",
+        API_MCA_PRICESHEET_VERSION = new PropertySpec<>("api.mca.pricesheet.version",
             String::valueOf, DEFAULT_API_MCA_PRICESHEET_VERSION);
+
+    /**
+     * If the downloaded file is less than this size, assume it must be truncated or
+     * broken in some way and consider the download failed.
+     */
+    public static final IProbePropertySpec<Long>
+        MINIMUM_FILE_SIZE = new PropertySpec<>("download.size.minimum.mca",
+            Long::valueOf, 1000000L);
+
+    /**
+     * If a downloaded file is too small and the download is considered failed, the
+     * downloaded file will be saved to this filename in the same directory.
+     */
+    public static final String MCA_TOO_SMALL_SAVE_FILENAME = "mca-too-small.zip";
 
     private static final String AZURE_PRICE_SHEET_REQUEST_PATH =
         "providers/Microsoft.Billing/billingAccounts/%s/billingProfiles/%s"
@@ -117,6 +131,25 @@ public class MCAPricesheetFetcher implements PricingFileFetcher<AzurePricingAcco
 
             final Path downloadedFile = downloadSheet(account, url, connector);
             final long size = Files.size(downloadedFile);
+            final long minSize = propertyProvider.getProperty(MINIMUM_FILE_SIZE);
+
+            if (size < minSize) {
+                final Path badSavePath = savePath.resolve(MCA_TOO_SMALL_SAVE_FILENAME);
+                final String tooSmallMessage = String.format(
+                    "File size %d is less than the expected minimum reasonable size of %d, "
+                        + "assuming file is truncated or corrupt.", size, minSize);
+
+                try {
+                    Files.move(downloadedFile, badSavePath);
+
+                    throw new AzureProbeException(String.format("%s Saved as %s",
+                        tooSmallMessage, badSavePath.toString()));
+                } catch (IOException ex) {
+                    throw new AzureProbeException(String.format("%s Also, an attempt to save "
+                        + "the bad file to %s failed.", badSavePath.toString()), ex);
+                }
+            }
+
             final String status = String.format("Downloaded %d bytes", size);
 
             return new Pair<>(downloadedFile, status);
