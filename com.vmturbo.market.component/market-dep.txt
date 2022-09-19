@@ -1,0 +1,717 @@
+[WARNING] 
+[WARNING] Some problems were encountered while building the effective settings
+[WARNING] Unrecognised tag: 'blocked' (position: START_TAG seen ...</url>\n            <blocked>... @28:22)  @ /Users/shravansriram/.m2/settings.xml, line 28, column 22
+[WARNING] 
+[INFO] Scanning for projects...
+[WARNING] 
+[WARNING] Some problems were encountered while building the effective model for com.vmturbo:market-component:jar:8.4.4-SNAPSHOT
+[WARNING] The expression ${artifactId} is deprecated. Please use ${project.artifactId} instead.
+[WARNING] The expression ${version} is deprecated. Please use ${project.version} instead.
+[WARNING] 
+[WARNING] It is highly recommended to fix these problems because they threaten the stability of your build.
+[WARNING] 
+[WARNING] For this reason, future Maven versions might no longer support building such malformed projects.
+[WARNING] 
+[INFO] ------------------------------------------------------------------------
+[INFO] Detecting the operating system and CPU architecture
+[INFO] ------------------------------------------------------------------------
+[INFO] os.detected.name: osx
+[INFO] os.detected.arch: x86_64
+[INFO] os.detected.classifier: osx-x86_64
+[INFO] 
+[INFO] --------------------< com.vmturbo:market-component >--------------------
+[INFO] Building market-component 8.4.4-SNAPSHOT
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/market-component-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/market-component-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/market-component-api/8.4.4-SNAPSHOT/maven-metadata.xml (784 B at 634 B/s)
+[WARNING] Could not transfer metadata com.vmturbo:market-component-api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/market-component-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:market-component-api:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:market-component-api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/market-component-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/market-component-api/8.4.4-SNAPSHOT/market-component-api-8.4.4-20220119.182405-68.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/market-component-api/8.4.4-SNAPSHOT/market-component-api-8.4.4-20220119.182405-68.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/market-component-api/8.4.4-SNAPSHOT/market-component-api-8.4.4-20220119.182405-68.pom (1.4 kB at 7.1 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/components-api-root/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/components-api-root/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/components-api-root/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api-root/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api-root/8.4.4-SNAPSHOT/maven-metadata.xml (609 B at 7.1 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:components-api-root:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/components-api-root/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api-root/8.4.4-SNAPSHOT/components-api-root-8.4.4-20220119.190350-69.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api-root/8.4.4-SNAPSHOT/components-api-root-8.4.4-20220119.190350-69.pom (2.5 kB at 18 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/Turbonomic-XL/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/Turbonomic-XL/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/Turbonomic-XL/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/Turbonomic-XL/8.4.4-SNAPSHOT/maven-metadata.xml (603 B at 3.2 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:Turbonomic-XL:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/Turbonomic-XL/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/Turbonomic-XL/8.4.4-SNAPSHOT/Turbonomic-XL-8.4.4-20220119.185900-83.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/Turbonomic-XL/8.4.4-SNAPSHOT/Turbonomic-XL-8.4.4-20220119.185900-83.pom (154 kB at 615 kB/s)
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/platform.analysis.protobuf/4.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/platform.analysis.protobuf/4.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/platform.analysis.protobuf/4.4.4-SNAPSHOT/maven-metadata.xml (793 B at 4.6 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:platform.analysis.protobuf:4.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/platform.analysis.protobuf/4.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:platform.analysis.protobuf:4.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:platform.analysis.protobuf:4.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/platform.analysis.protobuf/4.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/platform.analysis.protobuf/4.4.4-SNAPSHOT/platform.analysis.protobuf-4.4.4-20220119.190918-112.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/platform.analysis.protobuf/4.4.4-SNAPSHOT/platform.analysis.protobuf-4.4.4-20220119.190918-112.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/platform.analysis.protobuf/4.4.4-SNAPSHOT/platform.analysis.protobuf-4.4.4-20220119.190918-112.pom (2.1 kB at 10 kB/s)
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/analysis-parent/4.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/analysis-parent/4.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/analysis-parent/4.4.4-SNAPSHOT/maven-metadata.xml (607 B at 12 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:analysis-parent:4.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/analysis-parent/4.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/analysis-parent/4.4.4-SNAPSHOT/analysis-parent-4.4.4-20220119.190901-112.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/analysis-parent/4.4.4-SNAPSHOT/analysis-parent-4.4.4-20220119.190901-112.pom (3.1 kB at 58 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/OpsManager/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/OpsManager/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/OpsManager/8.4.4-SNAPSHOT/maven-metadata.xml (602 B at 11 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:OpsManager:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/OpsManager/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/OpsManager/8.4.4-SNAPSHOT/OpsManager-8.4.4-20220119.190804-108.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/OpsManager/8.4.4-SNAPSHOT/OpsManager-8.4.4-20220119.190804-108.pom (57 kB at 441 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/common-protobuf/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/common-protobuf/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/common-protobuf/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/common-protobuf/8.4.4-SNAPSHOT/maven-metadata.xml (779 B at 5.9 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:common-protobuf:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/common-protobuf/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:common-protobuf:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:common-protobuf:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/common-protobuf/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/common-protobuf/8.4.4-SNAPSHOT/common-protobuf-8.4.4-20220119.190347-69.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/common-protobuf/8.4.4-SNAPSHOT/common-protobuf-8.4.4-20220119.190347-69.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/common-protobuf/8.4.4-SNAPSHOT/common-protobuf-8.4.4-20220119.190347-69.pom (6.1 kB at 66 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.platform.sdk.common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.platform.sdk.common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.platform.sdk.common/8.4.4-SNAPSHOT/maven-metadata.xml (798 B at 16 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.platform.sdk.common:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.platform.sdk.common/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.platform.sdk.common:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.platform.sdk.common:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.platform.sdk.common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.api.conversion/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/com.vmturbo.api.conversion/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.api.conversion/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.api.conversion/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.api.conversion/8.4.4-SNAPSHOT/maven-metadata.xml (790 B at 6.5 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.api.conversion:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.api.conversion/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.api.conversion:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.api.conversion:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.api.conversion/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.api.conversion/8.4.4-SNAPSHOT/com.vmturbo.api.conversion-8.4.4-20220119.190023-69.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.api.conversion/8.4.4-SNAPSHOT/com.vmturbo.api.conversion-8.4.4-20220119.190023-69.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.api.conversion/8.4.4-SNAPSHOT/com.vmturbo.api.conversion-8.4.4-20220119.190023-69.pom (2.6 kB at 30 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.commons/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.commons/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.commons/8.4.4-SNAPSHOT/maven-metadata.xml (786 B at 15 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.commons:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.commons/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.commons:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.commons:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.commons/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.api/3.2.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.api/3.2.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.api/3.2.4-SNAPSHOT/maven-metadata.xml (1.4 kB at 15 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.api:3.2.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.api/3.2.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.api:3.2.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.api:3.2.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.api/3.2.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.api/3.2.4-SNAPSHOT/com.vmturbo.api-3.2.4-20220119.190857-16.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.api/3.2.4-SNAPSHOT/com.vmturbo.api-3.2.4-20220119.190857-16.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.api/3.2.4-SNAPSHOT/com.vmturbo.api-3.2.4-20220119.190857-16.pom (31 kB at 206 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/api.parent/3.2.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/api.parent/3.2.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/api.parent/3.2.4-SNAPSHOT/maven-metadata.xml (600 B at 11 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:api.parent:3.2.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/api.parent/3.2.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/api.parent/3.2.4-SNAPSHOT/api.parent-3.2.4-20220119.190051-16.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/api.parent/3.2.4-SNAPSHOT/api.parent-3.2.4-20220119.190051-16.pom (24 kB at 406 kB/s)
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.branding/3.2.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.branding/3.2.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.branding/3.2.4-SNAPSHOT/maven-metadata.xml (784 B at 13 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.branding:3.2.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.branding/3.2.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.branding:3.2.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.branding:3.2.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.branding/3.2.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.branding/3.2.4-SNAPSHOT/com.vmturbo.branding-3.2.4-20220119.190128-16.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.branding/3.2.4-SNAPSHOT/com.vmturbo.branding-3.2.4-20220119.190128-16.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.branding/3.2.4-SNAPSHOT/com.vmturbo.branding-3.2.4-20220119.190128-16.pom (1.5 kB at 20 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.swagger.postprocessor/3.2.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.swagger.postprocessor/3.2.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.swagger.postprocessor/3.2.4-SNAPSHOT/maven-metadata.xml (797 B at 15 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.swagger.postprocessor:3.2.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.swagger.postprocessor/3.2.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.swagger.postprocessor:3.2.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.swagger.postprocessor:3.2.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.swagger.postprocessor/3.2.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.swagger.postprocessor/3.2.4-SNAPSHOT/com.vmturbo.swagger.postprocessor-3.2.4-20220119.190140-16.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.swagger.postprocessor/3.2.4-SNAPSHOT/com.vmturbo.swagger.postprocessor-3.2.4-20220119.190140-16.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.swagger.postprocessor/3.2.4-SNAPSHOT/com.vmturbo.swagger.postprocessor-3.2.4-20220119.190140-16.pom (1.8 kB at 24 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/components-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/components-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/components-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api/8.4.4-SNAPSHOT/maven-metadata.xml (778 B at 8.8 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:components-api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/components-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:components-api:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:components-api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/components-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/components-api/8.4.4-SNAPSHOT/components-api-8.4.4-20220119.190000-83.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api/8.4.4-SNAPSHOT/components-api-8.4.4-20220119.190000-83.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api/8.4.4-SNAPSHOT/components-api-8.4.4-20220119.190000-83.pom (12 kB at 84 kB/s)
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.communication/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.communication/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.communication/8.4.4-SNAPSHOT/maven-metadata.xml (1.2 kB at 12 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.communication:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.communication/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.communication:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.communication:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.communication/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/io/grpc/grpc-api/maven-metadata.xml
+[INFO] Downloading from palantir-bintray: https://dl.bintray.com/palantir/releases/io/grpc/grpc-api/maven-metadata.xml
+[INFO] Downloading from spring-milestones: http://repo.spring.io/milestone/io/grpc/grpc-api/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/io/grpc/grpc-api/maven-metadata.xml
+[WARNING] Could not transfer metadata io.grpc:grpc-api/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/io/grpc/grpc-api/maven-metadata.xml
+[WARNING] Could not transfer metadata io.grpc:grpc-api/maven-metadata.xml from/to spring-milestones (http://repo.spring.io/milestone): Transfer failed for http://repo.spring.io/milestone/io/grpc/grpc-api/maven-metadata.xml 308 Permanent Redirect
+[WARNING] Could not transfer metadata io.grpc:grpc-api/maven-metadata.xml from/to palantir-bintray (https://dl.bintray.com/palantir/releases): Transfer failed for https://dl.bintray.com/palantir/releases/io/grpc/grpc-api/maven-metadata.xml 502 Bad Gateway
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.communication.matrix/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/com.vmturbo.communication.matrix/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.communication.matrix/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.communication.matrix/8.4.4-SNAPSHOT/maven-metadata.xml (799 B at 11 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.communication.matrix:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.communication.matrix/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.communication.matrix:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.communication.matrix:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.communication.matrix/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.communication.matrix/8.4.4-SNAPSHOT/com.vmturbo.communication.matrix-8.4.4-20220119.181216-175.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.communication.matrix/8.4.4-SNAPSHOT/com.vmturbo.communication.matrix-8.4.4-20220119.181216-175.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.communication.matrix/8.4.4-SNAPSHOT/com.vmturbo.communication.matrix-8.4.4-20220119.181216-175.pom (4.1 kB at 42 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.components/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/com.vmturbo.components/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.components/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.components/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.components/8.4.4-SNAPSHOT/maven-metadata.xml (612 B at 12 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.components:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.components/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.components/8.4.4-SNAPSHOT/com.vmturbo.components-8.4.4-20220119.175100-68.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.components/8.4.4-SNAPSHOT/com.vmturbo.components-8.4.4-20220119.175100-68.pom (20 kB at 231 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.components.common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/com.vmturbo.components.common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.components.common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.components.common/8.4.4-SNAPSHOT/maven-metadata.xml (793 B at 15 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.components.common:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.components.common/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.components.common:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.components.common:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.components.common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.components.common/8.4.4-SNAPSHOT/com.vmturbo.components.common-8.4.4-20220119.190609-69.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.components.common/8.4.4-SNAPSHOT/com.vmturbo.components.common-8.4.4-20220119.190609-69.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.components.common/8.4.4-SNAPSHOT/com.vmturbo.components.common-8.4.4-20220119.190609-69.pom (12 kB at 147 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.clustermgr.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/com.vmturbo.clustermgr.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.clustermgr.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.clustermgr.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.clustermgr.api/8.4.4-SNAPSHOT/maven-metadata.xml (790 B at 8.1 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.clustermgr.api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.clustermgr.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.clustermgr.api:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.clustermgr.api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.clustermgr.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.clustermgr.api/8.4.4-SNAPSHOT/com.vmturbo.clustermgr.api-8.4.4-20220119.190405-69.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.clustermgr.api/8.4.4-SNAPSHOT/com.vmturbo.clustermgr.api-8.4.4-20220119.190405-69.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.clustermgr.api/8.4.4-SNAPSHOT/com.vmturbo.clustermgr.api-8.4.4-20220119.190405-69.pom (2.2 kB at 22 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/kvstore/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/kvstore/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/kvstore/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/kvstore/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/kvstore/8.4.4-SNAPSHOT/maven-metadata.xml (771 B at 8.9 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:kvstore:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/kvstore/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:kvstore:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:kvstore:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/kvstore/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/kvstore/8.4.4-SNAPSHOT/kvstore-8.4.4-20220119.190418-83.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/kvstore/8.4.4-SNAPSHOT/kvstore-8.4.4-20220119.190418-83.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/kvstore/8.4.4-SNAPSHOT/kvstore-8.4.4-20220119.190418-83.pom (2.8 kB at 29 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/auth-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/auth-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/auth-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/auth-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/auth-api/8.4.4-SNAPSHOT/maven-metadata.xml (772 B at 9.7 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:auth-api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/auth-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:auth-api:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:auth-api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/auth-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/auth-api/8.4.4-SNAPSHOT/auth-api-8.4.4-20220119.190524-69.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/auth-api/8.4.4-SNAPSHOT/auth-api-8.4.4-20220119.190524-69.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/auth-api/8.4.4-SNAPSHOT/auth-api-8.4.4-20220119.190524-69.pom (3.6 kB at 50 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/oid/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/oid/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/oid/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/oid/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/oid/8.4.4-SNAPSHOT/maven-metadata.xml (767 B at 8.1 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:oid:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/oid/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:oid:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:oid:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/oid/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/oid/8.4.4-SNAPSHOT/oid-8.4.4-20220119.190423-83.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/oid/8.4.4-SNAPSHOT/oid-8.4.4-20220119.190423-83.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/oid/8.4.4-SNAPSHOT/oid-8.4.4-20220119.190423-83.pom (1.4 kB at 9.8 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/common-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/common-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/common-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/common-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/common-api/8.4.4-SNAPSHOT/maven-metadata.xml (774 B at 8.4 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:common-api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/common-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:common-api:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:common-api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/common-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/common-api/8.4.4-SNAPSHOT/common-api-8.4.4-20220119.190436-69.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/common-api/8.4.4-SNAPSHOT/common-api-8.4.4-20220119.190436-69.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/common-api/8.4.4-SNAPSHOT/common-api-8.4.4-20220119.190436-69.pom (1.7 kB at 12 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.proactivesupport/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.proactivesupport/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.proactivesupport/8.4.4-SNAPSHOT/maven-metadata.xml (795 B at 9.7 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.proactivesupport:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.proactivesupport/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.proactivesupport:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.proactivesupport:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.proactivesupport/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.repository.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/com.vmturbo.repository.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.repository.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.repository.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.repository.api/8.4.4-SNAPSHOT/maven-metadata.xml (790 B at 3.8 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.repository.api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.repository.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.repository.api:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.repository.api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.repository.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.repository.api/8.4.4-SNAPSHOT/com.vmturbo.repository.api-8.4.4-20220119.190448-69.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.repository.api/8.4.4-SNAPSHOT/com.vmturbo.repository.api-8.4.4-20220119.190448-69.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.repository.api/8.4.4-SNAPSHOT/com.vmturbo.repository.api-8.4.4-20220119.190448-69.pom (1.2 kB at 8.9 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.group.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/com.vmturbo.group.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.group.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.group.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.group.api/8.4.4-SNAPSHOT/maven-metadata.xml (785 B at 4.3 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.group.api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.group.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.group.api:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.group.api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.group.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.group.api/8.4.4-SNAPSHOT/com.vmturbo.group.api-8.4.4-20220119.190453-69.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.group.api/8.4.4-SNAPSHOT/com.vmturbo.group.api-8.4.4-20220119.190453-69.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.group.api/8.4.4-SNAPSHOT/com.vmturbo.group.api-8.4.4-20220119.190453-69.pom (1.4 kB at 7.1 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/component-status-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/component-status-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/component-status-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/component-status-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/component-status-api/8.4.4-SNAPSHOT/maven-metadata.xml (784 B at 5.6 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:component-status-api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/component-status-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:component-status-api:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:component-status-api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/component-status-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/component-status-api/8.4.4-SNAPSHOT/component-status-api-8.4.4-20220119.190527-69.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/component-status-api/8.4.4-SNAPSHOT/component-status-api-8.4.4-20220119.190527-69.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/component-status-api/8.4.4-SNAPSHOT/component-status-api-8.4.4-20220119.190527-69.pom (814 B at 8.9 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/topology-processor-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/topology-processor-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/topology-processor-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/topology-processor-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/topology-processor-api/8.4.4-SNAPSHOT/maven-metadata.xml (786 B at 11 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:topology-processor-api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/topology-processor-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:topology-processor-api:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:topology-processor-api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/topology-processor-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/topology-processor-api/8.4.4-SNAPSHOT/topology-processor-api-8.4.4-20220119.175636-68.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/topology-processor-api/8.4.4-SNAPSHOT/topology-processor-api-8.4.4-20220119.175636-68.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/topology-processor-api/8.4.4-SNAPSHOT/topology-processor-api-8.4.4-20220119.175636-68.pom (1.5 kB at 16 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/platform.analysis/4.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/platform.analysis/4.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/platform.analysis/4.4.4-SNAPSHOT/maven-metadata.xml (784 B at 14 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:platform.analysis:4.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/platform.analysis/4.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:platform.analysis:4.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:platform.analysis:4.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/platform.analysis/4.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/platform.analysis/4.4.4-SNAPSHOT/platform.analysis-4.4.4-20220119.190401-111.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/platform.analysis/4.4.4-SNAPSHOT/platform.analysis-4.4.4-20220119.190401-111.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/platform.analysis/4.4.4-SNAPSHOT/platform.analysis-4.4.4-20220119.190401-111.pom (4.7 kB at 4.2 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/cost-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/cost-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/cost-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cost-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cost-api/8.4.4-SNAPSHOT/maven-metadata.xml (772 B at 10 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:cost-api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/cost-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:cost-api:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:cost-api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/cost-api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/cost-api/8.4.4-SNAPSHOT/cost-api-8.4.4-20220119.175954-68.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cost-api/8.4.4-SNAPSHOT/cost-api-8.4.4-20220119.175954-68.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cost-api/8.4.4-SNAPSHOT/cost-api-8.4.4-20220119.175954-68.pom (983 B at 9.9 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cost-calculation/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/cost-calculation/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/cost-calculation/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cost-calculation/8.4.4-SNAPSHOT/maven-metadata.xml (780 B at 15 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:cost-calculation:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/cost-calculation/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:cost-calculation:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:cost-calculation:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/cost-calculation/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/cost-calculation/8.4.4-SNAPSHOT/cost-calculation-8.4.4-20220119.181248-68.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cost-calculation/8.4.4-SNAPSHOT/cost-calculation-8.4.4-20220119.181248-68.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cost-calculation/8.4.4-SNAPSHOT/cost-calculation-8.4.4-20220119.181248-68.pom (2.7 kB at 27 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/trax/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/trax/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/trax/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/trax/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/trax/8.4.4-SNAPSHOT/maven-metadata.xml (768 B at 5.9 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:trax:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/trax/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:trax:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:trax:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/trax/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/trax/8.4.4-SNAPSHOT/trax-8.4.4-20220119.181229-68.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/trax/8.4.4-SNAPSHOT/trax-8.4.4-20220119.181229-68.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/trax/8.4.4-SNAPSHOT/trax-8.4.4-20220119.181229-68.pom (2.7 kB at 13 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/reserved-instance-coverage-allocator/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/reserved-instance-coverage-allocator/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/reserved-instance-coverage-allocator/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/reserved-instance-coverage-allocator/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/reserved-instance-coverage-allocator/8.4.4-SNAPSHOT/maven-metadata.xml (800 B at 7.4 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:reserved-instance-coverage-allocator:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/reserved-instance-coverage-allocator/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:reserved-instance-coverage-allocator:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:reserved-instance-coverage-allocator:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/reserved-instance-coverage-allocator/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/reserved-instance-coverage-allocator/8.4.4-SNAPSHOT/reserved-instance-coverage-allocator-8.4.4-20220119.181319-68.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/reserved-instance-coverage-allocator/8.4.4-SNAPSHOT/reserved-instance-coverage-allocator-8.4.4-20220119.181319-68.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/reserved-instance-coverage-allocator/8.4.4-SNAPSHOT/reserved-instance-coverage-allocator-8.4.4-20220119.181319-68.pom (2.9 kB at 38 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/cloud-common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/cloud-common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/cloud-common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cloud-common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cloud-common/8.4.4-SNAPSHOT/maven-metadata.xml (776 B at 7.4 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:cloud-common:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/cloud-common/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:cloud-common:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:cloud-common:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/cloud-common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/cloud-common/8.4.4-SNAPSHOT/cloud-common-8.4.4-20220119.181303-68.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cloud-common/8.4.4-SNAPSHOT/cloud-common-8.4.4-20220119.181303-68.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cloud-common/8.4.4-SNAPSHOT/cloud-common-8.4.4-20220119.181303-68.pom (3.0 kB at 37 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/components-api-test/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/components-api-test/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/components-api-test/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api-test/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api-test/8.4.4-SNAPSHOT/maven-metadata.xml (783 B at 8.9 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:components-api-test:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/components-api-test/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:components-api-test:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:components-api-test:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/components-api-test/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/components-api-test/8.4.4-SNAPSHOT/components-api-test-8.4.4-20220119.190014-83.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api-test/8.4.4-SNAPSHOT/components-api-test-8.4.4-20220119.190014-83.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api-test/8.4.4-SNAPSHOT/components-api-test-8.4.4-20220119.190014-83.pom (3.2 kB at 41 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.plan.orchestrator.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/com.vmturbo.plan.orchestrator.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.plan.orchestrator.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.plan.orchestrator.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.plan.orchestrator.api/8.4.4-SNAPSHOT/maven-metadata.xml (797 B at 10.0 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.plan.orchestrator.api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.plan.orchestrator.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.plan.orchestrator.api:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.plan.orchestrator.api:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.plan.orchestrator.api/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.plan.orchestrator.api/8.4.4-SNAPSHOT/com.vmturbo.plan.orchestrator.api-8.4.4-20220119.180145-68.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.plan.orchestrator.api/8.4.4-SNAPSHOT/com.vmturbo.plan.orchestrator.api-8.4.4-20220119.180145-68.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.plan.orchestrator.api/8.4.4-SNAPSHOT/com.vmturbo.plan.orchestrator.api-8.4.4-20220119.180145-68.pom (1.5 kB at 15 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.mediation.hybrid.cloud.common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.mediation.hybrid.cloud.common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.mediation.hybrid.cloud.common/8.4.4-SNAPSHOT/maven-metadata.xml (808 B at 16 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.mediation.hybrid.cloud.common:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.mediation.hybrid.cloud.common/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.mediation.hybrid.cloud.common:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.mediation.hybrid.cloud.common:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.mediation.hybrid.cloud.common/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.mediation.util/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.mediation.util/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.mediation.util/8.4.4-SNAPSHOT/maven-metadata.xml (793 B at 11 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:com.vmturbo.mediation.util:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.mediation.util/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:com.vmturbo.mediation.util:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:com.vmturbo.mediation.util:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/com.vmturbo.mediation.util/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/com.vmturbo.mediation.util/8.4.4-SNAPSHOT/com.vmturbo.mediation.util-8.4.4-20220119.190956-108.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.mediation.util/8.4.4-SNAPSHOT/com.vmturbo.mediation.util-8.4.4-20220119.190956-108.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.mediation.util/8.4.4-SNAPSHOT/com.vmturbo.mediation.util-8.4.4-20220119.190956-108.pom (2.7 kB at 37 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/sql-utils/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/sql-utils/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/sql-utils/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/sql-utils/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/sql-utils/8.4.4-SNAPSHOT/maven-metadata.xml (773 B at 10 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:sql-utils:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/sql-utils/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:sql-utils:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:sql-utils:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/sql-utils/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/sql-utils/8.4.4-SNAPSHOT/sql-utils-8.4.4-20220119.175049-68.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/sql-utils/8.4.4-SNAPSHOT/sql-utils-8.4.4-20220119.175049-68.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/sql-utils/8.4.4-SNAPSHOT/sql-utils-8.4.4-20220119.175049-68.pom (3.6 kB at 37 kB/s)
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/sql-test-utils/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from repository.jboss.org-public: https://repository.jboss.org/nexus/content/repositories/deprecated/com/vmturbo/sql-test-utils/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/sql-test-utils/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from maven2 mirror: http://repo2.maven.org/maven2/com/vmturbo/sql-test-utils/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/sql-test-utils/8.4.4-SNAPSHOT/maven-metadata.xml (778 B at 11 kB/s)
+[WARNING] Could not transfer metadata com.vmturbo:sql-test-utils:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/sql-test-utils/8.4.4-SNAPSHOT/maven-metadata.xml
+[WARNING] Failure to transfer com.vmturbo:sql-test-utils:8.4.4-SNAPSHOT/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata com.vmturbo:sql-test-utils:8.4.4-SNAPSHOT/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/com/vmturbo/sql-test-utils/8.4.4-SNAPSHOT/maven-metadata.xml
+[INFO] Downloading from Turbo-Nexus-vmturbo: http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/com/vmturbo/sql-test-utils/8.4.4-SNAPSHOT/sql-test-utils-8.4.4-20220119.175055-68.pom
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/sql-test-utils/8.4.4-SNAPSHOT/sql-test-utils-8.4.4-20220119.175055-68.pom
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/sql-test-utils/8.4.4-SNAPSHOT/sql-test-utils-8.4.4-20220119.175055-68.pom (2.6 kB at 22 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/market-component-api/8.4.4-SNAPSHOT/market-component-api-8.4.4-20220119.182405-68.jar
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api/8.4.4-SNAPSHOT/components-api-8.4.4-20220119.190000-83.jar
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.api.conversion/8.4.4-SNAPSHOT/com.vmturbo.api.conversion-8.4.4-20220119.190023-69.jar
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/common-protobuf/8.4.4-SNAPSHOT/common-protobuf-8.4.4-20220119.190347-69.jar
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/platform.analysis.protobuf/4.4.4-SNAPSHOT/platform.analysis.protobuf-4.4.4-20220119.190918-112.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/market-component-api/8.4.4-SNAPSHOT/market-component-api-8.4.4-20220119.182405-68.jar (20 kB at 225 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.communication.matrix/8.4.4-SNAPSHOT/com.vmturbo.communication.matrix-8.4.4-20220119.181216-175.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.api.conversion/8.4.4-SNAPSHOT/com.vmturbo.api.conversion-8.4.4-20220119.190023-69.jar (29 kB at 226 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/topology-processor-api/8.4.4-SNAPSHOT/topology-processor-api-8.4.4-20220119.175636-68.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.communication.matrix/8.4.4-SNAPSHOT/com.vmturbo.communication.matrix-8.4.4-20220119.181216-175.jar (57 kB at 313 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/auth-api/8.4.4-SNAPSHOT/auth-api-8.4.4-20220119.190524-69.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api/8.4.4-SNAPSHOT/components-api-8.4.4-20220119.190000-83.jar (162 kB at 773 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/oid/8.4.4-SNAPSHOT/oid-8.4.4-20220119.190423-83.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/oid/8.4.4-SNAPSHOT/oid-8.4.4-20220119.190423-83.jar (13 kB at 46 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.repository.api/8.4.4-SNAPSHOT/com.vmturbo.repository.api-8.4.4-20220119.190448-69.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/auth-api/8.4.4-SNAPSHOT/auth-api-8.4.4-20220119.190524-69.jar (115 kB at 373 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/platform.analysis/4.4.4-SNAPSHOT/platform.analysis-4.4.4-20220119.190401-111.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/topology-processor-api/8.4.4-SNAPSHOT/topology-processor-api-8.4.4-20220119.175636-68.jar (284 kB at 845 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cost-api/8.4.4-SNAPSHOT/cost-api-8.4.4-20220119.175954-68.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.repository.api/8.4.4-SNAPSHOT/com.vmturbo.repository.api-8.4.4-20220119.190448-69.jar (33 kB at 91 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cost-calculation/8.4.4-SNAPSHOT/cost-calculation-8.4.4-20220119.181248-68.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cost-api/8.4.4-SNAPSHOT/cost-api-8.4.4-20220119.175954-68.jar (8.5 kB at 21 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/reserved-instance-coverage-allocator/8.4.4-SNAPSHOT/reserved-instance-coverage-allocator-8.4.4-20220119.181319-68.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cost-calculation/8.4.4-SNAPSHOT/cost-calculation-8.4.4-20220119.181248-68.jar (234 kB at 419 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cloud-common/8.4.4-SNAPSHOT/cloud-common-8.4.4-20220119.181303-68.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/reserved-instance-coverage-allocator/8.4.4-SNAPSHOT/reserved-instance-coverage-allocator-8.4.4-20220119.181319-68.jar (193 kB at 330 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/trax/8.4.4-SNAPSHOT/trax-8.4.4-20220119.181229-68.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/platform.analysis/4.4.4-SNAPSHOT/platform.analysis-4.4.4-20220119.190401-111.jar (606 kB at 957 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api-test/8.4.4-SNAPSHOT/components-api-test-8.4.4-20220119.190014-83.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/trax/8.4.4-SNAPSHOT/trax-8.4.4-20220119.181229-68.jar (53 kB at 80 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.group.api/8.4.4-SNAPSHOT/com.vmturbo.group.api-8.4.4-20220119.190453-69.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/cloud-common/8.4.4-SNAPSHOT/cloud-common-8.4.4-20220119.181303-68.jar (161 kB at 227 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.plan.orchestrator.api/8.4.4-SNAPSHOT/com.vmturbo.plan.orchestrator.api-8.4.4-20220119.180145-68.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/components-api-test/8.4.4-SNAPSHOT/components-api-test-8.4.4-20220119.190014-83.jar (17 kB at 23 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.mediation.util/8.4.4-SNAPSHOT/com.vmturbo.mediation.util-8.4.4-20220119.190956-108.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/platform.analysis.protobuf/4.4.4-SNAPSHOT/platform.analysis.protobuf-4.4.4-20220119.190918-112.jar (1.4 MB at 1.9 MB/s)
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.group.api/8.4.4-SNAPSHOT/com.vmturbo.group.api-8.4.4-20220119.190453-69.jar (40 kB at 52 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/sql-utils/8.4.4-SNAPSHOT/sql-utils-8.4.4-20220119.175049-68.jar
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/sql-test-utils/8.4.4-SNAPSHOT/sql-test-utils-8.4.4-20220119.175055-68.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.plan.orchestrator.api/8.4.4-SNAPSHOT/com.vmturbo.plan.orchestrator.api-8.4.4-20220119.180145-68.jar (19 kB at 25 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.components.common/8.4.4-SNAPSHOT/com.vmturbo.components.common-8.4.4-20220119.190609-69.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.mediation.util/8.4.4-SNAPSHOT/com.vmturbo.mediation.util-8.4.4-20220119.190956-108.jar (38 kB at 47 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.clustermgr.api/8.4.4-SNAPSHOT/com.vmturbo.clustermgr.api-8.4.4-20220119.190405-69.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/sql-test-utils/8.4.4-SNAPSHOT/sql-test-utils-8.4.4-20220119.175055-68.jar (42 kB at 50 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/kvstore/8.4.4-SNAPSHOT/kvstore-8.4.4-20220119.190418-83.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.clustermgr.api/8.4.4-SNAPSHOT/com.vmturbo.clustermgr.api-8.4.4-20220119.190405-69.jar (20 kB at 23 kB/s)
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/sql-utils/8.4.4-SNAPSHOT/sql-utils-8.4.4-20220119.175049-68.jar (152 kB at 174 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/common-api/8.4.4-SNAPSHOT/common-api-8.4.4-20220119.190436-69.jar
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.api/3.2.4-SNAPSHOT/com.vmturbo.api-3.2.4-20220119.190857-16.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/kvstore/8.4.4-SNAPSHOT/kvstore-8.4.4-20220119.190418-83.jar (24 kB at 27 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.branding/3.2.4-SNAPSHOT/com.vmturbo.branding-3.2.4-20220119.190128-16.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/common-api/8.4.4-SNAPSHOT/common-api-8.4.4-20220119.190436-69.jar (17 kB at 17 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.swagger.postprocessor/3.2.4-SNAPSHOT/com.vmturbo.swagger.postprocessor-3.2.4-20220119.190140-16.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.branding/3.2.4-SNAPSHOT/com.vmturbo.branding-3.2.4-20220119.190128-16.jar (3.0 kB at 3.1 kB/s)
+[INFO] Downloading from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/component-status-api/8.4.4-SNAPSHOT/component-status-api-8.4.4-20220119.190527-69.jar
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.components.common/8.4.4-SNAPSHOT/com.vmturbo.components.common-8.4.4-20220119.190609-69.jar (424 kB at 420 kB/s)
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.swagger.postprocessor/3.2.4-SNAPSHOT/com.vmturbo.swagger.postprocessor-3.2.4-20220119.190140-16.jar (15 kB at 14 kB/s)
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/component-status-api/8.4.4-SNAPSHOT/component-status-api-8.4.4-20220119.190527-69.jar (5.5 kB at 5.2 kB/s)
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/com.vmturbo.api/3.2.4-SNAPSHOT/com.vmturbo.api-3.2.4-20220119.190857-16.jar (5.4 MB at 2.6 MB/s)
+[INFO] Downloaded from Turbo-Nexus-snapshots: http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/com/vmturbo/common-protobuf/8.4.4-SNAPSHOT/common-protobuf-8.4.4-20220119.190347-69.jar (22 MB at 8.4 MB/s)
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.10:tree (default-cli) @ market-component ---
+[WARNING] Failure to transfer io.grpc:grpc-api/maven-metadata.xml from http://repo2.maven.org/maven2 was cached in the local repository, resolution will not be reattempted until the update interval of maven2 mirror has elapsed or updates are forced. Original error: Could not transfer metadata io.grpc:grpc-api/maven-metadata.xml from/to maven2 mirror (http://repo2.maven.org/maven2): Transfer failed for http://repo2.maven.org/maven2/io/grpc/grpc-api/maven-metadata.xml
+[WARNING] Failure to transfer io.grpc:grpc-api/maven-metadata.xml from http://repo.spring.io/milestone was cached in the local repository, resolution will not be reattempted until the update interval of spring-milestones has elapsed or updates are forced. Original error: Could not transfer metadata io.grpc:grpc-api/maven-metadata.xml from/to spring-milestones (http://repo.spring.io/milestone): Transfer failed for http://repo.spring.io/milestone/io/grpc/grpc-api/maven-metadata.xml 308 Permanent Redirect
+[WARNING] Failure to transfer io.grpc:grpc-api/maven-metadata.xml from https://dl.bintray.com/palantir/releases was cached in the local repository, resolution will not be reattempted until the update interval of palantir-bintray has elapsed or updates are forced. Original error: Could not transfer metadata io.grpc:grpc-api/maven-metadata.xml from/to palantir-bintray (https://dl.bintray.com/palantir/releases): Transfer failed for https://dl.bintray.com/palantir/releases/io/grpc/grpc-api/maven-metadata.xml 502 Bad Gateway
+[INFO] com.vmturbo:market-component:jar:8.4.4-SNAPSHOT
+[INFO] +- org.apache.poi:poi-ooxml:jar:4.1.1:test
+[INFO] |  +- org.apache.poi:poi:jar:4.1.1:test
+[INFO] |  |  +- commons-codec:commons-codec:jar:1.15:compile
+[INFO] |  |  +- org.apache.commons:commons-collections4:jar:4.1:compile
+[INFO] |  |  \- org.apache.commons:commons-math3:jar:3.6.1:test
+[INFO] |  +- org.apache.poi:poi-ooxml-schemas:jar:4.1.1:test
+[INFO] |  |  \- org.apache.xmlbeans:xmlbeans:jar:3.1.0:test
+[INFO] |  +- org.apache.commons:commons-compress:jar:1.19:test
+[INFO] |  \- com.github.virtuald:curvesapi:jar:1.06:test
+[INFO] +- io.prometheus:simpleclient:jar:0.4.0:compile
+[INFO] +- org.apache.logging.log4j:log4j-slf4j-impl:jar:2.17.1:compile
+[INFO] |  +- org.slf4j:slf4j-api:jar:1.7.25:compile
+[INFO] |  \- org.apache.logging.log4j:log4j-api:jar:2.17.1:compile
+[INFO] +- org.apache.logging.log4j:log4j-1.2-api:jar:2.17.1:compile
+[INFO] +- org.apache.logging.log4j:log4j-core:jar:2.17.1:compile
+[INFO] +- com.google.protobuf:protobuf-java:jar:3.17.3:compile
+[INFO] +- com.vmturbo:market-component-api:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  +- com.vmturbo:platform.analysis.protobuf:jar:4.4.4-SNAPSHOT:compile
+[INFO] |  +- org.springframework:spring-context:jar:5.3.8:compile
+[INFO] |  |  +- org.springframework:spring-aop:jar:5.3.8:compile
+[INFO] |  |  \- org.springframework:spring-expression:jar:5.3.8:compile
+[INFO] |  +- com.vmturbo:common-protobuf:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  |  +- javax.annotation:javax.annotation-api:jar:1.3.2:compile
+[INFO] |  |  +- com.github.jbellis:jamm:jar:0.3.3:compile
+[INFO] |  |  \- com.vmturbo:com.vmturbo.api.conversion:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  +- com.vmturbo:components-api:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  |  +- io.prometheus:simpleclient_common:jar:0.4.0:compile
+[INFO] |  |  +- org.apache.kafka:kafka-clients:jar:2.8.1:compile
+[INFO] |  |  |  +- com.github.luben:zstd-jni:jar:1.4.9-1:compile
+[INFO] |  |  |  +- org.lz4:lz4-java:jar:1.4:compile
+[INFO] |  |  |  \- org.xerial.snappy:snappy-java:jar:1.1.8.1:compile
+[INFO] |  |  +- io.grpc:grpc-services:jar:1.37.0:compile
+[INFO] |  |  \- io.opentracing.contrib:opentracing-kafka-client:jar:0.1.13:compile
+[INFO] |  \- com.google.code.findbugs:jsr305:jar:2.0.3:compile
+[INFO] +- org.springframework:spring-websocket:jar:5.3.8:compile
+[INFO] |  +- org.springframework:spring-core:jar:5.3.8:compile
+[INFO] |  |  \- org.springframework:spring-jcl:jar:5.3.8:compile
+[INFO] |  \- org.springframework:spring-web:jar:5.3.8:compile
+[INFO] +- com.vmturbo:com.vmturbo.communication:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  +- com.google.guava:guava:jar:28.2-jre:compile
+[INFO] |  |  +- com.google.guava:failureaccess:jar:1.0.1:compile
+[INFO] |  |  +- com.google.guava:listenablefuture:jar:9999.0-empty-to-avoid-conflict-with-guava:compile
+[INFO] |  |  \- com.google.j2objc:j2objc-annotations:jar:1.3:compile
+[INFO] |  +- org.apache.tomcat:tomcat-websocket:jar:9.0.54:compile
+[INFO] |  |  +- org.apache.tomcat:tomcat-servlet-api:jar:9.0.54:compile
+[INFO] |  |  +- org.apache.tomcat:tomcat-websocket-api:jar:9.0.54:compile
+[INFO] |  |  +- org.apache.tomcat:tomcat-juli:jar:9.0.54:compile
+[INFO] |  |  \- org.apache.tomcat:tomcat-util:jar:9.0.54:compile
+[INFO] |  +- org.apache.tomcat:tomcat-api:jar:9.0.54:compile
+[INFO] |  +- javax.websocket:javax.websocket-api:jar:1.1:compile
+[INFO] |  \- org.apache.commons:commons-lang3:jar:3.12.0:compile
+[INFO] +- com.vmturbo:com.vmturbo.communication.matrix:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  +- commons-io:commons-io:jar:2.5:compile
+[INFO] |  +- org.apache.logging.log4j:log4j-web:jar:2.17.1:compile
+[INFO] |  +- com.lmax:disruptor:jar:3.3.6:compile
+[INFO] |  \- com.google.code.gson:gson:jar:2.8.7:compile
+[INFO] +- com.vmturbo:topology-processor-api:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  \- com.vmturbo:auth-api:jar:8.4.4-SNAPSHOT:compile
+[INFO] |     +- com.vmturbo:oid:jar:8.4.4-SNAPSHOT:compile
+[INFO] |     |  \- org.roaringbitmap:RoaringBitmap:jar:0.8.13:compile
+[INFO] |     |     \- org.roaringbitmap:shims:jar:0.8.13:runtime
+[INFO] |     +- io.jsonwebtoken:jjwt:jar:0.7.0:compile
+[INFO] |     +- javax.xml.bind:jaxb-api:jar:2.3.1:compile
+[INFO] |     |  \- javax.activation:javax.activation-api:jar:1.2.0:compile
+[INFO] |     +- org.springframework.security:spring-security-config:jar:5.5.1:compile
+[INFO] |     +- org.springframework.security:spring-security-web:jar:5.5.1:compile
+[INFO] |     \- com.vmturbo:com.vmturbo.repository.api:jar:8.4.4-SNAPSHOT:compile
+[INFO] +- com.vmturbo:platform.analysis:jar:4.4.4-SNAPSHOT:compile
+[INFO] |  +- org.checkerframework:checker-qual:jar:1.9.5:compile
+[INFO] |  \- org.javatuples:javatuples:jar:1.2:compile
+[INFO] +- com.vmturbo:com.vmturbo.platform.sdk.common:jar:8.4.4-SNAPSHOT:compile
+[INFO] +- com.vmturbo:com.vmturbo.commons:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  +- org.slf4j:jul-to-slf4j:jar:1.7.25:compile
+[INFO] |  \- org.javassist:javassist:jar:3.21.0-GA:compile
+[INFO] +- com.vmturbo:cost-api:jar:8.4.4-SNAPSHOT:compile
+[INFO] +- com.vmturbo:cost-calculation:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  +- de.vandermeer:asciitable:jar:0.3.2:compile
+[INFO] |  |  +- de.vandermeer:ascii-utf-themes:jar:0.0.1:compile
+[INFO] |  |  |  \- de.vandermeer:skb-interfaces:jar:0.0.1:compile
+[INFO] |  |  |     \- org.antlr:antlr4:jar:4.5.1:compile
+[INFO] |  |  \- de.vandermeer:char-translation:jar:0.0.2:compile
+[INFO] |  \- org.antlr:ST4:jar:4.0.8:compile
+[INFO] |     \- org.antlr:antlr-runtime:jar:3.5.2:compile
+[INFO] +- com.vmturbo:reserved-instance-coverage-allocator:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  +- com.vmturbo:cloud-common:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  \- com.vmturbo:com.vmturbo.proactivesupport:jar:8.4.4-SNAPSHOT:compile
+[INFO] +- com.vmturbo:trax:jar:8.4.4-SNAPSHOT:compile
+[INFO] +- com.google.protobuf:protobuf-java-util:jar:3.17.3:compile
+[INFO] |  \- com.google.errorprone:error_prone_annotations:jar:2.3.4:compile
+[INFO] +- com.vmturbo:components-api-test:jar:8.4.4-SNAPSHOT:test
+[INFO] |  +- org.eclipse.jetty:jetty-server:jar:9.4.44.v20210927:compile
+[INFO] |  |  +- javax.servlet:javax.servlet-api:jar:3.1.0:compile
+[INFO] |  |  +- org.eclipse.jetty:jetty-http:jar:9.4.44.v20210927:compile
+[INFO] |  |  |  \- org.eclipse.jetty:jetty-util:jar:9.4.44.v20210927:compile
+[INFO] |  |  \- org.eclipse.jetty:jetty-io:jar:9.4.44.v20210927:compile
+[INFO] |  +- org.eclipse.jetty.websocket:websocket-server:jar:9.4.44.v20210927:test
+[INFO] |  |  +- org.eclipse.jetty.websocket:websocket-common:jar:9.4.44.v20210927:test
+[INFO] |  |  |  \- org.eclipse.jetty.websocket:websocket-api:jar:9.4.44.v20210927:test
+[INFO] |  |  +- org.eclipse.jetty.websocket:websocket-client:jar:9.4.44.v20210927:test
+[INFO] |  |  |  \- org.eclipse.jetty:jetty-client:jar:9.4.44.v20210927:test
+[INFO] |  |  \- org.eclipse.jetty.websocket:websocket-servlet:jar:9.4.44.v20210927:test
+[INFO] |  +- org.eclipse.jetty.websocket:javax-websocket-server-impl:jar:9.4.44.v20210927:test
+[INFO] |  |  +- org.eclipse.jetty:jetty-annotations:jar:9.4.44.v20210927:test
+[INFO] |  |  |  +- org.eclipse.jetty:jetty-plus:jar:9.4.44.v20210927:test
+[INFO] |  |  |  |  \- org.eclipse.jetty:jetty-jndi:jar:9.4.44.v20210927:test
+[INFO] |  |  |  +- org.eclipse.jetty:jetty-webapp:jar:9.4.44.v20210927:test
+[INFO] |  |  |  |  \- org.eclipse.jetty:jetty-xml:jar:9.4.44.v20210927:test
+[INFO] |  |  |  +- org.ow2.asm:asm:jar:9.2:test
+[INFO] |  |  |  \- org.ow2.asm:asm-commons:jar:9.2:test
+[INFO] |  |  |     +- org.ow2.asm:asm-tree:jar:9.2:test
+[INFO] |  |  |     \- org.ow2.asm:asm-analysis:jar:9.2:test
+[INFO] |  |  \- org.eclipse.jetty.websocket:javax-websocket-client-impl:jar:9.4.44.v20210927:test
+[INFO] |  |     \- javax.websocket:javax.websocket-client-api:jar:1.0:test
+[INFO] |  +- io.grpc:grpc-protobuf:jar:1.37.0:compile
+[INFO] |  |  +- io.grpc:grpc-api:jar:1.37.0:compile
+[INFO] |  |  |  \- io.grpc:grpc-context:jar:1.37.0:compile
+[INFO] |  |  +- com.google.api.grpc:proto-google-common-protos:jar:2.0.1:compile
+[INFO] |  |  +- io.grpc:grpc-protobuf-lite:jar:1.37.0:compile
+[INFO] |  |  \- org.codehaus.mojo:animal-sniffer-annotations:jar:1.19:runtime
+[INFO] |  +- io.grpc:grpc-stub:jar:1.37.0:compile
+[INFO] |  +- org.springframework:spring-webmvc:jar:5.3.8:compile
+[INFO] |  \- org.hamcrest:hamcrest-core:jar:2.1:test
+[INFO] |     \- org.hamcrest:hamcrest:jar:2.1:test
+[INFO] +- com.vmturbo:com.vmturbo.group.api:jar:8.4.4-SNAPSHOT:compile
+[INFO] +- com.vmturbo:com.vmturbo.plan.orchestrator.api:jar:8.4.4-SNAPSHOT:compile
+[INFO] +- pl.pragmatists:JUnitParams:jar:1.0.4:test
+[INFO] +- com.vmturbo:com.vmturbo.mediation.hybrid.cloud.common:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  +- com.vmturbo:com.vmturbo.mediation.util:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  |  \- com.sun.xml.bind:jaxb-impl:jar:2.3.1:compile
+[INFO] |  +- org.apache.httpcomponents:httpclient:jar:4.5.13:compile
+[INFO] |  |  \- commons-logging:commons-logging:jar:1.2:compile
+[INFO] |  \- org.apache.httpcomponents:httpcore:jar:4.4.13:compile
+[INFO] +- it.unimi.dsi:fastutil:jar:8.3.1:compile
+[INFO] +- com.vmturbo:sql-utils:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  +- org.jooq:jooq:jar:3.12.3:compile
+[INFO] |  |  \- org.reactivestreams:reactive-streams:jar:1.0.2:compile
+[INFO] |  +- org.mariadb.jdbc:mariadb-java-client:jar:2.3.0:compile
+[INFO] |  +- org.postgresql:postgresql:jar:42.2.23:compile
+[INFO] |  +- com.sun.istack:istack-commons-runtime:jar:3.0.7:compile
+[INFO] |  +- org.flywaydb:flyway-core:jar:4.0.3:compile
+[INFO] |  +- org.springframework:spring-jdbc:jar:5.3.8:compile
+[INFO] |  |  \- org.springframework:spring-tx:jar:5.3.8:compile
+[INFO] |  +- com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:jar:2.11.4:compile
+[INFO] |  +- com.zaxxer:HikariCP:jar:4.0.3:compile
+[INFO] |  \- io.dropwizard.metrics:metrics-core:jar:4.2.3:compile
+[INFO] +- com.vmturbo:sql-test-utils:jar:8.4.4-SNAPSHOT:test
+[INFO] +- com.vmturbo:com.vmturbo.components.common:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  +- org.eclipse.jetty:jetty-servlet:jar:9.4.44.v20210927:compile
+[INFO] |  |  +- org.eclipse.jetty:jetty-security:jar:9.4.44.v20210927:compile
+[INFO] |  |  \- org.eclipse.jetty:jetty-util-ajax:jar:9.4.44.v20210927:compile
+[INFO] |  +- io.grpc:grpc-netty:jar:1.37.0:compile
+[INFO] |  |  +- io.grpc:grpc-core:jar:1.37.0:compile
+[INFO] |  |  |  \- com.google.android:annotations:jar:4.1.1.4:runtime
+[INFO] |  |  +- io.netty:netty-codec-http2:jar:4.1.52.Final:compile
+[INFO] |  |  |  +- io.netty:netty-common:jar:4.1.52.Final:compile
+[INFO] |  |  |  +- io.netty:netty-buffer:jar:4.1.52.Final:compile
+[INFO] |  |  |  +- io.netty:netty-transport:jar:4.1.52.Final:compile
+[INFO] |  |  |  |  \- io.netty:netty-resolver:jar:4.1.52.Final:compile
+[INFO] |  |  |  +- io.netty:netty-codec:jar:4.1.52.Final:compile
+[INFO] |  |  |  +- io.netty:netty-handler:jar:4.1.52.Final:compile
+[INFO] |  |  |  \- io.netty:netty-codec-http:jar:4.1.52.Final:compile
+[INFO] |  |  +- io.netty:netty-handler-proxy:jar:4.1.52.Final:runtime
+[INFO] |  |  |  \- io.netty:netty-codec-socks:jar:4.1.52.Final:runtime
+[INFO] |  |  \- io.perfmark:perfmark-api:jar:0.23.0:runtime
+[INFO] |  +- com.vmturbo:com.vmturbo.clustermgr.api:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  |  \- javax.ws.rs:javax.ws.rs-api:jar:2.0:compile
+[INFO] |  +- com.vmturbo:kvstore:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  |  +- com.ecwid.consul:consul-api:jar:1.4.5:compile
+[INFO] |  |  \- org.springframework.vault:spring-vault-core:jar:1.1.3.RELEASE:compile
+[INFO] |  +- com.vmturbo:common-api:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  |  \- com.vmturbo:com.vmturbo.api:jar:3.2.4-SNAPSHOT:compile
+[INFO] |  |     +- com.vmturbo:com.vmturbo.branding:jar:3.2.4-SNAPSHOT:compile
+[INFO] |  |     +- com.vmturbo:com.vmturbo.swagger.postprocessor:jar:3.2.4-SNAPSHOT:compile
+[INFO] |  |     +- io.swagger.core.v3:swagger-jaxrs2:jar:2.1.2:compile
+[INFO] |  |     |  +- io.github.classgraph:classgraph:jar:4.8.65:compile
+[INFO] |  |     |  +- io.swagger.core.v3:swagger-models:jar:2.1.2:compile
+[INFO] |  |     |  +- io.swagger.core.v3:swagger-annotations:jar:2.1.2:compile
+[INFO] |  |     |  +- io.swagger.core.v3:swagger-integration:jar:2.1.2:compile
+[INFO] |  |     |  |  \- io.swagger.core.v3:swagger-core:jar:2.1.2:compile
+[INFO] |  |     |  \- com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:jar:2.11.4:compile
+[INFO] |  |     |     \- com.fasterxml.jackson.jaxrs:jackson-jaxrs-base:jar:2.11.4:compile
+[INFO] |  |     +- io.swagger.core.v3:swagger-jaxrs2-servlet-initializer-v2:jar:2.1.2:compile
+[INFO] |  |     +- com.fasterxml.jackson.dataformat:jackson-dataformat-xml:jar:2.11.4:compile
+[INFO] |  |     |  +- com.fasterxml.jackson.module:jackson-module-jaxb-annotations:jar:2.11.4:compile
+[INFO] |  |     |  |  +- jakarta.xml.bind:jakarta.xml.bind-api:jar:2.3.2:compile
+[INFO] |  |     |  |  \- jakarta.activation:jakarta.activation-api:jar:1.2.1:compile
+[INFO] |  |     |  +- org.codehaus.woodstox:stax2-api:jar:4.2.1:compile
+[INFO] |  |     |  \- com.fasterxml.woodstox:woodstox-core:jar:6.2.3:compile
+[INFO] |  |     +- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:jar:2.11.4:compile
+[INFO] |  |     +- org.springframework.hateoas:spring-hateoas:jar:0.17.0.RELEASE:compile
+[INFO] |  |     +- commons-fileupload:commons-fileupload:jar:1.4:compile
+[INFO] |  |     +- io.springfox:springfox-swagger2:jar:2.9.2:compile
+[INFO] |  |     |  +- io.springfox:springfox-spi:jar:2.9.2:compile
+[INFO] |  |     |  |  \- io.springfox:springfox-core:jar:2.9.2:compile
+[INFO] |  |     |  |     \- net.bytebuddy:byte-buddy:jar:1.8.12:compile
+[INFO] |  |     |  +- io.springfox:springfox-schema:jar:2.9.2:compile
+[INFO] |  |     |  +- io.springfox:springfox-swagger-common:jar:2.9.2:compile
+[INFO] |  |     |  +- io.springfox:springfox-spring-web:jar:2.9.2:compile
+[INFO] |  |     |  +- com.fasterxml:classmate:jar:1.4.0:compile
+[INFO] |  |     |  +- org.springframework.plugin:spring-plugin-core:jar:1.2.0.RELEASE:compile
+[INFO] |  |     |  +- org.springframework.plugin:spring-plugin-metadata:jar:1.2.0.RELEASE:compile
+[INFO] |  |     |  \- org.mapstruct:mapstruct:jar:1.2.0.Final:compile
+[INFO] |  |     +- jakarta.validation:jakarta.validation-api:jar:2.0.2:compile
+[INFO] |  |     +- io.swagger:swagger-jersey2-jaxrs:jar:1.5.22:compile
+[INFO] |  |     |  +- io.swagger:swagger-jaxrs:jar:1.5.22:compile
+[INFO] |  |     |  |  +- io.swagger:swagger-core:jar:1.5.22:compile
+[INFO] |  |     |  |  |  \- io.swagger:swagger-models:jar:1.5.22:compile
+[INFO] |  |     |  |  \- org.reflections:reflections:jar:0.9.12:compile
+[INFO] |  |     |  +- org.glassfish.jersey.containers:jersey-container-servlet-core:jar:2.25.1:compile
+[INFO] |  |     |  |  \- org.glassfish.jersey.core:jersey-server:jar:2.25.1:compile
+[INFO] |  |     |  \- org.glassfish.jersey.media:jersey-media-multipart:jar:2.25.1:compile
+[INFO] |  |     |     \- org.jvnet.mimepull:mimepull:jar:1.9.6:compile
+[INFO] |  |     \- org.hibernate.validator:hibernate-validator:jar:6.0.22.Final:compile
+[INFO] |  |        +- javax.validation:validation-api:jar:2.0.1.Final:compile
+[INFO] |  |        \- org.jboss.logging:jboss-logging:jar:3.3.2.Final:compile
+[INFO] |  +- org.springframework:spring-beans:jar:5.3.8:compile
+[INFO] |  +- commons-lang:commons-lang:jar:2.6:compile
+[INFO] |  +- io.projectreactor:reactor-core:jar:3.3.10.RELEASE:compile
+[INFO] |  +- com.cloudbees:syslog-java-client:jar:1.1.7:compile
+[INFO] |  +- org.springframework.security:spring-security-core:jar:5.5.1:compile
+[INFO] |  |  \- org.springframework.security:spring-security-crypto:jar:5.5.1:compile
+[INFO] |  +- com.fasterxml.jackson.core:jackson-annotations:jar:2.11.4:compile
+[INFO] |  +- com.fasterxml.jackson.core:jackson-core:jar:2.11.4:compile
+[INFO] |  +- com.fasterxml.jackson.core:jackson-databind:jar:2.11.4:compile
+[INFO] |  +- org.glassfish.jersey.core:jersey-client:jar:2.17:compile
+[INFO] |  |  +- org.glassfish.jersey.core:jersey-common:jar:2.17:compile
+[INFO] |  |  |  \- org.glassfish.jersey.bundles.repackaged:jersey-guava:jar:2.17:compile
+[INFO] |  |  +- org.glassfish.hk2:hk2-api:jar:2.4.0-b10:compile
+[INFO] |  |  |  +- org.glassfish.hk2:hk2-utils:jar:2.4.0-b10:compile
+[INFO] |  |  |  \- org.glassfish.hk2.external:aopalliance-repackaged:jar:2.4.0-b10:compile
+[INFO] |  |  +- org.glassfish.hk2.external:javax.inject:jar:2.4.0-b10:compile
+[INFO] |  |  \- org.glassfish.hk2:hk2-locator:jar:2.4.0-b10:compile
+[INFO] |  +- org.glassfish.jersey.media:jersey-media-jaxb:jar:2.17:compile
+[INFO] |  |  \- org.glassfish.hk2:osgi-resource-locator:jar:1.0.1:compile
+[INFO] |  +- io.swagger:swagger-annotations:jar:1.5.13:compile
+[INFO] |  +- org.yaml:snakeyaml:jar:1.26:compile
+[INFO] |  +- org.apache.commons:commons-email:jar:1.5:compile
+[INFO] |  |  \- com.sun.mail:javax.mail:jar:1.5.6:compile
+[INFO] |  |     \- javax.activation:activation:jar:1.1:compile
+[INFO] |  +- io.opentracing:opentracing-api:jar:0.33.0:compile
+[INFO] |  +- io.opentracing:opentracing-noop:jar:0.33.0:compile
+[INFO] |  +- io.opentracing:opentracing-util:jar:0.33.0:compile
+[INFO] |  +- io.opentracing.contrib:opentracing-concurrent:jar:0.4.0:compile
+[INFO] |  +- io.opentracing.contrib:opentracing-grpc:jar:0.2.1:compile
+[INFO] |  +- io.jaegertracing:jaeger-client:jar:1.6.0:compile
+[INFO] |  |  +- io.jaegertracing:jaeger-thrift:jar:1.6.0:compile
+[INFO] |  |  |  +- org.apache.thrift:libthrift:jar:0.14.1:compile
+[INFO] |  |  |  \- com.squareup.okhttp3:okhttp:jar:4.9.0:compile
+[INFO] |  |  |     +- com.squareup.okio:okio:jar:2.8.0:compile
+[INFO] |  |  |     |  \- org.jetbrains.kotlin:kotlin-stdlib-common:jar:1.4.0:compile
+[INFO] |  |  |     \- org.jetbrains.kotlin:kotlin-stdlib:jar:1.4.10:compile
+[INFO] |  |  |        \- org.jetbrains:annotations:jar:13.0:compile
+[INFO] |  |  +- io.jaegertracing:jaeger-core:jar:1.6.0:compile
+[INFO] |  |  \- io.jaegertracing:jaeger-tracerresolver:jar:1.6.0:compile
+[INFO] |  |     \- io.opentracing.contrib:opentracing-tracerresolver:jar:0.1.8:compile
+[INFO] |  +- io.prometheus:simpleclient_servlet:jar:0.4.0:compile
+[INFO] |  +- io.prometheus:simpleclient_hotspot:jar:0.4.0:compile
+[INFO] |  +- me.dinowernli:java-grpc-prometheus:jar:0.3.0:compile
+[INFO] |  +- com.vmturbo:component-status-api:jar:8.4.4-SNAPSHOT:compile
+[INFO] |  \- org.bouncycastle:bcprov-jdk15on:jar:1.69:compile
+[INFO] +- org.immutables:value:jar:2.8.8:provided
+[INFO] +- junit:junit:jar:4.12:test
+[INFO] +- org.springframework:spring-test:jar:5.3.8:test
+[INFO] +- org.mockito:mockito-core:jar:1.10.19:test
+[INFO] |  \- org.objenesis:objenesis:jar:2.1:compile
+[INFO] \- org.hamcrest:hamcrest-all:jar:1.3:test
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  26.519 s
+[INFO] Finished at: 2022-01-19T14:11:05-05:00
+[INFO] ------------------------------------------------------------------------
