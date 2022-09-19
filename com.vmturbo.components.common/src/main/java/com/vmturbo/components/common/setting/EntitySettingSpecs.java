@@ -1213,7 +1213,7 @@ public enum EntitySettingSpecs {
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE),
-            numeric(0, 240, 0),
+            numeric(0, 240, 30),
             true);
 
     private static final Logger logger = LogManager.getLogger();
