@@ -64,6 +64,17 @@ public class MeterResolverStage<E extends ProbeStageEnum> extends
                     .putPricing(meter));
             });
 
+            int totalMeters = ignored + resolved;
+
+            // If something goes wrong and we get no pricing, abort rather than creating
+            // an empty pricetable that overwrites valid pricing with nothing.
+
+            if (resolved == 0) {
+                throw new PipelineStageException(String.format(
+                    "0 out of %d meters resolved. Aborting, will not create an empty price table.",
+                    totalMeters));
+            }
+
             final String status = String.format("%d meters of interest (%d distinct IDs), %d ignored",
                 resolved, resolvedById.size(), ignored);
 

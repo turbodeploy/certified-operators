@@ -1,11 +1,14 @@
 package com.vmturbo.mediation.azure.pricing.fetcher;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
@@ -28,6 +31,7 @@ import org.junit.rules.TemporaryFolder;
 
 import com.vmturbo.mediation.azure.AzureApiException;
 import com.vmturbo.mediation.azure.AzureConfig;
+import com.vmturbo.mediation.azure.AzureProbeException;
 import com.vmturbo.mediation.azure.pricing.AzurePricingAccount;
 import com.vmturbo.mediation.connector.azure.AzureCloudType;
 import com.vmturbo.mediation.shared.httpsimulator.RecordMode;
@@ -184,8 +188,8 @@ public class MCAPricesheetFetcherTest {
 
         boolean liveDownload = false;
         if (StringUtils.isNotBlank(account.getProxyHost())) {
-            // Wiremock simulation
-            propertyProvider = getPropertyProvider(RecordMode.PLAYBACK);
+            // Wiremock simulation. Allow for the small test file size.
+            propertyProvider = getPropertyProvider(RecordMode.PLAYBACK, 2048);
         } else {
             propertyProvider = IProbePropertySpec::getDefaultValue;
             liveDownload = true;
@@ -212,6 +216,13 @@ public class MCAPricesheetFetcherTest {
                         "__files/pricesheet.zip").toFile();
                 Assert.assertTrue(FileUtils.contentEquals(expectedData, downloadedFile.toFile()));
             }
+
+            // Verify that we didn't save a "bad" download
+
+            final Path savedTooSmallFile = downloadDir.toPath()
+                    .resolve(MCAPricesheetFetcher.MCA_TOO_SMALL_SAVE_FILENAME);
+
+            assertFalse(Files.exists(savedTooSmallFile));
         } finally {
             wireMockServer.shutdown();
             if (!liveDownload) {
@@ -235,7 +246,7 @@ public class MCAPricesheetFetcherTest {
         System.out.println("Stub mapping size: " + wireMockServer.getStubMappings().size());
         wireMockServer.start();
 
-        final IPropertyProvider propertyProvider = getPropertyProvider(RecordMode.PLAYBACK);
+        final IPropertyProvider propertyProvider = getPropertyProvider(RecordMode.PLAYBACK, 2048);
         final AzurePricingAccount intialFailureAccount = getFailAccount(INITIAL_FALURE_PROFILE);
         final AzurePricingAccount pollingFailureAccount = getFailAccount(POLLING_FALURE_PROFILE);
         final AzurePricingAccount downloadFailureAccount = getFailAccount(DOWNLOAD_FALURE_PROFILE);
@@ -261,8 +272,59 @@ public class MCAPricesheetFetcherTest {
         }
     }
 
+
+    /**
+     * Test downloading a price sheet, but the price sheet is to small to be plausibly valid,
+     * so the download is considered failed.
+     *
+     * @throws Exception indicates a test failure
+     */
+    @Test
+    public void testFileTooSmall() throws Exception {
+        IPropertyProvider propertyProvider = getPropertyProvider(RecordMode.PLAYBACK, 99999999999999L);
+
+        if (logWiremockRequests) {
+            wireMockServer.addMockServiceRequestListener(MCAPricesheetFetcherTest::requestReceived);
+        }
+
+        System.out.println("Stub mapping size: " + wireMockServer.getStubMappings().size());
+        wireMockServer.start();
+
+        // Use the real recording that succeeds, which would make the download succeed,
+        // if it weren't for the file size.
+        final AzurePricingAccount account = getFailAccount(MCA_BILLING_PROFILE);
+
+        try {
+            final File downloadDir = tmpFolder.newFolder("pricesheet");
+
+            // Verify that we don't have a saved "bad" download yet
+
+            final Path savedTooSmallFile = downloadDir.toPath()
+                    .resolve(MCAPricesheetFetcher.MCA_TOO_SMALL_SAVE_FILENAME);
+
+            assertFalse(Files.exists(savedTooSmallFile));
+
+            MCAPricesheetFetcher client = new MCAPricesheetFetcher(downloadDir.toPath());
+            AzureProbeException ex = assertThrows(AzureProbeException.class, () -> {
+                client.fetchPricing(account, propertyProvider);
+            });
+
+            // The bad file should now have been saved for analysis.
+
+            assertTrue(Files.exists(savedTooSmallFile));
+            File expectedData = Paths.get(getWireMockSourcePath()).resolve(
+                "__files/pricesheet.zip").toFile();
+
+            Assert.assertTrue(FileUtils.contentEquals(expectedData, savedTooSmallFile.toFile()));
+        } finally {
+            wireMockServer.shutdown();
+            wireMockServer.checkForUnmatchedRequests();
+        }
+    }
+
     @Nonnull
-    private static IPropertyProvider getPropertyProvider(@Nonnull RecordMode recordMode) {
+    private static IPropertyProvider getPropertyProvider(
+            @Nonnull RecordMode recordMode, long minFileSize) {
         return new IPropertyProvider() {
             @SuppressWarnings("unchecked")
             @Override
@@ -272,6 +334,8 @@ public class MCAPricesheetFetcherTest {
                     return (T)recordMode;
                 } else if (WireMockRecorder.ENABLE_JSON_PRETTY_PRINT.equals(property)) {
                     return (T)Boolean.TRUE;
+                } else if (MCAPricesheetFetcher.MINIMUM_FILE_SIZE.equals(property)) {
+                    return (T)(Long)minFileSize;
                 } else {
                     return property.getDefaultValue();
                 }
