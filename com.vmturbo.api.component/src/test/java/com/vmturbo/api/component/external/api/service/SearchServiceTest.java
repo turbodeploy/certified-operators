@@ -8,13 +8,13 @@ import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.U
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getNonPaginatedSearchResults;
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getPaginatedSearchResults;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -51,6 +51,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -79,7 +80,6 @@ import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
-import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -88,8 +88,6 @@ import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
-import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
-import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EntityDetailType;
@@ -1649,27 +1647,21 @@ public class SearchServiceTest {
                 .thenReturn(multiEntityRequest);
 
         when(multiEntityRequest.getSEMap()).then(invocation -> entityMap);
+        when(groupExpander.getGroup(any())).thenReturn(Optional.empty());
+        when(groupsService.expandUuids(any(), any(), any())).thenReturn(ImmutableSet.of(1L, 2L));
+        final SearchPaginationRequest paginationRequest = new SearchPaginationRequest("0", 10, true,
+                SearchOrderBy.SEVERITY.name());
+        RepositoryApi.PaginatedSearchRequest searchReq = ApiTestUtils.mockPaginatedSearchRequest(
+                paginationRequest, entities);
+        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(searchReq);
+        SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request,
+                paginationRequest, null, null);
 
-        final ArgumentCaptor<List<BaseApiDTO>> resultCaptor =
-                ArgumentCaptor.forClass((Class)List.class);
-        final SearchPaginationRequest paginationRequest = mock(SearchPaginationRequest.class);
-        Mockito.when(paginationRequest.getCursor()).thenReturn(Optional.empty());
-        Mockito.when(paginationRequest.allResultsResponse(any()))
-                .thenReturn(mock(SearchPaginationResponse.class));
-        Mockito.when(paginationRequest.getOrderBy())
-                .thenReturn(SearchOrderBy.NAME);
+        final List<Long> resultIds = response.getRawResults().stream().map(BaseApiDTO::getUuid).map(
+                uuid -> Long.parseLong(uuid)).collect(Collectors.toList());
 
-        searchService.getMembersBasedOnFilter("", request, paginationRequest, null, null);
-        verify(paginationRequest).allResultsResponse(resultCaptor.capture());
-
-        final List<Long> resultIds = resultCaptor.getValue()
-                .stream()
-                .map(BaseApiDTO::getUuid)
-                .map(Long::parseLong)
-                .collect(Collectors.toList());
-
-        final Map<Long, String> resultById = resultCaptor.getValue().stream()
-            .collect(Collectors.toMap(se -> Long.valueOf(se.getUuid()), se -> se.getClassName()));
+        final Map<Long, String> resultById = response.getRawResults().stream().collect(
+                Collectors.toMap(se -> Long.valueOf(se.getUuid()), se -> se.getClassName()));
 
         assertThat(resultIds.size(), is(4));
         assertThat(resultById.keySet(), containsInAnyOrder(
@@ -1751,6 +1743,72 @@ public class SearchServiceTest {
         assertNotNull(response);
         assertEquals(2, response.getRawResults().size());
         assertTrue(response.getRawResults().get(0).getDisplayName().contains("Data"));
+    }
+
+    /**
+     * Test to get the Workload members (VirtualMachine, Database or DatabaseServer entities)
+     * in sorted order when no filter is specified.
+     *
+     * @throws Exception if there is an error when processing the search query.
+     */
+    @Test
+    public void testGetWorkloadMembersSortedWithoutAnyFilter() throws Exception {
+        final long oid = 1234;
+        List<FilterApiDTO> criteriaList = new ArrayList<>(1);
+        GroupApiDTO request = new GroupApiDTO();
+        request.setClassName(StringConstants.WORKLOAD);
+        request.setCriteriaList(criteriaList);
+        request.setScope(Arrays.asList(String.valueOf(oid)));
+        request.setEnvironmentType(EnvironmentType.CLOUD);
+
+        // create entities and entity list
+        final ServiceEntityApiDTO entity1 = supplyChainTestUtils.createServiceEntityApiDTO(
+                ENTITY_ID_1, targetId1);
+        entity1.setDisplayName("Database 1");
+        entity1.setClassName(StringConstants.DATABASE);
+
+        final ServiceEntityApiDTO entity2 = supplyChainTestUtils.createServiceEntityApiDTO(
+                ENTITY_ID_2, targetId1);
+        entity2.setDisplayName("database Server 1");
+        entity2.setClassName(StringConstants.DATABASE_SERVER);
+        List<ServiceEntityApiDTO> entities = Arrays.asList(entity1, entity2);
+
+        ConnectedEntity connectedEntity1 = ConnectedEntity.newBuilder().setConnectedEntityId(
+                ENTITY_ID_1).build();
+        ConnectedEntity connectedEntity2 = ConnectedEntity.newBuilder().setConnectedEntityId(
+                ENTITY_ID_2).build();
+
+        TopologyEntityDTO businessAccount = TopologyEntityDTO.newBuilder()
+                .setOid(oid)
+                .setDisplayName("Business Account 1")
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .addConnectedEntityList(0, connectedEntity1)
+                .addConnectedEntityList(1, connectedEntity2)
+                .build();
+
+        Map<Long, ServiceEntityApiDTO> entityMap = new HashMap<>();
+        entityMap.put(Long.valueOf(ENTITY_ID_1), entities.get(0));
+        entityMap.put(Long.valueOf(ENTITY_ID_2), entities.get(1));
+
+        SingleEntityRequest singleEntityRequest = ApiTestUtils.mockSingleEntityRequest(
+                businessAccount);
+        when(repositoryApi.entityRequest(oid)).thenReturn(singleEntityRequest);
+        when(singleEntityRequest.getFullEntity()).thenReturn(Optional.of(businessAccount));
+        when(groupExpander.getGroup(any())).thenReturn(Optional.empty());
+
+        final SearchPaginationRequest paginationRequest = new SearchPaginationRequest("0", 10, true,
+                SearchOrderBy.NAME.name());
+        RepositoryApi.PaginatedSearchRequest searchReq = ApiTestUtils.mockPaginatedSearchRequest(
+                paginationRequest, entities);
+        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(searchReq);
+        when(groupsService.expandUuids(any(), any(), any())).thenReturn(ImmutableSet.of(1L, 2L));
+
+        SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request,
+                paginationRequest, null, null);
+        assertNotNull(response);
+        assertEquals(2, response.getRawResults().size());
+        assertTrue(response.getRawResults().get(0).getDisplayName().equals("Database 1"));
+        assertTrue(response.getRawResults().get(1).getDisplayName().equals("database Server 1"));
     }
 
     /**
