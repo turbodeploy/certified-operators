@@ -1,0 +1,109 @@
+package com.vmturbo.cloud.common.scope;
+
+import java.util.List;
+import java.util.Set;
+
+import javax.annotation.Nonnull;
+
+import org.immutables.value.Value.Immutable;
+
+import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
+import com.vmturbo.cloud.common.scope.CloudScopeIdentity.CloudScopeType;
+
+/**
+ * A store for {@link CloudScopeIdentity}. Note that most classes will interact with the {@link CloudScopeIdentityProvider}
+ * to assign identities to cloud scopes and not this class. This store will be used by the provider to persist assigned
+ * cloud scope identities.
+ */
+public interface CloudScopeIdentityStore {
+
+    /**
+     * Saves the provided {@link CloudScopeIdentity} list.
+     * @param scopeIdentityList The cloud scope identity list.
+     */
+    void saveScopeIdentities(@Nonnull List<CloudScopeIdentity> scopeIdentityList);
+
+    /**
+     * Gets the stored {@link CloudScopeIdentity} instances passing the provided {@link CloudScopeIdentityFilter}.
+     * @param scopeIdentityFilter The cloud scope identity filter.
+     * @return A list of stored cloud scope identities matching the provided filter.
+     */
+    @Nonnull
+    List<CloudScopeIdentity> getIdentitiesByFilter(@Nonnull CloudScopeIdentityFilter scopeIdentityFilter);
+
+    /**
+     * A filter of {@link CloudScopeIdentity} instances.
+     */
+    @HiddenImmutableImplementation
+    @Immutable
+    interface CloudScopeIdentityFilter {
+
+        /**
+         * An all-inclusive filter.
+         */
+        CloudScopeIdentityFilter ALL_SCOPE_IDENTITIES = CloudScopeIdentityFilter.builder().build();
+
+        /**
+         * The set of scope IDs. Empty indicates no filtering by scope ID.
+         * @return The set of scope IDs. Empty indicates no filtering by scope ID.
+         */
+        @Nonnull
+        Set<Long> scopeIds();
+
+        /**
+         * The set of scope types. Empty indicates no filtering by scope type.
+         * @return The set of scope type. Empty indicates no filtering by scope type.
+         */
+        @Nonnull
+        Set<CloudScopeType> scopeTypes();
+
+        /**
+         * The set of account IDs. Empty indicates no filtering by account ID.
+         * @return The set of account IDs. Empty indicates no filtering by account ID.
+         */
+        @Nonnull
+        Set<Long> accountIds();
+
+        /**
+         * The set of region IDs. Empty indicates no filtering by region ID.
+         * @return The set of region IDs. Empty indicates no filtering by region ID.
+         */
+        @Nonnull
+        Set<Long> regionIds();
+
+        /**
+         * The set of resource group IDs. Empty indicates no filtering by resource group ID.
+         * @return The set of resource group IDs. Empty indicates no filtering by resource group ID.
+         */
+        @Nonnull
+        Set<Long> resourceGroupIds();
+
+        /**
+         * The set of cloud service IDs. Empty indicates no filtering by cloud service ID.
+         * @return The set of cloud service IDs. Empty indicates no filtering by cloud service ID.
+         */
+        @Nonnull
+        Set<Long> cloudServiceIds();
+
+        /**
+         * The set of service provider IDs. Empty indicates no filtering by service provider ID.
+         * @return The set of service provider IDs. Empty indicates no filtering by service provider ID.
+         */
+        @Nonnull
+        Set<Long> serviceProviderIds();
+
+        /**
+         * Constructs and returns a new {@link Builder} instance.
+         * @return The newly constructed {@link Builder} instance.
+         */
+        @Nonnull
+        static Builder builder() {
+            return new Builder();
+        }
+
+        /**
+         * A builder class for constructing immutable {@link CloudScopeIdentity} instances.
+         */
+        class Builder extends ImmutableCloudScopeIdentityFilter.Builder {}
+    }
+}
