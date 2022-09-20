@@ -106,4 +106,12 @@ public interface TargetInfo extends TargetData {
      */
     @Nonnull
     List<Long> getParentTargetIds();
+
+    /**
+     * Returns the boolean value to know if the target is editable:
+     * determines whether the target can be changed through public APIs.
+     *
+     * @return true if a target is editable, otherwise false.
+     */
+    boolean isEditable();
 }
