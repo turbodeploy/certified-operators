@@ -169,7 +169,8 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             CommodityType.TOTAL_SESSIONS_VALUE, CommodityType.RESPONSE_TIME_VALUE,
             CommodityType.TRANSACTION_VALUE, CommodityType.NUMBER_REPLICAS_VALUE,
             CommodityType.STORAGE_ACCESS_VALUE, CommodityType.STORAGE_LATENCY_VALUE,
-            CommodityType.STORAGE_AMOUNT_VALUE, CommodityType.STORAGE_PROVISIONED_VALUE
+            CommodityType.STORAGE_AMOUNT_VALUE, CommodityType.STORAGE_PROVISIONED_VALUE,
+            CommodityType.ENERGY_VALUE
     );
 
     /**
