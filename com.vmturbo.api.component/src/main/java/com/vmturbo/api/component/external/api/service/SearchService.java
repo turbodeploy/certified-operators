@@ -46,7 +46,6 @@ import org.apache.logging.log4j.util.Strings;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.PaginatedSearchRequest;
-import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
@@ -123,7 +122,6 @@ import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo.ControllerTypeCase;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -729,33 +727,8 @@ public class SearchService implements ISearchService {
             } catch (NumberFormatException ex) {
                 throw new UnsupportedOperationException("Invalid workload scope ID: " + scopeId);
             }
-
-            SingleEntityRequest entityRequest = repositoryApi.entityRequest(businessAccountId);
-            Optional<TopologyEntityDTO> topologyEntityDTO = entityRequest
-                .getFullEntity();
-            if (!topologyEntityDTO.isPresent() || ((!StringUtils.isEmpty(nameQueryString) || (
-                    inputDTO != null && !inputDTO.getCriteriaList().isEmpty())))) {
-                // if this is not business account try regular search
-                return searchEntitiesByParameters(inputDTO, nameQueryString, ensureSearchPaginationRequestExistsAndConformLimits(paginationRequest), aspectNames, queryType);
-            }
-
-            Set<Long> entitiesOid = topologyEntityDTO.get().getConnectedEntityListList()
-                .stream()
-                .map(entity -> entity.getConnectedEntityId())
-                .collect(Collectors.toSet());
-
-            List<ServiceEntityApiDTO> results = repositoryApi.entitiesRequest(entitiesOid)
-                .getSEMap()
-                .values()
-                .stream()
-                .filter(se -> ApiEntityType.WORKLOAD_ENTITY_TYPES.contains(ApiEntityType.fromString(se.getClassName())))
-                .collect(Collectors.toList());
-
-            priceIndexPopulator.populateRealTimeEntities(results);
-
-            List<BaseApiDTO> apiResults = results.stream().collect(Collectors.toList());
-
-            return paginationRequest.allResultsResponse(apiResults);
+            // Delegate to regular search logic
+            return searchEntitiesByParameters(inputDTO, nameQueryString, ensureSearchPaginationRequestExistsAndConformLimits(paginationRequest), aspectNames, queryType);
         } else {
             // this isn't a group search after all -- use a generic search method instead.
             return searchEntitiesByParameters(inputDTO, nameQueryString, ensureSearchPaginationRequestExistsAndConformLimits(paginationRequest), aspectNames, queryType);
