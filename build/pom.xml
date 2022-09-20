@@ -505,6 +505,7 @@
                 <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.gcp.project.component</module>
                 <module>../com.vmturbo.mediation.gcp.billing.component</module>
+                <module>../com.vmturbo.mediation.ibmpowerhmc.component</module>
                 <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.intersight.server.component</module>
                 <module>../com.vmturbo.mediation.intersight.ucs.component</module>
@@ -832,6 +833,13 @@
             <id>mediation-websphere</id>
             <modules>
                 <module>../com.vmturbo.mediation.websphere.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-ibmpowerhmc</id>
+            <modules>
+                <module>../com.vmturbo.mediation.ibmpowerhmc.component</module>
             </modules>
         </profile>
 
@@ -1526,6 +1534,7 @@
                 <module>../com.vmturbo.mediation.websphere.component</module>
                 <module>../com.vmturbo.mediation.weblogic.component</module>
                 <module>../com.vmturbo.mediation.jboss.component</module>
+                <module>../com.vmturbo.mediation.ibmpowerhmc.component</module>
                 <module>../com.vmturbo.mediation.ibmstorage.flashsystem.component</module>
                 <module>../com.vmturbo.mediation.instana.component</module>
                 <module>../com.vmturbo.mediation.jvm.component</module>
