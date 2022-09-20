@@ -70,9 +70,10 @@ def provision_mysql(host, database, user, password, endpoint_name, component):
     try:
         with db.get_root_connection('mysql', endpoint_name, [component], host=host) as conn:
             db_execute(conn, f"CREATE DATABASE `{database}`")
-            db_execute(conn, f"CREATE USER IF NOT EXISTS '{user}'@'{host}' IDENTIFIED BY "
+            db_execute(conn, f"CREATE USER IF NOT EXISTS '{user}'@'%' IDENTIFIED BY "
                              f"'{password}'")
-            db_execute(conn, f"GRANT ALL ON `{database}`.* TO '{user}'@'{host}'")
+            db_execute(conn, f"GRANT ALL ON `{database}`.* TO '{user}'@'%'")
+            db_execute(conn, f"FLUSH PRIVILEGES")
         logger.info(f"Provisioned MySQL database {database} for user {user} on server {host}")
     except:
         tb = sys.exc_info()
