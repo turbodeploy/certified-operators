@@ -3,8 +3,8 @@
 # logrotate for product log, called by `outchannel` in rsyslog.conf
 LOG_FILE=/home/vmtsyslog/rsyslog/log.txt
 
-# Use custom max log files if specified, otherwise 150 by default using bash parameter expansion.
-MAXFILES=${LOG_MAXFILES-150}
+# Use custom max log files that is assigned to LOG_MAXFILES variable.
+MAXFILES="$LOG_MAXFILES"
 
 function rotate() {
       LOG_FILE_ARCH=$1_$(date +"%Y%m%d_%H%M%S")

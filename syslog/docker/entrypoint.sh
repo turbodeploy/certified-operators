@@ -22,13 +22,23 @@ if [ -f "${EXTRA_FILE}" ]; then
     /usr/bin/nohup xz ${EXTRA_FILE_ARCH} >/dev/null &
 fi
 
-# Export LOG_MAXFILES variable if it is defined in the rsyslog properties in the CR.
+# If LOG_MAXFILES variable is defined in the rsyslog properties in the CR, export it. Otherwise
+# export its default value, which is 150 files.
 LOG_MAXFILES=$(yq '.customProperties.rsyslog.logMaxFiles' /etc/turbonomic/properties.yaml)
-if [[ $LOG_MAXFILES ]]; then export LOG_MAXFILES; fi
+if [[ ! -z "$LOG_MAXFILES" && "$LOG_MAXFILES" != "null"  ]]; then
+    export LOG_MAXFILES
+else
+    export LOG_MAXFILES=150
+fi
 
-# Export LOG_MAXSIZE variable if it is defined in the rsyslog properties in the CR.
+# If LOG_MAXSIZE variable is defined in the rsyslog properties in the CR, export it. Otherwise
+# export its default value, which is 250MB.
 LOG_MAXSIZE=$(yq '.customProperties.rsyslog.logMaxSize' /etc/turbonomic/properties.yaml)
-if [[ $LOG_MAXSIZE ]]; then export LOG_MAXSIZE; fi
+if [[ ! -z "$LOG_MAXSIZE" && "$LOG_MAXSIZE" != "null"  ]]; then
+    export LOG_MAXSIZE
+else
+    export LOG_MAXSIZE=262144000
+fi
 
 # Start up the http server
 /usr/bin/nohup /diags.py >/tmp/diags.log 2>&1 &
@@ -41,8 +51,8 @@ fi
 
 cp /etc/rsyslog.conf /tmp/rsyslog.conf
 
-# Use custom max log size if specified, otherwise 250MB by default using bash parameter expansion.
-sed -i "s/turbo_maxsize_template/${LOG_MAXSIZE-262144000}/g" /tmp/rsyslog.conf
+# Use custom max log size that is assigned to LOG_MAXSIZE variable.
+sed -i "s/turbo_maxsize_template/${LOG_MAXSIZE}/g" /tmp/rsyslog.conf
 
 # Use custom logging format if specified
 if [ -n "${VMTFORMAT}" ]; then
