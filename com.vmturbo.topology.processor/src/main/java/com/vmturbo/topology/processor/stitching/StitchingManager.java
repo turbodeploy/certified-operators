@@ -368,35 +368,43 @@ public class StitchingManager {
             final StitchingResultBuilder resultBuilder = new StitchingResultBuilder(
                     scopeFactory.getStitchingContext());
             scopeFactory.globalScope().entities().forEach(e -> {
-                if (e.isStale() && !stalenessApplicableTargets.contains(e.getTargetId())) {
+                boolean stale = e.isStale();
+                if (stale && !stalenessApplicableTargets.contains(e.getTargetId())) {
                     resultBuilder.queueUpdateEntityAlone(e, en -> ((TopologyStitchingEntity)en).setStale(false));
                     return;
                 }
                 if (e.hasMergeInformation()) {
-                    if (e.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED
-                            && !e.isStale()) {
+                    if (!stale && e.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED) {
                         return;
                     }
-                    boolean allDiscoveredStale = true;
+                    boolean noDiscoveredOrigin = true;
                     for (StitchingMergeInformation entityMergeInfo : e.getMergeInformation()) {
                         if (entityMergeInfo.getOrigin() != EntityOrigin.DISCOVERED) {
                             continue;
                         }
+                        noDiscoveredOrigin = false;
                         final StitchingEntity entity = beforeStitchingEntityMap.get(Pair.create(
                                 entityMergeInfo.getOid(), entityMergeInfo.getTargetId()));
                         if (entity != null && !entity.isStale()) {
-                            allDiscoveredStale = false;
-                            break;
+                            return;
                         }
                     }
-                    if (allDiscoveredStale) {
-                        resultBuilder.queueUpdateEntityAlone(e, en -> en.getEntityBuilder()
-                                .getConsumerPolicyBuilder()
-                                .setControllable(false));
-                        resultBuilder.queueUpdateEntityAlone(e, en -> ((TopologyStitchingEntity)en).setStale(true));
+
+                   /*
+                     If merge entities do not have EntityOrigin.DISCOVERED, set controllable to false only if
+                     this entity itself is stale.
+                     This modification use case: kubeturbo and prometurbo discovered and merge node (VM)
+                     both with EntityOrigin.PROXY.
+                    */
+                    if (!stale && noDiscoveredOrigin) {
+                        return;
                     }
+                    resultBuilder.queueUpdateEntityAlone(e, en -> en.getEntityBuilder()
+                            .getConsumerPolicyBuilder()
+                            .setControllable(false));
+                    resultBuilder.queueUpdateEntityAlone(e, en -> ((TopologyStitchingEntity)en).setStale(true));
                 } else {
-                    if (e.isStale()) {
+                    if (stale) {
                         if (stalenessApplicableTargets.contains(e.getTargetId())) {
                             resultBuilder.queueUpdateEntityAlone(e, en -> en.getEntityBuilder()
                                             .getConsumerPolicyBuilder()
