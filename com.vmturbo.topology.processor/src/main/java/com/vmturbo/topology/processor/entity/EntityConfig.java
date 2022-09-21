@@ -21,6 +21,7 @@ import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
+import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 
 /**
@@ -44,6 +45,9 @@ public class EntityConfig {
 
     @Autowired
     private TopologyProcessorNotificationSender sender;
+
+    @Autowired
+    private TargetHealthRetriever targetHealthRetriever;
 
     @Value("${validationOldValuesCacheEnabled:true}")
     private boolean oldValuesCacheEnabled;
@@ -95,7 +99,8 @@ public class EntityConfig {
             Lists.newArrayList(sender, controllableConfig.entityMaintenanceTimeDao()),
             clockConfig.clock(),
             reducedEntityTypeSet,
-            useSerializedEntities);
+            useSerializedEntities,
+            targetHealthRetriever);
         store.setEntityDetailsEnabled(entityDetailsEnabled);
         return store;
     }
