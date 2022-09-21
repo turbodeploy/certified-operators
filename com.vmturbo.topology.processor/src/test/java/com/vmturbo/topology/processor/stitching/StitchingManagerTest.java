@@ -459,8 +459,8 @@ public class StitchingManagerTest {
                     //case 13:
                     //      proxy: onto - nonStale,
                     //      proxy: fromEntities - nonStale
-                    //expected controllable false
-                    new ParameterStructure(false, false, EntityOrigin.PROXY, false,
+                    //expected controllable true
+                    new ParameterStructure(true, false, EntityOrigin.PROXY, false,
                             EntityOrigin.PROXY),
                     //case 14:
                     //      proxy: onto - nonStale,
@@ -487,7 +487,14 @@ public class StitchingManagerTest {
                     //case 18:
                     //      base: onto - stale,
                     //expected controllable false
-                    new ParameterStructure(false, true, EntityOrigin.DISCOVERED, null, null)).map(
+                    new ParameterStructure(false, true, EntityOrigin.DISCOVERED, null, null),
+
+                    //case 19:
+                    //      proxy: onto - nonStale,
+                    //      discovered: fromEntities - stale
+                    //expected controllable false
+                    new ParameterStructure(false, true, EntityOrigin.DISCOVERED, false,
+                            EntityOrigin.PROXY)).map(
                     e -> new Object[]{e}).collect(
                     Collectors.toList());
         }
