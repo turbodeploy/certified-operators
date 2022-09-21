@@ -394,6 +394,7 @@ public class TargetsServiceTest {
         when(targetInfo.isHidden()).thenReturn(isHidden);
         when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
         when(targetInfo.getParentTargetIds()).thenReturn(Collections.emptyList());
+        when(targetInfo.isEditable()).thenReturn(true);
         registeredTargets.put(targetId, targetInfo);
         return targetInfo;
     }
