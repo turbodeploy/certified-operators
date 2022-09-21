@@ -227,7 +227,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         }
         // Setting to read only for targets added through probes so users are not able to modify it from the ui
         // as any modification should come from probe target config changes.
-        targetSpecBuilder.setReadOnly(true);
+        targetSpecBuilder.setEditable(false);
         return targetSpecBuilder.build();
     }
 

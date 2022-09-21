@@ -24,6 +24,8 @@ message TargetSpec {
     optional string last_editing_user = 8;
     // The last edit time.
     optional int64 last_edit_time = 9;
+    // This field indicates whether the target can be edited by the user.
+    optional bool editable = 10 [default = true];
 }
 
 message TargetInfo {
