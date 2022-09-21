@@ -238,11 +238,6 @@ public class TargetRESTApi {
         }
 
         @Override
-        public boolean isEditable() {
-            return false;
-        }
-
-        @Override
         public Optional<String> getCommunicationBindingChannel() {
             return spec.getCommunicationBindingChannel();
         }
@@ -266,8 +261,6 @@ public class TargetRESTApi {
         private final boolean readOnly;
         @ApiModelProperty(value = "The derived target IDs associated with this target")
         private final List<Long> derivedTargetIds;
-        @ApiModelProperty(value = "Whether the target properties can be changed through public APIs")
-        private final boolean editable;
 
 
         protected TargetSpec() {
@@ -275,7 +268,6 @@ public class TargetRESTApi {
             isHidden = false;
             readOnly = false;
             derivedTargetIds = Lists.newArrayList();
-            editable = true;
         }
 
         public TargetSpec(@Nonnull final Long probeId, @Nonnull final List<InputField> accountFields,
@@ -285,7 +277,6 @@ public class TargetRESTApi {
             this.isHidden = false;
             this.readOnly = false;
             this.derivedTargetIds = Lists.newArrayList();
-            this.editable = true;
         }
 
         public TargetSpec(@Nonnull final TopologyProcessorDTO.TargetSpec targetSpec) {
@@ -297,7 +288,6 @@ public class TargetRESTApi {
             this.probeId = targetSpec.getProbeId();
             this.isHidden = targetSpec.getIsHidden();
             this.readOnly = targetSpec.getReadOnly();
-            this.editable = targetSpec.getEditable();
             this.derivedTargetIds = targetSpec.getDerivedTargetIdsList();
         }
 
@@ -311,10 +301,6 @@ public class TargetRESTApi {
 
         public boolean getReadOnly() {
             return readOnly;
-        }
-
-        public boolean getEditable() {
-            return editable;
         }
 
         public List<Long> getDerivedTargetIds() {
@@ -341,8 +327,6 @@ public class TargetRESTApi {
                 builder.setLastEditingUser(getEditingUser());
             }
             getCommunicationBindingChannel().ifPresent(builder::setCommunicationBindingChannel);
-            builder.setEditable(getEditable());
-            builder.setReadOnly(getReadOnly());
             return builder.build();
         }
 

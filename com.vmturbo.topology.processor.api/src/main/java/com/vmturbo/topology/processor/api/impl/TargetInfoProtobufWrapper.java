@@ -96,11 +96,6 @@ public class TargetInfoProtobufWrapper implements TargetInfo {
     }
 
     @Override
-    public boolean isEditable() {
-        return targetInfo.getSpec().getEditable();
-    }
-
-    @Override
     public Optional<String> getCommunicationBindingChannel() {
         return targetInfo.getSpec().hasCommunicationBindingChannel() ?
             Optional.of(targetInfo.getSpec().getCommunicationBindingChannel()) : Optional.empty();

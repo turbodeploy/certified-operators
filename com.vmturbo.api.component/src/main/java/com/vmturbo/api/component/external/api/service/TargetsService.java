@@ -990,7 +990,7 @@ public class TargetsService implements ITargetsService {
         final NewTargetData updatedTargetData = new NewTargetData(inputFields);
         try {
             TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
-            if (targetInfo.isReadOnly() || !targetInfo.isEditable()) {
+            if (targetInfo.isReadOnly()) {
                 throw new InvalidOperationException("Read-only target "
                         + targetInfo.getDisplayName() + " (id " + targetId
                         + ") cannot be changed through public APIs.");

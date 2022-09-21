@@ -190,7 +190,6 @@ public class CommodityTypeMapping {
             .put(CommodityType.TAINT, CommodityInfo.of("Taint", "Taint", ""))
             .put(CommodityType.LABEL, CommodityInfo.of("Label", "Label", ""))
             .put(CommodityType.HARDWARE_VERSION, CommodityInfo.of("HardwareVersion", "HardwareVersion", ""))
-            .put(CommodityType.ENERGY, CommodityInfo.of("Energy", "Energy", "Wh"))
             .put(CommodityType.UNKNOWN, CommodityInfo.of("Unknown", "Unknown", ""))
             .build();
 

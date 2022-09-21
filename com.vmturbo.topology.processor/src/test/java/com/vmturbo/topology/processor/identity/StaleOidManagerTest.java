@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.identity;
 
+import static com.vmturbo.topology.processor.identity.recurrenttasks.OidExpirationTask.EXPIRATION_TASK_NAME;
 import static com.vmturbo.topology.processor.identity.recurrenttasks.RecurrentTask.RecurrentTasksEnum.OID_TIMESTAMP_UPDATE;
 import static junitparams.JUnitParamsRunner.$;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -236,6 +237,8 @@ public class StaleOidManagerTest {
         } catch (CancellationException e) {
             assertEquals(Timestamp.valueOf(LocalDateTime.ofInstant(Instant.ofEpochMilli(currentTime), clock.getZone())),
                 assignedIdentityJooqProvider.getSetRecurrentTaskQuery().getExecutionTime());
+            assertEquals(EXPIRATION_TASK_NAME,
+                assignedIdentityJooqProvider.getSetRecurrentTaskQuery().getOperationName());
         }
     }
 
