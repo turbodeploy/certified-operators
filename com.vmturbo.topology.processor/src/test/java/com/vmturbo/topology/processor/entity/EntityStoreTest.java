@@ -5,7 +5,6 @@ import static com.vmturbo.platform.common.builders.CommodityBuilders.vCpuMHz;
 import static com.vmturbo.platform.common.builders.EntityBuilders.physicalMachine;
 import static com.vmturbo.platform.common.builders.EntityBuilders.storage;
 import static com.vmturbo.platform.common.builders.EntityBuilders.virtualMachine;
-import static com.vmturbo.topology.processor.entity.EntityStore.TARGET_COUNT_GAUGE;
 import static junitparams.JUnitParamsRunner.$;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -47,7 +46,6 @@ import junitparams.Parameters;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -56,13 +54,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
-import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -79,7 +75,6 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
@@ -149,11 +144,8 @@ public class EntityStoreTest {
             .setProbeType("foo")
             .build();
 
-    private TargetHealthRetriever targetHealthRetriever = mock(TargetHealthRetriever.class);
-
     private EntityStore entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true,
-                    Collections.singletonList(sender), Clock.systemUTC(), Collections.emptySet(),
-            true, targetHealthRetriever));
+                    Collections.singletonList(sender), Clock.systemUTC(), Collections.emptySet(), true));
 
     /**
      * Expected exception rule.
@@ -635,7 +627,7 @@ public class EntityStoreTest {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
         entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
-                mockClock, Collections.emptySet(), useSerializedEntities, targetHealthRetriever);
+                mockClock, Collections.emptySet(), useSerializedEntities);
 
         addEntities(entities);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
@@ -725,7 +717,7 @@ public class EntityStoreTest {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
         entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
-                mockClock, Collections.emptySet(), useSerializedEntities, targetHealthRetriever);
+                mockClock, Collections.emptySet(), useSerializedEntities);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
         // treated as normal probe
         when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(Optional.of(SDKProbeType.HYPERV));
@@ -806,8 +798,7 @@ public class EntityStoreTest {
     @Parameters(method = "generateTestData")
     public void testSendEntitiesWithNewState(boolean useSerializedEntities) throws Exception {
         entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true,
-                    Collections.singletonList(sender), Clock.systemUTC(), Collections.emptySet(),
-                true, targetHealthRetriever));
+                    Collections.singletonList(sender), Clock.systemUTC(), Collections.emptySet(), true));
 
         when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
         final long targetId1 = 2001;
@@ -923,14 +914,6 @@ public class EntityStoreTest {
         entityStore.entitiesDiscovered(probeId, targetId, messageId, discoveryType, new ArrayList<>(entities.values()));
     }
 
-    private static TargetHealth makeTargetHealth(HealthState healthState,
-            TargetHealthSubCategory healthSubCategory) {
-        return TargetHealth.newBuilder()
-                .setHealthState(healthState)
-                .setSubcategory(healthSubCategory)
-                .build();
-    }
-
     /**
      * Make sure telemetry data is accurate and make sure there's no ConcurrentModificationException.
      *
@@ -988,12 +971,9 @@ public class EntityStoreTest {
         assertEquals(3, values.size());
 
         double delta = 0.001d;
-        assertEquals(2, values.get(Arrays.asList("Public Cloud", "AWS", StringConstants.UNKNOWN,
-                                                 StringConstants.UNKNOWN)).getData(), delta);
-        assertEquals(2, values.get(Arrays.asList("Storage", "Pure", StringConstants.UNKNOWN,
-                                                 StringConstants.UNKNOWN)).getData(), delta);
-        assertEquals(1, values.get(Arrays.asList("Hypervisor", "vCenter", StringConstants.UNKNOWN,
-                                                 StringConstants.UNKNOWN)).getData(), delta);
+        assertEquals(2, values.get(Arrays.asList("Public Cloud", "AWS")).getData(), delta);
+        assertEquals(2, values.get(Arrays.asList("Storage", "Pure")).getData(), delta);
+        assertEquals(1, values.get(Arrays.asList("Hypervisor", "vCenter")).getData(), delta);
 
         values = EntityStore.DISCOVERED_ENTITIES_GAUGE.getLabeledMetrics();
         assertEquals(6, values.size());
@@ -1031,67 +1011,6 @@ public class EntityStoreTest {
     }
 
     /**
-     * Make sure telemetry data is accurate and make sure there's no ConcurrentModificationException.
-     *
-     * <p>Create the following targets with associated states and subcategory states:
-     * 1, AWS, Public Cloud, NORMAL, DISCOVERY
-     * 2, AWS, Public Cloud, NORMAL, DISCOVERY
-     * 3, Pure, STORAGE, "UKNOWN", "UKNOWN"
-     * 4, Pure, STORAGE, CRITICAL, VALIDATION
-     * 5, vCenter, HYPERVISOR, MINOR, VALIDATION
-     *
-     * @throws Exception exception
-     */
-    @Ignore
-    @Test
-    public void testTargetStateTelemetry() throws Exception {
-        // Add targets.
-        final Target target1 = mock(Target.class);
-        when(target1.getId()).thenReturn(1L);
-        when(target1.getProbeInfo()).thenReturn(ProbeInfo.newBuilder().setProbeType("AWS")
-                .setProbeCategory("").setUiProbeCategory("Public Cloud").build());
-        final Target target2 = mock(Target.class);
-        when(target2.getId()).thenReturn(2L);
-        when(target2.getProbeInfo()).thenReturn(ProbeInfo.newBuilder().setProbeType("AWS")
-                .setProbeCategory("").setUiProbeCategory("Public Cloud").build());
-        final Target target3 = mock(Target.class);
-        when(target3.getId()).thenReturn(3L);
-        when(target3.getProbeInfo()).thenReturn(ProbeInfo.newBuilder().setProbeType("Pure")
-                .setProbeCategory("").setUiProbeCategory("STORAGE").build());
-        final Target target4 = mock(Target.class);
-        when(target4.getId()).thenReturn(4L);
-        when(target4.getProbeInfo()).thenReturn(ProbeInfo.newBuilder().setProbeType("Pure")
-                .setProbeCategory("").setUiProbeCategory("STORAGE").build());
-        final Target target5 = mock(Target.class);
-        when(target5.getId()).thenReturn(5L);
-        when(target5.getProbeInfo()).thenReturn(ProbeInfo.newBuilder().setProbeType("vCenter")
-                .setProbeCategory("").setUiProbeCategory("HYPERVISOR").build());
-        when(targetStore.getAll()).thenReturn(Arrays.asList(target1, target2, target3, target4, target5));
-        when(targetHealthRetriever.getTargetHealth(Collections.emptySet(), true))
-                .thenReturn(ImmutableMap.of(
-                        1L, makeTargetHealth(HealthState.NORMAL, TargetHealthSubCategory.DISCOVERY),
-                        2L, makeTargetHealth(HealthState.NORMAL, TargetHealthSubCategory.DISCOVERY),
-                        // Intentionally omitting 3
-                        4L, makeTargetHealth(HealthState.CRITICAL, TargetHealthSubCategory.VALIDATION),
-                        5L, makeTargetHealth(HealthState.MINOR, TargetHealthSubCategory.VALIDATION)));
-
-        entityStore.sendMetricsEntityAndTargetData();
-
-        Map<List<String>, GaugeData> values = TARGET_COUNT_GAUGE.getLabeledMetrics();
-        assertEquals(4, values.size());
-
-        double delta = 0.001d;
-        assertEquals(2, values.get(Arrays.asList("Public Cloud", "AWS", "NORMAL", "DISCOVERY"))
-                .getData(), delta);
-        assertEquals(1, values.get(Arrays.asList("Storage", "Pure", "CRITICAL", "VALIDATION"))
-                .getData(), delta);
-        assertEquals(1, values.get(Arrays.asList("Storage", "Pure", StringConstants.UNKNOWN,
-                                                 StringConstants.UNKNOWN)).getData(), delta);
-        assertEquals(1, values.get(Arrays.asList("Hypervisor", "vCenter", "MINOR", "VALIDATION"))
-                .getData(), delta);
-    }
-
-    /**
      * Test that when target has health problems all store entities are marked stale.
      * Also test that when the target does not have health problems all entities are not marked stale.
      *
@@ -1109,8 +1028,7 @@ public class EntityStoreTest {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
         entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true,
-                        Collections.singletonList(sender), mockClock, Collections.emptySet(),
-                true, targetHealthRetriever);
+                        Collections.singletonList(sender), mockClock, Collections.emptySet(), true);
         addEntities(entities);
 
         Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))
