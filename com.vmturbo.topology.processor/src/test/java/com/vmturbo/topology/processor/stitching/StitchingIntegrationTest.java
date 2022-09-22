@@ -50,7 +50,6 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.StandardProbeOrdering;
-import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.targets.DuplicateTargetException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
@@ -77,11 +76,8 @@ public abstract class StitchingIntegrationTest {
     protected CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
     private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
 
-    private TargetHealthRetriever targetHealthRetriever = mock(TargetHealthRetriever.class);
-
-    protected EntityStore entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true,
-            Collections.singletonList(sender),
-            Clock.systemUTC(), Collections.emptySet(), true, targetHealthRetriever);
+    protected EntityStore entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
+            Clock.systemUTC(), Collections.emptySet(), true);
     protected final DiskCapacityCalculator diskCapacityCalculator =
             mock(DiskCapacityCalculator.class);
 

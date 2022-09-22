@@ -44,17 +44,15 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
-
-import common.HealthCheck.HealthState;
 import it.unimi.dsi.fastutil.longs.Long2IntArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArraySet;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongSet;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
@@ -73,11 +71,11 @@ import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.logmessagegrouper.LogMessageGrouper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityIdentifyingPropertyValues;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PhysicalMachineData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityIdentifyingPropertyValues;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -85,7 +83,6 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
@@ -96,6 +93,8 @@ import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
+
+import common.HealthCheck.HealthState;
 
 /**
  * Stores discovered entities.
@@ -142,8 +141,6 @@ public class EntityStore {
 
     private final boolean useSerializedEntities;
 
-    private final TargetHealthRetriever targetHealthRetriever;
-    
     /**
      * The target store which contains target specific information for the entity.
      *
@@ -230,8 +227,8 @@ public class EntityStore {
      */
     static final DataMetricGauge TARGET_COUNT_GAUGE = DataMetricGauge.builder()
             .withName(StringConstants.METRICS_TURBO_PREFIX + "targets")
-            .withHelp("Number of targets per target category, target type, and target state")
-            .withLabelNames("target_category", "target_type", "target_state", "target_state_category")
+            .withHelp("Number of targets per target category and target type")
+            .withLabelNames("target_category", "target_type")
             .build()
             .register();
 
@@ -249,8 +246,7 @@ public class EntityStore {
             final float duplicateTargetOverlapRatio, final boolean mergeKubernetesTypesForDuplicateDetection,
             @Nonnull final List<EntitiesWithNewStateListener> entitiesWithNewStateListeners, @Nonnull final Clock clock,
             @Nonnull Set<EntityType> reducedEntityTypes,
-            boolean useSerializedEntities,
-            @Nonnull TargetHealthRetriever targetHealthRetriever) {
+            boolean useSerializedEntities) {
 
         this.targetStore = Objects.requireNonNull(targetStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
@@ -271,7 +267,6 @@ public class EntityStore {
             }
         });
         this.identityProvider.initializeStaleOidManager(entityMap::keySet);
-        this.targetHealthRetriever = targetHealthRetriever;
     }
 
     public int expireOids() throws InterruptedException, ExecutionException, TimeoutException {
@@ -1296,17 +1291,10 @@ public class EntityStore {
      */
     public void sendMetricsEntityAndTargetData() {
         TARGET_COUNT_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
-        Map<Long, TargetHealth> targetHealth =
-                targetHealthRetriever.getTargetHealth(Collections.emptySet(), true);
-        targetStore.getAll().forEach((target) -> {
-            Pair<String, String> targetHealthLabels =
-                    getUserFacingTargetHealthState(targetHealth, target.getId());
+        targetStore.getAll().forEach((target) ->
             TARGET_COUNT_GAUGE.labels(
-                    getUserFacingCategoryString(target.getProbeInfo().getUiProbeCategory()),
-                    target.getProbeInfo().getProbeType(),
-                    targetHealthLabels.first, targetHealthLabels.second)
-                .increment();
-        });
+                getUserFacingCategoryString(target.getProbeInfo().getUiProbeCategory()),
+                target.getProbeInfo().getProbeType()).increment());
 
         DISCOVERED_ENTITIES_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
         synchronized (topologyUpdateLock) {
@@ -1323,31 +1311,6 @@ public class EntityStore {
                     });
                 }));
         }
-    }
-
-    /**
-     * Return a string representing the health of a target.
-     *
-     * @param targetHealthMap map from target ID to its TargetHealth entry.
-     * @param id target ID
-     * @return return a pair of strings representing the health of the target. The first element is
-     *      the health state and the second element is the health state category.
-     *
-     *      Return "Unknown" for values that are not available.
-     */
-    private Pair<String, String> getUserFacingTargetHealthState(Map<Long, TargetHealth> targetHealthMap,
-        long id) {
-        String targetState = StringConstants.UNKNOWN;
-        String targetStateCategory = StringConstants.UNKNOWN;
-        TargetHealth targetHealth = targetHealthMap.get(id);
-        if (targetHealth != null) {
-            targetState = targetHealth.getHealthState().toString();
-            TargetHealthSubCategory subcategory = targetHealth.getSubcategory();
-            if (subcategory != null) {
-                targetStateCategory = subcategory.toString();
-            }
-        }
-        return new Pair<>(targetState, targetStateCategory);
     }
 
     /**
