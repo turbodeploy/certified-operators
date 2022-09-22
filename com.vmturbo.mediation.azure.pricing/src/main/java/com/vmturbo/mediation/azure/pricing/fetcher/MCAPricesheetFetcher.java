@@ -10,6 +10,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -140,13 +141,13 @@ public class MCAPricesheetFetcher implements PricingFileFetcher<AzurePricingAcco
                         + "assuming file is truncated or corrupt.", size, minSize);
 
                 try {
-                    Files.move(downloadedFile, badSavePath);
+                    Files.move(downloadedFile, badSavePath, StandardCopyOption.REPLACE_EXISTING);
 
                     throw new AzureProbeException(String.format("%s Saved as %s",
                         tooSmallMessage, badSavePath.toString()));
                 } catch (IOException ex) {
                     throw new AzureProbeException(String.format("%s Also, an attempt to save "
-                        + "the bad file to %s failed.", badSavePath.toString()), ex);
+                        + "the bad file to %s failed.", tooSmallMessage, badSavePath.toString()), ex);
                 }
             }
 

@@ -30,6 +30,7 @@ import com.vmturbo.mediation.azure.pricing.stages.MCAMeterDeserializerStage;
 import com.vmturbo.mediation.azure.pricing.stages.MeterResolverStage;
 import com.vmturbo.mediation.azure.pricing.stages.OpenZipEntriesStage;
 import com.vmturbo.mediation.azure.pricing.stages.PlaceholderFinalStage;
+import com.vmturbo.mediation.azure.pricing.stages.RegroupByTypeStage;
 import com.vmturbo.mediation.azure.pricing.stages.SelectZipEntriesStage;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier.PricingIdentifierName;
@@ -129,6 +130,7 @@ public class MCAPricingDiscoveryController extends
                 .addStage(MeterResolverStage.newBuilder()
                     .addResolver(new MeterDescriptorsFileResolver())
                     .build(MCAPricingProbeStage.RESOLVE_METERS))
+                .addStage(new RegroupByTypeStage(MCAPricingProbeStage.REGROUP_METERS))
                 .finalStage(new PlaceholderFinalStage(MCAPricingProbeStage.PLACEHOLDER_FINAL)));
     }
 

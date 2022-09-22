@@ -53,6 +53,11 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     RESOLVE_METERS("Resolve meters"),
 
     /**
+     * Regroup meters by MeterType.
+     */
+    REGROUP_METERS("Group meters by type"),
+
+    /**
      * TODO remove this.
      */
     PLACEHOLDER_FINAL("Placeholder Final Stage");
@@ -80,5 +85,5 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
      */
     public static final List<MockPricingProbeStage> DISCOVERY_STAGES = ImmutableList.of(
             DOWNLOAD_PRICE_SHEET, SELECT_ZIP_ENTRIES, BOM_AWARE_READERS, DESERIALIZE_CSV,
-            RESOLVE_METERS, PLACEHOLDER_FINAL);
+            RESOLVE_METERS, REGROUP_METERS, PLACEHOLDER_FINAL);
 }

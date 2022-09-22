@@ -1,16 +1,14 @@
 package com.vmturbo.mediation.azure.pricing.stages;
 
-import java.util.Collection;
-
 import javax.annotation.Nonnull;
 
 import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
+import com.vmturbo.mediation.azure.pricing.PricingWorkspace;
 import com.vmturbo.mediation.azure.pricing.pipeline.DiscoveredPricing;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipeline.Stage;
-import com.vmturbo.mediation.azure.pricing.resolver.ResolvedMeter;
 import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
 
 /**
@@ -21,7 +19,7 @@ import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
  *   of discovery.
  */
 public class PlaceholderFinalStage<E extends ProbeStageEnum>
-        extends Stage<Collection<ResolvedMeter>, DiscoveredPricing, E> {
+        extends Stage<PricingWorkspace, DiscoveredPricing, E> {
     /**
      * Construct the placeholder stage.
      *
@@ -34,8 +32,8 @@ public class PlaceholderFinalStage<E extends ProbeStageEnum>
 
     @NotNull
     @Override
-    protected StageResult executeStage(@NotNull Collection<ResolvedMeter> input) {
-        final String status = String.format("%d resolved meters.", input.size());
+    protected StageResult executeStage(@NotNull PricingWorkspace input) {
+        final String status = "This is just a placeholder during development";
 
         getStageInfo().ok(status);
 

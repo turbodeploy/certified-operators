@@ -75,8 +75,9 @@ public class MeterResolverStage<E extends ProbeStageEnum> extends
                     totalMeters));
             }
 
-            final String status = String.format("%d meters of interest (%d distinct IDs), %d ignored",
-                resolved, resolvedById.size(), ignored);
+            final String status = String.format("%d (%.1f%%) meters of interest (%d distinct IDs), %d (%.1f%%) ignored",
+                    resolved, 100.0D * resolved / totalMeters, resolvedById.size(), ignored,
+                    100.0D * ignored / totalMeters);
 
             getStageInfo().ok(status);
             return StageResult.withResult(resolvedById.values()).andStatus(Status.success(status));
