@@ -48,6 +48,11 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
     RESOLVE_METERS("Resolve meters"),
 
     /**
+     * Regroup the resolved meters by type and create a pricing workspace.
+     */
+    REGROUP_METERS("Group resolved meters by type"),
+
+    /**
      * TODO remove this.
      */
     PLACEHOLDER_FINAL("Placeholder Final Stage");
@@ -82,5 +87,6 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
             CHAINED_CSV_PARSERS,
             DESERIALIZE_METERS,
             RESOLVE_METERS,
+            REGROUP_METERS,
             PLACEHOLDER_FINAL);
 }

@@ -108,7 +108,7 @@ public class CachingPricingFetcher<A extends ProxyAwareAccount> implements Prici
                     }
                 } else {
                     if (Files.exists(entry.cachedFile)) {
-                        return new Pair<>(entry.cachedFile, "Using cached data from " + expiredAt);
+                        return new Pair<>(entry.cachedFile, "Using cached data from " + entry.lastUpdate);
                     } else {
                         entry.cachedFile = null;
                         throw new FileNotFoundException("Cached file " + entry.cachedFile + " is missing");

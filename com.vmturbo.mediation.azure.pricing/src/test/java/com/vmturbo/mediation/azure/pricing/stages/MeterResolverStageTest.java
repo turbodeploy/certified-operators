@@ -215,7 +215,7 @@ public class MeterResolverStageTest {
 
         ProbeStageDetails status = tracker.getStageDetails(MockPricingProbeStage.RESOLVE_METERS);
         assertEquals(StageStatus.SUCCESS, status.getStatus());
-        assertEquals("9 meters of interest (3 distinct IDs), 2 ignored",
+        assertEquals("9 (81.8%) meters of interest (3 distinct IDs), 2 (18.2%) ignored",
             status.getStatusShortExplanation());
     }
 
