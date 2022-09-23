@@ -63,9 +63,9 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     IP_PRICE_PROCESSOR("IP Price Processing"),
 
     /**
-     * TODO remove this.
+     * Assign pricing identifiers to plans and return a DiscoveredPricing result.
      */
-    PLACEHOLDER_FINAL("Placeholder Final Stage");
+    ASSIGN_IDENTIFIERS("Assign pricing identifiers");
 
     private final String description;
 
@@ -90,5 +90,5 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
      */
     public static final List<MockPricingProbeStage> DISCOVERY_STAGES = ImmutableList.of(
             DOWNLOAD_PRICE_SHEET, SELECT_ZIP_ENTRIES, BOM_AWARE_READERS, DESERIALIZE_CSV,
-            RESOLVE_METERS, REGROUP_METERS, IP_PRICE_PROCESSOR, PLACEHOLDER_FINAL);
+            RESOLVE_METERS, REGROUP_METERS, IP_PRICE_PROCESSOR, ASSIGN_IDENTIFIERS);
 }

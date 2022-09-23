@@ -58,9 +58,9 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
     IP_PRICE_PROCESSOR("IP Price Processing"),
 
     /**
-     * TODO remove this.
+     * Assign pricing identifiers to plans and return a DiscoveredPricing result.
      */
-    PLACEHOLDER_FINAL("Placeholder Final Stage");
+    ASSIGN_IDENTIFIERS("Assign pricing identifiers");
 
     private final String description;
 
@@ -94,5 +94,5 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
             RESOLVE_METERS,
             REGROUP_METERS,
             IP_PRICE_PROCESSOR,
-            PLACEHOLDER_FINAL);
+            ASSIGN_IDENTIFIERS);
 }
