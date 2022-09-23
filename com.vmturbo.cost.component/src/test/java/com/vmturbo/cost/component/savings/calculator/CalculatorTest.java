@@ -29,6 +29,7 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
+import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.savings.BillingRecord;
 import com.vmturbo.cost.component.savings.GrpcActionChainStore;
@@ -37,6 +38,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingDataPoint.CostCategory;
+import com.vmturbo.trax.TraxConfiguration;
 
 /**
  * Test cases for bill-based savings calculator.
@@ -58,6 +60,8 @@ public class CalculatorTest {
         // Added this line for convenience. Change this log level to DEBUG or TRACE to get more
         // output when running test cases manually.
         Configurator.setAllLevels("com.vmturbo.cost.component.savings", Level.INFO);
+        // Change trax verbosity level manually to get see the trax output.
+        TraxConfiguration.configureTopics(Calculator.TRAX_TOPIC, Verbosity.OFF);
     }
 
     public CalculatorTest() {
@@ -1893,7 +1897,6 @@ public class CalculatorTest {
                 LocalDateTime.of(2022, 6, 3, 13, 0),
                 LivenessState.SUPERSEDED, resizeInfoList));
 
-        List<ResizeInfo> resizeInfoList2 = new ArrayList<>();
         actionSpecs.add(ScenarioGenerator.createVolumeActionChangeWindow(dbOid,
                 LocalDateTime.of(2022, 6, 3, 13, 0),
                 afterActionRate, afterActionRate2, 0, 0,
