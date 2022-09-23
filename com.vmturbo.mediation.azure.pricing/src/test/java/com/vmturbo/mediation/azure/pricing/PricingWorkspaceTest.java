@@ -46,7 +46,7 @@ public class PricingWorkspaceTest {
         PricingWorkspace workspace = new PricingWorkspace(resolvedMeters);
         assertSame(resolvedMeters, workspace.getResolvedMeterByMeterType());
         assertEquals(0, workspace.getResolvedMeterByMeterType().size());
-        Map<String, PriceTable> result = workspace.build();
+        Map<String, PriceTable.Builder> result = workspace.getBuilders();
         assertNotNull(result);
         assertEquals(0, result.size());
     }
@@ -72,7 +72,7 @@ public class PricingWorkspaceTest {
 
         // Verify the expected plans are present
 
-        Map<String, PriceTable> result = workspace.build();
+        Map<String, PriceTable.Builder> result = workspace.getBuilders();
 
         List<String> plans = result.keySet().stream().sorted().collect(Collectors.toList());
         assertEquals(ImmutableList.of("bar", "foo"), plans);
@@ -118,10 +118,10 @@ public class PricingWorkspaceTest {
 
         // Build the price tables and verify that the on demand data was included
 
-        Map<String, PriceTable> result = workspace.build();
+        Map<String, PriceTable.Builder> result = workspace.getBuilders();
 
-        PriceTable plan1 = result.get("plan1");
-        PriceTable plan2 = result.get("plan2");
+        PriceTable plan1 = result.get("plan1").build();
+        PriceTable plan2 = result.get("plan2").build();
 
         assertNotNull(plan1);
         assertNotNull(plan2);

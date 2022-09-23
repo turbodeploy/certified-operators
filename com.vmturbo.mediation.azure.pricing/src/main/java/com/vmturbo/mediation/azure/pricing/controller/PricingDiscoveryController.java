@@ -2,7 +2,7 @@ package com.vmturbo.mediation.azure.pricing.controller;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.mediation.azure.pricing.pipeline.DiscoveredPricing;
+import com.vmturbo.mediation.azure.pricing.pipeline.PricingKey;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.probe.ProxyAwareAccount;
@@ -34,7 +34,7 @@ public interface PricingDiscoveryController<A extends ProxyAwareAccount> {
      * for logging purposes.
      */
     @Nonnull
-    DiscoveredPricing.Key getKey(@Nonnull A accountValues);
+    PricingKey getKey(@Nonnull A accountValues);
 
     /**
      * Validate the account values for this target.

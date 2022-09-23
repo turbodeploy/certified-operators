@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.mediation.azure.pricing.pipeline.DiscoveredPricing;
+import com.vmturbo.mediation.azure.pricing.pipeline.PricingKey;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipeline;
 import com.vmturbo.mediation.azure.pricing.pipeline.PricingPipelineContext;
 import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
@@ -61,30 +62,29 @@ public abstract class AbstractPricingDiscoveryController<A extends ProxyAwareAcc
             @Nonnull IPropertyProvider propertyProvider) {
         // TODO locking to prevent simultaneous discovery. Should be based on the
         // PricingFileFetcher key not the key below, because we don't want to try to
-        // process two pipelines that will return the same DiscoveredPricing.Keys
+        // process two pipelines that will return the same PricingKeys
 
-        DiscoveredPricing.Key key = getKey(accountValues);
+        PricingKey pricingKey = getKey(accountValues);
 
         DiscoveryResponse.Builder responseBuilder = DiscoveryResponse.newBuilder();
         ProbeStageTracker<E> stageTracker = new ProbeStageTracker<E>(getDiscoveryStages());
 
         // TODO Check the cache and use the cached value if still valid, else...
 
-        PriceTable.Builder tableBuilder = null;
+        PriceTable.Builder priceTableBuilder = null;
 
-        try (PricingPipelineContext context = new PricingPipelineContext(key.toString(), stageTracker)) {
-            PricingPipeline<A, DiscoveredPricing> pipeline = buildPipeline(context, propertyProvider);
+        try (PricingPipelineContext context = new PricingPipelineContext(pricingKey.toString(), stageTracker)) {
+            PricingPipeline<A, DiscoveredPricing> pipeline = buildPipeline(context, pricingKey, propertyProvider);
 
             DiscoveredPricing pricing = pipeline.run(accountValues);
 
-            // TODO enter pricing for each DiscoveredPricing.Key into the cache
+            // TODO enter pricing for each PricingKey into the cache
 
-            tableBuilder = pricing.getPricingMap().get(key);
-            if (tableBuilder != null) {
+            priceTableBuilder = pricing.get(pricingKey);
+            if (priceTableBuilder != null) {
                 // TODO checksumming and returning NoChange instead of result if same
 
-                tableBuilder.addAllPriceTableKeys(key.getPricingIdentifiers());
-                responseBuilder.setPriceTable(tableBuilder);
+                responseBuilder.setPriceTable(priceTableBuilder.build());
             }
         } catch (Exception ex) {
             logger.error("Exception during discovery", ex);
@@ -92,14 +92,11 @@ public abstract class AbstractPricingDiscoveryController<A extends ProxyAwareAcc
             return stageTracker.createDiscoveryError(ex.getMessage());
         }
 
-        /* if (tableBuilder == null) {
-            // This needs to be disabled until the placeholder stage is replaced with
-            // the real final stage that returns the expected pricing:
-
+        if (priceTableBuilder == null) {
             return stageTracker.createDiscoveryError(
                 "Discovery pipeline succeeded but did not include the requested pricing "
-                + key.toString());
-        }*/
+                + pricingKey.toString());
+        }
 
         responseBuilder.addAllStagesDetail(stageTracker.getStageDetails());
 
@@ -110,12 +107,14 @@ public abstract class AbstractPricingDiscoveryController<A extends ProxyAwareAcc
      * Implement in subclasses to build the pipeline for discovery.
      *
      * @param context the context that will be used for invoking this instance of the pipeline
+     * @param pricingKey the key describing the specific pricing that this discovery is for
      * @param propertyProvider provides the properties for this discovery
      * @return the pipeline to run for live discovery
      */
     @Nonnull
     public abstract PricingPipeline<A, DiscoveredPricing> buildPipeline(
             @Nonnull PricingPipelineContext context,
+            @Nonnull PricingKey pricingKey,
             @Nonnull IPropertyProvider propertyProvider);
 
     /**

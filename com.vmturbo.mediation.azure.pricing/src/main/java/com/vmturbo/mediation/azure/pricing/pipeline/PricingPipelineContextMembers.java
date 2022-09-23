@@ -24,6 +24,13 @@ public class PricingPipelineContextMembers {
             propertyProvider -> null);
 
     /**
+     * The key for the specific pricing being discovered.
+     */
+    public static final PipelineContextMemberDefinition<PricingKey> PRICING_KEY =
+        PipelineContextMemberDefinition.member(PricingKey.class, "Pricing Key",
+            key -> null);
+
+    /**
      * The opened zip file.
      */
     public static final PipelineContextMemberDefinition<ZipFile> ZIP_FILE =
