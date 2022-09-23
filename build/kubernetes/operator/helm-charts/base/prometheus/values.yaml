@@ -419,7 +419,7 @@ kube-state-metrics:
 nodeExporter:
   ## If false, node-exporter will not be installed
   ##
-  enabled: true
+  enabled: false
 
   ## If true, node-exporter pods share the host network namespace
   ##
@@ -1022,7 +1022,7 @@ server:
 pushgateway:
   ## If false, pushgateway will not be installed
   ##
-  enabled: true
+  enabled: false
 
   ## Use an alternate scheduler, e.g. "stork".
   ## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/

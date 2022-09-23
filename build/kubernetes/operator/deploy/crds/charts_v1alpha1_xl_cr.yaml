@@ -76,6 +76,8 @@ spec:
       pass: vmturbo
   prometheus:
     enabled: true
+    nodeExporter:
+      enabled: true
   prometurbo:
     enabled: true
   pure:
