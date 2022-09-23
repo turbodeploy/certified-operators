@@ -35,7 +35,9 @@ alertmanager:
   ## Use a ClusterRole (and ClusterRoleBinding)
   ## - If set to false, we define a Role and RoleBinding in the defined namespaces ONLY
   ## This makes alertmanager work - for users who do not have ClusterAdmin privs, but wants alertmanager to operate on their own namespaces, instead of clusterwide.
-  useClusterRole: true
+  useClusterRole: false
+  namespaces:
+    - turbonomic
 
   ## alertmanager container name
   ##
@@ -570,9 +572,10 @@ server:
   ##
   # useExistingClusterRoleName: nameofclusterrole
 
+  useClusterRole: false
   ## namespaces to monitor (instead of monitoring all - clusterwide). Needed if you want to run without Cluster-admin privileges.
-  # namespaces:
-  #   - yournamespace
+  namespaces:
+    - turbonomic
 
   name: server
   sidecarContainers: []
