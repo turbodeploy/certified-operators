@@ -56,6 +56,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.StandardProbeOrdering;
+import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
@@ -94,8 +95,12 @@ public class SharedStorageIntegrationTest {
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
     private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
     private final Clock entityClock = Mockito.mock(Clock.class);
+
+    private TargetHealthRetriever targetHealthRetriever = mock(TargetHealthRetriever.class);
+
     private EntityStore entityStore = new EntityStore(targetStore, identityProvider,
-            0.3F, true, Collections.singletonList(sender), entityClock, Collections.emptySet(), true);
+            0.3F, true, Collections.singletonList(sender), entityClock, Collections.emptySet(),
+            true);
     private CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
 
     private final DiskCapacityCalculator diskCapacityCalculator =

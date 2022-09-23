@@ -35,6 +35,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 
 /**
  * Tests for the {@link IdentityController} class.
@@ -59,6 +60,10 @@ public class IdentityControllerTest {
         @Bean
         EntityStore entityStore() {
             return Mockito.mock(EntityStore.class);
+        }
+
+        @Bean TargetHealthRetriever targetHealthRetriever() {
+            return Mockito.mock(TargetHealthRetriever.class);
         }
 
         @Bean

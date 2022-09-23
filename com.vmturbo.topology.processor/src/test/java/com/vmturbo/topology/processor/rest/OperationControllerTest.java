@@ -98,6 +98,7 @@ import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
@@ -306,6 +307,9 @@ public class OperationControllerTest {
             msgConverter.setGson(ComponentGsonFactory.createGson());
             converters.add(msgConverter);
         }
+
+        @Bean TargetHealthRetriever targetHealthRetriever() { return Mockito.mock(
+                        TargetHealthRetriever.class); }
     }
 
     private final Gson gson = new Gson();

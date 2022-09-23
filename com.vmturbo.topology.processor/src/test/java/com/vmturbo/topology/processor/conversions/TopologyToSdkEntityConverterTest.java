@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.conversions;
 
+import static org.mockito.Mockito.mock;
+
 import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,6 +42,7 @@ import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSe
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -55,8 +58,11 @@ public class TopologyToSdkEntityConverterTest {
 
     private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
 
+    private TargetHealthRetriever targetHealthRetriever = mock(TargetHealthRetriever.class);
+
     private EntityStore entityStore = Mockito.spy(new EntityStore(targetStore, identityProvider,
-                    0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), Collections.emptySet(),  true));
+            0.3F, true, Collections.singletonList(sender), Clock.systemUTC(),
+            Collections.emptySet(),  true));
 
     /**
      * The class under test.
