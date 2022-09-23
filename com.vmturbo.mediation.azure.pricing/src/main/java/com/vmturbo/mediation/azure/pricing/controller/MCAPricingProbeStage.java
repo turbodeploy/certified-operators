@@ -53,6 +53,11 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
     REGROUP_METERS("Group resolved meters by type"),
 
     /**
+     * Process IP Meter Pricing.
+     */
+    IP_PRICE_PROCESSOR("IP Price Processing"),
+
+    /**
      * TODO remove this.
      */
     PLACEHOLDER_FINAL("Placeholder Final Stage");
@@ -88,5 +93,6 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
             DESERIALIZE_METERS,
             RESOLVE_METERS,
             REGROUP_METERS,
+            IP_PRICE_PROCESSOR,
             PLACEHOLDER_FINAL);
 }

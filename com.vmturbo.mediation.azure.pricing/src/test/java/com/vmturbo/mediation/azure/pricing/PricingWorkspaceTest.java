@@ -5,7 +5,9 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -163,6 +165,37 @@ public class PricingWorkspaceTest {
                 .map(String::valueOf)
                 .sorted()
                 .collect(Collectors.joining(",")));
+    }
+
+    /**
+     * Test {@link PricingWorkspace#getAndRemoveResolvedMeterByMeterType(MeterType)} method.
+     */
+    @Test
+    public void testGetAndRemoveResolvedMeterByMeterType() {
+        // Setup resolvedMeterByMeterType.
+        List<ResolvedMeter> resolvedMetersForIp = new ArrayList<>();
+        final ResolvedMeter resolvedMeterForIp = mock(ResolvedMeter.class);
+        resolvedMetersForIp.add(resolvedMeterForIp);
+
+        List<ResolvedMeter> resolvedMetersForDb = new ArrayList<>();
+        final ResolvedMeter resolvedMeterForDb = mock(ResolvedMeter.class);
+        resolvedMetersForDb.add(resolvedMeterForDb);
+
+        Map<MeterType, List<ResolvedMeter>> resolvedMetersByMeterType = new HashMap<>();
+        resolvedMetersByMeterType.put(MeterType.DB, resolvedMetersForDb);
+        resolvedMetersByMeterType.put(MeterType.IP, resolvedMetersForIp);
+
+        PricingWorkspace workspace = new PricingWorkspace(resolvedMetersByMeterType);
+
+        // When
+        List<ResolvedMeter> result = workspace.getAndRemoveResolvedMeterByMeterType(MeterType.IP);
+
+        // Verify
+        assertNotNull("There should be list of resolved meters for IP meter.", result);
+        assertEquals("Should get the correct list of resolved meters for IP.", resolvedMetersForIp, result);
+
+        assertEquals("There should only be 1 meterType left in the map.", 1, workspace.getResolvedMeterByMeterType().size());
+        assertTrue("MeterType.DB should be the only one left in the map.", workspace.getResolvedMeterByMeterType().keySet().contains(MeterType.DB));
     }
 
     @NotNull

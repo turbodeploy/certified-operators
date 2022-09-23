@@ -7,6 +7,7 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.mediation.azure.pricing.resolver.ResolvedMeter;
 import com.vmturbo.mediation.cost.parser.azure.AzureMeterDescriptors.AzureMeterDescriptor.MeterType;
@@ -61,6 +62,17 @@ public class PricingWorkspace {
     @Nonnull
     public Map<MeterType, List<ResolvedMeter>> getResolvedMeterByMeterType() {
         return resolvedMeterByMeterType;
+    }
+
+    /**
+     * Get the resolved meters by MeterType, and remove the requested meterType from the map.
+     *
+     * @param meterType requested {@link MeterType}
+     * @return list of all the resolved meters of the requested meter type.
+     */
+    @Nullable
+    public List<ResolvedMeter> getAndRemoveResolvedMeterByMeterType(@Nonnull MeterType meterType) {
+        return resolvedMeterByMeterType.remove(meterType);
     }
 
     /**
