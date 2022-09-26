@@ -1,6 +1,5 @@
 package com.vmturbo.cost.component.savings;
 
-import static com.vmturbo.cost.component.savings.EntitySavingsConfig.supportedProviderTypes;
 import static com.vmturbo.cost.component.util.TestUtils.getTimeMillis;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -130,7 +129,6 @@ public class ScenarioSavingsTest {
                 new SqlBillingRecordStore(dsl),
                 actionChainStore,
                 savingsStore,
-                supportedProviderTypes,
                 TimeUnit.DAYS.toMillis(365),
                 clock, mock(
                 TopologyEntityCloudTopologyFactory.class), null, dsl,

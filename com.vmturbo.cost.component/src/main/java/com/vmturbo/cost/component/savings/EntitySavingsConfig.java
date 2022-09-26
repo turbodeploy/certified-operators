@@ -606,7 +606,7 @@ public class EntitySavingsConfig {
         try {
             return new SavingsTracker(new SqlBillingRecordStore(dbAccessConfig.dsl()),
                     new GrpcActionChainStore(actionsService()),
-                    (SavingsStore)entitySavingsStore(), supportedProviderTypes,
+                    (SavingsStore)entitySavingsStore(),
                     getEntitySavingsRetentionConfig().getVolumeDeleteRetentionMs(), getClock(),
                     cloudTopologyFactory(), repositoryClient, dbAccessConfig.dsl(),
                     pricingConfig.businessAccountPriceTableKeyStore(), pricingConfig.priceTableStore(),
