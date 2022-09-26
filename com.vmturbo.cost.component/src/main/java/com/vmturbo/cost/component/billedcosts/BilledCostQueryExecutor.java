@@ -19,14 +19,17 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Predicates;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList.Builder;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 
@@ -69,6 +72,17 @@ class BilledCostQueryExecutor {
             TimeFrame.MONTH, Tables.BILLED_COST_MONTHLY,
             TimeFrame.YEAR, Tables.BILLED_COST_MONTHLY);
 
+    /**
+     * Mapping of supported group-by types to the table fields that are actually used to group
+     * results.
+     */
+    private static final Map<GroupByType, Consumer<Builder<Field<?>>>>
+            GROUP_BY_TYPE_TO_GROUPING_STRATEGY =
+            ImmutableMap.<GroupByType, Consumer<Builder<Field<?>>>>builder()
+                    .put(GroupByType.TAG,
+                            (groupByFields) -> groupByFields.add(Tables.COST_TAG_GROUPING.TAG_ID))
+                    .build();
+
     private final DSLContext dsl;
     private final TimeFrameCalculator timeFrameCalculator;
 
@@ -109,8 +123,10 @@ class BilledCostQueryExecutor {
         final List<GroupByType> groupByList = request.getGroupByList();
         if (!groupByList.isEmpty()) {
             validateGroupByList(groupByList);
-            // Currently, we only support grouping by tag.
-            groupByFieldsBuilder.add(Tables.COST_TAG_GROUPING.TAG_ID);
+            groupByList.stream()
+                    .map(GROUP_BY_TYPE_TO_GROUPING_STRATEGY::get)
+                    .filter(Objects::nonNull)
+                    .forEach(groupingStrategy -> groupingStrategy.accept(groupByFieldsBuilder));
         }
         final List<Field<?>> groupByFields = groupByFieldsBuilder.build();
 
@@ -122,10 +138,11 @@ class BilledCostQueryExecutor {
         if (request.hasEndDate()) {
             conditions.add(sampleTime.lessOrEqual(convertTimestamp(request.getEndDate())));
         }
+        final boolean groupByTag = groupByList.contains(GroupByType.TAG);
         if (request.getTagFilterCount() > 0) {
             if (groupByList.isEmpty()) {
                 conditions.add(tagGroupId.in(tagGroupIds));
-            } else {
+            } else if (groupByTag) {
                 conditions.add(Tables.COST_TAG_GROUPING.TAG_ID.in(tags.keySet()));
             }
         }
@@ -151,7 +168,7 @@ class BilledCostQueryExecutor {
         final SelectJoinStep<Record> joinStep = dsl.select(selectFields).from(table);
 
         // Join tag_grouping table if we need to group by tag
-        final SelectWhereStep<Record> whereStep = groupByList.isEmpty()
+        final SelectWhereStep<Record> whereStep = !groupByTag
                 ? joinStep
                 : joinStep.leftJoin(Tables.COST_TAG_GROUPING)
                     .on(Tables.COST_TAG_GROUPING.TAG_GROUP_ID.eq(tagGroupId));
@@ -234,12 +251,15 @@ class BilledCostQueryExecutor {
 
     private static void validateGroupByList(@Nonnull final List<GroupByType> groupByList) {
         if (!groupByList.isEmpty()) {
-            if (groupByList.size() > 1) {
-                throw new IllegalArgumentException("Multiple group by fields are not supported");
-            }
-            final GroupByType groupBy = groupByList.get(0);
-            if (groupBy != GroupByType.TAG) {
-                throw new IllegalArgumentException("Unsupported group by: " + groupBy);
+            List<GroupByType> unsupportedGroupBys = groupByList.stream()
+                    .filter(Predicates.not(GROUP_BY_TYPE_TO_GROUPING_STRATEGY::containsKey))
+                    .collect(Collectors.toList());
+
+            if (!unsupportedGroupBys.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Unsupported group bys: " + unsupportedGroupBys.stream()
+                                .map(Enum::toString)
+                                .collect(Collectors.joining(", ")));
             }
         }
     }
