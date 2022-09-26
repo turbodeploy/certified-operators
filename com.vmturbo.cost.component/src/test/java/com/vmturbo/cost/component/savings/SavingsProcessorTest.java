@@ -1,6 +1,5 @@
 package com.vmturbo.cost.component.savings;
 
-import static com.vmturbo.cost.component.savings.EntitySavingsConfig.supportedProviderTypes;
 import static com.vmturbo.cost.component.savings.GrpcActionChainStore.changeWindowComparator;
 import static com.vmturbo.cost.component.util.TestUtils.getTimeMillis;
 import static org.junit.Assert.assertFalse;
@@ -267,7 +266,6 @@ public class SavingsProcessorTest extends MultiDbTestBase {
                         new SqlBillingRecordStore(dsl),
                         actionChainStore,
                         savingsStore,
-                        supportedProviderTypes,
                         TimeUnit.DAYS.toMillis(365),
                         clock, mock(TopologyEntityCloudTopologyFactory.class),
                         null, dsl, mock(BusinessAccountPriceTableKeyStore.class),

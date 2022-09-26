@@ -68,11 +68,6 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
     private final SavingsStore savingsStore;
 
     /**
-     * Supported provider types.
-     */
-    private final Set<Integer> supportedProviderTypes;
-
-    /**
      * Clock.
      */
     private final Clock clock;
@@ -96,12 +91,10 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
      * @param billingRecordStore Store for billing records.
      * @param actionChainStore Action chain store.
      * @param savingsStore Writer for final stats.
-     * @param supportedProviderTypes Provider types wer are interested in.
      */
     public SavingsTracker(@Nonnull final BillingRecordStore billingRecordStore,
             @Nonnull ActionChainStore actionChainStore,
             @Nonnull final SavingsStore savingsStore,
-            @Nonnull final Set<Integer> supportedProviderTypes,
             long deleteActionRetentionMs,
             @Nonnull Clock clock,
             @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
@@ -115,7 +108,6 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         this.billingRecordStore = billingRecordStore;
         this.actionChainStore = actionChainStore;
         this.savingsStore = savingsStore;
-        this.supportedProviderTypes = supportedProviderTypes;
         this.clock = clock;
         this.cloudTopologyFactory = cloudTopologyFactory;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -136,7 +128,6 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
     public SavingsTracker(@Nonnull final BillingRecordStore billingRecordStore,
                           @Nonnull ActionChainStore actionChainStore,
                           @Nonnull final SavingsStore savingsStore,
-                          @Nonnull final Set<Integer> supportedProviderTypes,
                           long deleteActionRetentionMs,
                           @Nonnull Clock clock,
                           @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
@@ -149,7 +140,6 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         this.billingRecordStore = billingRecordStore;
         this.actionChainStore = actionChainStore;
         this.savingsStore = savingsStore;
-        this.supportedProviderTypes = supportedProviderTypes;
         this.clock = clock;
         this.cloudTopologyFactory = cloudTopologyFactory;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -181,7 +171,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         // For this set of billing records, see if we have any last_updated times that are newer.
         final AtomicLong newLastUpdated = new AtomicLong(savingsTimes.getCurrentLastUpdatedTime());
         billingRecordStore.getUpdatedBillRecords(previousLastUpdated, lastUpdatedEndTime, entityIds)
-                .filter(record -> record.isValid(supportedProviderTypes))
+                .filter(record -> record.isValid())
                 .forEach(record -> {
                     if (record.getLastUpdated() != null
                             && record.getLastUpdated() > newLastUpdated.get()) {
@@ -265,7 +255,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
             // If no action chains are passed in, we will use the data in the database.
             // Get billing records in this time range, mapped by entity id.
             billingRecordStore.getBillRecords(startTime, endTime, participatingUuids)
-                    .filter(record -> record.isValid(supportedProviderTypes))
+                    .filter(record -> record.isValid())
                     .forEach(record -> billRecords.computeIfAbsent(record.getEntityId(), e -> new HashSet<>())
                             .add(record));
 
