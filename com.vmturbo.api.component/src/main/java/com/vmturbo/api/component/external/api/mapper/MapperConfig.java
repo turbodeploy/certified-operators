@@ -84,7 +84,7 @@ public class MapperConfig {
     /**
      * Enable reservation related enhancements.
      */
-    @Value("${enableReservationEnhancements:false}")
+    @Value("${enableReservationEnhancements:true}")
     private boolean enableReservationEnhancements;
 
     @Autowired
