@@ -43,6 +43,11 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
     DESERIALIZE_METERS("Load meters from CSV records"),
 
     /**
+     * filter meters based on effective start/end dates.
+     */
+    EFFECTIVE_DATE_FILTER("Effective date filter stage"),
+
+    /**
      * Resolve meters, identifying their meaning.
      */
     RESOLVE_METERS("Resolve meters"),
@@ -91,6 +96,7 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
             BOM_AWARE_READERS,
             CHAINED_CSV_PARSERS,
             DESERIALIZE_METERS,
+            EFFECTIVE_DATE_FILTER,
             RESOLVE_METERS,
             REGROUP_METERS,
             IP_PRICE_PROCESSOR,

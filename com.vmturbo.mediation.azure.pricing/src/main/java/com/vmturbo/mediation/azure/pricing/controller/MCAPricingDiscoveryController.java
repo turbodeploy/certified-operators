@@ -30,6 +30,7 @@ import com.vmturbo.mediation.azure.pricing.resolver.MeterDescriptorsFileResolver
 import com.vmturbo.mediation.azure.pricing.stages.AssignPricingIdentifiersStage;
 import com.vmturbo.mediation.azure.pricing.stages.BOMAwareReadersStage;
 import com.vmturbo.mediation.azure.pricing.stages.ChainedCSVParserStage;
+import com.vmturbo.mediation.azure.pricing.stages.DateFilterStage;
 import com.vmturbo.mediation.azure.pricing.stages.FetcherStage;
 import com.vmturbo.mediation.azure.pricing.stages.MCAMeterDeserializerStage;
 import com.vmturbo.mediation.azure.pricing.stages.MeterResolverStage;
@@ -148,6 +149,7 @@ public class MCAPricingDiscoveryController extends
                 .addStage(new BOMAwareReadersStage(MCAPricingProbeStage.BOM_AWARE_READERS))
                 .addStage(new ChainedCSVParserStage(MCAPricingProbeStage.CHAINED_CSV_PARSERS))
                 .addStage(new MCAMeterDeserializerStage(MCAPricingProbeStage.DESERIALIZE_METERS))
+                .addStage(new DateFilterStage(MCAPricingProbeStage.EFFECTIVE_DATE_FILTER))
                 .addStage(MeterResolverStage.newBuilder()
                     .addResolver(new MeterDescriptorsFileResolver())
                     .build(MCAPricingProbeStage.RESOLVE_METERS))

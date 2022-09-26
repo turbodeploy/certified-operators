@@ -61,16 +61,16 @@ public class MCAMeterDeserializerStageTest {
         }
 
         List<String> expectedMeters = ImmutableList.of(
-                COMPUTE_METER + " " + DEVTEST_PLAN + " $0.00520000 / 1 Hour @ >= 0.00000",
-                COMPUTE_METER + " " + NORMAL_PLAN + " $0.00520000 / 1 Hour @ >= 0.00000",
-                P30_METER + " " + DEVTEST_PLAN + " $135.170 / 1/Month @ >= 0.00000",
-                P30_METER + " " + NORMAL_PLAN + " $135.170 / 1/Month @ >= 0.00000",
-                BLOB_METER + " " + DEVTEST_PLAN + " $0.0600000 / 1 GB/Month @ >= 0.00000",
-                BLOB_METER + " " + NORMAL_PLAN + " $0.0600000 / 1 GB/Month @ >= 0.00000",
-                BLOB_METER + " " + DEVTEST_PLAN + " $0.0500000 / 1 GB/Month @ >= 10.0000",
-                BLOB_METER + " " + NORMAL_PLAN + " $0.0500000 / 1 GB/Month @ >= 10.0000",
-                BLOB_METER + " " + DEVTEST_PLAN + " $0.0400000 / 1 GB/Month @ >= 100.000",
-                BLOB_METER + " " + NORMAL_PLAN + " $0.0400000 / 1 GB/Month @ >= 100.000"
+                COMPUTE_METER + " " + DEVTEST_PLAN + " $0.00520000 / 1 Hour @ >= 0.00000 effective from 2022-07-01T00:00Z to 2022-08-01T00:00Z",
+                COMPUTE_METER + " " + NORMAL_PLAN + " $0.00520000 / 1 Hour @ >= 0.00000 effective from 2022-07-01T00:00Z to 2022-08-01T00:00Z",
+                P30_METER + " " + DEVTEST_PLAN + " $135.170 / 1/Month @ >= 0.00000 effective from 2022-07-01T00:00Z to 2022-08-01T00:00Z",
+                P30_METER + " " + NORMAL_PLAN + " $135.170 / 1/Month @ >= 0.00000 effective from 2022-07-01T00:00Z to 2022-08-01T00:00Z",
+                BLOB_METER + " " + DEVTEST_PLAN + " $0.0600000 / 1 GB/Month @ >= 0.00000 effective from 2022-07-01T00:00Z to 2022-08-01T00:00Z",
+                BLOB_METER + " " + NORMAL_PLAN + " $0.0600000 / 1 GB/Month @ >= 0.00000 effective from 2022-07-01T00:00Z to 2022-08-01T00:00Z",
+                BLOB_METER + " " + DEVTEST_PLAN + " $0.0500000 / 1 GB/Month @ >= 10.0000 effective from 2022-07-01T00:00Z to 2022-08-01T00:00Z",
+                BLOB_METER + " " + NORMAL_PLAN + " $0.0500000 / 1 GB/Month @ >= 10.0000 effective from 2022-07-01T00:00Z to 2022-08-01T00:00Z",
+                BLOB_METER + " " + DEVTEST_PLAN + " $0.0400000 / 1 GB/Month @ >= 100.000 effective from 2022-07-01T00:00Z to 2022-08-01T00:00Z",
+                BLOB_METER + " " + NORMAL_PLAN + " $0.0400000 / 1 GB/Month @ >= 100.000 effective from 2022-07-01T00:00Z to 2022-08-01T00:00Z"
         );
 
         for (int i = 0; i < meterStrings.size(); i++) {

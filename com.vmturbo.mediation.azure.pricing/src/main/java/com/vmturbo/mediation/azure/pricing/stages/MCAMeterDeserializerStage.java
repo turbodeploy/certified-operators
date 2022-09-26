@@ -1,11 +1,17 @@
 package com.vmturbo.mediation.azure.pricing.stages;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.commons.csv.CSVRecord;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -30,6 +36,9 @@ public class MCAMeterDeserializerStage<E extends ProbeStageEnum>
 
     private int processed = 0;
     private int errored = 0;
+
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern(
+            "M[M]/d[d]/yyyy hh:mm:ss a");
 
     /**
      * Create a deserializing stage for MCA meters.
@@ -95,6 +104,8 @@ public class MCAMeterDeserializerStage<E extends ProbeStageEnum>
         private final double tierMinimumUnits;
         private final String unitOfMeasure;
         private final double unitPrice;
+        private final ZonedDateTime effectiveStartDate;
+        private final ZonedDateTime effectiveEndDate;
 
         /**
          * Instantiate a meter from a CSVRecord from an MCA price sheet.
@@ -107,8 +118,18 @@ public class MCAMeterDeserializerStage<E extends ProbeStageEnum>
             tierMinimumUnits = Double.parseDouble(row.get(TIER_MINIMUM_UNITS));
             unitOfMeasure = row.get(UNIT_OF_MEASURE);
             unitPrice = Double.parseDouble(row.get(UNIT_PRICE));
-
-            // TODO OM-89088 EffectiveDateFilteringStage: parse date fields and provide getters
+            if (StringUtils.isNotBlank(row.get(EFFECTIVE_START_DATE))) {
+                effectiveStartDate = LocalDateTime.parse(row.get(EFFECTIVE_START_DATE),
+                        DATE_TIME_FORMATTER).atZone(ZoneOffset.UTC);
+            } else {
+                effectiveStartDate = Instant.ofEpochMilli(Long.MIN_VALUE).atZone(ZoneOffset.UTC);
+            }
+            if (StringUtils.isNotBlank(row.get(EFFECTIVE_END_DATE))) {
+                effectiveEndDate = LocalDateTime.parse(row.get(EFFECTIVE_END_DATE),
+                        DATE_TIME_FORMATTER).atZone(ZoneOffset.UTC);
+            } else {
+                effectiveEndDate = Instant.ofEpochMilli(Long.MAX_VALUE).atZone(ZoneOffset.UTC);
+            }
         }
 
         @Override
@@ -139,11 +160,22 @@ public class MCAMeterDeserializerStage<E extends ProbeStageEnum>
             return unitPrice;
         }
 
+        @Override
+        public ZonedDateTime getEffectiveStartDate() {
+            return effectiveStartDate;
+        }
+
+        @Override
+        public ZonedDateTime getEffectiveEndDate() {
+            return effectiveEndDate;
+        }
+
         @Nonnull
         @Override
         public String toString() {
-            return String.format("%s %s $%g / %s @ >= %g", getMeterId(), getPlanName(), getUnitPrice(),
-                    getUnitOfMeasure(), getTierMinimumUnits());
+            return String.format("%s %s $%g / %s @ >= %g effective from %s to %s", getMeterId(),
+                    getPlanName(), getUnitPrice(), getUnitOfMeasure(), getTierMinimumUnits(),
+                    getEffectiveStartDate(), getEffectiveEndDate());
         }
     }
 }
