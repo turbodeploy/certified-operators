@@ -25,7 +25,7 @@
         <ux.mt.branch.version>8.6.5-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.3.40</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.3.41</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.5.6</cpu.capacity.version>
@@ -108,7 +108,7 @@
         <swagger-annotations.version>1.5.13</swagger-annotations.version>
         <swagger.codegen.plugin.version>2.2.3</swagger.codegen.plugin.version>
         <jackson-datatype-guava.version>2.6.5</jackson-datatype-guava.version>
-        <snakeyaml.version>1.31</snakeyaml.version>
+        <snakeyaml.version>1.32</snakeyaml.version>
         <javax.ws.rs-api.version>2.0</javax.ws.rs-api.version>
         <commons-collections4.version>4.1</commons-collections4.version>
         <commons-csv.version>1.9.0</commons-csv.version>
