@@ -73,7 +73,7 @@ public class ScenarioGenerator {
     private static final Map<EntityType, List<CommodityType>> entityTypeToCommType = ImmutableMap.of(EntityType.VIRTUAL_VOLUME,
             ImmutableList.of(CommodityType.STORAGE_ACCESS, CommodityType.STORAGE_AMOUNT, CommodityType.IO_THROUGHPUT));
 
-    private static final Map<String, Long> volumeNameToProviderId = ImmutableMap.of("STANDARDSDD", 10000L,
+    static final Map<String, Long> volumeNameToProviderId = ImmutableMap.of("STANDARDSDD", 10000L,
             "STANDARDHDD", 20000L, "PREMIUM", 30000L, "ULTRA", 40000L, "STANDARD", 50000L);
 
     /**
@@ -185,7 +185,7 @@ public class ScenarioGenerator {
                         actionDateTime, oid, event.sourceOnDemandRate);
                 actionChains.computeIfAbsent(oid, c -> new TreeSet<>(GrpcActionChainStore.changeWindowComparator))
                         .add(action);
-            } else if ("REVERT".equals(event.eventType)) {
+            } else if ("REVERT".equals(event.eventType) || "REVERT-VOL".equals(event.eventType)) {
                 NavigableSet<ExecutedActionsChangeWindow> changeWindows = actionChains.get(oid);
                 if (changeWindows != null) {
                     ExecutedActionsChangeWindow lastAction = changeWindows.pollLast();
@@ -197,7 +197,7 @@ public class ScenarioGenerator {
                                 .build());
                     }
                 }
-            } else if ("EXTMOD".equals(event.eventType)) {
+            } else if ("EXTMOD".equals(event.eventType) || "EXTMOD-VOL".equals(event.eventType)) {
                 NavigableSet<ExecutedActionsChangeWindow> changeWindows = actionChains.get(oid);
                 if (changeWindows != null) {
                     ExecutedActionsChangeWindow lastAction = changeWindows.pollLast();
@@ -241,7 +241,7 @@ public class ScenarioGenerator {
             if ("RESIZE".equals(event.eventType) || "EXTMOD".equals(event.eventType)) {
                 scaleEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
                         .add(event);
-            } else if ("CREATE-VOL".equals(event.eventType)) {
+            } else if ("CREATE-VOL".equals(event.eventType) || "EXTMOD-VOL".equals(event.eventType)) {
                 if (!event.commodities.isEmpty()) {
                     context.updateCommodities(oid, event.commodities, EntityType.VIRTUAL_VOLUME);
                 }
@@ -269,6 +269,30 @@ public class ScenarioGenerator {
                     revertEvent.sourceOnDemandRate = previousEvent.destinationOnDemandRate;
                     revertEvent.destinationOnDemandRate = previousEvent.sourceOnDemandRate;
                     scaleEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
+                            .add(revertEvent);
+                }
+            } else if ("REVERT-VOL".equals(event.eventType)) {
+                // Model the revert as a scale action which in the opposite direction as the previous
+                // scale action.
+                BillingScriptEvent previousEvent = getPreviousScaleEvent(sortedEvents, event);
+                if (previousEvent == null) {
+                    previousEvent = getCreateEvent(sortedEvents, event);
+                }
+                if (previousEvent != null) {
+                    BillingScriptEvent revertEvent = new BillingScriptEvent();
+                    revertEvent.timestamp = event.timestamp;
+                    revertEvent.eventType = event.eventType;
+                    revertEvent.uuid = event.uuid;
+                    revertEvent.sourceVolumeType = previousEvent.sourceVolumeType;
+                    revertEvent.destinationVolumeType = previousEvent.destinationVolumeType;
+                    if (previousEvent.commodities != null) {
+                        revertEvent.commodities = new ArrayList<>();
+                        for (Commodity commodity : previousEvent.commodities) {
+                            revertEvent.commodities.add(new Commodity(commodity.commType, 0, 0,
+                                    commodity.sourceCapacity, commodity.sourceRate));
+                        }
+                    }
+                    scaleVolumeEventsByEntity.computeIfAbsent(oid, r -> new TreeSet<>(Comparator.comparing(BillingScriptEvent::getTimestamp)))
                             .add(revertEvent);
                 }
             } else if ("RI_COVERAGE".equals(event.eventType)) {
@@ -325,11 +349,32 @@ public class ScenarioGenerator {
     private static BillingScriptEvent getPreviousScaleEvent(NavigableSet<BillingScriptEvent> sortedEvents,
             BillingScriptEvent event) {
         BillingScriptEvent previousEvent = sortedEvents.lower(event);
-        while (previousEvent != null && !"RESIZE".equals(previousEvent.eventType)) {
+        while (previousEvent != null && !"RESIZE".equals(previousEvent.eventType)
+                && !"RESIZE-VOL".equals(previousEvent.eventType)) {
             previousEvent = sortedEvents.lower(previousEvent);
+            BillingScriptEvent nextToPreviousEvent = sortedEvents.higher(previousEvent);
+            // If the subsequent event is a revert, return the scale action previous to this
+            // scale action, as this one is already reverted.
+            if ("REVERT-VOL".equals(nextToPreviousEvent.eventType)) {
+                previousEvent = sortedEvents.lower(previousEvent);
+            }
         }
         if (previousEvent == null) {
             logger.error("Unsupported scenario: RI Coverage change action is not after a scale action.");
+            return null;
+        }
+        return previousEvent;
+    }
+
+    @Nullable
+    private static BillingScriptEvent getCreateEvent(NavigableSet<BillingScriptEvent> sortedEvents,
+                                                            BillingScriptEvent event) {
+        BillingScriptEvent previousEvent = sortedEvents.lower(event);
+        while (previousEvent != null && !"CREATE-VOL".equals(previousEvent.eventType)) {
+            previousEvent = sortedEvents.lower(previousEvent);
+        }
+        if (previousEvent == null) {
+            logger.error("Unsupported scenario: Create Event absent for volume {}.", event.uuid);
             return null;
         }
         return previousEvent;
