@@ -168,6 +168,13 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
         getHealthMonitor().addHealthCheck(topologyProcessorApiConfig.messageProducerHealthMonitor());
 
         dbAccessConfig.startDbMonitor();
+
+        // If mandatory probe authentication is enabled then it will be more restrictive than the
+        // optional authentication setting and will require all remote probes to authenticate.
+        if (FeatureFlags.ENABLE_MANDATORY_PROBE_AUTH.isEnabled() && FeatureFlags.ENABLE_PROBE_AUTH.isEnabled()) {
+            log.warn(String.format("%s is enabled so %s is no longer optional",
+                FeatureFlags.ENABLE_MANDATORY_PROBE_AUTH.getName(), FeatureFlags.ENABLE_PROBE_AUTH.getName()));
+        }
     }
 
     @Override
@@ -200,9 +207,13 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
 
     @Override
     public void logInitialAuditMessage() {
-        if (FeatureFlags.ENABLE_TP_PROBE_SECURITY.isEnabled()) {
+        if (FeatureFlags.ENABLE_PROBE_AUTH.isEnabled()) {
             AuditLogUtils.logSecurityAudit(AuditAction.ENABLE_PROBE_SECURITY,
-                getComponentName() + ": " + FeatureFlags.ENABLE_TP_PROBE_SECURITY.getName(), true);
+                getComponentName() + ": " + FeatureFlags.ENABLE_PROBE_AUTH.getName(), true);
+        }
+        if (FeatureFlags.ENABLE_MANDATORY_PROBE_AUTH.isEnabled()) {
+            AuditLogUtils.logSecurityAudit(AuditAction.ENABLE_PROBE_SECURITY,
+                getComponentName() + ": " + FeatureFlags.ENABLE_MANDATORY_PROBE_AUTH.getName(), true);
         }
     }
 
