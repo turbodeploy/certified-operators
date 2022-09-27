@@ -206,9 +206,13 @@ public class CacheOnlyTopologyProcessorComponent extends BaseVmtComponent {
 
     @Override
     public void logInitialAuditMessage() {
-        if (FeatureFlags.ENABLE_TP_PROBE_SECURITY.isEnabled()) {
+        if (FeatureFlags.ENABLE_PROBE_AUTH.isEnabled()) {
             AuditLogUtils.logSecurityAudit(AuditAction.ENABLE_PROBE_SECURITY,
-                    getComponentName() + ": " + FeatureFlags.ENABLE_TP_PROBE_SECURITY.getName(), true);
+                getComponentName() + ": " + FeatureFlags.ENABLE_PROBE_AUTH.getName(), true);
+        }
+        if (FeatureFlags.ENABLE_MANDATORY_PROBE_AUTH.isEnabled()) {
+            AuditLogUtils.logSecurityAudit(AuditAction.ENABLE_PROBE_SECURITY,
+                getComponentName() + ": " + FeatureFlags.ENABLE_MANDATORY_PROBE_AUTH.getName(), true);
         }
     }
 }

@@ -190,7 +190,7 @@ public class MediationComponentMain extends BaseVmtComponent {
     public void logInitialAuditMessage() {
         if (jwtAuthenticationEnabled) {
             AuditLogUtils.logSecurityAudit(AuditAction.ENABLE_PROBE_SECURITY,
-                getComponentName() + ": " + FeatureFlags.ENABLE_TP_PROBE_SECURITY.getName(), true);
+                getComponentName() + ": " + FeatureFlags.ENABLE_PROBE_AUTH.getName(), true);
         }
     }
 }

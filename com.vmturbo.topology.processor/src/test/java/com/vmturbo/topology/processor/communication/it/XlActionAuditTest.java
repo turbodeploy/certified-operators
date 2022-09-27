@@ -17,7 +17,13 @@ public class XlActionAuditTest extends ActionAuditTest {
      */
     @Rule
     public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
-            FeatureFlags.ENABLE_TP_PROBE_SECURITY);
+            FeatureFlags.ENABLE_PROBE_AUTH);
+    /**
+     * Feature flag rule mandatory.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRuleMandatory = new FeatureFlagTestRule(
+            FeatureFlags.ENABLE_MANDATORY_PROBE_AUTH);
 
     @Override
     protected ISdkEngine createSdkEngine() throws Exception {

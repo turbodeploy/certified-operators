@@ -38,7 +38,7 @@ public class TopologyProcessorApiSecurityConfig extends WebSecurityConfigurerAda
         // introduce a regression issue. We may decide to use some different mechanism like istio
         // in the future to secure communication between components.
         http.csrf().disable();
-        if (FeatureFlags.ENABLE_TP_PROBE_SECURITY.isEnabled()) {
+        if (FeatureFlags.ENABLE_PROBE_AUTH.isEnabled() || FeatureFlags.ENABLE_MANDATORY_PROBE_AUTH.isEnabled()) {
             http.authorizeRequests()
                 .antMatchers("/**").permitAll()
                 .and().addFilterBefore(new SpringTpFilter(securityConfig.verifier()),
