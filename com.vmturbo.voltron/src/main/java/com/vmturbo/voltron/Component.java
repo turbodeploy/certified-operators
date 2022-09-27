@@ -161,6 +161,11 @@ public enum Component {
     MEDIATION_ACTIONSCRIPT("actionscript", "com.vmturbo.mediation.actionscript.component"),
 
     /**
+     * ActionStream Kafka mediation.
+     */
+    MEDIATION_ACTIONSTREAM_KAFKA("mediation-actionstream-kafka", "com.vmturbo.mediation.actionstream.kafka.component"),
+
+    /**
      * APM SNMP.
      */
     MEDIATION_APM_SNMP("apm-snmp", "com.vmturbo.mediation.apm.snmp.component"),
@@ -350,9 +355,9 @@ public enum Component {
     MEDIATION_INTERSIGHT_UCS("intersight-ucs", "com.vmturbo.mediation.intersight.ucs.component"),
 
     /**
-     * ActionStream Kafka mediation.
+     * JVM.
      */
-    MEDIATION_ACTIONSTREAM_KAFKA("mediation-actionstream-kafka", "com.vmturbo.mediation.actionstream.kafka.component"),
+    MEDIATION_JVM("jvm", "com.vmturbo.mediation.jvm.component"),
 
     /**
      * NetApp.
@@ -393,6 +398,11 @@ public enum Component {
      * ScaleIO.
      */
     MEDIATION_SCALEIO("scaleio", "com.vmturbo.mediation.scaleio.component"),
+
+    /**
+     * ServiceNOW.
+     */
+    MEDIATION_SERVICENOW("servicenow", "com.vmturbo.mediation.servicenow.component"),
 
     /**
      * Storage stress probe.
@@ -473,11 +483,6 @@ public enum Component {
      * XTremio.
      */
     MEDIATION_XTREMIO("xtremio", "com.vmturbo.mediation.xtremio.component"),
-
-    /**
-     * ServiceNOW.
-     */
-    MEDIATION_SERVICENOW("servicenow", "com.vmturbo.mediation.servicenow.component"),
 
     /**
      * Xen.

@@ -619,10 +619,16 @@ public class VoltronConfiguration {
      * Mediation components.
      */
     public enum MediationComponent {
+
         /**
          * Actionscript.
          */
         MEDIATION_ACTIONSCRIPT(Component.MEDIATION_ACTIONSCRIPT),
+
+        /**
+         * ActionStream Kafka Mediation.
+         */
+        MEDIATION_ACTIONSTREAM_KAFKA(Component.MEDIATION_ACTIONSTREAM_KAFKA),
 
         /**
          * APM SNMP.
@@ -815,9 +821,9 @@ public class VoltronConfiguration {
         MEDIATION_INTERSIGHT_UCS(Component.MEDIATION_INTERSIGHT_UCS),
 
         /**
-         * ActionStream Kafka Mediation.
+         * JVM.
          */
-        MEDIATION_ACTIONSTREAM_KAFKA(Component.MEDIATION_ACTIONSTREAM_KAFKA),
+        MEDIATION_JVM(Component.MEDIATION_JVM),
 
         /**
          * NetApp.
@@ -858,6 +864,11 @@ public class VoltronConfiguration {
          * ScaleIO.
          */
         MEDIATION_SCALEIO(Component.MEDIATION_SCALEIO),
+
+        /**
+         * ServiceNOW.
+         */
+        MEDIATION_SERVICENOW(Component.MEDIATION_SERVICENOW),
 
         /**
          * Storage stress probe.
@@ -938,11 +949,6 @@ public class VoltronConfiguration {
          * XTremio.
          */
         MEDIATION_XTREMIO(Component.MEDIATION_XTREMIO),
-
-        /**
-         * ServiceNOW.
-         */
-        MEDIATION_SERVICENOW(Component.MEDIATION_SERVICENOW),
 
         /**
          * Xen.
