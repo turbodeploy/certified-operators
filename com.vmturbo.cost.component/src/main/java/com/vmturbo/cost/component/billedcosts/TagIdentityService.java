@@ -1,24 +1,23 @@
 package com.vmturbo.cost.component.billedcosts;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider;
-import com.vmturbo.cost.component.cloud.cost.tag.Tag;
-import com.vmturbo.cost.component.cloud.cost.tag.TagIdentity;
 import com.vmturbo.cost.component.db.tables.records.CostTagRecord;
+import com.vmturbo.platform.sdk.common.util.SetOnce;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -30,8 +29,8 @@ public class TagIdentityService {
     private static final Logger logger = LogManager.getLogger();
     private final TagStore tagStore;
     private final IdentityProvider identityProvider;
-    private final Map<Tag, Long> tagIdentityCache = new ConcurrentHashMap<>();
-    private final AtomicBoolean cacheInitialized = new AtomicBoolean(false);
+    private final Map<Tag, Long> tagIdentityCache = new HashMap<>();
+    private final SetOnce<Boolean> cacheInitialized = SetOnce.create();
     private final int batchSize;
 
     /**
@@ -56,58 +55,33 @@ public class TagIdentityService {
      * @return map from tag to tag id.
      * @throws com.vmturbo.sql.utils.DbException on encountering an error during inserts.
      */
-    public Map<Tag, Long> resolveIdForDiscoveredTags(@Nonnull final Set<Tag> tags) throws DbException {
-
-        initializeCache();
-
-        final Set<TagIdentity> tagIdentities = tags.stream()
-                .map(this::getOrCreateTagIdentity)
-                .collect(ImmutableSet.toImmutableSet());
-
-        tagStore.insertCostTagIdentities(tagIdentities);
-
-        return tagIdentities.stream()
-                .collect(ImmutableMap.toImmutableMap(
-                        TagIdentity::tag,
-                        TagIdentity::tagId));
-    }
-
-    /**
-     * Gets the {@link Tag}s associated with the requested tag IDs. Those tag IDs not found will
-     * be skipped.
-     * @param tagIds The tag IDs.
-     * @return A map of the tag ID to its associated {@link Tag}.
-     */
-    @Nonnull
-    public Map<Long, Tag> getTagsById(@Nonnull Set<Long> tagIds) {
-
-        return tagStore.retrieveCostTags(tagIds).entrySet()
-                .stream()
-                .collect(ImmutableMap.toImmutableMap(
-                        Map.Entry::getKey,
-                        tagIdentityEntry -> tagIdentityEntry.getValue().tag()));
-    }
-
-    @Nonnull
-    private TagIdentity getOrCreateTagIdentity(@Nonnull Tag tag) {
-        return TagIdentity.of(
-                tagIdentityCache.computeIfAbsent(tag, t -> identityProvider.next()),
-                tag);
-    }
-
-    private void initializeCache() throws DbException {
-
-        synchronized (cacheInitialized) {
-            if (!cacheInitialized.get()) {
-
-                tagIdentityCache.clear();
-
-                tagIdentityCache.putAll(tagStore.retrieveAllCostTags().stream()
-                        .collect(Collectors.toMap(rec -> Tag.of(rec.getTagKey(), rec.getTagValue()),
+    synchronized Map<Tag, Long> resolveIdForDiscoveredTags(@Nonnull final Set<Tag> tags) throws DbException {
+        if (!cacheInitialized.getValue().isPresent()) {
+            tagIdentityCache.putAll(tagStore.retrieveAllCostTags().stream()
+                .collect(Collectors.toMap(rec -> new Tag(rec.getTagKey(), rec.getTagValue()),
+                    CostTagRecord::getTagId)));
+            cacheInitialized.ensureSet(() -> true);
+        }
+        final Set<Tag> unseenTags = tags.stream()
+            .filter(tag -> !tagIdentityCache.containsKey(tag))
+            .collect(Collectors.toSet());
+        if (!unseenTags.isEmpty()) {
+            logger.debug("Inserting the following newly discovered tags: {}", () -> unseenTags);
+            final Set<CostTagRecord> recordsToInsert = unseenTags.stream()
+                .map(tag -> {
+                    final CostTagRecord record = new CostTagRecord();
+                    record.setTagKey(tag.getKey());
+                    record.setTagValue(tag.getValue());
+                    record.setTagId(identityProvider.next());
+                    return record;
+                }).collect(Collectors.toSet());
+            for (List<CostTagRecord> batchToInsert : Iterables.partition(recordsToInsert, batchSize)) {
+                tagStore.insertCostTagRecords(batchToInsert);
+                tagIdentityCache.putAll(batchToInsert.stream()
+                        .collect(Collectors.toMap(rec -> new Tag(rec.getTagKey(), rec.getTagValue()),
                                 CostTagRecord::getTagId)));
-
-                cacheInitialized.set(true);
             }
         }
+        return tags.stream().collect(Collectors.toMap(Function.identity(), tagIdentityCache::get));
     }
 }

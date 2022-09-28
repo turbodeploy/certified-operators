@@ -132,8 +132,8 @@ public class BilledCostUploadRpcServiceTest extends MultiDbTestBase {
         rollupTimesStore = mock(RollupTimesStore.class);
         when(rollupTimesStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
         batchInserter = spy(new BatchInserter(BATCH_SIZE, 1, rollupTimesStore));
-        tagStore = spy(new TagStore(context));
-        tagGroupStore = spy(new TagGroupStore(context));
+        tagStore = spy(new TagStore(context, batchInserter));
+        tagGroupStore = spy(new TagGroupStore(context, batchInserter));
         final BilledCostStore billedCostStore = createBilledCostStore(false);
         initializeUploadClientAndService(billedCostStore);
     }
@@ -365,10 +365,12 @@ public class BilledCostUploadRpcServiceTest extends MultiDbTestBase {
 
     /**
      * Test that on failure to insert new tag ids, the upload is failed.
+     *
+     * @throws DbException if error encountered during db operations.
      */
     @Test
     public void testExceptionWhileInsertingNewTags() throws DbException {
-        doThrow(new DbException("")).when(tagStore).insertCostTagIdentities(any());
+        doThrow(new DbException("")).when(tagStore).insertCostTagRecords(any());
         sendUploadRequest(requestStreamObserver);
         requestStreamObserver.onCompleted();
         Assert.assertTrue(client.getErrorReceived());
@@ -424,18 +426,18 @@ public class BilledCostUploadRpcServiceTest extends MultiDbTestBase {
     @Test
     public void testTagGroupMultipleIdsDataInconsistencyCase() {
         final long tagId = 1234L;
-        final long expectedTagGroupId = 4444L;
+        final long expectedTagGroupId = 5555L;
         context.insertInto(CostTag.COST_TAG)
                 .columns(CostTag.COST_TAG.TAG_ID, CostTag.COST_TAG.TAG_KEY, CostTag.COST_TAG.TAG_VALUE)
                 .values(tagId, "owner", "alice")
                 .execute();
         context.insertInto(CostTagGrouping.COST_TAG_GROUPING)
                 .columns(CostTagGrouping.COST_TAG_GROUPING.TAG_ID, CostTagGrouping.COST_TAG_GROUPING.TAG_GROUP_ID)
-                .values(tagId, expectedTagGroupId)
+                .values(tagId, 4444L)
                 .execute();
         context.insertInto(CostTagGrouping.COST_TAG_GROUPING)
                 .columns(CostTagGrouping.COST_TAG_GROUPING.TAG_ID, CostTagGrouping.COST_TAG_GROUPING.TAG_GROUP_ID)
-                .values(tagId, 5555L)
+                .values(tagId, expectedTagGroupId)
                 .execute();
         sendUploadRequest(requestStreamObserver);
         requestStreamObserver.onCompleted();

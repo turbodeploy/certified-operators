@@ -1,20 +1,16 @@
 package com.vmturbo.cost.component.billedcosts;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collector;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.base.Stopwatch;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
 import it.unimi.dsi.fastutil.longs.LongArraySet;
@@ -22,14 +18,11 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider;
-import com.vmturbo.cloud.common.immutable.HiddenImmutableTupleImplementation;
-import com.vmturbo.cost.component.cloud.cost.tag.Tag;
-import com.vmturbo.cost.component.cloud.cost.tag.TagGroupIdentity;
+import com.vmturbo.cost.component.db.tables.records.CostTagGroupingRecord;
 import com.vmturbo.platform.sdk.common.CostBilling;
-import com.vmturbo.platform.sdk.common.CostBilling.CostTagGroup;
+import com.vmturbo.platform.sdk.common.util.SetOnce;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -39,17 +32,11 @@ import com.vmturbo.sql.utils.DbException;
 public class TagGroupIdentityService {
 
     private static final Logger logger = LogManager.getLogger();
-
     private final TagGroupStore tagGroupStore;
-
     private final IdentityProvider identityProvider;
-
     private final TagIdentityService tagIdentityService;
-
-    private final Map<LongSet, TagGroupIdentity> tagGroupIdentityCache = new HashMap<>();
-
-    private final AtomicBoolean cacheInitialized = new AtomicBoolean(false);
-
+    private final Map<LongSet, Long> tagGroupIdentityCache = new HashMap<>();
+    private final SetOnce<Boolean> cacheInitialized = SetOnce.create();
     private final int batchSize;
 
     /**
@@ -76,155 +63,128 @@ public class TagGroupIdentityService {
      * groups, a new tag group id is generated via IdentityProvider and then stored in the cost tag grouping table with
      * the members.
      *
-     * @param discoveredTagGroups tag groups for which tag group ids are to be resolved.
+     * @param tagGroupsByTagGroupId tag groups for which tag group ids are to be resolved.
      * @return map from discovered tag group id to persisted tag group id.
      * @throws com.vmturbo.sql.utils.DbException on encountering an error during inserts.
      */
     @Nonnull
-    public Map<Long, Long> resolveIdForDiscoveredTagGroups(
-        @Nonnull final Map<Long, CostBilling.CostTagGroup> discoveredTagGroups) throws DbException {
-
-        initializeCache();
-
-        final Stopwatch stopwatch = Stopwatch.createStarted();
-
+    synchronized Map<Long, Long> resolveIdForDiscoveredTagGroups(
+        @Nonnull final Map<Long, CostBilling.CostTagGroup> tagGroupsByTagGroupId) throws DbException {
+        if (!cacheInitialized.getValue().isPresent()) {
+            tagGroupIdentityCache.putAll(tagGroupStore.retrieveAllTagGroups().stream()
+                .collect(Collectors.groupingBy(CostTagGroupingRecord::getTagGroupId, Collectors.toSet()))
+                .entrySet().stream()
+                .collect(Collectors.toMap(e -> new LongArraySet(
+                    e.getValue().stream().map(CostTagGroupingRecord::getTagId).collect(Collectors.toSet())),
+                    Map.Entry::getKey, (a, b) -> {
+                    logger.debug("Duplicate Tag Groups found, {}, {}", a, b);
+                            return a > b ? a : b;
+                        })));
+            cacheInitialized.ensureSet(() -> true);
+        }
         // Collect to List (instead of Set) - 2 Tag groups may resolve to the same durable Tag group oid if their
         // constituent Tags are identical when trailing / leading spaces are ignored.
-        final Set<Tag> allTags = new HashSet<>();
-        final List<DiscoveredTagGroup> tagGroups = new ArrayList<>(discoveredTagGroups.size());
-        discoveredTagGroups.forEach((discoveredGroupId, costTagGroup) -> {
-
-            final DiscoveredTagGroup discoveredTagGroup = DiscoveredTagGroup.create(discoveredGroupId, costTagGroup);
-
-            tagGroups.add(discoveredTagGroup);
-            allTags.addAll(discoveredTagGroup.tags());
-
-        });
-
-        final Map<Tag, Long> resolvedTagIds = tagIdentityService.resolveIdForDiscoveredTags(allTags);
-
-        final Map<Long, TagGroupIdentity> tagGroupIdentities = tagGroups.stream()
-                .collect(ImmutableMap.toImmutableMap(
-                        DiscoveredTagGroup::discoveredTagGroupId,
-                        tagGroup -> getOrCreateTagGroupIdentity(tagGroup, resolvedTagIds)));
-
-
-        for (List<TagGroupIdentity> identityBatch : Iterables.partition(tagGroupIdentities.values(), batchSize)) {
-            // Make an attempt ot persist the IDs. The store may decide to skip persisting the IDs, if they have
-            // recently been seen, but it must guarantee to return only if the IDs were successfully persisted.
-            tagGroupStore.insertCostTagGroups(identityBatch);
-        }
-
-        logger.debug("Resolved {} discovered cost tag identities in {}", discoveredTagGroups.size(), stopwatch);
-
-        return tagGroupIdentities.entrySet().stream()
-                .collect(ImmutableMap.toImmutableMap(
-                        Map.Entry::getKey,
-                        tagGroupIdentityEntry -> tagGroupIdentityEntry.getValue().tagGroupId()));
-    }
-
-    /**
-     * Gets the {@link CostTagGroup}s associated with the provided tag group IDs. Any tag group Ids or referenced tag IDs
-     * that cannot be resolved will be ignored.
-     * @param tagGroupIds The persisted (not discovered) tag group IDs.
-     * @return A map of each tag group ID to the {@link CostTagGroup} representation.
-     */
-    @Nonnull
-    public Map<Long, CostBilling.CostTagGroup> getTagGroupsById(@Nonnull Set<Long> tagGroupIds) {
-
-
-        final Map<Long, TagGroupIdentity> tagGroupIdentities = tagGroupStore.retrieveTagGroupIdentities(tagGroupIds);
-        final Set<Long> allTagIds = tagGroupIdentities.values().stream()
-                .map(TagGroupIdentity::tagIds)
-                .flatMap(Set::stream)
-                .collect(ImmutableSet.toImmutableSet());
-
-        final Map<Long, Tag> tagMap = tagIdentityService.getTagsById(allTagIds);
-
-        return tagGroupIdentities.entrySet()
-                .stream()
-                .collect(ImmutableMap.toImmutableMap(
-                        Map.Entry::getKey,
-                        tagGroupEntry -> tagGroupEntry.getValue().tagIds()
-                                .stream()
-                                .filter(tagMap::containsKey)
-                                .map(tagMap::get)
-                                .collect(Collector.of(
-                                        CostTagGroup::newBuilder,
-                                        (tagGroup, tag) -> tagGroup.putTags(tag.key(), tag.value()),
-                                        (groupA, groupB) -> groupA.mergeFrom(groupB.build()),
-                                        CostTagGroup.Builder::build))));
-    }
-
-    private LongSet createTagIdSet(final Set<Tag> tags, final Map<Tag, Long> resolvedTagIds) {
-
-        final LongSet tagIdSet = new LongArraySet(tags.size());
-        tags.forEach(tag -> tagIdSet.add(resolvedTagIds.get(tag)));
-        return tagIdSet;
-    }
-
-    private TagGroupIdentity getOrCreateTagGroupIdentity(@Nonnull DiscoveredTagGroup tagGroup,
-                                                         @Nonnull Map<Tag, Long> tagIdMap) {
-
-        final LongSet tagIdSet = createTagIdSet(tagGroup.tags(), tagIdMap);
-
-        return tagGroupIdentityCache.computeIfAbsent(tagIdSet, tagIds ->
-                TagGroupIdentity.of(identityProvider.next(), tagIds));
-    }
-
-    private void initializeCache() throws DbException {
-
-        synchronized (cacheInitialized) {
-            if (!cacheInitialized.get()) {
-
-                tagGroupIdentityCache.clear();
-
-                tagGroupStore.retrieveAllTagGroups().forEach(tagGroupIdentity -> {
-
-                    final LongSet tagIdSet = new LongArraySet(tagGroupIdentity.tagIds());
-                    tagGroupIdentityCache.compute(tagIdSet, (tagSet, originalTagGroupIdentity) -> {
-                        if (originalTagGroupIdentity != null) {
-
-                            logger.warn("");
-
-                            return tagGroupIdentity.tagGroupId() < originalTagGroupIdentity.tagGroupId()
-                                    ? tagGroupIdentity
-                                    : originalTagGroupIdentity;
-                        } else {
-                            return tagGroupIdentity;
-                        }
-                    });
-                });
-
-                cacheInitialized.set(true);
+        final List<TagGroup> tagGroups = tagGroupsByTagGroupId.entrySet().stream()
+            .map(entry -> new TagGroup(entry.getKey(), tagMapToSet(entry.getValue().getTagsMap())))
+            .collect(Collectors.toList());
+        final Map<Tag, Long> resolvedTagIds = tagIdentityService.resolveIdForDiscoveredTags(
+            tagGroups.stream().map(TagGroup::getTags).flatMap(Set::stream).collect(Collectors.toSet())
+        );
+        final Set<TagGroup> unseenTagGroups = tagGroups.stream()
+            .filter(tagGroup -> !tagGroupIdentityCache.containsKey(tagsToTagIds(tagGroup.getTags(), resolvedTagIds)))
+            .collect(Collectors.toSet());
+        if (!unseenTagGroups.isEmpty()) {
+            logger.debug("Inserting the following newly discovered tag groups: {}", () -> unseenTagGroups);
+            for (List<TagGroup> batch : Iterables.partition(unseenTagGroups, batchSize)) {
+                final Map<Long, TagGroup> unseenTagGroupsByOid = generateOidPerTagGroup(batch);
+                final Set<CostTagGroupingRecord> newTagGroupRecords =
+                        convertTagGroupsToRecords(unseenTagGroupsByOid, resolvedTagIds);
+                tagGroupStore.insertCostTagGroups(newTagGroupRecords);
+                unseenTagGroupsByOid.forEach((oid, tagGroup) ->
+                        tagGroupIdentityCache.put(tagsToTagIds(tagGroup.getTags(), resolvedTagIds), oid));
             }
         }
+        return tagGroups.stream().collect(Collectors.toMap(TagGroup::getDiscoveredTagGroupId,
+            tagGroup -> tagGroupIdentityCache.get(tagsToTagIds(tagGroup.getTags(), resolvedTagIds))));
     }
 
+    private Map<Long, TagGroup> generateOidPerTagGroup(final Collection<TagGroup> tagGroups) {
+        return tagGroups.stream()
+            .collect(Collectors.toMap(tagGroup -> identityProvider.next(), Function.identity()));
+    }
+
+    private Set<CostTagGroupingRecord> convertTagGroupsToRecords(final Map<Long, TagGroup> tagGroups,
+                                                                  final Map<Tag, Long> resolvedTagIds) {
+        return tagGroups.entrySet().stream()
+            .map(entry -> {
+                final long oid = entry.getKey();
+                final TagGroup tagGroup = entry.getValue();
+                final Set<Tag> tags = entry.getValue().getTags();
+                final LongSet tagIds = tagsToTagIds(tags, resolvedTagIds);
+                if (tags.size() != tagIds.size()) {
+                    logger.warn("Tag ids were not successfully resolved for tag group {}. Tags: {}, Tag Ids: {}",
+                        tagGroup.getDiscoveredTagGroupId(), tags, tagIds);
+                    return null;
+                }
+                return tagsToTagIds(entry.getValue().getTags(), resolvedTagIds).stream()
+                    .map(tagId -> new CostTagGroupingRecord(oid, tagId))
+                    .collect(Collectors.toList());
+            }).filter(Objects::nonNull)
+            .flatMap(Collection::stream)
+            .collect(Collectors.toSet());
+    }
+
+    private LongSet tagsToTagIds(final Set<Tag> tags, final Map<Tag, Long> resolvedTagIds) {
+        return new LongArraySet(tags.stream().map(resolvedTagIds::get)
+            .collect(Collectors.toSet()));
+    }
+
+    private Set<Tag> tagMapToSet(final Map<String, String> tags) {
+        return tags.entrySet().stream()
+            .map(entry -> new Tag(entry.getKey(), entry.getValue()))
+            .collect(Collectors.toSet());
+    }
 
     /**
      * Tag group internal representation.
      */
+    private static class TagGroup {
+        private final long discoveredTagGroupId;
+        private final Set<Tag> tags;
 
-    @HiddenImmutableTupleImplementation
-    @Immutable
-    interface DiscoveredTagGroup {
+        private TagGroup(long discoveredTagGroupId, Set<Tag> tags) {
+            this.discoveredTagGroupId = discoveredTagGroupId;
+            this.tags = tags;
+        }
 
-        long discoveredTagGroupId();
+        public long getDiscoveredTagGroupId() {
+            return discoveredTagGroupId;
+        }
 
-        @Nonnull
-        Set<Tag> tags();
+        public Set<Tag> getTags() {
+            return tags;
+        }
 
-        @Nonnull
-        static DiscoveredTagGroup create(long discoveredTagGroupId,
-                                         @Nonnull CostTagGroup discoveredTagGroup) {
+        @Override
+        public String toString() {
+            return tags.toString();
+        }
 
-            final Set<Tag> tags = discoveredTagGroup.getTagsMap().entrySet()
-                    .stream()
-                    .map(tagEntry -> Tag.of(tagEntry.getKey(), tagEntry.getValue()))
-                    .collect(ImmutableSet.toImmutableSet());
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof TagGroup)) {
+                return false;
+            }
+            TagGroup tagGroup = (TagGroup)o;
+            return getTags().equals(tagGroup.getTags());
+        }
 
-            return DiscoveredTagGroupTuple.of(discoveredTagGroupId, tags);
+        @Override
+        public int hashCode() {
+            return Objects.hash(getTags());
         }
     }
 }
