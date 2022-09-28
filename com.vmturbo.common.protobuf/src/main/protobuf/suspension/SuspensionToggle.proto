@@ -1,0 +1,32 @@
+syntax = "proto2";
+package suspension_toggle;
+
+option java_package = "com.vmturbo.common.protobuf.suspension";
+
+import "suspension/SuspensionEntity.proto";
+
+message SuspensionToggleEntityRequest {
+  enum Action {
+    ACTION_UNSPECIFIED = 0;
+    ACTION_STOP = 1;
+    ACTION_START = 2;
+  };
+  optional Action action = 1;
+  repeated int64 entity_oids = 2;
+  optional string user_id = 3;
+  optional string user_name = 4;
+}
+
+message SuspensionToggleEntityResponse {
+  repeated SuspensionToggleEntityData data = 1;
+}
+
+message SuspensionToggleEntityData {
+  optional suspension_entity.SuspensionEntityState state = 1;
+  optional string error = 2;
+  optional int64 entity_oid = 3;
+}
+
+service SuspensionToggleService {
+  rpc Toggle(SuspensionToggleEntityRequest) returns (SuspensionToggleEntityResponse);
+}

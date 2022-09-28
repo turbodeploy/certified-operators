@@ -580,6 +580,11 @@ public class ServiceConfig {
     }
 
     @Bean
+    public SuspensionService suspensionService() {
+        return new SuspensionService(communicationConfig.suspensionRpcService(), communicationConfig.toggleService(), userSessionConfig.userSessionContext(), apiPaginationMaxLimit, apiPaginationDefaultLimit);
+    }
+
+    @Bean
     public PlanDestinationService planDestinationService() {
         return new PlanDestinationService(communicationConfig.planExportServiceBlockingRpcService(),
             mapperConfig.uuidMapper(),

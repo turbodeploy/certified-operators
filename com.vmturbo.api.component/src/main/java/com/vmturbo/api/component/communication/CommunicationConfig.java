@@ -141,6 +141,11 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.api.component.config.suspension.SuspensionRpcConfig;
+import com.vmturbo.common.protobuf.suspension.SuspensionEntityServiceGrpc;
+import com.vmturbo.common.protobuf.suspension.SuspensionEntityServiceGrpc.SuspensionEntityServiceBlockingStub;
+import com.vmturbo.common.protobuf.suspension.SuspensionToggleServiceGrpc;
+import com.vmturbo.common.protobuf.suspension.SuspensionToggleServiceGrpc.SuspensionToggleServiceBlockingStub;
 
 /**
  * Configuration for the communication between the API component
@@ -153,7 +158,7 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
         RepositoryClientConfig.class, AuthClientConfig.class,
         CostClientConfig.class, ApiComponentGlobalConfig.class, ClusterMgrClientConfig.class,
         UserSessionConfig.class, ApiWebsocketConfig.class, BaseKafkaConsumerConfig.class,
-        ExtractorClientConfig.class,  MarketClientConfig.class})
+        ExtractorClientConfig.class,  MarketClientConfig.class, SuspensionRpcConfig.class})
 public class CommunicationConfig {
 
     @Autowired
@@ -188,6 +193,8 @@ public class CommunicationConfig {
     @Autowired
     private MarketClientConfig marketClientConfig;
 
+    @Autowired
+    private SuspensionRpcConfig suspensionRpcConfig;
 
     /**
      * No explicit import to avoid circular dependency.
@@ -255,6 +262,16 @@ public class CommunicationConfig {
             .withInterceptors(jwtClientInterceptor());
     }
 
+    @Bean
+    public SuspensionEntityServiceBlockingStub suspensionRpcService() {
+        return SuspensionEntityServiceGrpc.newBlockingStub(suspensionRpcConfig.suspensionChannel());
+    }
+
+    @Bean
+    public SuspensionToggleServiceBlockingStub toggleService() {
+        return SuspensionToggleServiceGrpc.newBlockingStub(suspensionRpcConfig.suspensionChannel());
+    }
+    
     @Bean
     public TopologyServiceBlockingStub topologyService() {
         return TopologyServiceGrpc.newBlockingStub(tpClientConfig.topologyProcessorChannel());
