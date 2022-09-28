@@ -42,6 +42,7 @@
         <spring.session.jdbc.version>2.7.0</spring.session.jdbc.version>
         <guava.version>31.1-jre</guava.version>
         <units.of.measure.version>1.0.2</units.of.measure.version>
+        <failsafe.version>3.2.4</failsafe.version>
 
         <grpc.version>1.44.0</grpc.version>
         <grpc.prometheus.version>0.3.0</grpc.prometheus.version>
@@ -145,7 +146,7 @@
         <kafka.version>3.1.0</kafka.version>
 
         <st4.version>4.0.8</st4.version>
-        <failsafe.version>3.0.0-M4</failsafe.version>
+        <maven-failsafe.version>3.0.0-M4</maven-failsafe.version>
         <surefire.version>3.0.0-M4</surefire.version>
         <jetty.version>9.4.48.v20220622</jetty.version>
         <bouncycastle.version>1.69</bouncycastle.version>
@@ -2123,7 +2124,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-failsafe-plugin</artifactId>
-                    <version>${failsafe.version}</version>
+                    <version>${maven-failsafe.version}</version>
                     <executions>
                         <execution>
                             <id>integration-test</id>
@@ -3289,6 +3290,11 @@
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
                 <version>${guava.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.failsafe</groupId>
+                <artifactId>failsafe</artifactId>
+                <version>${failsafe.version}</version>
             </dependency>
             <dependency>
                 <groupId>tec.units</groupId>
