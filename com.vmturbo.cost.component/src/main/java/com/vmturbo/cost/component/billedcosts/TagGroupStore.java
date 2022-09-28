@@ -1,15 +1,31 @@
 package com.vmturbo.cost.component.billedcosts;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.jooq.DSLContext;
-import org.jooq.Result;
-import org.jooq.exception.DataAccessException;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSetMultimap;
+import com.google.common.collect.SetMultimap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
+import org.jooq.DSLContext;
+import org.jooq.Query;
+import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
+
+import com.vmturbo.cost.component.cloud.cost.tag.TagGroupIdentity;
 import com.vmturbo.cost.component.db.tables.CostTagGrouping;
 import com.vmturbo.cost.component.db.tables.records.CostTagGroupingRecord;
 import com.vmturbo.sql.utils.DbException;
@@ -19,18 +35,19 @@ import com.vmturbo.sql.utils.DbException;
  */
 public class TagGroupStore {
 
+    private static final Logger logger = LogManager.getLogger();
+
     private final DSLContext dslContext;
-    private final BatchInserter batchInserter;
+
+    private final Map<Long, TagGroupIdentity> tagGroupIdentityCache = new ConcurrentHashMap<>();
 
     /**
      * Creates an instance of TagGroupStore.
      *
      * @param dslContext instance for executing queries.
-     * @param batchInserter a utility object for bulk inserts.
      */
-    public TagGroupStore(@Nonnull final DSLContext dslContext, @Nonnull BatchInserter batchInserter) {
+    public TagGroupStore(@Nonnull final DSLContext dslContext) {
         this.dslContext = Objects.requireNonNull(dslContext);
-        this.batchInserter = Objects.requireNonNull(batchInserter);
     }
 
     /**
@@ -39,22 +56,99 @@ public class TagGroupStore {
      * @return all tag group records.
      * @throws DbException on encountering error while executing select query.
      */
-    public Result<CostTagGroupingRecord> retrieveAllTagGroups() throws DbException {
+    public List<TagGroupIdentity> retrieveAllTagGroups() throws DbException {
         try {
-            return dslContext.selectFrom(CostTagGrouping.COST_TAG_GROUPING).fetch();
+            return streamTagGroupIdentities(Collections.emptySet()).collect(ImmutableList.toImmutableList());
         } catch (DataAccessException ex) {
             throw new DbException("Exception while retrieving tag groups.", ex.getCause());
         }
     }
 
     /**
+     * Retrieves the tag groups associated with each requested tag group ID. If a tag group cannot be
+     * found for a given ID, it will be skipped.
+     * @param tagGroupIds The tag group IDs.
+     * @return The tag group identities, indexed by each tag group ID.
+     */
+    @Nonnull
+    public Map<Long, TagGroupIdentity> retrieveTagGroupIdentities(@Nonnull Set<Long> tagGroupIds) {
+
+        final ImmutableMap.Builder<Long, TagGroupIdentity> tagGroupIdentities = ImmutableMap.builder();
+
+        // First, pull identities from teh identity cache
+        final Set<Long> unseenIdentityIds = new HashSet<>();
+        tagGroupIds.forEach(tagGroupId -> {
+            if (tagGroupIdentityCache.containsKey(tagGroupId)) {
+                tagGroupIdentities.put(tagGroupId, tagGroupIdentityCache.get(tagGroupId));
+            } else {
+                unseenIdentityIds.add(tagGroupId);
+            }
+        });
+
+        if (!unseenIdentityIds.isEmpty()) {
+            streamTagGroupIdentities(unseenIdentityIds).forEach(tagGroupIdentity -> {
+
+                tagGroupIdentityCache.put(tagGroupIdentity.tagGroupId(), tagGroupIdentity);
+                tagGroupIdentities.put(tagGroupIdentity.tagGroupId(), tagGroupIdentity);
+            });
+        }
+
+        return tagGroupIdentities.build();
+    }
+
+    private Stream<TagGroupIdentity> streamTagGroupIdentities(@Nonnull Set<Long> tagGroupIds) {
+
+        final Condition groupIdCondition = tagGroupIds.isEmpty()
+                ? DSL.trueCondition()
+                : CostTagGrouping.COST_TAG_GROUPING.TAG_GROUP_ID.in(tagGroupIds);
+
+        final SetMultimap<Long, Long> tagGroupMap =  dslContext.selectFrom(CostTagGrouping.COST_TAG_GROUPING)
+                .where(groupIdCondition)
+                .fetch()
+                .stream()
+                .collect(ImmutableSetMultimap.toImmutableSetMultimap(
+                        CostTagGroupingRecord::getTagGroupId,
+                        CostTagGroupingRecord::getTagId));
+
+        return tagGroupMap.asMap().entrySet()
+                .stream()
+                .map(tagGroupEntry -> TagGroupIdentity.of(tagGroupEntry.getKey(), tagGroupEntry.getValue()));
+    }
+
+    /**
      * Insert provided tag groups into cost_tag_grouping table.
      *
-     * @param costTagGroupingRecords tag groups to be inserted into the cost_tag_grouping table.
+     * @param tagGroupIdentities tag groups to be inserted into the cost_tag_grouping table.
      * @throws com.vmturbo.sql.utils.DbException on encountering DataAccessException during query execution.
      */
-    public void insertCostTagGroups(final Collection<CostTagGroupingRecord> costTagGroupingRecords) throws DbException {
-        batchInserter.insertBatch(new ArrayList<>(costTagGroupingRecords),
-                CostTagGrouping.COST_TAG_GROUPING, dslContext, false, null);
+    public void insertCostTagGroups(final Collection<TagGroupIdentity> tagGroupIdentities) throws DbException {
+
+        try {
+
+            logger.debug("Persisting {} tag groups", tagGroupIdentities::size);
+
+            final List<TagGroupIdentity> unseenIdentities = tagGroupIdentities.stream()
+                    .filter(tagGroupIdentity -> !tagGroupIdentityCache.containsKey(tagGroupIdentity.tagGroupId()))
+                    .collect(ImmutableList.toImmutableList());
+
+            if (!unseenIdentities.isEmpty()) {
+
+                final List<CostTagGroupingRecord> unseenRecords =
+                        unseenIdentities.stream().flatMap(tagGroupIdentity -> tagGroupIdentity.tagIds().stream().map(tagId -> {
+                            final CostTagGroupingRecord record = new CostTagGroupingRecord();
+                            record.setTagGroupId(tagGroupIdentity.tagGroupId());
+                            record.setTagId(tagId);
+                            return record;
+                        })).collect(ImmutableList.toImmutableList());
+
+                dslContext.batch(unseenRecords.stream()
+                        .map(unseenRecord -> dslContext.insertInto(CostTagGrouping.COST_TAG_GROUPING).set(unseenRecord).onDuplicateKeyIgnore())
+                        .toArray(Query[]::new)).execute();
+            }
+
+            unseenIdentities.forEach(tagGroupIdentity -> tagGroupIdentityCache.put(tagGroupIdentity.tagGroupId(), tagGroupIdentity));
+        } catch (Exception e) {
+            throw new DbException("Failed to insert tag groups into the DB", e);
+        }
     }
 }
