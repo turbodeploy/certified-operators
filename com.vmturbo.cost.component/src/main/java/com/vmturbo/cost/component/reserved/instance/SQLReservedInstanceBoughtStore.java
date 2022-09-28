@@ -263,6 +263,7 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
     public void updateReservedInstanceBought(
             @Nonnull final DSLContext context,
             @Nonnull final List<ReservedInstanceBoughtInfo> newReservedInstances) {
+
         getLogger().info("Updating reserved instance bought...");
         final List<ReservedInstanceBoughtInfo> updatedNewReservedInstances =
                 internalCheckRIBoughtAndUpdatePrices(newReservedInstances);

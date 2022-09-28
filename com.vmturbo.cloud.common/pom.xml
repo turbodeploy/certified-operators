@@ -48,6 +48,10 @@
             <artifactId>guava</artifactId>
         </dependency>
         <dependency>
+            <groupId>dev.failsafe</groupId>
+            <artifactId>failsafe</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>common-protobuf</artifactId>
         </dependency>
