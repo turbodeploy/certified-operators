@@ -132,7 +132,8 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
             .addPathPatterns("/settingspolicies/**")
             .addPathPatterns("/stats/**")
             .addPathPatterns("/templates/**")
-            .addPathPatterns("/clients/**");
+            .addPathPatterns("/clients/**")
+            .addPathPatterns("/suspensions/**");
         registry.addInterceptor(restTracingInterceptor());
     }
 

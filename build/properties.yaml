@@ -111,6 +111,9 @@ defaultProperties:
     auth:
         dbSchemaName: auth
         identityGeneratorPrefix: 7
+    suspension:
+        host: suspend
+        grpcPort: 9094
     cost:
         identityGeneratorPrefix: 10
         turbonomic.ratecards.persistent.path: /home/turbonomic/data/
