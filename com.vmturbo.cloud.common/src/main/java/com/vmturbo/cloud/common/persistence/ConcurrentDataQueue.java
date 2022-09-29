@@ -114,7 +114,7 @@ public class ConcurrentDataQueue<DataTypeT, DataStatsT, DataSummaryT> implements
     @Override
     public void flush() {
 
-        // Make sure nothing attempts to close  the executor service until
+        // Make sure nothing attempts to close the executor service until
         // data currently in the queue has been submitted.
         synchronized (dataQueue) {
 
