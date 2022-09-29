@@ -18,7 +18,6 @@ import com.vmturbo.group.GroupMultiDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.flyway.ResetJavaMigrationsChecksumsCallback;
 import com.vmturbo.group.flyway.V1_11_Callback;
-import com.vmturbo.group.flyway.VCPUScalingUnitSettingChecksumCallback;
 import com.vmturbo.group.group.pagination.GroupPaginationConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.MultiDB;
@@ -67,8 +66,7 @@ public class GroupConfig {
     public FlywayCallback[] flywayCallbacks() {
         return new FlywayCallback[] {
             new V1_11_Callback(),
-            new ResetJavaMigrationsChecksumsCallback(),
-            new VCPUScalingUnitSettingChecksumCallback()
+            new ResetJavaMigrationsChecksumsCallback()
         };
     }
 
