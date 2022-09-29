@@ -124,7 +124,7 @@ public class BilledCostConfig {
     @Bean
     public TagGroupStore tagGroupStore() {
         try {
-            return new TagGroupStore(dbAccessConfig.dsl(), batchInserter());
+            return new TagGroupStore(dbAccessConfig.dsl());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -141,7 +141,7 @@ public class BilledCostConfig {
     @Bean
     public TagStore tagStore() {
         try {
-            return new TagStore(dbAccessConfig.dsl(), batchInserter());
+            return new TagStore(dbAccessConfig.dsl());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
