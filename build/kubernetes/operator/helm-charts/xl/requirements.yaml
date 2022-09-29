@@ -106,6 +106,15 @@ dependencies:
     version: 0.1.0
     condition: extractor.enabled # todo: change to platform.enabled once XLR/search is ready
 
+# Suspend services dependencies
+  - name: redis
+    repository: file://../suspend/redis
+    version: 15.7.5
+    condition: suspend.enabled
+  - name: suspend
+    repository: file://../suspend/suspend
+    version: 0.1.0
+    condition: suspend.enabled
 # Security dependencies
   - name: hydra
     repository: file://../base/hydra

@@ -32,6 +32,7 @@ global:
 #  externalDBName: xl-hackaton.cmachd0izjog.ca-central-1.rds.amazonaws.com
 #  externalInfluxDBName: xl-influxdb.us-east-1.elb.amazonaws.com
 #  externalKafka: xl-kafka.us-east-1.elb.amazonaws.com
+#  externalRedis:
 #  externalSyslog: a608c38591a9f11e9ad190efbcf8c7e5-1236730884.us-east-1.elb.amazonaws.com
   elk: false
 #  logtostdout: false
@@ -150,6 +151,9 @@ tunnel:
 training:
   enabled: false
 client-network:
+  enabled: false
+
+suspend:
   enabled: false
 
 loki:
