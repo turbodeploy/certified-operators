@@ -22,9 +22,7 @@ import com.vmturbo.cloud.common.persistence.DataQueueStats.NullStatsCollector;
 
 public class ConcurrentDataQueueTest {
 
-
     private final DataQueueFactory queueFactory = new DefaultDataQueueFactory();
-
 
     @Test
     public void testInvocationOnDrain() throws Exception {
@@ -61,7 +59,7 @@ public class ConcurrentDataQueueTest {
         assertFalse(sinkCalled.get());
 
         // drain the queue
-        final DataQueueStats<Void> queueStats = dataQueue.drainAndClose(Duration.ofSeconds(1));
+        final DataQueueStats<Void> queueStats = dataQueue.drainAndClose(Duration.ofSeconds(10));
 
         // check that the data sink was invoked
         assertTrue(sinkCalled.get());
@@ -85,12 +83,13 @@ public class ConcurrentDataQueueTest {
         final DataQueue<TestData, Void> dataQueue = queueFactory.createQueue(
                 DirectDataBatcher.create(), dataSink, NullStatsCollector.create(), queueConfiguration);
 
-        try (AutoCloseable queueShutdown = dataQueue::forceClose) {
-            dataQueue.addData(new TestData());
-        }
+        dataQueue.addData(new TestData());
 
-        // Check that the data was invoked
-        assertFalse(sinkCalled.get());
+        // drain the queue
+        final DataQueueStats<Void> queueStats = dataQueue.drainAndClose(Duration.ofSeconds(10));
+
+        // check that the data sink was invoked
+        assertTrue(sinkCalled.get());
     }
 
     private static class TestData {}
