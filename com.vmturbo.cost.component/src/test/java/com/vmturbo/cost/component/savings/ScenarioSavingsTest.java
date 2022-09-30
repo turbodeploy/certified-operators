@@ -124,7 +124,7 @@ public class ScenarioSavingsTest {
         DSLContext dsl = dbConfig.getDslContext();
         Clock clock =  Clock.systemUTC();
         GrpcActionChainStore actionChainStore = mock(GrpcActionChainStore.class);
-        savingsStore = new SqlEntitySavingsStore(dsl, clock, chunkSize);
+        savingsStore = new SqlEntitySavingsStore(dsl, clock, chunkSize, true);
         savingsTracker = new SavingsTracker(
                 new SqlBillingRecordStore(dsl),
                 actionChainStore,

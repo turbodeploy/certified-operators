@@ -1,7 +1,6 @@
 package com.vmturbo.cost.component.savings;
 
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -16,7 +15,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
-import com.vmturbo.cost.component.rollup.RollupDurationType;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
 
 /**
@@ -34,11 +32,6 @@ public class SavingsProcessor {
      * Store for timing related to when last processing was done.
      */
     private final RollupTimesStore rollupTimesStore;
-
-    /**
-     * Store for rollup processing.
-     */
-    private final RollupSavingsProcessor rollupProcessor;
 
     /**
      * State tracking store.
@@ -66,7 +59,6 @@ public class SavingsProcessor {
      * @param clock Clock for time format conversion.
      * @param chunkSize Query chunk size.
      * @param rollupTimesStore Store for reading last saved times.
-     * @param rollupProcessor Store for triggering rollups to monthly.
      * @param savingsActionStore Savings action store.
      * @param savingsTracker Tracker instance.
      * @param dataRetentionProcessor For cleanup of old data.
@@ -74,14 +66,12 @@ public class SavingsProcessor {
     public SavingsProcessor(@Nonnull final Clock clock,
             int chunkSize,
             @Nonnull final RollupTimesStore rollupTimesStore,
-            @Nonnull RollupSavingsProcessor rollupProcessor,
             @Nonnull final SavingsActionStore savingsActionStore,
             @Nonnull final SavingsTracker savingsTracker,
             @Nonnull final DataRetentionProcessor dataRetentionProcessor) {
         this.clock = clock;
         this.chunkSize = chunkSize;
         this.rollupTimesStore = rollupTimesStore;
-        this.rollupProcessor = rollupProcessor;
         this.savingsActionStore = savingsActionStore;
         this.savingsTracker = savingsTracker;
         this.dataRetentionProcessor = dataRetentionProcessor;
@@ -169,9 +159,10 @@ public class SavingsProcessor {
 
     /**
      * Called once stats have been saved for a time period. Updates the daily rollup timestamp,
-     * so that we can continue from there next time we get called. Also triggers daily -> monthly
-     * rollup.
-     * savingsTimes Contains timing related info used for query, stores responses as well.
+     * so that we can continue from there next time we get called. We don't actually do roll up
+     * for the bill based stats as those are only written to the daily stats table (currently).
+     *
+     * @param savingsTimes Contains timing related info used for query, stores responses as well.
      */
     private void updateRollup(@Nonnull final SavingsTimes savingsTimes) {
         final List<Long> dailyTimes = savingsTimes.getSortedDailyStatsTimes();
@@ -179,11 +170,8 @@ public class SavingsProcessor {
         final LastRollupTimes updatedRollupTimes = savingsTimes.getLastRollupTimes();
         rollupTimesStore.setLastRollupTimes(updatedRollupTimes);
 
-        logger.info("Updated last times to: {}. Total {} daily times.", updatedRollupTimes,
-                dailyTimes.size());
+        logger.info("Updated (bill-based) last times to: {}. Total {} daily times.",
+                updatedRollupTimes, dailyTimes.size());
         logger.trace("Daily written times: {}", () -> dailyTimes);
-
-        // Get the start times for all periods, those are the ones to rollup to monthly.
-        rollupProcessor.process(RollupDurationType.DAILY, new ArrayList<>(dailyTimes));
     }
 }

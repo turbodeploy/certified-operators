@@ -233,7 +233,7 @@ public class ActionListenerTest {
                                             realTimeTopologyContextId,
                 EntitySavingsConfig.getSupportedEntityTypes(),
                 EntitySavingsConfig.getSupportedActionTypes(), config,
-                entitySavingsStore, entityStateStore, entitySavingsRollupTimesStore, clock);
+                entityStateStore, entitySavingsRollupTimesStore, clock);
 
         Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = new HashMap<>();
         beforeOnDemandComputeCostByEntityOidMap.put(1L, CurrencyAmount.newBuilder()

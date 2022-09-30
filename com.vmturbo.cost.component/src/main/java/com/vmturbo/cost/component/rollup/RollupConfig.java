@@ -24,20 +24,23 @@ public class RollupConfig {
     private DbAccessConfig dbAccessConfig;
 
     /**
-     * {@link RollupTimesStore} for entity savings.
+     * {@link RollupTimesStore} for entity savings (bottom-up).
      *
      * @return The {@link RollupTimesStore} for entity savings.
      */
     @Bean
     public RollupTimesStore entitySavingsRollupTimesStore() {
-        try {
-            return new RollupTimesStore(dbAccessConfig.dsl(), RolledUpTable.ENTITY_SAVINGS);
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create entitySavingsRollupTimesStore", e);
-        }
+        return createRollupTimesStore(RolledUpTable.ENTITY_SAVINGS);
+    }
+
+    /**
+     * {@link RollupTimesStore} for entity savings (bill-based).
+     *
+     * @return The {@link RollupTimesStore} for entity savings.
+     */
+    @Bean
+    public RollupTimesStore billedSavingsRollupTimesStore() {
+        return createRollupTimesStore(RolledUpTable.BILLED_SAVINGS);
     }
 
     /**
@@ -47,14 +50,7 @@ public class RollupConfig {
      */
     @Bean
     public RollupTimesStore billedCostRollupTimesStore() {
-        try {
-            return new RollupTimesStore(dbAccessConfig.dsl(), RolledUpTable.BILLED_COST);
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create billedCostRollupTimesStore", e);
-        }
+        return createRollupTimesStore(RolledUpTable.BILLED_COST);
     }
 
     /**
@@ -64,14 +60,7 @@ public class RollupConfig {
      */
     @Bean
     public RollupTimesStore entityCostRollupTimesStore() {
-        try {
-            return new RollupTimesStore(dbAccessConfig.dsl(), RolledUpTable.ENTITY_COST);
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create entityCostRollupTimesStore", e);
-        }
+        return createRollupTimesStore(RolledUpTable.ENTITY_COST);
     }
 
     /**
@@ -82,14 +71,7 @@ public class RollupConfig {
     @Bean
     @Conditional(ConditionalDbConfig.DbEndpointCondition.class)
     public RollupTimesStore reservedInstanceCoverageRollupTimesStore() {
-        try {
-            return new RollupTimesStore(dbAccessConfig.dsl(), RolledUpTable.RESERVED_INSTANCE_COVERAGE);
-        } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new BeanCreationException("Failed to create reservedInstanceCoverageRollupTimesStore", e);
-        }
+        return createRollupTimesStore(RolledUpTable.RESERVED_INSTANCE_COVERAGE);
     }
 
     /**
@@ -100,13 +82,25 @@ public class RollupConfig {
     @Bean
     @Conditional(ConditionalDbConfig.DbEndpointCondition.class)
     public RollupTimesStore reservedInstanceUtilizationRollupTimesStore() {
+        return createRollupTimesStore(RolledUpTable.RESERVED_INSTANCE_UTILIZATION);
+    }
+
+    /**
+     * Util to help create the rollup times store.
+     *
+     * @param rolledUpTable Table name enum.
+     * @return RollupTimesStore instance.
+     * @throws BeanCreationException Thrown on bean creation problem.
+     */
+    private RollupTimesStore createRollupTimesStore(RolledUpTable rolledUpTable)
+            throws BeanCreationException {
         try {
-            return new RollupTimesStore(dbAccessConfig.dsl(), RolledUpTable.RESERVED_INSTANCE_UTILIZATION);
+            return new RollupTimesStore(dbAccessConfig.dsl(), rolledUpTable);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            throw new BeanCreationException("Failed to create reservedInstanceUtilizationRollupTimesStore", e);
+            throw new BeanCreationException("Failed to create " + rolledUpTable + " RollupTimesStore.", e);
         }
     }
 }

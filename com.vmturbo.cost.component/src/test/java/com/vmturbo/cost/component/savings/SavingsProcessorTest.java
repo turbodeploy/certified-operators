@@ -63,6 +63,7 @@ import com.vmturbo.cost.component.billedcosts.BilledCostStore;
 import com.vmturbo.cost.component.billedcosts.SqlBilledCostStore;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
+import com.vmturbo.cost.component.db.tables.EntitySavingsByDay;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
@@ -72,6 +73,7 @@ import com.vmturbo.cost.component.savings.bottomup.SqlEntitySavingsStore;
 import com.vmturbo.cost.component.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingData.CloudBillingBucket.Granularity;
+import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.MultiDbTestBase;
 
@@ -82,6 +84,7 @@ import com.vmturbo.sql.utils.MultiDbTestBase;
  * https://vmturbo.atlassian.net/wiki/spaces/PMTES/pages/3200843803/Design+Billing+Based+Savings#Building-The-Watermark-Timeline
  */
 @RunWith(Parameterized.class)
+@CleanupOverrides(truncate = {EntitySavingsByDay.class})
 public class SavingsProcessorTest extends MultiDbTestBase {
     /**
      * For logging some warnings if needed.
@@ -251,7 +254,7 @@ public class SavingsProcessorTest extends MultiDbTestBase {
         this.dsl = super.getDslContext();
         this.actionChainStore = mock(GrpcActionChainStore.class);
         this.rollupTimesStore = mock(RollupTimesStore.class);
-        this.savingsStore = new SqlEntitySavingsStore(dsl, clock, chunkSize);
+        this.savingsStore = new SqlEntitySavingsStore(dsl, clock, chunkSize, true);
         this.savingsActionStore = mock(CachedSavingsActionStore.class);
 
         this.billedCostStore = new SqlBilledCostStore(dsl,
@@ -260,7 +263,6 @@ public class SavingsProcessorTest extends MultiDbTestBase {
         this.savingsProcessor = new SavingsProcessor(clock,
                 chunkSize,
                 rollupTimesStore,
-                mock(RollupSavingsProcessor.class),
                 savingsActionStore,
                 new SavingsTracker(
                         new SqlBillingRecordStore(dsl),
