@@ -128,8 +128,7 @@ public class SqlBilledCostStore implements BilledCostStore {
                         }
                         if (!point.hasTrackChanges()
                                 || !point.getTrackChanges()
-                                || record.getEntityId() == 0
-                                || record.getProviderId() == 0) {
+                                || record.getEntityId() == 0) {
                             // If this record is not to be tracked, then we set last updated to 0
                             // here, so that we can check for that during update and set it
                             // to null instead. We don't want to set a value in this case. For
