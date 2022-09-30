@@ -33,7 +33,11 @@ spec:
         # Store data in sqlite3 (no persistence across restarts) by default. To persist, uncomment:
         type: postgres
         password: grafana
-        
+
+  # Suspend service selector
+  suspend:
+    enabled: false
+
   # Component selector - Probes
   actionscript:
     enabled: true
