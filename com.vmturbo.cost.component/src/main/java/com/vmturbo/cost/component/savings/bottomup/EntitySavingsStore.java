@@ -32,15 +32,29 @@ public interface EntitySavingsStore<T> {
             throws EntitySavingsException;
 
     /**
-     * Stores records to daily stats table.
+     * Stores records to daily stats table to either the bill-based stats table or the bottom-up.
+     *
+     * @param dailyStats Set of stats to store. Each is of a particular stats type, has a timestamp,
+     *  and the entityId that the stats belongs to.
+     * @param transaction object used for transaction management
+     * @param isBillBasedSavings Whether stats need to be deleted from the bill based table instead.
+     * @throws EntitySavingsException Thrown on write error.
+     */
+    void addDailyStats(@Nonnull Set<EntitySavingsStats> dailyStats, T transaction, boolean isBillBasedSavings)
+            throws EntitySavingsException;
+
+    /**
+     * Stores records to daily stats table to the bottom-up stats table.
      *
      * @param dailyStats Set of stats to store. Each is of a particular stats type, has a timestamp,
      *  and the entityId that the stats belongs to.
      * @param transaction object used for transaction management
      * @throws EntitySavingsException Thrown on write error.
      */
-    void addDailyStats(@Nonnull Set<EntitySavingsStats> dailyStats, T transaction)
-            throws EntitySavingsException;
+    default void addDailyStats(@Nonnull Set<EntitySavingsStats> dailyStats, T transaction)
+            throws EntitySavingsException {
+        addDailyStats(dailyStats, transaction, false);
+    }
 
     /**
      * Gets stats related to savings and investments, based on the given time frame.
@@ -145,12 +159,23 @@ public interface EntitySavingsStore<T> {
     int deleteOlderThanHourly(long timestamp);
 
     /**
-     * Deletes stats records older than the given timestamp from the relevant daily table.
+     * For bottom-up savings, deletes stats records from the daily table.
      *
      * @param timestamp Min epoch millis for daily stats table that will be kept.
      * @return Count of records deleted.
      */
-    int deleteOlderThanDaily(long timestamp);
+    default int deleteOlderThanDaily(long timestamp) {
+        return deleteOlderThanDaily(timestamp, false);
+    }
+
+    /**
+     * Deletes stats records older than the given timestamp from the relevant daily table.
+     *
+     * @param timestamp Min epoch millis for daily stats table that will be kept.
+     * @param isBillBasedSavings Whether stats need to be deleted from the bill based table instead.
+     * @return Count of records deleted.
+     */
+    int deleteOlderThanDaily(long timestamp, boolean isBillBasedSavings);
 
     /**
      * Deletes stats records older than the given timestamp from the relevant monthly table.

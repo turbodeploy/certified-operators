@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.savings.bottomup;
 
+import static com.vmturbo.cost.component.db.Tables.BILLED_SAVINGS_BY_DAY;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_CLOUD_SCOPE;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_DAY;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_HOUR;
@@ -51,7 +52,6 @@ import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord.SavingsRec
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.TimeUtil;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.db.tables.EntitySavingsByHour;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsByHourRecord;
 import com.vmturbo.cost.component.rollup.RollupDurationType;
@@ -87,6 +87,11 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
     private final int chunkSize;
 
     /**
+     * Whether user has enabled feature flag to view billed savings stats or not.
+     */
+    private final boolean readBilledSavings;
+
+    /**
      * Entity types that is a logical grouping of cloud workloads.
      * The entity_cloud_scope table allows resolving workload OIDs using OIDs of these scopes.
      */
@@ -115,6 +120,11 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
     private static final Map<RollupDurationType, StatsTypeFields> statsFieldsByRollup =
             new HashMap<>();
 
+    /**
+     * New stats table for write billed savings daily stats, similar to savings stats by day table.
+     */
+    private static final StatsTypeFields billedStatsDayFields = new StatsTypeFields();
+
     static {
         StatsTypeFields hourFields = new StatsTypeFields();
         hourFields.table = ENTITY_SAVINGS_BY_HOUR;
@@ -142,6 +152,13 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
         monthFields.valueField = ENTITY_SAVINGS_BY_MONTH.STATS_VALUE;
         monthFields.samplesField = ENTITY_SAVINGS_BY_MONTH.SAMPLES;
         statsFieldsByRollup.put(RollupDurationType.MONTHLY, monthFields);
+
+        billedStatsDayFields.table = BILLED_SAVINGS_BY_DAY;
+        billedStatsDayFields.oidField = BILLED_SAVINGS_BY_DAY.ENTITY_OID;
+        billedStatsDayFields.timeField = BILLED_SAVINGS_BY_DAY.STATS_TIME;
+        billedStatsDayFields.typeField = BILLED_SAVINGS_BY_DAY.STATS_TYPE;
+        billedStatsDayFields.valueField = BILLED_SAVINGS_BY_DAY.STATS_VALUE;
+        billedStatsDayFields.samplesField = BILLED_SAVINGS_BY_DAY.SAMPLES;
     }
 
     /**
@@ -150,26 +167,29 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
      * @param dsl JOOQ access.
      * @param clock Used for timestamp conversions before storing/reading DB values.
      * @param chunkSize Used for inserts, to enable batch insert.
+     * @param readBilledSavings Whether stats need to be read from billed savings DB table.
      */
     public SqlEntitySavingsStore(@Nonnull final DSLContext dsl, @Nonnull final Clock clock,
-            final int chunkSize) {
+            final int chunkSize, boolean readBilledSavings) {
         this.dsl = Objects.requireNonNull(dsl);
         this.clock = Objects.requireNonNull(clock);
         this.chunkSize = chunkSize;
-        logger.info("Created new Entity Savings Store with chunk size {} and clock {}.",
-                this.chunkSize, this.clock);
+        this.readBilledSavings = readBilledSavings;
+        logger.info("Created new Savings Store (read billed stats? {}) with chunk "
+                + "size {} and clock {}.", this.readBilledSavings, this.chunkSize, this.clock);
     }
 
     @Override
     public void addHourlyStats(@Nonnull Set<EntitySavingsStats> hourlyStats, DSLContext dsl)
             throws EntitySavingsException {
-        addStats(RollupDurationType.HOURLY, hourlyStats, dsl);
+        addStats(RollupDurationType.HOURLY, hourlyStats, dsl, false);
     }
 
     @Override
-    public void addDailyStats(@Nonnull Set<EntitySavingsStats> dailyStats, DSLContext dsl)
+    public void addDailyStats(@Nonnull Set<EntitySavingsStats> dailyStats, DSLContext dsl,
+            boolean isBillBasedSavings)
             throws EntitySavingsException {
-        addStats(RollupDurationType.DAILY, dailyStats, dsl);
+        addStats(RollupDurationType.DAILY, dailyStats, dsl, isBillBasedSavings);
     }
 
     /**
@@ -178,15 +198,17 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
      * @param tableType Table type (hourly/daily) to add stats to.
      * @param savingsStats Stats to insert.
      * @param dsl DB handle.
+     * @param isBillBasedSavings Whether to add to the bill-based stats table.
      * @throws EntitySavingsException Thrown on insert error.
      */
     private void addStats(RollupDurationType tableType,
-            @Nonnull Set<EntitySavingsStats> savingsStats, DSLContext dsl)
+            @Nonnull Set<EntitySavingsStats> savingsStats, DSLContext dsl, boolean isBillBasedSavings)
             throws EntitySavingsException {
-        final StatsTypeFields fieldTypes = statsFieldsByRollup.get(tableType);
-        boolean isDaily = tableType == RollupDurationType.DAILY;
+        // Bill based stats are only written to daily table currently.
+        final StatsTypeFields fieldTypes = isBillBasedSavings ? billedStatsDayFields
+                : statsFieldsByRollup.get(tableType);
         try {
-            final Table<?> table = isDaily ? ENTITY_SAVINGS_BY_DAY : ENTITY_SAVINGS_BY_HOUR;
+            boolean isDaily = tableType == RollupDurationType.DAILY;
             final List<TableField<?, ?>> commonFields = ImmutableList.of(
                     fieldTypes.oidField,
                     fieldTypes.timeField,
@@ -200,7 +222,7 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
             Iterators.partition(savingsStats.iterator(), chunkSize)
                     .forEachRemaining(chunk -> {
                         final InsertValuesStepN<?> insert = dsl
-                                .insertInto(table)
+                                .insertInto(fieldTypes.table)
                                 .columns(allFields);
                         chunk.forEach(stats -> {
                             // If daily, we insert with 12:00 AM day time always.
@@ -227,7 +249,8 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
                     });
         } catch (Exception e) {
             throw new EntitySavingsException("Could not add " + savingsStats.size()
-                    + (isDaily ? " daily" : " hourly") + " entity savings stats to DB.", e);
+                    + (isBillBasedSavings ? " bill-based" : " bottom-up") + " savings "
+                    + tableType + " stats to DB.", e);
         }
     }
 
@@ -315,7 +338,11 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
     }
 
     @Override
-    public int deleteOlderThanDaily(long timestamp) {
+    public int deleteOlderThanDaily(long timestamp, boolean isBillBasedSavings) {
+        if (isBillBasedSavings) {
+            return deleteOlderThan(timestamp, billedStatsDayFields.table,
+                    billedStatsDayFields.timeField);
+        }
         return deleteOlderThan(timestamp, ENTITY_SAVINGS_BY_DAY,
                 ENTITY_SAVINGS_BY_DAY.STATS_TIME);
     }
@@ -356,6 +383,9 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
                 .execute();
         dsl.deleteFrom(ENTITY_SAVINGS_BY_MONTH)
                 .where(ENTITY_SAVINGS_BY_MONTH.ENTITY_OID.in(uuids))
+                .execute();
+        dsl.deleteFrom(BILLED_SAVINGS_BY_DAY)
+                .where(BILLED_SAVINGS_BY_DAY.ENTITY_OID.in(uuids))
                 .execute();
     }
 
@@ -431,7 +461,7 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
             throws EntitySavingsException {
         if (statsTypes.isEmpty() || (entityOids.isEmpty() && resourceGroups.isEmpty())) {
             //There are no entities or filters that support savings stats, returning an empty list
-            return new ArrayList<AggregatedSavingsStats>();
+            return new ArrayList<>();
         }
         if (startTime > endTime) {
             throw new EntitySavingsException("Cannot get " + durationType.name()
@@ -440,13 +470,14 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
                     + SavingsUtil.getLocalDateTime(endTime, clock));
         }
         try {
-            final StatsTypeFields fieldInfo = statsFieldsByRollup.get(durationType);
+            final StatsTypeFields fieldInfo = readBilledSavings ? billedStatsDayFields
+                    : statsFieldsByRollup.get(durationType);
             final Set<Integer> statsTypeCodes = statsTypes.stream()
                     .map(EntitySavingsStatsType::getNumber)
                     .collect(Collectors.toSet());
             // Use Daily Table for Yearly/Monthly stats until OM-87933 is addressed
-            if (durationType.equals(RollupDurationType.MONTHLY) && FeatureFlags.ENABLE_BILLING_BASED_SAVINGS.isEnabled()) {
-                return aggregateDailyStats(statsTypeCodes, startTime, endTime,
+            if (durationType.equals(RollupDurationType.MONTHLY) && readBilledSavings) {
+                return aggregateDailyBillBasedStats(statsTypeCodes, startTime, endTime,
                         entityOids, entityTypes, resourceGroups);
             }
             // Check if entity type is one of those that can be used to resolve for members using the
@@ -482,7 +513,7 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
             return records.map(this::convertStatsDbRecord);
         } catch (Exception e) {
             throw new EntitySavingsException("Could not get " + durationType.name()
-                    + " entity savings stats for "
+                    + (readBilledSavings ? " billed" : " entity") + " savings stats for "
                     + entityOids.size() + " entity OIDs from DB between "
                     + SavingsUtil.getLocalDateTime(startTime, clock)
                     + " and " + SavingsUtil.getLocalDateTime(endTime, clock), e);
@@ -493,12 +524,11 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
      * For BillBasedSavings, aggregating the daily table to monthly.
      */
     @Nonnull
-    private List<AggregatedSavingsStats> aggregateDailyStats(@Nonnull Set<Integer> statsTypeCodes,
+    private List<AggregatedSavingsStats> aggregateDailyBillBasedStats(@Nonnull Set<Integer> statsTypeCodes,
             @Nonnull Long startTime, @Nonnull Long endTime,
             @Nonnull Collection<Long> entityOids, @Nonnull Collection<Integer> entityTypes,
-            @Nonnull Collection<Long> resourceGroups)
-            throws EntitySavingsException {
-        final StatsTypeFields fieldInfo = statsFieldsByRollup.get(RollupDurationType.DAILY);
+            @Nonnull Collection<Long> resourceGroups) {
+        final StatsTypeFields fieldInfo = billedStatsDayFields;
         boolean isCloudScopeEntity = entityTypes.size() == 1 && CLOUD_GROUP_SCOPES.containsAll(entityTypes);
         boolean isResourceGroups = !resourceGroups.isEmpty();
 
@@ -611,7 +641,8 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
             dailyStats.add(new EntitySavingsStats(value.getEntityOid(),
                     timestamp, EntitySavingsStatsType.REALIZED_INVESTMENTS, value.getInvestments()));
         });
-        addDailyStats(dailyStats, this.dsl);
+        // Add to the billed savings stats table.
+        addDailyStats(dailyStats, this.dsl, true);
         return uniqueDailyTimestamps;
     }
 

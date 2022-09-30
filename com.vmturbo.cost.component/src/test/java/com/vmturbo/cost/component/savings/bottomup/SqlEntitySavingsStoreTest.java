@@ -73,6 +73,8 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Used to test savings related DB read/write codebase.
+ * This is focussed on testing bottom-up stats. Corresponding bill based stats are tested via the
+ * SqlBilledSavingsStoreTest class.
  */
 @RunWith(Parameterized.class)
 @CleanupOverrides(truncate = {AggregationMetaData.class, AccountExpensesRetentionPolicies.class,
@@ -96,6 +98,9 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
     @Rule
     public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
+    private final Set<EntitySavingsStatsType> bothStatsTypes = ImmutableSet.of(
+            EntitySavingsStatsType.REALIZED_INVESTMENTS, EntitySavingsStatsType.REALIZED_SAVINGS);
+
     /**
      * Create a new instance with given parameters.
      *
@@ -115,9 +120,14 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
     private final Logger logger = LogManager.getLogger();
 
     /**
-     * Handle to store for DB access.
+     * Handle to store for DB access - for bottom-up stats tables.
      */
-    private SqlEntitySavingsStore store;
+    private SqlEntitySavingsStore bottomUpSavingsStore;
+
+    /**
+     * Handle to store for DB access - for bill-based stats tables.
+     */
+    private SqlEntitySavingsStore billBasedSavingsStore;
 
     /**
      * Fixed clock to keep track of times. Pinned to shortly after 1pm on 1/12/1970.
@@ -185,9 +195,10 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
     public void setup() {
         // some of our conversions depend on timezone being set to UTC
         TimeZone.setDefault(TimeZone.getTimeZone(ZoneOffset.UTC));
-        store = new SqlEntitySavingsStore(dsl, clock, 1000);
+        bottomUpSavingsStore = new SqlEntitySavingsStore(dsl, clock, 1000, false);
+        billBasedSavingsStore = new SqlEntitySavingsStore(dsl, clock, 1000, true);
         rollupTimesStore = new RollupTimesStore(dsl, RolledUpTable.ENTITY_SAVINGS);
-        rollupProcessor = new RollupSavingsProcessor(store, rollupTimesStore, clock);
+        rollupProcessor = new RollupSavingsProcessor(bottomUpSavingsStore, rollupTimesStore, clock);
         dsl.insertInto(ENTITY_CLOUD_SCOPE,
                         ENTITY_CLOUD_SCOPE.ENTITY_OID,
                         ENTITY_CLOUD_SCOPE.ENTITY_TYPE,
@@ -219,7 +230,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         setStatsValues(hourlyStats, vm2Id, timeExact3PM, 50, null); // VM2 at 3PM.
 
         // Write it.
-        store.addHourlyStats(hourlyStats, dsl);
+        bottomUpSavingsStore.addHourlyStats(hourlyStats, dsl);
 
         final Set<EntitySavingsStatsType> allStatsTypes = Arrays.stream(EntitySavingsStatsType
                 .values()).collect(Collectors.toSet());
@@ -229,28 +240,28 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         Collection<Integer> entityTypes = Collections.singleton(EntityType.VIRTUAL_MACHINE_VALUE);
         Collection<Long> resourceGroups = new HashSet<>();
 
-        List<AggregatedSavingsStats> statsReadBack = store.getHourlyStats(allStatsTypes,
+        List<AggregatedSavingsStats> statsReadBack = bottomUpSavingsStore.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact0PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 entityOids, entityTypes, resourceGroups);
         // 0 stats sets, for 12-1 PM range, because end time (1 PM) is exclusive.
         assertEquals(0, statsReadBack.size());
 
-        statsReadBack = store.getHourlyStats(allStatsTypes,
+        statsReadBack = bottomUpSavingsStore.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
                 entityOids, entityTypes, resourceGroups);
         // 1 stats sets of 4 stats types, aggregated for both VMs, both 1PM, for 1-2 PM range.
         assertEquals(4, statsReadBack.size());
 
-        statsReadBack = store.getHourlyStats(allStatsTypes,
+        statsReadBack = bottomUpSavingsStore.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
                 entityOids, entityTypes, resourceGroups);
         // 1 stats sets of 4 stats types, aggregated for both VMs, for 2-3 PM range.
         assertEquals(4, statsReadBack.size());
 
-        statsReadBack = store.getHourlyStats(allStatsTypes,
+        statsReadBack = bottomUpSavingsStore.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact4PM, clock),
                 entityOids, entityTypes, resourceGroups);
@@ -260,7 +271,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
 
         // Verify data for 1 VM.
         entityOids = ImmutableSet.of(vm1Id);
-        statsReadBack = store.getHourlyStats(allStatsTypes,
+        statsReadBack = bottomUpSavingsStore.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact4PM, clock),
                 entityOids, entityTypes, resourceGroups);
@@ -309,7 +320,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         }
 
         // add new data to the store, and compute eligible rollups
-        store.addHourlyStats(hourlyStats, dsl);
+        bottomUpSavingsStore.addHourlyStats(hourlyStats, dsl);
         rollupProcessor.process(RollupDurationType.HOURLY, hourlyTimes);
 
         final LastRollupTimes newLastTimes = rollupTimesStore.getLastRollupTimes();
@@ -343,7 +354,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         Collection<Integer> entityTypes = Collections.singleton(EntityType.VIRTUAL_MACHINE_VALUE);
         Collection<Long> billingFamilies = new HashSet<>();
         Collection<Long> resourceGroups = new HashSet<>();
-        final List<AggregatedSavingsStats> statsByHour = store.getHourlyStats(statsTypes,
+        final List<AggregatedSavingsStats> statsByHour = bottomUpSavingsStore.getHourlyStats(statsTypes,
                 firstHourExpected, (lastHourExpected + 1), entityOids, entityTypes,
                 resourceGroups);
         assertNotNull(statsByHour);
@@ -352,7 +363,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         assertEquals(firstHourExpected, statsByHour.get(0).getTimestamp());
         assertEquals(lastHourExpected, statsByHour.get(sizeHourly - 1).getTimestamp());
 
-        final List<AggregatedSavingsStats> statsByDay = store.getDailyStats(statsTypes,
+        final List<AggregatedSavingsStats> statsByDay = bottomUpSavingsStore.getDailyStats(statsTypes,
                 dayRangeStart, dayRangeEnd, entityOids, entityTypes, resourceGroups);
         assertNotNull(statsByDay);
         assertEquals(3, statsByDay.size());
@@ -363,7 +374,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         // 3 hours Jan-15, $100/hr
         assertEquals(0.03, statsByDay.get(2).getValue(), EPSILON_PRECISION);
 
-        final List<AggregatedSavingsStats> statsByMonth = store.getMonthlyStats(statsTypes,
+        final List<AggregatedSavingsStats> statsByMonth = bottomUpSavingsStore.getMonthlyStats(statsTypes,
                 monthRangeStart, monthRangeEnd, entityOids, entityTypes, resourceGroups);
         assertNotNull(statsByMonth);
         assertEquals(1, statsByMonth.size());
@@ -397,7 +408,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         // all the stats have the same stats value - remember it for expected rollup results
         final double baseValue = hourlyStats.iterator().next().getValue();
         // save all the hourly records to the hourly table
-        store.addHourlyStats(hourlyStats, dsl);
+        bottomUpSavingsStore.addHourlyStats(hourlyStats, dsl);
         int count = dsl.fetchCount(EntitySavingsByHour.ENTITY_SAVINGS_BY_HOUR);
         assertEquals(hourlyStats.size(), count);
         // and perform daily and monthly rollups
@@ -415,19 +426,19 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
 
         // query hourly, daily, and monthly data with buffers on both ends of the time span to
         // ensure all records are selected
-        final List<AggregatedSavingsStats> hourlyResult = store.getSavingsStats(TimeFrame.HOUR,
+        final List<AggregatedSavingsStats> hourlyResult = bottomUpSavingsStore.getSavingsStats(TimeFrame.HOUR,
                 statsTypes,
                 startTimeMillis - TimeUnit.HOURS.toMillis(1), endTimeMillis + TimeUnit.HOURS.toMillis(1),
                 entityOids, entityTypes, resourceGroups);
         assertNotNull(hourlyResult);
 
-        final List<AggregatedSavingsStats> dailyResult = store.getSavingsStats(TimeFrame.DAY,
+        final List<AggregatedSavingsStats> dailyResult = bottomUpSavingsStore.getSavingsStats(TimeFrame.DAY,
                 statsTypes,
                 startTimeMillis - TimeUnit.DAYS.toMillis(1), endTimeMillis + TimeUnit.DAYS.toMillis(1),
                 entityOids, entityTypes, resourceGroups);
         assertNotNull(dailyResult);
 
-        final List<AggregatedSavingsStats> monthlyResult = store.getSavingsStats(TimeFrame.MONTH,
+        final List<AggregatedSavingsStats> monthlyResult = bottomUpSavingsStore.getSavingsStats(TimeFrame.MONTH,
                 statsTypes,
                 startTimeMillis - TimeUnit.DAYS.toMillis(31), endTimeMillis + TimeUnit.DAYS.toMillis(31),
                 entityOids, entityTypes, resourceGroups);
@@ -618,7 +629,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
                 EntitySavingsStatsType.REALIZED_SAVINGS, 10d));
         hourlyStats.add(new EntitySavingsStats(entityOid2, TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 EntitySavingsStatsType.REALIZED_SAVINGS, 20d));
-        store.addHourlyStats(hourlyStats, dsl);
+        bottomUpSavingsStore.addHourlyStats(hourlyStats, dsl);
 
         // 1. Query by account ID
         // Both VMs are in the same account. Realized savings value equal to the same of the 2.
@@ -627,7 +638,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
                 .values()).collect(Collectors.toSet());
         Collection<Long> resourceGroups = new HashSet<>();
 
-        List<AggregatedSavingsStats> statsReadBack = store.getHourlyStats(allStatsTypes,
+        List<AggregatedSavingsStats> statsReadBack = bottomUpSavingsStore.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
                 ImmutableSet.of(accountId), entityTypes, resourceGroups);
@@ -638,7 +649,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         // VM1 is in region 1, and VM2 is in region 2. The query ask for region 1. So only savings
         // of VM1 is returned.
         entityTypes = Collections.singleton(EntityType.REGION_VALUE);
-        statsReadBack = store.getHourlyStats(allStatsTypes,
+        statsReadBack = bottomUpSavingsStore.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
                 ImmutableSet.of(regionOid1), entityTypes, resourceGroups);
@@ -649,7 +660,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         // VM1 is in AZ 1, and VM2 is in AZ 2. The query ask for AZ 2. So only savings
         // of VM2 is returned.
         entityTypes = Collections.singleton(EntityType.AVAILABILITY_ZONE_VALUE);
-        statsReadBack = store.getHourlyStats(allStatsTypes,
+        statsReadBack = bottomUpSavingsStore.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
                 ImmutableSet.of(zoneOid2), entityTypes, resourceGroups);
@@ -659,7 +670,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         // 4. Query by service provider
         // Both VMs are in the same service provider. Realized savings value equal to the same of the 2.
         entityTypes = Collections.singleton(EntityType.SERVICE_PROVIDER_VALUE);
-        statsReadBack = store.getHourlyStats(allStatsTypes,
+        statsReadBack = bottomUpSavingsStore.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
                 ImmutableSet.of(serviceProviderOid), entityTypes, resourceGroups);
@@ -669,7 +680,7 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         // 5. Query by resource group
         // VM2 is in resource group 2. Savings of VM2 will be returned.
         resourceGroups.add(resourceGroupOid2);
-        statsReadBack = store.getHourlyStats(allStatsTypes,
+        statsReadBack = bottomUpSavingsStore.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
                 Collections.<Long>emptySet(), Collections.<Integer>emptySet(), resourceGroups);
@@ -705,23 +716,17 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
 
         // hourlyStats is a set, so we cannot expect a reliable ordering. That is why the
         // addHourlyStats() is being called 3 times below.
-        setStatsValues(hourlyStats, vm1Id, timeExact1PM, multiple,
-                ImmutableSet.of(EntitySavingsStatsType.REALIZED_SAVINGS,
-                        EntitySavingsStatsType.REALIZED_INVESTMENTS));
-        store.addHourlyStats(hourlyStats, dsl);
+        setStatsValues(hourlyStats, vm1Id, timeExact1PM, multiple, bothStatsTypes);
+        bottomUpSavingsStore.addHourlyStats(hourlyStats, dsl);
         hourlyStats.clear();
 
-        setStatsValues(hourlyStats, vm1Id, timeExact1PM, multiple * 2,
-                ImmutableSet.of(EntitySavingsStatsType.REALIZED_SAVINGS,
-                        EntitySavingsStatsType.REALIZED_INVESTMENTS));
-        store.addHourlyStats(hourlyStats, dsl);
+        setStatsValues(hourlyStats, vm1Id, timeExact1PM, multiple * 2, bothStatsTypes);
+        bottomUpSavingsStore.addHourlyStats(hourlyStats, dsl);
         hourlyStats.clear();
 
         int finalMultiple = multiple * 3;
-        setStatsValues(hourlyStats, vm1Id, timeExact1PM, finalMultiple,
-                ImmutableSet.of(EntitySavingsStatsType.REALIZED_SAVINGS,
-                        EntitySavingsStatsType.REALIZED_INVESTMENTS));
-        store.addHourlyStats(hourlyStats, dsl);
+        setStatsValues(hourlyStats, vm1Id, timeExact1PM, finalMultiple, bothStatsTypes);
+        bottomUpSavingsStore.addHourlyStats(hourlyStats, dsl);
         hourlyStats.clear();
 
         Result<EntitySavingsByHourRecord> records = dsl.selectFrom(
@@ -757,12 +762,12 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         final Set<EntitySavingsStats> dailyStats = new HashSet<>();
         int firstMultiple = 10;
         setStatsValues(dailyStats, vm1Id, timeFeb12th, firstMultiple, ImmutableSet.of(statsType));
-        store.addDailyStats(dailyStats, dsl);
+        bottomUpSavingsStore.addDailyStats(dailyStats, dsl);
 
         dailyStats.clear();
         int duplicateMultiple = 20;
         setStatsValues(dailyStats, vm1Id, timeFeb12th, duplicateMultiple, ImmutableSet.of(statsType));
-        store.addDailyStats(dailyStats, dsl);
+        bottomUpSavingsStore.addDailyStats(dailyStats, dsl);
 
         final Result<EntitySavingsByDayRecord> dayRecords = dsl.selectFrom(
                 EntitySavingsByDay.ENTITY_SAVINGS_BY_DAY)
@@ -811,8 +816,6 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
     @Test
     public void aggregateDailyStatsWithBillBasedTest() throws EntitySavingsException {
         featureFlagTestRule.enable(FeatureFlags.ENABLE_BILLING_BASED_SAVINGS);
-        final Set<EntitySavingsStatsType> statsTypes = ImmutableSet.of(
-                EntitySavingsStatsType.REALIZED_INVESTMENTS, EntitySavingsStatsType.REALIZED_SAVINGS);
 
         // Add Daily stats records for 12 months
         final LocalDateTime startTime = timeExact0PM;
@@ -824,10 +827,10 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
 
         for (long tMillis = startTimeMillis; tMillis <= endTimeMillis; tMillis += TimeUnit.DAYS.toMillis(1)) {
             LocalDateTime time = LocalDateTime.ofInstant(Instant.ofEpochMilli(tMillis), ZoneOffset.UTC);
-            setStatsValues(dailyStats, vm1Id, time, 10, statsTypes);
+            setStatsValues(dailyStats, vm1Id, time, 10, bothStatsTypes);
         }
-        store.addDailyStats(dailyStats, dsl);
-        final double ecpectedSavings = dailyStats.stream().filter(o -> o.getType()
+        billBasedSavingsStore.addDailyStats(dailyStats, dsl, true);
+        final double expectedSavings = dailyStats.stream().filter(o -> o.getType()
                 .equals(EntitySavingsStatsType.REALIZED_SAVINGS)).mapToDouble(o -> o.getValue()).sum();
         final double expectedInvestments = dailyStats.stream().filter(o -> o.getType()
                 .equals(EntitySavingsStatsType.REALIZED_INVESTMENTS)).mapToDouble(o -> o.getValue()).sum();
@@ -837,8 +840,8 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
         Collection<Long> resourceGroups = new HashSet<>();
 
         // query daily table ,aggregate it to monthly
-        final List<AggregatedSavingsStats> monthlyResult = store.getSavingsStats(TimeFrame.MONTH,
-                statsTypes,
+        final List<AggregatedSavingsStats> monthlyResult = billBasedSavingsStore.getSavingsStats(TimeFrame.MONTH,
+                bothStatsTypes,
                 startTimeMillis - TimeUnit.DAYS.toMillis(31), endTimeMillis + TimeUnit.DAYS.toMillis(31),
                 entityOids, entityTypes, resourceGroups);
         assertNotNull(monthlyResult);
@@ -849,12 +852,74 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
 
         // check monthly results
         // we have a record for every distinct month in which an hourly timestamp appeared
-        assertEquals(statsTypes.size() * (12L * (endTime.getYear() - startTime.getYear())
+        assertEquals(bothStatsTypes.size() * (12L * (endTime.getYear() - startTime.getYear())
                         + endTime.getMonthValue() - startTime.getMonthValue() + 1),
                 monthlyResult.size());
         // check the total of dailyStats equals the total for monthlyStats for RALIZED_INVESTMENTS
         assertEquals(expectedInvestments, actualInvestments, 0.5);
         // check the total of dailyStats equals the total for monthlyStats for RALIZED_SAVINGS
-        assertEquals(ecpectedSavings, actualSavings, 0.5);
+        assertEquals(expectedSavings, actualSavings, 0.5);
+    }
+
+    /**
+     * Add some records for the bill based daily stats table, and some records for the bottom-up daily
+     * stats table, and verify that both can be inserted without stepping over each other, and can
+     * be queried back successfully.
+     */
+    @Test
+    public void dailyStatsReadAndWrite() throws EntitySavingsException {
+        // Setup data set to insert.
+        final LocalDateTime day0Midnight = timeExact0PM.truncatedTo(ChronoUnit.DAYS);
+        final LocalDateTime day1Midnight = day0Midnight.plusDays(1);
+        final LocalDateTime day2Midnight = day0Midnight.plusDays(2);
+
+        final Set<EntitySavingsStats> bottomUpDailyStats = new HashSet<>();
+        setStatsValues(bottomUpDailyStats, vm1Id, day0Midnight, 100, bothStatsTypes);
+        setStatsValues(bottomUpDailyStats, vm1Id, day1Midnight, 200, bothStatsTypes);
+
+        final Set<EntitySavingsStats> billBasedDailyStats = new HashSet<>();
+        setStatsValues(billBasedDailyStats, vm2Id, day0Midnight, 1000, bothStatsTypes);
+        setStatsValues(billBasedDailyStats, vm2Id, day1Midnight, 2000, bothStatsTypes);
+        setStatsValues(billBasedDailyStats, vm2Id, day2Midnight, 3000, bothStatsTypes);
+
+        // Insert data into the daily tables.
+        bottomUpSavingsStore.addDailyStats(bottomUpDailyStats, dsl, false);
+        billBasedSavingsStore.addDailyStats(billBasedDailyStats, dsl, true);
+
+        // Query for the raw daily data.
+        long queryStartMillis = TimeUtil.localDateTimeToMilli(day0Midnight, clock);
+        long queryEndMillis = TimeUtil.localDateTimeToMilli(day2Midnight, clock) + 1;
+
+        // Check bottom-up daily stats.
+        final List<AggregatedSavingsStats> bottomUpDailyResult =
+                bottomUpSavingsStore.getSavingsStats(TimeFrame.DAY,
+                bothStatsTypes, queryStartMillis, queryEndMillis, ImmutableSet.of(vm1Id, vm2Id),
+                        Collections.singleton(EntityType.VIRTUAL_MACHINE_VALUE), Collections.emptySet());
+        assertNotNull(bottomUpDailyResult);
+        assertEquals(4, bottomUpDailyResult.size());
+        final double bottomUpSavings = bottomUpDailyResult.stream().filter(o -> o.getType()
+                .equals(EntitySavingsStatsType.REALIZED_SAVINGS)).mapToDouble(
+                BaseSavingsStats::getValue).sum();
+        final double bottomUpInvestments = bottomUpDailyResult.stream().filter(o -> o.getType()
+                .equals(EntitySavingsStatsType.REALIZED_INVESTMENTS)).mapToDouble(
+                BaseSavingsStats::getValue).sum();
+        assertEquals(3.0d, bottomUpSavings, EPSILON_PRECISION);
+        assertEquals(12.0d, bottomUpInvestments, EPSILON_PRECISION);
+
+        // Check bill-based daily stats.
+        final List<AggregatedSavingsStats> billBasedDailyResult =
+                billBasedSavingsStore.getSavingsStats(TimeFrame.DAY,
+                        bothStatsTypes, queryStartMillis, queryEndMillis, ImmutableSet.of(vm1Id, vm2Id),
+                        Collections.singleton(EntityType.VIRTUAL_MACHINE_VALUE), Collections.emptySet());
+        assertNotNull(billBasedDailyResult);
+        assertEquals(6, billBasedDailyResult.size());
+        final double billBasedSavings = billBasedDailyResult.stream().filter(o -> o.getType()
+                .equals(EntitySavingsStatsType.REALIZED_SAVINGS)).mapToDouble(
+                BaseSavingsStats::getValue).sum();
+        final double billBasedInvestments = billBasedDailyResult.stream().filter(o -> o.getType()
+                .equals(EntitySavingsStatsType.REALIZED_INVESTMENTS)).mapToDouble(
+                BaseSavingsStats::getValue).sum();
+        assertEquals(120.0d, billBasedSavings, EPSILON_PRECISION);
+        assertEquals(480.0d, billBasedInvestments, EPSILON_PRECISION);
     }
 }

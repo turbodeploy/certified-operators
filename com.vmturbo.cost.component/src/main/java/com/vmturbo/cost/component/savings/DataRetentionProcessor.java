@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.api.TimeUtil;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.savings.bottomup.AuditLogWriter;
 import com.vmturbo.cost.component.savings.bottomup.EntityEventsJournal;
 import com.vmturbo.cost.component.savings.bottomup.EntitySavingsRetentionConfig;
@@ -77,6 +76,11 @@ public class DataRetentionProcessor {
     private static final long millisInHour = TimeUnit.HOURS.toMillis(1);
 
     /**
+     * Whether bill based savings is enabled.
+     */
+    private final boolean isBillBasedSavings;
+
+    /**
      * Constructor.
      *
      * @param savingsStore savings store
@@ -85,6 +89,7 @@ public class DataRetentionProcessor {
      * @param clock clock
      * @param runFrequencyHours run frequency in hours
      * @param savingsEventJournal savings event journal
+     * @param isBillBasedSavings Whether bill based savings is enabled.
      */
     public DataRetentionProcessor(@Nonnull final EntitySavingsStore savingsStore,
                            @Nullable final AuditLogWriter auditLogWriter,
@@ -92,7 +97,8 @@ public class DataRetentionProcessor {
                            @Nonnull final Clock clock,
                            long runFrequencyHours,
                            @Nullable final EntityEventsJournal savingsEventJournal,
-                           long billBasedDailyStatsRetentionInHours) {
+                           long billBasedDailyStatsRetentionInHours,
+                           boolean isBillBasedSavings) {
         this.savingsStore = savingsStore;
         this.auditLogWriter = auditLogWriter;
         this.retentionConfig = retentionConfig;
@@ -101,6 +107,7 @@ public class DataRetentionProcessor {
         this.lastTimeRan = null;
         this.persistentEventsJournal = savingsEventJournal;
         this.billBasedDailyStatsRetentionInHours = billBasedDailyStatsRetentionInHours;
+        this.isBillBasedSavings = isBillBasedSavings;
     }
 
     /**
@@ -117,55 +124,64 @@ public class DataRetentionProcessor {
                     this.lastTimeRan, currentTimeMillis, this.runFrequencyHours);
             return;
         }
+        long timestamp;
+        int rowsDeleted;
+
+        final Stopwatch deletionWatch = Stopwatch.createStarted();
+        final String lastRunDisplayTime = this.lastTimeRan == null ? "Never"
+                : SavingsUtil.getLocalDateTime(this.lastTimeRan).toString();
+        // Bottom-up stats table entry cleanup.
         // Fetch latest settings values from SettingsManager.
-        final DataRetentionSettings hourSettings = retentionConfig.fetchDataRetentionSettings();
+        final DataRetentionSettings  hourSettings = retentionConfig.fetchDataRetentionSettings();
         if (hourSettings == null) {
             logger.warn("Could not fetch latest retention settings. Skipping processing.");
             return;
         }
-
-        final Stopwatch deletionWatch = Stopwatch.createStarted();
-        logger.info("Starting Cloud Savings cleanup. Settings: {}. Frequency: {} hrs. Last ran: {}",
+        logger.info("Starting cleanup for bottom-up savings tables. Settings: {}, "
+                + "Frequency: {} hrs, Last ran: {}",
                 hourSettings, this.runFrequencyHours,
                 this.lastTimeRan == null ? "Never" : SavingsUtil.getLocalDateTime(this.lastTimeRan));
-        long timestamp;
-        int rowsDeleted;
+
         // Delete audit records, but only if enabled.
         if (auditLogWriter != null && auditLogWriter.isEnabled()) {
             timestamp = currentTimeMillis - hourSettings.getAuditLogRetentionInHours() * millisInHour;
             rowsDeleted = auditLogWriter.deleteOlderThan(timestamp);
-            logger.info("Deleted {} audit records older than {}.", rowsDeleted,
-                    SavingsUtil.getLocalDateTime(timestamp));
+            logger.info("Deleted {} audit records older than {}.", rowsDeleted, SavingsUtil.getLocalDateTime(timestamp));
         }
 
         // Delete event journal records if events are being persisted to DB.
         if (persistentEventsJournal != null) {
             timestamp = currentTimeMillis - hourSettings.getEventsRetentionInHours() * millisInHour;
             rowsDeleted = persistentEventsJournal.purgeEventsOlderThan(timestamp);
-            logger.info("Deleted {} event records older than {}.", rowsDeleted,
-                    SavingsUtil.getLocalDateTime(timestamp));
+            logger.info("Deleted {} event records older than {}.", rowsDeleted, SavingsUtil.getLocalDateTime(timestamp));
         }
 
         // Delete stats records.
         timestamp = currentTimeMillis - hourSettings.getHourlyStatsRetentionInHours() * millisInHour;
         rowsDeleted = savingsStore.deleteOlderThanHourly(timestamp);
-        logger.info("Deleted {} hourly stats records older than {}.", rowsDeleted,
-                SavingsUtil.getLocalDateTime(timestamp));
+        logger.info("Deleted {} hourly stats records older than {}.", rowsDeleted, SavingsUtil.getLocalDateTime(timestamp));
 
-        long dailyStatsRetentionInHours = FeatureFlags.ENABLE_BILLING_BASED_SAVINGS.isEnabled()
-                ? billBasedDailyStatsRetentionInHours : hourSettings.getDailyStatsRetentionInHours();
+        long dailyStatsRetentionInHours = hourSettings.getDailyStatsRetentionInHours();
         timestamp = currentTimeMillis - dailyStatsRetentionInHours * millisInHour;
         rowsDeleted = savingsStore.deleteOlderThanDaily(timestamp);
-        logger.info("Deleted {} daily stats records older than {}.", rowsDeleted,
-                SavingsUtil.getLocalDateTime(timestamp));
+        logger.info("Deleted {} daily stats records older than {}.", rowsDeleted, SavingsUtil.getLocalDateTime(timestamp));
 
         timestamp = currentTimeMillis - hourSettings.getMonthlyStatsRetentionInHours() * millisInHour;
         rowsDeleted = savingsStore.deleteOlderThanMonthly(timestamp);
-        logger.info("Deleted {} monthly stats records older than {}.", rowsDeleted,
-                SavingsUtil.getLocalDateTime(timestamp));
+        logger.info("Deleted {} monthly stats records older than {}.", rowsDeleted, SavingsUtil.getLocalDateTime(timestamp));
         this.lastTimeRan = currentTimeMillis;
 
-        logger.info("Completed Cloud Savings cleanup in {} ms.",
+        if (isBillBasedSavings) {
+            logger.info("Starting cleanup for bill-based savings tables. Retention hrs: {}, "
+                            + "Frequency: {} hrs, Last ran: {}", billBasedDailyStatsRetentionInHours,
+                    this.runFrequencyHours, lastRunDisplayTime);
+            timestamp = currentTimeMillis - billBasedDailyStatsRetentionInHours * millisInHour;
+            rowsDeleted = savingsStore.deleteOlderThanDaily(timestamp);
+            logger.info("Deleted {} daily stats (bill-based) records older than {}.",
+                    rowsDeleted, SavingsUtil.getLocalDateTime(timestamp));
+        }
+
+        logger.info("Completed cleanup of savings tables in {} ms.",
                 deletionWatch.elapsed(TimeUnit.MILLISECONDS));
     }
 

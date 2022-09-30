@@ -5,9 +5,14 @@ package com.vmturbo.cost.component.rollup;
  */
 public enum RolledUpTable {
     /**
-     * Entity savings.
+     * Entity savings (bottom-up).
      */
     ENTITY_SAVINGS("entity_savings"),
+
+    /**
+     * Entity savings (bill-based).
+     */
+    BILLED_SAVINGS("billed_savings"),
 
     /**
      * Entity savings.
