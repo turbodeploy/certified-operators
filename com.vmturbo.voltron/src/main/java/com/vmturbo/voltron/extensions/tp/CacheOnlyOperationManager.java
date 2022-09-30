@@ -94,6 +94,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
     private final MatrixInterface matrix;
     private DiscoveryDumper discoveryDumper;
     private final Map<Long, LocalDateTime> discoveryTimes = new HashMap<>();
+    private final boolean isCacheDiscoveryModeOffline;
 
     private final ExecutorService resultExecutor =
             Executors.newSingleThreadExecutor(
@@ -152,7 +153,8 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
             final BinaryDiscoveryDumper binaryDiscoveryDumper,
             final CacheOnlyDiscoveryDumper cacheDiscoveryDumper,
             final boolean enableDiscoveryResponsesCaching,
-            final LicenseCheckClient licenseCheckClient, final int workflowExecutionTimeoutMillis) {
+            final LicenseCheckClient licenseCheckClient, final int workflowExecutionTimeoutMillis,
+            final boolean isCacheDiscoveryModeOffline) {
         super(identityProvider, targetStore, probeStore, remoteMediationServer, operationListener,
                 entityStore, discoveredGroupUploader, discoveredWorkflowUploader,
                 discoveredCloudCostUploader, discoveredPlanDestinationUploader,
@@ -173,6 +175,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
         this.discoveredCloudCostUploader = discoveredCloudCostUploader;
         this.discoveredPlanDestinationUploader = discoveredPlanDestinationUploader;
         this.matrix = matrix;
+        this.isCacheDiscoveryModeOffline = isCacheDiscoveryModeOffline;
         try {
             this.discoveryDumper = new DiscoveryDumperImpl(DiscoveryDumperSettings.DISCOVERY_DUMP_DIRECTORY, targetDumpingSettings);
         } catch (IOException e) {
@@ -189,11 +192,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
                     "Cache only discovery mode enabled, ignoring non user initiated discovery request");
             return Optional.empty();
         } else {
-            // if the cached discovery last modified timestamp is newer than the last one loaded,
-            // it indicates it was modified by hand, so reload it. Otherwise do a new discovery.
-            LocalDateTime lastLoaded = discoveryTimes.get(targetId);
-            LocalDateTime lastModified = cacheOnlyDiscoveryDumper.getCachedDiscoveryTimestamp(targetId);
-            if (lastLoaded != null && lastModified != null && lastModified.isAfter(lastLoaded)) {
+            if (shouldReloadCachedDiscovery(targetId)) {
                 Target target = targetStore.getTarget(targetId)
                         .orElseThrow(() -> new TargetNotFoundException(targetId));
                 logger.info("Reloading updated cached discovery file for target {}:{}",
@@ -204,6 +203,20 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
                 return super.startDiscovery(targetId, discoveryType, runNow);
             }
         }
+    }
+
+    private boolean shouldReloadCachedDiscovery(final long targetId) {
+        if (isCacheDiscoveryModeOffline) {
+            return true;
+        }
+        // if the cached discovery last modified timestamp is newer than the last one loaded,
+        // it indicates it was modified by hand, so reload it. Otherwise do a new discovery.
+        LocalDateTime lastLoaded = discoveryTimes.get(targetId);
+        LocalDateTime lastModified = cacheOnlyDiscoveryDumper.getCachedDiscoveryTimestamp(targetId);
+        if (lastLoaded != null && lastModified != null && lastModified.isAfter(lastLoaded)) {
+            return true;
+        }
+        return false;
     }
 
     private Discovery reloadCachedDiscovery(long targetId) throws TargetNotFoundException, ProbeException {
