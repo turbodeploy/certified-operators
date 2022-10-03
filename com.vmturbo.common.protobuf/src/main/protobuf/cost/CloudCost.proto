@@ -1,0 +1,172 @@
+syntax = "proto2";
+package cloud_cost;
+
+option java_package = "com.vmturbo.common.protobuf.cost";
+
+import "CostBilling.proto";
+import "CommonDTO.proto";
+import "CommonCost.proto";
+import "cloud/CloudCommon.proto";
+
+message CloudCostData {
+
+    optional int64 billing_family_id = 1;
+
+    optional int64 service_provider_id = 2;
+
+    optional common_dto.CloudBillingData.CloudBillingBucket.Granularity granularity = 11 [default = HOURLY];
+
+    repeated CloudCostBucket cloud_cost_buckets = 21;
+
+    map<int64, common_dto.CostTagGroup> cost_tag_group = 31;
+}
+
+message CloudCostBucket {
+
+    optional int64 sample_ts_utc = 1;
+
+    optional CloudCostBucketKey bucket_key = 2;
+
+    repeated CloudCostItem cost_items = 10;
+
+    message CloudCostBucketKey {
+
+        optional int64 account_oid = 1;
+        optional int64 cloud_service_oid = 2;
+        optional int64 region_oid = 3;
+    }
+
+}
+
+message CloudCostItem {
+    optional int64 account_id = 10;
+    optional int64 cloud_service_id = 20;
+    optional int64 region_id = 30;
+    optional int32 entity_type = 40;
+    optional int64 entity_id = 50;
+    optional common_dto.PriceModel price_model = 60 [default = UNKNOWN_PRICE_MODEL];
+    optional common_dto.CloudBillingDataPoint.CostCategory cost_category = 70 [default = UNCATEGORIZED];
+
+    optional int64 cost_tag_group_id = 80;
+    optional int64 provider_id = 90;
+    optional int32 provider_type = 100;
+
+    // Commodity type, applicable for Volumes, set to UNKNOWN (2047) if not applicable.
+    optional int32 commodity_type = 110 [default = 2047];
+
+    optional double usage_amount = 120;
+    optional common_dto.CurrencyAmount cost = 130;
+}
+
+// A statistic representation of CloudCostItem. One significant deviation over cost items
+// is that tag groups are inlined with the stats .
+message CloudCostStat {
+
+    optional int64 sample_ts_utc = 1;
+
+    optional int64 account_id = 10;
+    optional int64 cloud_service_id = 20;
+    optional int64 region_id = 30;
+    optional int32 entity_type = 40;
+    optional int64 entity_id = 50;
+    optional int64 service_provider_id = 60;
+    optional common_dto.PriceModel price_model = 70 [default = UNKNOWN_PRICE_MODEL];
+    optional common_dto.CloudBillingDataPoint.CostCategory cost_category = 80 [default = UNCATEGORIZED];
+
+    optional common_dto.CostTagGroup tag_group = 90;
+    optional int64 provider_id = 100;
+    optional int32 provider_type = 110;
+
+    // Commodity type, applicable for Volumes, set to UNKNOWN (2047) if not applicable.
+    optional int32 commodity_type = 120 [default = 2047];
+
+    optional cloud_common.StatValues usage_amount_stats = 130;
+
+    optional int32 currency = 140 [default = 840];
+
+    optional cloud_common.StatValues cost_stats = 141;
+}
+
+// A query for resolving CloudCostItem data.
+message CloudCostQuery {
+
+    optional common_dto.CloudBillingData.CloudBillingBucket.Granularity granularity = 1 [default = HOURLY];
+
+    optional CloudCostFilter filter = 2;
+
+    optional bool resolve_tag_groups = 3 [default = false];
+
+}
+
+// A query for resolving CloudCostStat data.
+message CloudCostStatsQuery {
+
+    optional common_dto.CloudBillingData.CloudBillingBucket.Granularity granularity = 1;
+
+    optional CloudCostFilter filter = 2;
+
+    repeated CloudCostGroupBy group_by = 3;
+
+    enum CloudCostGroupBy {
+
+        ENTITY = 0;
+
+        ENTITY_TYPE = 10;
+
+        ACCOUNT = 20;
+
+        REGION = 30;
+
+        CLOUD_SERVICE = 40;
+
+        PROVIDER = 50;
+
+        COST_CATEGORY = 60;
+
+        PRICING_MODEL = 70;
+
+        COMMODITY_TYPE = 80;
+
+        TAG_GROUP = 90;
+
+        // If grouping by tag is requested as part of the query, a TagFilter must be included in the
+        // query.
+        TAG = 100;
+    }
+}
+
+message TagFilter {
+    optional string tag_key = 1;
+    repeated string tag_value = 2;
+}
+
+message CloudCostFilter {
+
+    // inclusive
+    optional int64 sample_ts_start = 1;
+
+    // exclusive
+    optional int64 sample_ts_end = 2;
+
+    repeated int64 resource_id = 3;
+
+    repeated int32 resource_type = 4;
+
+    repeated int64 account_id = 5;
+
+    repeated int64 region_id = 6;
+
+    repeated int64 cloud_service_id = 7;
+
+    repeated int64 resource_group_id = 8;
+
+    repeated int64 service_provider_id = 9;
+
+    repeated int64 provider_id = 10;
+
+    repeated common_dto.PriceModel price_model = 11;
+
+    repeated common_dto.CloudBillingDataPoint.CostCategory cost_category = 12;
+
+    optional TagFilter tag_filter = 13;
+}

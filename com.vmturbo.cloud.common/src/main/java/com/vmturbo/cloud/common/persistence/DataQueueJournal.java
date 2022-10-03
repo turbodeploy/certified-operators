@@ -85,9 +85,11 @@ class DataQueueJournal<DataStatsT, DataSummaryT> {
     public void recordFailedOperation(@Nonnull final ConcurrentDataQueue<?, DataStatsT, ?>.DataOperation dataOperation,
                                       @Nonnull Throwable t) {
 
-        logger.debug("{} completed exceptionally", dataOperation.operationId(), t);
-
-        failedOperations.incrementAndGet();
+        if (failedOperations.incrementAndGet() < 10) {
+            logger.warn("{} completed exceptionally", dataOperation.operationId(), t);
+        } else {
+            logger.debug("{} completed exceptionally", dataOperation.operationId(), t);
+        }
     }
 
     /**
