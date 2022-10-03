@@ -3,6 +3,11 @@ T8C-Operator Changelog
 
 Operator Versions
 ---------------------
+42.17
+1. Added support for running Prometheus server using a namespaced role.
+2. Moved out-of-the-box scrape jobs for Prometheus behind feature flags.
+3. Disabled by default certain Prometheus helper pods that aren't currently required.
+
 42.16
 1. Fixed a bug where prometheus-server pod would get stuck in `ContainerCreating` state in 
    Kubernetes `1.14.3`.
