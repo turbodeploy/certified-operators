@@ -80,6 +80,17 @@ spec:
       pass: vmturbo
   prometheus:
     enabled: true
+    nodeExporter:
+      enabled: true
+    alertmanager:
+      useClusterRole: true
+    server:
+      useClusterRole: true
+      outOfTheBoxScrapeConfigs:
+        kubernetes:
+          enabled: true
+        xl:
+          enabled: true
   prometurbo:
     enabled: true
   pure:
