@@ -85,6 +85,7 @@ message SuspensionEntityRequest {
   optional bool descending = 13;
   repeated int64 scopes = 14;
   repeated SuspensionEntityResolvedScope resolved_scopes = 15;
+  optional suspension_filter.LogicalOperator logical_operator = 16;
 }
 
 message SuspensionEntityTags {

@@ -30,3 +30,7 @@ message StringFilter {
   optional ExpType exp_type = 2;
 }
 
+enum LogicalOperator {
+  AND = 0;
+  OR = 1;
+}

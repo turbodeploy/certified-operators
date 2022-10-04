@@ -1,7 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static org.junit.Assert.assertEquals;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +20,7 @@ import com.vmturbo.api.dto.suspension.BulkActionRequestInputDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityInputDTO;
 import com.vmturbo.api.enums.CloudType;
+import com.vmturbo.api.enums.LogicalOperator;
 import com.vmturbo.api.enums.SuspensionActionType;
 import com.vmturbo.api.enums.SuspensionEntityType;
 import com.vmturbo.api.enums.SuspensionState;
@@ -125,6 +124,16 @@ public class SuspensionMapperTest extends TestCase {
         assertEquals(SuspensionEntityOuterClass.SuspensionEntityOrderBy.SUSPENSION_ENTITY_ORDER_BY_COST, testSuspensionMapper.getOrderBy(SuspensionEntitiesOrderBy.COST));
     }
 
+    /**
+     * verifies the conversion of LogicalOperator from api to gRPC.
+     */
+    @Test
+    public void testGetGrpcLogicalOperator() {
+        assertEquals(SuspensionFilter.LogicalOperator.AND,
+                testSuspensionMapper.getGrpcLogicalOperator(LogicalOperator.AND));
+        assertEquals(SuspensionFilter.LogicalOperator.OR,
+                testSuspensionMapper.getGrpcLogicalOperator(LogicalOperator.OR));
+    }
 
     /**
      * verifies the conversion of SuspendableEntityInputDTO from api to SuspensionEntityRequest of grpc.
@@ -160,6 +169,7 @@ public class SuspensionMapperTest extends TestCase {
         requestBuilder.addStatus(SuspensionEntityOuterClass.SuspensionEntityState.SUSPENSION_ENTITY_STATE_STOPPED);
         requestBuilder.setOrderBy(SuspensionEntityOuterClass.SuspensionEntityOrderBy.SUSPENSION_ENTITY_ORDER_BY_DISPLAY_NAME);
         requestBuilder.addProviders(SuspensionEntityOuterClass.SuspensionEntityProvider.SUSPENSION_ENTITY_PROVIDER_AWS);
+        requestBuilder.setLogicalOperator(SuspensionFilter.LogicalOperator.AND);
         requestBuilder.setLimit(300);
         requestBuilder.setDescending(false);
         SuspensionEntitiesPaginationRequest paginationRequest = new SuspensionEntitiesPaginationRequest();
@@ -212,11 +222,13 @@ public class SuspensionMapperTest extends TestCase {
         requestBuilder.addScopes(Long.valueOf(1));
         requestBuilder.setOrderBy(SuspensionEntityOuterClass.SuspensionEntityOrderBy.SUSPENSION_ENTITY_ORDER_BY_DISPLAY_NAME);
         requestBuilder.setLimit(300);
+       requestBuilder.setLogicalOperator(SuspensionFilter.LogicalOperator.OR);
         requestBuilder.setDescending(false);
         List<Long> scopeoids = new ArrayList<Long>();
         scopeoids.add(Long.valueOf(1));
         SuspensionEntitiesPaginationRequest paginationRequest = new SuspensionEntitiesPaginationRequest();
         SuspendableEntityInputDTO entityInputDTO = new SuspendableEntityInputDTO();
+        entityInputDTO.setLogicalOperator(LogicalOperator.OR);
         assertEquals(requestBuilder.build(), testSuspensionMapper.createSuspensionEntityRequestWithScope(entityInputDTO, paginationRequest, scopeoids));
     }
 
@@ -236,6 +248,7 @@ public class SuspensionMapperTest extends TestCase {
 
         Builder requestBuilder = SuspensionEntityRequest.getDefaultInstance().newBuilder();
         requestBuilder.setOrderBy(SuspensionEntityOuterClass.SuspensionEntityOrderBy.SUSPENSION_ENTITY_ORDER_BY_DISPLAY_NAME);
+        requestBuilder.setLogicalOperator(SuspensionFilter.LogicalOperator.AND);
         requestBuilder.setLimit(300);
         requestBuilder.setDescending(false);
         requestBuilder.addResolvedScopes(scopeBuilder.build());
