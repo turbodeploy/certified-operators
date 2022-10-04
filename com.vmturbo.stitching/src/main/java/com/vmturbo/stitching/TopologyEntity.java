@@ -13,6 +13,9 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -44,6 +47,7 @@ import com.vmturbo.topology.graph.TopologyGraphSearchableEntity;
  * The TopologyEntityImpl within a TopologyEntity may be edited but the TopologyEntity is immutable otherwise.
  */
 public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEntity>, JournalableEntity<TopologyEntity> {
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * A {@link TopologyEntityImpl} for the entity in the topology corresponding to this TopologyEntity.
@@ -536,9 +540,13 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
         @Override
         public Builder addOwner(@Nonnull final TopologyEntity.Builder owner) {
             if (this.owner.get() != null) {
-                throw new IllegalStateException("Adding multiple owners to entity " + this);
+                logger.warn("Attempt to assign multiple owners to entity {}. Keeping owner {};"
+                        + " ignoring owner {}. This may happen intermittently when an entity moves"
+                        + " between owners across 2 targets.", getOid(), this.owner.get().getOid(),
+                        owner.getOid());
+            } else {
+                this.owner.set(owner.associatedTopologyEntity);
             }
-            this.owner.set(owner.associatedTopologyEntity);
             return this;
         }
 
