@@ -187,11 +187,6 @@ public class ActionListener implements ActionsListener {
     private final Clock clock;
 
     /**
-     * Entity Savings Store.
-     */
-    private final EntitySavingsStore<DSLContext> entitySavingsStore;
-
-    /**
      * Entity Savings rollup times store.
      */
     private final RollupTimesStore entitySavingsRollupTimesStore;
@@ -218,7 +213,6 @@ public class ActionListener implements ActionsListener {
      * @param supportedEntityTypes Set of entity types supported.
      * @param supportedActionTypes Set of action types supported.
      * @param retentionConfig savings action retention configuration.
-     * @param entitySavingsStore entity savings store
      * @param entityStateStore entity state store
      * @param entitySavingsRollupTimesStore Entity savings rollup times store.
      * @param clock clock
@@ -231,7 +225,6 @@ public class ActionListener implements ActionsListener {
             @Nonnull Set<EntityType> supportedEntityTypes,
             @Nonnull Set<ActionType> supportedActionTypes,
             @Nonnull EntitySavingsRetentionConfig retentionConfig,
-            @Nonnull final EntitySavingsStore<DSLContext> entitySavingsStore,
             @Nonnull final EntityStateStore<DSLContext> entityStateStore,
             @Nonnull final RollupTimesStore entitySavingsRollupTimesStore,
             @Nonnull final Clock clock) {
@@ -245,7 +238,6 @@ public class ActionListener implements ActionsListener {
                 .collect(Collectors.toSet());
         this.supportedActionTypes = supportedActionTypes;
         this.retentionConfig = retentionConfig;
-        this.entitySavingsStore = entitySavingsStore;
         this.entityStateStore = entityStateStore;
         this.entitySavingsRollupTimesStore = entitySavingsRollupTimesStore;
         this.clock = clock;

@@ -1,5 +1,7 @@
 package com.vmturbo.mediation.azure.pricing;
 
+import java.time.ZonedDateTime;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -51,4 +53,18 @@ public interface AzureMeter {
      * @return get the price per unit.
      */
     double getUnitPrice();
+
+    /**
+     * The Effective start date.
+     *
+     * @return get the Effective start date.
+     */
+    ZonedDateTime getEffectiveStartDate();
+
+    /**
+     * The Effective end date.
+     *
+     * @return get the Effective end date.
+     */
+    ZonedDateTime getEffectiveEndDate();
 }

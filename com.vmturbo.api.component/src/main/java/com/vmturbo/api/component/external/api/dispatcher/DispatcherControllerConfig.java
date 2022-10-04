@@ -44,6 +44,7 @@ import com.vmturbo.api.controller.SettingsController;
 import com.vmturbo.api.controller.SettingsPoliciesController;
 import com.vmturbo.api.controller.StatsController;
 import com.vmturbo.api.controller.SupplyChainsController;
+import com.vmturbo.api.controller.SuspensionController;
 import com.vmturbo.api.controller.TagsController;
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.controller.TemplatesController;
@@ -196,6 +197,11 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public SupplyChainsController supplyChainsController() {
         return new SupplyChainsController();
+    }
+
+    @Bean
+    public SuspensionController suspensionController() {
+        return new SuspensionController();
     }
 
     @Bean

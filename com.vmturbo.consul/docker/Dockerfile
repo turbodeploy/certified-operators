@@ -13,7 +13,7 @@ LABEL name="kafka" \
 COPY licenses /licenses
 
 # This is the release of Consul to pull in.
-ENV CONSUL_VERSION=1.12.3
+ENV CONSUL_VERSION=1.12.5
 
 # This is the release of the HashiCorp-built version of dumb-init.
 ENV DOCKER_DUMBINIT=1.2.0

@@ -1,12 +1,13 @@
 package com.vmturbo.cost.component.savings;
 
-import static com.vmturbo.cost.component.savings.EntitySavingsConfig.supportedProviderTypes;
 import static com.vmturbo.cost.component.savings.GrpcActionChainStore.changeWindowComparator;
 import static com.vmturbo.cost.component.util.TestUtils.getTimeMillis;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -58,12 +59,21 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.common.protobuf.cost.Cost.UploadBilledCostRequest.BillingDataPoint;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.billedcosts.BatchInserter;
 import com.vmturbo.cost.component.billedcosts.BilledCostStore;
 import com.vmturbo.cost.component.billedcosts.SqlBilledCostStore;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
+import com.vmturbo.cost.component.db.tables.EntitySavingsByDay;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
@@ -73,6 +83,7 @@ import com.vmturbo.cost.component.savings.bottomup.SqlEntitySavingsStore;
 import com.vmturbo.cost.component.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingData.CloudBillingBucket.Granularity;
+import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.MultiDbTestBase;
 
@@ -83,6 +94,7 @@ import com.vmturbo.sql.utils.MultiDbTestBase;
  * https://vmturbo.atlassian.net/wiki/spaces/PMTES/pages/3200843803/Design+Billing+Based+Savings#Building-The-Watermark-Timeline
  */
 @RunWith(Parameterized.class)
+@CleanupOverrides(truncate = {EntitySavingsByDay.class})
 public class SavingsProcessorTest extends MultiDbTestBase {
     /**
      * For logging some warnings if needed.
@@ -155,6 +167,14 @@ public class SavingsProcessorTest extends MultiDbTestBase {
      * Name of entity.
      */
     private static final String vm1Name = "vm1";
+
+    private final SearchServiceMole searchServiceMole = spy(new SearchServiceMole());
+
+    /**
+     * GRPC server.
+     */
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(searchServiceMole);
 
     /**
      * Headers for settings related to action spec template file.
@@ -246,32 +266,42 @@ public class SavingsProcessorTest extends MultiDbTestBase {
      * @throws InterruptedException        if we're interrupted
      */
     public SavingsProcessorTest(boolean configurableDbDialect, SQLDialect dialect)
-            throws SQLException, UnsupportedDialectException, InterruptedException {
+            throws SQLException, UnsupportedDialectException, InterruptedException, IOException {
         super(Cost.COST, configurableDbDialect, dialect, "cost",
                 TestCostDbEndpointConfig::costEndpoint);
         this.dsl = super.getDslContext();
         this.actionChainStore = mock(GrpcActionChainStore.class);
         this.rollupTimesStore = mock(RollupTimesStore.class);
-        this.savingsStore = new SqlEntitySavingsStore(dsl, clock, chunkSize);
+        this.savingsStore = new SqlEntitySavingsStore(dsl, clock, chunkSize, true);
         this.savingsActionStore = mock(CachedSavingsActionStore.class);
 
         this.billedCostStore = new SqlBilledCostStore(dsl,
                 new BatchInserter(chunkSize, 1, rollupTimesStore),
                 mock(TimeFrameCalculator.class));
+        grpcServer.start();
+        SearchEntitiesResponse response = SearchEntitiesResponse.newBuilder().addEntities(
+                PartialEntity.newBuilder().setMinimal(
+                        MinimalEntity.newBuilder().setOid(1234L).build()).build()).build();
+        when(searchServiceMole.searchEntities(any(SearchEntitiesRequest.class)))
+                .thenReturn(response);
+        final SearchServiceBlockingStub searchService =
+                SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
+        SavingsTracker tracker = spy(new SavingsTracker(
+                new SqlBillingRecordStore(dsl),
+                actionChainStore,
+                savingsStore,
+                TimeUnit.DAYS.toMillis(365),
+                clock, mock(TopologyEntityCloudTopologyFactory.class),
+                null, dsl, mock(BusinessAccountPriceTableKeyStore.class),
+                mock(PriceTableStore.class), searchService, 777777, chunkSize));
+        doReturn(true).when(tracker).isSupportedCSP(any());
+
         this.savingsProcessor = new SavingsProcessor(clock,
                 chunkSize,
                 rollupTimesStore,
-                mock(RollupSavingsProcessor.class),
                 savingsActionStore,
-                new SavingsTracker(
-                        new SqlBillingRecordStore(dsl),
-                        actionChainStore,
-                        savingsStore,
-                        supportedProviderTypes,
-                        TimeUnit.DAYS.toMillis(365),
-                        clock, mock(TopologyEntityCloudTopologyFactory.class),
-                        null, dsl, mock(BusinessAccountPriceTableKeyStore.class),
-                        mock(PriceTableStore.class), 777777, chunkSize),
+                tracker,
                 mock(DataRetentionProcessor.class));
     }
 

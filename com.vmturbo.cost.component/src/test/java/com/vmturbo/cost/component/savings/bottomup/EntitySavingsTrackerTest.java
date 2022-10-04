@@ -184,7 +184,7 @@ public class EntitySavingsTrackerTest extends MultiDbTestBase {
                 .thenReturn(eventsByPeriod.get(time1000am));
         when(entityEventsJournal.removeEventsBetween(time1100amMillis, time1200pmMillis, uuids))
                 .thenReturn(eventsByPeriod.get(time1100am));
-        entitySavingsStore = new SqlEntitySavingsStore(dsl, clock, 5);
+        entitySavingsStore = new SqlEntitySavingsStore(dsl, clock, 5, false);
         entityStateStore = mock(SqlEntityStateStore.class);
 
         setupRepositoryClient();

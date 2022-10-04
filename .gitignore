@@ -14,6 +14,9 @@ target/
 # Eclipse IDE plugin temporary configuration files for Eclipse CS Checkstyle
 .checkstyle
 
+# vscode files
+.vscode/
+
 # Mac OS X
 .DS_Store
 

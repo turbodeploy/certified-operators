@@ -5,13 +5,13 @@
     <interactiveMode>false</interactiveMode>
     <offline>false</offline>
     <mirrors>
-          <mirror>
-               <id>maven-default-http-blocker</id>
-               <mirrorOf>dummy</mirrorOf>
-               <name>Dummy mirror to override default blocking mirror that blocks http</name>
-               <url>http://0.0.0.0/</url>
-               <blocked>true</blocked>
-         </mirror>
+        <mirror>
+            <id>maven-default-http-blocker</id>
+            <mirrorOf>dummy</mirrorOf>
+            <name>Dummy mirror to override default blocking mirror that blocks http</name>
+            <url>http://0.0.0.0/</url>
+            <blocked>true</blocked>
+        </mirror>
     </mirrors>
     <proxies/>
     <profiles>

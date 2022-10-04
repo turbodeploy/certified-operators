@@ -237,7 +237,7 @@ public class CachedAggregateScopeIdentityProvider implements CloudScopeIdentityP
     }
 
     /**
-     * Class responsible for initializing the identity cache of {@link AggregateCacheScopeIdentityProvider}, either
+     * Class responsible for initializing the identity cache of {@link CachedAggregateScopeIdentityProvider}, either
      * synchronously or asynchronously.
      */
     private class CacheInitializer {

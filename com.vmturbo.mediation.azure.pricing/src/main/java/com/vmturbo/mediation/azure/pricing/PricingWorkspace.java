@@ -3,8 +3,6 @@ package com.vmturbo.mediation.azure.pricing;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -13,6 +11,7 @@ import com.vmturbo.mediation.azure.pricing.resolver.ResolvedMeter;
 import com.vmturbo.mediation.cost.parser.azure.AzureMeterDescriptors.AzureMeterDescriptor.MeterType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicenseOverrides;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry;
 
@@ -26,6 +25,7 @@ public class PricingWorkspace {
     private Map<String, PriceTable.Builder> priceTableBuilderByPlanId;
     private Map<String, Map<String, OnDemandPriceTableByRegionEntry.Builder>>
         onDemandPriceTableBuilder = new HashMap<>();
+    private Map<String, LicenseOverrides> onDemandLicenseOverrides;
     private boolean built = false;
 
     /**
@@ -76,19 +76,19 @@ public class PricingWorkspace {
     }
 
     /**
-     * Get the map of price table by plan.
+     * Get the map of price table builders by plan. Call one time only, when all processors are done.
      *
      * @return the map of builders by plan
      */
     @Nonnull
-    public Map<String, PriceTable> build() {
+    public Map<String, PriceTable.Builder> getBuilders() {
         if (built) {
-            throw new IllegalStateException("Cannot build more than once");
+            throw new IllegalStateException("Cannot create builders more than once");
         }
 
         built = true;
 
-        Map<String, PriceTable> result = new HashMap<>();
+        Map<String, PriceTable.Builder> result = new HashMap<>();
 
         // Add the regional on demand price tables
 
@@ -98,12 +98,12 @@ public class PricingWorkspace {
             regionMap.forEach((regionId, onDemandBuilder) -> {
                 priceTableBuilder.addOnDemandPriceTable(onDemandBuilder);
             });
+            if (onDemandLicenseOverrides != null) {
+                priceTableBuilder.putAllOnDemandLicenseOverrides(onDemandLicenseOverrides);
+            }
         });
 
-        // Return a map of the built PriceTables
-
-        return priceTableBuilderByPlanId.entrySet().stream()
-            .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().build()));
+        return priceTableBuilderByPlanId;
     }
 
     /**
@@ -148,5 +148,14 @@ public class PricingWorkspace {
             .setEntityType(EntityType.REGION)
             .setId(String.format(REGION_FORMAT, regionName, regionName))
             .build();
+    }
+
+    /**
+     * Used to set the onDemandLicenseOverrides Map.
+     *
+     * @param onDemandLicenseOverrides Map of onDemandLicenseOverrides.
+     */
+    public void setOnDemandLicenseOverrides(Map<String, LicenseOverrides> onDemandLicenseOverrides) {
+        this.onDemandLicenseOverrides = onDemandLicenseOverrides;
     }
 }

@@ -1,14 +1,15 @@
 package com.vmturbo.cost.component.savings;
 
-import static com.vmturbo.cost.component.savings.EntitySavingsConfig.supportedProviderTypes;
 import static com.vmturbo.cost.component.util.TestUtils.getTimeMillis;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
@@ -57,12 +58,21 @@ import org.junit.runners.Parameterized.Parameters;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.savings.DataInjectionMonitor.ScriptEvent;
 import com.vmturbo.cost.component.savings.bottomup.AggregatedSavingsStats;
 import com.vmturbo.cost.component.savings.bottomup.SqlEntitySavingsStore;
+import com.vmturbo.cost.component.savings.calculator.Calculator;
 import com.vmturbo.cost.component.savings.calculator.StorageAmountResolver;
 import com.vmturbo.cost.component.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -118,23 +128,42 @@ public class ScenarioSavingsTest {
     Set<Long> expectedUuids = new HashSet<>();
     private static Map<Long, StorageTierPriceList> priceListMap = new HashMap<>();
 
+    private static final SearchServiceMole searchServiceMole = spy(new SearchServiceMole());
+
+    /**
+     * GRPC server.
+     */
+    @ClassRule
+    public static GrpcTestServer grpcServer = GrpcTestServer.newServer(searchServiceMole);
+
     @BeforeClass
-    public static void setup() {
-        Configurator.setAllLevels("com.vmturbo.cost.component.savings", Level.ALL);
+    public static void setup() throws IOException {
+        Configurator.setAllLevels("com.vmturbo.cost.component.savings", Level.INFO);
         int chunkSize = 1000;
         DSLContext dsl = dbConfig.getDslContext();
         Clock clock =  Clock.systemUTC();
-        GrpcActionChainStore actionChainStore = mock(GrpcActionChainStore.class);
-        savingsStore = new SqlEntitySavingsStore(dsl, clock, chunkSize);
-        savingsTracker = new SavingsTracker(
+        savingsStore = new SqlEntitySavingsStore(dsl, clock, chunkSize, true);
+        grpcServer.start();
+        SearchEntitiesResponse response = SearchEntitiesResponse.newBuilder().addEntities(
+                PartialEntity.newBuilder().setMinimal(
+                        MinimalEntity.newBuilder().setOid(1234L).build()).build()).build();
+        when(searchServiceMole.searchEntities(any(SearchEntitiesRequest.class)))
+                .thenReturn(response);
+        final SearchServiceBlockingStub searchService =
+                SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        long deleteActionRetentionMs = TimeUnit.DAYS.toMillis(365);
+        savingsTracker = spy(new SavingsTracker(
                 new SqlBillingRecordStore(dsl),
-                actionChainStore,
+                mock(GrpcActionChainStore.class),
                 savingsStore,
-                supportedProviderTypes,
-                TimeUnit.DAYS.toMillis(365),
-                clock, mock(
-                TopologyEntityCloudTopologyFactory.class), null, dsl,
-                storageAmountResolver, 777777, chunkSize);
+                deleteActionRetentionMs,
+                clock, mock(TopologyEntityCloudTopologyFactory.class),
+                null, dsl, priceTableKeyStore,
+                priceTableStore, searchService, 777777, chunkSize));
+        savingsTracker.setCalculator(new Calculator(deleteActionRetentionMs, clock, storageAmountResolver));
+        doReturn(priceListMap).when(storageAmountResolver).getStoragePriceTiers(anyLong(), anyLong());
+
+        doReturn(true).when(savingsTracker).isSupportedCSP(any());
 
         // Create price list map.
         final Builder standHdd = StorageTierPriceList.newBuilder();

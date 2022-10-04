@@ -175,7 +175,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
 
         for (final ProbeInfo probeInfo : containerInfo.getProbesList()) {
             if (probeInfo.hasProbeTargetInfo()) {
-                if (!FeatureFlags.ENABLE_TP_PROBE_SECURITY.isEnabled() && serverEndpoint.isExternal()) {
+                if ((!FeatureFlags.ENABLE_PROBE_AUTH.isEnabled() && !FeatureFlags.ENABLE_MANDATORY_PROBE_AUTH.isEnabled()) && serverEndpoint.isExternal()) {
                     logger.warn("Probe security must be enabled for external probe to add target {}",
                             probeInfo.getProbeType() + "-" + probeInfo.getDisplayName());
                     continue;

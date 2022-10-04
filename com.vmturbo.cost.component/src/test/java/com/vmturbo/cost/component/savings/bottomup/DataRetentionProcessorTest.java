@@ -124,10 +124,10 @@ public class DataRetentionProcessorTest extends MultiDbTestBase {
      */
     @Before
     public void setup() throws Exception {
-        statsSavingsStore = new SqlEntitySavingsStore(dsl, clock, 5);
+        statsSavingsStore = new SqlEntitySavingsStore(dsl, clock, 5, false);
         AuditLogWriter auditLogWriter = new SqlAuditLogWriter(dsl, clock, 5, true);
         retentionProcessor = new DataRetentionProcessor(statsSavingsStore, auditLogWriter,
-                retentionConfig, clock, 1, null, 1);
+                retentionConfig, clock, 1, null, 1, false);
     }
 
     /**

@@ -106,7 +106,13 @@ public class OperationManagerWithQueueTest {
      */
     @Rule
     public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
-            FeatureFlags.ENABLE_TP_PROBE_SECURITY);
+            FeatureFlags.ENABLE_PROBE_AUTH);
+    /**
+     * Feature flag rule mandatory.
+     */
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRuleMandatory = new FeatureFlagTestRule(
+            FeatureFlags.ENABLE_MANDATORY_PROBE_AUTH);
 
     private final IdentityProvider identityProvider = mock(IdentityProvider.class);
 

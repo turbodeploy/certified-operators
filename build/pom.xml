@@ -10,22 +10,22 @@
     <packaging>pom</packaging>
 
     <properties>
-        <revision>8.6.5-SNAPSHOT</revision>
+        <revision>8.6.6-SNAPSHOT</revision>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
-        <vmturbo.mt.branch.version>8.6.5-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>8.6.6-SNAPSHOT</vmturbo.mt.branch.version>
 
         <!-- Version from the APM PRobes Repository (Newrelic, AppInsights) -->
-        <apm.probes.branch.version>8.6.5-SNAPSHOT</apm.probes.branch.version>
+        <apm.probes.branch.version>8.6.6-SNAPSHOT</apm.probes.branch.version>
 
         <!-- MT Version com.vmturbo.ux -->
-        <ux.mt.branch.version>8.6.5-SNAPSHOT</ux.mt.branch.version>
+        <ux.mt.branch.version>8.6.6-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.3.40</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.3.44</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.5.6</cpu.capacity.version>
@@ -42,6 +42,7 @@
         <spring.session.jdbc.version>2.7.0</spring.session.jdbc.version>
         <guava.version>31.1-jre</guava.version>
         <units.of.measure.version>1.0.2</units.of.measure.version>
+        <failsafe.version>3.2.4</failsafe.version>
 
         <grpc.version>1.44.0</grpc.version>
         <grpc.prometheus.version>0.3.0</grpc.prometheus.version>
@@ -108,7 +109,7 @@
         <swagger-annotations.version>1.5.13</swagger-annotations.version>
         <swagger.codegen.plugin.version>2.2.3</swagger.codegen.plugin.version>
         <jackson-datatype-guava.version>2.6.5</jackson-datatype-guava.version>
-        <snakeyaml.version>1.31</snakeyaml.version>
+        <snakeyaml.version>1.32</snakeyaml.version>
         <javax.ws.rs-api.version>2.0</javax.ws.rs-api.version>
         <commons-collections4.version>4.1</commons-collections4.version>
         <commons-csv.version>1.9.0</commons-csv.version>
@@ -145,7 +146,7 @@
         <kafka.version>3.1.0</kafka.version>
 
         <st4.version>4.0.8</st4.version>
-        <failsafe.version>3.0.0-M4</failsafe.version>
+        <maven-failsafe.version>3.0.0-M4</maven-failsafe.version>
         <surefire.version>3.0.0-M4</surefire.version>
         <jetty.version>9.4.48.v20220622</jetty.version>
         <bouncycastle.version>1.69</bouncycastle.version>
@@ -2123,7 +2124,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-failsafe-plugin</artifactId>
-                    <version>${failsafe.version}</version>
+                    <version>${maven-failsafe.version}</version>
                     <executions>
                         <execution>
                             <id>integration-test</id>
@@ -3289,6 +3290,11 @@
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
                 <version>${guava.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.failsafe</groupId>
+                <artifactId>failsafe</artifactId>
+                <version>${failsafe.version}</version>
             </dependency>
             <dependency>
                 <groupId>tec.units</groupId>

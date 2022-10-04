@@ -48,6 +48,11 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     BROKEN_INPUT_STAGE("A stage that introduces some kind of brokenness to the next stage"),
 
     /**
+     * Filter meters based on effective start/end dates.
+     */
+    EFFECTIVE_DATE_FILTER("Effective date filter stage"),
+
+    /**
      * Resolve meters, identifying their meaning.
      */
     RESOLVE_METERS("Resolve meters"),
@@ -63,9 +68,14 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     IP_PRICE_PROCESSOR("IP Price Processing"),
 
     /**
-     * TODO remove this.
+     * IP Meter Processing Stage.
      */
-    PLACEHOLDER_FINAL("Placeholder Final Stage");
+    LICENSE_OVERRIDES("Add On Demand License Override"),
+
+    /**
+     * Assign pricing identifiers to plans and return a DiscoveredPricing result.
+     */
+    ASSIGN_IDENTIFIERS("Assign pricing identifiers");
 
     private final String description;
 
@@ -90,5 +100,6 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
      */
     public static final List<MockPricingProbeStage> DISCOVERY_STAGES = ImmutableList.of(
             DOWNLOAD_PRICE_SHEET, SELECT_ZIP_ENTRIES, BOM_AWARE_READERS, DESERIALIZE_CSV,
-            RESOLVE_METERS, REGROUP_METERS, IP_PRICE_PROCESSOR, PLACEHOLDER_FINAL);
+            EFFECTIVE_DATE_FILTER, RESOLVE_METERS, REGROUP_METERS, IP_PRICE_PROCESSOR,
+            LICENSE_OVERRIDES, ASSIGN_IDENTIFIERS);
 }

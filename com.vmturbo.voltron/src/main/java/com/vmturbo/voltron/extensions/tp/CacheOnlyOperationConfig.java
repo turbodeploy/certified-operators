@@ -103,6 +103,9 @@ public class CacheOnlyOperationConfig extends OperationConfig {
     @Value("${workflowExecutionTimeoutMillis:60000}")
     private int workflowExecutionTimeoutMillis;
 
+    @Value("${isCacheDiscoveryModeOffline:false}")
+    private boolean isCacheDiscoveryModeOffline;
+
     /**
      * Returns operation manager implementation for cache only mode.
      *
@@ -136,6 +139,7 @@ public class CacheOnlyOperationConfig extends OperationConfig {
                 cacheOnlyDiscoveryDumperConfig.cacheOnlyDiscoveryDumper(),
                 enableDiscoveryResponsesCaching,
                 licenseCheckClientConfig.licenseCheckClient(),
-                workflowExecutionTimeoutMillis);
+                workflowExecutionTimeoutMillis,
+                isCacheDiscoveryModeOffline);
     }
 }

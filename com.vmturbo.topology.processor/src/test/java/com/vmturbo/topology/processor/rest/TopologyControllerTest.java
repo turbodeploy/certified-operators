@@ -40,6 +40,7 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.rest.TopologyController.SendTopologyResponse;
+import com.vmturbo.topology.processor.rpc.TargetHealthRetriever;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -101,6 +102,9 @@ public class TopologyControllerTest {
             msgConverter.setGson(ComponentGsonFactory.createGson());
             converters.add(msgConverter);
         }
+
+        @Bean
+        TargetHealthRetriever targetHealthRetriever() { return Mockito.mock(TargetHealthRetriever.class); }
     }
 
     @Autowired

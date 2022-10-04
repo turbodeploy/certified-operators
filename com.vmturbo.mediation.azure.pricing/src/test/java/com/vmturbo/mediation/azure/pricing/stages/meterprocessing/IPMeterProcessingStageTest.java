@@ -66,8 +66,8 @@ public class IPMeterProcessingStageTest {
             workspace = pipeline.run(metersTestFile);
         }
 
-        // need to explicitly build the workspace for the result;
-        workspace.build();
+        // need to explicitly create the builders for the result;
+        workspace.getBuilders();
 
         verifyWorkspaceForPlan(workspace, "Azure plan", 0.004d, 51);
         verifyWorkspaceForPlan(workspace, "Azure plan for DevTest", 0.002d, 51);
@@ -101,8 +101,8 @@ public class IPMeterProcessingStageTest {
             workspace = pipeline.run(metersTestFile);
         }
 
-        // need to explicitly build the workspace for the result;
-        workspace.build();
+        // need to explicitly create the builders for the result;
+        workspace.getBuilders();
 
         final PriceTable.Builder azurePlanOnDemandPriceTable =
                 workspace.getPriceTableBuilderForPlan("Azure Plan");

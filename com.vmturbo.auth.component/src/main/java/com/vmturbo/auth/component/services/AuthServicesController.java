@@ -47,9 +47,9 @@ public class AuthServicesController {
     @ResponseBody
     public @Nonnull String authorizeService()
             throws SecurityException {
-        if (!FeatureFlags.ENABLE_TP_PROBE_SECURITY.isEnabled()) {
+        if (!FeatureFlags.ENABLE_PROBE_AUTH.isEnabled() && !FeatureFlags.ENABLE_MANDATORY_PROBE_AUTH.isEnabled()) {
             throw new SecurityException("Feature not enabled: "
-                    + FeatureFlags.ENABLE_TP_PROBE_SECURITY.getName());
+                    + FeatureFlags.ENABLE_PROBE_AUTH.getName());
         }
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         return authProvider_.authorizeService(auth).getCompactRepresentation();

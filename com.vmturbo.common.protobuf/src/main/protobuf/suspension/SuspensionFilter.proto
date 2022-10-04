@@ -1,0 +1,36 @@
+syntax = "proto2";
+package suspension_filter;
+
+option java_package = "com.vmturbo.common.protobuf.suspension";
+
+enum ExpType {
+  EXP_TYPE_UNSPECIFIED = 0;
+  EXP_TYPE_EQ = 1;
+  EXP_TYPE_NEQ = 2;
+  EXP_TYPE_GT = 3;
+  EXP_TYPE_LT = 4;
+  EXP_TYPE_GTE = 5;
+  EXP_TYPE_LTE = 6;
+  EXP_TYPE_RX_EQ = 7;
+  EXP_TYPE_RX_NEQ = 8;
+}
+
+message IntFilter {
+  repeated int64 values = 1;
+  optional ExpType exp_type = 2;
+}
+
+message DoubleFilter {
+  repeated double values = 1;
+  optional ExpType exp_type = 2;
+}
+
+message StringFilter {
+  repeated string values = 1;
+  optional ExpType exp_type = 2;
+}
+
+enum LogicalOperator {
+  AND = 0;
+  OR = 1;
+}

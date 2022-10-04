@@ -43,6 +43,11 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
     DESERIALIZE_METERS("Load meters from CSV records"),
 
     /**
+     * filter meters based on effective start/end dates.
+     */
+    EFFECTIVE_DATE_FILTER("Effective date filter stage"),
+
+    /**
      * Resolve meters, identifying their meaning.
      */
     RESOLVE_METERS("Resolve meters"),
@@ -58,9 +63,14 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
     IP_PRICE_PROCESSOR("IP Price Processing"),
 
     /**
-     * TODO remove this.
+     * Add onDemandLicenseOverrides.
      */
-    PLACEHOLDER_FINAL("Placeholder Final Stage");
+    LICENSE_OVERRIDES("Add on demand license overrides"),
+
+    /**
+     * Assign pricing identifiers to plans and return a DiscoveredPricing result.
+     */
+    ASSIGN_IDENTIFIERS("Assign pricing identifiers");
 
     private final String description;
 
@@ -91,8 +101,10 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
             BOM_AWARE_READERS,
             CHAINED_CSV_PARSERS,
             DESERIALIZE_METERS,
+            EFFECTIVE_DATE_FILTER,
             RESOLVE_METERS,
             REGROUP_METERS,
             IP_PRICE_PROCESSOR,
-            PLACEHOLDER_FINAL);
+            LICENSE_OVERRIDES,
+            ASSIGN_IDENTIFIERS);
 }

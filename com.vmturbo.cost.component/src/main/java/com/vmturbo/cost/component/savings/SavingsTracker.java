@@ -24,6 +24,8 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.collections4.SetUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,8 +34,22 @@ import org.jooq.DSLContext;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
+import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.entity.scope.SQLEntityCloudScopedStore;
@@ -68,11 +84,6 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
     private final SavingsStore savingsStore;
 
     /**
-     * Supported provider types.
-     */
-    private final Set<Integer> supportedProviderTypes;
-
-    /**
      * Clock.
      */
     private final Clock clock;
@@ -80,7 +91,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
     /**
      * Bill-based savings calculator.
      */
-    private final Calculator calculator;
+    private Calculator calculator;
 
     private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
 
@@ -88,7 +99,20 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
 
     private final long realtimeTopologyContextId;
 
-    private final StorageAmountResolver storageAmountResolver;
+    /**
+     * List of supported cloud service providers. Currently, we only support Azure.
+     */
+    private final Set<String> supportedCsps = ImmutableSet.of("Azure");
+
+    /**
+     * OIDs of supported cloud service providers.
+     */
+    private final Set<Long> supportedCspOids = new HashSet<>();
+
+    /**
+     * Search service client, used for name to OID resolution.
+     */
+    private final SearchServiceBlockingStub searchServiceStub;
 
     /**
      * Creates a new tracker.
@@ -96,12 +120,20 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
      * @param billingRecordStore Store for billing records.
      * @param actionChainStore Action chain store.
      * @param savingsStore Writer for final stats.
-     * @param supportedProviderTypes Provider types wer are interested in.
+     * @param deleteActionRetentionMs length of time for accruing savings for delete actions in milliseconds
+     * @param clock clock
+     * @param cloudTopologyFactory cloud topology factory
+     * @param repositoryClient repository client
+     * @param dsl Jooq DSL context
+     * @param priceTableKeyStore price table key store
+     * @param priceTableStore price table store
+     * @param searchServiceStub search service
+     * @param realtimeTopologyContextId realtime topology context ID
+     * @param chunkSize chunk size
      */
     public SavingsTracker(@Nonnull final BillingRecordStore billingRecordStore,
             @Nonnull ActionChainStore actionChainStore,
             @Nonnull final SavingsStore savingsStore,
-            @Nonnull final Set<Integer> supportedProviderTypes,
             long deleteActionRetentionMs,
             @Nonnull Clock clock,
             @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
@@ -109,53 +141,29 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
             @Nonnull final DSLContext dsl,
             @Nonnull BusinessAccountPriceTableKeyStore priceTableKeyStore,
             @Nonnull PriceTableStore priceTableStore,
+            @Nonnull SearchServiceBlockingStub searchServiceStub,
             long realtimeTopologyContextId,
             final int chunkSize) {
         super(dsl, chunkSize);
         this.billingRecordStore = billingRecordStore;
         this.actionChainStore = actionChainStore;
         this.savingsStore = savingsStore;
-        this.supportedProviderTypes = supportedProviderTypes;
         this.clock = clock;
         this.cloudTopologyFactory = cloudTopologyFactory;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.repositoryClient = repositoryClient;
-        this.storageAmountResolver = new StorageAmountResolver(priceTableKeyStore, priceTableStore);
+        this.searchServiceStub = searchServiceStub;
+        StorageAmountResolver storageAmountResolver = new StorageAmountResolver(priceTableKeyStore, priceTableStore);
         this.calculator = new Calculator(deleteActionRetentionMs, clock, storageAmountResolver);
     }
 
     /**
-     * Creates a new tracker for unit test purposes with a specific StorageamountResolver passed in.
+     * Allow test cases to pass in a different calculator for mocking purpose.
      *
-     * @param billingRecordStore Store for billing records.
-     * @param actionChainStore Action chain store.
-     * @param savingsStore Writer for final stats.
-     * @param supportedProviderTypes Provider types wer are interested in.
-     * @param storageAmountResolver The Storage Amount Resolver.
+     * @param calculator storage amount resolver
      */
-    public SavingsTracker(@Nonnull final BillingRecordStore billingRecordStore,
-                          @Nonnull ActionChainStore actionChainStore,
-                          @Nonnull final SavingsStore savingsStore,
-                          @Nonnull final Set<Integer> supportedProviderTypes,
-                          long deleteActionRetentionMs,
-                          @Nonnull Clock clock,
-                          @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
-                          @Nonnull RepositoryClient repositoryClient,
-                          @Nonnull final DSLContext dsl,
-                          @Nonnull final StorageAmountResolver storageAmountResolver,
-                          long realtimeTopologyContextId,
-                          final int chunkSize) {
-        super(dsl, chunkSize);
-        this.billingRecordStore = billingRecordStore;
-        this.actionChainStore = actionChainStore;
-        this.savingsStore = savingsStore;
-        this.supportedProviderTypes = supportedProviderTypes;
-        this.clock = clock;
-        this.cloudTopologyFactory = cloudTopologyFactory;
-        this.realtimeTopologyContextId = realtimeTopologyContextId;
-        this.repositoryClient = repositoryClient;
-        this.storageAmountResolver = storageAmountResolver;
-        this.calculator = new Calculator(deleteActionRetentionMs, clock, storageAmountResolver);
+    void setCalculator(Calculator calculator) {
+        this.calculator = calculator;
     }
 
     /**
@@ -181,7 +189,8 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         // For this set of billing records, see if we have any last_updated times that are newer.
         final AtomicLong newLastUpdated = new AtomicLong(savingsTimes.getCurrentLastUpdatedTime());
         billingRecordStore.getUpdatedBillRecords(previousLastUpdated, lastUpdatedEndTime, entityIds)
-                .filter(record -> record.isValid(supportedProviderTypes))
+                .filter(BillingRecord::isValid)
+                .filter(this::isSupportedCSP)
                 .forEach(record -> {
                     if (record.getLastUpdated() != null
                             && record.getLastUpdated() > newLastUpdated.get()) {
@@ -265,7 +274,8 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
             // If no action chains are passed in, we will use the data in the database.
             // Get billing records in this time range, mapped by entity id.
             billingRecordStore.getBillRecords(startTime, endTime, participatingUuids)
-                    .filter(record -> record.isValid(supportedProviderTypes))
+                    .filter(BillingRecord::isValid)
+                    .filter(this::isSupportedCSP)
                     .forEach(record -> billRecords.computeIfAbsent(record.getEntityId(), e -> new HashSet<>())
                             .add(record));
 
@@ -316,7 +326,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         Set<Long> accountOids = repositoryClient.getAllBusinessAccountOidsInScope(entityOids);
 
         // Get all regions and service provider entities.
-        // Note that we get all all regions and all service providers instead of only those
+        // Note that we get all regions and all service providers instead of only those
         // associated with the entities.
         // It is because the number of regions and service providers is finite.
         // The logic to find the connected regions of availability zones requires all regions anyways.
@@ -416,4 +426,50 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         return null;
     }
 
+    /**
+     * Check if CSP of a bill record is one that is supported for savings calculation.
+     *
+     * @param record a bill record
+     * @return true is it is one of the supported CSPs, false otherwise.
+     */
+    boolean isSupportedCSP(BillingRecord record) {
+        if (supportedCspOids.isEmpty()) {
+            // Populate the support OID set only if it has not been initialized.
+            populateSupportedCspOids();
+        }
+        long cspId = record.getServiceProviderId();
+        return supportedCspOids.contains(cspId);
+    }
+
+    /**
+     * Get the OIDs of the supported CSPs and save the OIDs in memory.
+     */
+    void populateSupportedCspOids() {
+        Set<String> entityTypes = ImmutableSet.of(StringConstants.SERVICE_PROVIDER);
+        PropertyFilter entityTypeFilter = SearchProtoUtil.entityTypeFilter(entityTypes);
+
+        PropertyFilter cspFilter = SearchProtoUtil
+                .stringPropertyFilterExact(SearchableProperties.DISPLAY_NAME, supportedCsps);
+        SearchFilter searchFilter = SearchProtoUtil.searchFilterProperty(cspFilter);
+
+        SearchParameters.Builder parametersBuilder = SearchParameters.newBuilder()
+                .setStartingFilter(entityTypeFilter)
+                .addSearchFilter(searchFilter);
+
+        SearchQuery.Builder searchQueryBuilder = SearchQuery.newBuilder()
+                .addSearchParameters(parametersBuilder);
+
+        Search.SearchEntitiesRequest searchRequest = SearchEntitiesRequest.newBuilder()
+                .setSearch(searchQueryBuilder)
+                .setReturnType(Type.MINIMAL)
+                .build();
+
+        SearchEntitiesResponse response = searchServiceStub.searchEntities(searchRequest);
+        if (response != null) {
+            for (PartialEntity partialEntity : response.getEntitiesList()) {
+                MinimalEntity entity = partialEntity.getMinimal();
+                supportedCspOids.add(entity.getOid());
+            }
+        }
+    }
 }

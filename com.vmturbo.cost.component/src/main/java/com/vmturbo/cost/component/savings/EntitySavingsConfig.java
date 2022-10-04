@@ -214,6 +214,14 @@ public class EntitySavingsConfig {
     private int entitySavingsStartMinuteMark;
 
     /**
+     * How long (minutes) after the hour/day mark to run the periodic hourly processor task.
+     * Made configurable for testing only, would not need to be configurable otherwise.
+     * This is at 30 min offset, in case both bottom up (at 15 min) and bill based stats are enabled.
+     */
+    @Value("${billedSavingsStartMinuteMark:30}")
+    private int billedSavingsStartMinuteMark;
+
+    /**
      * How long to wait after cost component startup before triggering the action cache
      * initializer thread run for the first time. We wait a few mins after startup for things to
      * stabilize before starting the sync with AO.
@@ -260,19 +268,35 @@ public class EntitySavingsConfig {
 
     /**
      * Return whether bottom-up entity savings tracking is enabled.
+     * This is ALWAYS enabled, and running in background even if bill based savings is enabled.
      *
      * @return True if entity savings tracking is enabled.
      */
     public boolean isBottomUpSavingsEnabled() {
-        return this.enableEntitySavings && !isBillSavingsEnabled();
+        return this.enableEntitySavings;
     }
 
     /**
-     * Whether bill based (newer) or bottom-up based (older) savings type is enabled.
+     * Whether newer bill based savings processing is enabled on the backend.
+     * This is enabled if feature flag is on. Stats will be also be written to new bill based
+     * stats table if this flag is on.
+     *
      * @return True if bill based is enabled.
      */
     public boolean isBillSavingsEnabled() {
         return FeatureFlags.ENABLE_BILLING_BASED_SAVINGS.isEnabled();
+    }
+
+    /**
+     * Whether viewing of bill based savings is enabled. User can optionally view non bill based
+     * savings stats by setting this flag to false, even if the ENABLE_BILLING_BASED_SAVINGS flag
+     * is true.
+     * This method will return true only if ENABLE_BILLING_BASED_SAVINGS is also true.
+     *
+     * @return True if bill based stats can be viewed.
+     */
+    public boolean viewBillSavingsEnabled() {
+        return FeatureFlags.VIEW_BILLING_BASED_SAVINGS.isEnabled() && isBillSavingsEnabled();
     }
 
     /**
@@ -342,7 +366,6 @@ public class EntitySavingsConfig {
                 realtimeTopologyContextId,
                 supportedEntityTypes, supportedActionTypes,
                 getEntitySavingsRetentionConfig(),
-                entitySavingsStore(),
                 entityStateStore(),
                 rollupConfig.entitySavingsRollupTimesStore(),
                 getClock());
@@ -399,7 +422,8 @@ public class EntitySavingsConfig {
                 new EntitySavingsProcessor(entitySavingsTracker(), topologyEventsPoller(),
                         rollupSavingsProcessor(), rollupConfig.entitySavingsRollupTimesStore(),
                         entitySavingsStore(), entityEventsJournal(), getClock(),
-                        dataRetentionProcessor(), costNotificationConfig.costNotificationSender());
+                        dataRetentionProcessor(false),
+                        costNotificationConfig.costNotificationSender());
 
         if (isBottomUpSavingsEnabled()) {
             int initialDelayMinutes = getInitialStartDelayMinutes();
@@ -410,31 +434,33 @@ public class EntitySavingsConfig {
                 temConfigInfo = String.format("enabled. entityDeletionPeriodHours = %d",
                         entityDeletionPeriodHours);
             }
-            logger.info("EntitySavingsProcessor is enabled, will run at hour+{} min, after {} mins. TEM is {}.",
+            logger.info("SavingsProcessor (bottom-up) is enabled, will run at hour+{} min, after {} mins. TEM is {}.",
                     entitySavingsStartMinuteMark, initialDelayMinutes, temConfigInfo);
             if (FeatureFlags.ENABLE_SAVINGS_TEST_INPUT.isEnabled()) {
                 startEventInjector();
             }
         } else {
-            logger.info("EntitySavingsProcessor is disabled.");
+            logger.info("SavingsProcessor (bottom-up) is disabled.");
         }
 
         return entitySavingsProcessor;
     }
 
     /**
-     * Gets the processor that cleans up old stats/audit data.
+     * Gets the processor that cleans up old stats/audit data. This is internally twice invoked
+     *  by other beans based on whether bill based savings is enabled or not.
      *
+     * @param isBillSavingsEnabled Whether bill based savings is enabled.
      * @return DataRetentionProcessor.
      */
-    @Bean
-    public DataRetentionProcessor dataRetentionProcessor() {
+    private DataRetentionProcessor dataRetentionProcessor(boolean isBillSavingsEnabled) {
         final EntityEventsJournal eventsJournal = entityEventsJournal();
         return new DataRetentionProcessor(entitySavingsStore(),
                 eventsJournal.persistEvents() ? null : auditLogWriter(),
                 getEntitySavingsRetentionConfig(), getClock(), retentionProcessorFrequencyHours,
                 eventsJournal.persistEvents() ? eventsJournal : null,
-                dailyStatsRetentionInDays * 24);
+                dailyStatsRetentionInDays * 24,
+                isBillSavingsEnabled);
     }
 
     /**
@@ -461,7 +487,7 @@ public class EntitySavingsConfig {
     public EntitySavingsStore<DSLContext> entitySavingsStore() {
         try {
             return new SqlEntitySavingsStore(dbAccessConfig.dsl(), getClock(),
-                    persistEntityCostChunkSize);
+                    persistEntityCostChunkSize, viewBillSavingsEnabled());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -606,11 +632,11 @@ public class EntitySavingsConfig {
         try {
             return new SavingsTracker(new SqlBillingRecordStore(dbAccessConfig.dsl()),
                     new GrpcActionChainStore(actionsService()),
-                    (SavingsStore)entitySavingsStore(), supportedProviderTypes,
+                    (SavingsStore)entitySavingsStore(),
                     getEntitySavingsRetentionConfig().getVolumeDeleteRetentionMs(), getClock(),
                     cloudTopologyFactory(), repositoryClient, dbAccessConfig.dsl(),
                     pricingConfig.businessAccountPriceTableKeyStore(), pricingConfig.priceTableStore(),
-                    realtimeTopologyContextId, persistEntityCostChunkSize);
+                    searchServiceBlockingStub, realtimeTopologyContextId, persistEntityCostChunkSize);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -646,27 +672,27 @@ public class EntitySavingsConfig {
     public SavingsProcessor savingsProcessor() {
         SavingsProcessor savingsProcessor =
                 new SavingsProcessor(getClock(), savingsDataProcessingChunkSize,
-                        rollupConfig.entitySavingsRollupTimesStore(), rollupSavingsProcessor(),
+                        rollupConfig.billedSavingsRollupTimesStore(),
                         savingsActionStore(), savingsTracker(),
-                        dataRetentionProcessor());
+                        dataRetentionProcessor(isBillSavingsEnabled()));
         if (isBillSavingsEnabled()) {
             int durationMinutes = 60 * billSavingsProcessorFrequencyHours;
             final LocalDateTime now = LocalDateTime.now();
             int totalMinutes = now.getHour() * 60 + now.getMinute();
             int waitMinutes = durationMinutes - (totalMinutes % durationMinutes)
-                    + entitySavingsStartMinuteMark;
+                    + billedSavingsStartMinuteMark;
             if (waitMinutes > durationMinutes) {
                 waitMinutes -= durationMinutes;
             }
             Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(
                     savingsProcessor::execute, waitMinutes, durationMinutes, TimeUnit.MINUTES);
-            logger.info("BillSavingsProcessor will run every {}h (+ {}m), next after {}m.",
-                    billSavingsProcessorFrequencyHours, entitySavingsStartMinuteMark, waitMinutes);
+            logger.info("SavingsProcessor (bill-based) will run every {}h (+ {}m), next after {}m.",
+                    billSavingsProcessorFrequencyHours, billedSavingsStartMinuteMark, waitMinutes);
             if (FeatureFlags.ENABLE_SAVINGS_TEST_INPUT.isEnabled()) {
                 startBillDataInjector();
             }
         } else {
-            logger.info("BillSavingsProcessor is disabled.");
+            logger.info("SavingsProcessor (bill-based) is disabled.");
         }
         return savingsProcessor;
     }

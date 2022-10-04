@@ -37,6 +37,7 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 
 /**
  * The SpringTpFilter to intercept requests to tp in order to secure probe communication.
@@ -83,7 +84,8 @@ public class SpringTpFilter extends GenericFilterBean {
                 throw new SecurityException("Cannot authorize request with token to tp.");
             }
         } else {
-            if ("external".equals(request.getParameter("source"))) {
+            if (FeatureFlags.ENABLE_MANDATORY_PROBE_AUTH.isEnabled()
+                    && "external".equals(request.getParameter("source"))) {
                 AuditLogUtils.logSecurityAudit(AuditAction.AUTHENTICATE_PROBE,
                     instance +  ": TopologyProcessor could not authenticate external service without token", false);
                 throw new SecurityException("External probe connections require token!");

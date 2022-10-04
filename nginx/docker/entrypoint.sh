@@ -47,15 +47,25 @@ if [ "$BLOCK_REMOTE_PROBES" == "" ]; then
     export BLOCK_REMOTE_PROBES='FALSE'
 fi
 
-# In order to utilize 1 feature flag for the platform for enabling the probe security, we are obtaining the value of enableTpProbeSecurity from the mounted
-# properties configmap as the nested feature flag value is not accessible from the nginx deployment in our current configuration.
+# In order to utilize the same feature flag for nginx as the platform for enabling the probe authentication,
+# we are obtaining the values of enableProbeAuth and enableMandatoryProbeAuth from the mounted properties
+# configmap as the nested feature flag value is not accessible from the nginx deployment in our current configuration.
 if [ -f "/etc/turbonomic/properties.yaml" ]; then
-    test $(grep enableTpProbeSecurity /etc/turbonomic/properties.yaml | wc -l) -lt 2 || echo "Error: Multiple instances of enableTpProbeSecurity specified"
-    export ENABLE_TP_PROBE_SECURITY=$( grep enableTpProbeSecurity /etc/turbonomic/properties.yaml | awk 'BEGIN { FS = ":" } { print $2 }' | tr -d "[:blank:]" )
+    test $(grep enableProbeAuth /etc/turbonomic/properties.yaml | wc -l) -lt 2 || echo "Error: Multiple instances of enableProbeAuth specified"
+    export ENABLE_PROBE_AUTH=$( grep enableProbeAuth /etc/turbonomic/properties.yaml | awk 'BEGIN { FS = ":" } { print $2 }' | tr -d "[:blank:]" )
 fi
 
-if [ "$ENABLE_TP_PROBE_SECURITY" == "" ]; then
-    export ENABLE_TP_PROBE_SECURITY='FALSE'
+if [ "$ENABLE_PROBE_AUTH" == "" ]; then
+    export ENABLE_PROBE_AUTH='FALSE'
+fi
+
+if [ -f "/etc/turbonomic/properties.yaml" ]; then
+    test $(grep enableMandatoryProbeAuth /etc/turbonomic/properties.yaml | wc -l) -lt 2 || echo "Error: Multiple instances of enableMandatoryProbeAuth specified"
+    export ENABLE_MANDATORY_PROBE_AUTH=$( grep enableMandatoryProbeAuth /etc/turbonomic/properties.yaml | awk 'BEGIN { FS = ":" } { print $2 }' | tr -d "[:blank:]" )
+fi
+
+if [ "$ENABLE_MANDATORY_PROBE_AUTH" == "" ]; then
+    export ENABLE_MANDATORY_PROBE_AUTH='FALSE'
 fi
 
 if [ "$AUTH" == "" ]; then
@@ -97,7 +107,7 @@ ENV_VARS=(
     '${API}' '${UI}' '${GRAFANA}' '${TOPOLOGY}' '${DNS_RESOLVER}' '${WORKER_PROCESSES}'
     '${WORKER_CONNECTIONS}' '${SSL_PROTOCOLS}' '${SSL_CIPHERS}' '${DISABLE_HTTPS_REDIRECT}'
     '${BLOCK_REMOTE_PROBES}' '${WHITE_LIST_IPS}' '${AUTH}' '${HYDRA_PUBLIC}'
-    '${ENABLE_TP_PROBE_SECURITY}'
+    '${ENABLE_PROBE_AUTH}' '${ENABLE_MANDATORY_PROBE_AUTH}'
 )
 mkdir -p /tmp/nginx/includes
 envsubst "${ENV_VARS[*]}" < /etc/nginx/nginx.conf.template > /tmp/nginx/nginx.conf
