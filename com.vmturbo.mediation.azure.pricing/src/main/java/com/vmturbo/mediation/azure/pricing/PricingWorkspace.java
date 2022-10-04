@@ -11,6 +11,7 @@ import com.vmturbo.mediation.azure.pricing.resolver.ResolvedMeter;
 import com.vmturbo.mediation.cost.parser.azure.AzureMeterDescriptors.AzureMeterDescriptor.MeterType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicenseOverrides;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry;
 
@@ -24,6 +25,7 @@ public class PricingWorkspace {
     private Map<String, PriceTable.Builder> priceTableBuilderByPlanId;
     private Map<String, Map<String, OnDemandPriceTableByRegionEntry.Builder>>
         onDemandPriceTableBuilder = new HashMap<>();
+    private Map<String, LicenseOverrides> onDemandLicenseOverrides;
     private boolean built = false;
 
     /**
@@ -96,6 +98,9 @@ public class PricingWorkspace {
             regionMap.forEach((regionId, onDemandBuilder) -> {
                 priceTableBuilder.addOnDemandPriceTable(onDemandBuilder);
             });
+            if (onDemandLicenseOverrides != null) {
+                priceTableBuilder.putAllOnDemandLicenseOverrides(onDemandLicenseOverrides);
+            }
         });
 
         return priceTableBuilderByPlanId;
@@ -143,5 +148,14 @@ public class PricingWorkspace {
             .setEntityType(EntityType.REGION)
             .setId(String.format(REGION_FORMAT, regionName, regionName))
             .build();
+    }
+
+    /**
+     * Used to set the onDemandLicenseOverrides Map.
+     *
+     * @param onDemandLicenseOverrides Map of onDemandLicenseOverrides.
+     */
+    public void setOnDemandLicenseOverrides(Map<String, LicenseOverrides> onDemandLicenseOverrides) {
+        this.onDemandLicenseOverrides = onDemandLicenseOverrides;
     }
 }
