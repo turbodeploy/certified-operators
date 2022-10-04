@@ -91,7 +91,7 @@ public interface CloudScopeIdentity extends CloudScope {
         @Nonnull
         public Builder populateFromCloudScope(@Nonnull CloudScope cloudScope) {
 
-            return this.regionId(cloudScope.resourceId())
+            return this.resourceId(cloudScope.resourceId())
                     .resourceType(cloudScope.resourceType())
                     .accountId(cloudScope.accountId())
                     .regionId(cloudScope.regionId())

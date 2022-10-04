@@ -50,3 +50,16 @@ message CloudScopeFilter {
     optional cloud_common.ZoneFilter availability_zone_filter = 5;
     optional cloud_common.ServiceProviderFilter service_provider_filter = 6;
 }
+
+message StatValues {
+
+    optional int64 sample_count = 1;
+
+    optional double max = 2;
+
+    optional double min = 3;
+
+    optional double avg = 4;
+
+    optional double sum = 5;
+}
