@@ -32,12 +32,15 @@ import com.vmturbo.mediation.azure.pricing.stages.BOMAwareReadersStage;
 import com.vmturbo.mediation.azure.pricing.stages.ChainedCSVParserStage;
 import com.vmturbo.mediation.azure.pricing.stages.DateFilterStage;
 import com.vmturbo.mediation.azure.pricing.stages.FetcherStage;
+import com.vmturbo.mediation.azure.pricing.stages.LicenseOverridesStage;
 import com.vmturbo.mediation.azure.pricing.stages.MCAMeterDeserializerStage;
 import com.vmturbo.mediation.azure.pricing.stages.MeterResolverStage;
 import com.vmturbo.mediation.azure.pricing.stages.OpenZipEntriesStage;
 import com.vmturbo.mediation.azure.pricing.stages.RegroupByTypeStage;
 import com.vmturbo.mediation.azure.pricing.stages.SelectZipEntriesStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.IPMeterProcessingStage;
+import com.vmturbo.mediation.azure.pricing.util.VmSizeParser;
+import com.vmturbo.mediation.azure.pricing.util.VmSizeParserImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier.PricingIdentifierName;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
@@ -93,6 +96,7 @@ public class MCAPricingDiscoveryController extends
     private final Logger logger = LogManager.getLogger();
     private final MCAPricesheetFetcher mcaFetcher;
     private final CachingPricingFetcher<AzurePricingAccount> cacher;
+    private final VmSizeParser parser;
 
     /**
      * Construct the controller for MCA pricing discovery.
@@ -107,6 +111,7 @@ public class MCAPricingDiscoveryController extends
                 .refreshAfter(propertyProvider.getProperty(MCA_REFRESH_TIME))
                 .expireAfter(propertyProvider.getProperty(MCA_EXPIRE_TIME))
                 .build(mcaFetcher);
+        this.parser = new VmSizeParserImpl();
     }
 
     @Override
@@ -155,6 +160,7 @@ public class MCAPricingDiscoveryController extends
                     .build(MCAPricingProbeStage.RESOLVE_METERS))
                 .addStage(new RegroupByTypeStage(MCAPricingProbeStage.REGROUP_METERS))
                 .addStage(new IPMeterProcessingStage(MCAPricingProbeStage.IP_PRICE_PROCESSOR))
+                .addStage(new LicenseOverridesStage(MCAPricingProbeStage.LICENSE_OVERRIDES, this.parser, propertyProvider))
                 .finalStage(new AssignPricingIdentifiersStage(MCAPricingProbeStage.ASSIGN_IDENTIFIERS,
                         MCA_PLANID_MAP)));
     }
