@@ -3,7 +3,7 @@
   "accountOid": "74307079366107",
   "cloudServiceOid": "74307078256673",
   "regionOid": "74307078255570",
-  "entityType": 10,
+  "entityType": 60,
   "entityOid": "74413626193600",
   "priceModel": "ON_DEMAND",
   "costCategory": "COMPUTE_LICENSE_BUNDLE",

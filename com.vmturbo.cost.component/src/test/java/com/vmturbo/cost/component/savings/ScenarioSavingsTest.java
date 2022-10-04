@@ -124,6 +124,8 @@ public class ScenarioSavingsTest {
     private static final long ULTRA_DISK_TIER_OID = 35000L;
     private static final long PREMIUM_DISK_TIER_OID = 30000L;
 
+    private static final Set<EntityType> supportedEntityTypes = ImmutableSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE);
+
     Set<Long> participatingUuids = new HashSet<>();
     Set<Long> expectedUuids = new HashSet<>();
     private static Map<Long, StorageTierPriceList> priceListMap = new HashMap<>();
@@ -156,6 +158,7 @@ public class ScenarioSavingsTest {
                 new SqlBillingRecordStore(dsl),
                 mock(GrpcActionChainStore.class),
                 savingsStore,
+                supportedEntityTypes,
                 deleteActionRetentionMs,
                 clock, mock(TopologyEntityCloudTopologyFactory.class),
                 null, dsl, priceTableKeyStore,
