@@ -852,6 +852,7 @@ public class ScenarioGeneratorTest {
                 .commodityType(CommodityType.UNKNOWN_VALUE)
                 .usageAmount(usageAmount)
                 .cost(cost)
+                .serviceProviderId(100L)
                 .build();
     }
 
@@ -877,6 +878,7 @@ public class ScenarioGeneratorTest {
                 .cost(cost)
                 .regionId(2L)
                 .accountId(1L)
+                .serviceProviderId(100L)
                 .build();
     }
 

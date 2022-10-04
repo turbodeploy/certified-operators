@@ -88,6 +88,13 @@ public interface BillingRecord {
     long getRegionId();
 
     /**
+     * Service Provider ID.
+     *
+     * @return service provider ID
+     */
+    long getServiceProviderId();
+
+    /**
      * For VM usage, this is how many hours in the day that usage was billed for. Not applicable
      * for volumes.
      *
