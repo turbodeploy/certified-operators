@@ -297,6 +297,20 @@ public class TopologyEntityTest {
         assertEntityHasNoConnections(volBuilder.build());
     }
 
+    /**
+     * Test that adding a second owner is a no-op.
+     */
+    @Test
+    public void testAddSecondOwner() {
+        makeSimpleCloudTopology();
+        final TopologyEntity.Builder rg2Builder = TopologyEntity.newBuilder(new TopologyEntityImpl()
+                .setOid(111L)
+                .setDisplayName("fooSecondOwner")
+                .setEntityType(EntityType.REGION_VALUE));
+        azBuilder.addOwner(rg2Builder);
+        assertEquals(rgBuilder.getOid(), azBuilder.build().getOwner().get().getOid());
+    }
+
     private void makeSimpleCloudTopology() {
         final long vmId = 1L;
         final long azId = 2L;
