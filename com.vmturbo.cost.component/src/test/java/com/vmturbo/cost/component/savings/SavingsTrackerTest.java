@@ -11,7 +11,10 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.jooq.DSLContext;
 import org.junit.Assert;
@@ -51,6 +54,8 @@ public class SavingsTrackerTest {
 
     private static final long CSP_AZURE_OID = 55555555L;
 
+    private final Set<EntityType> supportedEntityTypes = ImmutableSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE);
+
     /**
      * Test the initialization of the supported CSP OID list is called when isSupportedCSP is called
      * for the first time. Also test the return value of the isSupportedCSP method.
@@ -76,6 +81,7 @@ public class SavingsTrackerTest {
                 new SqlBillingRecordStore(dsl),
                 actionChainStore,
                 savingsStore,
+                supportedEntityTypes,
                 TimeUnit.DAYS.toMillis(365),
                 clock, mock(TopologyEntityCloudTopologyFactory.class),
                 repositoryClient, dsl, mock(BusinessAccountPriceTableKeyStore.class),

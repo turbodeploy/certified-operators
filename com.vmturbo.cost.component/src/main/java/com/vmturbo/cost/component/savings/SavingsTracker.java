@@ -114,6 +114,8 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
      */
     private final SearchServiceBlockingStub searchServiceStub;
 
+    private final Set<EntityType> supportedBillingEntityTypes;
+
     /**
      * Creates a new tracker.
      *
@@ -134,6 +136,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
     public SavingsTracker(@Nonnull final BillingRecordStore billingRecordStore,
             @Nonnull ActionChainStore actionChainStore,
             @Nonnull final SavingsStore savingsStore,
+            @Nonnull Set<EntityType> supportedBillingEntityTypes,
             long deleteActionRetentionMs,
             @Nonnull Clock clock,
             @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
@@ -155,6 +158,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         this.searchServiceStub = searchServiceStub;
         StorageAmountResolver storageAmountResolver = new StorageAmountResolver(priceTableKeyStore, priceTableStore);
         this.calculator = new Calculator(deleteActionRetentionMs, clock, storageAmountResolver);
+        this.supportedBillingEntityTypes = supportedBillingEntityTypes;
     }
 
     /**
@@ -190,6 +194,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         final AtomicLong newLastUpdated = new AtomicLong(savingsTimes.getCurrentLastUpdatedTime());
         billingRecordStore.getUpdatedBillRecords(previousLastUpdated, lastUpdatedEndTime, entityIds)
                 .filter(BillingRecord::isValid)
+                .filter(this::isSupportedBillingEntityType)
                 .filter(this::isSupportedCSP)
                 .forEach(record -> {
                     if (record.getLastUpdated() != null
@@ -275,6 +280,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
             // Get billing records in this time range, mapped by entity id.
             billingRecordStore.getBillRecords(startTime, endTime, participatingUuids)
                     .filter(BillingRecord::isValid)
+                    .filter(this::isSupportedBillingEntityType)
                     .filter(this::isSupportedCSP)
                     .forEach(record -> billRecords.computeIfAbsent(record.getEntityId(), e -> new HashSet<>())
                             .add(record));
@@ -471,5 +477,9 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
                 supportedCspOids.add(entity.getOid());
             }
         }
+    }
+
+    private boolean isSupportedBillingEntityType(BillingRecord record) {
+        return supportedBillingEntityTypes.stream().anyMatch(entityType -> (entityType.getNumber() == record.getEntityType()));
     }
 }

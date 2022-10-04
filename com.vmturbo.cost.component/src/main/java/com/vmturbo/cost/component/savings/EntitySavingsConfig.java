@@ -4,6 +4,7 @@ import java.sql.SQLException;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -242,6 +243,12 @@ public class EntitySavingsConfig {
      */
     @Value("${savingsActionCacheDumpEnabled:false}")
     private boolean savingsActionCacheDumpEnabled;
+
+    /**
+     * EntityTypes to filter for Bill based Calculations.
+     */
+    @Value("${supportedBillingEntityTypes:VIRTUAL_VOLUME,DATABASE}")
+    private String supportedBillingEntityTypes;
 
     /**
      * Entity types (cloud only) for which Savings feature is currently supported.
@@ -593,6 +600,21 @@ public class EntitySavingsConfig {
     }
 
     /**
+     * Supported entity types when the Billing Flag is enabled.
+     *
+     * @return Set of supported types.
+     */
+    public Set<EntityType> getSupportedBillingEntityTypes() {
+        try {
+            return Arrays.stream((supportedBillingEntityTypes.trim().split("\\s*,\\s*")))
+                    .map(EntityType::valueOf).collect(Collectors.toSet());
+        } catch (IllegalArgumentException ex) {
+            logger.warn("Incorrect configuration of supportedBillingEntityTypes, defaulting to Volumes and DBs", supportedBillingEntityTypes, ex);
+            return ImmutableSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE);
+        }
+    }
+
+    /**
      * Supported action types - SCALE, and DELETE volumes later.
      * @return Set of supported actions.
      */
@@ -632,7 +654,7 @@ public class EntitySavingsConfig {
         try {
             return new SavingsTracker(new SqlBillingRecordStore(dbAccessConfig.dsl()),
                     new GrpcActionChainStore(actionsService()),
-                    (SavingsStore)entitySavingsStore(),
+                    (SavingsStore)entitySavingsStore(), getSupportedBillingEntityTypes(),
                     getEntitySavingsRetentionConfig().getVolumeDeleteRetentionMs(), getClock(),
                     cloudTopologyFactory(), repositoryClient, dbAccessConfig.dsl(),
                     pricingConfig.businessAccountPriceTableKeyStore(), pricingConfig.priceTableStore(),

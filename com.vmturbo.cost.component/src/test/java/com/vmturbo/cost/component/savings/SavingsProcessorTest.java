@@ -168,6 +168,8 @@ public class SavingsProcessorTest extends MultiDbTestBase {
      */
     private static final String vm1Name = "vm1";
 
+    private final Set<EntityType> supportedEntityTypes = ImmutableSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE);
+
     private final SearchServiceMole searchServiceMole = spy(new SearchServiceMole());
 
     /**
@@ -291,6 +293,7 @@ public class SavingsProcessorTest extends MultiDbTestBase {
                 new SqlBillingRecordStore(dsl),
                 actionChainStore,
                 savingsStore,
+                supportedEntityTypes,
                 TimeUnit.DAYS.toMillis(365),
                 clock, mock(TopologyEntityCloudTopologyFactory.class),
                 null, dsl, mock(BusinessAccountPriceTableKeyStore.class),
@@ -347,7 +350,7 @@ public class SavingsProcessorTest extends MultiDbTestBase {
                 ImmutableSet.of(EntitySavingsStatsType.REALIZED_SAVINGS,
                         EntitySavingsStatsType.REALIZED_INVESTMENTS), 0L,
                 System.currentTimeMillis(), ImmutableList.of(vm1Id),
-                ImmutableList.of(EntityType.VIRTUAL_MACHINE_VALUE), Collections.emptyList());
+                ImmutableList.of(EntityType.VIRTUAL_VOLUME_VALUE), Collections.emptyList());
         assertFalse(dailyStats.isEmpty());
 
         // Verify that all savings and investments match up with expected results.
