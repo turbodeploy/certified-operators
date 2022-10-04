@@ -17,6 +17,7 @@ import com.vmturbo.api.dto.suspension.BulkActionRequestInputDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityInputDTO;
 import com.vmturbo.api.enums.CloudType;
+import com.vmturbo.api.enums.LogicalOperator;
 import com.vmturbo.api.enums.SuspensionActionType;
 import com.vmturbo.api.enums.SuspensionEntityType;
 import com.vmturbo.api.enums.SuspensionState;
@@ -186,7 +187,21 @@ public class SuspensionMapper {
                     "GTE", SuspensionFilter.ExpType.EXP_TYPE_GTE,
                     "LTE", SuspensionFilter.ExpType.EXP_TYPE_LTE);
 
+    /**
+     * The map from GRPC suspension logical operator to API suspension logical operator string.
+     */
+    public static final BiMap<LogicalOperator, SuspensionFilter.LogicalOperator> GRPC_TO_API_LOGICAL_OPERATOR = ImmutableBiMap.of(
+            LogicalOperator.AND, SuspensionFilter.LogicalOperator.AND,
+            LogicalOperator.OR, SuspensionFilter.LogicalOperator.OR);
 
+    /**
+     * Gets the grpc suspension logical operator based on api suspension logical operator.
+     * @param op the api suspension logical operator.
+     * @return the grpc type.
+     */
+    public static SuspensionFilter.LogicalOperator getGrpcLogicalOperator(LogicalOperator op) {
+        return GRPC_TO_API_LOGICAL_OPERATOR.getOrDefault(op, SuspensionFilter.LogicalOperator.AND);
+    }
 
     /**
      * creates SuspensionEntityRequest based on the filters provided in the SuspendableEntityInputDTO.
@@ -280,6 +295,7 @@ public class SuspensionMapper {
                 requestBuilder.addProviders(getGrpcProvider(entityInputDTO.getProviders().get(i)));
             }
         }
+        requestBuilder.setLogicalOperator(getGrpcLogicalOperator(entityInputDTO.getLogicalOperator()));
         if (paginationRequest != null) {
             if (paginationRequest.getCursor() != null) {
                 if (paginationRequest.getCursor().isPresent()) {
