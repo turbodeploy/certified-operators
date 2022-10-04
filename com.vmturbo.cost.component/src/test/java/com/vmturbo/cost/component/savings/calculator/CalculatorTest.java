@@ -409,6 +409,7 @@ public class CalculatorTest {
                 .commodityType(CommodityType.UNKNOWN_VALUE)
                 .costCategory(costCategory)
                 .priceModel(priceModel)
+                .serviceProviderId(100L)
                 .build();
     }
 
@@ -427,6 +428,7 @@ public class CalculatorTest {
                 .commodityType(commType)
                 .costCategory(CostCategory.STORAGE)
                 .priceModel(PriceModel.ON_DEMAND)
+                .serviceProviderId(100L)
                 .build();
     }
 
@@ -445,6 +447,7 @@ public class CalculatorTest {
                 .commodityType(commType)
                 .costCategory(costCategory)
                 .priceModel(PriceModel.ON_DEMAND)
+                .serviceProviderId(100L)
                 .build();
     }
 

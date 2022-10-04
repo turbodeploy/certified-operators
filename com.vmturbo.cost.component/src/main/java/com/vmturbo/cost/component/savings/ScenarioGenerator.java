@@ -469,6 +469,7 @@ public class ScenarioGenerator {
                             .usageAmount(segment.durationInHours)
                             .accountId(1L)
                             .regionId(2L)
+                            .serviceProviderId(100L)
                             .build());
                 }
             }
@@ -487,6 +488,7 @@ public class ScenarioGenerator {
                             .usageAmount(segment.durationInHours)
                             .accountId(1L)
                             .regionId(2L)
+                            .serviceProviderId(100L)
                             .build());
                 }
             }
@@ -518,6 +520,7 @@ public class ScenarioGenerator {
                                 .usageAmount(usageAmountByCommodity.get(commType))
                                 .accountId(1L)
                                 .regionId(2L)
+                                .serviceProviderId(100L)
                                 .build());
                     }
                 }

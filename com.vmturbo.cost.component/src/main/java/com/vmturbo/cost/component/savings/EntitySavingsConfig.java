@@ -636,7 +636,7 @@ public class EntitySavingsConfig {
                     getEntitySavingsRetentionConfig().getVolumeDeleteRetentionMs(), getClock(),
                     cloudTopologyFactory(), repositoryClient, dbAccessConfig.dsl(),
                     pricingConfig.businessAccountPriceTableKeyStore(), pricingConfig.priceTableStore(),
-                    realtimeTopologyContextId, persistEntityCostChunkSize);
+                    searchServiceBlockingStub, realtimeTopologyContextId, persistEntityCostChunkSize);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
