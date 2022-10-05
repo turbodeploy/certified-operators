@@ -66,7 +66,8 @@ public class SqlBilledCostStoreTest extends MultiDbTestBase {
             .setPriceModel(PriceModel.ON_DEMAND)
             .setCostCategory(CostCategory.COMPUTE)
             .setProviderOid(2002L)
-            .setProviderType(56);
+            .setProviderType(56)
+            .setServiceProviderId(777L);
 
     /**
      * Used for multi-DB execution.

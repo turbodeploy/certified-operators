@@ -1575,6 +1575,9 @@ message UploadBilledCostRequest {
 
         // Commodity type, applicable for Volumes, set to UNKNOWN (2047) if not applicable.
         optional int32 commodity_type = 15;
+
+        // service provider Id
+        optional int64 service_provider_id = 16;
     }
 
     message CostTagGroupMap {

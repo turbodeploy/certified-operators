@@ -244,6 +244,18 @@ public class BilledCostUploader {
         } else {
             logger.error("Required field missing - CloudBillingDataPoint doesn't have cloudServiceId.");
         }
+
+        // service provider oid
+        if (originalDataPoint.hasServiceProviderId()) {
+            Long serviceProviderOid = cloudEntitiesMap.get(originalDataPoint.getServiceProviderId());
+            if (serviceProviderOid == null) {
+                logger.warn("Oid not found for service provider {}, using fallback oid as 0",
+                        originalDataPoint.getServiceProviderId());
+                serviceProviderOid = 0L;
+            }
+            billingDp.setServiceProviderId(serviceProviderOid);
+        }
+
         if (originalDataPoint.hasProviderId()) {
             Long providerId = cloudEntitiesMap.get(originalDataPoint.getProviderId());
             if (providerId == null) {
