@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionEnvironmentType;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 
 /**
  * A optionalFilter that can be used to test whether an action passes or fails an
@@ -119,9 +120,20 @@ public class QueryFilter {
 
         if (filter.hasEnvironmentType()) {
             try {
-                final ActionEnvironmentType envType =
-                    ActionEnvironmentType.forAction(actionView.getTranslationResultOrOriginal());
-                if (!envType.matchesEnvType(filter.getEnvironmentType())) {
+                final ActionEnvironmentType envType = ActionEnvironmentType.forAction(
+                        actionView.getTranslationResultOrOriginal());
+                // The following logic intended to behave the same as the predicate logic here:
+                // {@link com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil#matchingPredicate(EnvironmentType)}
+                if (filter.getEnvironmentType().equals(EnvironmentType.UNKNOWN_ENV)) {
+                    // envType.matchesEnvType method always returns false for UNKNOWN_ENV
+                    return false;
+                } else if (
+                    // CLOUD -> matches CLOUD and ON_PREM_ßAND_CLOUD (HYBRID)
+                    // HYBRID -> matches ON_PREM_AND_CLOUD (HYBRID), CLOUD, and ON_PREM
+                    // ON_PREM -> matches ON_PREM and ON_PREM_AND_CLOUD (HYBRID)
+                        !filter.getEnvironmentType().equals(EnvironmentType.HYBRID)
+                                && !envType.matchesEnvType(filter.getEnvironmentType())
+                                && !envType.equals(ActionEnvironmentType.ON_PREM_AND_CLOUD)) {
                     return false;
                 }
             } catch (UnsupportedActionException e) {
