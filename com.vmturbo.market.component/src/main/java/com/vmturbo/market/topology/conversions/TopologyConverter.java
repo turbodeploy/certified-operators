@@ -3077,8 +3077,18 @@ public class TopologyConverter {
         final float peakQuantity = peak; // It must be final
 
         final ShoppingListInfo shoppingListInfo = shoppingListOidToInfos.get(slOid);
-        return commodityConverter.marketToTopologyCommodity(commBoughtTO.getSpecification())
-                .map(commType -> {
+        Optional<CommodityType> commodityTypeOpt = commodityConverter.marketToTopologyCommodity(commBoughtTO.getSpecification());
+        // Remove CommodityType DataCenter for entities with providers from list of CLOUD_ENTITY_TYPES_TO_CREATE_DC_COMM_BOUGHT
+        // before creating CommBoughtDTO. These additional commodityBoughtTOs were introduced in convertToMarket
+        // see: #createDCCommodityBoughtForCloudEntity.
+        if (shoppingListInfo != null
+                && shoppingListInfo.getSellerEntityType().isPresent()
+                && CLOUD_ENTITY_TYPES_TO_CREATE_DC_COMM_BOUGHT.contains(shoppingListInfo.getSellerEntityType().get())
+                && commodityTypeOpt.isPresent()
+                && commodityTypeOpt.get().getType() == CommodityDTO.CommodityType.DATACENTER_VALUE) {
+            return Optional.empty();
+        }
+        return commodityTypeOpt.map(commType -> {
                     Optional<CommodityBoughtDTO> boughtDTObyTraderFromProjectedSellerInRealTopology =
                         getCommodityIndex().getCommBought(traderOid, supplierOid, commType);
                     double currentUsage = getOriginalUsedValue(commBoughtTO, traderOid,
@@ -4060,9 +4070,12 @@ public class TopologyConverter {
     /**
      * Creates a DC Comm bought for a cloud entity which has a provider as a Compute tier,
      * DatabaseTier or DatabaseServerTier.
+     * These additional CommBoughtTOs are removed in convertFromMarket before creating CommBoughtDTOs
+     * as these commodities are not found on their seller.
+     * see {@link #commBoughtTOtoCommBoughtDTO}.
      *
      * @param providerOid oid of the market tier provider oid
-     * @param buyerOid oid of the buyer of the shopping list
+     * @param buyerOid    oid of the buyer of the shopping list
      * @return The commodity bought TO
      */
     private Optional<CommodityBoughtTO> createDCCommodityBoughtForCloudEntity(

@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ENTITY_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATACENTER_VALUE;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -204,6 +205,8 @@ public class TopologyConverterFromMarketTest {
             CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT);
     private static final int CPU_TYPE_ID = ID_ALLOCATOR.allocate("CPU", 0);
     private static final int ST_AMT_TYPE_ID = ID_ALLOCATOR.allocate("StorageAmount", 0);
+
+    private static final int DC_TYPE_ID = ID_ALLOCATOR.allocate("Datacenter", 1);
     private static final int DSPM_TYPE_ID = ID_ALLOCATOR.allocate("DSPM",
             CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT);
     private CloudTopology<TopologyEntityDTO> cloudTopology =
@@ -511,6 +514,88 @@ public class TopologyConverterFromMarketTest {
         // Ensure the entity is having SUSPENDED state.
         assertThat(entity.get(trader.getOid()).getEntity().getEntityState(),
                 is(EntityState.SUSPENDED));
+    }
+
+    /**
+     * This test checks Datacenter commBoughtTO is not copied to CommBoughtDTO for entities in
+     * {@link TopologyConverter #CLOUD_ENTITY_TYPES_TO_CREATE_DC_COMM_BOUGHT}.
+     * @throws Exception if error occurs.
+     */
+    @Test
+    public void testVMCommBoughtTOtoCommboughtDTO() throws Exception {
+        final TopologyDTO.CommoditySoldDTO topologyDCSold = TopologyDTO.CommoditySoldDTO
+                .newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.DATACENTER_VALUE)
+                        .build())
+                .build();
+        final List<CommodityBoughtDTO> topologyDCBought = Lists.newArrayList(CommodityBoughtDTO
+                .newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.DATACENTER_VALUE))
+                .build());
+        Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
+        shoppingListMap.put(VM_OID, new ShoppingListInfo(2, DS_OID, PM_OID, Collections.emptySet(),
+                null, EntityType.COMPUTE_TIER_VALUE, topologyDCBought));
+        Field shoppingListInfos =
+                TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
+        shoppingListInfos.setAccessible(true);
+        shoppingListInfos.set(converter, shoppingListMap);
+
+        final CommodityDTOs.CommoditySoldTO economyDSPMSold =
+                CommodityDTOs.CommoditySoldTO.newBuilder()
+                        .setSpecification(CommoditySpecificationTO.newBuilder()
+                                .setBaseType(BICLIQUE_TYPE_ID)
+                                .setType(DC_TYPE_ID).build())
+                        .build();
+        Mockito.doReturn(Optional.of(topologyDCSold.getCommodityType()))
+                .when(mockCommodityConverter)
+                .marketToTopologyCommodity(Mockito.eq(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(DC_TYPE_ID).setType(CPU_TYPE_ID).build()));
+        Mockito.doReturn(Optional.empty()).when(mockCommodityConverter)
+                .marketToTopologyCommodity(Mockito.eq(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(BICLIQUE_TYPE_ID).setType(DC_TYPE_ID)
+                        .build()));
+        final long entityId = PM_OID;
+        final TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder().setEntityType(1)
+                .setOid(entityId)
+                .setAnalysisSettings(
+                        AnalysisSettings.newBuilder().setControllable(true).build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(topologyCommodity1))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(topologyCommodity2))
+                .build();
+
+        Field entityOidToDto = TopologyConverter.class.getDeclaredField("entityOidToDto");
+        Map<Long, TopologyEntityDTO> map = new HashMap<>();
+        map.put(entityId, entityDTO);
+        entityOidToDto.setAccessible(true);
+        entityOidToDto.set(converter, map);
+        converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
+
+        // create trader DTO corresponds to originalEntity
+        EconomyDTOs.TraderTO trader = EconomyDTOs.TraderTO.newBuilder().setOid(10000L)
+                .addCommoditiesSold(economyDSPMSold).setState(TraderStateTO.ACTIVE)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addShoppingLists(ShoppingListTO.newBuilder().setOid(10001L)
+                        .addCommoditiesBought(CommodityBoughtTO.newBuilder()
+                                .setSpecification(CommoditySpecificationTO
+                                        .newBuilder()
+                                        .setBaseType(DC_TYPE_ID)
+                                        .setType(CPU_TYPE_ID)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+        Set<TopologyEntityDTO> topologyEntityDTOS = converter.traderTOtoTopologyDTO(trader, map,
+                ReservedCapacityResults.EMPTY, new HashMap<>(), WastedFilesResults.EMPTY);
+        topologyEntityDTOS.forEach(topologyEntityDTO -> topologyEntityDTO.getCommoditiesBoughtFromProvidersList().forEach(
+                commoditiesBoughtFromProvider ->
+                        Assert.assertTrue(
+                                commoditiesBoughtFromProvider.getCommodityBoughtList().stream().noneMatch(
+                                        i -> i.getCommodityType().getType() == DATACENTER_VALUE))
+        ));
     }
 
     /**
@@ -3207,6 +3292,8 @@ public class TopologyConverterFromMarketTest {
         List<CommoditySoldDTO> commSold = projectedEntities.get(VM_OID).getEntity().getCommoditySoldListList();
         assertEquals(1, commSold.size());
         assertEquals(VM_VCPU_CAPACITY, commSold.get(0).getCapacity(), DELTA);
+        Assert.assertTrue(commSold.stream()
+                .noneMatch(i -> i.getCommodityType().getType() == CommodityDTO.CommodityType.DATACENTER_VALUE));
 
         // Case 2: CLONE_VM_OID VM commodity capacity is not changed because its original entity (VM_OID) is
         // included in providersOfContainers.
