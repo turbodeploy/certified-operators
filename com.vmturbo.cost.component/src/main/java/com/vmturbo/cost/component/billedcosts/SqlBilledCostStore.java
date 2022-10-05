@@ -115,7 +115,9 @@ public class SqlBilledCostStore implements BilledCostStore {
                         record.setEntityType(entityType);
                         // NOT NULL fields without DEFAULTS but currently not supported by BillingDataPoint
                         record.setUnit((short)0);
-                        record.setServiceProviderId(0L);
+                        record.setServiceProviderId(point.hasServiceProviderId()
+                                ? point.getServiceProviderId()
+                                : 0L);
                         if (point.hasProviderOid()) {
                             record.setProviderId(point.getProviderOid());
                         } else {

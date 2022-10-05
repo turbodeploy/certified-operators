@@ -83,6 +83,8 @@ public class BilledCostUploaderTest {
     private static final long COMPUTE_TIER_OID = 135L;
     private static final String STORAGE_TIER_NAME = "azure::ST::MANAGED_STANDARD";
     private static final long STORAGE_TIER_OID = 246L;
+    private static final String SERVICE_PROVIDER_LOCAL_ID = "SERVICE_PROVIDER::Azure";
+    private static final long SERVICE_PROVIDER_OID = 777L;
 
     private final TestBilledCostUploadService billedCostUploadServiceSpy = spy(new TestBilledCostUploadService());
     /**
@@ -127,6 +129,9 @@ public class BilledCostUploaderTest {
     private final StitchingEntityData storageTier = StitchingEntityData.newBuilder(EntityDTO.newBuilder()
             .setEntityType(EntityType.STORAGE_TIER)
             .setId(STORAGE_TIER_NAME)).oid(STORAGE_TIER_OID).build();
+    private final StitchingEntityData serviceProvider = StitchingEntityData.newBuilder(EntityDTO.newBuilder()
+            .setEntityType(EntityType.SERVICE_PROVIDER)
+            .setId(SERVICE_PROVIDER_LOCAL_ID)).oid(SERVICE_PROVIDER_OID).build();
 
     /**
      * set up.
@@ -165,6 +170,7 @@ public class BilledCostUploaderTest {
         assertNotNull(vmDataPoint);
         assertEquals(ACCOUNT_OID, vmDataPoint.getAccountOid());
         assertEquals(CLOUD_SERVICE_OID, vmDataPoint.getCloudServiceOid());
+        assertEquals(SERVICE_PROVIDER_OID, vmDataPoint.getServiceProviderId());
         assertEquals(REGION_OID, vmDataPoint.getRegionOid());
         assertEquals(VM_OID, vmDataPoint.getEntityOid());
         assertEquals(COMPUTE_TIER_OID, vmDataPoint.getProviderOid());
@@ -236,7 +242,8 @@ public class BilledCostUploaderTest {
                 .put(REGION_LOCAL_ID, region)
                 .put(COMPUTE_TIER_NAME, computeTier)
                 .put(STORAGE_TIER_NAME, storageTier)
-                .put(CLOUD_SERVICE_LOCAL_ID, cloudService).build();
+                .put(CLOUD_SERVICE_LOCAL_ID, cloudService)
+                .put(SERVICE_PROVIDER_LOCAL_ID, serviceProvider).build();
         final TargetStore targetStore = mock(TargetStore.class);
         when(targetStore.getAll()).thenReturn(Collections.emptyList());
 
@@ -250,6 +257,7 @@ public class BilledCostUploaderTest {
         stitchingContextBuilder.addEntity(cloudService, localIdToEntityMap);
         stitchingContextBuilder.addEntity(computeTier, localIdToEntityMap);
         stitchingContextBuilder.addEntity(storageTier, localIdToEntityMap);
+        stitchingContextBuilder.addEntity(serviceProvider, localIdToEntityMap);
         return stitchingContextBuilder.build();
     }
 
@@ -265,6 +273,7 @@ public class BilledCostUploaderTest {
                         .setCostTagGroupId(1)
                         .setProviderId(COMPUTE_TIER_NAME)
                         .setProviderType(EntityType.COMPUTE_TIER_VALUE)
+                        .setServiceProviderId(SERVICE_PROVIDER_LOCAL_ID)
                         .build())
                 .setGranularity(Granularity.DAILY)
                 .build();
@@ -275,6 +284,7 @@ public class BilledCostUploaderTest {
                 .setEntityType(EntityType.DATABASE_VALUE)
                 .setEntityId(DB_BILLING_ID)
                 .setCostTagGroupId(1)
+                .setServiceProviderId(SERVICE_PROVIDER_LOCAL_ID)
                 .build();
         final CloudBillingDataPoint volDp = CloudBillingDataPoint.newBuilder()
                 .setAccountId(ACCOUNT_LOCAL_ID)
@@ -285,6 +295,7 @@ public class BilledCostUploaderTest {
                 .setProviderId(STORAGE_TIER_NAME)
                 .setProviderType(EntityType.STORAGE_TIER_VALUE)
                 .setCostTagGroupId(2)
+                .setServiceProviderId(SERVICE_PROVIDER_LOCAL_ID)
                 .build();
         final CloudBillingBucket cloudBillingBucket2 = CloudBillingBucket.newBuilder()
                 .setTimestampUtcMillis(TIMESTAMP2)
