@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store.query;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
@@ -16,7 +17,12 @@ import com.google.common.collect.ImmutableSet;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
@@ -33,8 +39,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionDisruptiveness;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionDisruptiveness;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -60,6 +66,7 @@ import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 /**
  * Tests for the {@link QueryFilter} class.
  */
+@RunWith(JUnitParamsRunner.class)
 public class QueryFilterTest {
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private static final long ACTION_PLAN_ID = 9876;
@@ -460,91 +467,50 @@ public class QueryFilterTest {
     }
 
     @Test
-    public void testEnvironmentFilterMatch() {
+    @Parameters({
+            "CLOUD, CLOUD, true",
+            "CLOUD, HYBRID, true",
+            "CLOUD, ON_PREM, false",
+            "CLOUD, UNKNOWN_ENV, false",
+            "HYBRID, CLOUD, true",
+            "HYBRID, HYBRID, true",
+            "HYBRID, ON_PREM, true",
+            "HYBRID, UNKNOWN_ENV, true",
+            "ON_PREM, CLOUD, false",
+            "ON_PREM, HYBRID, true",
+            "ON_PREM, ON_PREM, true",
+            // For some reason ON_PREM is the default type when given action type UNKNOWN_ENV
+            "ON_PREM, UNKNOWN_ENV, true",
+            "UNKNOWN_ENV, CLOUD, false",
+            "UNKNOWN_ENV, HYBRID, false",
+            "UNKNOWN_ENV, ON_PREM, false",
+            "UNKNOWN_ENV, UNKNOWN_ENV, false"
+    })
+    @TestCaseName("{method} environmentType={0} actionType={1}")
+    public void testEnvironmentTypeFiltering(String environmentType, String actionType,
+            boolean expectedResult) {
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder().setEnvironmentType(
+                EnvironmentType.valueOf(environmentType)).build();
+
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
-            .setId(1)
-            .setDeprecatedImportance(0)
-            .setExecutable(true)
-            .setExplanation(Explanation.newBuilder().build())
-            .setInfo(ActionInfo.newBuilder()
-                .setActivate(Activate.newBuilder()
-                    .setTarget(ActionEntity.newBuilder()
-                        .setId(7)
-                        .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .setEnvironmentType(EnvironmentType.CLOUD))))
-            .build();
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.newBuilder()
+                        .setActivate(
+                                Activate.newBuilder().setTarget(ActionEntity.newBuilder()
+                                        .setId(1L)
+                                        .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                        .setEnvironmentType(EnvironmentType.valueOf(actionType)))))
+                .build();
 
-        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
-            .setEnvironmentType(EnvironmentType.CLOUD)
-            .build();
         final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
-        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
-            .test(actionView));
-    }
 
-    @Test
-    public void testEnvironmentFilterNoMatch() {
-        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
-            .setId(1)
-            .setDeprecatedImportance(0)
-            .setExecutable(true)
-            .setExplanation(Explanation.newBuilder().build())
-            .setInfo(ActionInfo.newBuilder()
-                .setActivate(Activate.newBuilder()
-                    .setTarget(ActionEntity.newBuilder()
-                        .setId(7)
-                        .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .setEnvironmentType(EnvironmentType.CLOUD))))
-            .build();
-
-        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
-            .setEnvironmentType(EnvironmentType.ON_PREM)
-            .build();
-        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
-        assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
-            .test(actionView));
-    }
-
-    @Test
-    public void testEnvironmentFilterUnset() {
-        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
-            .setId(1)
-            .setDeprecatedImportance(0)
-            .setExecutable(true)
-            .setExplanation(Explanation.newBuilder().build())
-            .setInfo(ActionInfo.newBuilder()
-                .setActivate(Activate.newBuilder()
-                    .setTarget(ActionEntity.newBuilder()
-                        .setId(7)
-                        .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .setEnvironmentType(EnvironmentType.CLOUD))))
-            .build();
-
-        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
-            .build();
-        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
-        // Should pass the filter, since no environment type is specified.
-        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
-            .test(actionView));
-    }
-
-    @Test
-    public void testEnvironmentFilterUnsupportedAction() {
-        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
-            .setId(1)
-            .setDeprecatedImportance(0)
-            .setExecutable(true)
-            .setExplanation(Explanation.newBuilder().build())
-            // No "action type".
-            .setInfo(ActionInfo.getDefaultInstance())
-            .build();
-
-        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
-            .setEnvironmentType(EnvironmentType.ON_PREM)
-            .build();
-        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
-        assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
-            .test(actionView));
+        assertEquals(String.format("Expected %b for action type %s with environment type filter %s",
+                        expectedResult, actionType, environmentType),
+                new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE).test(actionView),
+                expectedResult);
     }
 
     /**
