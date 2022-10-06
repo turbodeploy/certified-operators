@@ -13,7 +13,6 @@ import com.google.common.collect.Iterables;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
 import org.jooq.DSLContext;
 import org.jooq.Query;
 
@@ -42,7 +41,6 @@ public class SqlCloudScopeIdentityStore implements CloudScopeIdentityStore {
             .addInCollection(CloudScopeIdentityFilter::serviceProviderIds, Tables.CLOUD_SCOPE.SERVICE_PROVIDER_ID)
             .build();
 
-
     private final DSLContext dslContext;
 
     private final int batchStoreSize;
@@ -60,7 +58,7 @@ public class SqlCloudScopeIdentityStore implements CloudScopeIdentityStore {
 
 
     @Override
-    public void saveScopeIdentities(@NotNull List<CloudScopeIdentity> scopeIdentityList) {
+    public void saveScopeIdentities(@Nonnull List<CloudScopeIdentity> scopeIdentityList) {
 
         final Stopwatch stopwatch = Stopwatch.createStarted();
 
@@ -71,7 +69,9 @@ public class SqlCloudScopeIdentityStore implements CloudScopeIdentityStore {
                     .map(cloudScopeRecord -> dslContext.insertInto(Tables.CLOUD_SCOPE)
                             .set(cloudScopeRecord)
                             .onDuplicateKeyUpdate()
-                            .setNull(Tables.CLOUD_SCOPE.UPDATE_TS))
+                            .setNull(Tables.CLOUD_SCOPE.UPDATE_TS)
+                            // Update all other records
+                            .set(cloudScopeRecord))
                     .collect(ImmutableList.toImmutableList());
 
             dslContext.batch(recordInsertList).execute();
@@ -81,7 +81,7 @@ public class SqlCloudScopeIdentityStore implements CloudScopeIdentityStore {
     }
 
     @Override
-    public List<CloudScopeIdentity> getIdentitiesByFilter(@NotNull CloudScopeIdentityFilter scopeIdentityFilter) {
+    public List<CloudScopeIdentity> getIdentitiesByFilter(@Nonnull CloudScopeIdentityFilter scopeIdentityFilter) {
 
         Preconditions.checkNotNull(scopeIdentityFilter, "Filter cannot be null");
 

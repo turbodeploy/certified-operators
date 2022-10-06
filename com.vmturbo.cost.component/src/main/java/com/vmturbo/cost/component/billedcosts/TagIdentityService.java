@@ -16,8 +16,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider;
-import com.vmturbo.cost.component.cloud.cost.tag.Tag;
-import com.vmturbo.cost.component.cloud.cost.tag.TagIdentity;
+import com.vmturbo.cost.component.billed.cost.tag.Tag;
+import com.vmturbo.cost.component.billed.cost.tag.TagIdentity;
 import com.vmturbo.cost.component.db.tables.records.CostTagRecord;
 import com.vmturbo.sql.utils.DbException;
 
