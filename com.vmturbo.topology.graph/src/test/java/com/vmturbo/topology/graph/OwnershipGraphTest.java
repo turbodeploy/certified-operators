@@ -7,6 +7,10 @@ import static org.hamcrest.Matchers.empty;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Arrays;
+import java.util.HashSet;
+
+import org.junit.Assert;
 import org.junit.Test;
 
 /**
@@ -104,4 +108,23 @@ public class OwnershipGraphTest {
         assertThat(graph.getOwned(5L, true), empty());
     }
 
+    /**
+     * Test that {@link OwnershipGraph#getAllOwners()} returns an empty {@link java.util.Set} if the graph is empty.
+     */
+    @Test
+    public void testGetAllOwnersEmpty() {
+        final OwnershipGraph.Builder<Long> ownershipGraph = OwnershipGraph.newBuilder(id -> id);
+        Assert.assertTrue(ownershipGraph.build().getAllOwners().isEmpty());
+    }
+
+    /**
+     * Test that {@link OwnershipGraph#getAllOwners()} returns the owner oids present in the graph.
+     */
+    @Test
+    public void testGetAllOwnersReturnsAllOwners() {
+        final OwnershipGraph.Builder<Long> ownershipGraph = OwnershipGraph.newBuilder(id -> id);
+        ownershipGraph.addOwner(111L, 777L);
+        ownershipGraph.addOwner(222L, 888L);
+        Assert.assertEquals(new HashSet<>(Arrays.asList(111L, 222L)), ownershipGraph.build().getAllOwners());
+    }
 }

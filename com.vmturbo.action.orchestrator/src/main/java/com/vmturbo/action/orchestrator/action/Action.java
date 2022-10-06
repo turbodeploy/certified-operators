@@ -195,6 +195,8 @@ public class Action implements ActionView {
 
     private Optional<Long> associatedResourceGroupId = Optional.empty();
 
+    private Long associatedCloudServiceProviderId;
+
     private Collection<Long> associatedNodePoolIds = Collections.emptyList();
 
     private Collection<Long> associatedSettingsPolicies;
@@ -586,6 +588,8 @@ public class Action implements ActionView {
                 associatedAccountId = Action.getAssociatedAccountId(recommendation, entitiesSnapshot, primaryEntity);
                 associatedResourceGroupId = entitiesSnapshot.getResourceGroupForEntity(primaryEntity);
                 associatedNodePoolIds = getAssociatedNodePool(recommendation, entitiesSnapshot, primaryEntity);
+                associatedCloudServiceProviderId = getAssociatedCloudServiceProviderId(entitiesSnapshot, primaryEntity)
+                    .orElse(null);
             } catch (UnsupportedActionException e) {
                 // Shouldn't ever happen here, because we would have rejected this action
                 // if it was unsupported.
@@ -892,6 +896,18 @@ public class Action implements ActionView {
     @Override
     public Optional<Long> getAssociatedResourceGroupId() {
         return associatedResourceGroupId;
+    }
+
+    @Override
+    @Nonnull
+    public Optional<Long> getAssociatedCloudServiceProviderId() {
+        return Optional.ofNullable(associatedCloudServiceProviderId);
+    }
+
+    private static Optional<Long> getAssociatedCloudServiceProviderId(
+        @Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot, final long primaryEntity) {
+        return entitiesSnapshot.getOwnerAccountOfEntity(primaryEntity)
+            .flatMap(account -> entitiesSnapshot.getCspIdForAccountId(account.getOid()));
     }
 
     @Override
