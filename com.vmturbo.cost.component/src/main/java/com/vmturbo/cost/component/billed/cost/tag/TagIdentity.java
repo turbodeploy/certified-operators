@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.cloud.cost.tag;
+package com.vmturbo.cost.component.billed.cost.tag;
 
 import javax.annotation.Nonnull;
 
