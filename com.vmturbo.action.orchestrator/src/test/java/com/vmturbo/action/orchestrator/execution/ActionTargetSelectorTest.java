@@ -46,12 +46,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.graph.OwnershipGraph;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
@@ -106,7 +108,9 @@ public class ActionTargetSelectorTest {
         when(probeCapabilityCache.getCachedCapabilities()).thenReturn(cachedCapabilities);
         when(entitySettingsCache.emptySnapshot())
                 .thenReturn(new EntitiesAndSettingsSnapshot(Collections.emptyMap(),
-                        Collections.emptyMap(), Collections.emptyMap(), null, Collections.emptyMap(), Collections.emptyMap(),
+                        Collections.emptyMap(), Collections.emptyMap(),
+                    OwnershipGraph.newBuilder(TopologyDTO.PartialEntity.EntityWithConnections::getOid).build(),
+                    Collections.emptyMap(), Collections.emptyMap(),
                         Collections.emptyMap(), Collections.emptyMap(), 0, TopologyType.SOURCE,
                         System.currentTimeMillis()));
         MockitoAnnotations.initMocks(this);

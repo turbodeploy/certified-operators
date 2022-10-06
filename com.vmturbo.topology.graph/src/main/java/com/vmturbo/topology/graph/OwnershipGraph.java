@@ -66,6 +66,13 @@ public class OwnershipGraph<T> {
         return owners;
     }
 
+    public Set<T> getAllOwners() {
+        return ownedToOwner.values().stream()
+            .map(membersById::get)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+    }
+
     /**
      * Get the entities owned by an entity.
      *

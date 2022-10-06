@@ -894,6 +894,52 @@ public class QueryFilterTest {
                 .test(actionView2));
     }
 
+    /**
+     * Test that when {@link ActionView#getAssociatedCloudServiceProviderId()} returns {@link Optional#empty()},
+     * {@link QueryFilter#test(ActionView)} returns false.
+     */
+    @Test
+    public void testQueryFilterRelatedCspNoMatch() {
+       final ActionDTO.Action scaleAction = ActionDTO.Action.newBuilder()
+           .setId(11111L)
+           .setInfo(ActionInfo.newBuilder()
+               .build())
+           .setDeprecatedImportance(0)
+           .setExplanation(Explanation.newBuilder()
+               .build())
+           .build();
+       final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(scaleAction);
+       when(actionView.getAssociatedCloudServiceProviderId()).thenReturn(Optional.empty());
+       final ActionQueryFilter actionQueryFilter = ActionQueryFilter.newBuilder()
+           .addRelatedCloudServiceProviderIds(12345L)
+           .build();
+       Assert.assertFalse(new QueryFilter(actionQueryFilter, PlanActionStore.VISIBILITY_PREDICATE).test(actionView));
+    }
+
+    /**
+     * Test that when {@link ActionView#getAssociatedCloudServiceProviderId()} returns a Cloud Service Provider id that
+     * matches with the one specified in the {@link ActionQueryFilter} instance, then
+     * {@link QueryFilter#test(ActionView)} returns true.
+     */
+    @Test
+    public void testQueryFilterRelatedCspMatch() {
+        final ActionDTO.Action scaleAction = ActionDTO.Action.newBuilder()
+            .setId(11111L)
+            .setInfo(ActionInfo.newBuilder()
+                .build())
+            .setDeprecatedImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .build())
+            .build();
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(scaleAction);
+        final long cspId = 12345L;
+        when(actionView.getAssociatedCloudServiceProviderId()).thenReturn(Optional.of(cspId));
+        final ActionQueryFilter actionQueryFilter = ActionQueryFilter.newBuilder()
+            .addRelatedCloudServiceProviderIds(cspId)
+            .build();
+        Assert.assertTrue(new QueryFilter(actionQueryFilter, PlanActionStore.VISIBILITY_PREDICATE).test(actionView));
+    }
+
     private ActionView executableMoveAction(long id, long sourceId, int sourceType, long destId, int destType, long targetId) {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
                 .setId(id)

@@ -40,11 +40,13 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.setting.SettingAndPolicies;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.repository.api.RepositoryListener;
 import com.vmturbo.topology.graph.OwnershipGraph;
@@ -103,6 +105,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         private final long populationTimestamp;
         @Nullable
         private TopologyInfo topologyInfo;
+        private final Map<Long, Long> accountIdToCspId;
 
         /**
          * Constructor of {@link EntitiesAndSettingsSnapshot}.
@@ -141,6 +144,14 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
             this.topologyType = targetTopologyType;
             this.oidToScheduleMap = oidToScheduleMap;
             this.populationTimestamp = populationTimestamp;
+            final Map<Long, Long> accountIdToCspId = new HashMap<>();
+            ownershipGraph.getAllOwners().forEach(account -> account.getConnectedEntitiesList().stream()
+                .filter(connectedEntity -> connectedEntity.getConnectedEntityType()
+                    == CommonDTO.EntityDTO.EntityType.SERVICE_PROVIDER_VALUE)
+                .findAny()
+                .ifPresent(connectedEntity -> accountIdToCspId.put(account.getOid(),
+                    connectedEntity.getConnectedEntityId())));
+            this.accountIdToCspId = accountIdToCspId;
         }
 
         /**
@@ -203,6 +214,11 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         @Nonnull
         public Map<Long, ScheduleProto.Schedule> getScheduleMap() {
             return Collections.unmodifiableMap(oidToScheduleMap);
+        }
+
+        @Nonnull
+        public Optional<Long> getCspIdForAccountId(final long accountId) {
+            return Optional.ofNullable(accountIdToCspId.get(accountId));
         }
 
         /**

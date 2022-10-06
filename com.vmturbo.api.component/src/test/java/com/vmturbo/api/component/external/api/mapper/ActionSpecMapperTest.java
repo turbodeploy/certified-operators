@@ -3288,6 +3288,34 @@ public class ActionSpecMapperTest {
         assertActionState(templateAction, ActionDTO.ActionState.FAILING, ActionState.FAILING);
     }
 
+    /**
+     * Test that when the {@link ActionApiInputDTO#getRelatedCloudServiceProviderIds()} is empty, then
+     * {@link ActionSpecMapper#createActionFilter(ActionApiInputDTO, Optional, ApiId)} should return an
+     * {@link ActionQueryFilter} instance with an empty
+     * {@link ActionQueryFilter#getRelatedCloudServiceProviderIdsList()}.
+     */
+    @Test
+    public void testCreateActionFilterNoRelatedCloudServiceProviders() {
+        final ActionQueryFilter actionQueryFilter = mapper.createActionFilter(new ActionApiInputDTO(), Optional.empty(),
+            null);
+        Assert.assertTrue(actionQueryFilter.getRelatedCloudServiceProviderIdsList().isEmpty());
+    }
+
+    /**
+     * Test that {@link ActionSpecMapper#createActionFilter(ActionApiInputDTO, Optional, ApiId)} returns an
+     * {@link ActionQueryFilter} instance with {@link ActionQueryFilter#getRelatedCloudServiceProviderIdsList()}
+     * containing only the numeric values from the provided {@link ActionApiInputDTO} instance.
+     */
+    @Test
+    public void testCreateActionFilterNumericRelatedCloudServiceProviders() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        final String cspId = "12345";
+        inputDTO.setRelatedCloudServiceProviderIds(Arrays.asList(cspId, "non-numeric-value"));
+        final ActionQueryFilter actionQueryFilter = mapper.createActionFilter(inputDTO, Optional.empty(), null);
+        Assert.assertEquals(Collections.singletonList(Long.parseLong(cspId)),
+            actionQueryFilter.getRelatedCloudServiceProviderIdsList());
+    }
+
     private void assertActionState(
             ActionSpec templateAction,
             ActionDTO.ActionState stateInActionOrchestrator,
