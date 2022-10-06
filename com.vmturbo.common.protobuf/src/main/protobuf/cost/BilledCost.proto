@@ -8,7 +8,7 @@ import "CommonDTO.proto";
 import "CommonCost.proto";
 import "cloud/CloudCommon.proto";
 
-message CloudCostData {
+message BilledCostData {
 
     optional int64 billing_family_id = 1;
 
@@ -16,20 +16,20 @@ message CloudCostData {
 
     optional common_dto.CloudBillingData.CloudBillingBucket.Granularity granularity = 11 [default = HOURLY];
 
-    repeated CloudCostBucket cloud_cost_buckets = 21;
+    repeated BilledCostBucket cost_buckets = 21;
 
     map<int64, common_dto.CostTagGroup> cost_tag_group = 31;
 }
 
-message CloudCostBucket {
+message BilledCostBucket {
 
     optional int64 sample_ts_utc = 1;
 
-    optional CloudCostBucketKey bucket_key = 2;
+    optional BilledCostBucketKey bucket_key = 2;
 
-    repeated CloudCostItem cost_items = 10;
+    repeated BilledCostItem cost_items = 10;
 
-    message CloudCostBucketKey {
+    message BilledCostBucketKey {
 
         optional int64 account_oid = 1;
         optional int64 cloud_service_oid = 2;
@@ -38,7 +38,7 @@ message CloudCostBucket {
 
 }
 
-message CloudCostItem {
+message BilledCostItem {
     optional int64 account_id = 10;
     optional int64 cloud_service_id = 20;
     optional int64 region_id = 30;
@@ -60,7 +60,7 @@ message CloudCostItem {
 
 // A statistic representation of CloudCostItem. One significant deviation over cost items
 // is that tag groups are inlined with the stats .
-message CloudCostStat {
+message BilledCostStat {
 
     optional int64 sample_ts_utc = 1;
 
@@ -88,26 +88,26 @@ message CloudCostStat {
 }
 
 // A query for resolving CloudCostItem data.
-message CloudCostQuery {
+message BilledCostQuery {
 
     optional common_dto.CloudBillingData.CloudBillingBucket.Granularity granularity = 1 [default = HOURLY];
 
-    optional CloudCostFilter filter = 2;
+    optional BilledCostFilter filter = 2;
 
     optional bool resolve_tag_groups = 3 [default = false];
 
 }
 
 // A query for resolving CloudCostStat data.
-message CloudCostStatsQuery {
+message BilledCostStatsQuery {
 
     optional common_dto.CloudBillingData.CloudBillingBucket.Granularity granularity = 1;
 
-    optional CloudCostFilter filter = 2;
+    optional BilledCostFilter filter = 2;
 
-    repeated CloudCostGroupBy group_by = 3;
+    repeated BilledCostGroupBy group_by = 3;
 
-    enum CloudCostGroupBy {
+    enum BilledCostGroupBy {
 
         ENTITY = 0;
 
@@ -119,19 +119,21 @@ message CloudCostStatsQuery {
 
         CLOUD_SERVICE = 40;
 
-        PROVIDER = 50;
+        SERVICE_PROVIDER = 50;
 
-        COST_CATEGORY = 60;
+        CLOUD_TIER_PROVIDER = 60;
 
-        PRICING_MODEL = 70;
+        COST_CATEGORY = 70;
 
-        COMMODITY_TYPE = 80;
+        PRICING_MODEL = 80;
 
-        TAG_GROUP = 90;
+        COMMODITY_TYPE = 90;
+
+        TAG_GROUP = 100;
 
         // If grouping by tag is requested as part of the query, a TagFilter must be included in the
         // query.
-        TAG = 100;
+        TAG = 110;
     }
 }
 
@@ -140,7 +142,7 @@ message TagFilter {
     repeated string tag_value = 2;
 }
 
-message CloudCostFilter {
+message BilledCostFilter {
 
     // inclusive
     optional int64 sample_ts_start = 1;

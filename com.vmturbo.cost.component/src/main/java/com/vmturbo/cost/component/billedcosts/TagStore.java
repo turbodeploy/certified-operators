@@ -18,8 +18,8 @@ import org.jooq.Query;
 import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
 
-import com.vmturbo.cost.component.cloud.cost.tag.Tag;
-import com.vmturbo.cost.component.cloud.cost.tag.TagIdentity;
+import com.vmturbo.cost.component.billed.cost.tag.Tag;
+import com.vmturbo.cost.component.billed.cost.tag.TagIdentity;
 import com.vmturbo.cost.component.db.tables.CostTag;
 import com.vmturbo.cost.component.db.tables.records.CostTagRecord;
 import com.vmturbo.sql.utils.DbException;
@@ -96,12 +96,12 @@ public class TagStore {
      * Inserts CostTagRecords to the Cost Tag table.
      *
      * @param tagIdentities to be inserted into the Cost Tag table.
+     * @throws com.vmturbo.sql.utils.DbException on encountering DataAccessException during query execution.
      */
     public void insertCostTagIdentities(@Nonnull final Collection<TagIdentity> tagIdentities) throws DbException {
 
         // filter out those tag identities already in the cache. It's possible two+ concurrent processes both determine
         // the same record should be inserted. This should be handled in the DB through on-update do nothing
-
         try {
             final List<TagIdentity> unseenIdentities = tagIdentities.stream()
                     .filter(tagIdentity -> !tagIdentityCache.containsKey(tagIdentity.tagId()))

@@ -1,0 +1,78 @@
+{
+  "serviceProviderId": "4",
+  "granularity": "HOURLY",
+  "costTagGroup": {
+    "1": {
+      "tags": {
+        "tagKey": "tagValue"
+      }
+    }
+  },
+  "costBuckets": [{
+    "sampleTsUtc": "3600000",
+    "costItems": [{
+      "accountId": "2",
+      "regionId": "3",
+      "entityType": 10,
+      "entityId": "1",
+      "priceModel": "ON_DEMAND",
+      "costCategory": "COMPUTE",
+      "costTagGroupId": "1",
+      "providerId": "876",
+      "commodityType": 110,
+      "usageAmount": 5.0,
+      "cost": {
+        "currency": 123,
+        "amount": 6.0
+      }
+    }, {
+      "accountId": "4",
+      "regionId": "3",
+      "priceModel": "ON_DEMAND",
+      "costCategory": "COMPUTE",
+      "costTagGroupId": "1",
+      "providerId": "876",
+      "commodityType": 110,
+      "usageAmount": 5.0,
+      "cost": {
+        "currency": 123,
+        "amount": 6.0
+      }
+    }]
+  },
+  {
+    "sampleTsUtc": "7200000",
+    "costItems": [
+      {
+        "accountId": "2",
+        "regionId": "3",
+        "entityType": 10,
+        "entityId": "1",
+        "priceModel": "ON_DEMAND",
+        "costCategory": "COMPUTE",
+        "costTagGroupId": "1",
+        "providerId": "876",
+        "commodityType": 110,
+        "usageAmount": 5.0,
+        "cost": {
+          "currency": 123,
+          "amount": 6.0
+        }
+      },
+      {
+        "accountId": "4",
+        "regionId": "3",
+        "priceModel": "ON_DEMAND",
+        "costCategory": "COMPUTE",
+        "costTagGroupId": "1",
+        "providerId": "876",
+        "commodityType": 110,
+        "usageAmount": 5.0,
+        "cost": {
+          "currency": 123,
+          "amount": 6.0
+        }
+      }
+    ]
+  }]
+}
