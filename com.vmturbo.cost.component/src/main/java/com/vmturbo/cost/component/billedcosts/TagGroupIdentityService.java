@@ -26,8 +26,8 @@ import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableTupleImplementation;
-import com.vmturbo.cost.component.billed.cost.tag.Tag;
-import com.vmturbo.cost.component.billed.cost.tag.TagGroupIdentity;
+import com.vmturbo.cost.component.cloud.cost.tag.Tag;
+import com.vmturbo.cost.component.cloud.cost.tag.TagGroupIdentity;
 import com.vmturbo.platform.sdk.common.CostBilling;
 import com.vmturbo.platform.sdk.common.CostBilling.CostTagGroup;
 import com.vmturbo.sql.utils.DbException;

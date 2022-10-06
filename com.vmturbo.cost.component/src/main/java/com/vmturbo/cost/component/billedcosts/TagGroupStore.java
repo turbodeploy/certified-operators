@@ -25,7 +25,7 @@ import org.jooq.Query;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
-import com.vmturbo.cost.component.billed.cost.tag.TagGroupIdentity;
+import com.vmturbo.cost.component.cloud.cost.tag.TagGroupIdentity;
 import com.vmturbo.cost.component.db.tables.CostTagGrouping;
 import com.vmturbo.cost.component.db.tables.records.CostTagGroupingRecord;
 import com.vmturbo.sql.utils.DbException;
