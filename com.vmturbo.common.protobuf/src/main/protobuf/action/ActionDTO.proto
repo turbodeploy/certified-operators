@@ -1647,6 +1647,9 @@ message ActionQueryFilter {
     // given relation types is included.
     // If not present, the field is not used to filter.
     repeated ActionRelationType relationTypes = 25;
+
+    // If non-empty, include actions that are related to the specified cloud service providers.
+    repeated int64 related_cloud_service_provider_ids = 26;
 }
 
 message ResourceGroupFilter {

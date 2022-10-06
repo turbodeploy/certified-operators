@@ -55,6 +55,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
@@ -548,6 +549,26 @@ public class ActionTest {
                 .build());
     }
 
+    private ActionInfo.Builder makeScaleInfo() {
+        return ActionInfo.newBuilder()
+            .setScale(ActionDTO.Scale.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                    .setId(123L)
+                    .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .build())
+                .addChanges(ActionDTO.ChangeProvider.newBuilder()
+                    .setSource(ActionEntity.newBuilder()
+                        .setId(456L)
+                        .setType(EntityType.COMPUTE_TIER_VALUE)
+                        .build())
+                    .setDestination(ActionEntity.newBuilder()
+                        .setId(789L)
+                        .setType(EntityType.COMPUTE_TIER_VALUE)
+                        .build())
+                    .build())
+            .build());
+    }
+
     private Setting makeSetting(String specName, ActionMode mode) {
         return Setting.newBuilder().setSettingSpecName(specName)
                 .setEnumSettingValue(EnumSettingValue.newBuilder()
@@ -616,5 +637,63 @@ public class ActionTest {
         // as initActionId.
         assertTrue(actionReRecommendedIDToInitIDMap.containsKey(newActionId));
         assertEquals(initActionId, (long)actionReRecommendedIDToInitIDMap.get(newActionId));
+    }
+
+    /**
+     * Test that {@link Action#getAssociatedCloudServiceProviderId()} returns {@link Optional#empty()} if the
+     * Cloud Service provider oid is not found.
+     *
+     * @throws UnsupportedActionException if {@link Action#refreshAction(EntitiesAndSettingsSnapshot)} throws
+     * UnsupportedActionException.
+     */
+    @Test
+    public void testAssociatedCspIdNotFound() throws UnsupportedActionException {
+        when(entitySettingsCache.getCspIdForAccountId(anyLong())).thenReturn(Optional.empty());
+        when(entitySettingsCache.getEntityFromOid(eq(123L)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(123L,
+                EntityType.VIRTUAL_MACHINE.getNumber()));
+        when(entitySettingsCache.getEntityFromOid(eq(456L)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(456L,
+                EntityType.VIRTUAL_MACHINE.getNumber()));
+        when(entitySettingsCache.getEntityFromOid(eq(789L)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(789L,
+                EntityType.COMPUTE_TIER.getNumber()));
+        final ActionDTO.Action actionBuilder = makeRec(makeScaleInfo(), SupportLevel.SUPPORTED).build();
+        final Action scaleAction = new Action(actionBuilder, actionPlanId, actionModeCalculator,
+            IdentityGenerator.next());
+        scaleAction.refreshAction(entitySettingsCache);
+        Assert.assertFalse(scaleAction.getAssociatedCloudServiceProviderId().isPresent());
+    }
+
+    /**
+     * Test that {@link Action#getAssociatedCloudServiceProviderId()} returns the correct Cloud Service provider entity
+     * oid when {@link Action#refreshAction(EntitiesAndSettingsSnapshot)} is invoked.
+     *
+     * @throws UnsupportedActionException if {@link Action#refreshAction(EntitiesAndSettingsSnapshot)} throws
+     * UnsupportedActionException.
+     */
+    @Test
+    public void testAssociatedCspIdFound() throws UnsupportedActionException {
+        when(entitySettingsCache.getOwnerAccountOfEntity(123L))
+            .thenReturn(Optional.of(TopologyDTO.PartialEntity.EntityWithConnections.newBuilder()
+                    .setOid(999999L)
+                .build()));
+        final long expectedActionCspId = 111111L;
+        when(entitySettingsCache.getCspIdForAccountId(anyLong())).thenReturn(Optional.of(expectedActionCspId));
+        when(entitySettingsCache.getEntityFromOid(eq(123L)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(123L,
+                EntityType.VIRTUAL_MACHINE.getNumber()));
+        when(entitySettingsCache.getEntityFromOid(eq(456L)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(456L,
+                EntityType.VIRTUAL_MACHINE.getNumber()));
+        when(entitySettingsCache.getEntityFromOid(eq(789L)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(789L,
+                EntityType.COMPUTE_TIER.getNumber()));
+        final ActionDTO.Action actionBuilder = makeRec(makeScaleInfo(), SupportLevel.SUPPORTED).build();
+        final Action scaleAction = new Action(actionBuilder, actionPlanId, actionModeCalculator,
+            IdentityGenerator.next());
+        scaleAction.refreshAction(entitySettingsCache);
+        final Long actionCspId = scaleAction.getAssociatedCloudServiceProviderId().orElse(null);
+        Assert.assertEquals(new Long(expectedActionCspId), actionCspId);
     }
 }
