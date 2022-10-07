@@ -13,6 +13,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.
  */
 public interface SavingsActionStore {
     /**
+     * Whether this cache has been initialized and ready to be used.
+     * Set to true when first time the cache has been loaded successfully. Required so that clients
+     * like TEM2 can know whether cache is ready to be used soon after startup, otherwise exception.
+     *
+     * @return True if cache can be used, otherwise don't use yet.
+     */
+    boolean isInitialized();
+
+    /**
      * Gets all actions matching the input liveness state, from the store.
      *
      * @param state Liveness states to get actions for, typically LIVE.

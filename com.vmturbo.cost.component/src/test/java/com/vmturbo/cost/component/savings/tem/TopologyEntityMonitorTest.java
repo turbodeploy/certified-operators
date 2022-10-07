@@ -82,6 +82,9 @@ public class TopologyEntityMonitorTest {
         topologyMonitor = new TopologyEntityMonitor(cachedSavingsActionStore);
         final Map<Long, TopologyEntityDTO> entityMap = createTopologyMap();
         cloudTopology = createCloudTopology(entityMap);
+        doReturn(true)
+                .when(cachedSavingsActionStore)
+                .isInitialized();
     }
 
     /**

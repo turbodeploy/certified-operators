@@ -63,14 +63,22 @@ public class TopologyEntityMonitor implements LiveCloudTopologyListener {
     @Override
     public void process(CloudTopology cloudTopology, TopologyInfo topologyInfo) {
         try {
-            logger.info("Billed Savings Entity Monitor processing topology updates");
+            if (!savingsActionStore.isInitialized()) {
+                // Cache is not yet ready, otherwise we always get exception on cost pod startup.
+                logger.warn("Skipping topology (id: {}, time: {}) as cache is not yet ready after startup.",
+                        topologyInfo.getTopologyId(), topologyInfo.getCreationTime());
+                return;
+            }
+            logger.info("Billed Savings Entity Monitor processing topology (id: {}, time: {}) updates.",
+                    topologyInfo.getTopologyId(), topologyInfo.getCreationTime());
 
             handleActions(cloudTopology, topologyInfo);
 
             // Save all the Liveness State updates to cache
             savingsActionStore.saveChanges();
         } catch (Exception e) {
-            logger.error("TEM2 Savings Exception for topology at {}", topologyInfo.getCreationTime(), e);
+            logger.error("TEM2 Savings Exception for topology (id: {}, time: {})",
+                    topologyInfo.getTopologyId(), topologyInfo.getCreationTime(), e);
         }
     }
 
