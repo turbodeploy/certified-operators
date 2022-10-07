@@ -272,12 +272,6 @@ public interface ActionView {
      */
     Collection<Long> getAssociatedNodePoolIds();
 
-    /**
-     * Get the OID of the Cloud Service Provider this action is associated with.
-     *
-     * @return OID of the associated Cloud Service Provider, if applicable, otherwise return empty Optional.
-     */
-    Optional<Long> getAssociatedCloudServiceProviderId();
 
     /**
      * Determine whether the action is executable.

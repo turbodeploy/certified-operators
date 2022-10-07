@@ -235,12 +235,6 @@ public class QueryFilter {
         if (!testRiskQuery(actionView)) {
             return false;
         }
-        final List<Long> relatedCloudServiceProviderIdsList = filter.getRelatedCloudServiceProviderIdsList();
-        if (!relatedCloudServiceProviderIdsList.isEmpty()
-            && !testRelatedCloudServiceProviderIdsContainActionCloudServiceProviderId(
-                actionView, relatedCloudServiceProviderIdsList)) {
-            return false;
-        }
 
         if (filter.hasCostType()) {
             final double amount = actionView.getTranslationResultOrOriginal().getSavingsPerHour().getAmount();
@@ -362,13 +356,6 @@ public class QueryFilter {
 
         return actionView.getRelatedActions().stream()
                 .anyMatch(ra -> relationTypes.contains(ra.getActionRelationTypeCase()));
-    }
-
-    private static boolean testRelatedCloudServiceProviderIdsContainActionCloudServiceProviderId(
-        final ActionView actionView, final List<Long> relatedCloudServiceProviderIdsList) {
-        return actionView.getAssociatedCloudServiceProviderId()
-            .map(relatedCloudServiceProviderIdsList::contains)
-            .orElse(false);
     }
 
     @Nonnull

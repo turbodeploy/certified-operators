@@ -41,11 +41,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRespons
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.graph.OwnershipGraph;
 
@@ -61,9 +59,6 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
     private static final Long ASSOCIATED_RESOURCE_GROUP_ID = 123L;
     private static final Long SCHEDULE_ID = 304L;
     private static final String SCHEDULE_DISPLAY_NAME = "TestSchedule";
-    private static final long ACCOUNT_ID_1 = 11111L;
-    private static final long CSP_ID_1 = 222222L;
-    private static final long VM_ID_1 = 333333L;
 
     private SettingPolicyServiceMole spServiceSpy = Mockito.spy(new SettingPolicyServiceMole());
     private GroupServiceMole groupServiceSpy = Mockito.spy(new GroupServiceMole());
@@ -87,8 +82,8 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
             .setOid(1L)
             .build());
 
-    private final OwnershipGraph.Builder<EntityWithConnections> ownershipGraph = OwnershipGraph
-        .newBuilder(EntityWithConnections::getOid);
+    private final OwnershipGraph<EntityWithConnections> ownershipGraph = OwnershipGraph.newBuilder(EntityWithConnections::getOid)
+            .build();
 
     /**
      * Common setup before every test.
@@ -99,15 +94,9 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
             REALTIME_TOPOLOGY_CONTEXT_ID,
             acceptedActionsStore,
             entitiesSnapshotFactory);
-        ownershipGraph.addOwner(EntityWithConnections.newBuilder()
-            .setOid(ACCOUNT_ID_1)
-                .addConnectedEntities(TopologyDTO.TopologyEntityDTO.ConnectedEntity.newBuilder()
-                    .setConnectedEntityId(CSP_ID_1)
-                    .setConnectedEntityType(CommonDTO.EntityDTO.EntityType.SERVICE_PROVIDER_VALUE)
-                    .build())
-            .build(), VM_ID_1);
+
         EntitiesSnapshot entitiesSnapshot = new EntitiesSnapshot(entitySnapshotEntities,
-                ownershipGraph.build(), TopologyType.SOURCE);
+                ownershipGraph, TopologyType.SOURCE);
         when(entitiesSnapshotFactory.getEntitiesSnapshot(any(), anyLong()))
                 .thenReturn(entitiesSnapshot);
     }
@@ -199,30 +188,5 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                 TOPOLOGY_CONTEXT_ID);
 
         Assert.assertTrue(snapshot.getSettingsForEntity(ENTITY_ID).isEmpty());
-    }
-
-    /**
-     * Test that {@link EntitiesAndSettingsSnapshot#getCspIdForAccountId(long)} returns the correct oid for the Cloud
-     * Service Provider entity.
-     */
-    @Test
-    public void testGetCspIdForAccountIdFound() {
-        final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(Collections.emptySet(),
-            TOPOLOGY_CONTEXT_ID);
-        final Optional<Long> cspId = snapshot.getCspIdForAccountId(ACCOUNT_ID_1);
-        Assert.assertTrue(cspId.isPresent());
-        Assert.assertEquals(CSP_ID_1, (long)cspId.get());
-    }
-
-    /**
-     * Test that {@link EntitiesAndSettingsSnapshot#getCspIdForAccountId(long)} returns an empty Optional if the Cloud
-     * Service Provider oid is not found.
-     */
-    @Test
-    public void testGetCspIdForAccountIdNotFound() {
-        final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(Collections.emptySet(),
-            TOPOLOGY_CONTEXT_ID);
-        final Optional<Long> cspId = snapshot.getCspIdForAccountId(555555L);
-        Assert.assertFalse(cspId.isPresent());
     }
 }
