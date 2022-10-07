@@ -1,12 +1,18 @@
 package com.vmturbo.topology.processor.identity;
 
+import static com.vmturbo.components.common.PropertiesHelpers.parseDuration;
+
 import java.sql.SQLException;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+
+import javax.annotation.PostConstruct;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
@@ -70,7 +76,8 @@ public class IdentityProviderConfig {
     private boolean useDescriptorsBasedCache;
 
     @Value("${entityExpirationTimeDays:30}")
-    private int entityExpirationTimeDays;
+    private String entityExpirationTimeDays;
+    private Duration entityExpirationTimeDuration;
 
     @Value("${entityValidationFrequencyHours:6}")
     private int entityValidationFrequencyHours;
@@ -89,6 +96,16 @@ public class IdentityProviderConfig {
 
     @Value("${expiredRecordsRetentionDays:60}")
     private int expiredRecordsRetentionDays;
+
+    /**
+     * After the Spring Environment is constructed convert duration properties to {@link Duration}s.
+     */
+    @PostConstruct
+    private void fixDurations() {
+        entityExpirationTimeDuration =
+                parseDuration("entityExpirationTimeDays", entityExpirationTimeDays,
+                        ChronoUnit.DAYS);
+    }
 
     @Bean
     public IdentityDatabaseStore identityDatabaseStore() {
@@ -157,7 +174,12 @@ public class IdentityProviderConfig {
             }
         }
         try {
-            final long entityExpirationTimeMs = Math.max(TimeUnit.DAYS.toMillis(1), TimeUnit.DAYS.toMillis(entityExpirationTimeDays));
+            final long entityExpirationTimeMs;
+            if (entityExpirationTimeDuration.isZero()) {
+                entityExpirationTimeMs = TimeUnit.DAYS.toMillis(1);
+            } else {
+                entityExpirationTimeMs = entityExpirationTimeDuration.toMillis();
+            }
             final long validationFrequencyMs = Math.max(TimeUnit.HOURS.toMillis(1), TimeUnit.HOURS.toMillis(entityValidationFrequencyHours));
             final long initialExpirationDelayMs = Math.max(0, TimeUnit.MINUTES.toMillis(initialExpirationDelayMin));
 
