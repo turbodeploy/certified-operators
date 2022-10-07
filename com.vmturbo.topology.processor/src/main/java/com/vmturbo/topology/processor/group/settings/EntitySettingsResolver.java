@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.vmturbo.common.protobuf.utils.StringConstants.AUTOMATION_POLICIES;
 import static com.vmturbo.common.protobuf.utils.StringConstants.AUTOMATION_POLICY;
 import static com.vmturbo.common.protobuf.utils.StringConstants.DEFAULT_POLICIES;
+import static com.vmturbo.common.protobuf.utils.StringConstants.UNKNOWN;
 import static com.vmturbo.topology.processor.topology.pipeline.Stages.POLICIES_GAUGE;
 
 import java.time.Instant;
@@ -300,9 +301,14 @@ public class EntitySettingsResolver {
         policyById.forEach((id, policy) -> {
             POLICIES_GAUGE.labels(AUTOMATION_POLICY,
                     policy.getSettingPolicyType() == SettingPolicy.Type.DEFAULT
-                            ? DEFAULT_POLICIES : AUTOMATION_POLICIES,
-                    EntityDTO.EntityType.forNumber(policy.getInfo().getEntityType()).toString(),
-                    policy.getSettingPolicyType().toString()).increment();
+                            ? DEFAULT_POLICIES
+                            : AUTOMATION_POLICIES,
+                    policy.getInfo().hasEntityType()
+                            ? EntityDTO.EntityType.forNumber(policy.getInfo().getEntityType()).toString()
+                            : EntityDTO.EntityType.UNKNOWN.toString(),
+                    policy.hasSettingPolicyType()
+                            ? policy.getSettingPolicyType().toString()
+                            : UNKNOWN).increment();
         });
     }
 
