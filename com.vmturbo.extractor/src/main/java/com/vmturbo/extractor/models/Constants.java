@@ -157,6 +157,7 @@ public class Constants {
                     .add(CommodityType.VSTORAGE)
                     .add(CommodityType.TOTAL_SESSIONS)
                     .add(CommodityType.DTU)
+                    .add(CommodityType.ENERGY)
                     .build();
 
     /**
