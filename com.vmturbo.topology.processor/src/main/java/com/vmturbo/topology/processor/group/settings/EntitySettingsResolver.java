@@ -1,6 +1,10 @@
 package com.vmturbo.topology.processor.group.settings;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.vmturbo.common.protobuf.utils.StringConstants.AUTOMATION_POLICIES;
+import static com.vmturbo.common.protobuf.utils.StringConstants.AUTOMATION_POLICY;
+import static com.vmturbo.common.protobuf.utils.StringConstants.DEFAULT_POLICIES;
+import static com.vmturbo.topology.processor.topology.pipeline.Stages.POLICIES_GAUGE;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -179,6 +183,9 @@ public class EntitySettingsResolver {
         // map from policy ID to settings policy
         final Map<Long, SettingPolicy> policyById =
             getAllSettingPolicies(settingPolicyServiceClient, topologyInfo.getTopologyContextId());
+        if (!TopologyDTOUtil.isPlan(topologyInfo)) {
+            trackSettingPolicies(policyById);
+        }
 
         // Scope evaluator for evaluating scopes
         final EntitySettingsScopeEvaluator scopeEvaluator = new EntitySettingsScopeEvaluator(topologyGraph);
@@ -278,6 +285,25 @@ public class EntitySettingsResolver {
                                         entitySettingsByEntityId, defaultSettingPoliciesByEntityType);
         deleteExpiredPoliciesAndSchedules(userAndDiscoveredSettingPolicies, schedules);
         return new GraphWithSettings(topologyGraph, entitySettingsByEntityId, defaultSettingPoliciesById);
+    }
+
+    private void trackSettingPolicies(final Map<Long, SettingPolicy> policyById) {
+        POLICIES_GAUGE.getLabeledMetrics().forEach((key, val) -> {
+            // The POLICIES_GAUGE is used to track both automation and placement policies.
+            // In this part of the code, we are dealing with automation policies.
+            // So, we want to only set the Automation_policy to 0s and leave the
+            // placement policies untouched.
+            if (key.get(0).equals(AUTOMATION_POLICY)) {
+                val.setData(0.0);
+            }
+        });
+        policyById.forEach((id, policy) -> {
+            POLICIES_GAUGE.labels(AUTOMATION_POLICY,
+                    policy.getSettingPolicyType() == SettingPolicy.Type.DEFAULT
+                            ? DEFAULT_POLICIES : AUTOMATION_POLICIES,
+                    EntityDTO.EntityType.forNumber(policy.getInfo().getEntityType()).toString(),
+                    policy.getSettingPolicyType().toString()).increment();
+        });
     }
 
     /**

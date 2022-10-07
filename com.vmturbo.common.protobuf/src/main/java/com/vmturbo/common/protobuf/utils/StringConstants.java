@@ -259,6 +259,9 @@ public class StringConstants {
     public static final String DESKTOP_POOL = "DesktopPool";
     public static final String BUSINESS_USER = "BusinessUser";
     public static final String VIEW_POD = "ViewPod";
+    public static final String AUTOMATION_POLICY = "Automation Policy";
+    public static final String AUTOMATION_POLICIES = "Automation Policies";
+    public static final String DEFAULT_POLICIES = "Default Policies";
     // Setting Policy class name
     public static final String SETTING_POLICY = "SettingPolicy";
     /** Processor PPool. */

@@ -119,7 +119,8 @@ global:
                         turbo_oid_expiration_execution_seconds_sum|\
                         turbo_oid_expiration_execution_seconds_count|\
                         turbo_oid_expiration_execution_seconds_bucket|\
-                        turbo_expired_entities_total"
+                        turbo_expired_entities_total|\
+                        turbo_policies"
 
 nginxingress:
   enabled: true

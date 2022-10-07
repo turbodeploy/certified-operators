@@ -1,6 +1,8 @@
 package com.vmturbo.topology.processor.group.settings;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.*;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
+import static com.vmturbo.topology.processor.topology.pipeline.Stages.POLICIES_GAUGE;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItem;
@@ -47,6 +49,7 @@ import io.grpc.stub.StreamObserver;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -99,6 +102,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -134,6 +138,10 @@ public class EntitySettingsResolverTest {
     private TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
 
     private TopologyInfo rtTopologyInfo = TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build();
+
+    private TopologyInfo planTopologyInfo = TopologyInfo.newBuilder()
+            .setTopologyType(TopologyType.PLAN)
+            .setPlanInfo(TopologyDTO.PlanTopologyInfo.getDefaultInstance()).build();
 
     private GroupServiceBlockingStub groupServiceClient;
 
@@ -460,6 +468,67 @@ public class EntitySettingsResolverTest {
                                      Collections.singletonList(SP1_ID), DEFAULT_POLICY_ID),
                 createEntitySettings(entityOid2, Arrays.asList(setting2, setting1),
                                      Collections.singletonList(SP1_ID), DEFAULT_POLICY_ID));
+    }
+
+    /**
+     * Test the policies gauge.
+     * 1. Start with 1 user policy and 1 default policy. The gauge should reflect this.
+     * 2. Run a plan with 1 extra policy - plans should not affect the gauge.
+     * 3. Now increase by 1 user policy in real time. The gauge should reflect the increase.
+     * 4. Now remove all user policies in real time. The gauge should reflect the decrease.
+     * @throws Exception
+     */
+    @Test
+    public void testPoliciesGauge() throws Exception {
+        when(groupResolver.resolve(group, topologyGraph)).thenReturn(resolvedGroup(group, entities));
+        // Do thenReturn 4 times because we are calling resolveSettings 3 times, and each time it needs
+        // a fresh stream to operate on.
+        when(topologyGraph.entities())
+                .thenReturn(Stream.of(topologyEntity1, topologyEntity2))
+                .thenReturn(Stream.of(topologyEntity1, topologyEntity2))
+                .thenReturn(Stream.of(topologyEntity1, topologyEntity2))
+                .thenReturn(Stream.of(topologyEntity1, topologyEntity2));
+        when(testSettingPolicyService.listSettingPolicies(any()))
+                .thenReturn(Arrays.asList(settingPolicy1, defaultSettingPolicy));
+        when(testGroupService.getGroups(any()))
+                .thenReturn(Collections.singletonList(group));
+
+        // 1. Start with 1 user policy and 1 default policy
+        entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
+                settingOverrides, rtTopologyInfo, consistentScalingManager, null, null);
+        Assert.assertEquals(1, POLICIES_GAUGE.labels(AUTOMATION_POLICY, AUTOMATION_POLICIES,
+                EntityType.VIRTUAL_MACHINE.toString(), Type.USER.toString()).getData(), 0.1);
+        Assert.assertEquals(1, POLICIES_GAUGE.labels(AUTOMATION_POLICY, DEFAULT_POLICIES,
+                EntityType.VIRTUAL_MACHINE.toString(), Type.DEFAULT.toString()).getData(), 0.1);
+
+        // 2. Run a plan with 1 extra policy - plans should not affect the gauge
+        when(testSettingPolicyService.listSettingPolicies(any()))
+                .thenReturn(Arrays.asList(settingPolicy1, settingPolicy2, defaultSettingPolicy));
+        entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
+                settingOverrides, planTopologyInfo, consistentScalingManager, null, null);
+        Assert.assertEquals(1, POLICIES_GAUGE.labels(AUTOMATION_POLICY, AUTOMATION_POLICIES,
+                EntityType.VIRTUAL_MACHINE.toString(), Type.USER.toString()).getData(), 0.1);
+        Assert.assertEquals(1, POLICIES_GAUGE.labels(AUTOMATION_POLICY, DEFAULT_POLICIES,
+                EntityType.VIRTUAL_MACHINE.toString(), Type.DEFAULT.toString()).getData(), 0.1);
+
+        // 3. Now increase by 1 user policy in real time
+        when(testSettingPolicyService.listSettingPolicies(any()))
+                .thenReturn(Arrays.asList(settingPolicy1, settingPolicy2, defaultSettingPolicy));
+        entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
+                        settingOverrides, rtTopologyInfo, consistentScalingManager, null, null);
+        Assert.assertEquals(2, POLICIES_GAUGE.labels(AUTOMATION_POLICY, AUTOMATION_POLICIES,
+                EntityType.VIRTUAL_MACHINE.toString(), Type.USER.toString()).getData(), 0.1);
+        Assert.assertEquals(1, POLICIES_GAUGE.labels(AUTOMATION_POLICY, DEFAULT_POLICIES,
+                EntityType.VIRTUAL_MACHINE.toString(), Type.DEFAULT.toString()).getData(), 0.1);
+
+        // 4. Now remove all user policies in real time
+        when(testSettingPolicyService.listSettingPolicies(any())).thenReturn(Arrays.asList(defaultSettingPolicy));
+        entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
+                settingOverrides, rtTopologyInfo, consistentScalingManager, null, null);
+        Assert.assertEquals(0, POLICIES_GAUGE.labels(AUTOMATION_POLICY, AUTOMATION_POLICIES,
+                EntityType.VIRTUAL_MACHINE.toString(), Type.USER.toString()).getData(), 0.1);
+        Assert.assertEquals(1, POLICIES_GAUGE.labels(AUTOMATION_POLICY, DEFAULT_POLICIES,
+                EntityType.VIRTUAL_MACHINE.toString(), Type.DEFAULT.toString()).getData(), 0.1);
     }
 
     /**
