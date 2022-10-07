@@ -123,7 +123,8 @@ public class SavingsProcessor {
             if (entityCounter.get() > 0 && successfullyProcessed.get()) {
                 updateRollup(savingsTimes);
             }
-            dataRetentionProcessor.process(false);
+            logger.info("Invoking bill-based data retention processor.");
+            dataRetentionProcessor.process();
             logger.info("End billing savings processing ({}) for {} entities in {} chunks.",
                     (successfullyProcessed.get() ? "Success" : "Failed"), entityCounter, chunkCounter);
         } catch (Exception e) {

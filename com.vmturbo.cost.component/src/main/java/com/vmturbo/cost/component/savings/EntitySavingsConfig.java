@@ -46,6 +46,7 @@ import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.rollup.RollupConfig;
 import com.vmturbo.cost.component.savings.bottomup.ActionListener;
 import com.vmturbo.cost.component.savings.bottomup.AuditLogWriter;
+import com.vmturbo.cost.component.savings.bottomup.BottomUpDataRetentionProcessor;
 import com.vmturbo.cost.component.savings.bottomup.EntityEventsJournal;
 import com.vmturbo.cost.component.savings.bottomup.EntitySavingsProcessor;
 import com.vmturbo.cost.component.savings.bottomup.EntitySavingsRetentionConfig;
@@ -117,8 +118,8 @@ public class EntitySavingsConfig {
     private PricingConfig pricingConfig;
 
     /**
-     * Data Retention for entity_savings_daily table. This setting is only used when the bill-based
-     * savings feature flag is turned on.
+     * Data Retention for entity_savings_daily table. This setting is only applicable for the
+     * bill based stats table billed_savings_by_day retention.
      */
     @Value("${dailyStatsRetentionInDays:365}")
     private long dailyStatsRetentionInDays;
@@ -461,13 +462,15 @@ public class EntitySavingsConfig {
      * @return DataRetentionProcessor.
      */
     private DataRetentionProcessor dataRetentionProcessor(boolean isBillSavingsEnabled) {
+        if (isBillSavingsEnabled) {
+            return new BillBasedDataRetentionProcessor(entitySavingsStore(), getClock(),
+                    retentionProcessorFrequencyHours, dailyStatsRetentionInDays * 24);
+        }
         final EntityEventsJournal eventsJournal = entityEventsJournal();
-        return new DataRetentionProcessor(entitySavingsStore(),
+        return new BottomUpDataRetentionProcessor(entitySavingsStore(),
                 eventsJournal.persistEvents() ? null : auditLogWriter(),
                 getEntitySavingsRetentionConfig(), getClock(), retentionProcessorFrequencyHours,
-                eventsJournal.persistEvents() ? eventsJournal : null,
-                dailyStatsRetentionInDays * 24,
-                isBillSavingsEnabled);
+                eventsJournal.persistEvents() ? eventsJournal : null);
     }
 
     /**

@@ -134,8 +134,8 @@ public class EntitySavingsProcessor {
             // TODO: Pass in daily stats here if they are being written directly.
             rollupProcessor.process(RollupDurationType.HOURLY, hourlyStatsTimes);
 
-            logger.info("Invoking data retention processor.");
-            dataRetentionProcessor.process(false);
+            logger.info("Invoking bottom-up data retention processor.");
+            dataRetentionProcessor.process();
 
             sendSavingsNotification(hourlyStatsTimes);
             logger.info("END: Processing savings/investment. {} Hourly stats.",

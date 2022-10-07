@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
 import org.jooq.DSLContext;
@@ -378,7 +379,8 @@ public class SqlEntityStateStoreTest extends MultiDbTestBase {
         return cloudTopology;
     }
 
-    private EntityCloudScopeRecord createEntityCloudScopeRecord(Long entityOid, Long accountOid,
+    @VisibleForTesting
+    public static EntityCloudScopeRecord createEntityCloudScopeRecord(Long entityOid, Long accountOid,
             Long regionOid, Long availabilityZoneOid, Long serviceProviderOid, Long resourceGroupOid) {
         EntityCloudScopeRecord record = new EntityCloudScopeRecord();
         record.setAccountOid(accountOid);

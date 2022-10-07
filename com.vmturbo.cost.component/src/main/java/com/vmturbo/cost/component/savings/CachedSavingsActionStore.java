@@ -182,6 +182,16 @@ public class CachedSavingsActionStore implements SavingsActionStore {
         }
     }
 
+    @Override
+    public boolean isInitialized() {
+        cacheLock.readLock().lock();
+        try {
+            return lastRefreshedTime != null;
+        } finally {
+            cacheLock.readLock().unlock();
+        }
+    }
+
     /**
      * Whether cache has been successfully initialized and is usable now.
      * If either we never refreshed before, or had some critical error had needs a full refresh,
