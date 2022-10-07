@@ -162,6 +162,13 @@ import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 public class Stages {
     private static final Logger logger = LogManager.getLogger();
 
+    public static final DataMetricGauge POLICIES_GAUGE = DataMetricGauge.builder()
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "policies")
+            .withHelp("Number of policies by policy_category (placement/automation), policy type (Place/Don't place etc), entity_type and creation_mode (System/User/Discovered).")
+            .withLabelNames("policy_category", "policy_type", "entity_type", "creation_mode")
+            .build()
+            .register();
+
     /**
      * This stage uploads cloud cost data to the cost component. We are doing this before the other
      * uploads, because all of the data we need to upload is available from the stitching context,
