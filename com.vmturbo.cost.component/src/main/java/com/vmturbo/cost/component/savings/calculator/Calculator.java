@@ -174,6 +174,7 @@ public class Calculator {
         logger.debug("Calculating savings for entity {} on {}.", entityOid, date);
         long dateStampMillis = date.toInstant(ZoneOffset.UTC).toEpochMilli();
         if (skipSavingsForDay(dateStampMillis, savingsGraph, billRecords)) {
+            logger.debug("Skipping savings calculation for entity {} on {}.", entityOid, date);
             return new SavingsValues.Builder()
                     .savings(0)
                     .investments(0)
@@ -506,7 +507,9 @@ public class Calculator {
                                 if (commType == CommodityType.STORAGE_AMOUNT_VALUE) {
                                     double adjustedStorageAmount = adjustStorageAmount(newCapacity.getValue(),
                                             recordsByCommType.get(commType));
-                                    newCapacity = trax(adjustedStorageAmount).named("Adjusted storage amount");
+                                    if (adjustedStorageAmount != newCapacity.getValue()) {
+                                        newCapacity = trax(adjustedStorageAmount).named("Adjusted storage amount");
+                                    }
                                 }
                                 TraxNumber quantityTimesHours = newCapacity
                                         .times(trax((double)segment.duration / MILLIS_IN_HOUR)
@@ -678,7 +681,8 @@ public class Calculator {
             // If the bill only has record for one commodity type and it is storage amount,
             // store the value of quantity x duration x after-action rate per hour (QDR) in the segment.
             if (recordsForComm.size() == 1 && recordsForComm.get(0).getProviderType() == EntityType.STORAGE_TIER_VALUE
-                    && recordsForComm.get(0).getCommodityType() == CommodityType.STORAGE_AMOUNT_VALUE) {
+                    && recordsForComm.get(0).getCommodityType() == CommodityType.STORAGE_AMOUNT_VALUE
+                    && scaleActionDataPoint.getSourceProviderOid() == scaleActionDataPoint.getDestinationProviderOid()) {
                 Optional<CommodityResize> storageAmountResize =
                         scaleActionDataPoint.getCommodityResizes().stream().filter(r -> r.getCommodityType()
                                 == CommodityType.STORAGE_AMOUNT_VALUE).findFirst();
@@ -687,7 +691,7 @@ public class Calculator {
                     TraxNumber duration = trax((double)segment.duration / MILLIS_IN_HOUR).named("Duration");
                     TraxNumber afterActionRatePerGBPerHour = trax(scaleActionDataPoint.getDestinationOnDemandCost()).named("Destination cost")
                             .dividedBy(newCapacity).compute("Rate");
-                    segment.qdr = newCapacity.times(duration).compute("Quantity time duration").times(
+                    segment.qdr = newCapacity.times(duration).compute("Quantity times duration").times(
                             afterActionRatePerGBPerHour).compute("QDR");
                 }
             }
@@ -836,8 +840,13 @@ public class Calculator {
 
         @Override
         public String toString() {
-            return "Segment{" + "duration(hours)=" + (double)(duration) / MILLIS_IN_HOUR
-                    + ", actionDataPoint=" + actionDataPoint + ", commTypeToMultiplierMap=" + commTypeToMultiplierMap + '}';
+            return "Segment{"
+                    + "segmentStart=" + TimeUtil.millisToLocalDateTime(segmentStart, Clock.systemUTC())
+                    + ", duration(hours)=" + (double)(duration) / MILLIS_IN_HOUR
+                    + ", actionDataPoint=" + actionDataPoint
+                    + ", commTypeToMultiplierMap=" + commTypeToMultiplierMap.entrySet().stream()
+                    .map(e -> String.format("%d -> %.5f", e.getKey(), e.getValue().getValue()))
+                    .collect(Collectors.joining(", ", "{", "}")) + '}';
         }
     }
 }
