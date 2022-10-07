@@ -7,6 +7,7 @@ import static com.vmturbo.extractor.util.TopologyTestUtil.soldCommodities;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.COOLING;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.CPU;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.DTU;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.ENERGY;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.MEM;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.POWER;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.Q1_VCPU;
@@ -235,7 +236,9 @@ public class DataExtractionWriterTest {
                         Quintet.with(CPU, "a", 2000.0, 10000.0, null),
                         Quintet.with(MEM, "b", 1024.0, 2048.0, null),
                         Quintet.with(Q1_VCPU, "", 200.0, QX_VCPU_BASE_COEFFICIENT, null),
-                        Quintet.with(Q2_VCPU, "", 400.0, QX_VCPU_BASE_COEFFICIENT, null)
+                        Quintet.with(Q2_VCPU, "", 400.0, QX_VCPU_BASE_COEFFICIENT, null),
+                        Quintet.with(POWER, "", 720D, 2000D, null),
+                        Quintet.with(ENERGY, "", 2D, 2000D, null)
                 ))
                 .build();
         final TopologyEntityDTO vm = mkEntity(VIRTUAL_MACHINE).toBuilder()
@@ -245,7 +248,9 @@ public class DataExtractionWriterTest {
                 ))
                 .addCommoditiesBoughtFromProviders(boughtCommoditiesFromProvider(pm,
                         Triplet.with(CPU, "", 200.0), Triplet.with(MEM, "", 512.0),
-                        Triplet.with(Q1_VCPU, "", 100.0)
+                        Triplet.with(Q1_VCPU, "", 100.0),
+                        Triplet.with(POWER, "", 14D),
+                        Triplet.with(ENERGY, "", 1D)
                 ))
                 .addCommoditiesBoughtFromProviders(boughtCommoditiesFromProvider(st1,
                         Triplet.with(STORAGE_ACCESS, "", 400.0),
@@ -372,7 +377,7 @@ public class DataExtractionWriterTest {
 
         // verify commodities
         // vm sold
-        assertThat(vmEntity.getMetric().size(), is(7));
+        assertThat(vmEntity.getMetric().size(), is(9));
         assertThat(vmEntity.getMetric().get(MetricType.VMEM.getLiteral()).getCurrent(), is(512.0));
         assertThat(vmEntity.getMetric().get(MetricType.VMEM.getLiteral()).getCapacity(), is(1024.0));
         assertThat(vmEntity.getMetric().get(MetricType.VMEM.getLiteral()).getUtilization(), is(0.5));
@@ -389,9 +394,12 @@ public class DataExtractionWriterTest {
         // sum of all providers
         assertThat(vmEntity.getMetric().get(MetricType.STORAGE_ACCESS.getLiteral()).getConsumed(), is(700.0));
         assertThat(vmEntity.getMetric().get(MetricType.STORAGE_AMOUNT.getLiteral()).getConsumed(), is(1536.0));
+        // Sustainability metrics
+        assertThat(vmEntity.getMetric().get(MetricType.POWER.getLiteral()).getConsumed(), is(14D));
+        assertThat(vmEntity.getMetric().get(MetricType.ENERGY.getLiteral()).getConsumed(), is(1D));
 
         // pm sold
-        assertThat(pmEntity.getMetric().size(), is(4));
+        assertThat(pmEntity.getMetric().size(), is(6));
         assertThat(pmEntity.getMetric().get(MetricType.CPU.getLiteral()).getCurrent(), is(2000.0));
         assertThat(pmEntity.getMetric().get(MetricType.CPU.getLiteral()).getCapacity(), is(10000.0));
         assertThat(pmEntity.getMetric().get(MetricType.CPU.getLiteral()).getUtilization(), is(0.2));
@@ -404,6 +412,8 @@ public class DataExtractionWriterTest {
         assertThat(pmEntity.getMetric().get(MetricType.Q2_VCPU.getLiteral()).getCurrent(), is(400.0));
         assertThat(pmEntity.getMetric().get(MetricType.Q2_VCPU.getLiteral()).getCapacity(), is(20000.0));
         assertThat(pmEntity.getMetric().get(MetricType.Q2_VCPU.getLiteral()).getUtilization(), is(0.02));
+        assertThat(pmEntity.getMetric().get(MetricType.POWER.getLiteral()).getCurrent(), is(720D));
+        assertThat(pmEntity.getMetric().get(MetricType.ENERGY.getLiteral()).getCurrent(), is(2D));
 
         // st1 sold
         assertThat(stEntity1.getMetric().size(), is(3));
