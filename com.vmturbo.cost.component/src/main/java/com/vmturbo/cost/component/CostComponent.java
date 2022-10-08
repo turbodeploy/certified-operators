@@ -31,6 +31,8 @@ import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration;
 import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
+import com.vmturbo.cost.component.billed.cost.BilledCostRpcService;
+import com.vmturbo.cost.component.billed.cost.CloudCostConfig;
 import com.vmturbo.cost.component.cleanup.CostCleanupConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentRpcService;
@@ -78,7 +80,8 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     CloudCommitmentStatsConfig.class,
     CloudCommitmentConfig.class,
     BilledCostConfig.class,
-    StoredProcedureConfig.class
+    StoredProcedureConfig.class,
+    CloudCostConfig.class
 })
 public class CostComponent extends BaseVmtComponent {
     /**
@@ -118,6 +121,10 @@ public class CostComponent extends BaseVmtComponent {
     //Defined in CloudCommitmentConfig
     @Autowired
     private CloudCommitmentRpcService cloudCommitmentRpcService;
+
+    // Partitioned cloud cost data
+    @Autowired
+    private BilledCostRpcService billedCostRpcService;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -217,7 +224,8 @@ public class CostComponent extends BaseVmtComponent {
                 cloudCommitmentUploadRpcService,
                 cloudCommitmentStatsRpcService,
                 cloudCommitmentRpcService,
-                billedCostConfig.billedCostUploadRpcService());
+                billedCostConfig.billedCostUploadRpcService(),
+                billedCostRpcService);
     }
 
     @Nonnull
