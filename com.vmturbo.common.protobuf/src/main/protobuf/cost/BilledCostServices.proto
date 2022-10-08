@@ -1,0 +1,20 @@
+syntax = "proto2";
+package cloud_cost;
+
+option java_package = "com.vmturbo.common.protobuf.cost";
+
+import "cost/BilledCost.proto";
+
+message GetBilledCostStatsRequest {
+
+    optional BilledCostStatsQuery query = 1;
+}
+
+message GetBilledCostStatsResponse {
+
+    repeated BilledCostStat cost_stats = 1;
+}
+
+service BilledCostService {
+    rpc GetBilledCostStats(GetBilledCostStatsRequest) returns (GetBilledCostStatsResponse);
+}
