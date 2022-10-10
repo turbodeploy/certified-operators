@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.api.enums.CostGroupBy;
@@ -33,6 +34,7 @@ public class CostGroupByMapperTest {
     /**
      * Test that conversion doesn't fail for every {@link CostGroupBy}.
      */
+    @Ignore("Refactor as a part of OM-91105.")
     @Test
     public void testConvertForAllGroupBy() {
         for (final CostGroupBy costGroupBy : CostGroupBy.values()) {

@@ -1996,6 +1996,14 @@ public class ActionSpecMapper {
                     }
                 });
             }
+
+            final List<String> relatedCloudServiceProviderIds = inputDto.getRelatedCloudServiceProviderIds();
+            if (relatedCloudServiceProviderIds != null && !relatedCloudServiceProviderIds.isEmpty()) {
+                relatedCloudServiceProviderIds.stream()
+                    .filter(StringUtils::isNumeric)
+                    .map(Long::parseLong)
+                    .forEach(queryBuilder::addRelatedCloudServiceProviderIds);
+            }
         } else {
             // When "inputDto" is null, we should automatically insert the operational action states.
             OPERATIONAL_ACTION_STATES.forEach(queryBuilder::addStates);
