@@ -64,6 +64,8 @@ message BilledCostStat {
 
     optional int64 sample_ts_utc = 1;
 
+    optional common_dto.CloudBillingData.CloudBillingBucket.Granularity granularity = 2;
+
     optional int64 account_id = 10;
     optional int64 cloud_service_id = 20;
     optional int64 region_id = 30;

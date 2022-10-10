@@ -1,6 +1,7 @@
 [
   {
     "sampleTsUtc": "3600000",
+    "granularity": "HOURLY",
     "accountId": "2",
     "regionId": "3",
     "serviceProviderId": "4",
@@ -22,6 +23,7 @@
   },
   {
     "sampleTsUtc": "7200000",
+    "granularity": "HOURLY",
     "accountId": "2",
     "regionId": "5",
     "serviceProviderId": "4",
@@ -43,6 +45,7 @@
   },
   {
     "sampleTsUtc": "7200000",
+    "granularity": "HOURLY",
     "accountId": "4",
     "regionId": "5",
     "serviceProviderId": "4",

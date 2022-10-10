@@ -1,6 +1,7 @@
 [
   {
     "sampleTsUtc": "3600000",
+    "granularity": "HOURLY",
     "accountId": "2",
     "serviceProviderId": "4",
     "usageAmountStats": {
@@ -21,6 +22,7 @@
   },
   {
     "sampleTsUtc": "7200000",
+    "granularity": "HOURLY",
     "accountId": "2",
     "serviceProviderId": "4",
     "usageAmountStats": {
@@ -41,6 +43,7 @@
   },
   {
     "sampleTsUtc": "7200000",
+    "granularity": "HOURLY",
     "accountId": "4",
     "serviceProviderId": "4",
     "usageAmountStats": {

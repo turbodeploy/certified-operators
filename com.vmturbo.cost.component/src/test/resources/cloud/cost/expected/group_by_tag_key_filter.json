@@ -1,6 +1,7 @@
 [
   {
     "sampleTsUtc": "3600000",
+    "granularity": "HOURLY",
     "tagGroup": {
       "tags": {
         "tagKey": "tagValue1"
@@ -24,6 +25,7 @@
   },
   {
     "sampleTsUtc": "3600000",
+    "granularity": "HOURLY",
     "tagGroup": {
       "tags": {
         "tagKey": "tagValue2"
