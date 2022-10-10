@@ -52,7 +52,7 @@ public class MultiDbTestBase {
     protected static final Object[][] POSTGRES_CONVERTED_PARAMS = new Object[][]{
             LEGACY_MARIADB_PARAMS, DBENDPOINT_MARIADB_PARAMS, DBENDPOINT_POSTGRES_PARAMS};
 
-    private final FeatureFlagTestRule featureFlagTestRule;
+    protected final FeatureFlagTestRule featureFlagTestRule;
     private final DbConfigurationRule dbConfigurationRule;
     private final DbCleanupRule dbCleanupRule;
     private final DbEndpointTestRule dbEndpointTestRule;

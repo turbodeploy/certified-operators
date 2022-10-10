@@ -36,7 +36,6 @@ import org.jooq.DSLContext;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -69,7 +68,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule.CleanupOverrides;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.MultiDbTestBase;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Used to test savings related DB read/write codebase.
@@ -93,10 +91,6 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
     private final DSLContext dsl;
 
     private RollupTimesStore rollupTimesStore;
-
-    /** Manage feature flag settings. */
-    @Rule
-    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     private final Set<EntitySavingsStatsType> bothStatsTypes = ImmutableSet.of(
             EntitySavingsStatsType.REALIZED_INVESTMENTS, EntitySavingsStatsType.REALIZED_SAVINGS);
