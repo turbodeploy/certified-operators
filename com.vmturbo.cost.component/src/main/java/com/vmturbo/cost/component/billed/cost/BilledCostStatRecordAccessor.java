@@ -71,6 +71,7 @@ class BilledCostStatRecordAccessor {
     @Nonnull BilledCostStat.Builder toCostStatBuilder() {
 
         final BilledCostStat.Builder costStatBuilder =  BilledCostStat.newBuilder()
+                .setGranularity(tableAccessor.granularity())
                 .setUsageAmountStats(StatValues.newBuilder()
                         .setSampleCount(record.get(SAMPLE_COUNT_FIELD, Long.class))
                         .setMax(record.get(MAX_USAGE_AMOUNT_FIELD, Double.class))
