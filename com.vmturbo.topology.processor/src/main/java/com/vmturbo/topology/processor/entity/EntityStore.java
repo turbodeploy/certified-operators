@@ -123,6 +123,9 @@ public class EntityStore {
     @GuardedBy("topologyUpdateLock")
     private final Map<Long, TargetIncrementalEntities> targetIncrementalEntities = new HashMap<>();
 
+    private final Map<Long, Map<Long, EntityIdentifyingPropertyValues>> targetEntityIdentifyingPropertyValues
+        = new ConcurrentHashMap<>();
+
     /**
      * Lock for writes to the repository.
      */
@@ -496,7 +499,17 @@ public class EntityStore {
 
         // pass whether entity details are supported to the stitching context.
         builder.setEntityDetailsEnabled(entityDetailsEnabled);
-
+        final Map<Long, Map<String, Long>> targetEntityOidByLocalId = targetEntityIdentifyingPropertyValues.entrySet()
+                .stream()
+                    .collect(Collectors.toMap(
+                        Entry::getKey,
+                        entry -> {
+                            final Map<String, Long> result = new HashMap<>();
+                            entry.getValue().forEach((oid, idProps) -> result.put(idProps.getEntityId(), oid));
+                            return result;
+                        }
+                    ));
+        builder.setTargetEntityLocalIdToOid(targetEntityOidByLocalId);
         return builder.build();
     }
 
@@ -914,8 +927,9 @@ public class EntityStore {
                                                           @Nonnull final List<EntityIdentifyingPropertyValues>
                                                               entityIdentifyingPropertyValues)
         throws IdentityServiceException {
-        identityProvider.getIdsFromIdentifyingPropertiesValues(probeId, Objects.requireNonNull(
-            entityIdentifyingPropertyValues));
+        final Map<Long, EntityIdentifyingPropertyValues> assignedIds = identityProvider
+            .getIdsFromIdentifyingPropertiesValues(probeId, Objects.requireNonNull(entityIdentifyingPropertyValues));
+        targetEntityIdentifyingPropertyValues.put(targetId, assignedIds);
     }
 
 
