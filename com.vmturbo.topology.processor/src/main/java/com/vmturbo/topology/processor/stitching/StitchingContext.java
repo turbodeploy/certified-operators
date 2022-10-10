@@ -13,6 +13,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -84,7 +85,9 @@ public class StitchingContext {
      */
     private final ResoldCommodityCache resoldCommodityCache;
 
-    private boolean entityDetailsEnabled;
+    private final boolean entityDetailsEnabled;
+
+    private final Map<Long, Map<String, Long>> perTargetEntityLocalIdToOid;
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -99,19 +102,24 @@ public class StitchingContext {
      * @param resoldCommodityCache A cache for looking up which commodities are resold based on probe
      *                             supply chains.
      * @param entityDetailsEnabled whether entity details are supported.
+     * @param perTargetEntityLocalIdToOid map from target id to entity local id to oid.
      */
     private StitchingContext(@Nonnull final TopologyStitchingGraph stitchingGraph,
                              @Nonnull final Map<EntityType, Map<Long, List<TopologyStitchingEntity>>> entitiesByEntityTypeAndTarget,
                              @Nonnull final TargetStore targetStore,
                              @Nonnull final IdentityProvider identityProvider,
                              @Nonnull final ResoldCommodityCache resoldCommodityCache,
-                             final boolean entityDetailsEnabled) {
+                             final boolean entityDetailsEnabled,
+                             @Nonnull Map<Long, Map<String, Long>>
+                                 perTargetEntityLocalIdToOid) {
         this.stitchingGraph = Objects.requireNonNull(stitchingGraph);
         this.entitiesByEntityTypeAndTarget = Objects.requireNonNull(entitiesByEntityTypeAndTarget);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.resoldCommodityCache = Objects.requireNonNull(resoldCommodityCache);
         this.entityDetailsEnabled = entityDetailsEnabled;
+        this.perTargetEntityLocalIdToOid = Objects.requireNonNull(
+            perTargetEntityLocalIdToOid);
     }
 
     /**
@@ -250,6 +258,11 @@ public class StitchingContext {
                 entry -> entry.getValue().values().stream()
                     .mapToInt(List::size)
                     .sum()));
+    }
+
+    @Nonnull
+    public Map<String, Long> getTargetEntityLocalIdToOid(final long targetId) {
+        return perTargetEntityLocalIdToOid.getOrDefault(targetId, new HashMap<>());
     }
 
     /**
@@ -503,6 +516,9 @@ public class StitchingContext {
 
         private boolean entityDetailsEnabled = false;
 
+        private Map<Long, Map<String, Long>> perTargetEntityLocalIdToOid =
+            new ConcurrentHashMap<>();
+
         private Builder(final int entityCount, @Nonnull final TargetStore targetStore) {
             this.stitchingGraph = new TopologyStitchingGraph(entityCount);
             this.targetStore = Objects.requireNonNull(targetStore);
@@ -520,9 +536,17 @@ public class StitchingContext {
             return this;
         }
 
+        public Builder setTargetEntityLocalIdToOid(
+            @Nonnull final Map<Long, Map<String, Long>> perTargetEntityLocalIdToOid) {
+            this.perTargetEntityLocalIdToOid = Objects.requireNonNull(
+                perTargetEntityLocalIdToOid);
+            return this;
+        }
+
         public StitchingContext build() {
             return new StitchingContext(stitchingGraph, entitiesByEntityTypeAndTarget, targetStore,
-                identityProvider, resoldCommodityCache, entityDetailsEnabled);
+                identityProvider, resoldCommodityCache, entityDetailsEnabled,
+                perTargetEntityLocalIdToOid);
         }
 
         /**

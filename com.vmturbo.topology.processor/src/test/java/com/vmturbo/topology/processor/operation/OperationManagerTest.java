@@ -611,6 +611,50 @@ public class OperationManagerTest {
     }
 
     /**
+     * {@link OperationManager#notifyDiscoveryResult(Discovery, DiscoveryResponse)} must set {@link Status} to
+     * {@link Status#FAILED} if {@link IdentityServiceException} is encountered while processing
+     * {@link DiscoveryResponse#getEntityIdentifyingPropertyValuesList()}.
+     *
+     * @throws Exception if an error is encountered.
+     */
+    @Test
+    public void testNotifyDiscoveryResultFailureProcessingEntityIdentifyingPropertyValues() throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId, DiscoveryType.FULL, false).orElse(null);
+        Assert.assertNotNull(discovery);
+        final DiscoveryResponse result = createDiscoverResponseWithEntityIdentifyingPropertyValues();
+        Mockito.doThrow(new IdentityServiceException("")).when(entityStore)
+            .entityIdentifyingPropertyValuesDiscovered(anyLong(), anyLong(),
+                anyListOf(CommonDTO.EntityIdentifyingPropertyValues.class));
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, result);
+        Assert.assertEquals(Status.FAILED, discovery.getStatus());
+    }
+
+    /**
+     * {@link OperationManager#notifyDiscoveryResult(Discovery, DiscoveryResponse)} must set {@link Status} to
+     * {@link Status#SUCCESS} if {@link EntityStore#entityIdentifyingPropertyValuesDiscovered(long, long, List)} is
+     * invoked without any error.
+     *
+     * @throws Exception if an error is encountered.
+     */
+    @Test
+    public void testNotifyDiscoveryResultSuccessfulProcessingEntityIdentifyingPropertyValues() throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId, DiscoveryType.FULL, false).orElse(null);
+        Assert.assertNotNull(discovery);
+        final DiscoveryResponse result = createDiscoverResponseWithEntityIdentifyingPropertyValues();
+        Mockito.doNothing().when(entityStore).entityIdentifyingPropertyValuesDiscovered(anyLong(), anyLong(),
+                anyListOf(CommonDTO.EntityIdentifyingPropertyValues.class));
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, result);
+        Assert.assertEquals(Status.SUCCESS, discovery.getStatus());
+    }
+
+    private DiscoveryResponse createDiscoverResponseWithEntityIdentifyingPropertyValues() {
+        return DiscoveryResponse.newBuilder()
+            .addEntityIdentifyingPropertyValues(CommonDTO.EntityIdentifyingPropertyValues.newBuilder()
+                .build())
+            .build();
+    }
+
+    /**
      * Test that a failed discovery does not overwrite the topology
      * from the previous successful discovery.
      *

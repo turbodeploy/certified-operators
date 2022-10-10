@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
@@ -46,7 +47,7 @@ import com.vmturbo.topology.processor.stitching.StitchingContext;
 public class BilledCostUploader {
     private static final Logger logger = LogManager.getLogger();
 
-    private BilledCostUploadServiceStub billServiceClient;
+    private final BilledCostUploadServiceStub billServiceClient;
 
     /**
      * a cache of TargetBillingData received per target.
@@ -156,9 +157,11 @@ public class BilledCostUploader {
         synchronized (targetBillingDataCache) {
             targetBillingDataCache.forEach((targetId, targetBillingData) -> {
                 final List<CloudBillingData> cloudBillingDataList = targetBillingData.getCloudBillingDataList();
+                final Map<String, Long> localIdToOidFromEntityIdPropertyValues = stitchingContext
+                    .getTargetEntityLocalIdToOid(targetId);
                 cloudBillingDataList.forEach(cloudBillingData -> billedCostDataWrappers.add(
                         createBilledCostDataWrapper(cloudBillingData, cloudEntitiesMap,
-                                entityBillingIdToOid, targetId)));
+                                entityBillingIdToOid, localIdToOidFromEntityIdPropertyValues, targetId)));
                 // Record the processed targetBillingData timestamp in processedCacheTimestampPerTarget.
                 processedCacheTimestampPerTarget.put(targetId, targetBillingData.getCachedTimestampUTC());
             });
@@ -166,8 +169,10 @@ public class BilledCostUploader {
         return billedCostDataWrappers;
     }
 
-    private BilledCostDataWrapper createBilledCostDataWrapper(CloudBillingData cloudBillingData,
-            final CloudEntitiesMap cloudEntitiesMap, final Map<String, Long> entityBillingIdToOid, final Long targetId) {
+    private BilledCostDataWrapper createBilledCostDataWrapper(
+        final CloudBillingData cloudBillingData, final CloudEntitiesMap cloudEntitiesMap,
+        final Map<String, Long> entityBillingIdToOid, final Map<String, Long> localIdToOidFromEntityIdPropertyValues,
+        final long targetId) {
         // cost tag group by id
         final Map<Long, CostTagGroupMap> costTagGroupMapById = cloudBillingData.getCostTagGroupMapMap().entrySet().stream()
                 .collect(Collectors.toMap(Entry::getKey, entry -> CostTagGroupMap.newBuilder()
@@ -181,7 +186,7 @@ public class BilledCostUploader {
             final long timestamp = bucket.getTimestampUtcMillis();
             final List<BillingDataPoint> dataPoints = bucket.getSamplesList().stream()
                     .map(cloudBillingDataPoint -> createBillingDataPoint(cloudEntitiesMap, entityBillingIdToOid,
-                            cloudBillingDataPoint, timestamp, targetId))
+                        localIdToOidFromEntityIdPropertyValues, cloudBillingDataPoint, timestamp, targetId))
                     .collect(Collectors.toList());
             dataPoints.forEach(d -> {
                 if (d.hasCostTagGroupId()) {
@@ -216,14 +221,17 @@ public class BilledCostUploader {
      * @return BillingDataPoint
      */
     private BillingDataPoint createBillingDataPoint(CloudEntitiesMap cloudEntitiesMap,
-            Map<String, Long> entityBillingIdToOid, CloudBillingDataPoint originalDataPoint,
-            long timestamp, Long targetId) {
+            Map<String, Long> entityBillingIdToOid, Map<String, Long> localIdToOidFromEntityIdPropertyValues,
+                                                    CloudBillingDataPoint originalDataPoint, long timestamp,
+                                                    Long targetId) {
         final BillingDataPoint.Builder billingDp = BillingDataPoint.newBuilder();
         billingDp.setTimestampUtcMillis(timestamp);
         // account oid
         if (originalDataPoint.hasAccountId()) {
             final String localAccountId = originalDataPoint.getAccountId();
-            final Long accountOid = cloudEntitiesMap.getOrDefault(localAccountId, cloudEntitiesMap.getFallbackAccountOid(targetId));
+            final long accountOid = Optional.ofNullable(cloudEntitiesMap.get(localAccountId))
+                .orElse(localIdToOidFromEntityIdPropertyValues.getOrDefault(localAccountId,
+                    cloudEntitiesMap.getFallbackAccountOid(targetId)));
             if (!cloudEntitiesMap.containsKey(localAccountId)) {
                 logger.warn(
                         "Couldn't find business account oid for local id {}, using fallback account {}.",
@@ -234,7 +242,8 @@ public class BilledCostUploader {
 
         // cloud service oid
         if (originalDataPoint.hasCloudServiceId()) {
-            Long cloudServiceOid = cloudEntitiesMap.get(originalDataPoint.getCloudServiceId());
+            Long cloudServiceOid = cloudEntitiesMap.getOrDefault(originalDataPoint.getCloudServiceId(),
+                localIdToOidFromEntityIdPropertyValues.get(originalDataPoint.getCloudServiceId()));
             if (cloudServiceOid == null) {
                 logger.warn("Oid not found for cloud service {}, using fallback oid as 0",
                         originalDataPoint.getCloudServiceId());
@@ -268,7 +277,8 @@ public class BilledCostUploader {
         }
         // region oid
         if (originalDataPoint.hasRegionId()) {
-            Long regionOid = cloudEntitiesMap.get(originalDataPoint.getRegionId());
+            Long regionOid = cloudEntitiesMap.getOrDefault(originalDataPoint.getRegionId(),
+                localIdToOidFromEntityIdPropertyValues.get(originalDataPoint.getRegionId()));
             if (regionOid == null) {
                 logger.warn("Oid not found for region {}, using fallback oid as 0.", originalDataPoint.getRegionId());
                 regionOid = 0L;
@@ -281,7 +291,8 @@ public class BilledCostUploader {
         }
         // entity oid
         if (originalDataPoint.hasEntityId()) {
-            Long entityOid = entityBillingIdToOid.get(originalDataPoint.getEntityId());
+            Long entityOid = entityBillingIdToOid.getOrDefault(originalDataPoint.getEntityId(),
+                localIdToOidFromEntityIdPropertyValues.get(originalDataPoint.getEntityId()));
             if (entityOid == null) {
                 // This is valid scenario. Some entities were present in the past but got deleted later.
                 logger.debug("Oid not found for entity {}, using fallback oid as 0.", originalDataPoint.getEntityId());
@@ -339,7 +350,7 @@ public class BilledCostUploader {
     public class UploadBilledCostResponseStreamObserver implements StreamObserver<UploadBilledCostResponse> {
         // Streaming client call makes async request, so use a latch to block until the
         // request is complete.
-        private CountDownLatch latch;
+        private final CountDownLatch latch;
         // Flag will be set to true when upload successfully finishes.
         private Boolean uploadSuccessful;
 
@@ -390,12 +401,12 @@ public class BilledCostUploader {
      * Caches CloudBillingData for a target.
      */
     private static class TargetBillingData {
-        private long targetId;
+        private final long targetId;
 
-        private List<CloudBillingData> cloudBillingDataList;
+        private final List<CloudBillingData> cloudBillingDataList;
 
         // timestamp when TargetBillingData object is created.
-        private long cachedTimestampUTC;
+        private final long cachedTimestampUTC;
 
         private TargetBillingData(long targetId, List<CloudBillingData> cloudBillingDataList) {
             this.targetId = targetId;
@@ -432,7 +443,7 @@ public class BilledCostUploader {
     /**
      * Intermediate wrapper that is converted from CloudBillingData, and will be converted to upload requests.
      */
-    protected class BilledCostDataWrapper {
+    protected static class BilledCostDataWrapper {
         protected final String billingIdentifier;
         protected final Granularity granularity;
         protected final Map<CostTagGroupMap, List<BillingDataPoint>> samplesByCostTagGroupMap;

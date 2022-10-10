@@ -15,6 +15,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -78,6 +79,7 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
+import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.targets.DuplicateTargetException;
@@ -209,14 +211,63 @@ public class EntityStoreTest {
     @Test
     public void testEntityIdentifyingPropertyValuesDiscovered() throws IdentityServiceException {
         final long probeId = 1L;
+        final long targetId = 2L;
         final List<EntityIdentifyingPropertyValues> identifyingPropertyValues = Collections.singletonList(
             EntityIdentifyingPropertyValues.newBuilder()
                 .putIdentifyingPropertyValues("id", "123")
                 .setEntityType(EntityType.VIRTUAL_MACHINE)
                 .build());
-        entityStore.entityIdentifyingPropertyValuesDiscovered(probeId, 2L, identifyingPropertyValues);
+        Mockito.when(identityProvider.getIdsFromIdentifyingPropertiesValues(probeId, identifyingPropertyValues))
+                .thenReturn(Collections.singletonMap(123L, EntityIdentifyingPropertyValues.newBuilder()
+                    .putIdentifyingPropertyValues("id", "123")
+                    .setEntityType(EntityType.VIRTUAL_MACHINE)
+                    .build()));
+        entityStore.entityIdentifyingPropertyValuesDiscovered(probeId, targetId, identifyingPropertyValues);
         Mockito.verify(identityProvider, Mockito.times(1)).getIdsFromIdentifyingPropertiesValues(probeId,
             identifyingPropertyValues);
+        final StitchingContext stitchingContext = entityStore.constructStitchingContext();
+        Assert.assertFalse(stitchingContext.getTargetEntityLocalIdToOid(targetId)
+            .isEmpty());
+    }
+
+    /**
+     * Test that when an empty {@link EntityIdentifyingPropertyValues} list is input to
+     * {@link EntityStore#entityIdentifyingPropertyValuesDiscovered(long, long, List)} for a given target id,
+     * {@link StitchingContext#getTargetEntityLocalIdToOid(long)} (long)} (long)}
+     * returns an empty map for the
+     * target id.
+     *
+     * @throws IdentityServiceException if there is an error in the Identity Service.
+     */
+    @Test
+    public void testEmptyIdentityList() throws IdentityServiceException {
+        final long probeId = 1L;
+        final long targetId = 2L;
+        entityStore.entityIdentifyingPropertyValuesDiscovered(probeId, targetId, Collections.emptyList());
+        final StitchingContext stitchingContext = entityStore.constructStitchingContext();
+        Assert.assertTrue(stitchingContext.getTargetEntityLocalIdToOid(targetId)
+            .isEmpty());
+    }
+
+    /**
+     * Test that {@link EntityStore#entityIdentifyingPropertyValuesDiscovered(long, long, List)}
+     * throws {@link IdentityServiceException} when
+     * {@link IdentityProvider#getIdsFromIdentifyingPropertiesValues(long, List)} throws
+     * {@link IdentityServiceException}.
+     *
+     * @throws Exception if test encounters error.
+     */
+    @Test(expected = IdentityServiceException.class)
+    public void testExceptionWhileAssigningIdentity() throws Exception {
+        final long probeId = 1L;
+        final List<EntityIdentifyingPropertyValues> identifyingPropertyValues = Collections.singletonList(
+            EntityIdentifyingPropertyValues.newBuilder()
+                .putIdentifyingPropertyValues("id", "123")
+                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                .build());
+       when(identityProvider.getIdsFromIdentifyingPropertiesValues(anyLong(),
+           anyListOf(EntityIdentifyingPropertyValues.class))).thenThrow(new IdentityServiceException(""));
+       entityStore.entityIdentifyingPropertyValuesDiscovered(probeId, 2L, identifyingPropertyValues);
     }
 
     private EntityDTO createEntity(@Nonnull String id, @Nonnull EntityType entityType) {

@@ -9,6 +9,8 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -19,6 +21,7 @@ import com.google.common.collect.Lists;
 
 import io.grpc.stub.StreamObserver;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -65,6 +68,7 @@ public class BilledCostUploaderTest {
     private static final Long TOPOLOGY_ID = 12345L;
     private static final Long TIMESTAMP1 = 123456L;
     private static final Long TIMESTAMP2 = 456789L;
+    private static final long TIMESTAMP_3 = 345657L;
     private static final String VM_BILLING_ID = "vmBillingId";
     private static final String VM_LOCAL_ID = "vmId";
     private static final long VM_OID = 1L;
@@ -83,6 +87,19 @@ public class BilledCostUploaderTest {
     private static final long COMPUTE_TIER_OID = 135L;
     private static final String STORAGE_TIER_NAME = "azure::ST::MANAGED_STANDARD";
     private static final long STORAGE_TIER_OID = 246L;
+    private static final long VM_FROM_ID_PROP_VAL_OID = 111L;
+    private static final String VM_FROM_ID_PROP_VAL_LOCAL_ID = "vm-1";
+    private static final long ACCOUNT_FROM_ID_PROP_VAL_OID = 222L;
+    private static final String ACCOUNT_FROM_ID_PROP_VAL_LOCAL_ID = "account-1";
+    private static final long REGION_FROM_ID_PROP_VAL_OID = 333L;
+    private static final String REGION_FROM_ID_PROP_VAL_LOCAL_ID = "region-1";
+    private static final long CLOUD_SERVICE_FROM_ID_PROP_VAL_OID = 444L;
+    private static final String CLOUD_SERVICE_FROM_ID_PROP_VAL_LOCAL_ID = "cloud-service-1";
+    private static final String VOLUME_LOCAL_ID_2 = "vol-2";
+    private static final String ACCOUNT_LOCAL_ID_2 = "account-2";
+    private static final String REGION_LOCAL_ID_2 = "region-2";
+    private static final String CLOUD_SERVICE_LOCAL_ID_2 = "cloud-service-2";
+
     private static final String SERVICE_PROVIDER_LOCAL_ID = "SERVICE_PROVIDER::Azure";
     private static final long SERVICE_PROVIDER_OID = 777L;
 
@@ -92,8 +109,6 @@ public class BilledCostUploaderTest {
      */
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(billedCostUploadServiceSpy);
-
-    private BilledCostUploadServiceStub billUploadServiceClient;
 
     private final StitchingEntityData vm = StitchingEntityData.newBuilder(EntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE)
@@ -141,7 +156,7 @@ public class BilledCostUploaderTest {
         topologyInfo = TopologyInfo.newBuilder().setTopologyId(TOPOLOGY_ID).build();
         stitchingContext = setupStitchingContext();
         cloudEntitiesMap = new CloudEntitiesMap(stitchingContext, new HashMap<>());
-        billUploadServiceClient = BilledCostUploadServiceGrpc.newStub(server.getChannel());
+        BilledCostUploadServiceStub billUploadServiceClient = BilledCostUploadServiceGrpc.newStub(server.getChannel());
         billedCostUploader = new BilledCostUploader(billUploadServiceClient, 0.08f);
     }
 
@@ -191,6 +206,56 @@ public class BilledCostUploaderTest {
         assertEquals(VOLUME_OID, volumeDataPoint.getEntityOid());
         assertEquals(STORAGE_TIER_OID, volumeDataPoint.getProviderOid());
         assertEquals(EntityType.STORAGE_TIER_VALUE, volumeDataPoint.getProviderType());
+    }
+
+    /**
+     * {@link BilledCostDataWrapper#buildBilledCostDataWrappers(StitchingContext, CloudEntitiesMap, Map)} must set OID
+     * for entity, account, region and cloud service correctly if the corresponding entity ids are present in the
+     * {@link StitchingContext#getTargetEntityLocalIdToOid(long)} map.
+     */
+    @Test
+    public void testBuildBilledCostWrapperOidLookupForEntityIdentityPropertyValues() {
+        setupCloudBillingData();
+        final List<BilledCostDataWrapper> billedCostDataWrappers = billedCostUploader
+            .buildBilledCostDataWrappers(stitchingContext, cloudEntitiesMap, new HashMap<>());
+        final BillingDataPoint billingDataPoint = getBillingDataPointFromWrappers(billedCostDataWrappers, TIMESTAMP_3,
+            EntityType.VIRTUAL_MACHINE_VALUE);
+        Assert.assertNotNull(billingDataPoint);
+        Assert.assertEquals(VM_FROM_ID_PROP_VAL_OID, billingDataPoint.getEntityOid());
+        Assert.assertEquals(ACCOUNT_FROM_ID_PROP_VAL_OID, billingDataPoint.getAccountOid());
+        Assert.assertEquals(REGION_FROM_ID_PROP_VAL_OID, billingDataPoint.getRegionOid());
+        Assert.assertEquals(CLOUD_SERVICE_FROM_ID_PROP_VAL_OID, billingDataPoint.getCloudServiceOid());
+    }
+
+    /**
+     * {@link BilledCostDataWrapper#buildBilledCostDataWrappers(StitchingContext, CloudEntitiesMap, Map)} must set 0L
+     * as the OID fields if the corresponding ids are not present in any of the OID sources.
+     */
+    @Test
+    public void testBuildBilledCostWrapperFailedOidLookup() {
+        setupCloudBillingData();
+        final List<BilledCostDataWrapper> billedCostDataWrappers = billedCostUploader
+            .buildBilledCostDataWrappers(stitchingContext, cloudEntitiesMap, new HashMap<>());
+        final BillingDataPoint billingDataPoint = getBillingDataPointFromWrappers(billedCostDataWrappers, TIMESTAMP_3,
+            EntityType.VIRTUAL_VOLUME_VALUE);
+        Assert.assertNotNull(billingDataPoint);
+        final long defaultOid = 0L;
+        Assert.assertEquals(defaultOid, billingDataPoint.getEntityOid());
+        Assert.assertEquals(defaultOid, billingDataPoint.getAccountOid());
+        Assert.assertEquals(defaultOid, billingDataPoint.getRegionOid());
+        Assert.assertEquals(defaultOid, billingDataPoint.getCloudServiceOid());
+    }
+
+    private BillingDataPoint getBillingDataPointFromWrappers(final List<BilledCostDataWrapper> billedCostDataWrappers,
+                                                             final long timeStamp, final int entityType) {
+        return billedCostDataWrappers.stream()
+            .map(wrapper -> wrapper.samplesByCostTagGroupMap)
+            .map(Map::values)
+            .flatMap(Collection::stream)
+            .flatMap(Collection::stream)
+            .filter(dp -> dp.getTimestampUtcMillis() == timeStamp)
+            .filter(dp -> dp.getEntityType() == entityType)
+            .findAny().orElse(null);
     }
 
     /**
@@ -257,6 +322,13 @@ public class BilledCostUploaderTest {
         stitchingContextBuilder.addEntity(cloudService, localIdToEntityMap);
         stitchingContextBuilder.addEntity(computeTier, localIdToEntityMap);
         stitchingContextBuilder.addEntity(storageTier, localIdToEntityMap);
+        final Map<String, Long> map = ImmutableMap.of(
+            VM_FROM_ID_PROP_VAL_LOCAL_ID, VM_FROM_ID_PROP_VAL_OID,
+            ACCOUNT_FROM_ID_PROP_VAL_LOCAL_ID, ACCOUNT_FROM_ID_PROP_VAL_OID,
+            REGION_FROM_ID_PROP_VAL_LOCAL_ID, REGION_FROM_ID_PROP_VAL_OID,
+            CLOUD_SERVICE_FROM_ID_PROP_VAL_LOCAL_ID, CLOUD_SERVICE_FROM_ID_PROP_VAL_OID
+        );
+        stitchingContextBuilder.setTargetEntityLocalIdToOid(Collections.singletonMap(1L, map));
         stitchingContextBuilder.addEntity(serviceProvider, localIdToEntityMap);
         return stitchingContextBuilder.build();
     }
@@ -297,17 +369,43 @@ public class BilledCostUploaderTest {
                 .setCostTagGroupId(2)
                 .setServiceProviderId(SERVICE_PROVIDER_LOCAL_ID)
                 .build();
+        final CloudBillingDataPoint vm2 = CloudBillingDataPoint.newBuilder()
+                .setAccountId(ACCOUNT_FROM_ID_PROP_VAL_LOCAL_ID)
+                .setCloudServiceId(CLOUD_SERVICE_FROM_ID_PROP_VAL_LOCAL_ID)
+                .setRegionId(REGION_FROM_ID_PROP_VAL_LOCAL_ID)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEntityId(VM_FROM_ID_PROP_VAL_LOCAL_ID)
+                .setCostTagGroupId(1)
+                .setProviderId(COMPUTE_TIER_NAME)
+                .setProviderType(EntityType.COMPUTE_TIER_VALUE)
+                .build();
+        final CloudBillingDataPoint volDp2 = CloudBillingDataPoint.newBuilder()
+            .setAccountId(ACCOUNT_LOCAL_ID_2)
+            .setCloudServiceId(CLOUD_SERVICE_LOCAL_ID_2)
+            .setRegionId(REGION_LOCAL_ID_2)
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setEntityId(VOLUME_LOCAL_ID_2)
+            .setProviderId(STORAGE_TIER_NAME)
+            .setProviderType(EntityType.STORAGE_TIER_VALUE)
+            .setCostTagGroupId(1)
+            .build();
         final CloudBillingBucket cloudBillingBucket2 = CloudBillingBucket.newBuilder()
                 .setTimestampUtcMillis(TIMESTAMP2)
                 .addAllSamples(Lists.newArrayList(dbDp, volDp))
                 .setGranularity(Granularity.DAILY)
                 .build();
+        final CloudBillingBucket cloudBillingBucket3 = CloudBillingBucket.newBuilder()
+            .setTimestampUtcMillis(TIMESTAMP_3)
+            .addAllSamples(Arrays.asList(vm2, volDp2))
+            .setGranularity(Granularity.DAILY)
+            .build();
         final CostTagGroup costTagGroup1 = CostTagGroup.newBuilder().putTags("owner", "owner1").build();
         final CostTagGroup costTagGroup2 = CostTagGroup.newBuilder().putTags("owner", "owner2").build();
         final Map<Long, CostTagGroup> costTagGroupMap = ImmutableMap.of(1L, costTagGroup1, 2L, costTagGroup2);
         final List<CloudBillingData> cloudBillingDataList = Lists.newArrayList(CloudBillingData.newBuilder()
                 .setBillingIdentifier(BILLING_IDENTIFIER)
-                .addAllCloudCostBuckets(Lists.newArrayList(cloudBillingBucket1, cloudBillingBucket2))
+                .addAllCloudCostBuckets(Lists.newArrayList(cloudBillingBucket1, cloudBillingBucket2,
+                    cloudBillingBucket3))
                 .putAllCostTagGroupMap(costTagGroupMap)
                 .build());
         billedCostUploader.recordCloudBillingData(1L, cloudBillingDataList);
