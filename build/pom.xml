@@ -143,7 +143,7 @@
 
         <reactor.version>3.4.12</reactor.version>
 
-        <kafka.version>3.1.0</kafka.version>
+        <kafka.version>3.1.2</kafka.version>
 
         <st4.version>4.0.8</st4.version>
         <maven-failsafe.version>3.0.0-M4</maven-failsafe.version>
