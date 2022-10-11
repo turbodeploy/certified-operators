@@ -20,6 +20,8 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
@@ -214,6 +216,30 @@ public class UuidMapper implements RepositoryListener {
      */
     public void bulkResolveEntities(Collection<ApiId> values) {
         apiIdResolver.bulkResolveEntities(values);
+    }
+
+    /**
+     * Bulk resolves entity info for the provided entity OIDs. While this method currently works through
+     * {@link ApiId}, the provided OIDs are not assumed to represent request scopes. For this reason, the
+     * {@link ApiId} instances, which provide functionality specific to scope requests, are not exposed.
+     * @param entityOids The entity OIDs to resolve.
+     * @return An immutable map of the entity OIDs to the entity info. Note any OIds for which resolving
+     * the entity info fails will not be included in the map.
+     */
+    @Nonnull
+    public Map<Long, CachedEntityInfo> bulkResolveEntityInfo(@Nonnull Collection<Long> entityOids) {
+
+        final List<ApiId> apiIds = entityOids.stream()
+                .map(this::fromOid)
+                .collect(ImmutableList.toImmutableList());
+
+        bulkResolveEntities(apiIds);
+
+        return apiIds.stream()
+                .filter(ApiId::hasCachedEntityInfo)
+                .collect(ImmutableMap.toImmutableMap(
+                        ApiId::oid,
+                        apiId -> apiId.getCachedEntityInfo().get()));
     }
 
 
