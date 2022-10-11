@@ -442,7 +442,7 @@ public class QueryFilterTest {
             executableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
 
         final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
-            .addEntityType(1)
+            .addEntityType(10)
             .build();
 
         assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)

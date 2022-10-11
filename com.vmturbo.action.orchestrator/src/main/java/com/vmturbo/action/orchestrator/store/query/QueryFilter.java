@@ -172,12 +172,9 @@ public class QueryFilter {
                     // If the caller DID NOT specify an explicit list of OIDs, but DID specify a
                     // list of entity types, check the involved entities to see if they match the
                     // types.
-                    final boolean containsType = actionInvolvedEntities.stream()
-                        .anyMatch(actionInvolvedEntity ->
-                            // This is a "contains" on a list, but the size of the list will be
-                            // small.
-                            filter.getEntityTypeList()
-                                .contains(actionInvolvedEntity.getType()));
+                    // Use the type of the primary entity for filtering
+                    final boolean containsType = filter.getEntityTypeList()
+                            .contains(ActionDTOUtil.getPrimaryEntity(actionView.getTranslationResultOrOriginal()).getType());
                     if (!containsType) {
                         return false;
                     }
