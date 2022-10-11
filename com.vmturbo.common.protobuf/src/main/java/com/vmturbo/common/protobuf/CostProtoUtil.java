@@ -12,7 +12,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
@@ -22,19 +21,12 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
-import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingData.CloudBillingBucket.Granularity;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 
 /**
  * Utility methods for protobuf messages in Cost.proto.
  */
 public class CostProtoUtil {
-
-    private static final Map<Granularity, String> GRANULARITY_TIME_UNIT_MAP = ImmutableMap.<Granularity, String>builder()
-            .put(Granularity.HOURLY, "hour")
-            .put(Granularity.DAILY, "day")
-            .put(Granularity.MONTHLY, "month")
-            .build();
 
     public static final int DAYS_IN_YEAR = 365;
 
@@ -218,20 +210,5 @@ public class CostProtoUtil {
 
         final Currency currency = CURRENCIES_BY_NUMERIC_CODE.getOrDefault(currencyCode, DEFAULT_CURRENCY);
         return currency.getSymbol() + "/h";
-    }
-
-    /**
-     * Resolves the currency unit based on the provided currency code and cost timeframe granularity.
-     * @param currencyCode The currency code.
-     * @param granularity The cost granularity.
-     * @return The currency unit.
-     */
-    public static String getCurrencyUnit(int currencyCode,
-                                         @Nonnull Granularity granularity) {
-
-        final Currency currency = CURRENCIES_BY_NUMERIC_CODE.getOrDefault(currencyCode, DEFAULT_CURRENCY);
-        final String timeUnit = GRANULARITY_TIME_UNIT_MAP.getOrDefault(granularity, granularity.toString());
-
-        return String.format("%s/%s", currency.getSymbol(), timeUnit);
     }
 }

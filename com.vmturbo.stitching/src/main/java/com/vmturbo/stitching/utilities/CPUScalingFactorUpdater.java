@@ -1,5 +1,6 @@
 package com.vmturbo.stitching.utilities;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.CPU_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VCPU_REQUEST_QUOTA_VALUE;
@@ -41,6 +42,7 @@ public class CPUScalingFactorUpdater {
      */
     private static final Set<Integer> COMMODITY_TYPES_TO_SCALE_CONSISTENT_SCALING_FACTOR = ImmutableSet.of(
             CPU_VALUE,
+            CPU_PROVISIONED_VALUE,
             VCPU_VALUE,
             VCPU_LIMIT_QUOTA_VALUE,
             VCPU_REQUEST_VALUE,

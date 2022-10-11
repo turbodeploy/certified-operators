@@ -28,10 +28,6 @@ public class CommodityResizeDependencyMap {
                     .setProjectSecond(UpdatingFunctionTO.ProjectSecond.getDefaultInstance()).build())
                 .put(UpdateFunction.DELTA, UpdatingFunctionTO.newBuilder()
                     .setDelta(UpdatingFunctionTO.Delta.getDefaultInstance()).build())
-                .put(UpdateFunction.PROJECT_SECOND_SCALED, UpdatingFunctionTO.newBuilder()
-                            .setProjectSecondScaled(UpdatingFunctionTO.ProjectSecondScaled.getDefaultInstance()).build())
-                .put(UpdateFunction.DELTA_SCALED, UpdatingFunctionTO.newBuilder()
-                            .setDeltaScaled(UpdatingFunctionTO.DeltaScaled.getDefaultInstance()).build())
                 .put(UpdateFunction.IGNORE_CONSUMPTION, UpdatingFunctionTO.newBuilder()
                     .setIgnoreConsumption(UpdatingFunctionTO.IgnoreConsumption.getDefaultInstance()).build())
                 .put(UpdateFunction.UPDATE_EXPENSES, UpdatingFunctionTO.newBuilder()
@@ -106,7 +102,7 @@ public class CommodityResizeDependencyMap {
                             new CommodityResizeDependencySpec(CommodityType.CPU_VALUE,
                                     UpdateFunction.DELTA, UpdateFunction.MIN),
                             new CommodityResizeDependencySpec(CommodityType.CPU_PROVISIONED_VALUE,
-                                    UpdateFunction.DELTA_SCALED, UpdateFunction.PROJECT_SECOND_SCALED),
+                                    UpdateFunction.DELTA, UpdateFunction.PROJECT_SECOND),
                             new CommodityResizeDependencySpec(CommodityType.VCPU_LIMIT_QUOTA_VALUE,
                                     UpdateFunction.DELTA, UpdateFunction.MIN)
                             )

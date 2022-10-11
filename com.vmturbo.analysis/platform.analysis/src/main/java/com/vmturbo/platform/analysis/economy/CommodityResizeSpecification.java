@@ -7,7 +7,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.google.common.hash.Hashing;
-import com.vmturbo.platform.analysis.utilities.DoubleNaryOperator;
+import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 
 /**
  * Holds the values in Commodity Resize Dependency Map that
@@ -27,9 +27,9 @@ public final class CommodityResizeSpecification implements Serializable {
     // The dependent commodity type
     private final @NonNull int dependentCommodityType_;
     // The function used to adjust its value in case of resize up
-    private final @NonNull DoubleNaryOperator incrementFunction_;
+    private final @NonNull DoubleTernaryOperator incrementFunction_;
     // The limit function used to adjust its value in case of resize down
-    private final @NonNull DoubleNaryOperator decrementFunction_;
+    private final @NonNull DoubleTernaryOperator decrementFunction_;
 
     // Constructors
 
@@ -42,8 +42,8 @@ public final class CommodityResizeSpecification implements Serializable {
      * @param decrementFunction The limit function to be used to adjust it in case of resize down.
      */
     public CommodityResizeSpecification(@NonNull int dependentCommodityType,
-                                        @NonNull DoubleNaryOperator incrementFunction,
-                                        @NonNull DoubleNaryOperator decrementFunction) {
+                                        @NonNull DoubleTernaryOperator incrementFunction,
+                                        @NonNull DoubleTernaryOperator decrementFunction) {
         dependentCommodityType_ = dependentCommodityType;
         incrementFunction_ = incrementFunction;
         decrementFunction_ = decrementFunction;
@@ -62,7 +62,7 @@ public final class CommodityResizeSpecification implements Serializable {
     /**
      * Returns the function to be used to adjust the commodity bought in case of resize up.
      */
-    public DoubleNaryOperator getIncrementFunction() {
+    public DoubleTernaryOperator getIncrementFunction() {
         return incrementFunction_;
     }
 
@@ -70,7 +70,7 @@ public final class CommodityResizeSpecification implements Serializable {
     /**
      * Returns the limit function to be used to adjust the commodity bought in case of resize down.
      */
-    public DoubleNaryOperator getDecrementFunction() {
+    public DoubleTernaryOperator getDecrementFunction() {
         return decrementFunction_;
     }
 

@@ -41,7 +41,7 @@ import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.updatingfunction.ProjectionFunction;
 import com.vmturbo.platform.analysis.utilities.Bisection;
-import com.vmturbo.platform.analysis.utilities.DoubleNaryOperator;
+import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 import com.vmturbo.platform.analysis.utilities.ResizeActionStateTracker;
 
 /**
@@ -955,11 +955,11 @@ public class Resizer {
                         commSoldBySupplier.getPeakQuantity()
                             + getChangeInSupplierQuantity(shoppingList, changeInCapacity, requiresCSF, consumerCSF)));
                 } else {
-                    DoubleNaryOperator decrementFunction = typeOfCommBought.getDecrementFunction();
+                    DoubleTernaryOperator decrementFunction = typeOfCommBought.getDecrementFunction();
                     double decrementedQuantity = decrementFunction.applyAsDouble(
-                            oldQuantityBought, newCapacity, 0, newCapacity - changeInCapacity);
+                            oldQuantityBought, newCapacity, 0);
                     double decrementedPeakQuantity = decrementFunction.applyAsDouble(
-                            oldPeakQuantityBought, newCapacity, 0, newCapacity - changeInCapacity);
+                            oldPeakQuantityBought, newCapacity, 0);
                     double newQuantityBought = commSoldBySupplier.getQuantity()
                         - getChangeInSupplierQuantity(shoppingList, (oldQuantityBought - decrementedQuantity), requiresCSF, consumerCSF);
                     double newPeakQuantityBought = commSoldBySupplier.getPeakQuantity()
@@ -981,11 +981,11 @@ public class Resizer {
                 resizeImpact.get(resizingCommodity).addEntry(commSoldBySupplier, oldQuantityBought, oldPeakQuantityBought);
             } else {
                 // resize up
-                DoubleNaryOperator incrementFunction = typeOfCommBought.getIncrementFunction();
+                DoubleTernaryOperator incrementFunction = typeOfCommBought.getIncrementFunction();
                 double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
                 double oldPeakQuantityBought = shoppingList.getPeakQuantities()[boughtIndex];
-                double incrementedQuantity = incrementFunction.applyAsDouble(oldQuantityBought, changeInCapacity, 0, newCapacity - changeInCapacity);
-                double incrementedPeakQuantity = incrementFunction.applyAsDouble(oldPeakQuantityBought, changeInCapacity, 0, newCapacity - changeInCapacity);
+                double incrementedQuantity = incrementFunction.applyAsDouble(oldQuantityBought, changeInCapacity, 0);
+                double incrementedPeakQuantity = incrementFunction.applyAsDouble(oldPeakQuantityBought, changeInCapacity, 0);
                 shoppingList.getQuantities()[boughtIndex] = incrementedQuantity;
                 shoppingList.getPeakQuantities()[boughtIndex] = incrementedPeakQuantity;
                 commSoldBySupplier.setQuantity(commSoldBySupplier.getQuantity()

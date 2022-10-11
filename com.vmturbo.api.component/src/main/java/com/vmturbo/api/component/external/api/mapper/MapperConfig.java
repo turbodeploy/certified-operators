@@ -42,7 +42,6 @@ import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeEntityA
 import com.vmturbo.api.component.external.api.mapper.aspect.WorkloadControllerAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.converter.CloudSavingsDetailsDtoConverter;
 import com.vmturbo.api.component.external.api.mapper.converter.EntityUptimeDtoConverter;
-import com.vmturbo.api.component.external.api.mapper.cost.BilledCostStatsMapper;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
@@ -532,11 +531,6 @@ public class MapperConfig {
     @Bean
     public WorkflowMapper workflowMapper() {
         return new WorkflowMapper();
-    }
-
-    @Bean
-    public BilledCostStatsMapper billedCostStatsMapper() {
-        return new BilledCostStatsMapper(uuidMapper());
     }
 
     @Bean

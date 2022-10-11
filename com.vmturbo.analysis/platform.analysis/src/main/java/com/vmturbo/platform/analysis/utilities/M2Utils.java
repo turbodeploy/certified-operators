@@ -28,11 +28,10 @@ public class M2Utils {
         }
     }
 
-    public static DoubleNaryOperator
-            ADD_TWO_ARGS = (DoubleNaryOperator & Serializable) (a, b, c, d) -> a + b;
-    public static DoubleNaryOperator SUBRTRACT_TWO_ARGS = (DoubleNaryOperator & Serializable) (a, b, c, d) -> Math.max(0, a - b);
-    public static DoubleNaryOperator MAX_TWO_ARGS = (DoubleNaryOperator & Serializable) (a, b, c, d) -> Math.max(a, b);
-    public static DoubleNaryOperator MIN_TWO_ARGS = (DoubleNaryOperator & Serializable) (a, b, c, d) -> Math.min(a, b);
+    public static DoubleTernaryOperator ADD_TWO_ARGS = (DoubleTernaryOperator & Serializable) (a, b, c) -> a + b;
+    public static DoubleTernaryOperator SUBRTRACT_TWO_ARGS = (DoubleTernaryOperator & Serializable) (a, b, c) -> Math.max(0, a - b);
+    public static DoubleTernaryOperator MAX_TWO_ARGS = (DoubleTernaryOperator & Serializable) (a, b, c) -> Math.max(a, b);
+    public static DoubleTernaryOperator MIN_TWO_ARGS = (DoubleTernaryOperator & Serializable) (a, b, c) -> Math.min(a, b);
 
     /**
      * Load the specified file. The file is an EMF repository file saved by an Operations Manager.

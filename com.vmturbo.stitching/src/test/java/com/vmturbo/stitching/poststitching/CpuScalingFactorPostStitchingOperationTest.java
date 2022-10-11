@@ -152,11 +152,13 @@ public class CpuScalingFactorPostStitchingOperationTest {
         final CommoditySoldView expectedCpuSoldCommodity = cpuSoldCommodity.copy()
                 .setScalingFactor(CPU_SCALE_FACTOR);
         final CommoditySoldView expectedCpuProvisionedSoldCommodity = cpuProvisionedSoldCommodity
-                .copy();
+                .copy()
+                .setScalingFactor(CPU_SCALE_FACTOR);
         final CommodityBoughtView expectedVmCpuCommodity = cpuBoughtCommodity.copy()
                 .setScalingFactor(CPU_SCALE_FACTOR);
         final CommodityBoughtView expectedVmCpuProvisionedCommodity = cpuProvisionedBoughtCommodity
-                .copy();
+                .copy()
+                .setScalingFactor(CPU_SCALE_FACTOR);
         final CommoditySoldView expectedVCpuSoldCommodity = vcpuSoldCommodity.copy()
                 .setScalingFactor(CPU_SCALE_FACTOR);
         final CommodityBoughtView expectedVCpuBoughtCommodity = vcpuBoughtCommodity.copy()

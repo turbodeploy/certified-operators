@@ -69,7 +69,7 @@ import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunct
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
-import com.vmturbo.platform.analysis.utilities.DoubleNaryOperator;
+import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 
 /**
  * A class containing methods to convert Protobuf messages to java classes used by analysis.
@@ -132,46 +132,24 @@ public final class ProtobufToAnalysis {
 
     // Methods for converting UpdatingFunctionDTOs.
     /**
-     * Converts a {@link UpdatingFunctionTO} to a {@link DoubleNaryOperator quantity
+     * Converts a {@link UpdatingFunctionTO} to a {@link DoubleTernaryOperator quantity
      * updating function}.
      *
      * @param input The {@link UpdatingFunctionTO} to convert.
-     * @return The resulting {@link DoubleNaryOperator quantity updating function}.
+     * @return The resulting {@link DoubleTernaryOperator quantity updating function}.
      */
-    public static @NonNull DoubleNaryOperator updatingFunction(@NonNull UpdatingFunctionTO input) {
+    public static @NonNull DoubleTernaryOperator updatingFunction(@NonNull UpdatingFunctionTO input) {
         switch (input.getUpdatingFunctionTypeCase()) {
             case MAX:
-                return (DoubleNaryOperator & Serializable) (a, b, c, d) -> Math.max(a, b);
+                return (DoubleTernaryOperator & Serializable) (a, b, c) -> Math.max(a, b);
             case MIN:
-                return (DoubleNaryOperator & Serializable) (a, b, c, d) -> Math.min(a, b);
+                return (DoubleTernaryOperator & Serializable) (a, b, c) -> Math.min(a, b);
             case PROJECT_SECOND:
-                return (DoubleNaryOperator & Serializable) (a, b, c, d) -> b;
+                return (DoubleTernaryOperator & Serializable) (a, b, c) -> b;
             case DELTA:
-                return (DoubleNaryOperator & Serializable) (a, b, c, d) -> a + b;
+                return (DoubleTernaryOperator & Serializable) (a, b, c) -> a + b;
             case AVG_ADD:
-                return (DoubleNaryOperator & Serializable) (a, b, c, d) -> (a*c + b)/(c + 1);
-            case DELTA_SCALED:
-                /*
-                the 2nd argument b is the change in capacity. We are trying to scale proportionally.
-                lets assume the original vcpu capacity is d = 100 and we increased the vcpu
-                capacity by 20. b= 20. The cpu provisioned bought originally was 10. a = 10.
-                we should increaase the cpu provisioned bought  only proportionally..ie only by 2.
-                a / d gives the propotion.. multiply this with increase in capacity b to
-                get the increase in capacity.
-                TODO the value of b should be uniform for all functions.
-                 */
-                return (DoubleNaryOperator & Serializable) (a, b, c, d) -> d <= 0 ? a + b : a + (b*a/d);
-            case PROJECT_SECOND_SCALED:
-                /*
-                the 2nd argument b is the new capacity. We are trying to scale proportionally.
-                lets assume the original vcpu capacity is d = 100 and new vcpu
-                capacity is 80. b= 80. The cpu provisioned bought originally was 10. a = 10.
-                we should decrease the cpu provisioned bought  only proportionally..ie only to 8.
-                a / d gives the proportion.. multiply this with new capacity b to
-                get the proportional new capacity.
-                TODO the value of b should be uniform for all functions.
-                 */
-                return (DoubleNaryOperator & Serializable) (a, b, c, d) -> d <= 0 ? b : (b*a/d);
+                return (DoubleTernaryOperator & Serializable) (a, b, c) -> (a*c + b)/(c + 1);
             case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);
@@ -675,9 +653,9 @@ public final class ProtobufToAnalysis {
             for (CommodityResizeDependency dependentCommodity : dependentCommodities) {
                 int dependentCommodityType = dependentCommodity.getDependentCommodityType();
                 UpdatingFunctionTO incrementFunctionTO = dependentCommodity.getIncrementFunction();
-                DoubleNaryOperator incrementOperator = updatingFunction(incrementFunctionTO);
+                DoubleTernaryOperator incrementOperator = updatingFunction(incrementFunctionTO);
                 UpdatingFunctionTO decrementFunctionTO = dependentCommodity.getDecrementFunction();
-                DoubleNaryOperator decrementOperator = updatingFunction(decrementFunctionTO);
+                DoubleTernaryOperator decrementOperator = updatingFunction(decrementFunctionTO);
                 resizeSpecs.add(new CommodityResizeSpecification(dependentCommodityType,
                                                      incrementOperator, decrementOperator));
             }

@@ -1162,9 +1162,7 @@ public class ServiceConfig {
     public CostStatsQueryExecutor costStatsQueryExecutor() {
         return new CostStatsQueryExecutor(
                 communicationConfig.costServiceBlockingStub(),
-                communicationConfig.billedCostServiceBlockingStub(),
-                mapperConfig.statsMapper(),
-                mapperConfig.billedCostStatsMapper());
+                mapperConfig.statsMapper());
     }
 
     /**
