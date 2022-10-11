@@ -12,7 +12,6 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -40,6 +39,9 @@ import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -66,14 +68,12 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.utils.CommodityTypeAllocatorConstants;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
-import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopology;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
+import com.vmturbo.market.runner.FakeEntityCreator;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
@@ -191,7 +191,8 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false);
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(
+                    FakeEntityCreator.class));
         converter.setConvertToMarketComplete();
 
         final CommodityType segmentationFoo = CommodityType.newBuilder()
@@ -233,7 +234,7 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, Mockito.mock(FakeEntityCreator.class));
         converter.setConvertToMarketComplete();
         CommodityDTOs.CommoditySpecificationTO cs = converter.getCommodityConverter().commoditySpecification(CommodityType.newBuilder()
                 .setKey("Seg")
@@ -291,7 +292,7 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, Mockito.mock(FakeEntityCreator.class));
         converter.setConvertToMarketComplete();
         converter.setUseVMReservationAsUsed(true);
 
@@ -437,7 +438,8 @@ public class InterpretActionTest {
         final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
             slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
             new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
-            CommodityIndex.newFactory()::newIndex, null, new HashMap<>());
+            CommodityIndex.newFactory()::newIndex, null, new HashMap<>(), Mockito.mock(
+                FakeEntityCreator.class));
 
         final TopologyEntityCloudTopology originalCloudTopology =
             new TopologyEntityCloudTopologyFactory
@@ -519,7 +521,8 @@ public class InterpretActionTest {
         final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
             slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
             new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
-            CommodityIndex.newFactory()::newIndex, null, reservationGreaterThanUsedMap);
+            CommodityIndex.newFactory()::newIndex, null, reservationGreaterThanUsedMap, Mockito.mock(
+                FakeEntityCreator.class));
 
         final long moveSrcId = businessUser.getCommoditiesBoughtFromProvidersList().get(0)
             .getProviderId();
@@ -692,7 +695,8 @@ public class InterpretActionTest {
         final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
                 slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
                 new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
-                CommodityIndex.newFactory()::newIndex, null, new HashMap<>());
+                CommodityIndex.newFactory()::newIndex, null, new HashMap<>(), Mockito.mock(
+                FakeEntityCreator.class));
 
         final long moveSrcId = entityDto.getCommoditiesBoughtFromProvidersList().get(0)
                 .getProviderId();
@@ -743,7 +747,7 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, Mockito.mock(FakeEntityCreator.class));
         converter.setConvertToMarketComplete();
 
         final Collection<TraderTO> traderTOs =
@@ -781,7 +785,7 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, Mockito.mock(FakeEntityCreator.class));
         converter.setConvertToMarketComplete();
 
         final Collection<TraderTO> traderTOs =
@@ -815,7 +819,7 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, Mockito.mock(FakeEntityCreator.class));
         converter.setConvertToMarketComplete();
         CommodityDTOs.CommoditySpecificationTO cs = converter.getCommodityConverter()
                 .commoditySpecification(CommodityType.newBuilder()
@@ -1138,7 +1142,8 @@ public class InterpretActionTest {
         ActionInterpreter interpreter = new ActionInterpreter(mockedCommodityConverter,
                 slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
                 new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
-                CommodityIndex.newFactory()::newIndex, null, new HashMap<>());
+                CommodityIndex.newFactory()::newIndex, null, new HashMap<>(), Mockito.mock(
+                FakeEntityCreator.class));
         // Assuming that 1 is the oid of trader created for m1.large x region and 2 is the oid
         // created for m1.medium x region
         ActionTO actionTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)
@@ -1272,7 +1277,8 @@ public class InterpretActionTest {
                 mock(ProjectedRICoverageCalculator.class),
                 mock(TierExcluder.class),
                 CommodityIndex.newFactory()::newIndex,
-                null, new HashMap<>());
+                null, new HashMap<>(),
+                Mockito.mock(FakeEntityCreator.class));
 
         final ActionTO deactivateActionTO = ActionTO.newBuilder()
                 .setImportance(0.)
@@ -1377,7 +1383,8 @@ public class InterpretActionTest {
                 mock(ProjectedRICoverageCalculator.class),
                 mock(TierExcluder.class),
                 CommodityIndex.newFactory()::newIndex,
-                null, new HashMap<>());
+                null, new HashMap<>(),
+                Mockito.mock(FakeEntityCreator.class));
 
         CommodityDTOs.CommoditySpecificationTO cs = mockedCommodityConverter
                 .commoditySpecification(CommodityType.newBuilder()
@@ -1499,7 +1506,8 @@ public class InterpretActionTest {
                 mock(ProjectedRICoverageCalculator.class),
                 mock(TierExcluder.class),
                 CommodityIndex.newFactory()::newIndex,
-                null, new HashMap<>());
+                null, new HashMap<>(),
+                Mockito.mock(FakeEntityCreator.class));
 
         CommodityDTOs.CommoditySpecificationTO cs = mockedCommodityConverter
                 .commoditySpecification(CommodityType.newBuilder()

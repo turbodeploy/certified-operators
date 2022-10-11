@@ -552,6 +552,7 @@ public class TopologyConverter {
         this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
         this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
             oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
+        this.fakeEntityCreator = fakeEntityCreator;
         this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(
                 commodityConverter,
                 shoppingListOidToInfos,
@@ -563,7 +564,7 @@ public class TopologyConverter {
                 tierExcluder,
                 commodityIndex,
                 getExplanationOverride(),
-                Collections.unmodifiableMap(commoditiesWithReservationGreaterThanUsed))
+                Collections.unmodifiableMap(commoditiesWithReservationGreaterThanUsed), fakeEntityCreator)
         );
         this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
         this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
@@ -571,7 +572,6 @@ public class TopologyConverter {
         this.useVMReservationAsUsed = useVMReservationAsUsed;
         this.singleVMonHost = singleVMonHost;
         this.customUtilizationThreshold = customUtilizationThreshold;
-        this.fakeEntityCreator = fakeEntityCreator;
         this.enableOP = enableOP;
     }
 
@@ -717,6 +717,7 @@ public class TopologyConverter {
      * @param licensePriceWeightScale value to scale the price weight of commodities for every
      *            softwareLicenseCommodity sold by a provider.
      * @param enableOP flag to check if to use over provisioning commodity changes.
+     * @param fakeEntityCreator used to determine which actions to ignore.
      */
     @VisibleForTesting
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
@@ -732,13 +733,14 @@ public class TopologyConverter {
                              @Nonnull final ReversibilitySettingFetcher
                                      reversibilitySettingFetcher,
                              final int licensePriceWeightScale,
-                             final boolean enableOP) {
+                             final boolean enableOP,
+                             final FakeEntityCreator fakeEntityCreator) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor, MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR,
             marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, null, reversibilitySettingFetcher, licensePriceWeightScale,
-            enableOP, true, false, 0.5f, null);
+            enableOP, true, false, 0.5f, fakeEntityCreator);
     }
-
+    
     /**
      * Constructor with includeGuaranteedBuyer parameter.
      *
