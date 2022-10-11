@@ -33,7 +33,6 @@ import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterialInfo;
 import com.vmturbo.commons.analysis.UpdateFunction;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.tracing.ClassicTracer;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -71,7 +70,7 @@ import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.updatingfunction.ProjectionFunction;
 import com.vmturbo.platform.analysis.updatingfunction.ProjectionFunctionFactory;
-import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
+import com.vmturbo.platform.analysis.utilities.DoubleNaryOperator;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -458,7 +457,7 @@ public class TopologyEntitiesHandler {
      * @param func an update function in the commons project representation
      * @return an update function in the analysis project representation
      */
-    private static DoubleTernaryOperator convertUpdateFunction(UpdateFunction func) {
+    private static DoubleNaryOperator convertUpdateFunction(UpdateFunction func) {
         UpdatingFunctionTO funcTO = CommodityResizeDependencyMap.updatingFunctionTO(func);
         return ProtobufToAnalysis.updatingFunction(funcTO);
     }

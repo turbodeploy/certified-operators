@@ -24,6 +24,12 @@ message UpdatingFunctionTO {
     message Delta {
     }
 
+    message ProjectSecondScaled {
+    }
+
+    message DeltaScaled {
+    }
+
     message Average {
     }
 
@@ -100,5 +106,7 @@ message UpdatingFunctionTO {
         MM1Distribution mm1_distribution = 11;
         InverseSquare inverse_square = 12;
         MergedPeak merged_peak = 13;
+        DeltaScaled delta_scaled = 14;
+        ProjectSecondScaled project_second_scaled = 15;
     }
 }
