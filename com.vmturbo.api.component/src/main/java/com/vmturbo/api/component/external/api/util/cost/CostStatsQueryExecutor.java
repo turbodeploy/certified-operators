@@ -3,19 +3,25 @@ package com.vmturbo.api.component.external.api.util.cost;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Iterables;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.CostGroupByMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.TagsMapper;
+import com.vmturbo.api.component.external.api.mapper.cost.BilledCostGroupByMapper;
+import com.vmturbo.api.component.external.api.mapper.cost.BilledCostStatsMapper;
 import com.vmturbo.api.cost.CostInputApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -24,11 +30,17 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
+import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostFilter;
+import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostStatsQuery;
+import com.vmturbo.common.protobuf.cost.BilledCost.TagFilter;
+import com.vmturbo.common.protobuf.cost.BilledCostServiceGrpc.BilledCostServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.BilledCostServices.GetBilledCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.BilledCostServices.GetBilledCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudBilledStatsRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetCloudBilledStatsRequest.Market;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -36,9 +48,16 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Execute cost stats queries, for history billed cost charged by cloud vendors.
  */
 public class CostStatsQueryExecutor {
+
     private static final Logger logger = LogManager.getLogger();
+
     private final CostServiceBlockingStub costServiceRpc;
+
+    private final BilledCostServiceBlockingStub billedCostService;
+
     private final StatsMapper statsMapper;
+
+    private final BilledCostStatsMapper billedCostStatsMapper;
 
     /**
      * Constructor for CostStatsQueryExecutor with cost service.
@@ -48,9 +67,13 @@ public class CostStatsQueryExecutor {
      */
     public CostStatsQueryExecutor(
             @Nonnull final CostServiceBlockingStub costServiceRpc,
-            @Nonnull final StatsMapper statsMapper) {
+            @Nonnull final BilledCostServiceBlockingStub billedCostService,
+            @Nonnull final StatsMapper statsMapper,
+            @Nonnull final BilledCostStatsMapper billedCostStatsMapper) {
         this.costServiceRpc = costServiceRpc;
+        this.billedCostService = Objects.requireNonNull(billedCostService);
         this.statsMapper = statsMapper;
+        this.billedCostStatsMapper = Objects.requireNonNull(billedCostStatsMapper);
     }
 
     /**
@@ -66,9 +89,8 @@ public class CostStatsQueryExecutor {
             final long entityOid,
             @Nonnull final EntityType entityType,
             @Nullable final CostInputApiDTO costInputApiDTO) {
-        final GetCloudBilledStatsRequest request = buildGetCloudBilledStatsRequest(
-                costInputApiDTO, entityType, Collections.singletonList(entityOid));
-        return queryCostServiceAndConvert(request);
+
+        return queryCostDataAndConvert(costInputApiDTO, entityType, Collections.singletonList(entityOid));
     }
 
     /**
@@ -101,9 +123,7 @@ public class CostStatsQueryExecutor {
         // Supported group type:
         // 1. a ResourceGroup, a BillingFamily
         // 2. a group of VMs/DBs/DBSs/Volumes/regions/accounts/ResourceGroups/BillingFamilies
-        final GetCloudBilledStatsRequest request = buildGetCloudBilledStatsRequest(costInputApiDTO,
-                entityMemberType, leafMembers);
-        return queryCostServiceAndConvert(request);
+        return queryCostDataAndConvert(costInputApiDTO, entityMemberType, leafMembers);
     }
 
     /**
@@ -114,11 +134,22 @@ public class CostStatsQueryExecutor {
      */
     @Nonnull
     public List<StatSnapshotApiDTO> getGlobalCostStats(@Nullable CostInputApiDTO costInputApiDTO) {
-        final GetCloudBilledStatsRequest request =
-                buildGetCloudBilledStatsRequest(costInputApiDTO)
-                        .setMarket(Market.newBuilder().build())
-                        .build();
-        return queryCostServiceAndConvert(request);
+        return queryCostDataAndConvert(costInputApiDTO, null, null);
+    }
+
+    protected List<StatSnapshotApiDTO> queryCostDataAndConvert(@Nullable final CostInputApiDTO costInputApiDTO,
+                                                               @Nullable final EntityType entityType,
+                                                               @Nullable final Collection<Long> entityOids) {
+
+        if (FeatureFlags.PARTITIONED_BILLED_COST_QUERY.isEnabled()) {
+
+            final GetBilledCostStatsRequest statsRequest = buildBilledCostStatsRequest(costInputApiDTO, entityType, entityOids);
+            return queryBilledCostServiceAndConvert(statsRequest);
+        } else {
+            final GetCloudBilledStatsRequest billedStatsRequest = buildGetCloudBilledStatsRequest(
+                    costInputApiDTO, entityType, entityOids);
+            return queryCostServiceAndConvert(billedStatsRequest);
+        }
     }
 
     @VisibleForTesting
@@ -129,27 +160,35 @@ public class CostStatsQueryExecutor {
                 .collect(Collectors.toList());
     }
 
+    private List<StatSnapshotApiDTO> queryBilledCostServiceAndConvert(@Nonnull GetBilledCostStatsRequest statsRequest) {
+        final GetBilledCostStatsResponse statsResponse = billedCostService.getBilledCostStats(statsRequest);
+        return billedCostStatsMapper.convertBilledCostStats(statsResponse.getCostStatsList());
+    }
+
     @VisibleForTesting
     protected GetCloudBilledStatsRequest buildGetCloudBilledStatsRequest(
             @Nullable final CostInputApiDTO costInputApiDTO,
-            @Nonnull final EntityType entityType,
-            @Nonnull Collection<Long> entityOids) {
+            @Nullable final EntityType entityType,
+            @Nullable Collection<Long> entityOids) {
         final GetCloudBilledStatsRequest.Builder requestBuilder = buildGetCloudBilledStatsRequest(costInputApiDTO);
-        switch (entityType) {
-            case REGION:
-                requestBuilder.setRegionFilter(RegionFilter.newBuilder()
-                        .addAllRegionId(entityOids)
-                        .build());
-                break;
-            case BUSINESS_ACCOUNT:
-                requestBuilder.setAccountFilter(AccountFilter.newBuilder()
-                        .addAllAccountId(entityOids)
-                        .build());
-                break;
-            default:
-                requestBuilder.setEntityFilter(EntityFilter.newBuilder()
-                        .addAllEntityId(entityOids)
-                        .build());
+
+        if (entityType != null && CollectionUtils.isNotEmpty(entityOids)) {
+            switch (entityType) {
+                case REGION:
+                    requestBuilder.setRegionFilter(RegionFilter.newBuilder()
+                            .addAllRegionId(entityOids)
+                            .build());
+                    break;
+                case BUSINESS_ACCOUNT:
+                    requestBuilder.setAccountFilter(AccountFilter.newBuilder()
+                            .addAllAccountId(entityOids)
+                            .build());
+                    break;
+                default:
+                    requestBuilder.setEntityFilter(EntityFilter.newBuilder()
+                            .addAllEntityId(entityOids)
+                            .build());
+            }
         }
         return requestBuilder.build();
     }
@@ -186,5 +225,81 @@ public class CostStatsQueryExecutor {
                 .map(CostGroupByMapper::toGroupByType)
                 .collect(Collectors.toList()));
         return requestBuilder;
+    }
+
+    private GetBilledCostStatsRequest buildBilledCostStatsRequest(@Nullable CostInputApiDTO costInputApiDTO,
+                                                                  @Nullable final EntityType entityType,
+                                                                  @Nullable Collection<Long> entityOids) {
+
+
+        final GetBilledCostStatsRequest.Builder requestBuilder = GetBilledCostStatsRequest.newBuilder();
+        final BilledCostStatsQuery.Builder statsQuery = requestBuilder.getQueryBuilder()
+                .setFilter(buildBilledCostFilter(costInputApiDTO, entityType, entityOids));
+
+
+        // Add group by conditions
+        if (costInputApiDTO != null && CollectionUtils.isNotEmpty(costInputApiDTO.getCostGroupBys())) {
+
+            costInputApiDTO.getCostGroupBys().stream()
+                    .filter(Objects::nonNull)
+                    .map(BilledCostGroupByMapper::toGroupByType)
+                    .forEach(statsQuery::addGroupBy);
+        }
+
+        return requestBuilder.build();
+    }
+
+    private BilledCostFilter buildBilledCostFilter(@Nullable CostInputApiDTO costInputApiDTO,
+                                                   @Nullable final EntityType entityType,
+                                                   @Nullable Collection<Long> entityOids) {
+
+        final BilledCostFilter.Builder costFilter = BilledCostFilter.newBuilder();
+
+        if (costInputApiDTO != null) {
+
+            if (StringUtils.isNotBlank(costInputApiDTO.getStartDate()))  {
+                costFilter.setSampleTsStart(DateTimeUtil.parseTime(costInputApiDTO.getStartDate()));
+            }
+
+            if (StringUtils.isNotBlank(costInputApiDTO.getEndDate()))  {
+                costFilter.setSampleTsStart(DateTimeUtil.parseTime(costInputApiDTO.getEndDate()));
+            }
+
+            final List<TagApiDTO> tagFilters = costInputApiDTO.getTagFilters();
+            if (CollectionUtils.isNotEmpty(tagFilters)) {
+
+                if (tagFilters.size() > 1) {
+                    throw new UnsupportedOperationException("Only support one tagFilter!");
+                }
+
+                final TagApiDTO tagFilter = Iterables.getOnlyElement(tagFilters);
+                costFilter.setTagFilter(TagFilter.newBuilder()
+                        .setTagKey(tagFilter.getKey())
+                        .addAllTagValue(CollectionUtils.emptyIfNull(tagFilter.getValues()))
+                        .build());
+            }
+        }
+
+        if (entityType != null && CollectionUtils.isNotEmpty(entityOids)) {
+            switch (entityType) {
+                case REGION:
+                    costFilter.addAllRegionId(entityOids);
+                    break;
+                case BUSINESS_ACCOUNT:
+                    costFilter.addAllAccountId(entityOids);
+                    break;
+                case SERVICE_PROVIDER:
+                    costFilter.addAllServiceProviderId(entityOids);
+                    break;
+                case VIRTUAL_MACHINE:
+                case DATABASE:
+                case DATABASE_SERVER:
+                case VIRTUAL_VOLUME:
+                    costFilter.addAllResourceId(entityOids);
+                    break;
+            }
+        }
+
+        return costFilter.build();
     }
 }
