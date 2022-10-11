@@ -218,6 +218,8 @@ public class IntersightTargetConverter {
                 return Collections.singleton(SDKProbeType.AZURE_EA);
             case MICROSOFTAZURESERVICEPRINCIPAL:
                 return Collections.singleton(SDKProbeType.AZURE_SERVICE_PRINCIPAL);
+            case MICROSOFTAZUREBILLING:
+                return Collections.singleton(SDKProbeType.AZURE_BILLING);
             case MICROSOFTHYPERV:
                 return Collections.singleton(SDKProbeType.HYPERV);
             case DYNATRACE:
@@ -236,12 +238,14 @@ public class IntersightTargetConverter {
                 return Collections.singleton(SDKProbeType.NEWRELIC);
             case MYSQLSERVER:
                 return Collections.singleton(SDKProbeType.MYSQL);
+                /*
+                Will be added back once these targets supported by Intersight
             case VMWAREHORIZON:
                 return Collections.singleton(SDKProbeType.VMWARE_HORIZON_VIEW);
             case MICROSOFTSYSTEMCENTERVIRTUALMACHINEMANAGER:
                 return Collections.singleton(SDKProbeType.VMM);
             case DATADOG:
-                return Collections.singleton(SDKProbeType.DATADOG);
+                return Collections.singleton(SDKProbeType.DATADOG);*/
             case SERVICENOW:
                 return Collections.singleton(SDKProbeType.SERVICENOW);
             case GOOGLECLOUDPLATFORM:
