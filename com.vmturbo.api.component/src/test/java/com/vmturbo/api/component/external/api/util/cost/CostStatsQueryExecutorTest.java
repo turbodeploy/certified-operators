@@ -20,10 +20,13 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
+import com.vmturbo.api.component.external.api.mapper.cost.BilledCostStatsMapper;
 import com.vmturbo.api.cost.CostInputApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -33,6 +36,8 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
+import com.vmturbo.common.protobuf.cost.BilledCostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.BilledCostServiceGrpc.BilledCostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost.CostStatsSnapshot;
 import com.vmturbo.common.protobuf.cost.Cost.CostStatsSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostStatsSnapshot.StatRecord.TagKeyValuePair;
@@ -75,17 +80,24 @@ public class CostStatsQueryExecutorTest {
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(costServiceMole);
 
+    @Mock
+    private BilledCostStatsMapper billedCostStatsMapper;
+
     /**
      * set up.
      */
     @Before
     public void setup() {
+
+        MockitoAnnotations.initMocks(this);
+
         final CostServiceBlockingStub costServiceRpc = CostServiceGrpc.newBlockingStub(
                 testServer.getChannel());
+        final BilledCostServiceBlockingStub billedCostService = BilledCostServiceGrpc.newBlockingStub(testServer.getChannel());
         final PaginationMapper paginationMapper = mock(PaginationMapper.class);
         final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
         final StatsMapper statsMapper = new StatsMapper(paginationMapper, serviceEntityMapper);
-        costStatsQueryExecutor = new CostStatsQueryExecutor(costServiceRpc, statsMapper);
+        costStatsQueryExecutor = new CostStatsQueryExecutor(costServiceRpc, billedCostService, statsMapper, billedCostStatsMapper);
     }
 
     /**

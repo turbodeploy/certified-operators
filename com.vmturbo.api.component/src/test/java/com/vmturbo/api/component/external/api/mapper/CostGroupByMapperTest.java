@@ -32,7 +32,8 @@ public class CostGroupByMapperTest {
     }
 
     /**
-     * Test that conversion doesn't fail for every {@link CostGroupBy}.
+     * Test that conversion doesn't fail for every {@link CostGroupBy}. This test is disabled due to non-partitioned
+     * billed cost (deprecated) only supporting tag groupings.BilledCostRpcService.java
      */
     @Ignore("Refactor as a part of OM-91105.")
     @Test

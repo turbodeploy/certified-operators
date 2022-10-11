@@ -41,6 +41,8 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeveri
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceStub;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc.CloudCommitmentStatsServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.BilledCostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.BilledCostServiceGrpc.BilledCostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceStub;
@@ -271,7 +273,7 @@ public class CommunicationConfig {
     public SuspensionToggleServiceBlockingStub toggleService() {
         return SuspensionToggleServiceGrpc.newBlockingStub(suspensionRpcConfig.suspensionChannel());
     }
-    
+
     @Bean
     public TopologyServiceBlockingStub topologyService() {
         return TopologyServiceGrpc.newBlockingStub(tpClientConfig.topologyProcessorChannel());
@@ -577,6 +579,11 @@ public class CommunicationConfig {
     @Bean
     public CostServiceBlockingStub costServiceBlockingStub() {
         return CostServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    @Bean
+    public BilledCostServiceBlockingStub billedCostServiceBlockingStub() {
+        return BilledCostServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
     @Bean
