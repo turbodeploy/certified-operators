@@ -102,7 +102,7 @@
         <dependency>
             <groupId>com.cisco.intersight</groupId>
             <artifactId>intersight-openapi-java-client</artifactId>
-            <version>0.0.1.40306</version>
+            <version>1.0.11-pr.335.rev.43855</version>
         </dependency>
     </dependencies>
 </project>
