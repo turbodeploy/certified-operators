@@ -23,6 +23,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -36,6 +37,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
+import com.vmturbo.market.runner.FakeEntityCreator;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -183,7 +185,7 @@ public class TopologyConverterGuaranteedTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, Mockito.mock(FakeEntityCreator.class));
         Collection<TraderTO> traders = converter.convertToMarket(entities);
         assertEquals(7, traders.size());
         final Collection<Long> guaranteedBuyers = traders.stream()

@@ -43,16 +43,6 @@ import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
-import com.vmturbo.commons.analysis.ByProductMap;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
-import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle;
-import com.vmturbo.cloud.common.topology.CloudTopology;
-import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
-import com.vmturbo.market.diagnostics.DiagsFileSystem;
-import com.vmturbo.platform.analysis.economy.RawMaterialMetadata;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
-import com.vmturbo.platform.analysis.economy.Trader;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
@@ -61,6 +51,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
@@ -72,6 +63,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.commons.analysis.ByProductMap;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -82,10 +74,14 @@ import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle.Builder;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.StoragePriceBundle;
+import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.AnalysisRICoverageListener;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCleaner;
+import com.vmturbo.market.diagnostics.DiagsFileSystem;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
+import com.vmturbo.market.runner.FakeEntityCreator;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -96,6 +92,9 @@ import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.RawMaterialMetadata;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
+import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
@@ -435,7 +434,7 @@ public class TopologyEntitiesHandlerTest {
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                         consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                        false);
+                        false, Mockito.mock(FakeEntityCreator.class));
         Collection<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
                         .setTopologyType(TopologyType.REALTIME).setTopologyId(1L).build();
@@ -518,7 +517,7 @@ public class TopologyEntitiesHandlerTest {
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                         consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                        false);
+                        false, Mockito.mock(FakeEntityCreator.class));
 
         Collection<TraderTO> traderDTOs = topoConverter.convertToMarket(topoDTOs.stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
@@ -1084,7 +1083,7 @@ public class TopologyEntitiesHandlerTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, Mockito.mock(FakeEntityCreator.class));
         Collection<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         return generateEnd2EndActions(analysis, economyDTOs, converter);
     }
@@ -1094,7 +1093,7 @@ public class TopologyEntitiesHandlerTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, Mockito.mock(FakeEntityCreator.class));
         return generateEnd2EndActions(analysis, economyDTOs, converter);
     }
 

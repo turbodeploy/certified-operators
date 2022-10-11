@@ -116,7 +116,7 @@ public class FakeEntityCreator {
                         Optional<String> clusterKey = computeSl.get().getCommodityBoughtList().stream()
                                 .filter(c -> c.getCommodityType().getType()
                                         == CommodityType.CLUSTER_VALUE
-                                        && c.getCommodityType().hasKey() && c.getActive())
+                                        && c.getCommodityType().hasKey())
                                 .map(c -> c.getCommodityType().getKey())
                                 .findFirst();
                         if (clusterKey.isPresent()) {
@@ -159,7 +159,9 @@ public class FakeEntityCreator {
      * Setting controllable to true on the cluster is needed because the VM's cluster SL needs to
      * be movable true and this depends on the controllable flag of the supplier.
      * And because we set the controllable to true, we set all the other flags (that don't have a
-     * default in the protobuf as false) as false
+     * default in the protobuf as false) as false.
+     * We want fake clusters to have isAvailableAsProvider = true (default is true) because
+     * they will be able to accept new customers, in ignore constraints plans.
      * @param clusterBuilder cluster
      */
     private void setAnalysisFlagsOnCluster(TopologyEntityDTO.Builder clusterBuilder) {
@@ -167,7 +169,6 @@ public class FakeEntityCreator {
                 .setControllable(true)
                 .setCloneable(false)
                 .setSuspendable(false)
-                .setIsAvailableAsProvider(false)
                 .setDeletable(false)
                 .setIsEligibleForScale(false)
                 .setReconfigurable(false);
@@ -356,7 +357,7 @@ public class FakeEntityCreator {
                                 .stream()
                                 .filter(c -> c.getCommodityType().getType()
                                         == CommodityType.CLUSTER_VALUE && c.getCommodityType()
-                                        .hasKey() && c.getActive())
+                                        .hasKey())
                                 .findFirst();
                 if (clusterCommBoughtFromHost.isPresent()) {
                     final CommodityBoughtDTO clusterCommBought = clusterCommBoughtFromHost.get();

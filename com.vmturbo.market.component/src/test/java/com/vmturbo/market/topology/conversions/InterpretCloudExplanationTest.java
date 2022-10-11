@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.api.enums.DatabasePricingModel;
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -47,7 +48,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.market.runner.FakeEntityCreator;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
@@ -118,7 +119,6 @@ public class InterpretCloudExplanationTest {
     private ActionInterpreter ai;
     private Optional<EntityReservedInstanceCoverage> initialCoverage;
     private EntityReservedInstanceCoverage projectedCoverage;
-
     /**
      * Setup all the inputs to ActionInterpreter.
      */
@@ -143,7 +143,7 @@ public class InterpretCloudExplanationTest {
                 Optional.of(CommoditySoldDTO.newBuilder().setCommodityType(VCPU).setCapacity(100).build()));
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
             cloudTc, originalTopology, oidToTraderTOMap, commoditiesResizeTracker, riCoverageCalculator, tierExcluder,
-            Suppliers.memoize(() -> commodityIndex), null, new HashMap<>()));
+            Suppliers.memoize(() -> commodityIndex), null, new HashMap<>(), Mockito.mock(FakeEntityCreator.class)));
 
         initialCoverage = Optional.of(EntityReservedInstanceCoverage.newBuilder().setEntityId(VM1_OID)
             .putCouponsCoveredByRi(1L, 4)
@@ -352,7 +352,8 @@ public class InterpretCloudExplanationTest {
         projectedTopologyMap.put(VM1_OID, projectedTopology);
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
             cloudTc, originalTopologyMap, oidToTraderTOMap, commoditiesResizeTracker,
-            riCoverageCalculator, tierExcluder, Suppliers.memoize(() -> commodityIndex), null, new HashMap<>()));
+            riCoverageCalculator, tierExcluder, Suppliers.memoize(() -> commodityIndex), null, new HashMap<>(),
+            Mockito.mock(FakeEntityCreator.class)));
         doReturn(Optional.of(interpretedMoveAction)).when(ai).interpretMoveAction(move.getMove(), projectedTopologyMap, originalCloudTopology);
         List<Action> actions = ai.interpretAction(move, projectedTopologyMap, originalCloudTopology, actionSavingsCalculator);
 
@@ -396,7 +397,7 @@ public class InterpretCloudExplanationTest {
         projectedTopologyMap.put(VM1_OID, projectedTopology);
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
                 cloudTc, Maps.newHashMap(), oidToTraderTOMap, commoditiesResizeTracker, riCoverageCalculator, tierExcluder,
-            Suppliers.memoize(() -> commodityIndex), null, new HashMap<>()));
+            Suppliers.memoize(() -> commodityIndex), null, new HashMap<>(), Mockito.mock(FakeEntityCreator.class)));
 
         doReturn(Optional.of(interpretedMoveAction)).when(ai).interpretMoveAction(move.getMove(), projectedTopologyMap, originalCloudTopology);
         List<Action> actions = ai.interpretAction(move, projectedTopologyMap, originalCloudTopology, actionSavingsCalculator);
@@ -441,7 +442,7 @@ public class InterpretCloudExplanationTest {
         originalTopologyMap.put(VM1_OID, topologyEntityDTO);
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
             cloudTc, originalTopologyMap, oidToTraderTOMap, commoditiesResizeTracker, riCoverageCalculator, tierExcluder,
-            Suppliers.memoize(() -> commodityIndex), null, new HashMap<>()));
+            Suppliers.memoize(() -> commodityIndex), null, new HashMap<>(), Mockito.mock(FakeEntityCreator.class)));
 
         MoveTO csgMoveTO = move.getMove().toBuilder().setScalingGroupId("testScalingGroup").build();
 
@@ -662,7 +663,8 @@ public class InterpretCloudExplanationTest {
         projectedTopologyMap.put(VM1_OID, projectedTopology);
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
                 cloudTc, originalTopologyMap, oidToTraderTOMap, commoditiesResizeTracker,
-                riCoverageCalculator, tierExcluder, Suppliers.memoize(() -> commodityIndex), null, new HashMap<>()));
+                riCoverageCalculator, tierExcluder, Suppliers.memoize(() -> commodityIndex), null, new HashMap<>(),
+                Mockito.mock(FakeEntityCreator.class)));
 
         MoveTO csgMoveTO = move.getMove().toBuilder().setScalingGroupId("testScalingGroup").build();
 

@@ -73,6 +73,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Physica
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
+import com.vmturbo.market.runner.FakeEntityCreator;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.SingleRegionMarketTier;
 import com.vmturbo.market.topology.conversions.action.ResizeInterpreter;
@@ -126,6 +127,7 @@ public class ActionInterpreter {
             Pair<Boolean, ChangeProviderExplanation>> complianceExplanationOverride;
 
     private final ResizeInterpreter resizeInterpreter;
+    private final FakeEntityCreator fakeEntityCreator;
 
     /**
      * This map stores all the VMs whose CPU/Mem reservation are larger than real usage. We'll add a "reservation" suffix in their action descriptions.
@@ -158,13 +160,15 @@ public class ActionInterpreter {
                       @Nonnull final Supplier<CommodityIndex> commodityIndexSupplier,
                       @Nullable final BiFunction<MoveTO, Map<Long, ProjectedTopologyEntity>,
                               Pair<Boolean, ChangeProviderExplanation>> explanationFunction,
-                      @Nonnull final Map<Long, Map<CommodityBoughtDTO, Long>> commoditiesWithReservationGreaterThanUsed ) {
+                      @Nonnull final Map<Long, Map<CommodityBoughtDTO, Long>> commoditiesWithReservationGreaterThanUsed,
+                      @Nonnull final FakeEntityCreator fakeEntityCreator) {
         this.commodityConverter = commodityConverter;
         this.shoppingListOidToInfos = shoppingListOidToInfos;
         this.cloudTc = cloudTc;
         this.originalTopology = originalTopology;
         this.oidToProjectedTraderTOMap = oidToTraderTOMap;
         this.commoditiesResizeTracker = commoditiesResizeTracker;
+        this.fakeEntityCreator = fakeEntityCreator;
         this.projectedRICoverageCalculator = projectedRICoverageCalculator;
         this.tierExcluder = tierExcluder;
         this.commodityIndex = commodityIndexSupplier.get();
@@ -371,6 +375,11 @@ public class ActionInterpreter {
 
         List<MoveTO> moveActions = actionTO.getCompoundMove().getMovesList();
         for (MoveTO moveTO : moveActions) {
+            // done so that we don't make actions for moves that involve clusters,
+            // during ignore constraints plan analysis
+            if (isFakeClusterMove(moveTO)) {
+                continue;
+            }
             // Create ActionTO from MoveTO.
             final ActionTO.Builder actionBuilder = ActionTO.newBuilder();
             actionBuilder.setIsNotExecutable(actionTO.getIsNotExecutable());
@@ -903,7 +912,8 @@ public class ActionInterpreter {
 
     /**
      * Determine if change provider creation should be skip for given move action.
-     *
+     * Skips if we are trying to move a virtual volume, then skip change provider creation,
+     * or if the move involves a fake cluster
      * @param move a move action
      * @param target target of move action
      * @param resourceIds related resource ids
@@ -915,10 +925,20 @@ public class ActionInterpreter {
             @Nullable final Set<Long> resourceIds, @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         // If we are trying to move a virtual volume, then skip change provider creation, which means this action will be discarded.
         // TODO: We need a better way to determine configuration volume.
-        return target != null && target.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+        return isFakeClusterMove(move) || (target != null && target.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
             && projectedTopology.get(move.getDestination()).getEntity().getEntityType() == EntityType.STORAGE_VALUE
             && resourceIds != null && !resourceIds.isEmpty()
-            && TopologyDTOUtil.isConfigurationVolume(originalTopology.get(resourceIds.iterator().next()));
+            && TopologyDTOUtil.isConfigurationVolume(originalTopology.get(resourceIds.iterator().next())));
+    }
+
+    /**
+     * If it is a fake cluster than we have no reason to compute its change provider
+     * @param move
+     * @return if the move is involved with a fake cluster
+     */
+    private boolean isFakeClusterMove(MoveTO move) {
+        return this.fakeEntityCreator.isFakeComputeClusterOid(move.getDestination())
+                || this.fakeEntityCreator.isFakeComputeClusterOid(move.getSource());
     }
 
     /**
