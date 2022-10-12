@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: firehose-connector
-          image: turbonomic/kinesis-kafka-connect:8.6.6-SNAPSHOT
+          image: turbonomic/kinesis-kafka-connect:8.7.0-SNAPSHOT
           ports:
             - containerPort: 8083
           envFrom:
