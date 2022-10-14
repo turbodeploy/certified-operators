@@ -37,7 +37,7 @@ alertmanager:
   ## deployed ONLY.
   ## This makes alertmanager work - for users who do not have ClusterAdmin privs, but wants
   ## alertmanager to operate on their own namespace, instead of clusterwide.
-  useClusterRole: false
+  useClusterRole: true
 
   ## alertmanager container name
   ##
@@ -421,7 +421,7 @@ kube-state-metrics:
 nodeExporter:
   ## If false, node-exporter will not be installed
   ##
-  enabled: false
+  enabled: true
 
   ## If true, node-exporter pods share the host network namespace
   ##
@@ -567,13 +567,13 @@ server:
   ## deployed ONLY.
   ## This makes server work - for users who do not have ClusterAdmin privs, but wants
   ## alertmanager to operate on their own namespace, instead of clusterwide.
-  useClusterRole: false
+  useClusterRole: true
 
   outOfTheBoxScrapeConfigs:
     kubernetes:
-      enabled: false
+      enabled: true
     xl:
-      enabled: false
+      enabled: true
 
   name: server
   sidecarContainers: []
@@ -1023,7 +1023,7 @@ server:
 pushgateway:
   ## If false, pushgateway will not be installed
   ##
-  enabled: false
+  enabled: true
 
   ## Use an alternate scheduler, e.g. "stork".
   ## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
