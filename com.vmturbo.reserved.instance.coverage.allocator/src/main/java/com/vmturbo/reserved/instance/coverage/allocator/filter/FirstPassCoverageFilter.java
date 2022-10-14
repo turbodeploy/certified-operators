@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentStatus;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reserved.instance.coverage.allocator.CloudCommitmentCoverageJournal;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
@@ -127,6 +128,7 @@ public class FirstPassCoverageFilter {
      */
     public Stream<CloudCommitmentAggregate> getCloudCommitments() {
         return coverageTopology.getAllCloudCommitmentAggregates().stream()
+                .filter(commitmentAggregate -> commitmentAggregate.aggregationInfo().status() == CloudCommitmentStatus.CLOUD_COMMITMENT_STATUS_ACTIVE)
                 .filter(commitmentAggregate ->
                         !coverageJournal.isCommitmentAtCapacity(commitmentAggregate.aggregateId()));
     }
