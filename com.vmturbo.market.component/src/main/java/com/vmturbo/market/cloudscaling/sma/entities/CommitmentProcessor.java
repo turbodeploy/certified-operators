@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CloudCo
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.topology.conversions.ReservedInstanceKey;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentScope;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.CloudCommitmentStatus;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CloudCommitmentData.FamilyRestricted;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -67,6 +68,10 @@ public class CommitmentProcessor {
 
         if (!familyRestricted.hasInstanceFamily()) {
             logger.info("Skip commitment {} with unsupported scope", commitmentId);
+            return Optional.empty();
+        } else if (cloudCommitmentData.getCommitmentStatus() != CloudCommitmentStatus.CLOUD_COMMITMENT_STATUS_ACTIVE) {
+            logger.info("Skipping commitment {} with non-active status {}",
+                    commitmentId, cloudCommitmentData.getCommitmentStatus());
             return Optional.empty();
         }
 
