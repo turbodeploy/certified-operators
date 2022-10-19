@@ -96,6 +96,16 @@
             <groupId>com.github.tomakehurst</groupId>
             <artifactId>wiremock-jre8</artifactId>
         </dependency>
+        <!-- Overriding dependency with one that does not have CVE
+            can be removed once https://github.com/wiremock/wiremock/issues/1994 is resolved
+            and we upgrade wiremock to the latest version. For now we override using handlebars 4.3.1
+            which has the fix: https://github.com/jknack/handlebars.java/issues/1009
+        -->
+        <dependency>
+            <groupId>com.github.jknack</groupId>
+            <artifactId>handlebars</artifactId>
+            <version>4.3.1</version>
+        </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
