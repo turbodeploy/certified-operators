@@ -1,5 +1,6 @@
 package com.vmturbo.topology.graph.util;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,7 +46,7 @@ public abstract class BaseTopologyStore<T extends BaseTopology<E>, S extends Bas
      * keys are incrementally sorted, so that when we apply the state changes, we apply them in
      * increasing order by topologyId.
      */
-    private final Map<Long, List<TopologyEntityDTO>> entitiesWithUpdatedState = new TreeMap<>();
+    private final Map<Long, List<TopologyEntityDTO>> entitiesWithUpdatedState = Collections.synchronizedSortedMap(new TreeMap<>());
 
     private void updateRealtimeSourceTopology(@Nonnull final T newSourceRealtimeTopology) {
         synchronized (topologyLock) {
@@ -55,15 +56,24 @@ public abstract class BaseTopologyStore<T extends BaseTopology<E>, S extends Bas
         long sourceTopologyId =  newSourceRealtimeTopology.topologyInfo().getTopologyId();
         logger.info("Updated realtime topology with id {}. New topology has {} entities.",
                 sourceTopologyId, newSourceRealtimeTopology.size());
-        entitiesWithUpdatedState.entrySet().removeIf(entry -> (
-                // The topologyId and the stateChangeId are created incrementally from the same
-                // identity function in the topology processor. Here we want to remove all the cached
-                // entityDTOs that were created before the current topology, and we can do that by
-                // comparing the two ids.
-                sourceTopologyId >= entry.getKey()));
-        for (List<TopologyEntityDTO> entityDTOList : entitiesWithUpdatedState.values()) {
-            entityDTOList.forEach(this::updateEntityWithNewState);
+
+        final int sizeBefore;
+        final int sizeAfter;
+        synchronized (entitiesWithUpdatedState) {
+            sizeBefore = entitiesWithUpdatedState.size();
+            entitiesWithUpdatedState.entrySet().removeIf(entry -> (
+                    // The topologyId and the stateChangeId are created incrementally from the same
+                    // identity function in the topology processor. Here we want to remove all the cached
+                    // entityDTOs that were created before the current topology, and we can do that by
+                    // comparing the two ids.
+                    sourceTopologyId >= entry.getKey()));
+            for (List<TopologyEntityDTO> entityDTOList : entitiesWithUpdatedState.values()) {
+                entityDTOList.forEach(this::updateEntityWithNewState);
+            }
+            sizeAfter = entitiesWithUpdatedState.size();
         }
+        logger.info("Removed {} entries from entitiesWithUpdatedState, current size is {}",
+                sizeBefore - sizeAfter, sizeAfter);
     }
 
     /**
@@ -118,11 +128,14 @@ public abstract class BaseTopologyStore<T extends BaseTopology<E>, S extends Bas
      * @param entitiesWithNewState message containing the new state
      */
     public void setEntityWithUpdatedState(EntitiesWithNewState entitiesWithNewState) {
+        this.entitiesWithUpdatedState.put(entitiesWithNewState.getStateChangeId(),
+                entitiesWithNewState.getTopologyEntityList());
         for (TopologyEntityDTO entityDTO : entitiesWithNewState.getTopologyEntityList()) {
-            this.entitiesWithUpdatedState.put(entitiesWithNewState.getStateChangeId(),
-                    entitiesWithNewState.getTopologyEntityList());
             updateEntityWithNewState(entityDTO);
         }
+        logger.info("Updated {} entities with new state in incremental topology with id {}",
+                entitiesWithNewState.getTopologyEntityList().size(),
+                entitiesWithNewState.getStateChangeId());
     }
 
     /**
