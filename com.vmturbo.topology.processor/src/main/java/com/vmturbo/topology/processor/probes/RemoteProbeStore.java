@@ -19,6 +19,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -326,7 +327,7 @@ public class RemoteProbeStore implements ProbeStore {
             if (!probes.containsKey(probeId)) {
                 throw new ProbeException(noTransportMessage(probeId));
             }
-            return probes.get(probeId);
+            return ImmutableList.copyOf(probes.get(probeId));
         }
     }
 
