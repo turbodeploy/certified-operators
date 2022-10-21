@@ -193,7 +193,9 @@ public class MCAPricingDiscoveryController extends
 
             return ImmutableList.of(
                 pricingIdentifier(PricingIdentifierName.BILLING_ACCOUNT_NAME, mcaAccountId),
-                pricingIdentifier(PricingIdentifierName.BILLING_PROFILE_ID, mcaProfileId),
+                // TODO: use only mcaProfileId
+                pricingIdentifier(PricingIdentifierName.BILLING_PROFILE_ID,
+                        String.format("/providers/Microsoft.Billing/billingAccounts/%s/billingProfiles/%s", mcaAccountId, mcaProfileId)),
                 pricingIdentifier(PricingIdentifierName.AZURE_PLAN_ID, planId)
             );
         }
