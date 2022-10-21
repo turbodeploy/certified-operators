@@ -2,10 +2,10 @@
 <probe>
     <full-class-name>com.vmturbo.mediation.azure.pricing.AzurePricingProbe</full-class-name>
     <type>Azure Pricing</type>
-    <ui-category>Public Cloud</ui-category>
-    <category>Cloud Management</category>
-    <license>cloud_targets</license>
+    <category>Cost</category>
+    <ui-category>Cloud Management</ui-category>
     <version>1.0.0</version>
+    <creation-mode>DERIVED</creation-mode>
+    <!-- run every hour -->
     <rediscovery-interval-seconds>3600</rediscovery-interval-seconds>
-    <!--<creation-mode>DERIVED</creation-mode>-->
 </probe>
