@@ -33,7 +33,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
@@ -191,6 +191,9 @@ public class EntitySavingsConfig {
     @Autowired
     private SearchServiceBlockingStub searchServiceBlockingStub;
 
+    @Autowired
+    private SettingServiceBlockingStub settingServiceBlockingStub;
+
     /**
      * Chunk size for savings data processing. This many entities are processed at a time.
      */
@@ -308,16 +311,6 @@ public class EntitySavingsConfig {
     }
 
     /**
-     * Gets Settings Service Client.
-     *
-     * @return Settings Service Client.
-     */
-    @Bean
-    public SettingServiceGrpc.SettingServiceBlockingStub settingServiceClient() {
-        return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
-    }
-
-    /**
      * Get savings retention configuration.
      *
      * @return Action executed lifetime configuration information.
@@ -329,7 +322,7 @@ public class EntitySavingsConfig {
                     entitySavingsEventsRetentionHours, EVENT_RETENTION_DEFAULT_HOURS);
             entitySavingsEventsRetentionHours = EVENT_RETENTION_DEFAULT_HOURS;
         }
-        return new EntitySavingsRetentionConfig(settingServiceClient(),
+        return new EntitySavingsRetentionConfig(settingServiceBlockingStub,
                 entitySavingsAuditLogRetentionHours, entitySavingsEventsRetentionHours);
     }
 

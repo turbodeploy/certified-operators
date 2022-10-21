@@ -47,7 +47,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
@@ -59,7 +58,6 @@ import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.persistence.DataIngestionBouncer;
 import com.vmturbo.cost.component.persistence.DataIngestionBouncer.DataIngestionConfig;
-import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
@@ -67,7 +65,6 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  */
 @Configuration
 @Import({DbAccessConfig.class,
-        GroupClientConfig.class,
         CloudCommitmentAnalysisStoreConfig.class})
 public class CostCleanupConfig {
 
@@ -132,13 +129,10 @@ public class CostCleanupConfig {
     private DbAccessConfig dbAccessConfig;
 
     @Autowired
-    private GroupClientConfig groupClientConfig;
-
-    @Autowired
     private CloudCommitmentAnalysisStoreConfig ccaStoreConfig;
 
     @Autowired
-    private CostTableCleanupManager cleanupManager;
+    private SettingServiceBlockingStub settingServiceBlockingStub;
 
     /**
      * Get the instance of the clock.
@@ -204,7 +198,8 @@ public class CostCleanupConfig {
      * @return The {@link DataIngestionBouncer}.
      */
     @Bean
-    public DataIngestionBouncer ingestionBouncer(@Nonnull List<CostTableCleanup> tableCleanups) {
+    public DataIngestionBouncer ingestionBouncer(@Nonnull List<CostTableCleanup> tableCleanups,
+                                                 @Nonnull CostTableCleanupManager cleanupManager) {
         return new DataIngestionBouncer(cleanupManager,
                 DataIngestionConfig.builder()
                         .addAllCleanupInfoList(tableCleanups.stream()
@@ -226,15 +221,6 @@ public class CostCleanupConfig {
     }
 
     /**
-     * The {@link SettingServiceBlockingStub}.
-     * @return The {@link SettingServiceBlockingStub}.
-     */
-    @Bean
-    SettingServiceBlockingStub settingServiceClient() {
-        return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
-    }
-
-    /**
      * The {@link RetentionPeriodFetcher}.
      * @return The {@link RetentionPeriodFetcher}.
      */
@@ -242,7 +228,7 @@ public class CostCleanupConfig {
     public RetentionPeriodFetcher retentionPeriodFetcher() {
         return new RetentionPeriodFetcher(costClock(),
                 updateRetentionIntervalSeconds, TimeUnit.SECONDS,
-                numRetainedMinutes, settingServiceClient());
+                numRetainedMinutes, settingServiceBlockingStub);
     }
 
     /**
@@ -502,8 +488,20 @@ public class CostCleanupConfig {
                 .numRowsToBatchDelete(computeTierAllocationBatchDelete)
                 .cleanupRate(Duration.parse(computeTierAllocationDeleteInterval))
                 .build(),
-                new SettingsRetentionFetcher(settingServiceClient(), GlobalSettingSpecs.CloudCommitmentAllocationRetentionDays.createSettingSpec(),
-                        ChronoUnit.DAYS, Duration.ofSeconds(updateRetentionIntervalSeconds)));
+                settingsRetentionFetcher());
+    }
+
+    /**
+     * Creates a new {@link SettingsRetentionFetcher} bean.
+     * @return The {@link SettingsRetentionFetcher} instance.
+     */
+    @Bean
+    public SettingsRetentionFetcher settingsRetentionFetcher() {
+        return new SettingsRetentionFetcher(
+                settingServiceBlockingStub,
+                GlobalSettingSpecs.CloudCommitmentAllocationRetentionDays.createSettingSpec(),
+                ChronoUnit.DAYS,
+                Duration.ofSeconds(updateRetentionIntervalSeconds));
     }
 
 

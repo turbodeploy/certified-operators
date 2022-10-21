@@ -39,6 +39,7 @@ import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentRpcService;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsRpcService;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentUploadRpcService;
+import com.vmturbo.cost.component.db.CostPartitioningConfig;
 import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.db.StoredProcedureConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
@@ -62,6 +63,7 @@ import com.vmturbo.trax.TraxThrottlingLimit;
 @Configuration("theComponent")
 @Import({
     CostComponentGlobalConfig.class,
+    CommunicationConfig.class,
     BuyRIAnalysisConfig.class,
     CostConfig.class,
     CostServiceConfig.class,
@@ -81,6 +83,7 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     CloudCommitmentConfig.class,
     BilledCostConfig.class,
     StoredProcedureConfig.class,
+    CostPartitioningConfig.class,
     CloudCostConfig.class
 })
 public class CostComponent extends BaseVmtComponent {

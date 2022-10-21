@@ -3,8 +3,6 @@ package com.vmturbo.cost.component.reserved.instance;
 import java.sql.SQLException;
 import java.util.concurrent.TimeUnit;
 
-import javax.annotation.Nonnull;
-
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,6 +10,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceBoughtServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceUtilizationCoverageServiceController;
@@ -19,13 +19,10 @@ import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.api.CostClientConfig;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
@@ -33,8 +30,6 @@ import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
 import com.vmturbo.cost.component.cloud.commitment.ProjectedCommitmentMappingProcessor;
-import com.vmturbo.cost.component.cloud.commitment.mapping.CommitmentMappingFilter;
-import com.vmturbo.cost.component.cloud.commitment.mapping.MappingInfo;
 import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
@@ -42,7 +37,6 @@ import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalCoverageAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalCoverageAnalysisFactory;
-import com.vmturbo.cost.component.stores.SingleFieldDataStore;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
@@ -135,6 +129,9 @@ public class ReservedInstanceConfig {
 
     @Autowired
     private ProjectedCommitmentMappingProcessor projectedCommitmentMappingProcessor;
+
+    @Autowired
+    private SettingServiceBlockingStub settingServiceBlockingStub;
 
     // OM-66854 - normalization with consider the sample count of each data point within the
     // down-sampled RI coverage/utilization tables (rollup tables). If this is disabled, the behavior
@@ -297,8 +294,7 @@ public class ReservedInstanceConfig {
     @Bean
     public RetentionPeriodFetcher retentionPeriodFetcher() {
         return new RetentionPeriodFetcher(costComponentGlobalConfig.clock(), updateRetentionIntervalSeconds,
-            TimeUnit.SECONDS, numRetainedMinutes,
-            SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
+            TimeUnit.SECONDS, numRetainedMinutes, settingServiceBlockingStub);
     }
 
     @Bean
@@ -420,14 +416,6 @@ public class ReservedInstanceConfig {
                 reservedInstanceSpecConfig.reservedInstanceSpecStore());
     }
 
-
-
-
-
-    @Bean
-    public SettingServiceBlockingStub settingServiceClient() {
-        return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
-    }
 
     @Bean
     public RepositoryServiceBlockingStub repositoryServiceClient() {

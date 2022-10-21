@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostData;
 import com.vmturbo.cost.component.billed.cost.CloudCostStore.BilledCostPersistenceSession;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingData.CloudBillingBucket.Granularity;
 import com.vmturbo.sql.utils.DbException;
+import com.vmturbo.sql.utils.partition.PartitionProcessingException;
 
 /**
  * SQL implementation of {@link BilledCostPersistenceSession}.
@@ -100,7 +101,7 @@ class SqlBilledCostPersistenceSession implements BilledCostPersistenceSession {
     }
 
     private BilledCostPersistenceStats processHourly(@Nonnull List<BilledCostData> billedCostDataList)
-            throws IdentityOperationException, IdentityUninitializedException, DbException {
+            throws IdentityOperationException, IdentityUninitializedException, DbException, PartitionProcessingException {
 
         logger.info("Processing {} hourly cost data instances with size {}",
                 billedCostDataList::size, () -> billedCostDataList.stream().mapToLong(BilledCostData::getSerializedSize).sum());
@@ -109,7 +110,7 @@ class SqlBilledCostPersistenceSession implements BilledCostPersistenceSession {
     }
 
     private BilledCostPersistenceStats processDaily(@Nonnull List<BilledCostData> billedCostDataList)
-            throws IdentityOperationException, IdentityUninitializedException, DbException {
+            throws IdentityOperationException, IdentityUninitializedException, DbException, PartitionProcessingException {
 
         logger.info("Processing {} daily cost data instances with size {}",
                 billedCostDataList::size, () -> billedCostDataList.stream().mapToLong(BilledCostData::getSerializedSize).sum());

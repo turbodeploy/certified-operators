@@ -65,6 +65,7 @@ import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingData.CloudBilling
 import com.vmturbo.platform.sdk.common.CostBilling.CostTagGroup;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.MultiDbTestBase;
+import com.vmturbo.sql.utils.partition.IPartitioningManager;
 
 /**
  * Functional tests for {@link SqlCloudCostStore}, including integration with the tag group identity provider and
@@ -358,7 +359,16 @@ public class SqlCloudCostStoreFuncTest extends MultiDbTestBase {
     }
 
     private SqlCloudCostStore createCostStore(@Nonnull BilledCostPersistenceConfig persistenceConfig) {
-        return new SqlCloudCostStore(tagGroupIdentityService, cloudScopeIdentityProvider, dataQueueFactory, timeFrameCalculator, dsl, persistenceConfig);
+
+        final IPartitioningManager partitioningManager = mock(IPartitioningManager.class);
+
+        return new SqlCloudCostStore(partitioningManager,
+                tagGroupIdentityService,
+                cloudScopeIdentityProvider,
+                dataQueueFactory,
+                timeFrameCalculator,
+                dsl,
+                persistenceConfig);
     }
 
     private BilledCostData loadCostData(@Nonnull String costDataProtoFilepath) throws Exception {

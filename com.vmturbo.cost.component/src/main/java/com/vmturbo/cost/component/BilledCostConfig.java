@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider;
+import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.billedcosts.BatchInserter;
 import com.vmturbo.cost.component.billedcosts.BilledCostStore;
 import com.vmturbo.cost.component.billedcosts.BilledCostUploadRpcService;
@@ -26,7 +27,6 @@ import com.vmturbo.cost.component.billedcosts.TagGroupIdentityService;
 import com.vmturbo.cost.component.billedcosts.TagGroupStore;
 import com.vmturbo.cost.component.billedcosts.TagIdentityService;
 import com.vmturbo.cost.component.billedcosts.TagStore;
-import com.vmturbo.cost.component.cleanup.CostCleanupConfig;
 import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.rollup.RollupConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -59,7 +59,7 @@ public class BilledCostConfig {
     private RollupConfig rollupConfig;
 
     @Autowired
-    private CostCleanupConfig costCleanupConfig;
+    private TimeFrameCalculator timeFrameCalculator;
 
     @Value("${billedCostDataBatchSize:800}")
     private int billedCostDataBatchSize;
@@ -86,7 +86,7 @@ public class BilledCostConfig {
     public BilledCostStore billedCostStore() {
         try {
             return new SqlBilledCostStore(dbAccessConfig.dsl(), batchInserter(),
-                costCleanupConfig.timeFrameCalculator());
+                timeFrameCalculator);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();

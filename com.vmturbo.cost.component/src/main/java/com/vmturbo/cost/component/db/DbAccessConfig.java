@@ -61,6 +61,12 @@ public class DbAccessConfig {
                 : costDBConfig.dsl();
     }
 
+    public String getSchemaName() {
+        return FeatureFlags.POSTGRES_PRIMARY_DB.isEnabled()
+                ? costDbEndpointConfig.costEndpoint().getConfig().getSchemaName()
+                : costDBConfig.getDbSchemaName();
+    }
+
     /**
      * Obtain a {@link DSLContext} instance that can be used to access the database and is not
      * backed by a connection pool. This is useful for potentially long-running operations that

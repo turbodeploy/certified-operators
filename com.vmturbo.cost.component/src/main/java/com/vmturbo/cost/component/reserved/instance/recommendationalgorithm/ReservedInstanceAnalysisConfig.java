@@ -87,15 +87,13 @@ public class ReservedInstanceAnalysisConfig {
     @Autowired
     private ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory;
 
-    @Bean
-    public SettingServiceBlockingStub settingServiceClient() {
-        return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
-    }
+    @Autowired
+    private SettingServiceBlockingStub settingServiceBlockingStub;
 
     @Bean
     public ReservedInstanceAnalyzer reservedInstanceAnalyzer() {
         return new ReservedInstanceAnalyzer(
-                settingServiceClient(),
+                settingServiceBlockingStub,
                 pricingConfig.priceTableStore(),
                 pricingConfig.businessAccountPriceTableKeyStore(),
                 riBuyAnalysisContextProvider(),

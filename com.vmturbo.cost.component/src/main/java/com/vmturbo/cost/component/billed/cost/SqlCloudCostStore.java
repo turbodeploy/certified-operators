@@ -23,6 +23,7 @@ import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.billedcosts.TagGroupIdentityService;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingData.CloudBillingBucket.Granularity;
+import com.vmturbo.sql.utils.partition.IPartitioningManager;
 
 /**
  * SQL implementation of {@link CloudCostStore}.
@@ -43,6 +44,8 @@ public class SqlCloudCostStore implements CloudCostStore {
 
     /**
      * Constructs a new {@link SqlCloudCostStore} instance.
+     *
+     * @param partitioningManager The partitioning manager.
      * @param tagGroupIdentityService Tag group identity service.
      * @param scopeIdentityProvider The scope identity provider.
      * @param dataQueueFactory The data queue factory.
@@ -50,7 +53,8 @@ public class SqlCloudCostStore implements CloudCostStore {
      * @param dsl The DSL context.
      * @param persistenceConfig The cost data persistence config.
      */
-    public SqlCloudCostStore(@Nonnull TagGroupIdentityService tagGroupIdentityService,
+    public SqlCloudCostStore(@Nonnull IPartitioningManager partitioningManager,
+                             @Nonnull TagGroupIdentityService tagGroupIdentityService,
                              @Nonnull CloudScopeIdentityProvider scopeIdentityProvider,
                              @Nonnull DataQueueFactory dataQueueFactory,
                              @Nonnull TimeFrameCalculator timeFrameCalculator,
@@ -58,7 +62,7 @@ public class SqlCloudCostStore implements CloudCostStore {
                              @Nonnull BilledCostPersistenceConfig persistenceConfig) {
 
         this.dsl = Objects.requireNonNull(dsl);
-        this.costWriter = new BilledCostWriter(tagGroupIdentityService, scopeIdentityProvider, dsl);
+        this.costWriter = new BilledCostWriter(partitioningManager, tagGroupIdentityService, scopeIdentityProvider, dsl);
         this.tagGroupIdentityService = Objects.requireNonNull(tagGroupIdentityService);
         this.statsQueryExecutor = new SqlCostStatsQueryExecutor(dsl, tagGroupIdentityService, timeFrameCalculator);
         persistenceSessionFactory = new SqlBilledCostPersistenceSession.Factory(
