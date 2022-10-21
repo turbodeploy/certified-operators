@@ -228,7 +228,7 @@ public class TopologyConverter {
                     .put(EntityType.STORAGE_VALUE, LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY.STORAGE_SKIPPED)
                     .build();
 
-    private static final boolean INCLUDE_GUARANTEED_BUYER_DEFAULT =
+    public static final boolean INCLUDE_GUARANTEED_BUYER_DEFAULT =
             MarketSettings.BooleanKey.INCLUDE_GUARANTEED_BUYER.value();
 
     // Key is the type of original entity, value is a set of types
@@ -576,69 +576,6 @@ public class TopologyConverter {
     }
 
     /**
-     * A non-shop-together TopologyConverter.
-     *
-     * @param topologyInfo information about topology
-     * @param marketCloudRateExtractor market price table
-     * @param cloudCostData cloud cost data
-     * @param commodityIndexFactory commodity index factory
-     * @param tierExcluderFactory tier excluder factory
-     * @param consistentScalingHelperFactory CSM helper factory
-     * @param reversibilitySettingFetcher fetcher for "Savings vs Reversibility" policy settings
-     */
-    @VisibleForTesting
-    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
-                             @Nonnull final CloudRateExtractor marketCloudRateExtractor,
-                             @Nonnull final CloudCostData cloudCostData,
-                             @Nonnull final CommodityIndexFactory commodityIndexFactory,
-                             @Nonnull final TierExcluderFactory tierExcluderFactory,
-                             @Nonnull final ConsistentScalingHelperFactory
-                                     consistentScalingHelperFactory,
-                             @Nonnull final ReversibilitySettingFetcher
-                                     reversibilitySettingFetcher) {
-        this(topologyInfo, INCLUDE_GUARANTEED_BUYER_DEFAULT, MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, null, cloudCostData,
-                commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
-                null, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, true, false, 0.5f, null);
-    }
-
-    /**
-     * A non-shop-together TopologyConverter.
-     *
-     * @param topologyInfo information about topology
-     * @param marketCloudRateExtractor market price table
-     * @param cloudCostData cloud cost data
-     * @param commodityIndexFactory commodity index factory
-     * @param tierExcluderFactory tier excluder factory
-     * @param consistentScalingHelperFactory CSM helper factory
-     * @param reversibilitySettingFetcher fetcher for "Savings vs Reversibility" policy settings
-     * @param cloudTopology The cloud topology.
-     */
-    @VisibleForTesting
-    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
-            @Nonnull final CloudRateExtractor marketCloudRateExtractor,
-            @Nonnull final CloudCostData cloudCostData,
-            @Nonnull final CommodityIndexFactory commodityIndexFactory,
-            @Nonnull final TierExcluderFactory tierExcluderFactory,
-            @Nonnull final ConsistentScalingHelperFactory
-                    consistentScalingHelperFactory,
-            @Nonnull final ReversibilitySettingFetcher
-                    reversibilitySettingFetcher,
-            @Nonnull CloudTopology cloudTopology) {
-        this(topologyInfo, INCLUDE_GUARANTEED_BUYER_DEFAULT, MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, null, cloudCostData,
-                commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
-                cloudTopology, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, true, false, 0.5f, null);
-    }
-
-
-    /**
      * Constructor with analysisConfig parameter. Entry point from Analysis.
      * TODO: consider using a builder pattern since the constructors have many parameters.
      *
@@ -674,118 +611,6 @@ public class TopologyConverter {
                 analysisConfig.isSingleVMonHost(), analysisConfig.getCustomUtilizationThreshold(), fakeEntityCreator);
         this.unquotedCommoditiesEnabled = isUnquotedCommoditiesEnabled(analysisConfig);
     }
-
-    @VisibleForTesting
-    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
-                             final boolean includeGuaranteedBuyer,
-                             final float quoteFactor,
-                             final MarketMode marketMode,
-                             final float liveMarketMoveCostFactor,
-                             @Nonnull final CloudRateExtractor marketCloudRateExtractor,
-                             @Nonnull CommodityConverter incomingCommodityConverter,
-                             @Nonnull final CommodityIndexFactory commodityIndexFactory,
-                             @Nonnull final TierExcluderFactory tierExcluderFactory,
-                             @Nonnull final ConsistentScalingHelperFactory
-                                     consistentScalingHelperFactory,
-                             @Nonnull final ReversibilitySettingFetcher
-                                     reversibilitySettingFetcher,
-                             final int licensePriceWeightScale,
-                             final boolean enableOP,
-                             final boolean useVMReservationAsUsed,
-                             final boolean singleVMonHost,
-                             final float customUtilizationThreshold) {
-        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, marketMode, liveMarketMoveCostFactor,
-                MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR, marketCloudRateExtractor, incomingCommodityConverter, null,
-                commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
-                null, reversibilitySettingFetcher, licensePriceWeightScale, enableOP, useVMReservationAsUsed,
-                singleVMonHost, customUtilizationThreshold, null);
-    }
-
-    /**
-     * Constructor with includeGuaranteedBuyer parameter.
-     *
-     * @param topologyInfo Information about the topology.
-     * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
-     * @param quoteFactor to be used by move recommendations.
-     * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
-     * @param marketCloudRateExtractor the market price table
-     * @param cloudCostData cloud cost data
-     * @param commodityIndexFactory commodity index factory
-     * @param tierExcluderFactory tier excluder factory
-     * @param consistentScalingHelperFactory CSM helper factory
-     * @param reversibilitySettingFetcher fetcher for "Savings vs Reversibility" policy settings
-     * @param licensePriceWeightScale value to scale the price weight of commodities for every
-     *            softwareLicenseCommodity sold by a provider.
-     * @param enableOP flag to check if to use over provisioning commodity changes.
-     * @param fakeEntityCreator used to determine which actions to ignore.
-     */
-    @VisibleForTesting
-    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
-                             final boolean includeGuaranteedBuyer,
-                             final float quoteFactor,
-                             final float liveMarketMoveCostFactor,
-                             @Nonnull final CloudRateExtractor marketCloudRateExtractor,
-                             @Nonnull final CloudCostData cloudCostData,
-                             @Nonnull final CommodityIndexFactory commodityIndexFactory,
-                             @Nonnull final TierExcluderFactory tierExcluderFactory,
-                             @Nonnull final ConsistentScalingHelperFactory
-                                     consistentScalingHelperFactory,
-                             @Nonnull final ReversibilitySettingFetcher
-                                     reversibilitySettingFetcher,
-                             final int licensePriceWeightScale,
-                             final boolean enableOP,
-                             final FakeEntityCreator fakeEntityCreator) {
-        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor, MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR,
-            marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory, null, reversibilitySettingFetcher, licensePriceWeightScale,
-            enableOP, true, false, 0.5f, fakeEntityCreator);
-    }
-    
-    /**
-     * Constructor with includeGuaranteedBuyer parameter.
-     *
-     * @param topologyInfo Information about the topology.
-     * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
-     * @param quoteFactor to be used by move recommendations.
-     * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
-     * @param marketCloudRateExtractor the market price table
-     * @param cloudCostData cloud cost data
-     * @param commodityIndexFactory commodity index factory
-     * @param tierExcluderFactory tier excluder factory
-     * @param consistentScalingHelperFactory CSM helper factory
-     * @param reversibilitySettingFetcher fetcher for "Savings vs Reversibility" policy settings
-     * @param licensePriceWeightScale value to scale the price weight of commodities for every
-     *            softwareLicenseCommodity sold by a provider.
-     * @param enableOP flag to check if to use over provisioning commodity changes.
-     * @param singleVMonHost Enabling specific logic for single vm on host.
-     * @param customUtilizationThreshold A utilization threshold that can be used for custom logic.
-     */
-    @VisibleForTesting
-    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
-            final boolean includeGuaranteedBuyer,
-            final float quoteFactor,
-            final float liveMarketMoveCostFactor,
-            @Nonnull final CloudRateExtractor marketCloudRateExtractor,
-            @Nonnull final CloudCostData cloudCostData,
-            @Nonnull final CommodityIndexFactory commodityIndexFactory,
-            @Nonnull final TierExcluderFactory tierExcluderFactory,
-            @Nonnull final ConsistentScalingHelperFactory
-                    consistentScalingHelperFactory,
-            @Nonnull final ReversibilitySettingFetcher
-                    reversibilitySettingFetcher,
-            final int licensePriceWeightScale,
-            final CloudTopology cloudTopology,
-            final boolean enableOP,
-            final boolean useVMReservationAsUsed,
-            final boolean singleVMonHost,
-            final float customUtilizationThreshold) {
-        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
-                MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
-                consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher, licensePriceWeightScale,
-                enableOP, useVMReservationAsUsed, singleVMonHost, customUtilizationThreshold, null);
-    }
-
 
     /**
      * is the market mode SMA.

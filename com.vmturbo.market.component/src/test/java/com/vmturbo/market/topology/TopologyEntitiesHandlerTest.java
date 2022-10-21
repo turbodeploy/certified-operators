@@ -430,11 +430,24 @@ public class TopologyEntitiesHandlerTest {
 
         Map<Long, TopologyEntityDTO> topoDTOs = probeDTOs.stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                        MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                        marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                        consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                        false, Mockito.mock(FakeEntityCreator.class));
+        TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
         Collection<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
                         .setTopologyType(TopologyType.REALTIME).setTopologyId(1L).build();
@@ -513,11 +526,24 @@ public class TopologyEntitiesHandlerTest {
         List<TopologyEntityDTO> topoDTOs =
                         messagesFromJsonFile("protobuf/messages/small.json", TopologyEntityDTO::newBuilder);
 
-        TopologyConverter topoConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                        MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                        marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                        consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                        false, Mockito.mock(FakeEntityCreator.class));
+        TopologyConverter topoConverter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
 
         Collection<TraderTO> traderDTOs = topoConverter.convertToMarket(topoDTOs.stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
@@ -553,11 +579,20 @@ public class TopologyEntitiesHandlerTest {
         List<TopologyEntityDTO> topoDTOs = messagesFromJsonFile(
                         "protobuf/messages/entities.json", TopologyEntityDTO::newBuilder);
 
-        Collection<TraderTO> traderDTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-            marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory, reversibilitySettingFetcher).convertToMarket(
+        Collection<TraderTO> traderDTOs = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .useVMReservationAsUsed(true)
+                .customUtilizationThreshold(0.5f)
+                .build().convertToMarket(
                 topoDTOs.stream()
-                    .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
+                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
 
         for (TraderTO traderTO : traderDTOs) {
             if (traderTO.getDebugInfoNeverUseInCode().startsWith("STORAGE")) {
@@ -599,9 +634,18 @@ public class TopologyEntitiesHandlerTest {
         Map<Long, TopologyEntityDTO> nonShopTogetherTopoDTOs = nonShopTogetherProbeDTOs.stream()
                     .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
-        TopologyConverter togetherConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                        marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory, reversibilitySettingFetcher);
+        TopologyConverter togetherConverter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .useVMReservationAsUsed(true)
+                .customUtilizationThreshold(0.5f)
+                .build();
         final Collection<TraderTO> traderDTOs = togetherConverter.convertToMarket(nonShopTogetherTopoDTOs);
 
         // No DSPMAccess and Datastore commodities sold
@@ -632,9 +676,18 @@ public class TopologyEntitiesHandlerTest {
         Map<Long, TopologyEntityDTO> shopTogetherTopoDTOs = shopTogetherProbeDTOs.stream()
                     .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
-        TopologyConverter shopTogetherConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                        marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory, reversibilitySettingFetcher);
+        TopologyConverter shopTogetherConverter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .useVMReservationAsUsed(true)
+                .customUtilizationThreshold(0.5f)
+                .build();
         final Collection<TraderTO> shopTogetherTraderDTOs =
                         shopTogetherConverter.convertToMarket(shopTogetherTopoDTOs);
 
@@ -672,9 +725,18 @@ public class TopologyEntitiesHandlerTest {
         List<TopologyEntityDTO> topoDTOs = messagesFromJsonFile(
                         "protobuf/messages/invalid-topology.json", TopologyEntityDTO::newBuilder);
 
-        new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketCloudRateExtractor, ccd,
-                CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher)
+        new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .useVMReservationAsUsed(true)
+                .customUtilizationThreshold(0.5f)
+                .build()
             .convertToMarket(topoDTOs.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
     }
@@ -800,9 +862,19 @@ public class TopologyEntitiesHandlerTest {
                 .thenReturn(mockStoragePriceBundle(stPrices));
         when(ccd.getFilteredRiCoverage(anyLong())).thenReturn(Optional.empty());
         when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                        marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory, reversibilitySettingFetcher, cloudTopology);
+        final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .cloudTopology(cloudTopology)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .useVMReservationAsUsed(true)
+                .customUtilizationThreshold(0.5f)
+                .build();
         Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
         field.setAccessible(true);
         field.set(converter, Status.SUCCESS);
@@ -927,9 +999,18 @@ public class TopologyEntitiesHandlerTest {
                             .thenReturn(mockDatabasePriceBundle(ba.getOid(), dbm3LargePrices));
             when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
             when(ccd.getFilteredRiCoverage(anyLong())).thenReturn(Optional.empty());
-            final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                            marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher);
+            final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                    .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                    .marketCloudRateExtractor(marketCloudRateExtractor)
+                    .cloudCostData(ccd)
+                    .commodityIndexFactory(CommodityIndex.newFactory())
+                    .tierExcluderFactory(tierExcluderFactory)
+                    .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                    .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                    .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                    .useVMReservationAsUsed(true)
+                    .customUtilizationThreshold(0.5f)
+                    .build();
             Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
             field.setAccessible(true);
             field.set(converter, Status.SUCCESS);
@@ -1079,21 +1160,45 @@ public class TopologyEntitiesHandlerTest {
         // 2. change historical utilization in topo dtos
         editTopologyDTOMockPipleine(topoDTOs);
 
-        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, Mockito.mock(FakeEntityCreator.class));
+        TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .customUtilizationThreshold(0.5f)
+                .build();
         Collection<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         return generateEnd2EndActions(analysis, economyDTOs, converter);
     }
 
     private AnalysisResults generateEnd2EndActions(Analysis analysis, Set<TraderTO> economyDTOs) {
-        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, Mockito.mock(FakeEntityCreator.class));
+        TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .customUtilizationThreshold(0.5f)
+                .build();
         return generateEnd2EndActions(analysis, economyDTOs, converter);
     }
 
@@ -1392,9 +1497,18 @@ public class TopologyEntitiesHandlerTest {
             throws NoSuchFieldException, IllegalAccessException, InterruptedException {
         AnalysisRICoverageListener listener = mock(AnalysisRICoverageListener.class);
         Analysis analysis = mock(Analysis.class);
-        TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher);
+        TopologyConverter topologyConverter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .useVMReservationAsUsed(true)
+                .customUtilizationThreshold(0.5f)
+                .build();
         Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
         field.setAccessible(true);
 
@@ -1492,9 +1606,18 @@ public class TopologyEntitiesHandlerTest {
                 .thenReturn(mockStoragePriceBundle(stPrices));
         when(ccd.getFilteredRiCoverage(anyLong())).thenReturn(Optional.empty());
         when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher);
+        final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .useVMReservationAsUsed(true)
+                .customUtilizationThreshold(0.5f)
+                .build();
         // We fail the cost notification. Every shopping list should have movable false.
         Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
         field.setAccessible(true);

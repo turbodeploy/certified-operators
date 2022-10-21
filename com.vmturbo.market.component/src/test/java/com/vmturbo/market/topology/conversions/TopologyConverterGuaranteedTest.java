@@ -38,6 +38,7 @@ import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.market.runner.FakeEntityCreator;
+import com.vmturbo.market.topology.TopologyConverterUtil;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -156,9 +157,18 @@ public class TopologyConverterGuaranteedTest {
     public void testExcludeVDCs() {
         // includeVDC is false
         TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketCloudRateExtractor, ccd,
-                CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
-                    reversibilitySettingFetcher);
+                new TopologyConverterUtil.Builder()
+                        .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                        .marketCloudRateExtractor(marketCloudRateExtractor)
+                        .cloudCostData(ccd)
+                        .commodityIndexFactory(CommodityIndex.newFactory())
+                        .tierExcluderFactory(tierExcluderFactory)
+                        .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                        .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                        .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                        .useVMReservationAsUsed(true)
+                        .customUtilizationThreshold(0.5f)
+                        .build();
         Collection<TraderTO> traders = converter.convertToMarket(entities);
         /*
          VDCs and DPs are skipped, VMs in maintenance and unknown state are not skipped
@@ -181,11 +191,24 @@ public class TopologyConverterGuaranteedTest {
     @Test
     public void testIncludeVDCs() {
         TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, Mockito.mock(FakeEntityCreator.class));
+                new TopologyConverterUtil.Builder()
+                        .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                        .includeGuaranteedBuyer(true)
+                        .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                        .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                        .marketCloudRateExtractor(marketCloudRateExtractor)
+                        .cloudCostData(ccd)
+                        .commodityIndexFactory(CommodityIndex.newFactory())
+                        .tierExcluderFactory(tierExcluderFactory)
+                        .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                        .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                        .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                        .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                        .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                        .useVMReservationAsUsed(true)
+                        .singleVMonHost(false)
+                        .customUtilizationThreshold(0.5f)
+                        .build();
         Collection<TraderTO> traders = converter.convertToMarket(entities);
         assertEquals(7, traders.size());
         final Collection<Long> guaranteedBuyers = traders.stream()
