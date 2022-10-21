@@ -1,5 +1,7 @@
 package com.vmturbo.cost.component.billed.cost;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -30,6 +32,8 @@ import com.vmturbo.cost.component.billedcosts.TagGroupIdentityService;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingData.CloudBillingBucket.Granularity;
 import com.vmturbo.platform.sdk.common.CostBilling.CostTagGroup;
 import com.vmturbo.sql.utils.DbException;
+import com.vmturbo.sql.utils.partition.IPartitioningManager;
+import com.vmturbo.sql.utils.partition.PartitionProcessingException;
 
 /**
  * Responsible for persisting {@link BilledCostData} to a cloud cost table represented as through a {@link BilledCostTableAccessor}.
@@ -42,41 +46,48 @@ class BilledCostWriter {
 
     private final Logger logger = LogManager.getLogger();
 
+    private final IPartitioningManager partitioningManager;
+
     private final TagGroupIdentityService tagGroupIdentityService;
 
     private final CloudScopeIdentityProvider scopeIdentityProvider;
 
     private final DSLContext dsl;
 
-    protected BilledCostWriter(@Nonnull TagGroupIdentityService tagGroupIdentityService,
+    protected BilledCostWriter(@Nonnull IPartitioningManager partitioningManager,
+                               @Nonnull TagGroupIdentityService tagGroupIdentityService,
                                @Nonnull CloudScopeIdentityProvider scopeIdentityProvider,
                                @Nonnull DSLContext dsl) {
 
+        this.partitioningManager = Objects.requireNonNull(partitioningManager);
         this.tagGroupIdentityService = Objects.requireNonNull(tagGroupIdentityService);
         this.scopeIdentityProvider = Objects.requireNonNull(scopeIdentityProvider);
         this.dsl = Objects.requireNonNull(dsl);
     }
 
-    protected void persistCostData(@Nonnull BilledCostData costData) throws IdentityOperationException, IdentityUninitializedException, DbException {
+    protected void persistCostData(@Nonnull BilledCostData costData)
+            throws IdentityOperationException, IdentityUninitializedException, DbException, PartitionProcessingException {
         persistCostData(ImmutableList.of(costData), costData.getGranularity());
     }
 
 
     protected BilledCostPersistenceStats persistCostData(@Nonnull List<BilledCostData> billedCostDataList,
                                                          @Nonnull Granularity granularity)
-            throws IdentityOperationException, IdentityUninitializedException, DbException {
+            throws IdentityOperationException, IdentityUninitializedException, DbException, PartitionProcessingException {
 
         final BilledCostTableAccessor<?> tableAccessor = getTableAccessorOrThrow(granularity);
 
         final List<ExpandedCostItem> expandedCostItems = expandedCostItems(billedCostDataList);
 
         final Map<CostTagGroup, Long> tagGroupIdMap = persistTagGroupings(billedCostDataList);
+
         final Set<CloudScope> cloudScopes = expandedCostItems.stream()
                 .map(ExpandedCostItem::scope)
                 .collect(ImmutableSet.toImmutableSet());
         final Map<CloudScope, CloudScopeIdentity> scopeIdentityMap =
                 scopeIdentityProvider.getOrCreateScopeIdentities(cloudScopes);
 
+        ensurePartitions(billedCostDataList, tableAccessor);
         persistCostItems(expandedCostItems, tagGroupIdMap, scopeIdentityMap, tableAccessor);
 
         return BilledCostPersistenceStats.builder()
@@ -144,10 +155,29 @@ class BilledCostWriter {
                         localTagGroupEntry -> localToPersistentIdMap.get(localTagGroupEntry.getKey())));
     }
 
+    private void ensurePartitions(@Nonnull final List<BilledCostData> costDataList,
+                                  @Nonnull final BilledCostTableAccessor<?> tableAccessor) throws PartitionProcessingException {
+
+        final Set<Instant> bucketSampleTimes = costDataList.stream()
+                .flatMap(billedCostData -> billedCostData.getCostBucketsList().stream())
+                .map(costBucket -> Instant.ofEpochMilli(costBucket.getSampleTsUtc()))
+                .collect(ImmutableSet.toImmutableSet());
+
+        logger.debug("Ensuring partition existence for {} billed cost samples times", bucketSampleTimes.size());
+
+        for (Instant bucketSampleTime : bucketSampleTimes) {
+
+            logger.trace("Ensuring partition existence for {}", bucketSampleTime);
+            partitioningManager.prepareForInsertion(tableAccessor.table(), Timestamp.from(bucketSampleTime));
+        }
+    }
+
     private void persistCostItems(@Nonnull List<ExpandedCostItem> costItems,
                                   @Nonnull Map<CostTagGroup, Long> tagGroupIdMap,
                                   @Nonnull Map<CloudScope, CloudScopeIdentity> scopeIdentityMap,
                                   @Nonnull BilledCostTableAccessor<?> tableAccessor) {
+
+        logger.debug("Persisting {} cost items to {}", costItems.size(), tableAccessor.table().getName());
 
         dsl.transaction(configuration -> {
             final DSLContext context = DSL.using(configuration);

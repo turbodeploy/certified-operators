@@ -21,6 +21,7 @@ import com.vmturbo.cost.component.billedcosts.TagGroupIdentityService;
 import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.scope.SqlCloudScopeIdentityStore;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.partition.IPartitioningManager;
 
 /**
  * Spring configuration for cloud cost beans, including the {@link CloudCostStore} and {@link BilledCostRpcService}.
@@ -45,6 +46,10 @@ public class CloudCostConfig {
     // Autowired from IdentityProviderConfig
     @Autowired
     private IdentityProvider identityProvider;
+
+    // Autowired from CostPartitioningConfig
+    @Autowired
+    private IPartitioningManager partitioningManager;
 
     /**
      * Batch size for inserting into the cloud scope identity table.
@@ -113,6 +118,7 @@ public class CloudCostConfig {
                     .build();
 
             return new SqlCloudCostStore(
+                    partitioningManager,
                     tagGroupIdentityService,
                     cloudScopeIdentityProvider(),
                     dataQueueFactory(),

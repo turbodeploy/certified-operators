@@ -11,23 +11,22 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.cloud.commitment.analysis.CloudCommitmentAnalysisConfig;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.cost.CostREST.BuyRIAnalysisServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory;
-import com.vmturbo.cloud.common.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisRunner;
 import com.vmturbo.cost.component.cca.CloudCommitmentSettingsFetcher;
 import com.vmturbo.cost.component.cca.configuration.CloudCommitmentAnalysisConfigurationHolder;
 import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
-import com.vmturbo.cost.component.rpc.RIBuyContextFetchRpcService;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
+import com.vmturbo.cost.component.rpc.RIBuyContextFetchRpcService;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -85,6 +84,9 @@ public class BuyRIAnalysisConfig {
     // Autowired from RepositoryClientConfig
     @Autowired
     private SearchServiceBlockingStub searchServiceBlockingStub;
+
+    @Autowired
+    private SettingServiceBlockingStub settingServiceBlockingStub;
 
     @Value("${disableRealtimeRIBuyAnalysis:false}")
     private boolean disableRealtimeRIBuyAnalysis;
@@ -147,7 +149,7 @@ public class BuyRIAnalysisConfig {
     @Bean
     public CloudCommitmentSettingsFetcher cloudCommitmentSettingsFetcher() {
         return new CloudCommitmentSettingsFetcher(
-                settingServiceClient(),
+                settingServiceBlockingStub,
                 cloudCommitmentAnalysisConfigurationHolder());
     }
 
@@ -200,16 +202,6 @@ public class BuyRIAnalysisConfig {
     }
 
     /**
-     * Gets Settings Service Client.
-     *
-     * @return Settings Service Client.
-     */
-    @Bean
-    public SettingServiceBlockingStub settingServiceClient() {
-        return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
-    }
-
-    /**
      * Gets Repository Service Client.
      *
      * @return Repository Service Client.
@@ -228,7 +220,7 @@ public class BuyRIAnalysisConfig {
     public ReservedInstanceAnalysisInvoker reservedInstanceAnalysisInvoker() {
         ReservedInstanceAnalysisInvoker reservedInstanceAnalysisInvoker =
         new ReservedInstanceAnalysisInvoker(reservedInstanceAnalysisConfig.reservedInstanceAnalyzer(),
-                repositoryServiceClient(), settingServiceClient(),
+                repositoryServiceClient(), settingServiceBlockingStub,
                 reservedInstanceAnalysisConfig.reservedInstanceBoughtStore(),
                 pricingConfig.businessAccountPriceTableKeyStore(), pricingConfig.priceTableStore(),
                 realtimeTopologyContextId,
