@@ -303,6 +303,7 @@ public class UuidMapperTest {
         assertFalse(id.isRealtimeMarket());
         assertFalse(id.isGroup());
         assertFalse(id.isEntity());
+        assertFalse(id.hasCachedEntityInfo());
     }
 
     @Test
@@ -414,6 +415,7 @@ public class UuidMapperTest {
         assertFalse(id.isRealtimeMarket());
         assertFalse(id.isPlan());
         assertFalse(id.isEntity());
+        assertFalse(id.hasCachedEntityInfo());
     }
 
     /**

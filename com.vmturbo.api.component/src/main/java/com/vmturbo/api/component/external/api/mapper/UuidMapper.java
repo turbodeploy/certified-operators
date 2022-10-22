@@ -799,7 +799,8 @@ public class UuidMapper implements RepositoryListener {
          * @return boolean
          */
         public boolean hasCachedEntityInfo() {
-            return entityInfo.getValue().isPresent();
+            return entityInfo.getValue().map(Optional::isPresent)
+                    .orElse(false);
         }
 
         /**

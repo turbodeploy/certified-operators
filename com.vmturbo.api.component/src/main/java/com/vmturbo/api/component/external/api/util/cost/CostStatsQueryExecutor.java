@@ -262,7 +262,7 @@ public class CostStatsQueryExecutor {
             }
 
             if (StringUtils.isNotBlank(costInputApiDTO.getEndDate()))  {
-                costFilter.setSampleTsStart(DateTimeUtil.parseTime(costInputApiDTO.getEndDate()));
+                costFilter.setSampleTsEnd(DateTimeUtil.parseTime(costInputApiDTO.getEndDate()));
             }
 
             final List<TagApiDTO> tagFilters = costInputApiDTO.getTagFilters();
