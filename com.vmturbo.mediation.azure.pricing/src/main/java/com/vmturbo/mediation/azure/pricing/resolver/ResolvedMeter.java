@@ -1,11 +1,12 @@
 package com.vmturbo.mediation.azure.pricing.resolver;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import org.apache.commons.collections.map.CaseInsensitiveMap;
 
 import com.vmturbo.mediation.azure.pricing.AzureMeter;
 import com.vmturbo.mediation.cost.parser.azure.AzureMeterDescriptors.AzureMeterDescriptor;
@@ -28,7 +29,7 @@ public class ResolvedMeter {
      */
     public ResolvedMeter(@Nonnull AzureMeterDescriptor descriptor) {
         this.descriptor = descriptor;
-        pricing = new HashMap<>();
+        pricing = new CaseInsensitiveMap();
     }
 
     /**

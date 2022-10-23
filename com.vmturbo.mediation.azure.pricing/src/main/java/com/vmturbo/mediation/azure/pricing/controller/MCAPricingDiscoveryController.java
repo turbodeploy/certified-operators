@@ -36,6 +36,7 @@ import com.vmturbo.mediation.azure.pricing.stages.LicenseOverridesStage;
 import com.vmturbo.mediation.azure.pricing.stages.MCAMeterDeserializerStage;
 import com.vmturbo.mediation.azure.pricing.stages.MeterResolverStage;
 import com.vmturbo.mediation.azure.pricing.stages.OpenZipEntriesStage;
+import com.vmturbo.mediation.azure.pricing.stages.PlanFallbackStage;
 import com.vmturbo.mediation.azure.pricing.stages.RegroupByTypeStage;
 import com.vmturbo.mediation.azure.pricing.stages.SelectZipEntriesStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.IPMeterProcessingStage;
@@ -86,12 +87,30 @@ public class MCAPricingDiscoveryController extends
     );
 
     /**
-     * The property to use for mapping MCA price sheet plan name to Turbo plan IDs.
+     * The property to use for mapping MCA price sheet plan name to Turbo plan IDs. The format is
+     * Plan being processed -> Plan from which to copy pricing if the plan being processed doesn't
+     * have pricing for a specific resolved meter.
      */
     public static final IProbePropertySpec<Map<String, String>> MCA_PLANID_MAP = new PropertySpec<>(
-            "planid.map.mca", (rawMap) ->
+            "plan.idmap.mca", (rawMap) ->
             AssignPricingIdentifiersStage.parsePlanIdMap(rawMap, DEFAULT_MCA_PLANID_MAP),
             DEFAULT_MCA_PLANID_MAP);
+
+    private static final Map<String, String> DEFAULT_MCA_PLAN_FALLBACK_MAP = new CaseInsensitiveMap(
+            ImmutableMap.of(
+                    "Azure plan for DevTest", "Azure plan"
+            )
+    );
+
+    /**
+     * The property to use for providing fallback from one plan's pricing to another when
+     * one plan contains only partial pricing.
+     */
+    public static final IProbePropertySpec<Map<String, String>> MCA_PLAN_FALLBACK_MAP = new PropertySpec<>(
+            "plan.fallback.mca", (rawMap) ->
+            PlanFallbackStage.parsePlanFallbackMap(rawMap, DEFAULT_MCA_PLAN_FALLBACK_MAP),
+            DEFAULT_MCA_PLAN_FALLBACK_MAP);
+
 
     private final Logger logger = LogManager.getLogger();
     private final MCAPricesheetFetcher mcaFetcher;
@@ -158,11 +177,12 @@ public class MCAPricingDiscoveryController extends
                 .addStage(MeterResolverStage.newBuilder()
                     .addResolver(new MeterDescriptorsFileResolver())
                     .build(MCAPricingProbeStage.RESOLVE_METERS))
+                .addStage(new PlanFallbackStage(MCAPricingProbeStage.PLAN_FALLBACK, MCA_PLAN_FALLBACK_MAP))
                 .addStage(new RegroupByTypeStage(MCAPricingProbeStage.REGROUP_METERS))
                 .addStage(new IPMeterProcessingStage(MCAPricingProbeStage.IP_PRICE_PROCESSOR))
                 .addStage(new LicenseOverridesStage(MCAPricingProbeStage.LICENSE_OVERRIDES, this.parser, propertyProvider))
                 .finalStage(new AssignPricingIdentifiersStage(MCAPricingProbeStage.ASSIGN_IDENTIFIERS,
-                        MCA_PLANID_MAP)));
+                    MCA_PLANID_MAP)));
     }
 
     @NotNull

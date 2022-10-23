@@ -53,6 +53,11 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
     RESOLVE_METERS("Resolve meters"),
 
     /**
+     * Apply fallback pricing.
+     */
+    PLAN_FALLBACK("Apply plan-to-plan fallback pricing"),
+
+    /**
      * Regroup the resolved meters by type and create a pricing workspace.
      */
     REGROUP_METERS("Group resolved meters by type"),
@@ -103,6 +108,7 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
             DESERIALIZE_METERS,
             EFFECTIVE_DATE_FILTER,
             RESOLVE_METERS,
+            PLAN_FALLBACK,
             REGROUP_METERS,
             IP_PRICE_PROCESSOR,
             LICENSE_OVERRIDES,

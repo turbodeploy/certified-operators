@@ -58,6 +58,11 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     RESOLVE_METERS("Resolve meters"),
 
     /**
+     * Apply fallback pricing.
+     */
+    PLAN_FALLBACK("Apply plan-to-plan fallback pricing"),
+
+    /**
      * Regroup meters by MeterType.
      */
     REGROUP_METERS("Group meters by type"),
@@ -100,6 +105,6 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
      */
     public static final List<MockPricingProbeStage> DISCOVERY_STAGES = ImmutableList.of(
             DOWNLOAD_PRICE_SHEET, SELECT_ZIP_ENTRIES, BOM_AWARE_READERS, DESERIALIZE_CSV,
-            EFFECTIVE_DATE_FILTER, RESOLVE_METERS, REGROUP_METERS, IP_PRICE_PROCESSOR,
-            LICENSE_OVERRIDES, ASSIGN_IDENTIFIERS);
+            EFFECTIVE_DATE_FILTER, RESOLVE_METERS, PLAN_FALLBACK, REGROUP_METERS,
+            IP_PRICE_PROCESSOR, LICENSE_OVERRIDES, ASSIGN_IDENTIFIERS);
 }

@@ -2,7 +2,6 @@ package com.vmturbo.mediation.azure.pricing.stages;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -10,6 +9,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.collections.map.CaseInsensitiveMap;
 import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
@@ -56,7 +56,7 @@ public class MeterResolverStage<E extends ProbeStageEnum> extends
     protected StageResult<Collection<ResolvedMeter>> executeStage(@NotNull Stream<AzureMeter> input)
             throws PipelineStageException {
         try {
-            final Map<String, ResolvedMeter> resolvedById = new HashMap<>();
+            final Map<String, ResolvedMeter> resolvedById = new CaseInsensitiveMap();
 
             input.forEach(meter -> {
                 resolveMeter(meter).ifPresent(descriptor -> resolvedById

@@ -7,6 +7,8 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections.map.CaseInsensitiveMap;
+
 import com.vmturbo.mediation.azure.pricing.resolver.ResolvedMeter;
 import com.vmturbo.mediation.cost.parser.azure.AzureMeterDescriptors.AzureMeterDescriptor.MeterType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -37,21 +39,10 @@ public class PricingWorkspace {
      * Constructor.
      *
      * @param resolvedMeterByMeterType map of {@link MeterType} to Collection of {@link ResolvedMeter}
-     * @param pricingTableBuilderByPlanId map of plan ID to {@link PriceTable.Builder}
-     */
-    public PricingWorkspace(@Nonnull Map<MeterType, List<ResolvedMeter>> resolvedMeterByMeterType,
-            @Nonnull Map<String, PriceTable.Builder> pricingTableBuilderByPlanId) {
-        this.resolvedMeterByMeterType = resolvedMeterByMeterType;
-        this.priceTableBuilderByPlanId = pricingTableBuilderByPlanId;
-    }
-
-    /**
-     * Constructor.
-     *
-     * @param resolvedMeterByMeterType map of {@link MeterType} to Collection of {@link ResolvedMeter}
      */
     public PricingWorkspace(@Nonnull Map<MeterType, List<ResolvedMeter>> resolvedMeterByMeterType) {
-        this(resolvedMeterByMeterType, new HashMap<>());
+        this.resolvedMeterByMeterType = resolvedMeterByMeterType;
+        this.priceTableBuilderByPlanId = new CaseInsensitiveMap();
     }
 
     /**

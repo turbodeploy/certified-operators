@@ -14,6 +14,7 @@ import com.google.gson.JsonParseException;
 import com.google.gson.reflect.TypeToken;
 
 import org.apache.commons.collections.map.CaseInsensitiveMap;
+import org.apache.commons.lang.WordUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -82,7 +83,7 @@ public class AssignPricingIdentifiersStage<E extends ProbeStageEnum>
                 priceTableBuilder.addAllPriceTableKeys(pricingKey.getPricingIdentifiers());
 
                 result.put(pricingKey, priceTableBuilder);
-                assignments.add(String.format("%s -> %s", planPricing.getKey(), pricingKey));
+                assignments.add(String.format("%s -> %s", WordUtils.capitalizeFully(planPricing.getKey()), pricingKey));
             } else {
                 LOGGER.warn("Unknown plan identifier for plan with name {}, skipped", planPricing.getKey());
             }
