@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang.WordUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -102,7 +103,11 @@ public class IPMeterProcessingStage<E extends ProbeStageEnum> extends AbstractMe
            }
         });
 
-        final String status = String.format("IP prices added for [PlanId, Number of Regions]: %s", statuses);
+        final String status = String.format("IP prices added: %s", statuses.entrySet().stream()
+            .sorted((a, b) -> String.CASE_INSENSITIVE_ORDER.compare(a.getKey(), b.getKey()))
+            .map(e -> String.format("%s=%d", WordUtils.capitalizeFully(e.getKey()), e.getValue()))
+            .collect(Collectors.joining(", ")));
+
         return status;
     }
 }

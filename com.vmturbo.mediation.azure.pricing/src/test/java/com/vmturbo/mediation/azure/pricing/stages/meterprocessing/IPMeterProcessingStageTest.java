@@ -75,7 +75,7 @@ public class IPMeterProcessingStageTest {
         ProbeStageDetails status = tracker.getStageDetails(MockPricingProbeStage.IP_PRICE_PROCESSOR);
         assertEquals(StageStatus.SUCCESS, status.getStatus());
         assertEquals("IP Price Processing", status.getDescription());
-        assertEquals("IP prices added for [PlanId, Number of Regions]: {Azure plan=51, Azure plan for DevTest=51}",
+        assertEquals("IP prices added: Azure Plan=51, Azure Plan For Devtest=51",
                 status.getStatusShortExplanation());
     }
 

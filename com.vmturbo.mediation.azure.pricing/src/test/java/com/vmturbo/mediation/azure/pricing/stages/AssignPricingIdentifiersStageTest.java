@@ -81,8 +81,8 @@ public class AssignPricingIdentifiersStageTest {
         assertEquals(StageStatus.SUCCESS, status.getStatus());
         assertEquals("Pricing for 2 plans discovered", status.getStatusShortExplanation());
         assertEquals("Assignments:\n"
-                + "\nAzure plan -> MCA Account MCACCOUNTID Profile MCAPROFILEID Plan 0001"
-                + "\nAzure plan for DevTest -> MCA Account MCACCOUNTID Profile MCAPROFILEID Plan 0002",
+                + "\nAzure Plan -> MCA Account MCACCOUNTID Profile MCAPROFILEID Plan 0001"
+                + "\nAzure Plan For Devtest -> MCA Account MCACCOUNTID Profile MCAPROFILEID Plan 0002",
                 status.getStatusLongExplanation());
     }
 
