@@ -1,10 +1,12 @@
 package com.vmturbo.cloud.common.scope;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
@@ -105,5 +107,63 @@ public interface CloudScopeIdentityStore {
          * A builder class for constructing immutable {@link CloudScopeIdentity} instances.
          */
         class Builder extends ImmutableCloudScopeIdentityFilter.Builder {}
+    }
+
+    /**
+     * Retry policy for persistence operations through {@link CloudScopeIdentityStore#saveScopeIdentities(List)}.
+     */
+    @HiddenImmutableImplementation
+    @Immutable
+    interface PersistenceRetryPolicy {
+
+        /**
+         * The default retry policy.
+         */
+        PersistenceRetryPolicy DEFAULT_POLICY = PersistenceRetryPolicy.builder().build();
+
+        /**
+         * The max number of retries (not attempts).
+         * @return The max number of retries (not attempts).
+         */
+        @Default
+        default int maxRetries() {
+            return 3;
+        }
+
+        /**
+         * The min retry delay duration. Paired with {@link #maxRetryDelay()}, this introduces jitter
+         * into the backoff duration.
+         * @return The min retry delay duration.
+         */
+        @Default
+        @Nonnull
+        default Duration minRetryDelay() {
+            return Duration.ofSeconds(1);
+        }
+
+        /**
+         * The max retry delay duration. Paired with {@link #minRetryDelay()}, this introduces jitter
+         * into the backoff duration.
+         * @return The max retry delay duration.
+         */
+        @Default
+        @Nonnull
+        default Duration maxRetryDelay() {
+            return Duration.ofSeconds(30);
+        }
+
+        /**
+         * Constructs and returns a new {@link Builder} instance.
+         * @return The newly constructed {@link Builder} instance.
+         */
+        @Nonnull
+        static Builder builder() {
+            return new Builder();
+        }
+
+        /**
+         * A builder class for constructing immutable {@link PersistenceRetryPolicy} instances.
+         */
+        class Builder extends ImmutablePersistenceRetryPolicy.Builder {}
     }
 }
