@@ -41,6 +41,7 @@ import com.vmturbo.cloud.common.persistence.DataQueueFactory.DefaultDataQueueFac
 import com.vmturbo.cloud.common.scope.CachedAggregateScopeIdentityProvider;
 import com.vmturbo.cloud.common.scope.CloudScopeIdentityProvider;
 import com.vmturbo.cloud.common.scope.CloudScopeIdentityStore;
+import com.vmturbo.cloud.common.scope.CloudScopeIdentityStore.PersistenceRetryPolicy;
 import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostBucket;
 import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostData;
 import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostFilter;
@@ -130,7 +131,8 @@ public class SqlCloudCostStoreFuncTest extends MultiDbTestBase {
     public void setup() throws InitializationException {
 
         // set up the cloud scope identity provider
-        final CloudScopeIdentityStore scopeIdentityStore = new SqlCloudScopeIdentityStore(dsl, 10);
+        final CloudScopeIdentityStore scopeIdentityStore = new SqlCloudScopeIdentityStore(
+                dsl, PersistenceRetryPolicy.DEFAULT_POLICY, false, 10);
         final IdentityProvider identityProvider = new DefaultIdentityProvider(0);
 
         cloudScopeIdentityProvider = new CachedAggregateScopeIdentityProvider(

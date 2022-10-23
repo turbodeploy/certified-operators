@@ -57,8 +57,20 @@ public class CloudCostConfig {
     @Value("${cloud.scope.batchStoreSize:1000}")
     private int cloudScopeBatchStoreSize;
 
+    @Value("${cloud.scope.persistenceCacheEnabled:true}")
+    private boolean scopePersistenceCacheEnabled;
+
     @Value("${cloud.scope.cacheInitializationDuration:PT10M}")
     private String scopeCacheInitializationDuration;
+
+    @Value("${cloud.scope.persistenceMaxRetries:3}")
+    private int scopePersistenceMaxRetries;
+
+    @Value("${cloud.scope.persistenceMinRetryDelay:PT10S}")
+    private String scopePersistenceMinRetryDelay;
+
+    @Value("${cloud.scope.persistenceMaxRetryDelay:PT30S}")
+    private String scopePersistenceMaxRetryDelay;
 
     @Value("${cloud.cost.asyncPersistenceConcurrency:0}")
     private int costPersistenceConcurrency;
@@ -73,7 +85,18 @@ public class CloudCostConfig {
     @Bean
     public CloudScopeIdentityStore cloudScopeIdentityStore() {
         try {
-            return new SqlCloudScopeIdentityStore(dbAccessConfig.dsl(), cloudScopeBatchStoreSize);
+
+            final CloudScopeIdentityStore.PersistenceRetryPolicy retryPolicy = CloudScopeIdentityStore.PersistenceRetryPolicy.builder()
+                    .maxRetries(scopePersistenceMaxRetries)
+                    .minRetryDelay(Duration.parse(scopePersistenceMinRetryDelay))
+                    .maxRetryDelay(Duration.parse(scopePersistenceMaxRetryDelay))
+                    .build();
+
+            return new SqlCloudScopeIdentityStore(
+                    dbAccessConfig.dsl(),
+                    retryPolicy,
+                    scopePersistenceCacheEnabled,
+                    cloudScopeBatchStoreSize);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             throw new BeanCreationException("Failed to create CloudScopeIdentityStore", e);
         }

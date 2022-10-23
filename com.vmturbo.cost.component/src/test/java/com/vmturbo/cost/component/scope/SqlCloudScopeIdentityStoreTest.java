@@ -23,6 +23,7 @@ import org.junit.runners.Parameterized.Parameters;
 import com.vmturbo.cloud.common.scope.CloudScopeIdentity;
 import com.vmturbo.cloud.common.scope.CloudScopeIdentity.CloudScopeType;
 import com.vmturbo.cloud.common.scope.CloudScopeIdentityStore.CloudScopeIdentityFilter;
+import com.vmturbo.cloud.common.scope.CloudScopeIdentityStore.PersistenceRetryPolicy;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.TestCostDbEndpointConfig;
@@ -84,7 +85,7 @@ public class SqlCloudScopeIdentityStoreTest extends MultiDbTestBase {
      */
     @Before
     public void setup() {
-        cloudScopeIdentityStore = new SqlCloudScopeIdentityStore(dsl, 1000);
+        cloudScopeIdentityStore = new SqlCloudScopeIdentityStore(dsl, PersistenceRetryPolicy.DEFAULT_POLICY, false, 1000);
     }
 
     /**
