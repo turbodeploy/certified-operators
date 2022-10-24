@@ -35,6 +35,7 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityMoles.SuspensionEntityServiceMole;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityServiceGrpc;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimespanScheduleServiceGrpc;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggle;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggleMoles.SuspensionToggleServiceMole;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggleServiceGrpc;
@@ -69,6 +70,7 @@ public class SuspensionServiceTest {
         MockitoAnnotations.initMocks(this);
         suspensionService = new SuspensionService(SuspensionEntityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 SuspensionToggleServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                SuspensionTimespanScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 userSessionContext, 10, 10);
     }
 

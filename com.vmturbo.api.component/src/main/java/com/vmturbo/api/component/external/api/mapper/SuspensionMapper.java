@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,13 +15,19 @@ import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.suspension.BulkActionRequestApiDTO;
 import com.vmturbo.api.dto.suspension.BulkActionRequestInputDTO;
+import com.vmturbo.api.dto.suspension.ScheduleItemApiDTO;
+import com.vmturbo.api.dto.suspension.ScheduleTimeSpansApiDTO;
+import com.vmturbo.api.dto.suspension.SuspendItemApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityInputDTO;
+import com.vmturbo.api.dto.suspension.TimeSpanApiDTO;
+import com.vmturbo.api.dto.suspension.WeekDayTimeSpansApiDTO;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.LogicalOperator;
 import com.vmturbo.api.enums.SuspensionActionType;
 import com.vmturbo.api.enums.SuspensionEntityType;
 import com.vmturbo.api.enums.SuspensionState;
+import com.vmturbo.api.enums.SuspensionTimeSpanState;
 import com.vmturbo.api.pagination.SuspensionEntitiesOrderBy;
 import com.vmturbo.api.pagination.SuspensionEntitiesPaginationRequest;
 import com.vmturbo.auth.api.authorization.UserContextUtils;
@@ -32,6 +39,12 @@ import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.Suspens
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityResolvedScopeRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityTags;
 import com.vmturbo.common.protobuf.suspension.SuspensionFilter;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.CreateTimespanScheduleRequest;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimeOfDay;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.Timespan;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanSchedule;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanState;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.WeekDayTimespans;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggle.SuspensionToggleEntityData;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggle.SuspensionToggleEntityRequest;
 
@@ -531,5 +544,252 @@ public class SuspensionMapper {
             list.add(data);
         }
         return list;
+    }
+
+
+    /**
+     * The map from API suspension time span state to GRPC time span state.
+     */
+    public static final BiMap<SuspensionTimeSpanState, TimespanState> API_TS_STATE_TO_GRPC  = ImmutableBiMap.of(
+            SuspensionTimeSpanState.ON, TimespanState.TS_ON,
+            SuspensionTimeSpanState.OFF, TimespanState.TS_OFF,
+            SuspensionTimeSpanState.IGNORE, TimespanState.TS_IGNORE);
+
+    /**
+     * Gets the grpc time span state for the schedule.
+     * @param state the api time span suspension state.
+     * @return the grpc time span state.
+     */
+    public static TimespanState getGrpcTsState(SuspensionTimeSpanState state) {
+        return API_TS_STATE_TO_GRPC.get(state);
+    }
+
+    /**
+     * Gets the grpc time span state for the schedule.
+     * @param state the grpc time span suspension state.
+     * @return the api time span state.
+     */
+    public static SuspensionTimeSpanState getApiTsState(TimespanState state) {
+        return API_TS_STATE_TO_GRPC.inverse().get(state);
+    }
+
+    /**
+     * converts the ScheduleTimeSpansApiDTO of class into CreateTimespanScheduleRequest class.
+     *
+     * @param scheduleApiDTO instance of ScheduleTimeSpansApiDTO class.
+     * @return CreateTimespanScheduleRequest class.
+     * @throws InvalidRequest in case of bad request
+     * @throws NumberFormatException if invalid number is encountered
+     */
+    public CreateTimespanScheduleRequest toCreateTimespanScheduleRequest(
+            ScheduleTimeSpansApiDTO scheduleApiDTO)
+            throws Exception {
+        if (scheduleApiDTO.getDisplayName().isEmpty()) {
+            throw new InvalidRequest("schedule name cannot be empty");
+        }
+        if (scheduleApiDTO.getTimeZone().isEmpty()) {
+            throw new InvalidRequest("time zone cannot be empty");
+        }
+        CreateTimespanScheduleRequest.Builder requestBuilder = CreateTimespanScheduleRequest.getDefaultInstance().newBuilder();
+        requestBuilder.setName(scheduleApiDTO.getDisplayName());
+        requestBuilder.setTimezone(scheduleApiDTO.getTimeZone());
+        requestBuilder.setDescription(scheduleApiDTO.getDescription());
+        String timespanType = scheduleApiDTO.getTimeSpans().getType();
+        WeekDayTimeSpansApiDTO weekDayTimeSpansApiDTO = new WeekDayTimeSpansApiDTO();
+        if (timespanType.equals(weekDayTimeSpansApiDTO.getType())) {
+            WeekDayTimeSpansApiDTO weekDayTimespans = scheduleApiDTO.getTimeSpans() instanceof WeekDayTimeSpansApiDTO
+                    ? ((WeekDayTimeSpansApiDTO)scheduleApiDTO.getTimeSpans()) : null;
+            requestBuilder.setTimespans(toGrpcWeekDayTimespans(weekDayTimespans));
+            return requestBuilder.build();
+        }
+        throw new InvalidRequest(String.format("expected time span group type: %s, got: %s", weekDayTimeSpansApiDTO.getType(), timespanType));
+    }
+
+
+    /**
+     * converts the instance of TimespanSchedule class into ScheduleTimeSpansApiDTO class.
+     *
+     * @param grpcSchedule instance of TimespanSchedule  class.
+     * @return ScheduleTimeSpansApiDTO class.
+     */
+    public ScheduleTimeSpansApiDTO toApiScheduleTimeSpansApiDTO(
+            TimespanSchedule grpcSchedule) {
+
+        ScheduleTimeSpansApiDTO scheduleApiDTO = new ScheduleTimeSpansApiDTO();
+
+        if (grpcSchedule.hasOid()) {
+            scheduleApiDTO.setUuid(Long.toString(grpcSchedule.getOid()));
+        }
+
+        if (grpcSchedule.hasName()) {
+            scheduleApiDTO.setDisplayName(grpcSchedule.getName());
+        }
+
+        if (grpcSchedule.hasDescription()) {
+            scheduleApiDTO.setDescription(grpcSchedule.getDescription());
+        }
+
+        if (grpcSchedule.hasTimezone()) {
+            scheduleApiDTO.setTimeZone(grpcSchedule.getTimezone());
+        }
+
+        if (grpcSchedule.hasTimespans()) {
+            scheduleApiDTO.setTimeSpans(toApiWeekDayTimespans(grpcSchedule.getTimespans()));
+        }
+
+        return scheduleApiDTO;
+    }
+
+    /**
+     * converts the String of format hh:mm into TimeOfDay class.
+     *
+     * @param time String.
+     * @return TimeOfDay class.
+     * @throws NumberFormatException if invalid number is encountered
+     */
+    private TimeOfDay toGrpcTimeOfDay(String time) throws Exception {
+        String[] hm = time.split(":");
+        if (2 > hm.length) {
+            throw new InvalidRequest("time not in expected format (hh:mm)");
+        }
+        TimeOfDay.Builder tod = TimeOfDay.getDefaultInstance().newBuilder();
+        tod.setHours(Integer.parseInt(hm[0]));
+        tod.setMinutes(Integer.parseInt(hm[1]));
+        return tod.build();
+    }
+
+    /**
+     * converts the API WeekDayTimeSpansApiDTO into gRPC WeekDayTimespans class.
+     *
+     * @param timeSpans instance of WeekDayTimeSpansApiDTO class.
+     * @return WeekDayTimespans class.
+     * @throws NumberFormatException if invalid number is encountered in begins/ends.
+     * @throws InvalidRequest in case non-supported ScheduleItem class type is encountered in policy.
+     */
+    private WeekDayTimespans toGrpcWeekDayTimespans(WeekDayTimeSpansApiDTO timeSpans) throws Exception {
+        WeekDayTimespans.Builder builder = WeekDayTimespans.getDefaultInstance().newBuilder();
+        builder.addAllSunday(toGrpcTimespans(timeSpans.getSunday()));
+        builder.addAllMonday(toGrpcTimespans(timeSpans.getMonday()));
+        builder.addAllTuesday(toGrpcTimespans(timeSpans.getTuesday()));
+        builder.addAllWednesday(toGrpcTimespans(timeSpans.getWednesday()));
+        builder.addAllThursday(toGrpcTimespans(timeSpans.getThursday()));
+        builder.addAllFriday(toGrpcTimespans(timeSpans.getFriday()));
+        builder.addAllSaturday(toGrpcTimespans(timeSpans.getSaturday()));
+        return builder.build();
+    }
+
+    /**
+     * converts the list of API TimeSpanApiDTO instance into gRPC Time span list class.
+     *
+     * @param timeSpans TimeSpanApiDTO list.
+     * @return Timespan class list.
+     * @throws NumberFormatException if invalid number is encountered in begins/ends.
+     * @throws InvalidRequest in case non-supported ScheduleItem class type is encountered in policy.
+     */
+    private List<Timespan> toGrpcTimespans(List<TimeSpanApiDTO> timeSpans) throws Exception {
+        List<Timespan> grpcTimespans = new ArrayList<>();
+        if (null == timeSpans) {
+            return grpcTimespans;
+        }
+        Iterator<TimeSpanApiDTO> iter = timeSpans.iterator();
+        while (iter.hasNext()) {
+            grpcTimespans.add(toGrpcTimespan(iter.next()));
+        }
+        return grpcTimespans;
+    }
+
+    /**
+     * converts individual API TimeSpanApiDTO instance into gRPC Time span class.
+     *
+     * @param timeSpanApiDTO instance of TimeSpanApiDTO class.
+     * @return Timespan class.
+     * @throws NumberFormatException if invalid number is encountered in begins/ends.
+     * @throws InvalidRequest in case non-supported ScheduleItem class type is encountered in policy.
+     */
+    private Timespan toGrpcTimespan(TimeSpanApiDTO timeSpanApiDTO) throws Exception {
+        Timespan.Builder ts = Timespan.getDefaultInstance().newBuilder();
+        ts.setBegins(toGrpcTimeOfDay(timeSpanApiDTO.getBegins()));
+        ts.setEnds(toGrpcTimeOfDay(timeSpanApiDTO.getEnds()));
+        ts.setState(apiPolicyToTimespanState(timeSpanApiDTO.getPolicy()));
+        return ts.build();
+    }
+
+    /**
+     * converts API policy request ScheduleItemApiDTO instance into gRPC TimespanState enum.
+     *
+     * @param scheduleItemApiDTO instance of ScheduleItemApiDTO class.
+     * @return TimespanState enum.
+     * @throws InvalidRequest in case non-supported ScheduleItem type is encountered
+     */
+    private TimespanState apiPolicyToTimespanState(ScheduleItemApiDTO scheduleItemApiDTO) throws Exception {
+        String policyType = scheduleItemApiDTO.getType();
+        SuspendItemApiDTO suspendItemApiDTO = new SuspendItemApiDTO();
+        if (policyType.equals(suspendItemApiDTO.getType())) {
+            SuspendItemApiDTO suspendPolicy = scheduleItemApiDTO instanceof SuspendItemApiDTO
+                    ? ((SuspendItemApiDTO)scheduleItemApiDTO) : null;
+            return getGrpcTsState(suspendPolicy.getState());
+        }
+        throw new InvalidRequest(String.format("expected policy type: %s, got: %s", suspendItemApiDTO.getType(), policyType));
+    }
+
+    /**
+     * converts gRPC WeekDayTimespans instance into API WeekDayTimeSpansApiDTO class.
+     *
+     * @param timeSpans instance of WeekDayTimespans class.
+     * @return WeekDayTimeSpansApiDTO class.
+     */
+    private WeekDayTimeSpansApiDTO toApiWeekDayTimespans(WeekDayTimespans timeSpans) {
+        WeekDayTimeSpansApiDTO weekTimespan = new WeekDayTimeSpansApiDTO();
+        weekTimespan.setSunday(toApiTimespanArray(timeSpans.getSundayList()));
+        weekTimespan.setMonday(toApiTimespanArray(timeSpans.getMondayList()));
+        weekTimespan.setTuesday(toApiTimespanArray(timeSpans.getTuesdayList()));
+        weekTimespan.setWednesday(toApiTimespanArray(timeSpans.getWednesdayList()));
+        weekTimespan.setThursday(toApiTimespanArray(timeSpans.getThursdayList()));
+        weekTimespan.setFriday(toApiTimespanArray(timeSpans.getFridayList()));
+        weekTimespan.setSaturday(toApiTimespanArray(timeSpans.getSaturdayList()));
+        return weekTimespan;
+    }
+
+    /**
+     * converts list of gRPC Time span instance into API TimeSpanApiDTO class list.
+     *
+     * @param timespans list of gRPC timespan.
+     * @return list of  TimeSpanApiDTO.
+     */
+    private List<TimeSpanApiDTO> toApiTimespanArray(List<Timespan> timespans) {
+        List<TimeSpanApiDTO> apiTimespans = new ArrayList<>();
+        Iterator<Timespan> iter = timespans.iterator();
+        while (iter.hasNext()) {
+            apiTimespans.add(toApiTimespan(iter.next()));
+        }
+        return apiTimespans;
+    }
+
+    /**
+     * converts individual gRPC Timespan instance into API TimeSpanApiDTO class.
+     *
+     * @param timespan instance of gRPC timespan.
+     * @return TimeSpanApiDTO class.
+     */
+    private TimeSpanApiDTO toApiTimespan(Timespan timespan) {
+        TimeSpanApiDTO ts = new TimeSpanApiDTO();
+        ts.setBegins(toApiTimeOfDay(timespan.getBegins()));
+        ts.setEnds(toApiTimeOfDay(timespan.getEnds()));
+
+        SuspendItemApiDTO suspendPolicy = new SuspendItemApiDTO();
+        suspendPolicy.setState(getApiTsState(timespan.getState()));
+        ts.setPolicy(suspendPolicy);
+        return ts;
+    }
+
+    /**
+     * converts TimeOfDay class instance into hh:mm format string.
+     *
+     * @param tod instance of TimeOfDay.
+     * @return String in format hh:mm
+     */
+    private String toApiTimeOfDay(TimeOfDay tod) {
+        return String.format("%02d:%02d", tod.getHours(),
+                tod.getMinutes());
     }
 }
