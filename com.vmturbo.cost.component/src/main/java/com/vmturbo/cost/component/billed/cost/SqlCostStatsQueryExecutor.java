@@ -66,7 +66,7 @@ class SqlCostStatsQueryExecutor {
                             tableAccessor.serviceProviderId()))
             .put(BilledCostGroupBy.SERVICE_PROVIDER, tableAccessor -> ImmutableList.of(tableAccessor.serviceProviderId()))
             .put(BilledCostGroupBy.CLOUD_TIER_PROVIDER, tableAccessor -> ImmutableList.of(tableAccessor.providerId()))
-            .put(BilledCostGroupBy.PRICING_MODEL, tableAccessor -> ImmutableList.of(tableAccessor.priceModel()))
+            .put(BilledCostGroupBy.PRICE_MODEL, tableAccessor -> ImmutableList.of(tableAccessor.priceModel()))
             .put(BilledCostGroupBy.COST_CATEGORY, tableAccessor -> ImmutableList.of(tableAccessor.costCategory()))
             .put(BilledCostGroupBy.COMMODITY_TYPE, tableAccessor -> ImmutableList.of(tableAccessor.commodityType()))
             .put(BilledCostGroupBy.TAG_GROUP, tableAccessor -> ImmutableList.of(tableAccessor.tagGroupId()))

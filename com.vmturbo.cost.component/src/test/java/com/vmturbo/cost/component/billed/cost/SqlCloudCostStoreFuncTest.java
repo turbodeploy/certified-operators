@@ -337,6 +337,29 @@ public class SqlCloudCostStoreFuncTest extends MultiDbTestBase {
     }
 
     /**
+     * Test group by cost category and price model.
+     * @throws Exception Unexpected exception.
+     */
+    @Test
+    public void testGroupByPriceModelAndCategory() throws Exception {
+        final SqlCloudCostStore cloudCostStore = createCostStore(DEFAULT_PERSISTENCE_CONFIG);
+
+        final BilledCostData persistedCostData = loadCostData("/cloud/cost/cloud_cost_base.json");
+        cloudCostStore.storeCostData(persistedCostData);
+
+        final List<BilledCostStat> retrievedCostDataList = cloudCostStore.getCostStats(BilledCostStatsQuery.newBuilder()
+                .setGranularity(Granularity.HOURLY)
+                .addGroupBy(BilledCostGroupBy.COST_CATEGORY)
+                .addGroupBy(BilledCostGroupBy.PRICE_MODEL)
+                .build());
+
+        final List<BilledCostStat> expectedStats = loadStatsList("/cloud/cost/expected/group_by_price_model_category.json");
+        assertThat(retrievedCostDataList, hasSize(expectedStats.size()));
+        assertThat(retrievedCostDataList, containsInAnyOrder(expectedStats.toArray(new BilledCostStat[0])));
+
+    }
+
+    /**
      * Tests grouping by tag group with a tag key filter.
      * @throws Exception Unexpected exception.
      */
