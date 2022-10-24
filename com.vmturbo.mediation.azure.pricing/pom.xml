@@ -35,6 +35,15 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.mediation.azure.common</artifactId>
             <version>${revision}</version>
+            <exclusions>
+                <!-- fixes maven build failure
+                "Could not create archive: duplicate entry:netty-tcnative-boringssl-static-2.0.54
+                .Final.jar" -->
+                <exclusion>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty-tcnative-boringssl-static</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
