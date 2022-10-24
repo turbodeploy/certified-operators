@@ -105,6 +105,7 @@ import com.vmturbo.market.runner.wasted.files.WastedFilesResults;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
+import com.vmturbo.market.topology.TopologyConverterUtil;
 import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
@@ -963,11 +964,24 @@ public class TopologyConverterFromMarketTest {
         when(indexFactory.newIndex()).thenReturn(commodityIndex);
 
         // converter under test
-        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-            false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketCloudRateExtractor, mockCommodityConverter, indexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-            false, false, false, 0.5f);
+        final TopologyConverter topologyConverter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(false)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .marketMode(MarketMode.M2Only)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .commodityConverter(mockCommodityConverter)
+                .commodityIndexFactory(indexFactory)
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .enableOP(false)
+                .useVMReservationAsUsed(false)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
         topologyConverter.setConvertToMarketComplete();
         TopologyConverter converter = Mockito.spy(topologyConverter);
 
@@ -3006,12 +3020,24 @@ public class TopologyConverterFromMarketTest {
             .marketToTopologyCommodity(Mockito.eq(commoditySoldTO.getSpecification()));
 
         // Mock a TopologyConverter.
-        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-            false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only,
-            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketCloudRateExtractor, mockCommodityConverter, indexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-            false, false, false, 0.5f);
+        final TopologyConverter topologyConverter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(false)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .marketMode(MarketMode.M2Only)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .commodityConverter(mockCommodityConverter)
+                .commodityIndexFactory(indexFactory)
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .enableOP(false)
+                .useVMReservationAsUsed(false)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
         topologyConverter.setConvertToMarketComplete();
         final TopologyConverter converter = Mockito.spy(topologyConverter);
 
@@ -3131,12 +3157,24 @@ public class TopologyConverterFromMarketTest {
         commodityIndex.addEntity(pmEntityDTO);
 
         // Mock a TopologyConverter.
-        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-            false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only,
-            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketCloudRateExtractor, mockCommodityConverter, indexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-            false, false, false, 0.5f);
+        final TopologyConverter topologyConverter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(false)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .marketMode(MarketMode.M2Only)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .commodityConverter(mockCommodityConverter)
+                .commodityIndexFactory(indexFactory)
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .enableOP(false)
+                .useVMReservationAsUsed(false)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
         topologyConverter.setConvertToMarketComplete();
         final TopologyConverter converter = Mockito.spy(topologyConverter);
 

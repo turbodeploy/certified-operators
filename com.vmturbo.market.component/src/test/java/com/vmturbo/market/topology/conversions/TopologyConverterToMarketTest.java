@@ -95,9 +95,11 @@ import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.FakeEntityCreator;
+import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.wasted.WastedEntityResults;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
+import com.vmturbo.market.topology.TopologyConverterUtil;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter.UsedAndPeak;
@@ -215,15 +217,24 @@ public class TopologyConverterToMarketTest {
     @Test
     public void testConvertCommodityCloneWithNewType() {
         TopologyDTO.TopologyEntityDTO entityDto = DTOWithProvisionedAndCloneWithNewTypeComm();
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, marketCloudRateExtractor,
-                ccd,
-                CommodityIndex.newFactory(),
-                tierExcluderFactory,
-                consistentScalingHelperFactory,
-                reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, Mockito.mock(FakeEntityCreator.class));
+        TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
         TraderTO traderTO = converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto)).iterator().next();
         assertTrue(traderTO.getCommoditiesSold(1).getSpecification().getCloneWithNewType());
     }
@@ -248,12 +259,24 @@ public class TopologyConverterToMarketTest {
     @Test
     public void testProvisionedCommodityResizable() {
         TopologyDTO.TopologyEntityDTO entityDto = DTOWithProvisionedAndCloneWithNewTypeComm();
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+        final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
         TraderTO traderTO = converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto)).iterator().next();
         assertFalse(traderTO.getCommoditiesSold(0).getSettings().getResizable());
     }
@@ -497,12 +520,24 @@ public class TopologyConverterToMarketTest {
         // Since we create a new TopologyConverter here that's fine, as long
         // as the implementation of the ID allocator doesn't change.
         final TopologyConverter converter =
-                new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, MarketAnalysisUtils.QUOTE_FACTOR,
-                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, marketCloudRateExtractor,
-                        ccd,
-                        CommodityIndex.newFactory(), tierExcluderFactory,
-                        consistentScalingHelperFactory, reversibilitySettingFetcher,
-                        MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+                new TopologyConverterUtil.Builder()
+                        .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                        .includeGuaranteedBuyer(true)
+                        .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                        .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                        .marketCloudRateExtractor(marketCloudRateExtractor)
+                        .cloudCostData(ccd)
+                        .commodityIndexFactory(CommodityIndex.newFactory())
+                        .tierExcluderFactory(tierExcluderFactory)
+                        .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                        .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                        .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                        .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                        .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                        .useVMReservationAsUsed(true)
+                        .singleVMonHost(false)
+                        .customUtilizationThreshold(0.5f)
+                        .build();
         converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
 
         assertEquals(topologyCommodity1, converter.getCommodityConverter()
@@ -537,14 +572,23 @@ public class TopologyConverterToMarketTest {
         vmDTO = entityDTOBuilder.build();
 
         final TopologyConverter converter =
-                new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, MarketAnalysisUtils.QUOTE_FACTOR,
-                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, marketCloudRateExtractor,
-                        ccd,
-                        CommodityIndex.newFactory(),
-                        tierExcluderFactory,
-                        consistentScalingHelperFactory,
-                        reversibilitySettingFetcher,
-                        MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+                new TopologyConverterUtil.Builder()
+                        .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                        .includeGuaranteedBuyer(true)
+                        .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                        .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                        .marketCloudRateExtractor(marketCloudRateExtractor)
+                        .cloudCostData(ccd)
+                        .commodityIndexFactory(CommodityIndex.newFactory())
+                        .tierExcluderFactory(tierExcluderFactory)
+                        .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                        .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                        .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                        .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                        .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                        .useVMReservationAsUsed(true)
+                        .customUtilizationThreshold(0.5f)
+                        .build();
         Collection<TraderTO> traders = converter.convertToMarket(ImmutableMap.of(
                 vmDTO.getOid(), vmDTO,
                 vsanDsDTO.getOid(), vsanDsDTO));
@@ -585,12 +629,24 @@ public class TopologyConverterToMarketTest {
     @Nonnull
     private Collection<TraderTO> convertToMarketTO(@Nonnull final Set<TopologyDTO.TopologyEntityDTO> topology,
                                                    @Nonnull final TopologyInfo topologyInfo) {
-        return new TopologyConverter(topologyInfo, true, MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor,
-                ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class))
+        return new TopologyConverterUtil.Builder()
+                .topologyInfo(topologyInfo)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build()
                 .convertToMarket(topology.stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
     }
@@ -607,13 +663,24 @@ public class TopologyConverterToMarketTest {
                 messageFromJsonFile("protobuf/messages/pm-2.dto.json"),
                 messageFromJsonFile("protobuf/messages/vm-2.dto.json"))
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        Collection<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
-                MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor,
-                ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class))
+        Collection<TraderTO> traderTOs = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(false)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build()
                 .convertToMarket(topologyDTOs);
         assertEquals(2, traderTOs.size());
         for (TraderTO traderTO : traderTOs) {
@@ -720,10 +787,19 @@ public class TopologyConverterToMarketTest {
                 .setOid(1004L).setEntityType(2).build();
         TopologyDTO.TopologyEntityDTO unknownStorage = TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setOid(1005L).setEntityType(2).setEntityState(TopologyDTO.EntityState.UNKNOWN).build();
-        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                marketCloudRateExtractor,
-                ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
-                reversibilitySettingFetcher);
+        TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .includeGuaranteedBuyer(TopologyConverter.INCLUDE_GUARANTEED_BUYER_DEFAULT)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .useVMReservationAsUsed(true)
+                .customUtilizationThreshold(0.5f)
+                .build();
         assertEquals(4, converter.convertToMarket(
                 Stream.of(container, virtualApp, actionManager, storage, unknownStorage)
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())))
@@ -756,10 +832,20 @@ public class TopologyConverterToMarketTest {
                         .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                                 .setProviderId(containerPod.getOid()))
                         .build();
-        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                marketCloudRateExtractor,
-                ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
-                reversibilitySettingFetcher);
+        TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                //.marketCloudRateExtractor(null)
+                .includeGuaranteedBuyer(TopologyConverter.INCLUDE_GUARANTEED_BUYER_DEFAULT)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .useVMReservationAsUsed(true)
+                .customUtilizationThreshold(0.5f)
+                .build();
         Collection<TraderTO> traderTOs = converter.convertToMarket(
                 Stream.of(vm, volume, containerPod, container)
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
@@ -1000,11 +1086,23 @@ public class TopologyConverterToMarketTest {
                 .setUsed(102400) // 100 GB.
                 .setPeak(512000).build(); // 500 GB.
 
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+        final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .customUtilizationThreshold(0.5f)
+                .build();
         final List<CommodityBoughtTO> boughtTOs = converter.createAndValidateCommBoughtTO(entityDTO,
                 boughtCommodityDTO, 1005L, Optional.empty());
         CommodityBoughtTO to = boughtTOs.iterator().next();
@@ -1052,10 +1150,19 @@ public class TopologyConverterToMarketTest {
                         .setOid(4).build();
 
         WastedEntityResults wastedEntityResults = mock(WastedEntityResults.class);
-        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                marketCloudRateExtractor,
-                ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
-                reversibilitySettingFetcher);
+        TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(TopologyConverter.INCLUDE_GUARANTEED_BUYER_DEFAULT)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .useVMReservationAsUsed(true)
+                .customUtilizationThreshold(0.5f)
+                .build();
         converter.addAllWastedEntityResults(Collections.singleton(wastedEntityResults));
         assertEquals(3, converter.convertToMarket(
                         Stream.of(entityDTO1, entityDTO2, entityDTO3, entityDTO4)
@@ -1118,11 +1225,23 @@ public class TopologyConverterToMarketTest {
                                 .setCommodityType(CommodityType.newBuilder()
                                         .setType(CommodityDTO.CommodityType.CPU_VALUE))))
                 .build();
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+        final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .customUtilizationThreshold(0.5f)
+                .build();
         Map<Long, TopologyEntityDTO> topology = new HashMap<>();
         topology.put(pmEntityDTO.getOid(), pmEntityDTO);
         topology.put(vmEntityDTO.getOid(), vmEntityDTO);
@@ -1590,13 +1709,25 @@ public class TopologyConverterToMarketTest {
                 .build();
 
         final TopologyConverter converter =
-                new TopologyConverter(topologyInfo, true,
-                        MarketAnalysisUtils.QUOTE_FACTOR,
-                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, marketCloudRateExtractor,
-                        ccd,
-                        CommodityIndex.newFactory(), tierExcluderFactory,
-                        consistentScalingHelperFactory, reversibilitySettingFetcher,
-                        MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+                new TopologyConverterUtil.Builder()
+                        .topologyInfo(topologyInfo)
+                        .marketMode(MarketMode.M2Only)
+                        .includeGuaranteedBuyer(true)
+                        .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                        .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                        .marketCloudRateExtractor(marketCloudRateExtractor)
+                        .cloudCostData(ccd)
+                        .commodityIndexFactory(CommodityIndex.newFactory())
+                        .tierExcluderFactory(tierExcluderFactory)
+                        .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                        .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                        .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                        .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                        .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                        .useVMReservationAsUsed(true)
+                        .singleVMonHost(false)
+                        .customUtilizationThreshold(0.5f)
+                        .build();
         final float[][] resizedCapacitites = converter.getResizedCapacity(vmEntityDTO, commBought, PROVIDER_ID);
         return new double[]{resizedCapacitites[0][0], resizedCapacitites[1][0]};
     }
@@ -1817,11 +1948,24 @@ public class TopologyConverterToMarketTest {
                 Collections.singletonList(createConnectedEntity(vmId,
                         ConnectionType.OWNS_CONNECTION, EntityType.VIRTUAL_MACHINE_VALUE)),
                 null);
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+        final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
 
         final Collection<TraderTO> traders =
                 converter.convertToMarket(ImmutableList.of(region, vm, ba).stream()
@@ -1861,11 +2005,24 @@ public class TopologyConverterToMarketTest {
                 Collections.singletonList(createConnectedEntity(vmId,
                         ConnectionType.OWNS_CONNECTION, EntityType.VIRTUAL_MACHINE_VALUE)),
                 null);
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+        final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
 
         final Collection<TraderTO> traders =
                 converter.convertToMarket(ImmutableList.of(zone, region, vm, ba).stream()
@@ -1901,11 +2058,24 @@ public class TopologyConverterToMarketTest {
                 Collections.singletonList(createConnectedEntity(vmId,
                         ConnectionType.OWNS_CONNECTION, EntityType.VIRTUAL_MACHINE_VALUE)),
                 null);
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+        final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
 
         final Collection<TraderTO> traders =
                 converter.convertToMarket(ImmutableList.of(region, vm, ba).stream()
@@ -2001,11 +2171,24 @@ public class TopologyConverterToMarketTest {
                         .setCommodityType(mem)
                         .build())
                 .build();
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+        final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
         Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
         entityMap.put(entityDTO.getOid(), entityDTO);
         TraderTO entityTO = converter.convertToMarket(entityMap).iterator().next();
@@ -2038,11 +2221,24 @@ public class TopologyConverterToMarketTest {
                                 .setCommodityType(mem)
                         ).setMovable(true))
                 .build();
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+        final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
         Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
         entityMap.put(entityDTO.getOid(), entityDTO);
         final TraderTO entityTO = converter.convertToMarket(entityMap).iterator().next();
@@ -2073,11 +2269,24 @@ public class TopologyConverterToMarketTest {
                                 .setCommodityType(mem)
                         ).setMovable(true))
                 .build();
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+        final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
         Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
         entityMap.put(entityDTO.getOid(), entityDTO);
         final TraderTO entityTO = converter.convertToMarket(entityMap).iterator().next();
@@ -2232,11 +2441,24 @@ public class TopologyConverterToMarketTest {
                 .addCommodityBought(boughtCommodityDTO)
                 .build()).build();
 
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+        final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
 
         final List<CommodityBoughtTO> boughtTOs = converter.createAndValidateCommBoughtTO(user, boughtCommodityDTO, 1005L, Optional.empty());
         assertEquals(3, boughtTOs.size());
@@ -2273,11 +2495,24 @@ public class TopologyConverterToMarketTest {
                         .build())
                 .build();
 
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+        final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
 
         final List<CommodityBoughtTO> boughtTOs = converter.createAndValidateCommBoughtTO(volume,
                 boughtCommodityDTO, 222L, Optional.empty());
@@ -2315,13 +2550,24 @@ public class TopologyConverterToMarketTest {
                 messageFromJsonFile("protobuf/messages/container-2.dto.json"),
                 messageFromJsonFile("protobuf/messages/vm-4.dto.json"))
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        Collection<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
-                MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor,
-                ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class))
+        Collection<TraderTO> traderTOs = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build()
                 .convertToMarket(topologyDTOs);
         // Container 1 and 2's SLs are movable.  Container 1 is hosted by a VM, so it should
         // be movable.  Container 2 is hosted by a container pod, so it should not be movable.
@@ -2370,13 +2616,24 @@ public class TopologyConverterToMarketTest {
                     return builder.setEnvironmentType(EnvironmentType.CLOUD).build();
                 }).collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
-        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
-                MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor,
-                ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+        final TopologyConverter topologyConverter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
         final CommoditiesResizeTracker resizeTracker = Mockito.mock(CommoditiesResizeTracker.class);
         Whitebox.setInternalState(topologyConverter,
                 "commoditiesResizeTracker", resizeTracker);
@@ -2428,13 +2685,26 @@ public class TopologyConverterToMarketTest {
         when(cloudTopology.getRegionsFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
         when(cloudTopology.getAggregated(region.getOid(), TopologyConversionConstants.cloudTierTypes)).thenReturn(Collections.singleton(computeTier));
 
-        Collection<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
-                MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor,
-                ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, cloudTopology, false, false, false, 0.5f)
+        Collection<TraderTO> traderTOs = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(false)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .marketMode(MarketMode.M2Only)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .cloudTopology(cloudTopology)
+                .enableOP(false)
+                .useVMReservationAsUsed(false)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build()
                 .convertToMarket(topologyDTOs);
 
         assertEquals(2, traderTOs.size());
@@ -2502,12 +2772,24 @@ public class TopologyConverterToMarketTest {
                                 .setCommodityType(commodityType).setUsed(used2).setScalingFactor(scalingFactor2)))
                 .build();
 
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+        final TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
 
         final Map<Long, Map<CommodityType, UsedAndPeak>> result =
                 converter.createProviderUsedModificationMap(ImmutableMap.of(pm.getOid(), pm,
@@ -2535,13 +2817,26 @@ public class TopologyConverterToMarketTest {
                 messageFromJsonFile("protobuf/messages/cloud-db.json"))
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         CloudTopology cloudTopology = mock(CloudTopology.class);
-        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
-                MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor,
-                ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, cloudTopology, false, false, false, 0.5f);
+        final TopologyConverter topologyConverter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(false)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .marketMode(MarketMode.M2Only)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .cloudTopology(cloudTopology)
+                .enableOP(false)
+                .useVMReservationAsUsed(false)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
         final long computeTierOid = 111111L;
         final TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder()
                 .setOid(computeTierOid)
@@ -2649,18 +2944,26 @@ public class TopologyConverterToMarketTest {
         when(cloudTopology.getRegionsFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
         when(cloudTopology.getAggregated(region.getOid(), TopologyConversionConstants.cloudTierTypes)).thenReturn(topologyDTOs.values().stream()
                 .filter(s -> s.getEntityType() == EntityType.STORAGE_TIER_VALUE).collect(Collectors.toSet()));
-        final TopologyConverter topologyConverter = new TopologyConverter(
-                REALTIME_TOPOLOGY_INFO,
-                false,
-                MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor,
-                ccd,
-                CommodityIndex.newFactory(),
-                tierExcluderFactory,
-                consistentScalingHelperFactory,
-                settingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, cloudTopology, false, false, false, 0.5f);
+        final TopologyConverter topologyConverter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(false)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .marketMode(MarketMode.M2Only)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(settingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .cloudTopology(cloudTopology)
+                .enableOP(false)
+                .useVMReservationAsUsed(false)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
 
         final Collection<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
 
@@ -2804,13 +3107,24 @@ public class TopologyConverterToMarketTest {
                 .addCommodityBought(CommodityBoughtDTO.newBuilder()
                         .setCommodityType(stProvType).setUsed(80000)).build();
         TopologyEntityDTO vmDTO = vm.addAllCommoditiesBoughtFromProviders(Arrays.asList(vmCommBoughtPrvd)).build();
-        TopologyConverter converter = new TopologyConverter(MCP_ALLOCATION_PLAN_TOPOLOGY_INFO, false,
-                MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor,
-                ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, Mockito.mock(FakeEntityCreator.class));
+        TopologyConverter converter = new TopologyConverterUtil.Builder()
+                .topologyInfo(REALTIME_TOPOLOGY_INFO)
+                .includeGuaranteedBuyer(true)
+                .quoteFactor(MarketAnalysisUtils.QUOTE_FACTOR)
+                .liveMarketMoveCostFactor(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR)
+                .marketCloudRateExtractor(marketCloudRateExtractor)
+                .cloudCostData(ccd)
+                .commodityIndexFactory(CommodityIndex.newFactory())
+                .tierExcluderFactory(tierExcluderFactory)
+                .consistentScalingHelperFactory(consistentScalingHelperFactory)
+                .reversibilitySettingFetcher(reversibilitySettingFetcher)
+                .licensePriceWeightScale(MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                .storageMoveCostFactor(MarketAnalysisUtils.STORAGE_MOVE_COST_FACTOR)
+                .fakeEntityCreator(Mockito.mock(FakeEntityCreator.class))
+                .useVMReservationAsUsed(true)
+                .singleVMonHost(false)
+                .customUtilizationThreshold(0.5f)
+                .build();
         Collection<EconomyDTOs.TraderTO> traderTOs = converter.convertToMarket(new HashMap(){{
             put(vmId, vmDTO);
             put(volumeId, volumeDTO);
