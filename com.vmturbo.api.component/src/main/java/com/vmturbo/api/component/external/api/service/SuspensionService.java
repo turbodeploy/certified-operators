@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.external.api.mapper.SuspensionMapper;
 import com.vmturbo.api.dto.suspension.BulkActionRequestApiDTO;
 import com.vmturbo.api.dto.suspension.BulkActionRequestInputDTO;
+import com.vmturbo.api.dto.suspension.ScheduleTimeSpansApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityInputDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -23,6 +24,8 @@ import com.vmturbo.api.serviceinterfaces.ISuspensionService;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityResponse;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityServiceGrpc.SuspensionEntityServiceBlockingStub;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanSchedule;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimespanScheduleServiceGrpc.SuspensionTimespanScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggle.SuspensionToggleEntityResponse;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggleServiceGrpc.SuspensionToggleServiceBlockingStub;
 
@@ -40,6 +43,9 @@ public class SuspensionService implements ISuspensionService {
     @Nonnull
     private final SuspensionToggleServiceBlockingStub toggleService;
 
+    @Nonnull
+    private final SuspensionTimespanScheduleServiceBlockingStub timeSpanScheduleService;
+
     private final UserSessionContext userSessionContext;
 
     private final int apiPaginationDefaultLimit;
@@ -53,12 +59,14 @@ public class SuspensionService implements ISuspensionService {
      */
     public SuspensionService(@Nonnull final SuspensionEntityServiceBlockingStub entityService,
                              @Nonnull final SuspensionToggleServiceBlockingStub toggleService,
+                             @Nonnull final SuspensionTimespanScheduleServiceBlockingStub timeSpanScheduleService,
                              @Nonnull final UserSessionContext userSessionContext,
                              @Nullable final int apiPaginationMaxLimit,
                              @Nullable final int apiPaginationDefaultLimit) {
         this.entityService = entityService;
         this.userSessionContext = userSessionContext;
         this.toggleService = toggleService;
+        this.timeSpanScheduleService = timeSpanScheduleService;
         this.apiPaginationMaxLimit = apiPaginationMaxLimit;
         this.apiPaginationDefaultLimit = apiPaginationDefaultLimit;
     }
@@ -115,5 +123,17 @@ public class SuspensionService implements ISuspensionService {
             return  paginationRequest.nextPageResponse(entityApiDTOS, response.getNextCursor(), totalRecordCount);
         }
         return paginationRequest.finalPageResponse(entityApiDTOS, totalRecordCount);
+    }
+
+    @Override
+    public ScheduleTimeSpansApiDTO addTimeSpanSchedule(ScheduleTimeSpansApiDTO schedule) throws Exception {
+        SuspensionMapper mapper = new SuspensionMapper();
+        final TimespanSchedule response;
+        try {
+            response = timeSpanScheduleService.create(mapper.toCreateTimespanScheduleRequest(schedule));
+        } catch (Exception e) {
+            throw new OperationFailedException("creation of time span schedule failed. ", e);
+        }
+        return mapper.toApiScheduleTimeSpansApiDTO(response);
     }
 }

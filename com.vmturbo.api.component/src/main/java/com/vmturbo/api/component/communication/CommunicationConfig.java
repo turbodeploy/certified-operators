@@ -111,6 +111,8 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimespanScheduleServiceGrpc;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimespanScheduleServiceGrpc.SuspensionTimespanScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc;
@@ -272,6 +274,11 @@ public class CommunicationConfig {
     @Bean
     public SuspensionToggleServiceBlockingStub toggleService() {
         return SuspensionToggleServiceGrpc.newBlockingStub(suspensionRpcConfig.suspensionChannel());
+    }
+
+    @Bean
+    public SuspensionTimespanScheduleServiceBlockingStub timespanScheduleService() {
+        return SuspensionTimespanScheduleServiceGrpc.newBlockingStub(suspensionRpcConfig.suspensionChannel());
     }
 
     @Bean

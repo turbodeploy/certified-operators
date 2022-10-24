@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.google.common.collect.ImmutableList;
 
 import io.grpc.Context;
@@ -17,13 +19,18 @@ import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.suspension.BulkActionRequestApiDTO;
 import com.vmturbo.api.dto.suspension.BulkActionRequestInputDTO;
+import com.vmturbo.api.dto.suspension.ScheduleTimeSpansApiDTO;
+import com.vmturbo.api.dto.suspension.SuspendItemApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityInputDTO;
+import com.vmturbo.api.dto.suspension.TimeSpanApiDTO;
+import com.vmturbo.api.dto.suspension.WeekDayTimeSpansApiDTO;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.LogicalOperator;
 import com.vmturbo.api.enums.SuspensionActionType;
 import com.vmturbo.api.enums.SuspensionEntityType;
 import com.vmturbo.api.enums.SuspensionState;
+import com.vmturbo.api.enums.SuspensionTimeSpanState;
 import com.vmturbo.api.pagination.SuspensionEntitiesOrderBy;
 import com.vmturbo.api.pagination.SuspensionEntitiesPaginationRequest;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
@@ -33,6 +40,12 @@ import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.Suspens
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityRequest.Builder;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityTags;
 import com.vmturbo.common.protobuf.suspension.SuspensionFilter;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.CreateTimespanScheduleRequest;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimeOfDay;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.Timespan;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanSchedule;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanState;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.WeekDayTimespans;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggle;
 
 /**
@@ -461,6 +474,136 @@ public class SuspensionMapperTest extends TestCase {
             TestCase.fail("IllegalArgumentException should have been thrown");
         } catch (IllegalArgumentException e) {
             assertEquals("Invalid expression type for double filter", e.getMessage());
+        }
+    }
+
+    /**
+     * verifies the conversion of API time span state to gRPC time span state.
+     */
+    @Test
+    public void testGetGrpcTsState() {
+        assertEquals(TimespanState.TS_ON, testSuspensionMapper.getGrpcTsState(SuspensionTimeSpanState.ON));
+        assertEquals(TimespanState.TS_OFF, testSuspensionMapper.getGrpcTsState(SuspensionTimeSpanState.OFF));
+        assertEquals(TimespanState.TS_IGNORE, testSuspensionMapper.getGrpcTsState(SuspensionTimeSpanState.IGNORE));
+    }
+
+    /**
+     * verifies the conversion of gRPC time span state to API time span state.
+     */
+    @Test
+    public void testGetApiTsState() {
+        assertEquals(SuspensionTimeSpanState.ON, testSuspensionMapper.getApiTsState(TimespanState.TS_ON));
+        assertEquals(SuspensionTimeSpanState.OFF, testSuspensionMapper.getApiTsState(TimespanState.TS_OFF));
+        assertEquals(SuspensionTimeSpanState.IGNORE, testSuspensionMapper.getApiTsState(TimespanState.TS_IGNORE));
+    }
+
+    /**
+     * verifies the conversion of API time spans based schedule creation to gRPC request.
+     */
+    @Test
+    public void testToCreateTimespanScheduleRequest() {
+        SuspendItemApiDTO policy = new SuspendItemApiDTO();
+        policy.setState(SuspensionTimeSpanState.ON);
+        TimeSpanApiDTO timeSpanApiDTO = new TimeSpanApiDTO();
+        timeSpanApiDTO.setPolicy(policy);
+        timeSpanApiDTO.setBegins("00:15");
+        timeSpanApiDTO.setEnds("01:00");
+        List<TimeSpanApiDTO> timespans = new ArrayList<>();
+        timespans.add(timeSpanApiDTO);
+        WeekDayTimeSpansApiDTO weekDayTimeSpansApiDTO = new WeekDayTimeSpansApiDTO();
+        weekDayTimeSpansApiDTO.setSaturday(timespans);
+        String uuid = "random_uuid";
+        String name = "dummy_name";
+        String description = "some_random_description";
+        String timeZone = "IST";
+        ScheduleTimeSpansApiDTO scheduleTimeSpansApiDTO = new ScheduleTimeSpansApiDTO(uuid, name,
+                description, timeZone, weekDayTimeSpansApiDTO);
+
+        CreateTimespanScheduleRequest.Builder want = CreateTimespanScheduleRequest.getDefaultInstance().newBuilder();
+        want.setDescription(description);
+        want.setName(name);
+        want.setDescription(description);
+        want.setTimezone(timeZone);
+        TimeOfDay.Builder beginsTod = TimeOfDay.getDefaultInstance().newBuilder();
+        beginsTod.setHours(0);
+        beginsTod.setMinutes(15);
+        TimeOfDay.Builder endTod = TimeOfDay.getDefaultInstance().newBuilder();
+        endTod.setHours(1);
+        endTod.setMinutes(0);
+
+        Timespan.Builder timespan = Timespan.getDefaultInstance().newBuilder();
+        timespan.setBegins(beginsTod.build());
+        timespan.setEnds(endTod.build());
+        timespan.setState(TimespanState.TS_ON);
+        List<Timespan> tsList = new ArrayList<>();
+        tsList.add(timespan.build());
+
+        WeekDayTimespans.Builder grpcTimespans = WeekDayTimespans.getDefaultInstance().newBuilder();
+        grpcTimespans.addAllSaturday(tsList);
+        want.setTimespans(grpcTimespans.build());
+
+        try {
+            CreateTimespanScheduleRequest got = testSuspensionMapper.toCreateTimespanScheduleRequest(scheduleTimeSpansApiDTO);
+            assertEquals(want.build(), got);
+        } catch (Exception e) {
+            TestCase.fail();
+        }
+    }
+
+    /**
+     * verifies the conversion of gRPC time span based schedule creation to API response format.
+     */
+    @Test
+    public void testToApiScheduleTimeSpansApiDTO() {
+        SuspendItemApiDTO policy = new SuspendItemApiDTO();
+        policy.setState(SuspensionTimeSpanState.ON);
+        TimeSpanApiDTO timeSpanApiDTO = new TimeSpanApiDTO();
+        timeSpanApiDTO.setPolicy(policy);
+        timeSpanApiDTO.setBegins("00:15");
+        timeSpanApiDTO.setEnds("01:00");
+        List<TimeSpanApiDTO> timespans = new ArrayList<>();
+        timespans.add(timeSpanApiDTO);
+        WeekDayTimeSpansApiDTO weekDayTimeSpansApiDTO = new WeekDayTimeSpansApiDTO();
+        weekDayTimeSpansApiDTO.setSaturday(timespans);
+        String uuid = "1234";
+        String name = "dummy_name";
+        String description = "some_random_description";
+        String timeZone = "IST";
+        ScheduleTimeSpansApiDTO want = new ScheduleTimeSpansApiDTO(uuid, name,
+                description, timeZone, weekDayTimeSpansApiDTO);
+
+        TimespanSchedule.Builder input = TimespanSchedule.getDefaultInstance().newBuilder();
+        input.setDescription(description);
+        input.setOid(1234);
+        input.setName(name);
+        input.setDescription(description);
+        input.setTimezone(timeZone);
+        TimeOfDay.Builder beginsTod = TimeOfDay.getDefaultInstance().newBuilder();
+        beginsTod.setHours(0);
+        beginsTod.setMinutes(15);
+        TimeOfDay.Builder endTod = TimeOfDay.getDefaultInstance().newBuilder();
+        endTod.setHours(1);
+        endTod.setMinutes(0);
+
+        Timespan.Builder timespan = Timespan.getDefaultInstance().newBuilder();
+        timespan.setBegins(beginsTod.build());
+        timespan.setEnds(endTod.build());
+        timespan.setState(TimespanState.TS_ON);
+        List<Timespan> tsList = new ArrayList<>();
+        tsList.add(timespan.build());
+
+        WeekDayTimespans.Builder grpcTimespans = WeekDayTimespans.getDefaultInstance().newBuilder();
+        grpcTimespans.addAllSaturday(tsList);
+        input.setTimespans(grpcTimespans.build());
+
+        try {
+            ScheduleTimeSpansApiDTO got = testSuspensionMapper.toApiScheduleTimeSpansApiDTO(input.build());
+            ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+            String wantJSON = ow.writeValueAsString(want);
+            String gotJSON = ow.writeValueAsString(got);
+            assertEquals(wantJSON, gotJSON);
+        } catch (Exception e) {
+            TestCase.fail();
         }
     }
 }
