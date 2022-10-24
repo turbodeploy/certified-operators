@@ -24,7 +24,8 @@ public class BilledCostGroupByMapper {
             .put(CostGroupBy.REGION, BilledCostGroupBy.REGION)
             .put(CostGroupBy.CLOUD_SERVICE, BilledCostGroupBy.CLOUD_SERVICE)
             .put(CostGroupBy.COST_CATEGORY, BilledCostGroupBy.COST_CATEGORY)
-            .put(CostGroupBy.PRICING_MODEL, BilledCostGroupBy.PRICE_MODEL)
+            .put(CostGroupBy.PRICE_MODEL, BilledCostGroupBy.PRICE_MODEL)
+            .put(CostGroupBy.SERVICE_PROVIDER, BilledCostGroupBy.SERVICE_PROVIDER)
             .build();
 
     private BilledCostGroupByMapper() {}
