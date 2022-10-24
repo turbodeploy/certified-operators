@@ -1,0 +1,86 @@
+[
+  {
+    "sampleTsUtc": "3600000",
+    "granularity": "HOURLY",
+    "priceModel": "ON_DEMAND",
+    "costCategory": "COMPUTE",
+    "usageAmountStats": {
+      "sampleCount": "1",
+      "max": 5.0,
+      "min": 5.0,
+      "avg": 5.0,
+      "sum": 5.0
+    },
+    "currency": 123,
+    "costStats": {
+      "sampleCount": "1",
+      "max": 6.0,
+      "min": 6.0,
+      "avg": 6.0,
+      "sum": 6.0
+    }
+  },
+  {
+    "sampleTsUtc": "3600000",
+    "granularity": "HOURLY",
+    "priceModel": "ON_DEMAND",
+    "costCategory": "LICENSE",
+    "usageAmountStats": {
+      "sampleCount": "1",
+      "max": 5.0,
+      "min": 5.0,
+      "avg": 5.0,
+      "sum": 5.0
+    },
+    "currency": 123,
+    "costStats": {
+      "sampleCount": "1",
+      "max": 6.0,
+      "min": 6.0,
+      "avg": 6.0,
+      "sum": 6.0
+    }
+  },
+  {
+    "sampleTsUtc": "7200000",
+    "granularity": "HOURLY",
+    "priceModel": "ON_DEMAND",
+    "costCategory": "COMPUTE",
+    "usageAmountStats": {
+      "sampleCount": "1",
+      "max": 5.0,
+      "min": 5.0,
+      "avg": 5.0,
+      "sum": 5.0
+    },
+    "currency": 123,
+    "costStats": {
+      "sampleCount": "1",
+      "max": 6.0,
+      "min": 6.0,
+      "avg": 6.0,
+      "sum": 6.0
+    }
+  },
+  {
+    "sampleTsUtc": "7200000",
+    "granularity": "HOURLY",
+    "priceModel": "RESERVED",
+    "costCategory": "LICENSE",
+    "usageAmountStats": {
+      "sampleCount": "1",
+      "max": 5.0,
+      "min": 5.0,
+      "avg": 5.0,
+      "sum": 5.0
+    },
+    "currency": 123,
+    "costStats": {
+      "sampleCount": "1",
+      "max": 6.0,
+      "min": 6.0,
+      "avg": 6.0,
+      "sum": 6.0
+    }
+  }
+]

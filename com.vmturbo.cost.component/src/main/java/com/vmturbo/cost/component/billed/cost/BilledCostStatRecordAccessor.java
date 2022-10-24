@@ -14,6 +14,8 @@ import org.jooq.Record;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.StatValues;
 import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostStat;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
+import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingDataPoint.CostCategory;
 import com.vmturbo.platform.sdk.common.CostBilling.CostTagGroup;
 
 /**
@@ -41,6 +43,8 @@ class BilledCostStatRecordAccessor {
             .add(RecordProtoMapper.of(BilledCostTableAccessor::regionId, BilledCostStat.Builder::setRegionId))
             .add(RecordProtoMapper.of(BilledCostTableAccessor::cloudServiceId, BilledCostStat.Builder::setCloudServiceId))
             .add(RecordProtoMapper.of(BilledCostTableAccessor::serviceProviderId, BilledCostStat.Builder::setServiceProviderId))
+            .add(RecordProtoMapper.of(BilledCostTableAccessor::priceModel, (builder, val) -> builder.setPriceModel(PriceModel.forNumber(val))))
+            .add(RecordProtoMapper.of(BilledCostTableAccessor::costCategory, (builder, val) -> builder.setCostCategory(CostCategory.forNumber(val))))
             .add(RecordProtoMapper.of(BilledCostTableAccessor::providerId, BilledCostStat.Builder::setProviderId))
             .add(RecordProtoMapper.of(BilledCostTableAccessor::providerType, (builder, val) -> builder.setProviderType((int)val)))
             .add(RecordProtoMapper.of(BilledCostTableAccessor::commodityType, (builder, val) -> builder.setCommodityType((int)val)))

@@ -127,7 +127,7 @@ message BilledCostStatsQuery {
 
         COST_CATEGORY = 70;
 
-        PRICING_MODEL = 80;
+        PRICE_MODEL = 80;
 
         COMMODITY_TYPE = 90;
 
