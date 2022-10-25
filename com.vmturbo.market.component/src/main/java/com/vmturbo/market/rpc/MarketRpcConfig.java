@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServic
 import com.vmturbo.market.db.DbAccessConfig;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
+import com.vmturbo.market.reservations.EconomyCachePersistence;
 import com.vmturbo.market.reservations.InitialPlacementHandler;
 import com.vmturbo.market.runner.MarketRunner;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
@@ -108,7 +109,7 @@ public class MarketRpcConfig {
     @Bean
     public InitialPlacementHandler getInitialPlacementHandler() {
         try {
-            return new InitialPlacementHandler(dbAccessConfig.dsl(), getReservationService(),
+            return new InitialPlacementHandler(new EconomyCachePersistence(dbAccessConfig.dsl()), getReservationService(),
                     prepareReservationCache, maxRetry, maxGroupingRetry, analysisDiagnosticsCollectorFactory(),
                     numPlacementDiagsToRetain, enableOP);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {

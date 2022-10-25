@@ -189,7 +189,7 @@ public class EconomyCachePersistenceTest extends MultiDbTestBase {
         AnalysisDiagnosticsCollectorFactory diagsCollectorFactory = Mockito.mock(DefaultAnalysisDiagnosticsCollectorFactory.class);
         when(diagsCollectorFactory.newDiagsCollector(any(), any())).thenReturn(Optional.empty());
         ReservationServiceBlockingStub stub = ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        InitialPlacementHandler handler = new InitialPlacementHandler(dsl, stub, true, 2, 5,
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(EconomyCachePersistence.class), stub, true, 2, 5,
                 diagsCollectorFactory, 5, false);
         final long buyer1Oid = 1234L;
         final long buyerSl1Oid = 1000L;
@@ -259,5 +259,6 @@ public class EconomyCachePersistenceTest extends MultiDbTestBase {
         Assert.assertEquals(pm4MemUsed + buyerMemUsed, pm4.getCommoditiesSold()
                 .get(pm4.getBasketSold().indexOf(CommodityType.MEM_VALUE))
                 .getQuantity(), 0.001);
+        grpcServer.close();
     }
 }

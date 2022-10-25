@@ -15,7 +15,6 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableList;
 
-import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -101,10 +100,9 @@ public class EconomyCachesTest {
     private static final double st1AmtUsed = 100;
     private static final long st2Oid = 2112L;
     private static final double st2AmtUsed = 200;
-    private final DSLContext dsl = Mockito.mock(DSLContext.class);
-    private EconomyCaches economyCaches = Mockito.spy(new EconomyCaches(dsl));
     private EconomyCachePersistence economyCachePersistenceSpy = Mockito.mock(
             EconomyCachePersistence.class);
+    private EconomyCaches economyCaches = Mockito.spy(new EconomyCaches(economyCachePersistenceSpy));
 
     private static final BiMap<TopologyDTO.CommodityType, Integer> commTypeToSpecMap = HashBiMap.create();
 
@@ -138,7 +136,6 @@ public class EconomyCachesTest {
     @Before
     public void setUpBefore() {
         IdentityGenerator.initPrefix(0);
-        economyCaches.economyCachePersistence = economyCachePersistenceSpy;
     }
 
     /**
@@ -1085,13 +1082,10 @@ public class EconomyCachesTest {
      */
     @Test
     public void testWhenNPEInAccessCommUpdate() {
-        EconomyCaches economyCaches = new EconomyCaches(Mockito.mock(DSLContext.class));
+        EconomyCaches economyCaches = new EconomyCaches(Mockito.mock(EconomyCachePersistence.class));
         EconomyCaches spy = Mockito.spy(economyCaches);
         spy.historicalCachedEconomy = simpleEconomy();
         spy.getState().setHistoricalCacheReceived(true);
-
-        EconomyCachePersistence economyCachePersistence = new EconomyCachePersistence(Mockito.mock(DSLContext.class));
-        spy.economyCachePersistence = Mockito.spy(economyCachePersistence);
         Mockito.doNothing().when(spy.economyCachePersistence).saveEconomyCache(Mockito.any(), Mockito.any(), Mockito.anyBoolean());
         Mockito.doThrow(NullPointerException.class)
                 .when(spy)

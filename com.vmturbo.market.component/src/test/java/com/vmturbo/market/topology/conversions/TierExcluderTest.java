@@ -116,7 +116,6 @@ public class TierExcluderTest {
      */
     @Before
     public void setup() throws IOException {
-        grpcTestServer.start();
         settingsPolicyService = SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         tierExcluderFactory = new DefaultTierExcluderFactory(settingsPolicyService);
         topology = createTestTopology();
@@ -136,14 +135,6 @@ public class TierExcluderTest {
         tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, commodityConverter,
             ImmutableMap.of(VM1SlOid, slInfo1, VM2SlOid, slInfo2));
         cloudTopology = mock(CloudTopology.class);
-    }
-
-    /**
-     * tearDown will run after every test.
-     */
-    @After
-    public void tearDown() {
-        grpcTestServer.close();
     }
 
     /**
