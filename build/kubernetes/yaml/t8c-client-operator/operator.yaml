@@ -25,7 +25,7 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.version
+    - jsonPath: .spec.global.version
       name: Version
       type: string
     name: v1alpha1
@@ -48,6 +48,104 @@ spec:
           spec:
             description: TurbonomicClientSpec defines the desired state of TurbonomicClient
             properties:
+              global:
+                description: Global defines the global state of TurbonomicClient
+                properties:
+                  imagePullPolicy:
+                    type: string
+                  imagePullSecrets:
+                    items:
+                      description: LocalObjectReference contains enough information
+                        to let you locate the referenced object inside the same namespace.
+                      properties:
+                        name:
+                          description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            TODO: Add other useful fields. apiVersion, kind, uid?'
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
+                    type: array
+                  registry:
+                    type: string
+                  version:
+                    type: string
+                required:
+                - version
+                type: object
+              probes:
+                properties:
+                  mssql:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  newrelic:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  ucs:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  vCenter:
+                    properties:
+                      enabled:
+                        type: boolean
+                      mediationVCenter:
+                        properties:
+                          image:
+                            properties:
+                              name:
+                                type: string
+                              tag:
+                                type: string
+                            type: object
+                          imagePullPolicy:
+                            type: string
+                        type: object
+                      mediationVCenterBrowsing:
+                        properties:
+                          image:
+                            properties:
+                              name:
+                                type: string
+                              tag:
+                                type: string
+                            type: object
+                          imagePullPolicy:
+                            type: string
+                        type: object
+                    type: object
+                type: object
               properties:
                 properties:
                   remoteMediationAddress:
@@ -64,6 +162,8 @@ spec:
                           tag:
                             type: string
                         type: object
+                      imagePullPolicy:
+                        type: string
                     type: object
                   enabled:
                     type: boolean
@@ -76,6 +176,8 @@ spec:
                           tag:
                             type: string
                         type: object
+                      imagePullPolicy:
+                        type: string
                     type: object
                   serviceController:
                     properties:
@@ -86,6 +188,8 @@ spec:
                           tag:
                             type: string
                         type: object
+                      imagePullPolicy:
+                        type: string
                     type: object
                   siteController:
                     properties:
@@ -96,37 +200,12 @@ spec:
                           tag:
                             type: string
                         type: object
+                      imagePullPolicy:
+                        type: string
                     type: object
                 type: object
-              vCenter:
-                properties:
-                  enabled:
-                    type: boolean
-                  mediationVCenter:
-                    properties:
-                      image:
-                        properties:
-                          name:
-                            type: string
-                          tag:
-                            type: string
-                        type: object
-                    type: object
-                  mediationVCenterBrowsing:
-                    properties:
-                      image:
-                        properties:
-                          name:
-                            type: string
-                          tag:
-                            type: string
-                        type: object
-                    type: object
-                type: object
-              version:
-                type: string
             required:
-            - version
+            - global
             type: object
           status:
             description: TurbonomicClientStatus defines the observed state of TurbonomicClient
