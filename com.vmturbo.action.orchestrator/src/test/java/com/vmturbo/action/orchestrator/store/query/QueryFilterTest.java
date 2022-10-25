@@ -1005,4 +1005,43 @@ public class QueryFilterTest {
         return new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
                         .test(ActionOrchestratorTestUtils.mockActionView(action));
     }
+
+    /**
+     * Test pod move is filtered out from the VM move
+     */
+    @Test
+    public void testFilterOutPodMoveUnderVmMove() {
+        // build a pod move action
+        ActionDTO.Move.Builder moveBuilder = ActionDTO.Move.newBuilder()
+                .setTarget(ActionOrchestratorTestUtils.createActionEntity(0L, EntityType.CONTAINER_POD_VALUE))
+                .addChanges(ActionDTO.ChangeProvider.newBuilder()
+                        .setSource(ActionEntity.newBuilder()
+                                .setId(1L)
+                                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                .build())
+                        .setDestination(ActionEntity.newBuilder()
+                                .setId(2L)
+                                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                .build())
+                        .build());
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.newBuilder().setMove(moveBuilder.build()))
+                .build();
+
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
+
+        // build a filter for VM move
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+                .addEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addTypes(ActionType.MOVE)
+                .build();
+
+        // expect the pod move is filter out and return false
+        assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+    }
 }
