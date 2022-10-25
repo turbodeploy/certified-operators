@@ -1,0 +1,8 @@
+apiVersion: clients.turbonomic.ibm.com/v1alpha1
+kind: TurbonomicClient
+metadata:
+  name: turbonomicclient-release
+spec:
+  version: __VERSION__
+  vCenter:
+    enabled: true
