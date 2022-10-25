@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -273,7 +274,14 @@ public class EntityStore {
                 EntityStore.this.purgeTarget(targetId, null);
             }
         });
-        this.identityProvider.initializeStaleOidManager(entityMap::keySet);
+        final Supplier<Set<Long>> currentOidsSupplier = () -> {
+            final Stream<Long> oidsFromEntityIdentifyingPropValues = targetEntityIdentifyingPropertyValues.values()
+                .stream().map(Map::keySet).flatMap(Collection::stream);
+            final Stream<Long> oidsFromEntityMap = entityMap.keySet().stream();
+            return Stream.concat(oidsFromEntityMap, oidsFromEntityIdentifyingPropValues)
+                .collect(Collectors.toSet());
+        };
+        this.identityProvider.initializeStaleOidManager(currentOidsSupplier);
     }
 
     public int expireOids() throws InterruptedException, ExecutionException, TimeoutException {
@@ -929,7 +937,14 @@ public class EntityStore {
         throws IdentityServiceException {
         final Map<Long, EntityIdentifyingPropertyValues> assignedIds = identityProvider
             .getIdsFromIdentifyingPropertiesValues(probeId, Objects.requireNonNull(entityIdentifyingPropertyValues));
-        targetEntityIdentifyingPropertyValues.put(targetId, assignedIds);
+        targetEntityIdentifyingPropertyValues.compute(targetId, (key, existingIdentifyingPropValues) -> {
+            if (existingIdentifyingPropValues == null) {
+                return new HashMap<>(assignedIds);
+            } else {
+                existingIdentifyingPropValues.putAll(assignedIds);
+                return existingIdentifyingPropValues;
+            }
+        });
     }
 
 
