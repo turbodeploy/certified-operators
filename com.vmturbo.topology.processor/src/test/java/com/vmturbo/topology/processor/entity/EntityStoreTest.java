@@ -17,6 +17,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -29,11 +30,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -53,7 +57,9 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
@@ -158,6 +164,9 @@ public class EntityStoreTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
+    @Captor
+    private ArgumentCaptor<Supplier<Set<Long>>> initializeStaleOidManagerArgumentCaptor;
+
     Object[] generateTestData() {
         return $($(false), $(true));
     }
@@ -167,6 +176,7 @@ public class EntityStoreTest {
      */
     @Before
     public void setup() {
+        MockitoAnnotations.initMocks(this);
         when(target.getId()).thenReturn(targetId);
         when(target.getDisplayName()).thenReturn(targetDisplayName);
         when(target.toString()).thenReturn(targetDisplayName);
@@ -182,6 +192,7 @@ public class EntityStoreTest {
         when(targetStore.getAll()).thenReturn(ImmutableList.of(target, target2));
         Mockito.when(targetStore.getProbeCategoryForTarget(Mockito.anyLong()))
                         .thenReturn(Optional.of(ProbeCategory.HYPERVISOR));
+        doNothing().when(identityProvider).initializeStaleOidManager(initializeStaleOidManagerArgumentCaptor.capture());
     }
 
     /**
@@ -207,27 +218,61 @@ public class EntityStoreTest {
      * Test that {@link IdentityProvider#getIdsFromIdentifyingPropertiesValues(long, List)} is invoked
      * when {@link EntityStore#entityIdentifyingPropertyValuesDiscovered(long, long, List)}
      * is invoked with a non-empty list of {@link EntityIdentifyingPropertyValues}.
+     *
+     * @throws IdentityServiceException if there is an error in the Identity Service.
      */
     @Test
     public void testEntityIdentifyingPropertyValuesDiscovered() throws IdentityServiceException {
+        final String localId = "vm-123";
+        final EntityIdentifyingPropertyValues vm1 = createEntityIdentifyingPropertyValues(localId);
+        final List<EntityIdentifyingPropertyValues> identifyingPropertyValues = Collections.singletonList(vm1);
         final long probeId = 1L;
-        final long targetId = 2L;
-        final List<EntityIdentifyingPropertyValues> identifyingPropertyValues = Collections.singletonList(
-            EntityIdentifyingPropertyValues.newBuilder()
-                .putIdentifyingPropertyValues("id", "123")
-                .setEntityType(EntityType.VIRTUAL_MACHINE)
-                .build());
+        final long entityOid = 123L;
         Mockito.when(identityProvider.getIdsFromIdentifyingPropertiesValues(probeId, identifyingPropertyValues))
-                .thenReturn(Collections.singletonMap(123L, EntityIdentifyingPropertyValues.newBuilder()
-                    .putIdentifyingPropertyValues("id", "123")
-                    .setEntityType(EntityType.VIRTUAL_MACHINE)
-                    .build()));
+                .thenReturn(Collections.singletonMap(entityOid, vm1));
+        final long targetId = 2L;
         entityStore.entityIdentifyingPropertyValuesDiscovered(probeId, targetId, identifyingPropertyValues);
-        Mockito.verify(identityProvider, Mockito.times(1)).getIdsFromIdentifyingPropertiesValues(probeId,
-            identifyingPropertyValues);
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
-        Assert.assertFalse(stitchingContext.getTargetEntityLocalIdToOid(targetId)
-            .isEmpty());
+        Assert.assertEquals(Collections.singletonMap(localId, entityOid),
+            stitchingContext.getTargetEntityLocalIdToOid(targetId));
+    }
+
+    /**
+     * Test that when {@link EntityStore#entityIdentifyingPropertyValuesDiscovered(long, long, List)} is invoked twice
+     * with different inputs for the same target id, then {@link StitchingContext#getTargetEntityLocalIdToOid(long)}
+     * returns 2 entries.
+     *
+     * @throws IdentityServiceException if there is an error in the Identity Service.
+     */
+    @Test
+    public void testIncrementalDiscoveryEntityIdentifyingPropValues() throws IdentityServiceException {
+        final String localId = "vm-123";
+        final EntityIdentifyingPropertyValues vm1 = createEntityIdentifyingPropertyValues(localId);
+        final List<EntityIdentifyingPropertyValues> identifyingPropertyValues = Collections.singletonList(vm1);
+        final long probeId = 1L;
+        final long entityOid = 123L;
+        Mockito.when(identityProvider.getIdsFromIdentifyingPropertiesValues(probeId, identifyingPropertyValues))
+            .thenReturn(Collections.singletonMap(entityOid, vm1));
+        final long targetId = 2L;
+        entityStore.entityIdentifyingPropertyValuesDiscovered(probeId, targetId, identifyingPropertyValues);
+        final String localId2 = "vm-456";
+        final long entityOid2 = 456L;
+        final EntityIdentifyingPropertyValues vm2 = createEntityIdentifyingPropertyValues(localId2);
+        final List<EntityIdentifyingPropertyValues> identifyingPropertyValues2 = Collections.singletonList(vm2);
+        Mockito.when(identityProvider.getIdsFromIdentifyingPropertiesValues(probeId, Collections.singletonList(vm2)))
+            .thenReturn(Collections.singletonMap(entityOid2, vm2));
+        entityStore.entityIdentifyingPropertyValuesDiscovered(probeId, targetId, identifyingPropertyValues2);
+        final StitchingContext stitchingContext2 = entityStore.constructStitchingContext();
+        Assert.assertEquals(ImmutableMap.of(localId, entityOid, localId2, entityOid2),
+            stitchingContext2.getTargetEntityLocalIdToOid(targetId));
+    }
+
+    private EntityIdentifyingPropertyValues createEntityIdentifyingPropertyValues(final String entityId) {
+        return EntityIdentifyingPropertyValues.newBuilder()
+            .setEntityId(entityId)
+            .putIdentifyingPropertyValues("id", entityId)
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .build();
     }
 
     /**
@@ -261,13 +306,87 @@ public class EntityStoreTest {
     public void testExceptionWhileAssigningIdentity() throws Exception {
         final long probeId = 1L;
         final List<EntityIdentifyingPropertyValues> identifyingPropertyValues = Collections.singletonList(
-            EntityIdentifyingPropertyValues.newBuilder()
-                .putIdentifyingPropertyValues("id", "123")
-                .setEntityType(EntityType.VIRTUAL_MACHINE)
-                .build());
+            createEntityIdentifyingPropertyValues("123"));
        when(identityProvider.getIdsFromIdentifyingPropertiesValues(anyLong(),
            anyListOf(EntityIdentifyingPropertyValues.class))).thenThrow(new IdentityServiceException(""));
        entityStore.entityIdentifyingPropertyValuesDiscovered(probeId, 2L, identifyingPropertyValues);
+    }
+
+    /**
+     * Test that when {@link EntityStore#entityIdentifyingPropertyValuesDiscovered(long, long, List)} or
+     * {@link EntityStore#entitiesDiscovered(long, long, int, DiscoveryType, List)} has not been invoked with valid
+     * inputs, then the {@link Supplier} argument passed to {@link IdentityProvider#initializeStaleOidManager(Supplier)}
+     * returns {@link Collections#emptySet()}.
+     */
+    @Test
+    public void testIdentityProviderInitializeStaleOidManagerEmptySupplier() {
+        Mockito.verify(identityProvider).initializeStaleOidManager(initializeStaleOidManagerArgumentCaptor.capture());
+        final Supplier<Set<Long>> oidSupplier = initializeStaleOidManagerArgumentCaptor.getValue();
+        Assert.assertEquals(Collections.emptySet(), oidSupplier.get());
+    }
+
+    /**
+     * Test that when {@link EntityStore#entityIdentifyingPropertyValuesDiscovered(long, long, List)} is invoked with
+     * valid inputs, the {@link Supplier} argument passed to
+     * {@link IdentityProvider#initializeStaleOidManager(Supplier)} contains the corresponding oid.
+     *
+     * @throws IdentityServiceException if there is an error in the Identity Service
+     */
+    @Test
+    public void testIdentityProviderInitializeStaleOidManagerOidSuppliedFromIdPropValues()
+        throws IdentityServiceException {
+        final EntityIdentifyingPropertyValues vm1 = createEntityIdentifyingPropertyValues("vm-123");
+        final List<EntityIdentifyingPropertyValues> identifyingPropertyValues = Collections.singletonList(vm1);
+        final long probeId = 1L;
+        final long entityOid = 123L;
+        Mockito.when(identityProvider.getIdsFromIdentifyingPropertiesValues(probeId, identifyingPropertyValues))
+            .thenReturn(Collections.singletonMap(entityOid, vm1));
+        entityStore.entityIdentifyingPropertyValuesDiscovered(probeId, 2L, identifyingPropertyValues);
+        Mockito.verify(identityProvider).initializeStaleOidManager(initializeStaleOidManagerArgumentCaptor.capture());
+        final Supplier<Set<Long>> oidSupplier = initializeStaleOidManagerArgumentCaptor.getValue();
+        Assert.assertEquals(Collections.singleton(entityOid), oidSupplier.get());
+    }
+
+    /**
+     * Test that when {@link EntityStore#entitiesDiscovered(long, long, int, DiscoveryType, List)} has been invoked with
+     * a valid input, the {@link Supplier} argument passed to
+     * {@link IdentityProvider#initializeStaleOidManager(Supplier)} contains the corresponding oid.
+     *
+     * @throws Exception if error is encountered.
+     */
+    @Test
+    public void testIdentityProviderInitializeStaleOidManagerOidSuppliedFromEntityMap() throws Exception {
+        final long entityOid = 1L;
+        final EntityDTO entity1 = createEntity("vm-id", EntityType.VIRTUAL_MACHINE);
+        Map<Long, EntityDTO> entitiesMap = ImmutableMap.of(entityOid, entity1);
+        addEntities(entitiesMap);
+        Mockito.verify(identityProvider).initializeStaleOidManager(initializeStaleOidManagerArgumentCaptor.capture());
+        final Supplier<Set<Long>> oidSupplier = initializeStaleOidManagerArgumentCaptor.getValue();
+        Assert.assertEquals(Collections.singleton(entityOid), oidSupplier.get());
+    }
+
+    /**
+     * Test that when {@link EntityStore#entitiesDiscovered(long, long, int, DiscoveryType, List)}
+     * and {@link EntityStore#entityIdentifyingPropertyValuesDiscovered(long, long, List)} have been invoked with
+     * valid inputs, the {@link Supplier} argument passed to
+     * {@link IdentityProvider#initializeStaleOidManager(Supplier)} contain the corresponding oids.
+     *
+     * @throws Exception if error is encountered.
+     */
+    @Test
+    public void testIdentityProviderInitializeStaleOidManagerOidSuppliedFromAllSources() throws Exception {
+        final long probeId = 1L;
+        final EntityIdentifyingPropertyValues vm1 = createEntityIdentifyingPropertyValues("456");
+        final List<EntityIdentifyingPropertyValues> identifyingPropertyValues = Collections.singletonList(vm1);
+        Mockito.when(identityProvider.getIdsFromIdentifyingPropertiesValues(probeId, identifyingPropertyValues))
+            .thenReturn(Collections.singletonMap(123L, vm1));
+        entityStore.entityIdentifyingPropertyValuesDiscovered(probeId, 2L, identifyingPropertyValues);
+        final EntityDTO entity1 = createEntity("vm-id", EntityType.VIRTUAL_MACHINE);
+        Map<Long, EntityDTO> entitiesMap = ImmutableMap.of(1L, entity1);
+        addEntities(entitiesMap);
+        Mockito.verify(identityProvider).initializeStaleOidManager(initializeStaleOidManagerArgumentCaptor.capture());
+        final Supplier<Set<Long>> oidSupplier = initializeStaleOidManagerArgumentCaptor.getValue();
+        Assert.assertEquals(new HashSet<>(Arrays.asList(1L, 123L)), oidSupplier.get());
     }
 
     private EntityDTO createEntity(@Nonnull String id, @Nonnull EntityType entityType) {
