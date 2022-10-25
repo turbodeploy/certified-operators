@@ -3,6 +3,8 @@ kind: TurbonomicClient
 metadata:
   name: turbonomicclient-release
 spec:
-  version: __VERSION__
-  vCenter:
-    enabled: true
+  global:
+    version: __VERSION__
+  probes:
+    vCenter:
+      enabled: true
