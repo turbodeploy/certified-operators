@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.action.ActionEnvironmentType;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A optionalFilter that can be used to test whether an action passes or fails an
@@ -169,6 +170,14 @@ public class QueryFilter {
                 }
 
                 if (filter.getEntityTypeCount() > 0) {
+                    // Filter out the pod move when requesting the VM move[OM-90200]
+                    if (filter.getTypesList().contains(ActionDTO.ActionType.MOVE) && filter.getTypesCount() == 1
+                            && filter.getEntityTypeList().contains(EntityType.VIRTUAL_MACHINE_VALUE) && filter.getEntityTypeCount() == 1) {
+                        ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(actionView.getTranslationResultOrOriginal());
+                        if (actionEntity.getType() == EntityType.CONTAINER_POD_VALUE) {
+                            return false;
+                        }
+                    }
                     // If the caller DID NOT specify an explicit list of OIDs, but DID specify a
                     // list of entity types, check the involved entities to see if they match the
                     // types.
