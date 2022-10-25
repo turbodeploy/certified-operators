@@ -26,7 +26,6 @@ import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsResponse;
@@ -110,7 +109,7 @@ public class InitialPlacementFinder {
     /**
      * Constructor.
      *
-     * @param dsl the data base context.
+     * @param economyCachePersistence the persistence for the cache.
      * @param stub reservation rpc service blocking stub.
      * @param prepareReservationCache whether economy caches should be built.
      * @param maxRetry The max number of retry if findInitialPlacement failed.
@@ -118,12 +117,12 @@ public class InitialPlacementFinder {
      *          within a certain grouping.
      * @param analysisDiagnosticsCollectorFactory is the factory used for saving diags.
      */
-    public InitialPlacementFinder(@Nonnull DSLContext dsl,
+    public InitialPlacementFinder(@Nonnull EconomyCachePersistence economyCachePersistence,
             @Nonnull final ReservationServiceBlockingStub stub,
             final boolean prepareReservationCache, int maxRetry, final int maxGroupingRetry,
             AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory,
             int numPlacementDiagsToRetain, boolean enableOP) {
-        economyCaches = new EconomyCaches(dsl);
+        economyCaches = new EconomyCaches(economyCachePersistence);
         this.blockingStub = stub;
         this.prepareReservationCache = prepareReservationCache;
         this.maxRetry = maxRetry;

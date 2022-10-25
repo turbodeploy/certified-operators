@@ -20,7 +20,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
@@ -53,7 +52,7 @@ public class InitialPlacementHandler {
     /**
      * Constructor.
      *
-     * @param dsl the data base context.
+     * @param economyCachePersistence persistence for the cache.
      * @param stub reservation rpc service blocking stub.
      * @param prepareReservationCache whether economy caches should be built.
      * @param maxRetry The max number of retry if findInitialPlacement failed.
@@ -61,11 +60,11 @@ public class InitialPlacementHandler {
      *          within a certain grouping.
      * @param analysisDiagnosticsCollectorFactory is the factory used for saving diags.
      */
-    public InitialPlacementHandler(@Nonnull DSLContext dsl,
+    public InitialPlacementHandler(@Nonnull EconomyCachePersistence economyCachePersistence,
             @Nonnull final ReservationServiceBlockingStub stub,
             final boolean prepareReservationCache, int maxRetry, final int maxGroupingRetry,
             AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory, int numPlacementDiagsToRetain, boolean enableOP) {
-        this.placementFinder = new InitialPlacementFinder(dsl, stub,
+        this.placementFinder = new InitialPlacementFinder(economyCachePersistence, stub,
             prepareReservationCache, maxRetry, maxGroupingRetry, analysisDiagnosticsCollectorFactory, numPlacementDiagsToRetain, enableOP);
         this.cacheAccessService = Executors.newFixedThreadPool(1,
                 new ThreadFactoryBuilder().setNameFormat("Economy-cache-accessor").build());

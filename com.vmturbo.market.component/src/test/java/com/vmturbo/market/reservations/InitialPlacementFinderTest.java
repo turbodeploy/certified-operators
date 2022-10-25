@@ -22,7 +22,6 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Table;
 
-import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -116,7 +115,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testConstructTraderTOs() {
-        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class), reservationServiceBlockingStub,
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(EconomyCachePersistence.class), reservationServiceBlockingStub,
 true, 1, 5, diagsCollectorFactory,  5, false);
         handler.updateCachedEconomy(getOriginalEconomy(), commTypeToSpecMap, true, new HashMap<>());
         TraderTO vmTO = (TraderTO)InitialPlacementUtils.constructTraderTO(
@@ -136,7 +135,7 @@ true, 1, 5, diagsCollectorFactory,  5, false);
      */
     @Test
     public void testConstructTraderTOsWithException() {
-        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(EconomyCachePersistence.class),
                 reservationServiceBlockingStub, true, 1, 5,
                 diagsCollectorFactory, 5, false);
         handler.updateCachedEconomy(getOriginalEconomy(), commTypeToSpecMap, true, new HashMap<>());
@@ -153,7 +152,7 @@ true, 1, 5, diagsCollectorFactory,  5, false);
      */
     @Test
     public void testBuyersToBeDeleted() {
-        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(EconomyCachePersistence.class),
                 reservationServiceBlockingStub, true, 1, 5,
                 diagsCollectorFactory, 5, false);
         InitialPlacementFinder pf = handler.getPlacementFinder();
@@ -177,7 +176,7 @@ true, 1, 5, diagsCollectorFactory,  5, false);
      */
     @Test
     public void testFindPlacement() throws ExecutionException, InterruptedException {
-        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(EconomyCachePersistence.class),
                 reservationServiceBlockingStub, true, 1, 5,
                 diagsCollectorFactory, 5, false);
         InitialPlacementFinder pf = handler.getPlacementFinder();
@@ -213,7 +212,7 @@ true, 1, 5, diagsCollectorFactory,  5, false);
      */
     @Test
     public void testFindPlacementWithExceptionDuringInitialPlacementGeneration() {
-        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(EconomyCachePersistence.class),
                 reservationServiceBlockingStub, true, 0, 5,
                 diagsCollectorFactory, 5, false);
         InitialPlacementFinder pf = handler.getPlacementFinder();
@@ -235,7 +234,7 @@ true, 1, 5, diagsCollectorFactory,  5, false);
     @Test
     public void testInitialPlacementFinderResultWithFailureInfo()
             throws ExecutionException, InterruptedException {
-        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(EconomyCachePersistence.class),
                 reservationServiceBlockingStub, true, 0, 5,
                 diagsCollectorFactory, 5, false);
         InitialPlacementFinder pf = handler.getPlacementFinder();
@@ -266,7 +265,7 @@ true, 1, 5, diagsCollectorFactory,  5, false);
     @Test
     public void testInitialPlacementFinderResultWithFailureInfoOnOverFlowEconomy()
             throws InterruptedException, ExecutionException {
-        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(EconomyCachePersistence.class),
                 reservationServiceBlockingStub, true, 0, 5,
                 diagsCollectorFactory, 5, false);
         InitialPlacementFinder pf = handler.getPlacementFinder();
@@ -418,7 +417,7 @@ true, 1, 5, diagsCollectorFactory,  5, false);
     @Test
     public void testReservationPartialSuccess() throws ExecutionException, InterruptedException {
 
-        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(EconomyCachePersistence.class),
                 reservationServiceBlockingStub, true, 1, 5,
                 diagsCollectorFactory, 5, false);
         InitialPlacementFinder pf = handler.getPlacementFinder();
@@ -462,7 +461,7 @@ true, 1, 5, diagsCollectorFactory,  5, false);
      */
     @Test
     public void testDelayedDeletion() throws ExecutionException, InterruptedException {
-        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(EconomyCachePersistence.class),
                 reservationServiceBlockingStub, true, 1, 5,
                 diagsCollectorFactory, 5, false);
         InitialPlacementFinder pf = handler.getPlacementFinder();
@@ -617,7 +616,7 @@ true, 1, 5, diagsCollectorFactory,  5, false);
      */
     @Test
     public void testReservationDeletionAndAdd() throws ExecutionException, InterruptedException {
-        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(EconomyCachePersistence.class),
                 reservationServiceBlockingStub, true, 1, 5,
                 diagsCollectorFactory, 5, false);
         InitialPlacementFinder pf = handler.getPlacementFinder();
@@ -650,7 +649,7 @@ true, 1, 5, diagsCollectorFactory,  5, false);
      */
     @Test
     public void testQueryExistingReservations() throws InterruptedException {
-        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(DSLContext.class),
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(EconomyCachePersistence.class),
                 reservationServiceBlockingStub, true, 1, 5,
                 diagsCollectorFactory, 5, false);
         InitialPlacementDTO initialPlacement = PlanUtils.setupInitialPlacement(new ArrayList(Arrays

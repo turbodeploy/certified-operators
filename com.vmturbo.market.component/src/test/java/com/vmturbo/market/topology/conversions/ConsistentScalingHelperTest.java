@@ -20,18 +20,13 @@ import java.util.stream.LongStream;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
-import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
-import com.vmturbo.market.runner.AnalysisFactory;
-import com.vmturbo.market.runner.MarketMode;
-import com.vmturbo.platform.common.dto.CommonDTO;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
+import com.vmturbo.cloud.common.topology.CloudTopology;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
@@ -40,18 +35,22 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRespons
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
+import com.vmturbo.market.runner.AnalysisFactory;
+import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import org.mockito.Mockito;
 
 public class ConsistentScalingHelperTest {
 
@@ -63,9 +62,8 @@ public class ConsistentScalingHelperTest {
     Set<Long> onPremOids = ImmutableSet.of(1L, 4L);
 
     private Map<Long, TopologyEntityDTO> topology;
-    SettingPolicyServiceBlockingStub settingsPolicyService;
-    ConsistentScalingHelperFactory consistentScalingHelperFactory =
-            new ConsistentScalingHelperFactory(settingsPolicyService);
+
+    ConsistentScalingHelperFactory consistentScalingHelperFactory;
     private SettingPolicyServiceMole settingPolicyServiceMole = spy(new SettingPolicyServiceMole());
 
     /**
@@ -83,15 +81,9 @@ public class ConsistentScalingHelperTest {
     @Before
     public void setup() throws IOException {
         topology = new HashMap<>();
-        grpcTestServer.start();
-        settingsPolicyService = SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        consistentScalingHelperFactory = new ConsistentScalingHelperFactory(settingsPolicyService);
+        SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub = SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+        consistentScalingHelperFactory = new ConsistentScalingHelperFactory(settingPolicyServiceBlockingStub);
         cloudTopology = mock(CloudTopology.class);
-    }
-
-    @After
-    public void tearDown() {
-        grpcTestServer.close();
     }
 
     /**

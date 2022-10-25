@@ -46,7 +46,6 @@ public class ReversibilitySettingFetcherTest {
      */
     @Before
     public void setup() throws IOException {
-        grpcTestServer.start();
         final SettingPolicyServiceBlockingStub settingPolicyService =
                 SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         settingFetcher = new ReversibilitySettingFetcher(settingPolicyService);

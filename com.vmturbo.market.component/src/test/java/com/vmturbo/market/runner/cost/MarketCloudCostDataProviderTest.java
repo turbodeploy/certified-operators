@@ -278,6 +278,7 @@ public class MarketCloudCostDataProviderTest {
             expectedUptimeDTO.getUptimePercentage());
         verifyUptimePercentage(cloudCostData, CLOUD_VM_2.getOid(),
             EntityUptimeDTO.getDefaultInstance().getUptimePercentage());
+        mockServer.close();
     }
 
     /**
@@ -331,6 +332,7 @@ public class MarketCloudCostDataProviderTest {
             marketCloudCostDataProvider.getCloudCostData(topoInfo, cloudTopology,
                 topologyEntityInfoExtractor);
         verifyUptimePercentage(result2, CLOUD_VM_1.getOid(), 100d);
+        mockServer.close();
     }
 
     /**
@@ -406,6 +408,7 @@ public class MarketCloudCostDataProviderTest {
         assertTrue(cloudCommitmentDataByCloudCommitmentId.containsKey(123L));
         assertTrue(cloudCommitmentDataByCloudCommitmentId.containsKey(456L));
         assertEquals(cloudCommitmentDataByCloudCommitmentId.size(), 2);
+        mockServer.close();
     }
 
     private Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo buildRIBoughtInfo(String probeRIId,

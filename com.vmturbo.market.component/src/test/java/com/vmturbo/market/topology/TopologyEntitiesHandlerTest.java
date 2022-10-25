@@ -776,6 +776,7 @@ public class TopologyEntitiesHandlerTest {
         when(trader.getOid()).thenReturn(111L);
         topology.addProvisionedShoppingList(sl);
         Analysis analysis = mock(Analysis.class);
+        when(analysis.getReplayActions()).thenReturn(new ReplayActions());
         when(analysis.getDiagnosticsCleaner()).thenReturn(new AnalysisDiagnosticsCleaner(10, 10, new DiagsFileSystem()));
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(
                 REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology, ede);

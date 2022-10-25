@@ -56,7 +56,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -93,6 +92,7 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.InitialPlacementCommTypeMap;
+import com.vmturbo.market.reservations.EconomyCachePersistence;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult;
 import com.vmturbo.market.reservations.InitialPlacementUtils;
@@ -218,7 +218,7 @@ public class AnalysisDiagnosticsCollectorTest {
         }
         ReservationServiceBlockingStub reservationServiceBlockingStub =
                 ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
+        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(EconomyCachePersistence.class),
                 reservationServiceBlockingStub, true, 1, 5,
                 diagsCollectorFactory, 5, false);
         BiMap<CommodityType, Integer> realtimeCachedCommTypeMap = HashBiMap.create();

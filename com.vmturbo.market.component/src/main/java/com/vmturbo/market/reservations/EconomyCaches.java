@@ -27,7 +27,6 @@ import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
@@ -250,10 +249,10 @@ public class EconomyCaches {
     /**
      * Constructor.
      *
-     * @param dsl the data base context.
+     * @param economyCachePersistence the persistence for cache.
      */
-    public EconomyCaches(@Nonnull DSLContext dsl) {
-        this.economyCachePersistence = new EconomyCachePersistence(dsl);
+    public EconomyCaches(@Nonnull EconomyCachePersistence economyCachePersistence) {
+        this.economyCachePersistence = economyCachePersistence;
     }
 
     /**
@@ -1464,4 +1463,5 @@ public class EconomyCaches {
         InitialPlacementUtils.setCanAcceptNewCustomerSellers(economy, sellers, canAccept);
         InitialPlacementUtils.getEconomyReady(economy);
     }
+
 }

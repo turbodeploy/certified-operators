@@ -13,6 +13,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -35,7 +36,11 @@ public class CoresPerSocketReconfigureActionGeneratorTest extends VcpuScalingRec
 
     private SettingPolicyServiceMole settingPolicyServiceMole = spy(new SettingPolicyServiceMole());
 
-    private GrpcTestServer grpcTestServer = GrpcTestServer.newServer(settingPolicyServiceMole);
+    /**
+     * Test gRPC server to mock out gRPC dependencies.
+     */
+    @Rule
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(settingPolicyServiceMole);
 
     private SettingPolicyServiceBlockingStub settingPolicyService;
 
@@ -50,7 +55,6 @@ public class CoresPerSocketReconfigureActionGeneratorTest extends VcpuScalingRec
      */
     @Before
     public void setup() throws Exception {
-        grpcTestServer.start();
         settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         topology = new HashMap<>();
         IdentityGenerator.initPrefix(0);

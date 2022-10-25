@@ -115,11 +115,8 @@ public class EconomyCachesOPTest {
             boolean pm1Avialable, boolean pm2Avialable, boolean pm3Avialable, boolean pm4Avialable,
             boolean pm5Avialable, boolean pm6Avialable, Long host, Long cluster) {
         final DSLContext dsl = Mockito.mock(DSLContext.class);
-        EconomyCaches economyCaches = Mockito.spy(new EconomyCaches(dsl));
-        EconomyCachePersistence economyCachePersistenceSpy = Mockito.mock(
-                EconomyCachePersistence.class);
+        EconomyCaches economyCaches = Mockito.spy(new EconomyCaches(Mockito.spy(new EconomyCachePersistence(dsl))));
         IdentityGenerator.initPrefix(0);
-        economyCaches.economyCachePersistence = economyCachePersistenceSpy;
         long buyerOid = 1234L;
         long pmSlOid = 1000L;
         long clSlOid = 1001L;
