@@ -50,7 +50,7 @@ import com.vmturbo.common.protobuf.suspension.SuspensionToggle.SuspensionToggleE
 
 /**
  * SuspensionMapper.
- * This is used convert data from grpc to api type or api to grpc type.
+ * Used to convert data from grpc to api type or api to grpc type.
  */
 public class SuspensionMapper {
     private final int validPaginationMaxLimit = 500;
@@ -62,7 +62,7 @@ public class SuspensionMapper {
     private final int apiPaginationMaxLimit;
 
     /**
-     * The map from GRPC suspension entity state to API suspension entity state.
+     * BiMap with GRPC suspension entity state to API suspension entity state.
      */
     public static final BiMap<SuspensionEntityOuterClass.SuspensionEntityState, SuspensionState> GRPC_TO_API_SUSPENSION_STATE = ImmutableBiMap.of(
                     SuspensionEntityOuterClass.SuspensionEntityState.SUSPENSION_ENTITY_STATE_STOPPED, SuspensionState.STOPPED,
@@ -74,7 +74,7 @@ public class SuspensionMapper {
                     SuspensionEntityOuterClass.SuspensionEntityState.SUSPENSION_ENTITY_STATE_MISSING, SuspensionState.MISSING);
 
     /**
-     * constructor for the SuspensionMapper.
+     * Constructor for the SuspensionMapper.
      */
     public SuspensionMapper(@Nullable final int apiPaginationMaxLimit,
                             @Nullable final int apiPaginationDefaultLimit) {
@@ -83,7 +83,7 @@ public class SuspensionMapper {
     }
 
     /**
-     * constructor with default values of SuspensionMapper.
+     * Constructor with default values of SuspensionMapper.
      */
     public SuspensionMapper() {
         this.apiPaginationMaxLimit = validPaginationMaxLimit;
@@ -91,7 +91,7 @@ public class SuspensionMapper {
     }
 
     /**
-     * Gets the api suspension entity state based on grpc suspension entity state.
+     * Gets api suspension entity state based on grpc suspension entity state.
      * @param state the grpc suspension entity state.
      * @return the api state.
      */
@@ -100,7 +100,7 @@ public class SuspensionMapper {
     }
 
     /**
-     * Gets the grpc suspension entity state based on api suspension entity state.
+     * Gets grpc suspension entity state based on api suspension entity state.
      * @param state the api suspension entity state.
      * @return the grpc state.
      */
@@ -109,13 +109,13 @@ public class SuspensionMapper {
     }
 
     /**
-     * The map from GRPC suspension entity types to API suspension entity type.
+     * BiMap with GRPC suspension entity types to API suspension entity type.
      */
     public static final BiMap<SuspensionEntityOuterClass.SuspensionEntityType, SuspensionEntityType> GRPC_TO_API_SUSPENSION_TYPE = ImmutableBiMap.of(
                     SuspensionEntityOuterClass.SuspensionEntityType.SUSPENSION_ENTITY_TYPE_COMPUTE, SuspensionEntityType.VirtualMachine);
 
     /**
-     * Gets the api suspension entity type based on grpc suspension entity type.
+     * Gets api suspension entity type based on grpc suspension entity type.
      * @param type the grpc suspension entity type.
      * @return the api type.
      */
@@ -124,7 +124,7 @@ public class SuspensionMapper {
     }
 
     /**
-     * Gets the grpc suspension entity type based on api suspension entity type.
+     * Gets grpc suspension entity type based on api suspension entity type.
      * @param type the api suspension entity type.
      * @return the grpc type.
      */
@@ -133,7 +133,7 @@ public class SuspensionMapper {
     }
 
     /**
-     * The map from GRPC suspension entity provider to API suspension entity provider.
+     * BiMap with GRPC suspension entity provider to API suspension entity provider.
      */
     public static final BiMap<SuspensionEntityOuterClass.SuspensionEntityProvider, CloudType> GRPC_TO_API_PROVIDER = ImmutableBiMap.of(
                     SuspensionEntityOuterClass.SuspensionEntityProvider.SUSPENSION_ENTITY_PROVIDER_AWS, CloudType.AWS,
@@ -141,7 +141,7 @@ public class SuspensionMapper {
                     SuspensionEntityOuterClass.SuspensionEntityProvider.SUSPENSION_ENTITY_PROVIDER_GCP, CloudType.GCP);
 
     /**
-     * Gets the api suspension entity provider based on grpc suspension entity provider.
+     * Gets api suspension entity provider based on grpc suspension entity provider.
      * @param provider the grpc entity provider.
      * @return the api provider.
      */
@@ -150,7 +150,7 @@ public class SuspensionMapper {
     }
 
     /**
-     * Gets the grpc suspension entity provider based on api suspension entity provider.
+     * Gets grpc suspension entity provider based on api suspension entity provider.
      * @param type the api entity provider.
      * @return the grpc provider.
      */
@@ -159,7 +159,7 @@ public class SuspensionMapper {
     }
 
     /**
-     * The map from API suspension entity order by fields to GRPC suspension entity order by.
+     * BiMap with API SuspensionEntitiesOrderBy to GRPC SuspensionEntityOrderBy.
      */
     public static final BiMap<SuspensionEntitiesOrderBy, SuspensionEntityOuterClass.SuspensionEntityOrderBy> API_TO_GRPC_SUSPENSION_ORDER_BY = ImmutableBiMap.of(
                     SuspensionEntitiesOrderBy.DISPLAY_NAME, SuspensionEntityOuterClass.SuspensionEntityOrderBy.SUSPENSION_ENTITY_ORDER_BY_DISPLAY_NAME,
@@ -172,7 +172,7 @@ public class SuspensionMapper {
                     SuspensionEntitiesOrderBy.COST, SuspensionEntityOuterClass.SuspensionEntityOrderBy.SUSPENSION_ENTITY_ORDER_BY_COST);
 
     /**
-     * Gets the api entity type based on grpc entity type.
+     * Gets api entity type based on grpc entity type.
      * @param type the grpc entity type.
      * @return the api type.
      */
@@ -181,7 +181,7 @@ public class SuspensionMapper {
     }
 
     /**
-     * The filters applicable for suspension entity as string filters.
+     * BiMap with filters applicable for suspension entity as string filters.
      */
     public static final BiMap<String, SuspensionFilter.ExpType> STRING_OPERATORS = ImmutableBiMap.of(
                     "EQ", SuspensionFilter.ExpType.EXP_TYPE_EQ,
@@ -190,7 +190,7 @@ public class SuspensionMapper {
                     "RXNEQ", SuspensionFilter.ExpType.EXP_TYPE_RX_NEQ);
 
     /**
-     * The filters applicable for suspension entity as int filters.
+     * BiMap with filters applicable for suspension entity as int filters.
      */
     public static final BiMap<String, SuspensionFilter.ExpType> NUMBER_OPERATORS = ImmutableBiMap.of(
                     "EQ", SuspensionFilter.ExpType.EXP_TYPE_EQ,
@@ -217,7 +217,7 @@ public class SuspensionMapper {
     }
 
     /**
-     * creates SuspensionEntityRequest based on the filters provided in the SuspendableEntityInputDTO.
+     * Creates SuspensionEntityRequest based on the filters provided in the SuspendableEntityInputDTO.
      * @param SuspendableEntityInputDTO the query param for get suspension entities api.
      * @return SuspensionEntityRequest.
      */
@@ -232,30 +232,29 @@ public class SuspensionMapper {
 
         HashMap<String, List<SuspensionFilter.StringFilter>> protoStringMap = new HashMap<>();
         HashMap<String, List<SuspensionFilter.DoubleFilter>> protoDoubleMap = new HashMap<>();
-        List<FilterApiDTO> criteriaList = entityInputDTO.getCriteriaList();
-        for (int i = 0; i < criteriaList.size(); ++i) {
-            if (fieldMap.get(criteriaList.get(i).getFilterType()) == "string") {
-                if (!STRING_OPERATORS.containsKey(criteriaList.get(i).getExpType())) {
+        for (FilterApiDTO filterApiDTO : entityInputDTO.getCriteriaList()) {
+            if (fieldMap.get(filterApiDTO.getFilterType()) == "string") {
+                if (!STRING_OPERATORS.containsKey(filterApiDTO.getExpType())) {
                     throw new IllegalArgumentException("Invalid expression type for string filter");
                 }
-                if (protoStringMap.get(criteriaList.get(i).getFilterType()) == null) {
-                    protoStringMap.put(criteriaList.get(i).getFilterType(), new ArrayList<>());
+                if (protoStringMap.get(filterApiDTO.getFilterType()) == null) {
+                    protoStringMap.put(filterApiDTO.getFilterType(), new ArrayList<>());
                 }
-                protoStringMap.get(criteriaList.get(i).getFilterType()).add(SuspensionFilter.StringFilter.newBuilder()
-                        .setExpType(STRING_OPERATORS.get(criteriaList.get(i).getExpType()))
-                        .addValues(criteriaList.get(i).getExpVal()).build());
-            } else if (fieldMap.get(criteriaList.get(i).getFilterType()) == "double") {
-                if (!NUMBER_OPERATORS.containsKey(criteriaList.get(i).getExpType())) {
+                protoStringMap.get(filterApiDTO.getFilterType()).add(SuspensionFilter.StringFilter.newBuilder()
+                        .setExpType(STRING_OPERATORS.get(filterApiDTO.getExpType()))
+                        .addValues(filterApiDTO.getExpVal()).build());
+            } else if (fieldMap.get(filterApiDTO.getFilterType()) == "double") {
+                if (!NUMBER_OPERATORS.containsKey(filterApiDTO.getExpType())) {
                     throw new IllegalArgumentException("Invalid expression type for double filter");
                 }
-                if (protoDoubleMap.get(criteriaList.get(i).getFilterType()) == null) {
-                    protoDoubleMap.put(criteriaList.get(i).getFilterType(), new ArrayList<>());
+                if (protoDoubleMap.get(filterApiDTO.getFilterType()) == null) {
+                    protoDoubleMap.put(filterApiDTO.getFilterType(), new ArrayList<>());
                 }
-                protoDoubleMap.get(criteriaList.get(i).getFilterType()).add(SuspensionFilter.DoubleFilter.newBuilder()
-                        .setExpType(NUMBER_OPERATORS.get(criteriaList.get(i).getExpType()))
-                        .addValues(Double.parseDouble(criteriaList.get(i).getExpVal())).build());
+                protoDoubleMap.get(filterApiDTO.getFilterType()).add(SuspensionFilter.DoubleFilter.newBuilder()
+                        .setExpType(NUMBER_OPERATORS.get(filterApiDTO.getExpType()))
+                        .addValues(Double.parseDouble(filterApiDTO.getExpVal())).build());
             } else {
-                throw new IllegalArgumentException("Invalid filter type " + criteriaList.get(i).getFilterType());
+                throw new IllegalArgumentException("Invalid filter type " + filterApiDTO.getFilterType());
             }
         }
         SuspensionEntityRequest.Builder requestBuilder = SuspensionEntityRequest.getDefaultInstance().newBuilder();
@@ -281,7 +280,7 @@ public class SuspensionMapper {
     }
 
     /**
-     * creates SuspensionEntityRequest based on the filters provided in the SuspendableEntityInputDTO and also pagination query params.
+     * Creates SuspensionEntityRequest based on the filters provided in the SuspendableEntityInputDTO and also pagination query params.
      * @param SuspendableEntityInputDTO to provide all the filters to be applied on the suspension entities.
      * @param SuspensionEntitiesPaginationRequest to provide all the pagination query params to apply on suspension entities to be fetched.
      * @return SuspensionEntityRequest.
@@ -294,18 +293,18 @@ public class SuspensionMapper {
             requestBuilder.mergeFrom(createSuspensionEntityRequestFromCriteriaList(entityInputDTO));
         }
         if (entityInputDTO.hasEntityTypes()) {
-            for (int i = 0; i < entityInputDTO.getEntityTypes().size(); ++i) {
-                requestBuilder.addType(getGrpcEntityType(entityInputDTO.getEntityTypes().get(i)));
+            for (SuspensionEntityType suspensionEntityType : entityInputDTO.getEntityTypes()) {
+                requestBuilder.addType(getGrpcEntityType(suspensionEntityType));
             }
         }
         if (entityInputDTO.hasStatus()) {
-            for (int i = 0; i < entityInputDTO.getStatus().size(); ++i) {
-                requestBuilder.addStatus(getGrpcEntityState(entityInputDTO.getStatus().get(i)));
+            for (SuspensionState suspensionState : entityInputDTO.getStatus()) {
+                requestBuilder.addStatus(getGrpcEntityState(suspensionState));
             }
         }
         if (entityInputDTO.hasProviders()) {
-            for (int i = 0; i < entityInputDTO.getProviders().size(); ++i) {
-                requestBuilder.addProviders(getGrpcProvider(entityInputDTO.getProviders().get(i)));
+            for (CloudType provider : entityInputDTO.getProviders()) {
+                requestBuilder.addProviders(getGrpcProvider(provider));
             }
         }
         requestBuilder.setLogicalOperator(getGrpcLogicalOperator(entityInputDTO.getLogicalOperator()));
@@ -329,7 +328,7 @@ public class SuspensionMapper {
     }
 
     /**
-     * to append the SuspensionEntityRequest based on the filters provided in the SuspendableEntityInputDTO and also pagination query params with group scopes.
+     * Append SuspensionEntityRequest based on the filters provided in the SuspendableEntityInputDTO and also pagination query params with group scopes.
      * @param SuspendableEntityInputDTO to provide all the filters to be applied on the suspension entities.
      * @param SuspensionEntitiesPaginationRequest to provide all the pagination query params to apply on suspension entities to be fetched.
      * @parms scopes OIDs to be appended to the SuspensionEntityRequest.
@@ -346,7 +345,7 @@ public class SuspensionMapper {
     }
 
     /**
-     * to append the SuspensionEntityRequest based on the filters provided in the SuspendableEntityInputDTO and also pagination query params with entity scopes.
+     * Append SuspensionEntityRequest based on the filters provided in the SuspendableEntityInputDTO and also pagination query params with entity scopes.
      * @param SuspendableEntityInputDTO to provide all the filters to be applied on the suspension entities.
      * @param SuspensionEntitiesPaginationRequest to provide all the pagination query params to apply on suspension entities to be fetched.
      * @parms entity uuids to be appended to the SuspensionEntityRequest.
@@ -357,9 +356,9 @@ public class SuspensionMapper {
         SuspensionEntityRequest.Builder requestBuilder = SuspensionEntityRequest.getDefaultInstance().newBuilder(createSuspensionEntityRequest(entityInputDTO, paginationRequest));
         if (scopeEntityOids.size() > 0) {
             SuspensionEntityResolvedScope.Builder scopeBuilder = SuspensionEntityResolvedScope.getDefaultInstance().newBuilder();
-            for (int i = 0; i < scopeEntityOids.size(); ++i) {
+            for (Long scopeOids : scopeEntityOids) {
                 SuspensionEntityResolvedScopeRequest.Builder scopeRequestBuilder = SuspensionEntityResolvedScopeRequest.getDefaultInstance().newBuilder();
-                scopeRequestBuilder.setOid(scopeEntityOids.get(i));
+                scopeRequestBuilder.setOid(scopeOids);
                 scopeRequestBuilder.setType(SuspensionEntityOuterClass.SuspensionEntityType.SUSPENSION_ENTITY_TYPE_COMPUTE);
                 scopeBuilder.addEntities(scopeRequestBuilder.build());
             }
@@ -371,14 +370,13 @@ public class SuspensionMapper {
     }
 
     /**
-     * converts the list of SuspensionEntity grpc class into SuspendableEntityApiDTO class.
+     * Converts list of SuspensionEntity grpc class into SuspendableEntityApiDTO class.
      * @param List of SuspensionEntity class.
      * @return List of SuspendableEntityApiDTO class.
      */
     public List<SuspendableEntityApiDTO> convertToSuspendableEntityApiDTO(List<SuspensionEntity> entities) {
         List<SuspendableEntityApiDTO> entityList = new ArrayList<SuspendableEntityApiDTO>();
-        for (int i = 0; i < entities.size(); ++i) {
-            SuspensionEntity entity = entities.get(i);
+        for (SuspensionEntity entity : entities) {
             SuspendableEntityApiDTO objt = new SuspendableEntityApiDTO();
             if (entity.hasState()) {
                 objt.setState(getApiEntityState(entity.getState()));
@@ -429,14 +427,13 @@ public class SuspensionMapper {
     }
 
     /**
-     * converts the list of Tags from SuspensionEntityTags grpc class into TagApiDTO class.
+     * Converts list of Tags from SuspensionEntityTags grpc class into TagApiDTO class.
      * @param List of Tags from SuspensionEntityTags grpc.
      * @return List of TagApiDTO class.
      */
     public List<TagApiDTO> convertToTagApiDTO(List<SuspensionEntityTags> tags) {
         List<TagApiDTO> tagsList = new ArrayList<TagApiDTO>();
-        for (int i = 0; i < tags.size(); ++i) {
-            SuspensionEntityTags tag = tags.get(i);
+        for (SuspensionEntityTags tag: tags) {
             TagApiDTO objt = new TagApiDTO();
             if (tag.hasKey()) {
                 objt.setKey(tag.getKey());
@@ -451,14 +448,14 @@ public class SuspensionMapper {
 
 
     /**
-     * The map from API suspension action to GRPC Toggle Action type.
+     * Map with API suspension action to GRPC Toggle Action type.
      */
     public static final BiMap<SuspensionActionType, SuspensionToggleEntityRequest.Action> API_ACTION_TO_GRPC_GRPC  = ImmutableBiMap.of(
                     SuspensionActionType.START, SuspensionToggleEntityRequest.Action.ACTION_START,
                     SuspensionActionType.STOP, SuspensionToggleEntityRequest.Action.ACTION_STOP);
 
     /**
-     * Gets the grpc suspension entity action based on api suspension entity action.
+     * Gets grpc suspension entity action,  based on api suspension entity action.
      * @param action the api suspension action.
      * @return the grpc toggle action.
      */
@@ -476,7 +473,7 @@ public class SuspensionMapper {
     }
 
     /**
-     * converts the BulkActionRequestInputDTO of class into SuspensionToggleEntityRequest class.
+     * Converts BulkActionRequestInputDTO of class into SuspensionToggleEntityRequest class.
      *
      * @param BulkActionRequestInputDTO class.
      * @return SuspensionToggleEntityRequest class.
@@ -519,14 +516,13 @@ public class SuspensionMapper {
     }
 
     /**
-     * converts the list of SuspensionToggleEntityData class into BulkActionRequestApiDTO class.
+     * Converts list of SuspensionToggleEntityData class into BulkActionRequestApiDTO class.
      * @param List of SuspensionToggleEntityData class.
      * @return List of BulkActionRequestApiDTO class.
      */
     public List<BulkActionRequestApiDTO> convertToBulkActionRequestApiDTO(List<SuspensionToggleEntityData> entities) {
         List<BulkActionRequestApiDTO> list = new ArrayList<BulkActionRequestApiDTO>();
-        for (int i = 0; i < entities.size(); ++i) {
-            SuspensionToggleEntityData entity = entities.get(i);
+        for (SuspensionToggleEntityData entity : entities) {
             BulkActionRequestApiDTO data = new BulkActionRequestApiDTO();
             if (entity.hasEntityOid()) {
                 data.setEntityUUID(Long.toString(entity.getEntityOid()));

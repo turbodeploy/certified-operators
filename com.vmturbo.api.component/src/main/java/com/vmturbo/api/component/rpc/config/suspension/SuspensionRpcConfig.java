@@ -9,15 +9,15 @@ import org.springframework.context.annotation.Configuration;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 
 /**
- * Spring configuration that sets up action related protobuf service implementations.
+ * Spring configuration that sets up suspension related grpc service configuration.
  */
 @Configuration
 public class SuspensionRpcConfig {
 
-    @Value("${suspension.host:suspend}")
+    @Value("${suspendHost}")
     private String host;
 
-    @Value("${suspension.grpcPort:9094}")
+    @Value("${suspendGrpcPort}")
     private int grpcPort;
 
     /**
