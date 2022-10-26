@@ -374,6 +374,17 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         }
     }
 
+    /**
+     * Create the EntityCloudScopeRecord to be inserted or updated in the entity_cloud_scope table.
+     * If the method is called by a test, the cloudTopology parameter is null and a record with
+     * dummy values will be returned. For the production workflow, the cloudTopology parameter
+     * should be provided.
+     *
+     * @param entityOid Entity OID
+     * @param cloudTopology cloud topology
+     * @return EntityCloudScopeRecord to be inserted or updated
+     */
+    @Nullable
     private EntityCloudScopeRecord createCloudScopeRecord(Long entityOid,
             @Nullable TopologyEntityCloudTopology cloudTopology) {
         Integer entityType;
@@ -382,7 +393,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         Optional<Long> availabilityZoneOid = Optional.empty();
         Long accountOid;
         Optional<Long> resourceGroupOid;
-        if (Objects.isNull(cloudTopology) || !cloudTopology.getEntity(entityOid).isPresent()) {
+        if (Objects.isNull(cloudTopology)) {
             /*
              * To implement scope for the test entities, create scope based upon the entity's UUID,
              * divide the UUID by the following:
@@ -396,8 +407,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
             regionOid = entityOid / 10000L;
             accountOid = entityOid / 1000L;
             resourceGroupOid = Optional.of(entityOid / 100L);
-        } else {
-
+        } else if (cloudTopology.getEntity(entityOid).isPresent()) {
             entityType = cloudTopology.getEntity(entityOid).map(TopologyEntityDTO::getEntityType).orElse(null);
 
             // Get the service provider OID.
@@ -419,6 +429,11 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
             // Get the resource group OID.
             Optional<GroupAndMembers> resourceGroup = cloudTopology.getResourceGroup(entityOid);
             resourceGroupOid = resourceGroup.map(groupAndMembers -> groupAndMembers.group().getId());
+        } else {
+            // The entity is not in the topology.
+            logger.debug("Cannot create entity cloud scope record for entity {} because it is not found in topology.",
+                    entityOid);
+            return null;
         }
 
         if (entityType != null && serviceProviderOid != null && regionOid != null && accountOid != null) {
