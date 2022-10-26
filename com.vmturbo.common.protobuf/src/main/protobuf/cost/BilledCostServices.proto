@@ -4,6 +4,7 @@ package cloud_cost;
 option java_package = "com.vmturbo.common.protobuf.cost";
 
 import "cost/BilledCost.proto";
+import "CostBilling.proto";
 
 message GetBilledCostStatsRequest {
 
@@ -15,6 +16,39 @@ message GetBilledCostStatsResponse {
     repeated BilledCostStat cost_stats = 1;
 }
 
+message UploadBilledCloudCostRequest {
+
+  oneof segment {
+    MetadataSegment billed_cost_metadata = 4;
+    CostTagsSegment cost_tags = 5;
+    BilledCostSegment billed_cost = 6;
+  }
+
+  message CostTagsSegment {
+    map<int64, common_dto.CostTagGroup> cost_tag_group = 1;
+  }
+
+  message MetadataSegment {
+    optional int64 billing_family_id = 1;
+
+    optional int64 service_provider_id = 2;
+
+    optional common_dto.CloudBillingData.CloudBillingBucket.Granularity granularity = 3;
+  }
+
+  message BilledCostSegment {
+    repeated BilledCostBucket cost_buckets = 1;
+  }
+
+}
+
+message UploadBilledCloudCostResponse {
+
+}
+
 service BilledCostService {
     rpc GetBilledCostStats(GetBilledCostStatsRequest) returns (GetBilledCostStatsResponse);
+
+  rpc UploadBilledCloudCost(stream UploadBilledCloudCostRequest) returns
+      (stream UploadBilledCloudCostResponse);
 }
