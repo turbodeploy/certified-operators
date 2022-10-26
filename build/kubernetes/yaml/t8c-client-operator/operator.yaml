@@ -74,6 +74,104 @@ spec:
                 type: object
               probes:
                 properties:
+                  actionScript:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  appDynamics:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  appInsights:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  datadog:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  dynatrace:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  hyperV:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  instana:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
                   mssql:
                     properties:
                       enabled:
@@ -88,7 +186,49 @@ spec:
                       imagePullPolicy:
                         type: string
                     type: object
-                  newrelic:
+                  netApp:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  newRelic:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  oracle:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  serviceNow:
                     properties:
                       enabled:
                         type: boolean

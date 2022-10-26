@@ -6,5 +6,31 @@ spec:
   global:
     version: __VERSION__
   probes:
+    actionScript:
+      enabled: true
+    appDynamics:
+      enabled: true
+    appInsights:
+      enabled: true
+    datadog:
+      enabled: true
+    dynatrace:
+      enabled: true
+    hyperV:
+      enabled: true
+    instana:
+      enabled: true
+    mssql:
+      enabled: true
+    netApp:
+      enabled: true
+    newRelic:
+      enabled: true
+    oracle:
+      enabled: true
+    serviceNow:
+      enabled: true
+    ucs:
+      enabled: true
     vCenter:
       enabled: true
