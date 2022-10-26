@@ -373,10 +373,10 @@ public class GrafanaClient {
             }
         } else {
             // always update datasource to prevent errors caused by transitioning from enterprise to oss
-            final Optional<Datasource> updatedDatasource = existing.applyInput(input);
+            final Datasource updatedDatasource = existing.applyInput(input).orElse(existing);
             URI uri = grafanaClientConfig.getGrafanaUrl("datasources", Long.toString(existing.getId()));
-            restTemplate.put(uri, updatedDatasource.isPresent() ? updatedDatasource.get() : existing);
-            operationSummary.recordDatasourceUpdate(existing, updatedDatasource.get());
+            restTemplate.put(uri, updatedDatasource);
+            operationSummary.recordDatasourceUpdate(existing, updatedDatasource);
         }
     }
 
