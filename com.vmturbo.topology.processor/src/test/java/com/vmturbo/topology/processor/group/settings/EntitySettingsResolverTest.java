@@ -374,7 +374,8 @@ public class EntitySettingsResolverTest {
                 EXPIRED_SCHEDULE_ID, EXPIRED,
                 EXPIRED_DELETE_SCHEDULE_ID, EXPIRED_DELETE
         );
-
+        // Reset policies gauge to a known state before each test.
+        POLICIES_GAUGE.resetForTesting();
     }
 
     private ResolvedGroup resolvedGroup(Grouping group, Set<Long> memberIds) {
