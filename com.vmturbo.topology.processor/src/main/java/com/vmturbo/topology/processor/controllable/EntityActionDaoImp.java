@@ -5,6 +5,7 @@ import static org.jooq.impl.DSL.inline;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -278,6 +279,15 @@ public class EntityActionDaoImp implements EntityActionDao {
         return getRelevantEntityIds(EntityActionActionType.resize,
                 resizeSucceedRecordExpiredSeconds,
                 inProgressActionExpiredSeconds);
+    }
+
+    @Override
+    public Set<Long> ineligibleForReconfigureEntityIds() {
+        // Unimplemented for the old logic using the entity_action table since the current
+        // implementation of getRelevantEntityIds deletes entries from the table to grab the
+        // results. This becomes problematic when we need multiple thresholds on the same type of
+        // action. i.e. the min(list(thresholds)) controls how long the entry stays in the table.
+        return new HashSet<>();
     }
 
     /**

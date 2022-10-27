@@ -51,6 +51,10 @@ public class AffectedEntitiesServiceEntityActionDao implements EntityActionDao {
     // they will be deleted from entity action table.
     private final long resizeSucceedRecordExpiredMsec;
 
+    // For reconfigure actions, if there were any resize actions within this threshold,
+    // then we disregard the reconfigure action that may follow.
+    private final long reconfigureAfterResizeProtectionWindowMsec;
+
     /**
      * Creates an instance of the EntityActionDao with the provided timeout configs.
      *
@@ -67,13 +71,15 @@ public class AffectedEntitiesServiceEntityActionDao implements EntityActionDao {
             final int inProgressActionExpiredSeconds,
             final int activateSucceedExpiredSeconds,
             final int scaleSucceedRecordExpiredSeconds,
-            final int resizeSucceedRecordExpiredSeconds) {
-        this.affectedEntitiesService = affectedEntitiesService;
+            final int resizeSucceedRecordExpiredSeconds,
+            final int reconfigureAfterResizeProtectionWindowSeconds) {
+            this.affectedEntitiesService = affectedEntitiesService;
         this.moveSucceedRecordExpiredMsec = TimeUnit.SECONDS.toMillis(moveSucceedRecordExpiredSeconds);
         this.inProgressActionExpiredMsec = TimeUnit.SECONDS.toMillis(inProgressActionExpiredSeconds);
         this.activateSucceedExpiredMsec = TimeUnit.SECONDS.toMillis(activateSucceedExpiredSeconds);
         this.scaleSucceedRecordExpiredMsec = TimeUnit.SECONDS.toMillis(scaleSucceedRecordExpiredSeconds);
         this.resizeSucceedRecordExpiredMsec = TimeUnit.SECONDS.toMillis(resizeSucceedRecordExpiredSeconds);
+        this.reconfigureAfterResizeProtectionWindowMsec = TimeUnit.SECONDS.toMillis(reconfigureAfterResizeProtectionWindowSeconds);
     }
 
     @Override
@@ -156,6 +162,23 @@ public class AffectedEntitiesServiceEntityActionDao implements EntityActionDao {
                         .build())
                 .getAffectedEntitiesMap()
                 .get(ActionEffectType.INELIGIBLE_RESIZE_DOWN_VALUE)
+                .getEntityIdList());
+    }
+
+    @Override
+    public Set<Long> ineligibleForReconfigureEntityIds() {
+        return new HashSet<>(affectedEntitiesService.getAffectedEntities(
+                        GetAffectedEntitiesRequest.newBuilder()
+                                .putRequestedAffections(
+                                        ActionEffectType.INELIGIBLE_RECONFIGURE_VALUE,
+                                        AffectedEntitiesTimeoutConfig.newBuilder()
+                                                .setInProgressActionCoolDownMsec(inProgressActionExpiredMsec)
+                                                .setCompletedActionCoolDownMsec(
+                                                        reconfigureAfterResizeProtectionWindowMsec)
+                                                .build())
+                                .build())
+                .getAffectedEntitiesMap()
+                .get(ActionEffectType.INELIGIBLE_RECONFIGURE_VALUE)
                 .getEntityIdList());
     }
 }

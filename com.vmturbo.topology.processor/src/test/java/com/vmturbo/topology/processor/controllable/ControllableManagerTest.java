@@ -19,6 +19,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -88,6 +89,7 @@ public class ControllableManagerTest {
         .setOid(4)
         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
         .setAnalysisSettings(new AnalysisSettingsImpl()
+            .setReconfigurable(true)
             .setControllable(true))
         .setEntityState(EntityState.MAINTENANCE);
     private final TopologyEntityImpl storageInMaintenance = new TopologyEntityImpl()
@@ -211,6 +213,22 @@ public class ControllableManagerTest {
         .setEntityState(EntityState.MAINTENANCE)
         .setTypeSpecificInfo(new TypeSpecificInfoImpl().setPhysicalMachine(
             new PhysicalMachineInfoImpl().setAutomationLevel(AutomationLevel.NOT_AUTOMATED)));
+    private final TopologyEntityImpl cloudVM = new TopologyEntityImpl()
+            .setOid(103)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setAnalysisSettings(new AnalysisSettingsImpl()
+                    .setReconfigurable(true)
+                    .setIsEligibleForResizeDown(true)
+                    .setControllable(true))
+            .setEnvironmentType(EnvironmentType.CLOUD);
+    private final TopologyEntityImpl onPremVM = new TopologyEntityImpl()
+            .setOid(104)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setAnalysisSettings(new AnalysisSettingsImpl()
+                    .setReconfigurable(true)
+                    .setIsEligibleForResizeDown(true)
+                    .setControllable(true))
+            .setEnvironmentType(EnvironmentType.ON_PREM);
 
     private final Map<Long, Builder> topology = new HashMap<>();
     private GraphWithSettings topologyGraph;
@@ -223,6 +241,8 @@ public class ControllableManagerTest {
         topology.put(vmFooEntityBuilder.getOid(), TopologyEntity.newBuilder(vmFooEntityBuilder));
         topology.put(vmBarEntityBuilder.getOid(), TopologyEntity.newBuilder(vmBarEntityBuilder));
         topology.put(vmBazEntityBuilder.getOid(), TopologyEntity.newBuilder(vmBazEntityBuilder));
+        topology.put(cloudVM.getOid(), TopologyEntity.newBuilder(cloudVM));
+        topology.put(onPremVM.getOid(), TopologyEntity.newBuilder(onPremVM));
         topology.put(dbsEntityBuilder.getOid(), TopologyEntity.newBuilder(dbsEntityBuilder));
         topology.put(pmInMaintenance.getOid(), TopologyEntity.newBuilder(pmInMaintenance)
             .addConsumer(topology.get(vmFooEntityBuilder.getOid()))
@@ -471,6 +491,20 @@ public class ControllableManagerTest {
         assertTrue(vmBarEntityBuilder.getAnalysisSettings().getIsEligibleForResizeDown());
         // This is true because on this entity has VM entity type.
         assertFalse(vmBazEntityBuilder.getAnalysisSettings().getIsEligibleForResizeDown());
+    }
+
+    /**
+     * Test application of reconfigurable.
+     */
+    @Test
+    public void testApplyReconfigureEligibility() {
+        when(entityActionDao.ineligibleForReconfigureEntityIds())
+                .thenReturn(Sets.newHashSet(103L, 104L, 4L));
+        controllableManager.applyReconfigurable(topologyGraph.getTopologyGraph());
+        // Should only affect on prem vms
+        assertTrue(cloudVM.getAnalysisSettings().getReconfigurable());
+        assertFalse(onPremVM.getAnalysisSettings().getReconfigurable());
+        assertTrue(pmInMaintenance.getAnalysisSettings().getReconfigurable());
     }
 
     /**
