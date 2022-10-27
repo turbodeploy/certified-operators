@@ -53,15 +53,10 @@ message CreateTimespanScheduleRequest {
   optional WeekDayTimespans timespans= 4;
 }
 
-enum TimespanScheduleOrderBy {
-  TIMESPAN_SCHEDULE_ORDER_BY_UNSPECIFIED = 0;
-  TIMESPAN_SCHEDULE_ORDER_BY_DISPLAY_NAME = 1;
-}
-
 message ListTimespanScheduleRequest {
-  optional string cursor = 1;
+  optional int32 cursor = 1;
   optional int32 limit = 2;
-  optional TimespanScheduleOrderBy order_by = 3;
+  optional string order_by = 3;
   optional bool descending = 4;
 }
 

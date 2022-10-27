@@ -7,6 +7,7 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
@@ -46,8 +47,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
 
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.util.JsonFormat;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Before;
@@ -64,6 +63,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.test.annotation.DirtiesContext;
@@ -80,8 +80,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
-import org.springframework.web.socket.TextMessage;
-import org.springframework.web.socket.WebSocketMessage;
+import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 import common.HealthCheck.HealthState;
@@ -103,6 +102,7 @@ import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
@@ -1876,7 +1876,7 @@ public class TargetsServiceTest {
     public void testFailedTargetValidationNotification() throws Exception {
         WebSocketSession session = mock(WebSocketSession.class);
         apiWebsocketHandler.afterConnectionEstablished(session);
-        ArgumentCaptor<TextMessage> notificationCaptor = ArgumentCaptor.forClass(TextMessage.class);
+        ArgumentCaptor<BinaryMessage> notificationCaptor = ArgumentCaptor.forClass(BinaryMessage.class);
         IdentityGenerator.initPrefix(0);
 
         final long targetId = 1;
@@ -1897,13 +1897,11 @@ public class TargetsServiceTest {
         targetsService.validateTargetSynchronously(targetId);
 
         verify(session).sendMessage(notificationCaptor.capture());
-
-        final Notification.Builder received = jsonStringToNotification(notificationCaptor);
-
-        Assert.assertTrue(received.hasTargetNotification());
-        Assert.assertEquals("1", received.getTargetNotification().getTargetId());
-        Assert.assertEquals("Validation failed.", received.getTargetNotification().getStatusNotification().getDescription());
-        Assert.assertEquals(TargetStatus.NOT_VALIDATED, received.getTargetNotification().getStatusNotification().getStatus());
+        final Notification notification = Notification.parseFrom(
+            notificationCaptor.getValue().getPayload().array());
+        Assert.assertEquals("1", notification.getTargetNotification().getTargetId());
+        Assert.assertEquals("Validation failed.", notification.getTargetNotification().getStatusNotification().getDescription());
+        Assert.assertEquals(TargetStatus.NOT_VALIDATED, notification.getTargetNotification().getStatusNotification().getStatus());
     }
 
     @Test
@@ -3118,23 +3116,5 @@ public class TargetsServiceTest {
         // Target 2 has neither health nor details.
         assertNull(targetPaginationResponse.getRawResults().get(1).getHealth());
         assertNull(targetPaginationResponse.getRawResults().get(1).getLastTargetOperationStages());
-    }
-
-    /**
-     * Test helper method to return an instance of a Notification given a JSON String.
-     * This is helpful to convert a captured notification from websocket back to a proper Notification instance.
-     * @param notificationCaptor - the ArgumentCapture for the {@link WebSocketSession#sendMessage(WebSocketMessage)}
-     * @return Notification.Builder - built instance of the Notification class
-     * @throws InvalidProtocolBufferException - Thrown if the json data is malformed when building the Proto Notification
-     */
-    private Notification.Builder jsonStringToNotification(
-            final ArgumentCaptor<TextMessage> notificationCaptor
-    ) throws InvalidProtocolBufferException {
-
-        final String jsonPayload = notificationCaptor.getValue().getPayload();
-        final Notification.Builder notification = Notification.newBuilder();
-        JsonFormat.parser().merge(jsonPayload, notification);
-
-        return notification;
     }
 }

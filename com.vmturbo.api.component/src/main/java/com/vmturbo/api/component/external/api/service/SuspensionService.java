@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -19,17 +18,12 @@ import com.vmturbo.api.dto.suspension.ScheduleTimeSpansApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityInputDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.api.pagination.ScheduleTimeSpansOrderBy;
-import com.vmturbo.api.pagination.ScheduleTimeSpansPaginationRequest;
-import com.vmturbo.api.pagination.ScheduleTimeSpansPaginationRequest.ScheduleTimeSpansPaginationResponse;
 import com.vmturbo.api.pagination.SuspensionEntitiesPaginationRequest;
 import com.vmturbo.api.pagination.SuspensionEntitiesPaginationRequest.SuspensionEntitiesPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.ISuspensionService;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityResponse;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityServiceGrpc.SuspensionEntityServiceBlockingStub;
-import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.DeleteTimespanScheduleResponse;
-import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.ListTimespanScheduleResponse;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanSchedule;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimespanScheduleServiceGrpc.SuspensionTimespanScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggle.SuspensionToggleEntityResponse;
@@ -131,13 +125,6 @@ public class SuspensionService implements ISuspensionService {
         return paginationRequest.finalPageResponse(entityApiDTOS, totalRecordCount);
     }
 
-    /**
-     * Add a new time span based schedule.
-     *
-     * @param schedule representing the new ScheduleTimeSpansApiDTO.
-     * @return created ScheduleTimeSpansApiDTO object.
-     * @throws Exception if any error happens
-     */
     @Override
     public ScheduleTimeSpansApiDTO addTimeSpanSchedule(ScheduleTimeSpansApiDTO schedule) throws Exception {
         SuspensionMapper mapper = new SuspensionMapper();
@@ -146,97 +133,6 @@ public class SuspensionService implements ISuspensionService {
             response = timeSpanScheduleService.create(mapper.toCreateTimespanScheduleRequest(schedule));
         } catch (Exception e) {
             throw new OperationFailedException("creation of time span schedule failed. ", e);
-        }
-        return mapper.toApiScheduleTimeSpansApiDTO(response);
-    }
-
-    /**
-     * Delete time span based schedule on basis of timeSpanSchedule_Uuid.
-     *
-     * @param timeSpanSchedule_Uuid This is representing the unique time span based schedule.
-     * @throws Exception if any error happens
-     */
-    @Override
-    public void deleteTimeSpanSchedule(String timeSpanSchedule_Uuid) throws Exception {
-        SuspensionMapper mapper = new SuspensionMapper();
-        final DeleteTimespanScheduleResponse response;
-        try {
-            timeSpanScheduleService.delete(mapper.toApiDeleteTimespanScheduleRequest(timeSpanSchedule_Uuid));
-        } catch (Exception e) {
-            throw new OperationFailedException("deletion of timespan schedule failed. ", e);
-        }
-    }
-
-    /**
-     * Update time span based schedule on basis of timeSpanSchedule_Uuid.
-     *
-     * @param uuid This is representing the unique time span based schedule.
-     * @param schedule representing the updated ScheduleTimeSpansApiDTO.
-     * @return updated ScheduleTimeSpansApiDTO object.
-     * @throws Exception if any error happens
-     */
-    @Override
-    public ScheduleTimeSpansApiDTO editTimeSpanSchedule(String uuid, ScheduleTimeSpansApiDTO schedule) throws Exception {
-        SuspensionMapper mapper = new SuspensionMapper();
-        final TimespanSchedule response;
-        try {
-            response = timeSpanScheduleService.update(mapper.toUpdateTimespanScheduleRequest(uuid, schedule));
-        } catch (Exception e) {
-            throw new OperationFailedException("updation of time span schedule failed. ", e);
-        }
-        return mapper.toApiScheduleTimeSpansApiDTO(response);
-    }
-
-    /**
-     * List time span based schedules.
-     *
-     * @param paginationRequest representing the ScheduleTimeSpansPaginationRequest class.
-     * @return list of ScheduleTimeSpansApiDTO object.
-     * @throws Exception if any error happens
-     */
-    @Override
-    public ScheduleTimeSpansPaginationResponse listTimespanSchedules(
-            ScheduleTimeSpansPaginationRequest paginationRequest) throws Exception {
-        SuspensionMapper mapper = new SuspensionMapper();
-        final ListTimespanScheduleResponse response;
-        try {
-            response = timeSpanScheduleService.list(mapper.toListTimespanScheduleRequest(paginationRequest));
-        } catch (Exception e) {
-            throw new OperationFailedException("failed to fetch list of time span schedule. ", e);
-        }
-        final Integer totalRecordCount = response.getTotal();
-        final List<ScheduleTimeSpansApiDTO> scheduleApiDTOS = new ArrayList<>();
-        final Iterator<TimespanSchedule> iter =  response.getItemsList().iterator();
-        while (iter.hasNext()) {
-            scheduleApiDTOS.add(mapper.toApiScheduleTimeSpansApiDTO(iter.next()));
-        }
-
-        if (paginationRequest == null) {
-            ScheduleTimeSpansPaginationRequest schedulePaginationRequest = new ScheduleTimeSpansPaginationRequest(null, 0, false,
-                    ScheduleTimeSpansOrderBy.fromString(ScheduleTimeSpansOrderBy.DEFAULT));
-            return schedulePaginationRequest.allResultsResponse(scheduleApiDTOS);
-        }
-        if (response.getNextCursor() != null) {
-            return  paginationRequest.nextPageResponse(scheduleApiDTOS, response.getNextCursor(), totalRecordCount);
-        }
-        return paginationRequest.finalPageResponse(scheduleApiDTOS, totalRecordCount);
-    }
-
-    /**
-     * Get time span based schedule on basis of timeSpanSchedule_Uuid.
-     *
-     * @param timeSpanSchedule_Uuid This is representing the unique time span based schedule.
-     * @return ScheduleTimeSpansApiDTO the get schedule object.
-     * @throws Exception if any error happens
-     */
-    @Override
-    public ScheduleTimeSpansApiDTO getTimeSpanSchedule(String timeSpanSchedule_Uuid) throws Exception {
-        SuspensionMapper mapper = new SuspensionMapper();
-        final TimespanSchedule response;
-        try {
-            response = timeSpanScheduleService.get(mapper.toGetTimespanScheduleRequest(timeSpanSchedule_Uuid));
-        } catch (Exception e) {
-            throw new OperationFailedException("get time span based schedule failed. ", e);
         }
         return mapper.toApiScheduleTimeSpansApiDTO(response);
     }

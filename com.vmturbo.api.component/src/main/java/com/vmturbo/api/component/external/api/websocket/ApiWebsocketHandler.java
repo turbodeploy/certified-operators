@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.websocket;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashSet;
@@ -15,13 +16,11 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.google.protobuf.GeneratedMessageV3;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.util.JsonFormat;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.PingMessage;
 import org.springframework.web.socket.PongMessage;
@@ -299,26 +298,11 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
     private void broadcastNotification(@Nonnull final Notification notification) {
         sessions_.forEach(session -> {
             try {
-                String jsonNotification = notificationToJsonString(notification);
-                session.sendMessage(new TextMessage(jsonNotification));
+                session.sendMessage(new BinaryMessage(ByteBuffer.wrap(notification.toByteArray())));
             } catch (IOException e) {
                 logger_.error("Error sending notification.", e);
             }
         });
-    }
-
-    /**
-     * Convert a Protobuf Notification to a JSON String.
-     *
-     * @param notification - instance of a Protobuf message class.
-     * @return - JSON String representation of the Protobuf message
-     * @throws InvalidProtocolBufferException - thrown when parsing a malformed protobuf message
-     */
-    @VisibleForTesting
-    public static <T extends GeneratedMessageV3> String notificationToJsonString(final T notification)
-            throws InvalidProtocolBufferException {
-
-        return JsonFormat.printer().print(notification);
     }
 
     @Override

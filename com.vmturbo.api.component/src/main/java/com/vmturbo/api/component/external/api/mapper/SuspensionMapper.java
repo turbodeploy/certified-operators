@@ -28,8 +28,6 @@ import com.vmturbo.api.enums.SuspensionActionType;
 import com.vmturbo.api.enums.SuspensionEntityType;
 import com.vmturbo.api.enums.SuspensionState;
 import com.vmturbo.api.enums.SuspensionTimeSpanState;
-import com.vmturbo.api.pagination.ScheduleTimeSpansOrderBy;
-import com.vmturbo.api.pagination.ScheduleTimeSpansPaginationRequest;
 import com.vmturbo.api.pagination.SuspensionEntitiesOrderBy;
 import com.vmturbo.api.pagination.SuspensionEntitiesPaginationRequest;
 import com.vmturbo.auth.api.authorization.UserContextUtils;
@@ -42,15 +40,10 @@ import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.Suspens
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityTags;
 import com.vmturbo.common.protobuf.suspension.SuspensionFilter;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.CreateTimespanScheduleRequest;
-import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.DeleteTimespanScheduleRequest;
-import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.ListTimespanScheduleRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimeOfDay;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.Timespan;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanSchedule;
-import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanScheduleByIDRequest;
-import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanScheduleOrderBy;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanState;
-import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.UpdateTimespanScheduleRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.WeekDayTimespans;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggle.SuspensionToggleEntityData;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggle.SuspensionToggleEntityRequest;
@@ -610,84 +603,9 @@ public class SuspensionMapper {
 
 
     /**
-     * converts the timeSpanSchedule_Uuid of class into TimespanScheduleByIDRequest class.
-     *
-     * @param timeSpanSchedule_Uuid This is representing the unique time span based schedule.
-     * @return ScheduleTimeSpansApiDTO the get schedule object.
-     * @throws Exception when any error occurs
-     */
-    public TimespanScheduleByIDRequest toGetTimespanScheduleRequest(String timeSpanSchedule_Uuid)
-            throws Exception {
-        if (timeSpanSchedule_Uuid.isEmpty()) {
-            throw new InvalidRequest("timeSpanSchedule_Uuid cannot be empty");
-        }
-
-        TimespanScheduleByIDRequest.Builder requestBuilder = TimespanScheduleByIDRequest.getDefaultInstance().newBuilder();
-
-        requestBuilder.setScheduleOid(Long.parseLong(timeSpanSchedule_Uuid));
-
-        return requestBuilder.build();
-    }
-
-    /**
-     * converts the ScheduleTimeSpansApiDTO of class into UpdateTimespanScheduleRequest class.
-     *
-     * @param scheduleApiDTO instance of ScheduleTimeSpansApiDTO class.
-     * @return UpdateTimespanScheduleRequest class.
-     * @throws InvalidRequest in case of bad request
-     * @throws NumberFormatException if invalid number is encountered
-     */
-    public UpdateTimespanScheduleRequest toUpdateTimespanScheduleRequest(String uuid,
-            ScheduleTimeSpansApiDTO scheduleApiDTO)
-            throws Exception {
-        if (uuid.isEmpty()) {
-            throw new InvalidRequest("uuid cannot be empty");
-        }
-        if (scheduleApiDTO.getDisplayName().isEmpty()) {
-            throw new InvalidRequest("schedule name cannot be empty");
-        }
-        if (scheduleApiDTO.getTimeZone().isEmpty()) {
-            throw new InvalidRequest("timezone cannot be empty");
-        }
-        UpdateTimespanScheduleRequest.Builder requestBuilder = UpdateTimespanScheduleRequest.getDefaultInstance().newBuilder();
-        requestBuilder.setOid(Long.parseLong(uuid));
-        requestBuilder.setName(scheduleApiDTO.getDisplayName());
-        requestBuilder.setTimezone(scheduleApiDTO.getTimeZone());
-        requestBuilder.setDescription(scheduleApiDTO.getDescription());
-        String timespanType = scheduleApiDTO.getTimeSpans().getType();
-        WeekDayTimeSpansApiDTO weekDayTimeSpansApiDTO = new WeekDayTimeSpansApiDTO();
-        if (timespanType.equals(weekDayTimeSpansApiDTO.getType())) {
-            WeekDayTimeSpansApiDTO weekDayTimespans = scheduleApiDTO.getTimeSpans() instanceof WeekDayTimeSpansApiDTO
-                    ? ((WeekDayTimeSpansApiDTO)scheduleApiDTO.getTimeSpans()) : null;
-            requestBuilder.setTimespans(toGrpcWeekDayTimespans(weekDayTimespans));
-            return requestBuilder.build();
-        }
-        throw new InvalidRequest(String.format("expected timespan group type: %s, got: %s", weekDayTimeSpansApiDTO.getType(), timespanType));
-    }
-
-    /**
-     * converts the String into DeleteTimespanScheduleRequest class.
-     *
-     * @param timeSpanSchedule_Uuid This is representing the unique time span based schedule.
-     * @return DeleteTimespanScheduleRequest class.
-     * @throws NumberFormatException if invalid number is encountered
-     */
-    public DeleteTimespanScheduleRequest toApiDeleteTimespanScheduleRequest(
-            String timeSpanSchedule_Uuid)
-            throws Exception {
-
-        DeleteTimespanScheduleRequest.Builder requestBuilder = DeleteTimespanScheduleRequest.getDefaultInstance().newBuilder();
-
-        requestBuilder.setScheduleOid(Long.parseLong(timeSpanSchedule_Uuid));
-
-        return requestBuilder.build();
-    }
-
-
-    /**
      * converts the instance of TimespanSchedule class into ScheduleTimeSpansApiDTO class.
      *
-     * @param grpcSchedule instance of TimespanSchedule class.
+     * @param grpcSchedule instance of TimespanSchedule  class.
      * @return ScheduleTimeSpansApiDTO class.
      */
     public ScheduleTimeSpansApiDTO toApiScheduleTimeSpansApiDTO(
@@ -716,46 +634,6 @@ public class SuspensionMapper {
         }
 
         return scheduleApiDTO;
-    }
-
-
-    /**
-     * The map from API time span schedule order by fields to GRPC time span schedule order by.
-     */
-    public static final BiMap<ScheduleTimeSpansOrderBy, TimespanScheduleOrderBy> API_TO_GRPC_SCHEDULE_ORDER_BY = ImmutableBiMap.of(
-            ScheduleTimeSpansOrderBy.DISPLAY_NAME, TimespanScheduleOrderBy.TIMESPAN_SCHEDULE_ORDER_BY_DISPLAY_NAME);
-
-    /**
-     * Gets the gRPC order by type from api schedule order by.
-     * @param orderBy the api timespan schedule order by type.
-     * @return the gRPC type.
-     */
-    public static TimespanScheduleOrderBy getScheduleOrderBy(ScheduleTimeSpansOrderBy orderBy) {
-        return API_TO_GRPC_SCHEDULE_ORDER_BY.getOrDefault(orderBy, TimespanScheduleOrderBy.TIMESPAN_SCHEDULE_ORDER_BY_DISPLAY_NAME);
-    }
-
-    /**
-     * creates ListTimespanScheduleRequest based on the pagination query params.
-     * @param paginationRequest to provide all the pagination query params to apply on time span schedules to be fetched.
-     * @return ListTimespanScheduleRequest.
-     */
-    public ListTimespanScheduleRequest toListTimespanScheduleRequest(
-            ScheduleTimeSpansPaginationRequest paginationRequest) {
-
-        ListTimespanScheduleRequest.Builder requestBuilder = ListTimespanScheduleRequest.getDefaultInstance().newBuilder();
-        if (paginationRequest == null) {
-            return requestBuilder.build();
-        }
-        if (paginationRequest.getCursor() != null && paginationRequest.getCursor().isPresent()) {
-            requestBuilder.setCursor(paginationRequest.getCursor().get());
-        }
-        if (paginationRequest.getOrderBy() != null) {
-            requestBuilder.setOrderBy(getScheduleOrderBy(paginationRequest.getOrderBy()));
-        }
-        requestBuilder.setDescending(!paginationRequest.isAscending());
-        final int limit = paginationRequest.hasLimit() ? paginationRequest.getLimit() : apiPaginationDefaultLimit;
-        requestBuilder.setLimit(limit);
-        return requestBuilder.build();
     }
 
     /**
@@ -871,12 +749,12 @@ public class SuspensionMapper {
     /**
      * converts list of gRPC Time span instance into API TimeSpanApiDTO class list.
      *
-     * @param timeSpans list of gRPC Timespan.
-     * @return list of TimeSpanApiDTO.
+     * @param timespans list of gRPC timespan.
+     * @return list of  TimeSpanApiDTO.
      */
-    private List<TimeSpanApiDTO> toApiTimespanArray(List<Timespan> timeSpans) {
+    private List<TimeSpanApiDTO> toApiTimespanArray(List<Timespan> timespans) {
         List<TimeSpanApiDTO> apiTimespans = new ArrayList<>();
-        Iterator<Timespan> iter = timeSpans.iterator();
+        Iterator<Timespan> iter = timespans.iterator();
         while (iter.hasNext()) {
             apiTimespans.add(toApiTimespan(iter.next()));
         }
