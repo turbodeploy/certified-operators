@@ -32,6 +32,10 @@
                             <labels>
                                 <label>com.vmturbo.version=${project.version}</label>
                             </labels>
+                            <buildArgs>
+                                <kafka_connect_version>${kinesis.kafkaConnect.version}</kafka_connect_version>
+                                <connector_version>${kinesis.connectorPlugin.version}</connector_version>
+                            </buildArgs>
                         </configuration>
                         <executions>
                             <execution>
