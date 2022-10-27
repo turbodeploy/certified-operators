@@ -52,7 +52,6 @@ import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitm
 import com.vmturbo.cost.component.rpc.CostDebugConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.flyway.ForgetMigrationCallback;
 import com.vmturbo.topology.event.library.uptime.EntityUptimeSpringConfig;
 import com.vmturbo.trax.TraxConfiguration;
 import com.vmturbo.trax.TraxConfiguration.TopicSettings;
@@ -202,8 +201,7 @@ public class CostComponent extends BaseVmtComponent {
     @Primary
     public FlywayCallback[] flywayCallbacks() {
         return new FlywayCallback[] {
-                new CostFlywayCallback(),
-                new ForgetMigrationCallback("1.88")
+            new CostFlywayCallback()
         };
     }
 

@@ -358,7 +358,6 @@ public class GroupsService implements IGroupsService {
      * paginate the results.
      *
      * @param groupPaginationRequest pagination parameters.
-     * @param groupOrigin {@link Origin} to filter by
      * @return a {@link GroupPaginationResponse} that contains the list with this page's groups and
      *         pagination related information.
      * @throws ConversionException if error faced converting objects to API DTOs
@@ -366,17 +365,10 @@ public class GroupsService implements IGroupsService {
      * @throws InvalidOperationException if invalid request has been passed
      */
     @Override
-    public GroupPaginationResponse getPaginatedGroups(@Nonnull GroupPaginationRequest groupPaginationRequest,
-                                                      @Nullable final Origin groupOrigin)
+    public GroupPaginationResponse getPaginatedGroups(@Nonnull GroupPaginationRequest groupPaginationRequest)
             throws ConversionException, InterruptedException, InvalidOperationException {
         if (groupPaginationRequest == null) {
             throw new InvalidOperationException("Missing pagination parameters.");
-        }
-
-        GroupFilter.Builder groupFilter = GroupFilter.newBuilder();
-        if (groupOrigin != null) {
-            groupFilter.setOriginFilter(OriginFilter.newBuilder()
-                    .addOrigin(API_ORIGIN_TO_GROUPDTO_ORIGIN.get(groupOrigin)));
         }
         /*
          * Use the old implementation (paginate inside api component) in the following cases:
@@ -387,7 +379,7 @@ public class GroupsService implements IGroupsService {
         if (orderBy == GroupOrderBy.COST) {
             List<Grouping> groups = new ArrayList<>();
             groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
-                    .setGroupFilter(groupFilter)
+                    .setGroupFilter(GroupFilter.getDefaultInstance())
                     .build()
             ).forEachRemaining(groups::add);
             final ObjectsPage<GroupApiDTO> paginatedGroupApiDTOs =
@@ -410,7 +402,7 @@ public class GroupsService implements IGroupsService {
         return (GroupPaginationResponse)requestPaginatedGroupsFromGroupComponent(
                 groupPaginationRequest,
                 GetPaginatedGroupsRequest.newBuilder()
-                        .setGroupFilter(groupFilter)
+                        .setGroupFilter(GroupFilter.getDefaultInstance())
                         .setPaginationParameters(
                                 paginationMapper.toProtoParams(groupPaginationRequest))
                         .build());

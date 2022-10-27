@@ -160,11 +160,10 @@ public class ExecutedActionsChangeWindowDaoImplTest extends MultiDbTestBase {
         // Insert records for 2 entities, each have 2 ExecutedActionsChangeWindow records.
         // Note that the timestamps for the records of entity 1001L are not in ascending order.
         final Collection<TableRecord<?>> inserts = new ArrayList<>();
-        inserts.add(createRecord(100L, 1000L, dateMar15, LivenessState.SUPERSEDED));
-        inserts.add(createRecord(101L, 1000L, dateMar16, LivenessState.LIVE));
-        inserts.add(createRecord(102L, 1001L, dateMar17, LivenessState.LIVE));
-        inserts.add(createRecord(103L, 1001L, dateMar14, LivenessState.SUPERSEDED));
-        inserts.add(createRecord(104L, 1001L, dateMar17, LivenessState.NEW));
+        inserts.add(createRecord(100L, 1000L, dateMar15));
+        inserts.add(createRecord(101L, 1000L, dateMar16));
+        inserts.add(createRecord(102L, 1001L, dateMar17));
+        inserts.add(createRecord(103L, 1001L, dateMar14));
         dsl.batchInsert(inserts).execute();
 
         // Invoke the getExecutedActionsChangeWindowMap with entity OIDs of the two entities.
@@ -177,18 +176,16 @@ public class ExecutedActionsChangeWindowDaoImplTest extends MultiDbTestBase {
         // Verify the records for entity 1000L.
         List<ExecutedActionsChangeWindow> changeWindows = result.get(1000L);
         List<ExecutedActionsChangeWindow> expectedChangeWindows = Arrays.asList(
-                createExecutedActionsChangeWindow(1000L, 100L, dateMar15, LivenessState.SUPERSEDED),
-                createExecutedActionsChangeWindow(1000L, 101L, dateMar16, LivenessState.LIVE));
+                createExecutedActionsChangeWindow(1000L, 100L, dateMar15),
+                createExecutedActionsChangeWindow(1000L, 101L, dateMar16));
         Assert.assertEquals(expectedChangeWindows, changeWindows);
 
-        // Verify the records for entity 1001L.
-        // The action with liveness state "NEW" will not be in the result.
+        // Verify the records for entity 1001L. Note that the actions in the list is in ascending order.
         changeWindows = result.get(1001L);
         expectedChangeWindows = Arrays.asList(
-                createExecutedActionsChangeWindow(1001L, 103L, dateMar14, LivenessState.SUPERSEDED),
-                createExecutedActionsChangeWindow(1001L, 102L, dateMar17, LivenessState.LIVE));
-        Assert.assertEquals(expectedChangeWindows.size(), changeWindows.size());
-        Assert.assertTrue(expectedChangeWindows.containsAll(changeWindows));
+                createExecutedActionsChangeWindow(1001L, 103L, dateMar14),
+                createExecutedActionsChangeWindow(1001L, 102L, dateMar17));
+        Assert.assertEquals(expectedChangeWindows, changeWindows);
     }
 
     /**
@@ -594,22 +591,21 @@ public class ExecutedActionsChangeWindowDaoImplTest extends MultiDbTestBase {
     }
 
     private ExecutedActionsChangeWindowRecord createRecord(long actionOid, long entityOid,
-            LocalDateTime startTime, LivenessState state) {
+            LocalDateTime startTime) {
         ExecutedActionsChangeWindowRecord record = new ExecutedActionsChangeWindowRecord();
         record.setActionOid(actionOid);
         record.setEntityOid(entityOid);
         record.setStartTime(startTime);
-        record.setLivenessState(state.getNumber());
         return record;
     }
 
     private ExecutedActionsChangeWindow createExecutedActionsChangeWindow(long entityOid,
-            long actionOid, LocalDateTime startTime, LivenessState state) {
+            long actionOid, LocalDateTime startTime) {
         return ExecutedActionsChangeWindow.newBuilder()
                 .setEntityOid(entityOid)
                 .setStartTime(TimeUtil.localTimeToMillis(startTime, clock))
                 .setActionOid(actionOid)
-                .setLivenessState(state)
+                .setLivenessState(LivenessState.NEW)
                 .build();
     }
 }

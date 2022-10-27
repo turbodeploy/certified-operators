@@ -154,11 +154,12 @@ public class ExecutedActionsChangeWindowDaoImpl implements ExecutedActionsChange
     @Override
     public Map<Long, List<ExecutedActionsChangeWindow>> getActionsByEntityOid(List<Long> entityOids) {
         // Turn result into a map that maps entity OIDs to lists of ExecutedActionsChangeWindow protobuf objects.
-        // Exclude actions that are in the NEW state because they have not been observed in the discovered topology yet.
+        // TODO: This query should exclude records that don't have the start time set.
+        //       Make this change when the start time of delete actions are populated by TEM.
         List<ExecutedActionsChangeWindowRecord> records =
                 dsl.selectFrom(EXECUTED_ACTIONS_CHANGE_WINDOW)
-                        .where(EXECUTED_ACTIONS_CHANGE_WINDOW.ENTITY_OID.in(entityOids)
-                                .and(EXECUTED_ACTIONS_CHANGE_WINDOW.LIVENESS_STATE.ne(LivenessState.NEW_VALUE)))
+                        .where(EXECUTED_ACTIONS_CHANGE_WINDOW.ENTITY_OID.in(entityOids))
+                        .orderBy(EXECUTED_ACTIONS_CHANGE_WINDOW.START_TIME)
                         .fetch();
         final Map<Long, List<com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow>> result = new HashMap<>();
         records.forEach(record ->

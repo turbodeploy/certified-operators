@@ -1,2 +1,0 @@
-ALTER TABLE entity_savings_by_day DROP CONSTRAINT IF EXISTS fk_entity_savings_by_day_entity_oid;
-ALTER TABLE entity_savings_by_month DROP CONSTRAINT IF EXISTS fk_entity_savings_by_month_entity_oid;
