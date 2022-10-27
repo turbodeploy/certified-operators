@@ -1,8 +1,10 @@
 package com.vmturbo.mediation.azure.pricing;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -14,6 +16,7 @@ import com.vmturbo.mediation.cost.parser.azure.AzureMeterDescriptors.AzureMeterD
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicenseOverrides;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry;
 
@@ -28,6 +31,7 @@ public class PricingWorkspace {
     private Map<String, Map<String, OnDemandPriceTableByRegionEntry.Builder>>
         onDemandPriceTableBuilder = new HashMap<>();
     private Map<String, LicenseOverrides> onDemandLicenseOverrides;
+    private final Map<String, Set<LicensePriceEntry>> onDemandLicensePriceByPlanId = new CaseInsensitiveMap();
     private boolean built = false;
 
     /**
@@ -92,6 +96,10 @@ public class PricingWorkspace {
             if (onDemandLicenseOverrides != null) {
                 priceTableBuilder.putAllOnDemandLicenseOverrides(onDemandLicenseOverrides);
             }
+            if (onDemandLicensePriceByPlanId.get(planId) != null) {
+                priceTableBuilder.addAllOnDemandLicensePriceTable(
+                        onDemandLicensePriceByPlanId.get(planId));
+            }
         });
 
         return priceTableBuilderByPlanId;
@@ -148,5 +156,16 @@ public class PricingWorkspace {
      */
     public void setOnDemandLicenseOverrides(Map<String, LicenseOverrides> onDemandLicenseOverrides) {
         this.onDemandLicenseOverrides = onDemandLicenseOverrides;
+    }
+
+    /**
+     * Get a set of LicensePriceEntry builder for the given plan.
+     *
+     * @param planId the plan ID for which to get the LicencePriceEntry list.
+     * @return set of LicencePriceEntry.
+     */
+    @Nonnull
+    public Set<LicensePriceEntry> getLicensePriceEntryList(@Nonnull final String planId) {
+        return onDemandLicensePriceByPlanId.computeIfAbsent(planId, plan -> new HashSet<>());
     }
 }
