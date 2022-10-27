@@ -54,6 +54,10 @@ public class ControllableConfig {
     @Value("${resizeSucceedRecordExpiredSeconds:14400}")
     int resizeSucceedRecordExpiredSeconds;
 
+    @VisibleForTesting
+    @Value("${reconfigureAfterResizeProtectionWindowSeconds:1800}")
+    int reconfigureAfterResizeProtectionWindowSeconds;
+
     /**
      * When false, ControllableManager uses the existing entity_action table to
      * calculate the actions that should be suppressed. This old logic does not
@@ -93,7 +97,8 @@ public class ControllableConfig {
                     inProgressActionExpiredSeconds,
                     activateSucceedRecordExpiredSeconds,
                     scaleSucceedRecordExpiredSeconds,
-                    resizeSucceedRecordExpiredSeconds);
+                    resizeSucceedRecordExpiredSeconds,
+                    reconfigureAfterResizeProtectionWindowSeconds);
         } else {
             logger.info("Using old EntityActionDaoImp");
             try {

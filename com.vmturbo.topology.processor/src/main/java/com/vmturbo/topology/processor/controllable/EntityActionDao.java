@@ -93,4 +93,10 @@ public interface EntityActionDao {
      * for which 'RIGHT_SIZE' action was executed recently)
      */
     Set<Long> ineligibleForResizeDownEntityIds();
+
+    /**
+     * Get the list of entity ids that are not eligible for reconfigure actions.
+     * @return entity ids not eligible for reconfigure
+     */
+    Set<Long> ineligibleForReconfigureEntityIds();
 }

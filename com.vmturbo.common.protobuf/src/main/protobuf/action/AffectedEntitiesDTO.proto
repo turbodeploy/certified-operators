@@ -29,6 +29,7 @@ enum ActionEffectType {
   NON_SUSPENDABLE = 1;
   INELIGIBLE_SCALE = 2;
   INELIGIBLE_RESIZE_DOWN = 3;
+  INELIGIBLE_RECONFIGURE = 4;
 }
 
 // Affected entities response contains the list of affected entities per affection type.

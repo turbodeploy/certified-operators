@@ -69,6 +69,8 @@ public class AffectedEntitiesManager implements ActionStateMachine.ActionEventLi
                     .put(ActionEffectType.INELIGIBLE_RESIZE_DOWN, ImmutableSet.of(
                             ActionTypeCase.RESIZE,
                             ActionTypeCase.ATOMICRESIZE))
+                    .put(ActionEffectType.INELIGIBLE_RECONFIGURE, ImmutableSet.of(
+                            ActionTypeCase.RESIZE))
                     .build();
 
     private static final Set<ActionTypeCase> RELEVANT_ACTION_TYPES = ACTION_TYPES_BY_AFFECTION_TYPE.values().stream()

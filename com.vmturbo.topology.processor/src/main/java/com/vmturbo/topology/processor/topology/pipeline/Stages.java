@@ -882,10 +882,12 @@ public class Stages {
             final int suspendableModified = controllableManager.applySuspendable(graph.getTopologyGraph());
             final int scaleModified = controllableManager.applyScaleEligibility(graph.getTopologyGraph());
             final int resizeModified = controllableManager.applyResizable(graph.getTopologyGraph());
+            final int reconfigureModified = controllableManager.applyReconfigurable(graph.getTopologyGraph());
             return Status.success("Marked " + controllableModified + " entities as non-controllable.\n"
                     + "Marked " + suspendableModified + " entities as non-suspendable.\n"
                     + "Marked " + scaleModified + " entities as not scalable.\n"
-                    + "Marked " + resizeModified + " entities as not resizable.");
+                    + "Marked " + resizeModified + " entities as not resizable.\n"
+                    + "Marked " + reconfigureModified + " entities as not reconfigurable.\n");
         }
     }
 

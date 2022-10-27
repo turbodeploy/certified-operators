@@ -20,6 +20,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl;
@@ -363,6 +364,17 @@ public class ControllableManager {
     }
 
     /**
+     * Update the reconfigurable flag.
+     *
+     * @param topology a topology graph.
+     * @return Number of modified entities.
+     */
+    public int applyReconfigurable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+        final Set<Long> oidModified = new HashSet<>(applyReconfigureEligibility(topology));
+        return oidModified.size();
+    }
+
+    /**
      * If entity has an RIGHT_SIZE (resize actions on prem) action in the table, it means the entity is about or
      * has been resized. It should not be to resize down in analysis.
      *
@@ -380,6 +392,30 @@ public class ControllableManager {
                 .map(entityBuilder -> {
                     entityBuilder.getOrCreateAnalysisSettings().setIsEligibleForResizeDown(false);
                     logger.trace("Applying IsEligibleForResizeDown false for entity {}.",
+                            entityBuilder.getDisplayName());
+                    return entityBuilder.getOid();
+                }).collect(Collectors.toSet());
+    }
+
+    /**
+     * We need to mark on prem VMs that are not reconfigrable in the analysis settings so that we
+     * do not get recommended reconfigure actions for these VMs.
+     *
+     * @param topology a topology graph.
+     * @return a set of modified entity oids.
+     */
+    private Set<Long> applyReconfigureEligibility(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+        return entityActionDao.ineligibleForReconfigureEntityIds().stream()
+                .map(topology::getEntity)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(TopologyEntity::getTopologyEntityImpl)
+                // Set flag only for onPrem VMs
+                .filter(entityBuilder -> entityBuilder.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue()
+                        && entityBuilder.getEnvironmentType().equals(EnvironmentType.ON_PREM))
+                .map(entityBuilder -> {
+                    entityBuilder.getOrCreateAnalysisSettings().setReconfigurable(false);
+                    logger.trace("Applying Reconfigurable false for entity {}.",
                             entityBuilder.getDisplayName());
                     return entityBuilder.getOid();
                 }).collect(Collectors.toSet());
