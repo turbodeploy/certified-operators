@@ -1614,4 +1614,8 @@ public class EntityStore {
             }
         }
     }
+
+    public void setTargetHealthRetriever(final TargetHealthRetriever targetHealthRetriever) {
+        this.targetHealthRetriever = targetHealthRetriever;
+    }
 }
