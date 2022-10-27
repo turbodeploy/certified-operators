@@ -2073,7 +2073,7 @@ public class GroupsServiceTest {
      * component.
      *
      * @throws Exception to satisfy compiler
-     */
+     **/
     @Test
     public void testGetPaginatedGroupsForwardingParameters()
             throws Exception {
@@ -2096,7 +2096,7 @@ public class GroupsServiceTest {
         GetPaginatedGroupsResponse groupResponse = GetPaginatedGroupsResponse.newBuilder().build();
         when(groupServiceSpyMole.getPaginatedGroups(any())).thenReturn(groupResponse);
         // WHEN
-        GroupPaginationResponse response = groupsService.getPaginatedGroups(paginationRequest);
+        GroupPaginationResponse response = groupsService.getPaginatedGroups(paginationRequest, null);
         //THEN
         ArgumentCaptor<GetPaginatedGroupsRequest> captor =
                 ArgumentCaptor.forClass(GetPaginatedGroupsRequest.class);
@@ -2110,6 +2110,51 @@ public class GroupsServiceTest {
         assertEquals(limit, capturedPaginationParams.getLimit());
         assertEquals(GroupOrderBy.GROUP_SEVERITY,
                 capturedPaginationParams.getOrderBy().getGroupSearch());
+    }
+
+    /**
+     * Tests that {@link GroupsService#getPaginatedGroups} forwards pagination parameters and filters by 
+     * groupOrigin to group component.
+     */
+    @Test
+    public void testGetPaginatedGroupsWithOrigin()
+            throws Exception {
+        // GIVEN
+        final String cursor = "1";
+        final int limit = 1;
+        final boolean ascending = false;
+        final String orderBy = "SEVERITY";
+        final GroupPaginationRequest paginationRequest =
+                new GroupPaginationRequest(cursor, limit, ascending, orderBy);
+        OriginFilter originFilter =  OriginFilter.newBuilder()
+                .addOrigin(GroupDTO.Origin.Type.USER).build();
+
+        when(paginationMapperMock.toProtoParams(any())).thenReturn(
+                PaginationParameters.newBuilder()
+                        .setCursor(cursor)
+                        .setLimit(limit)
+                        .setAscending(ascending)
+                        .setOrderBy(OrderBy.newBuilder()
+                                .setGroupSearch(GroupOrderBy.GROUP_SEVERITY)
+                                .build())
+                        .build());
+        GetPaginatedGroupsResponse groupResponse = GetPaginatedGroupsResponse.newBuilder().build();
+        when(groupServiceSpyMole.getPaginatedGroups(any())).thenReturn(groupResponse);
+        // WHEN
+        GroupPaginationResponse response = groupsService.getPaginatedGroups(paginationRequest, com.vmturbo.api.enums.Origin.USER);
+        //THEN
+        ArgumentCaptor<GetPaginatedGroupsRequest> captor =
+                ArgumentCaptor.forClass(GetPaginatedGroupsRequest.class);
+        verify(groupServiceSpyMole, times(1)).getPaginatedGroups(
+                captor.capture(), any());
+        // verify input parameters
+        assertTrue(captor.getValue().hasPaginationParameters());
+        PaginationParameters capturedPaginationParams = captor.getValue().getPaginationParameters();
+        assertFalse(capturedPaginationParams.getAscending());
+        assertEquals(cursor, capturedPaginationParams.getCursor());
+        assertEquals(limit, capturedPaginationParams.getLimit());
+        // verify origin filter
+        assertEquals(originFilter, captor.getValue().getGroupFilter().getOriginFilter()); 
     }
 
     /**
@@ -2137,7 +2182,7 @@ public class GroupsServiceTest {
         String orderBy = "COST";
         GroupPaginationRequest paginationRequest =
                 new GroupPaginationRequest(cursor, limit, ascending, orderBy);
-        groupsService.getPaginatedGroups(paginationRequest);
+        groupsService.getPaginatedGroups(paginationRequest, null);
         verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
     }
 
