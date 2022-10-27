@@ -73,6 +73,11 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
     LICENSE_OVERRIDES("Add on demand license overrides"),
 
     /**
+     * Process Licence Pricing.
+     */
+    LICENSE_PRICE_PROCESSOR("License Price Processing"),
+
+    /**
      * Assign pricing identifiers to plans and return a DiscoveredPricing result.
      */
     ASSIGN_IDENTIFIERS("Assign pricing identifiers");
@@ -112,5 +117,6 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
             REGROUP_METERS,
             IP_PRICE_PROCESSOR,
             LICENSE_OVERRIDES,
+            LICENSE_PRICE_PROCESSOR,
             ASSIGN_IDENTIFIERS);
 }

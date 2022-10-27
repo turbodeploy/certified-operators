@@ -40,6 +40,7 @@ import com.vmturbo.mediation.azure.pricing.stages.PlanFallbackStage;
 import com.vmturbo.mediation.azure.pricing.stages.RegroupByTypeStage;
 import com.vmturbo.mediation.azure.pricing.stages.SelectZipEntriesStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.IPMeterProcessingStage;
+import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.LicensePriceProcessingStage;
 import com.vmturbo.mediation.azure.pricing.util.VmSizeParser;
 import com.vmturbo.mediation.azure.pricing.util.VmSizeParserImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
@@ -181,6 +182,7 @@ public class MCAPricingDiscoveryController extends
                 .addStage(new RegroupByTypeStage(MCAPricingProbeStage.REGROUP_METERS))
                 .addStage(new IPMeterProcessingStage(MCAPricingProbeStage.IP_PRICE_PROCESSOR))
                 .addStage(new LicenseOverridesStage(MCAPricingProbeStage.LICENSE_OVERRIDES, this.parser, propertyProvider))
+                .addStage(new LicensePriceProcessingStage(MCAPricingProbeStage.LICENSE_PRICE_PROCESSOR))
                 .finalStage(new AssignPricingIdentifiersStage(MCAPricingProbeStage.ASSIGN_IDENTIFIERS,
                     MCA_PLANID_MAP)));
     }

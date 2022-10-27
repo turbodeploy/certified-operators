@@ -78,6 +78,11 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     LICENSE_OVERRIDES("Add On Demand License Override"),
 
     /**
+     * License Price Processing Stage.
+     */
+    LICENSE_PRICE_PROCESSING("License Price Processing"),
+
+    /**
      * Assign pricing identifiers to plans and return a DiscoveredPricing result.
      */
     ASSIGN_IDENTIFIERS("Assign pricing identifiers");
@@ -106,5 +111,5 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     public static final List<MockPricingProbeStage> DISCOVERY_STAGES = ImmutableList.of(
             DOWNLOAD_PRICE_SHEET, SELECT_ZIP_ENTRIES, BOM_AWARE_READERS, DESERIALIZE_CSV,
             EFFECTIVE_DATE_FILTER, RESOLVE_METERS, PLAN_FALLBACK, REGROUP_METERS,
-            IP_PRICE_PROCESSOR, LICENSE_OVERRIDES, ASSIGN_IDENTIFIERS);
+            IP_PRICE_PROCESSOR, LICENSE_OVERRIDES, LICENSE_PRICE_PROCESSING, ASSIGN_IDENTIFIERS);
 }
