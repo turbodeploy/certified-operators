@@ -365,10 +365,17 @@ public class GroupsService implements IGroupsService {
      * @throws InvalidOperationException if invalid request has been passed
      */
     @Override
-    public GroupPaginationResponse getPaginatedGroups(@Nonnull GroupPaginationRequest groupPaginationRequest)
+    public GroupPaginationResponse getPaginatedGroups(@Nonnull GroupPaginationRequest groupPaginationRequest,
+                                                      @Nullable final Origin groupOrigin)
             throws ConversionException, InterruptedException, InvalidOperationException {
         if (groupPaginationRequest == null) {
             throw new InvalidOperationException("Missing pagination parameters.");
+        }
+
+        GroupFilter.Builder groupFilter = GroupFilter.newBuilder();
+        if (groupOrigin != null) {
+            groupFilter.setOriginFilter(OriginFilter.newBuilder()
+                    .addOrigin(API_ORIGIN_TO_GROUPDTO_ORIGIN.get(groupOrigin)));
         }
         /*
          * Use the old implementation (paginate inside api component) in the following cases:
@@ -379,7 +386,7 @@ public class GroupsService implements IGroupsService {
         if (orderBy == GroupOrderBy.COST) {
             List<Grouping> groups = new ArrayList<>();
             groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
-                    .setGroupFilter(GroupFilter.getDefaultInstance())
+                    .setGroupFilter(groupFilter)
                     .build()
             ).forEachRemaining(groups::add);
             final ObjectsPage<GroupApiDTO> paginatedGroupApiDTOs =
@@ -402,7 +409,7 @@ public class GroupsService implements IGroupsService {
         return (GroupPaginationResponse)requestPaginatedGroupsFromGroupComponent(
                 groupPaginationRequest,
                 GetPaginatedGroupsRequest.newBuilder()
-                        .setGroupFilter(GroupFilter.getDefaultInstance())
+                        .setGroupFilter(groupFilter)
                         .setPaginationParameters(
                                 paginationMapper.toProtoParams(groupPaginationRequest))
                         .build());

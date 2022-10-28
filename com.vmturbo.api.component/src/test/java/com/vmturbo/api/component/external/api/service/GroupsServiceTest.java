@@ -2096,7 +2096,7 @@ public class GroupsServiceTest {
         GetPaginatedGroupsResponse groupResponse = GetPaginatedGroupsResponse.newBuilder().build();
         when(groupServiceSpyMole.getPaginatedGroups(any())).thenReturn(groupResponse);
         // WHEN
-        GroupPaginationResponse response = groupsService.getPaginatedGroups(paginationRequest);
+        GroupPaginationResponse response = groupsService.getPaginatedGroups(paginationRequest, null);
         //THEN
         ArgumentCaptor<GetPaginatedGroupsRequest> captor =
                 ArgumentCaptor.forClass(GetPaginatedGroupsRequest.class);
@@ -2137,7 +2137,7 @@ public class GroupsServiceTest {
         String orderBy = "COST";
         GroupPaginationRequest paginationRequest =
                 new GroupPaginationRequest(cursor, limit, ascending, orderBy);
-        groupsService.getPaginatedGroups(paginationRequest);
+        groupsService.getPaginatedGroups(paginationRequest, null);
         verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
     }
 
