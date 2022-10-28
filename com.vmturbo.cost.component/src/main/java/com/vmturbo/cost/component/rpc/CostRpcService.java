@@ -145,7 +145,7 @@ public class CostRpcService extends CostServiceImplBase {
     private final EntitySavingsStore entitySavingsStore;
 
     /**
-     * Create a new RIAndExpenseUploadRpcService.
+     * Create a new CostRpcService.
      *
      * @param discountStore The store containing account discounts
      * @param accountExpensesStore The store containing account expenses

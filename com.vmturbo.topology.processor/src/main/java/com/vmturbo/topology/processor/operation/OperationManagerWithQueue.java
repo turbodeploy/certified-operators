@@ -26,6 +26,7 @@ import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.communication.queues.IDiscoveryQueueElement;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
+import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
@@ -99,6 +100,7 @@ public class OperationManagerWithQueue extends OperationManager {
                             @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
                             @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
                             @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
+                            @Nonnull final BilledCloudCostUploader billedCloudCostUploader,
                             @Nonnull final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader,
                             @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                             @Nonnull final EntityActionDao entityActionDao,
@@ -118,9 +120,9 @@ public class OperationManagerWithQueue extends OperationManager {
                             final int workflowExecutionTimeoutMillis) {
         super(identityProvider, targetStore, probeStore, remoteMediationServer, operationListener,
                 entityStore, discoveredGroupUploader, discoveredWorkflowUploader,
-                discoveredCloudCostUploader, discoveredPlanDestinationUploader,
-                discoveredTemplateDeploymentProfileNotifier, entityActionDao,
-                derivedTargetParser, groupScopeResolver, targetDumpingSettings,
+                discoveredCloudCostUploader, billedCloudCostUploader,
+                discoveredPlanDestinationUploader, discoveredTemplateDeploymentProfileNotifier,
+                entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings,
                 systemNotificationProducer, discoveryTimeoutSeconds, validationTimeoutSeconds,
                 actionTimeoutSeconds, planExportTimeoutSeconds, 0, 0, 0, 0, matrix,
                 binaryDiscoveryDumper, enableDiscoveryResponsesCaching, licenseCheckClient, workflowExecutionTimeoutMillis);
