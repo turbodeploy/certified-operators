@@ -31,6 +31,8 @@ import com.vmturbo.api.enums.SuspensionActionType;
 import com.vmturbo.api.enums.SuspensionEntityType;
 import com.vmturbo.api.enums.SuspensionState;
 import com.vmturbo.api.enums.SuspensionTimeSpanState;
+import com.vmturbo.api.pagination.ScheduleTimeSpansOrderBy;
+import com.vmturbo.api.pagination.ScheduleTimeSpansPaginationRequest;
 import com.vmturbo.api.pagination.SuspensionEntitiesOrderBy;
 import com.vmturbo.api.pagination.SuspensionEntitiesPaginationRequest;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
@@ -41,10 +43,15 @@ import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.Suspens
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityTags;
 import com.vmturbo.common.protobuf.suspension.SuspensionFilter;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.CreateTimespanScheduleRequest;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.DeleteTimespanScheduleRequest;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.ListTimespanScheduleRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimeOfDay;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.Timespan;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanSchedule;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanScheduleByIDRequest;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanScheduleOrderBy;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanState;
+import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.UpdateTimespanScheduleRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.WeekDayTimespans;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggle;
 
@@ -602,6 +609,120 @@ public class SuspensionMapperTest extends TestCase {
             String wantJSON = ow.writeValueAsString(want);
             String gotJSON = ow.writeValueAsString(got);
             assertEquals(wantJSON, gotJSON);
+        } catch (Exception e) {
+            TestCase.fail();
+        }
+    }
+
+    /**
+     * verifies the conversion of API params based schedule delete to gRPC request.
+     */
+    @Test
+    public void testToApiTimespanScheduleByIDRequest() {
+        String timeSpanSchedule_Uuid = "22";
+
+        DeleteTimespanScheduleRequest.Builder want = DeleteTimespanScheduleRequest.getDefaultInstance().newBuilder();
+        want.setScheduleOid(Long.parseLong(timeSpanSchedule_Uuid));
+
+        try {
+            DeleteTimespanScheduleRequest got = testSuspensionMapper.toApiDeleteTimespanScheduleRequest(timeSpanSchedule_Uuid);
+            assertEquals(want.build(), got);
+        } catch (Exception e) {
+            TestCase.fail();
+        }
+    }
+
+    /**
+     * verifies the conversion of API time spans based schedule update to gRPC request.
+     */
+    @Test
+    public void testToUpdateTimespanScheduleRequest() {
+        SuspendItemApiDTO policy = new SuspendItemApiDTO();
+        policy.setState(SuspensionTimeSpanState.ON);
+        TimeSpanApiDTO timeSpanApiDTO = new TimeSpanApiDTO();
+        timeSpanApiDTO.setPolicy(policy);
+        timeSpanApiDTO.setBegins("00:15");
+        timeSpanApiDTO.setEnds("01:00");
+        List<TimeSpanApiDTO> timespans = new ArrayList<>();
+        timespans.add(timeSpanApiDTO);
+        WeekDayTimeSpansApiDTO weekDayTimeSpansApiDTO = new WeekDayTimeSpansApiDTO();
+        weekDayTimeSpansApiDTO.setSaturday(timespans);
+        String uuid = "1234";
+        String name = "dummy_name";
+        String description = "some_random_description";
+        String timeZone = "IST";
+        ScheduleTimeSpansApiDTO scheduleTimeSpansApiDTO = new ScheduleTimeSpansApiDTO(uuid, name,
+                description, timeZone, weekDayTimeSpansApiDTO);
+
+        UpdateTimespanScheduleRequest.Builder want = UpdateTimespanScheduleRequest.getDefaultInstance().newBuilder();
+        want.setOid(1234);
+        want.setDescription(description);
+        want.setName(name);
+        want.setDescription(description);
+        want.setTimezone(timeZone);
+        TimeOfDay.Builder beginsTod = TimeOfDay.getDefaultInstance().newBuilder();
+        beginsTod.setHours(0);
+        beginsTod.setMinutes(15);
+        TimeOfDay.Builder endTod = TimeOfDay.getDefaultInstance().newBuilder();
+        endTod.setHours(1);
+        endTod.setMinutes(0);
+
+        Timespan.Builder timespan = Timespan.getDefaultInstance().newBuilder();
+        timespan.setBegins(beginsTod.build());
+        timespan.setEnds(endTod.build());
+        timespan.setState(TimespanState.TS_ON);
+        List<Timespan> tsList = new ArrayList<>();
+        tsList.add(timespan.build());
+
+        WeekDayTimespans.Builder grpcTimespans = WeekDayTimespans.getDefaultInstance().newBuilder();
+        grpcTimespans.addAllSaturday(tsList);
+        want.setTimespans(grpcTimespans.build());
+
+        try {
+            UpdateTimespanScheduleRequest got = testSuspensionMapper.toUpdateTimespanScheduleRequest(uuid, scheduleTimeSpansApiDTO);
+            assertEquals(want.build(), got);
+        } catch (Exception e) {
+            TestCase.fail();
+        }
+    }
+
+    /**
+     * verifies the conversion of column to sort by from api to grpc.
+     */
+    public void testGetScheduleOrderBy() {
+        assertEquals(TimespanScheduleOrderBy.TIMESPAN_SCHEDULE_ORDER_BY_DISPLAY_NAME, testSuspensionMapper.getScheduleOrderBy(ScheduleTimeSpansOrderBy.DISPLAY_NAME));
+        assertEquals(TimespanScheduleOrderBy.TIMESPAN_SCHEDULE_ORDER_BY_DISPLAY_NAME, testSuspensionMapper.getScheduleOrderBy(null));
+    }
+
+    /**
+     * verifies the conversion of API list time span schedules request to gRPC ListTimespanScheduleRequest.
+     */
+    public void testToListTimespanScheduleRequest() {
+        ListTimespanScheduleRequest.Builder requestBuilder = ListTimespanScheduleRequest.getDefaultInstance().newBuilder();
+        requestBuilder.setOrderBy(TimespanScheduleOrderBy.TIMESPAN_SCHEDULE_ORDER_BY_DISPLAY_NAME);
+        requestBuilder.setLimit(300);
+        requestBuilder.setDescending(false);
+        try {
+            ScheduleTimeSpansPaginationRequest paginationRequest = new ScheduleTimeSpansPaginationRequest(null, 300, true, ScheduleTimeSpansOrderBy.DISPLAY_NAME);
+            assertEquals(requestBuilder.build(), testSuspensionMapper.toListTimespanScheduleRequest( paginationRequest));
+        } catch (Exception e) {
+            TestCase.fail();
+        }
+    }
+
+    /**
+     * verifies the conversion of API params based schedule get to gRPC request.
+     */
+    @Test
+    public void testToGetTimespanScheduleRequest() {
+        String timeSpanSchedule_Uuid = "22";
+
+        TimespanScheduleByIDRequest.Builder want = TimespanScheduleByIDRequest.getDefaultInstance().newBuilder();
+        want.setScheduleOid(Long.parseLong(timeSpanSchedule_Uuid));
+
+        try {
+            TimespanScheduleByIDRequest got = testSuspensionMapper.toGetTimespanScheduleRequest(timeSpanSchedule_Uuid);
+            assertEquals(want.build(), got);
         } catch (Exception e) {
             TestCase.fail();
         }
