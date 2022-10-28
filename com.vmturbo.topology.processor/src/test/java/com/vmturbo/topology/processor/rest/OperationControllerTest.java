@@ -63,7 +63,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
-import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
@@ -78,7 +77,6 @@ import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
-import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
@@ -201,11 +199,6 @@ public class OperationControllerTest {
         }
 
         @Bean
-        BilledCloudCostUploader billedCloudCostUploader() {
-            return Mockito.mock(BilledCloudCostUploader.class);
-        }
-
-        @Bean
         DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader() {
             return Mockito.mock(DiscoveredPlanDestinationUploader.class);
         }
@@ -287,7 +280,6 @@ public class OperationControllerTest {
                                         groupRecorder(),
                                         workflowRecorder(),
                                         discoveredCloudCostUploader(),
-                                        billedCloudCostUploader(),
                                         discoveredPlanDestinationUploader(),
                                         discoveredTemplatesUploader(),
                                         controllableDao(),
@@ -319,12 +311,6 @@ public class OperationControllerTest {
         @Bean TargetHealthRetriever targetHealthRetriever() { return Mockito.mock(
                         TargetHealthRetriever.class); }
     }
-
-    /**
-     * Set feature flags to their default state.
-     */
-    @Rule
-    public final FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     private final Gson gson = new Gson();
 

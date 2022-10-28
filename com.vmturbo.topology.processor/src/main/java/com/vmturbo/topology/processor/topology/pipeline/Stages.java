@@ -66,7 +66,6 @@ import com.vmturbo.components.api.chunking.GetSerializedSizeException;
 import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
@@ -94,7 +93,6 @@ import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingConfig;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
-import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityCustomTagsMerger;
@@ -198,25 +196,6 @@ public class Stages {
             // TODO (roman, Oct 23 2018): Provide some additional information regarding
             // the cost upload - e.g. how many things got uploaded, did anything get skipped,
             // and so on.
-            return Status.success();
-        }
-    }
-
-    public static class UploadBilledCloudCostDataStage extends PassthroughStage<StitchingContext> {
-
-        private final BilledCloudCostUploader billedCloudCostUploader;
-
-        public UploadBilledCloudCostDataStage(final BilledCloudCostUploader billedCloudCostUploader) {
-            this.billedCloudCostUploader = billedCloudCostUploader;
-        }
-
-        @Nonnull
-        @NotNull
-        @Override
-        public Status passthrough(final StitchingContext context) {
-            if (FeatureFlags.PARTITIONED_BILLED_COST_UPLOAD.isEnabled()) {
-                billedCloudCostUploader.processUploadQueue(context);
-            }
             return Status.success();
         }
     }

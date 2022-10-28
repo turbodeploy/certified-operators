@@ -25,7 +25,7 @@
         <ux.mt.branch.version>8.7.1-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.3.56</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.3.52</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.5.7</cpu.capacity.version>
@@ -198,8 +198,6 @@
         The dependency below is used only to enforce a specific version that
         does not suffer from a vulnerability. See bug OM-86833-->
         <com.squareup.okhttp3.okhttp.version>4.9.3</com.squareup.okhttp3.okhttp.version>
-
-        <woodstox-core.version>6.4.0</woodstox-core.version>
 
         <!-- configure properties needed for timescaledb spin-up and/or access -->
         <!-- We do not configure a port property here, since must only appear if spin-up is disabled -->
@@ -3862,16 +3860,6 @@
                 <groupId>org.threeten</groupId>
                 <artifactId>threeten-extra</artifactId>
                 <version>${threeten-extra.version}</version>
-            </dependency>
-            <!-- xl consumes the dependencies:
-            org.apache.santuario:xmlsec
-            that transitively depend on a vulnerable
-            version of woodstox. As a result, we override the version manually for those
-            projects to 6.4.0. Once those dependencies upgrade, we can remove this override. -->
-            <dependency>
-                <groupId>com.fasterxml.woodstox</groupId>
-                <artifactId>woodstox-core</artifactId>
-                <version>${woodstox-core.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

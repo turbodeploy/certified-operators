@@ -7,8 +7,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentUploadServiceGrpc;
-import com.vmturbo.common.protobuf.cost.BilledCostServiceGrpc;
-import com.vmturbo.common.protobuf.cost.BilledCostServiceGrpc.BilledCostServiceStub;
 import com.vmturbo.common.protobuf.cost.BilledCostUploadServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BilledCostUploadServiceGrpc.BilledCostUploadServiceStub;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
@@ -54,12 +52,6 @@ public class CloudCostConfig {
     @Value("${maximumUploadBilledCostRequestSizeMB:4.0}")
     private float maximumUploadBilledCostRequestSizeMB;
 
-    @Value("${maximumUploadBilledCloudCostRequestSizeBytes:133169152}") // 128 MB
-    private long maximumUploadBilledCloudCostRequestSizeBytes;
-
-    @Value("${uploadBilledCloudCostTimeoutSeconds:300}") // 5 mins
-    private int uploadBilledCloudCostTimeoutSeconds;
-
     @Bean
     public RIAndExpenseUploadServiceBlockingStub costServiceClient() {
         return RIAndExpenseUploadServiceGrpc.newBlockingStub(costClientConfig.costChannel());
@@ -68,11 +60,6 @@ public class CloudCostConfig {
     @Bean
     public BilledCostUploadServiceStub billServiceClient() {
         return BilledCostUploadServiceGrpc.newStub(costClientConfig.costChannel());
-    }
-
-    @Bean
-    public BilledCostServiceStub billedCostService() {
-        return BilledCostServiceGrpc.newStub(costClientConfig.costChannel());
     }
 
     @Bean
@@ -107,13 +94,6 @@ public class CloudCostConfig {
     public DiscoveredCloudCostUploader discoveredCloudCostUploader() {
         return new DiscoveredCloudCostUploader(riDataUploader(),  cloudCommitmentCostUploader(),
             accountExpensesUploader(), priceTableUploader(), businessAccountPriceTableKeyUploader(), billedCostUploader());
-    }
-
-    @Bean
-    public BilledCloudCostUploader billedCloudCostUploader() {
-        return new BilledCloudCostUploader(billedCostService(),
-                maximumUploadBilledCloudCostRequestSizeBytes,
-                uploadBilledCloudCostTimeoutSeconds);
     }
 
     @Bean

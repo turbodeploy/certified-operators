@@ -67,7 +67,6 @@ import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSe
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
-import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
@@ -321,11 +320,6 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
-    public BilledCloudCostUploader billedCloudCostUploader() {
-        return mock(BilledCloudCostUploader.class);
-    }
-
-    @Bean
     public DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader() {
         return mock(DiscoveredPlanDestinationUploader.class);
     }
@@ -393,7 +387,6 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
             groupRecorder(),
             workflowRecorder(),
             cloudCostUploadRecorder(),
-            billedCloudCostUploader(),
             discoveredPlanDestinationUploader(),
             discoveredTemplatesUploader(),
             controllableDao(),

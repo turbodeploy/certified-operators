@@ -6,7 +6,6 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.listeners.HistoryVolumesListener;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -85,7 +84,6 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingGroupAna
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SupplyChainValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopSortStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadBilledCloudCostDataStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.VolumesDaysUnAttachedCalcStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadActionConstraintsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadAtomicActionSpecsStage;
@@ -120,8 +118,6 @@ public class LivePipelineFactory {
     private final DiscoveredWorkflowUploader discoveredWorkflowUploader;
 
     private final DiscoveredCloudCostUploader discoveredCloudCostUploader;
-
-    private final BilledCloudCostUploader billedCloudCostUploader;
 
     private final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader;
 
@@ -194,7 +190,6 @@ public class LivePipelineFactory {
             @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
             @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
             @Nonnull final DiscoveredCloudCostUploader cloudCostUploader,
-            @Nonnull final BilledCloudCostUploader billedCloudCostUploader,
             @Nonnull final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader,
             @Nonnull final EntitySettingsResolver entitySettingsResolver,
             @Nonnull final EntitySettingsApplicator settingsApplicator,
@@ -233,7 +228,6 @@ public class LivePipelineFactory {
         this.discoveredGroupUploader = discoveredGroupUploader;
         this.discoveredWorkflowUploader = discoveredWorkflowUploader;
         this.discoveredCloudCostUploader = cloudCostUploader;
-        this.billedCloudCostUploader = Objects.requireNonNull(billedCloudCostUploader);
         this.discoveredPlanDestinationUploader = discoveredPlanDestinationUploader;
         this.settingsApplicator = Objects.requireNonNull(settingsApplicator);
         this.entitySettingsResolver = entitySettingsResolver;
@@ -354,7 +348,6 @@ public class LivePipelineFactory {
                                 new StitchingJournalContainer(), stalenessProvider))
                 .addStage(new Stages.FlowGenerationStage(mi))
                 .addStage(new UploadCloudCostDataStage(discoveredCloudCostUploader))
-                .addStage(new UploadBilledCloudCostDataStage(billedCloudCostUploader))
                 .addStage(new UploadPlanDestinationsStage(discoveredPlanDestinationUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                         discoveredGroupUploader))

@@ -14,10 +14,10 @@ import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 @Configuration
 public class SuspensionRpcConfig {
 
-    @Value("${suspendHost:suspend}")
+    @Value("${suspendHost}")
     private String host;
 
-    @Value("${suspendGrpcPort:9094}")
+    @Value("${suspendGrpcPort}")
     private int grpcPort;
 
     /**
