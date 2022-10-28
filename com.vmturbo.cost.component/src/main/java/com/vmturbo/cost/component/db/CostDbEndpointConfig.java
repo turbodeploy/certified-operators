@@ -8,11 +8,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 
+import com.vmturbo.cost.component.flyway.CostFlywayCallback;
 import com.vmturbo.sql.utils.ConditionalDbConfig.DbEndpointCondition;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointsConfig;
+import com.vmturbo.sql.utils.flyway.ForgetMigrationCallback;
 
 /**
  * Configuration for cost interaction with db through {@link DbEndpoint}.
@@ -59,9 +61,14 @@ public class CostDbEndpointConfig extends DbEndpointsConfig {
     private FlywayCallback[] flywayCallbacks() {
         switch (sqlDialect) {
             case MARIADB:
-                return new FlywayCallback[]{};
+                return new FlywayCallback[]{
+                        new CostFlywayCallback(),
+                        new ForgetMigrationCallback("1.88")
+                };
             case POSTGRES:
-                return new FlywayCallback[]{};
+                return new FlywayCallback[]{
+                        new ForgetMigrationCallback("1.14")
+                };
             default:
                 return new FlywayCallback[]{};
         }
