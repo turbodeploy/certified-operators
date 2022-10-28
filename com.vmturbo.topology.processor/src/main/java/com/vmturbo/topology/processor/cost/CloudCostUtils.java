@@ -15,8 +15,9 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadCloudCostDataStage;
 
 /**
- * Helper class to match DB and DBS tiers to their respective pricing data as part of
- * {@link UploadCloudCostDataStage} stage.
+ * Helper class to match DB and DBS tiers to their respective pricing data as part of the
+ * {@link UploadCloudCostDataStage} and {@link com.vmturbo.topology.processor.topology.pipeline.Stages.UploadBilledCloudCostDataStage}
+ * stages.
  */
 public class CloudCostUtils {
 

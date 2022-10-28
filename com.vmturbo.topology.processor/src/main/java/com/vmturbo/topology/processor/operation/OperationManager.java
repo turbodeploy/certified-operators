@@ -41,6 +41,7 @@ import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
@@ -97,6 +98,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.S
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ActionRecordNotFoundException;
+import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.discoverydumper.DiscoveryDumperImpl;
@@ -266,6 +268,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private DiscoveredCloudCostUploader discoveredCloudCostUploader;
 
+    private final BilledCloudCostUploader billedCloudCostUploader;
+
     private DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader;
 
     private final int maxConcurrentTargetDiscoveriesPerProbeCount;
@@ -303,6 +307,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
                             @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
                             @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
+                            @Nonnull final BilledCloudCostUploader billedCloudCostUploader,
                             @Nonnull final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader,
                             @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                             @Nonnull final EntityActionDao entityActionDao,
@@ -344,6 +349,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.maxConcurrentTargetDiscoveriesPerProbeCount = maxConcurrentTargetDiscoveriesPerProbeCount;
         this.maxConcurrentTargetIncrementalDiscoveriesPerProbeCount = maxConcurrentTargetIncrementalDiscoveriesPerProbeCount;
         this.discoveredCloudCostUploader = discoveredCloudCostUploader;
+        this.billedCloudCostUploader = Objects.requireNonNull(billedCloudCostUploader);
         this.probeDiscoveryPermitWaitTimeoutMins = probeDiscoveryPermitWaitTimeoutMins;
         this.probeDiscoveryPermitWaitTimeoutIntervalMins = probeDiscoveryPermitWaitTimeoutIntervalMins;
         this.targetDumpingSettings = targetDumpingSettings;
@@ -1367,6 +1373,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 .flatMap(
                 probe -> Optional.ofNullable(ProbeCategory.create(probe.getProbeCategory())));
         discoveredCloudCostUploader.targetRemoved(targetId, probeCategory);
+        billedCloudCostUploader.targetRemoved(targetId);
         discoveredPlanDestinationUploader.targetRemoved(targetId);
     }
 
@@ -1557,6 +1564,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                         responseUsed.getCostDTOList(),
                                         responseUsed.getPriceTable(),
                                         responseUsed.getCloudBillingDataList());
+                                if (FeatureFlags.PARTITIONED_BILLED_COST_UPLOAD.isEnabled()) {
+                                    billedCloudCostUploader.enqueueTargetBillingData(targetId,
+                                            targetStore.getProbeTypeForTarget(targetId)
+                                                    .orElse(null),
+                                            responseUsed.getCloudBillingDataList());
+                                }
                                 discoveredPlanDestinationUploader.recordPlanDestinations(targetId,
                                     responseUsed.getNonMarketEntityDTOList());
                                 // Flows
