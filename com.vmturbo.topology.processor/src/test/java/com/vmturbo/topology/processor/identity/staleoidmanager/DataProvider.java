@@ -116,7 +116,7 @@ public class DataProvider implements MockDataProvider {
     }
 
     @Override
-    public MockResult[] execute(MockExecuteContext ctx) {
+    public synchronized MockResult[] execute(MockExecuteContext ctx) {
         if (!done && cycleCompletionFuture != null && cycleCompletionFuture.isDone()
                 && !allowMultipleCycles) {
             this.done = true;
