@@ -46,6 +46,7 @@ import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingConfig;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
+import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntityCustomTagsMerger;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -318,6 +319,7 @@ public class TopologyPipelineFactoryTest {
             mock(DiscoveredGroupUploader.class),
             mock(DiscoveredWorkflowUploader.class),
             mock(DiscoveredCloudCostUploader.class),
+            mock(BilledCloudCostUploader.class),
             mock(DiscoveredPlanDestinationUploader.class),
             entitySettingsResolver,
             mock(EntitySettingsApplicator.class),

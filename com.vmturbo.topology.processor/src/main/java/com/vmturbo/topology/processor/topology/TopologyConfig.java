@@ -274,6 +274,7 @@ public class TopologyConfig {
                 groupConfig.discoveredGroupUploader(),
                 workflowConfig.discoveredWorkflowUploader(),
                 cloudCostConfig.discoveredCloudCostUploader(),
+                cloudCostConfig.billedCloudCostUploader(),
                 planDestinationConfig.discoveredPlanDestinationUploader(),
                 groupConfig.settingsManager(),
                 groupConfig.entitySettingsApplicator(),

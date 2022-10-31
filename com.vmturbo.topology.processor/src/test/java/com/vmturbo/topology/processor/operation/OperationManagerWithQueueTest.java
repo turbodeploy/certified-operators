@@ -9,6 +9,7 @@ import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -66,12 +67,14 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.NotificationCategoryDTO;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.communication.ProbeContainerChooser;
 import com.vmturbo.topology.processor.communication.RemoteMediationServerWithDiscoveryWorkers;
 import com.vmturbo.topology.processor.communication.queues.IDiscoveryQueueElement;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
+import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
@@ -137,6 +140,7 @@ public class OperationManagerWithQueueTest {
     private final DiscoveredGroupUploader discoveredGroupUploader = mock(DiscoveredGroupUploader.class);
     private final DiscoveredWorkflowUploader discoveredWorkflowUploader = mock(DiscoveredWorkflowUploader.class);
     private final DiscoveredCloudCostUploader discoveredCloudCostUploader = mock(DiscoveredCloudCostUploader.class);
+    private final BilledCloudCostUploader billedCloudCostUploader = mock(BilledCloudCostUploader.class);
     private final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader = mock(DiscoveredPlanDestinationUploader.class);
 
     private TrackingOperationListener operationListener = spy(new TrackingOperationListener());
@@ -222,9 +226,10 @@ public class OperationManagerWithQueueTest {
         MockitoAnnotations.initMocks(this);
         operationManager = new OperationManagerWithQueue(identityProvider, targetStore,
                 probeStore, remoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
-                discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredPlanDestinationUploader,
-                discoveredTemplatesUploader, entityActionDao, derivedTargetParser,
-                groupScopeResolver, targetDumpingSettings, systemNotificationProducer,
+                discoveredWorkflowUploader, discoveredCloudCostUploader, billedCloudCostUploader,
+                discoveredPlanDestinationUploader, discoveredTemplatesUploader, entityActionDao,
+                derivedTargetParser, groupScopeResolver, targetDumpingSettings,
+                systemNotificationProducer,
                 discoveryQueue, 10, 10, 10, 10, TheMatrix.instance(), binaryDiscoveryDumper, false,
                 licenseCheckClient, 60000);
         IdentityGenerator.initPrefix(0);
@@ -250,6 +255,9 @@ public class OperationManagerWithQueueTest {
                 .singletonList(target2AccountValue));
         when(targetStore.getTarget(target1Id)).thenReturn(Optional.of(target1));
         when(targetStore.getProbeTargets(probeIdVc)).thenReturn(Collections.singletonList(target1));
+        doReturn(Optional.ofNullable(
+                SDKProbeType.create(target1.getProbeInfo().getProbeType()))).when(targetStore)
+                .getProbeTypeForTarget(target1Id);
     }
 
     private Optional<IDiscoveryQueueElement> simulateRemoteMediation(
