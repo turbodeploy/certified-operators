@@ -654,9 +654,9 @@
         </dependency>
 
         <!-- org.apache.santuario:xmlsec brings in com.fasterxml.woodstox:woodstox-core as a compile dependency.
-        Anything older than 6.4.0 is vulnerable. Unfortunately, azure does not provide a version
+        Anything older than 6.4.0 is vulnerable. Unfortunately, santuario does not provide a version
         with this transitive dependency upgraded. As a result we override the dependency with a safe version.
-        Once azure upgrades, we can remove this override. We are waiting for this commited fix to be
+        Once santuario upgrades, we can remove this override. We are waiting for this commited fix to be
         published to a released version: https://github.com/apache/santuario-xml-security-java/pull/80 -->
         <dependency>
             <groupId>com.fasterxml.woodstox</groupId>
