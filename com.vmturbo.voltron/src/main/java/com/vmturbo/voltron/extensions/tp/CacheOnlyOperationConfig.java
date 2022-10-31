@@ -122,6 +122,7 @@ public class CacheOnlyOperationConfig extends OperationConfig {
                 groupConfig.discoveredGroupUploader(),
                 workflowConfig.discoveredWorkflowUploader(),
                 cloudCostUploaderConfig.discoveredCloudCostUploader(),
+                cloudCostUploaderConfig.billedCloudCostUploader(),
                 planDestinationConfig.discoveredPlanDestinationUploader(),
                 templateConfig.discoveredTemplatesUploader(),
                 controllableConfig.entityActionDao(),

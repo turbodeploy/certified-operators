@@ -21,6 +21,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.Discovery.DerivedTargetSpecificationDTO;
@@ -35,6 +36,7 @@ import com.vmturbo.sdk.server.common.DiscoveryDumper;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
+import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.discoverydumper.DiscoveryDumpFilename;
@@ -90,6 +92,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
     private final DiscoveredWorkflowUploader discoveredWorkflowUploader;
     private final DerivedTargetParser derivedTargetParser;
     private final DiscoveredCloudCostUploader discoveredCloudCostUploader;
+    private final BilledCloudCostUploader billedCloudCostUploader;
     private final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader;
     private final MatrixInterface matrix;
     private DiscoveryDumper discoveryDumper;
@@ -113,6 +116,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
      * @param discoveredGroupUploader DiscoveredGroupUploader where discovered groups go.
      * @param discoveredWorkflowUploader where discovered Workflows go.
      * @param discoveredCloudCostUploader where Cloud Cost goes.
+     * @param billedCloudCostUploader where Cloud Cost goes.
      * @param discoveredPlanDestinationUploader where Plan Destinations data goes.
      * @param discoveredTemplateDeploymentProfileNotifier where discovered templates go.
      * @param entityActionDao where entity actions are persisted.
@@ -139,6 +143,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
             @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
             @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
             @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
+            @Nonnull final BilledCloudCostUploader billedCloudCostUploader,
             @Nonnull final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader,
             @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
             @Nonnull final EntityActionDao entityActionDao,
@@ -157,12 +162,12 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
             final boolean isCacheDiscoveryModeOffline) {
         super(identityProvider, targetStore, probeStore, remoteMediationServer, operationListener,
                 entityStore, discoveredGroupUploader, discoveredWorkflowUploader,
-                discoveredCloudCostUploader, discoveredPlanDestinationUploader,
-                discoveredTemplateDeploymentProfileNotifier, entityActionDao, derivedTargetParser,
-                groupScopeResolver, targetDumpingSettings, systemNotificationProducer,
-                discoveryQueue, discoveryTimeoutSeconds, validationTimeoutSeconds,
-                actionTimeoutSeconds, planExportTimeoutSeconds, matrix, binaryDiscoveryDumper,
-                enableDiscoveryResponsesCaching, licenseCheckClient,
+                discoveredCloudCostUploader, billedCloudCostUploader,
+                discoveredPlanDestinationUploader, discoveredTemplateDeploymentProfileNotifier,
+                entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings,
+                systemNotificationProducer, discoveryQueue, discoveryTimeoutSeconds,
+                validationTimeoutSeconds, actionTimeoutSeconds, planExportTimeoutSeconds, matrix,
+                binaryDiscoveryDumper, enableDiscoveryResponsesCaching, licenseCheckClient,
                 workflowExecutionTimeoutMillis);
         this.cacheOnlyDiscoveryDumper = cacheDiscoveryDumper;
         this.entityStore = entityStore;
@@ -173,6 +178,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
         this.discoveredWorkflowUploader = discoveredWorkflowUploader;
         this.derivedTargetParser = derivedTargetParser;
         this.discoveredCloudCostUploader = discoveredCloudCostUploader;
+        this.billedCloudCostUploader = billedCloudCostUploader;
         this.discoveredPlanDestinationUploader = discoveredPlanDestinationUploader;
         this.matrix = matrix;
         this.isCacheDiscoveryModeOffline = isCacheDiscoveryModeOffline;
@@ -418,6 +424,12 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
                                         responseUsed.getCostDTOList(),
                                         responseUsed.getPriceTable(),
                                         responseUsed.getCloudBillingDataList());
+                                if (FeatureFlags.PARTITIONED_BILLED_COST_UPLOAD.isEnabled()) {
+                                    billedCloudCostUploader.enqueueTargetBillingData(targetId,
+                                            targetStore.getProbeTypeForTarget(targetId)
+                                                    .orElse(null),
+                                            responseUsed.getCloudBillingDataList());
+                                }
                                 discoveredPlanDestinationUploader.recordPlanDestinations(targetId,
                                         responseUsed.getNonMarketEntityDTOList());
                                 // Flows
