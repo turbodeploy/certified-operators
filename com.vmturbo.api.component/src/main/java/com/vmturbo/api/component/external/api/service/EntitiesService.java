@@ -1075,24 +1075,6 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public void deleteTagByEntityUuid(final String uuid, final String tagKey) throws Exception {
-        if(org.apache.commons.lang.StringUtils.isEmpty(tagKey)) {
-            throw new OperationFailedException("TagKey cannot be empty");
-        }
-        final long oid = getEntityOidFromString(uuid);
-        final DeleteEntityCustomTagRequest request = DeleteEntityCustomTagRequest.newBuilder()
-                .setEntityOid(oid)
-                .setTagKey(tagKey)
-                .build();
-        try {
-            entityCustomTagsService.deleteTag(request);
-        } catch (StatusRuntimeException e) {
-            throw new OperationFailedException(
-                    "Unable to delete tag for Entity: '" + uuid + "' with key: '" + tagKey + "'", e);
-        }
-    }
-
-    @Override
     public void deleteTagsByEntityUuid(final String uuid) throws Exception {
         final long oid = getEntityOidFromString(uuid);
         final DeleteEntityCustomTagsRequest request =

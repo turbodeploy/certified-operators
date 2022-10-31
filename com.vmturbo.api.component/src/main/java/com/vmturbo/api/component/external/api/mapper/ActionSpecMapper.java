@@ -582,7 +582,6 @@ public class ActionSpecMapper {
         risk.setDescription(createRiskDescription(actionSpec, context));
         risk.setSubCategory(mapXlActionCategoryToApi(actionSpec.getCategory()));
         risk.setSeverity(mapSeverityToApi(actionSpec.getSeverity()));
-        risk.setReasonCommodity("");
         actionApiDTO.setRisk(risk);
 
         // The target definition
@@ -1614,7 +1613,6 @@ public class ActionSpecMapper {
         LogEntryApiDTO risk = new LogEntryApiDTO();
         risk.setImportance((float)0.0);
         risk.addReasonCommodity(UICommodityType.fromType(resizeInfo.getCommodityType()).apiStr());
-        risk.setReasonCommodity(UICommodityType.fromType(resizeInfo.getCommodityType()).apiStr());
         actionApiDTO.setRisk(risk);
 
         // Set action details
@@ -1793,7 +1791,6 @@ public class ActionSpecMapper {
                 .collect(Collectors.toSet());
         if (!reasonCommodityNames.isEmpty()) {
             risk.addAllReasonCommodities(reasonCommodityNames);
-            risk.setReasonCommodity(String.join(",", reasonCommodityNames));
         }
     }
 
