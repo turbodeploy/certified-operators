@@ -71,6 +71,16 @@ public class PricingWorkspace {
     }
 
     /**
+     * Add the list of resolved meter by meter type.
+     *
+     * @param meterType {@link MeterType}
+     * @param resolvedMeters list of {@link ResolvedMeter}
+     */
+    public void addResolvedMeterByMeterType(@Nonnull MeterType meterType, @Nonnull List<ResolvedMeter> resolvedMeters) {
+        this.resolvedMeterByMeterType.put(meterType, resolvedMeters);
+    }
+
+    /**
      * Get the map of price table builders by plan. Call one time only, when all processors are done.
      *
      * @return the map of builders by plan
