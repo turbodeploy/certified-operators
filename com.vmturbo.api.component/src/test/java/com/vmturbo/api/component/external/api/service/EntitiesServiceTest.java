@@ -976,49 +976,6 @@ public class EntitiesServiceTest {
     }
 
     /**
-     * Delete tags using entity oid and key.
-     *
-     * @throws Exception should not happen.
-     */
-    @Test
-    public void testDeleteTagEntityOidAndKey() throws Exception {
-        final DeleteEntityCustomTagRequest request = DeleteEntityCustomTagRequest.newBuilder()
-                .setEntityOid(VM_ID)
-                .setTagKey(TAG_KEY)
-                .build();
-
-        final DeleteEntityCustomTagResponse response = DeleteEntityCustomTagResponse.newBuilder().build();
-
-        when(entityCustomTagsService.deleteTag(request)).thenReturn(response);
-
-        ApiId apiId = mock(ApiId.class);
-        when(apiId.isEntity()).thenReturn(true);
-        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
-
-        service.deleteTagByEntityUuid(Long.toString(VM_ID), TAG_KEY);
-    }
-
-    /**
-     * Delete tag with empty key.
-     *
-     * @throws OperationFailedException should be thrown.
-     */
-    @Test(expected = OperationFailedException.class)
-    public void testDeleteTagEmptyKey() throws Exception {
-        service.deleteTagByEntityUuid(Long.toString(VM_ID), "");
-    }
-
-    /**
-     * Delete tag with empty group oid.
-     *
-     * @throws OperationFailedException should be thrown.
-     */
-    @Test(expected = OperationFailedException.class)
-    public void testDeleteTagEmptyGroupOid() throws Exception {
-        service.deleteTagByEntityUuid("", "");
-    }
-
-    /**
      * An action returned by {@link EntitiesService#getActionByEntityUuid(String, String,
      * com.vmturbo.api.enums.ActionDetailLevel)}.
      * will be obtained through the action orchestrator service and the action mapper.

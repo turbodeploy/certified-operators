@@ -2710,48 +2710,4 @@ public class GroupsServiceTest {
     public void testDeleteTagsEmptyKey() throws Exception {
         groupsService.deleteTagsByGroupUuid("");
     }
-
-    /**
-     * Delete tags using group oid and key.
-     *
-     * @throws Exception should not happen.
-     */
-    @Test
-    public void testDeleteTagGroupOidAndKey() throws Exception {
-        final DeleteTagRequest request = DeleteTagRequest.newBuilder()
-                .setGroupOid(VM_ID)
-                .setTagKey(TAG_KEY)
-                .build();
-
-        final DeleteTagResponse response = DeleteTagResponse.newBuilder().build();
-
-        when(groupServiceSpyMole.deleteTag(request)).thenReturn(response);
-
-        ApiId apiId = mock(ApiId.class);
-        when(apiId.isGroup()).thenReturn(true);
-        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
-
-        groupsService.deleteTagByGroupUuid(Long.toString(VM_ID), TAG_KEY);
-    }
-
-    /**
-     * Delete tag with empty group oid.
-     *
-     * @throws OperationFailedException should be thrown.
-     */
-    @Test(expected = OperationFailedException.class)
-    public void testDeleteTagEmptyGroupOid() throws Exception {
-        groupsService.deleteTagByGroupUuid("", "");
-    }
-
-    /**
-     * Delete tag with empty key.
-     *
-     * @throws OperationFailedException should be thrown.
-     */
-    @Test(expected = OperationFailedException.class)
-    public void testDeleteTagEmptyKey() throws Exception {
-        groupsService.deleteTagByGroupUuid(Long.toString(VM_ID), "");
-    }
-
 }

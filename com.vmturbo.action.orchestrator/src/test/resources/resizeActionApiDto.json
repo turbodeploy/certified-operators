@@ -38,7 +38,6 @@
     "description": "Underutilized VMem in Virtual Machine cisco-t8c-3.0.1-20210528213002000 (10.10.170.160)",
     "severity": "MINOR",
     "importance": 0.0,
-    "reasonCommodity": "VMem",
     "reasonCommodities":
     [
       "VMem"

@@ -1293,22 +1293,6 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public void deleteTagByGroupUuid(final String uuid, final String tagKey) throws Exception {
-        if(StringUtils.isEmpty(tagKey)) {
-            throw new OperationFailedException("TagKey cannot be empty");
-        }
-        final long oid = getGroupOidFromString(uuid);
-        final DeleteTagRequest request = DeleteTagRequest.newBuilder().setGroupOid(oid).setTagKey(
-                tagKey).build();
-        try {
-            groupServiceRpc.deleteTag(request);
-        } catch (StatusRuntimeException e) {
-            throw new OperationFailedException(
-                    "Unable to delete tag for Group: '" + uuid + "' with key: '" + tagKey + "'", e);
-        }
-    }
-
-    @Override
     public void deleteTagsByGroupUuid(final String uuid) throws Exception {
         final long oid = getGroupOidFromString(uuid);
         final DeleteTagsRequest request = DeleteTagsRequest.newBuilder().setGroupOid(oid).build();

@@ -46,7 +46,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]spring[/\\]SpringMethodSecurityExpressionRoot.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]testtools[/\\]JwtContextUtil.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]db[/\\]DBPasswordUtil.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]licensing[/\\]LicenseApiInputDTO.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]licensing[/\\]LicenseCheckClient.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]licensing[/\\]LicenseCheckClientConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]licensing[/\\]LicenseFeaturesRequiredException.java" />

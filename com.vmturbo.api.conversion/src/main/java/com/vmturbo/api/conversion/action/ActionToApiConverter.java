@@ -72,7 +72,6 @@ public class ActionToApiConverter {
         risk.setDescription(action.getRiskDescription());
         risk.setSubCategory(action.getCategory());
         risk.setSeverity(action.getSeverity());
-        risk.setReasonCommodity("");
         risk.addAllReasonCommodities(action.getReasonCommodities());
         actionApiDTO.setRisk(risk);
 
