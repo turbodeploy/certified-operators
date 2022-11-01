@@ -275,6 +275,8 @@ hyperflex:
   enabled: false
 hyperv:
   enabled: false
+powervm:
+  enabled: false
 ibmstorage-flashsystem:
   enabled: false
 instana:

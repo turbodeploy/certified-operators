@@ -336,15 +336,15 @@ services:
       instance_id: mediation-nutanix-1
     restart: always
 
-  mediation-ibmpowerhmc-prod:
+  mediation-powervm-prod:
     extends:
       file: common-services.yml
       service: prod-mediation-component
-    image: turbonomic/com.vmturbo.mediation.ibmpowerhmc.component
+    image: turbonomic/com.vmturbo.mediation.powervm.component
     environment:
       consul_host: consul
-      component_type: mediation-ibmpowerhmc
-      instance_id: mediation-ibmpowerhmc-1
+      component_type: mediation-powervm
+      instance_id: mediation-powervm-1
     restart: always
 
   mediation-intersightucs-prod:
