@@ -9,11 +9,11 @@
         <relativePath>../build/mediation-parent-pom.xml</relativePath>
     </parent>
 
-    <artifactId>com.vmturbo.mediation.ibmpowerhmc.component</artifactId>
-    <description>Mediation component for the IBM Power HMC probe</description>
+    <artifactId>com.vmturbo.mediation.powervm.component</artifactId>
+    <description>Mediation component for the IBM PowerVM probe</description>
 
     <properties>
-        <swagger.component.name>IBM Power HMC Mediation Component</swagger.component.name>
+        <swagger.component.name>IBM PowerVM Mediation Component</swagger.component.name>
     </properties>
 
     <build>
@@ -32,7 +32,7 @@
                             <artifactItems>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
-                                    <artifactId>com.vmturbo.mediation.ibmpowerhmc</artifactId>
+                                    <artifactId>com.vmturbo.mediation.powervm</artifactId>
                                     <version>${vmturbo.mt.branch.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>

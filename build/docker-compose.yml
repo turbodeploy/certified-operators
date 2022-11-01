@@ -1993,27 +1993,27 @@ services:
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_HORIZON_MEM_LIMIT_BYTE}
 
-  mediation-ibmpowerhmc:
+  mediation-powervm:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.ibmpowerhmc.component:${XL_VERSION}
+    image: turbonomic/com.vmturbo.mediation.powervm.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
-      - "${MEDIATION_IBMPOWERHMC_PORT}"
-      - "${MEDIATION_IBMPOWERHMC_DEBUG_PORT}"
+      - "${MEDIATION_POWERVM_PORT}"
+      - "${MEDIATION_POWERVM_DEBUG_PORT}"
     environment:
-      component_type: mediation-ibmpowerhmc
-      instance_id: mediation-ibmpowerhmc-1
-      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_IBMPOWERHMC_SYSTEM_PROPERTIES}"
+      component_type: mediation-powervm
+      instance_id: mediation-powervm-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_POWERVM_SYSTEM_PROPERTIES}"
       JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
-      JAVA_DEBUG: "${MEDIATION_IBMPOWERHMC_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG: "${MEDIATION_POWERVM_DEBUG}${DEBUG_ALL}"
       JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
       JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_IBMPOWERHMC_MEM_LIMIT_BYTE}
+    mem_limit: ${MEDIATION_POWERVM_MEM_LIMIT_BYTE}
 
   mediation-intersight-hyperflex:
     extends:

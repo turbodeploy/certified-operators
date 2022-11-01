@@ -1,4 +1,4 @@
-# Default values for mediation-ibmpowerhmc.
+# Default values for mediation-powervm.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
@@ -21,7 +21,7 @@ javaComponentOptions: "-Dorg.eclipse.jetty.websocket.jsr356.ssl-trust-all=true
 
 env:
   - name: component_type
-    value: mediation-ibmpowerhmc
+    value: mediation-powervm
   - name: instance_id
     valueFrom:
       fieldRef:

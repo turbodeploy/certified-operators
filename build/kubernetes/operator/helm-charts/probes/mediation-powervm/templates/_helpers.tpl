@@ -2,7 +2,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "mediation-ibmpowerhmc.name" -}}
+{{- define "mediation-powervm.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
@@ -11,7 +11,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "mediation-ibmpowerhmc.fullname" -}}
+{{- define "mediation-powervm.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
@@ -27,14 +27,14 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "mediation-ibmpowerhmc.chart" -}}
+{{- define "mediation-powervm.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{/*
 Return the proper image name
 */}}
-{{- define "ibmpowerhmc_image" -}}
+{{- define "powervm_image" -}}
 {{- $repositoryName := .Values.image.repository -}}
 {{- $tag := .Values.image.tag | toString -}}
 {{/*
@@ -44,11 +44,11 @@ Also, we can't use a single if because lazy evaluation is not an option
 */}}
 {{- if .Values.global }}
     {{- if and .Values.global.repository .Values.global.tag (eq $repositoryName "turbonomic") (eq $tag "latest") }}
-        {{- printf "%s/com.vmturbo.mediation.ibmpowerhmc.component:%s" .Values.global.repository .Values.global.tag -}}
+        {{- printf "%s/com.vmturbo.mediation.powervm.component:%s" .Values.global.repository .Values.global.tag -}}
     {{- else -}}
-        {{- printf "%s/com.vmturbo.mediation.ibmpowerhmc.component:%s" $repositoryName $tag -}}
+        {{- printf "%s/com.vmturbo.mediation.powervm.component:%s" $repositoryName $tag -}}
     {{- end -}}
 {{- else -}}
-    {{- printf "%s/com.vmturbo.mediation.ibmpowerhmc.component:%s" $repositoryName $tag -}}
+    {{- printf "%s/com.vmturbo.mediation.powervm.component:%s" $repositoryName $tag -}}
 {{- end -}}
 {{- end -}}

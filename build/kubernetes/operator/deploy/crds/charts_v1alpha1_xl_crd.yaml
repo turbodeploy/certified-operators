@@ -1130,10 +1130,10 @@ spec:
                   description: Enable Microsoft HyperV mediation
                   type: boolean
               type: object
-            ibmpowerhmc:
+            powervm:
               properties:
                 enabled:
-                  description: Enable IBM Power HMC mediation
+                  description: Enable IBM PowerVM mediation
                   type: boolean
               type: object
             ibmstorage-flashsystem:
@@ -3013,7 +3013,7 @@ spec:
                   description: component serviceAccountName
                   type: string
               type: object
-            mediation-ibmpowerhmc:
+            mediation-powervm:
               properties:
                 annotations:
                   description: component specific pod annotations list
