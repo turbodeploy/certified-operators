@@ -802,7 +802,13 @@ public class ScenarioGenerator {
                             .setType(tierType)
                             .build())
                     .build());
+        } else {
+            scaleBuilder.setPrimaryProvider(ActionEntity.newBuilder()
+                    .setId(sourceProviderId)
+                    .setType(tierType)
+                    .build());
         }
+
         scaleBuilder.setCloudSavingsDetails(CloudSavingsDetails.newBuilder()
                         .setSourceTierCostDetails(TierCostDetails.newBuilder()
                                 .setOnDemandRate(CurrencyAmount.newBuilder()
@@ -820,10 +826,6 @@ public class ScenarioGenerator {
                         .build());
         if (resizeInfoList != null && !resizeInfoList.isEmpty()) {
             scaleBuilder.addAllCommodityResizes(resizeInfoList);
-            scaleBuilder.setPrimaryProvider(ActionEntity.newBuilder()
-                    .setId(sourceProviderId)
-                    .setType(tierType)
-                    .build());
         }
 
         return ActionInfo.newBuilder()
