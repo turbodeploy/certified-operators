@@ -86,7 +86,8 @@ public class PercentileEditor extends
     public static final Map<CommodityType, Set<EntityType>> REQUIRED_SOLD_COMMODITY_TYPES =
                     ImmutableMap.of(CommodityType.VCPU, Collections.singleton(EntityType.UNKNOWN),
                                     CommodityType.VMEM, Collections.singleton(EntityType.UNKNOWN),
-                                    CommodityType.STORAGE_ACCESS, Collections.singleton(EntityType.VIRTUAL_VOLUME));
+                                    CommodityType.STORAGE_ACCESS, Collections.singleton(EntityType.VIRTUAL_VOLUME),
+                                    CommodityType.PROCESSING_UNITS, Collections.singleton(EntityType.UNKNOWN));
     // percentile on a bought commodity will not add up unless there is no more than one
     // consumer per provider, so only certain commodity types are applicable
     private static final Set<CommodityType> ENABLED_BOUGHT_COMMODITY_TYPES =

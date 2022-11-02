@@ -55,6 +55,11 @@ public class CommodityTypeMapping {
     public static final String VCPU_UNIT = "vCPU";
 
     /**
+     * Unit type for Processing Units on VMs.
+     */
+    public static final String PROCESSING_UNIT = "PU";
+
+    /**
      * The map from SDK commodity type to API Commodity type.
      */
     public static final Map<CommodityType, CommodityInfo> COMMODITY_TYPE_TO_API_STRING =
@@ -164,7 +169,7 @@ public class CommodityTypeMapping {
             .put(CommodityType.HA_COMMODITY, CommodityInfo.of("HACommodity", "HACommodity", ""))
             .put(CommodityType.NETWORK_POLICY, CommodityInfo.of("NetworkPolicy", "NetworkPolicy", ""))
             .put(CommodityType.SERVICE_LEVEL_CLUSTER, CommodityInfo.of("ServiceLevelCluster", "ServiceLevelCluster", ""))
-            .put(CommodityType.PROCESSING_UNITS, CommodityInfo.of("ProcessingUnits", "ProcessingUnits", ""))
+            .put(CommodityType.PROCESSING_UNITS, CommodityInfo.of("ProcessingUnits", "ProcessingUnits", PROCESSING_UNIT))
             .put(CommodityType.TENANCY_ACCESS, CommodityInfo.of("TenancyAccess", "TenancyAccess", ""))
             .put(CommodityType.TEMPLATE_ACCESS, CommodityInfo.of("TemplateAccess", "TemplateAccess", ""))
             .put(CommodityType.BURST_BALANCE, CommodityInfo.of("BurstBalance", "BurstBalance", ""))
