@@ -145,28 +145,12 @@ public class SavingsTimes {
     }
 
     /**
-     * Gets time now minus 10 minutes to act as the end time for last_updated query to the billing
-     * tables. This is needed because we want to prevent getting the bill records in the middle of
-     * an upload. So using records which have been updated at least 10 minutes back, just to be on
-     * the safe side. Upload itself should not take more than a minute or two, given it is inserted
-     * via multiple threads, so 10 minutes setting should be a safe bet here.
-     * Consider this scenario:
-     * 1. There are say 100 records that bill updater is updating with a last_updated value of
-     *      current time, say 2000.
-     * 2. Bill updater updates 60 records with new value 2000.
-     * 3. If the savings processor runs and queries for all last_updated values, without an end_time
-     *      that is 10 mins or so back, then we get last_updated 2000 along with 60 new billing
-     *      records. But 40 records haven't yet been written by bill updater, so we missed that.
-     * 4. Bill updater updates the remaining 40 records with new value, but we never queried these
-     *      billing records.
-     * By using a 10 min or so back end time, we are making sure we don't try to query while
-     * bill updater is in the process of updating those same records (with the same last_updated
-     * that we query).
-     * @return Now minus 10 minutes.
+     * Only process savings for bill records more than 1 day old.
+     * @return Now minus 1 day.
      */
     public long getLastUpdatedEndTime() {
         final LocalDateTime nowMinutesBefore = SavingsUtil.getCurrentDateTime(clock)
-                .minusMinutes(endTimeOffsetMinutes);
+                .truncatedTo(ChronoUnit.DAYS).minusDays(1);
         return TimeUtil.localDateTimeToMilli(nowMinutesBefore, clock);
     }
 
