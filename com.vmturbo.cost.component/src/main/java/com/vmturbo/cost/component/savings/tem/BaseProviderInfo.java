@@ -16,6 +16,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.topology.CloudTopology;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
@@ -194,16 +196,31 @@ public abstract class BaseProviderInfo implements ProviderInfo {
      */
     @Override
     public boolean matchesAction(final ActionSpec actionSpec, final boolean isDestinationCheck) {
-        final ActionInfo actionInfo =  actionSpec.getRecommendation().getInfo();
-        final List<ChangeProvider> changeProviders = ActionDTOUtil.getChangeProviderList(actionInfo);
-        // Match tier if either the action doesn't involve a tier change or if it does,
-        // then the destination or source match, as the case may be.
-        final boolean tierMatches = changeProviders.isEmpty() || (isDestinationCheck
-                ? changeProviders.stream().anyMatch(cp -> providerOid == cp.getDestination().getId())
-                : changeProviders.stream().anyMatch(cp -> providerOid == cp.getSource().getId()));
+        final Action action =  actionSpec.getRecommendation();
+        final List<ChangeProvider> changeProviders = ActionDTOUtil.getChangeProviderList(action.getInfo());
+        // First Match tier if the destination or source match the information in changeProviders,
+        // as the case may be.
+        boolean tierMatches = false;
+        if (!changeProviders.isEmpty()) {
+            tierMatches =  isDestinationCheck
+                    ? changeProviders.stream().anyMatch(cp -> providerOid == cp.getDestination().getId())
+                    : changeProviders.stream().anyMatch(cp -> providerOid == cp.getSource().getId());
+        } else {
+            Optional<ActionEntity> primaryProvider = ActionDTOUtil.getPrimaryProvider(action);
+            // Match source and destination tiers based on a primary provider being present (such as
+            // in the case of Managed Premium resizes of commodities within the same tier).
+            if (!primaryProvider.isPresent()) {
+                logger.error("Action {} contains neither primary provider nor change providers nformation, "
+                                + "this will cause error in Liveness State determination and savings calculation",
+                        actionSpec.getRecommendation().getId());
+            } else {
+                tierMatches = primaryProvider.get().getId() == providerOid;
+            }
+        }
+
         // Check for any commodity resizes.  Entities like Virtual Volume could change
         // both tier and commodity capacities at the same time.
-        boolean commsMatch = checkMatchForComms(actionInfo,  isDestinationCheck);
+        boolean commsMatch = checkMatchForComms(action.getInfo(),  isDestinationCheck);
         logger.debug("Action: {} Tier Match: {} Comms Match: {}", actionSpec.getRecommendation().getId(),
                 tierMatches, commsMatch);
         return (tierMatches && commsMatch);

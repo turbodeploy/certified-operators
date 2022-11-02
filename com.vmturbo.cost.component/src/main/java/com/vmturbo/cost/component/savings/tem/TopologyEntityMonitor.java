@@ -188,7 +188,7 @@ public class TopologyEntityMonitor implements LiveCloudTopologyListener {
                                 + " broadcast, action {}, entity {}", actionOid, entityOid);
                     } else if (latestChangeWindowForEntity.getLivenessState() == LivenessState.LIVE) {
                         // Add request to update Start Time and Liveness to REVERTED.
-                        logger.debug("Source match present for action {}, entity {}, provider info {}, updating to REVERTED", actionOid,
+                        logger.info("Source match present for action {}, entity {}, provider info {}, updating to REVERTED", actionOid,
                                 entityOid, discoveredProviderInfo);
                         savingsActionStore.deactivateAction(actionOid, currentTimestamp, LivenessState.REVERTED);
                         // Add requests to deactivate older change windows, in case we missed updating them in previous broadcast cycles.
@@ -197,7 +197,7 @@ public class TopologyEntityMonitor implements LiveCloudTopologyListener {
                 } else { // Neither source nor destination matches.
                     // The current provider is neither the source nor the destination of the action.
                     // Add request to update Start Time and Liveness to EXTERNAL_MODIFICATION.
-                    logger.debug("Neither source nor destination match present for action {}, entity {}, provider info {},"
+                    logger.info("Neither source nor destination match present for action {}, entity {}, provider info {},"
                             + " updating to EXTERNAL_MODIFICATION", actionOid, entityOid, discoveredProviderInfo);
                     savingsActionStore.deactivateAction(actionOid, currentTimestamp, LivenessState.EXTERNAL_MODIFICATION);
                     // Add requests to deactivate older change windows, in case we missed updating them in previous broadcast cycles.
