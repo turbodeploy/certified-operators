@@ -133,7 +133,8 @@
             {"inputType": "s|*", "elements": "WorkloadController:workloadControllerInfoRepoDTO.controllerType:PRODUCES", "filterCategory": "entity", "filterType": "containerPodsByControllerKind", "loadOptions": true},
             {"inputType": "s|*", "elements": "WorkloadController:displayName:PRODUCES", "filterCategory": "entity", "filterType": "containerPodsByWorkloadControllerName", "loadOptions": true},
             {"inputType": "s|*", "elements": "ContainerPlatformCluster:displayName:PRODUCES:Namespace:PRODUCES:WorkloadController:WorkloadController:PRODUCES",
-                "filterCategory": "entity", "filterType": "containerPodsByContainerPlatformCluster", "loadOptions": true}
+                "filterCategory": "entity", "filterType": "containerPodsByContainerPlatformCluster", "loadOptions": true},
+            {"inputType": "s|*", "elements": "state", "filterCategory": "property", "filterType": "containerPodsByState", "loadOptions": true}
         ]
     },
 
