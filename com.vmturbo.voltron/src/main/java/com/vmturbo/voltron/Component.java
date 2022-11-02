@@ -245,6 +245,11 @@ public enum Component {
     MEDIATION_AZURE_VOLUMES("azure-volumes", "com.vmturbo.mediation.azure.volumes.component"),
 
     /**
+     * Azure infra.
+     */
+    MEDIATION_AZURE_INFRA("azure-infra", "com.vmturbo.mediation.azure.infra.component"),
+
+    /**
      * Baremetal.
      */
     MEDIATION_BAREMETAL("baremetal", "com.vmturbo.mediation.baremetal.component"),
@@ -313,6 +318,11 @@ public enum Component {
      * GCP Billing.
      */
     MEDIATION_GCP_BILLING("gcp-billing", "com.vmturbo.mediation.gcp.billing.component"),
+
+    /**
+     * GCP Infra.
+     */
+    MEDIATION_GCP_INFRA("gcp-infra", "com.vmturbo.mediation.gcp.infra.component"),
 
     /**
      * HDS.

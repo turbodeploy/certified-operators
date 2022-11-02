@@ -706,6 +706,11 @@ public class VoltronConfiguration {
         MEDIATION_AZURE_SP(Component.MEDIATION_AZURE_SP),
 
         /**
+         * Azure Infra.
+         */
+        MEDIATION_AZURE_INFRA(Component.MEDIATION_AZURE_INFRA),
+
+        /**
          * Azure Volumes.
          */
         MEDIATION_AZURE_VOLUMES(Component.MEDIATION_AZURE_VOLUMES),
@@ -779,6 +784,11 @@ public class VoltronConfiguration {
          * GCP Billing.
          */
         MEDIATION_GCP_BILLING(Component.MEDIATION_GCP_BILLING),
+
+        /**
+         * GCP Infra.
+         */
+        MEDIATION_GCP_INFRA(Component.MEDIATION_GCP_INFRA),
 
         /**
          * HDS.
