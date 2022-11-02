@@ -1250,6 +1250,12 @@ spec:
                         description: Enable Azure mediation
                         type: boolean
                     type: object
+                  infra:
+                    properties:
+                      enabled:
+                        description: Enable Azure infra mediation
+                        type: boolean
+                    type: object
                   pricing:
                     properties:
                       enabled:
@@ -1292,6 +1298,12 @@ spec:
                   enabled:
                     description: Enable GCP mediation
                     type: boolean
+                  infra:
+                    properties:
+                      enabled:
+                        description: Enable GCP infra mediation
+                        type: boolean
+                    type: object
                 type: object
               hds:
                 properties:
@@ -2954,6 +2966,57 @@ spec:
                     description: component serviceAccountName
                     type: string
                 type: object
+              mediation-azureinfra:
+                properties:
+                  annotations:
+                    description: component specific pod annotations list
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  env:
+                    description: component environment variable
+                    type: array
+                    items:
+                      type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  image:
+                    description: component specific image options
+                    properties:
+                      repository:
+                        description: component container registry and repository name
+                        type: string
+                      tag:
+                        description: component container tag
+                        type: string
+                      pullPolicy:
+                        description: component image pull policy
+                        type: string
+                    type: object
+                  javaBaseOptions:
+                    description: java base options override
+                    type: string
+                  javaComponentOptions:
+                    description: java component options
+                    type: string
+                  javaDebugOptions:
+                    description: java debug options override
+                    type: string
+                  javaMaxRAMPercentage:
+                    description: java max RAM percentage override
+                    type: string
+                  javaOptions:
+                    description: java options override
+                    type: string
+                  debug:
+                    description: component debug
+                    type: boolean
+                  resources:
+                    description: component resource configuration
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  serviceAccountName:
+                    description: component serviceAccountName
+                    type: string
+                type: object
               mediation-baremetal:
                 properties:
                   annotations:
@@ -3363,6 +3426,57 @@ spec:
                     type: string
                 type: object
               mediation-gcpsa:
+                properties:
+                  annotations:
+                    description: component specific pod annotations list
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  env:
+                    description: component environment variable
+                    type: array
+                    items:
+                      type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  image:
+                    description: component specific image options
+                    properties:
+                      repository:
+                        description: component container registry and repository name
+                        type: string
+                      tag:
+                        description: component container tag
+                        type: string
+                      pullPolicy:
+                        description: component image pull policy
+                        type: string
+                    type: object
+                  javaBaseOptions:
+                    description: java base options override
+                    type: string
+                  javaComponentOptions:
+                    description: java component options
+                    type: string
+                  javaDebugOptions:
+                    description: java debug options override
+                    type: string
+                  javaMaxRAMPercentage:
+                    description: java max RAM percentage override
+                    type: string
+                  javaOptions:
+                    description: java options override
+                    type: string
+                  debug:
+                    description: component debug
+                    type: boolean
+                  resources:
+                    description: component resource configuration
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  serviceAccountName:
+                    description: component serviceAccountName
+                    type: string
+                type: object
+              mediation-gcpinfra:
                 properties:
                   annotations:
                     description: component specific pod annotations list
