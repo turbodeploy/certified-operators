@@ -691,6 +691,14 @@ public enum EntitySettingSpecs {
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1024.0f/*default*/), true),
 
     /**
+     * Processing Units Increment for IBM virtual machines.
+     */
+    VmProcessingUnitsIncrement("usedIncrement_ProcessingUnits", "Increment constant for ProcessingUnits [PU]",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(0.0f/*min*/, 32.0f/*max*/, 0.5f/*default*/), true),
+
+    /**
      * Virtual CPU Increment for containers.
      */
     ContainerSpecVcpuIncrement("usedIncrement_Container_VCPU",

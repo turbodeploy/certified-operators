@@ -214,6 +214,8 @@ public class EntitySettingsApplicator {
                 new TargetBandApplicator(),
                 new HaDependentUtilizationApplicator(topologyInfo, considerUtilizationConstraintInClusterHeadroomPlan, considerDesiredStateForProvisioningInClusterHeadroomPlan),
                 new VmCpuScalingApplicator(graphWithSettings.getTopologyGraph()),
+                new ResizeIncrementApplicator(EntitySettingSpecs.VmProcessingUnitsIncrement,
+                        CommodityType.PROCESSING_UNITS),
                 new ResizeIncrementApplicator(EntitySettingSpecs.VmVmemIncrement,
                         CommodityType.VMEM),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ContainerSpecVcpuIncrement,
