@@ -29,6 +29,7 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
+import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -116,14 +117,23 @@ public class ActionSearchUtil {
         scope = serviceProviderExpander.expand(scope);
 
         final Set<Long> expandedScope;
-        // if the field "relatedEntityTypes" is not empty, then we need to fetch additional
+
+        // If the field "relatedEntityTypes" is not empty, then we need to fetch additional
+        // entities from the scoped supply chain. Additionally, if call is being made from the UI,
+        // then the boolean "forceExpansionOfAggregatedEntities" will be set to true. In that case we
+        // will expand via AggregatedEntities for certain actions.
+        if(!CollectionUtils.isEmpty(inputDto.getRelatedEntityTypes()) && inputDto.getActionTypeList().contains(
+                ActionType.MOVE) && inputDto.getRelatedEntityTypes().contains("VirtualMachine") && paginationRequest.getForceExpansionOfAggregatedEntities()){
+            expandedScope = supplyChainFetcherFactory.expandAggregatedEntities(scope);
+        }
+        // If the field "relatedEntityTypes" is not empty, then we need to fetch additional
         // entities from the scoped supply chain
-        if (!CollectionUtils.isEmpty(inputDto.getRelatedEntityTypes())) {
+        else if (!CollectionUtils.isEmpty(inputDto.getRelatedEntityTypes())) {
             // get the scoped supply chain
             // extract entity oids from the supply chain and add them to the scope
             expandedScope = supplyChainFetcherFactory.expandScope(scope, inputDto.getRelatedEntityTypes());
         } else {
-            // if there are no related entities, just get the aggregated entities, if they exist.
+            // If there are no related entities, just get the aggregated entities, if they exist.
             expandedScope = supplyChainFetcherFactory.expandAggregatedEntities(scope);
         }
 
