@@ -131,4 +131,7 @@ topics:
   - topic: telemetry
     properties:
       retention.ms: 31536000000 # 1 year
+  - topic: effective-suspend-schedules
+    properties:
+      retention.ms: 3600000 # 3600k ms = 1 hr
 
