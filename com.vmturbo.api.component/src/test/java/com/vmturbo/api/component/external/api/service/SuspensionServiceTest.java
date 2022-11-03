@@ -35,6 +35,8 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityMoles.SuspensionEntityServiceMole;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityServiceGrpc;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntityMoles.SuspensionScheduleEntityServiceMole;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntityServiceGrpc;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimespanScheduleServiceGrpc;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggle;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggleMoles.SuspensionToggleServiceMole;
@@ -51,6 +53,9 @@ public class SuspensionServiceTest {
     private final SuspensionEntityServiceMole entityService = Mockito.spy(new SuspensionEntityServiceMole());
     private final SuspensionToggleServiceMole toggleService = Mockito.spy(new SuspensionToggleServiceMole());
 
+    private final SuspensionScheduleEntityServiceMole scheduleEntityService = Mockito.spy(new SuspensionScheduleEntityServiceMole());
+
+
     private SuspensionService suspensionService;
 
 
@@ -58,7 +63,7 @@ public class SuspensionServiceTest {
      * Testing gRPC server.
      */
     @Rule
-    public final GrpcTestServer grpcServer = GrpcTestServer.newServer(entityService, toggleService);
+    public final GrpcTestServer grpcServer = GrpcTestServer.newServer(entityService, toggleService, scheduleEntityService);
 
     /**
      * Set up tests.
@@ -71,6 +76,7 @@ public class SuspensionServiceTest {
         suspensionService = new SuspensionService(SuspensionEntityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 SuspensionToggleServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 SuspensionTimespanScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                SuspensionScheduleEntityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 userSessionContext, 10, 10);
     }
 

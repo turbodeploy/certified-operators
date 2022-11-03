@@ -581,7 +581,7 @@ public class ServiceConfig {
 
     @Bean
     public SuspensionService suspensionService() {
-        return new SuspensionService(communicationConfig.suspensionRpcService(), communicationConfig.toggleService(), communicationConfig.timespanScheduleService(), userSessionConfig.userSessionContext(), apiPaginationMaxLimit, apiPaginationDefaultLimit);
+        return new SuspensionService(communicationConfig.suspensionRpcService(), communicationConfig.toggleService(), communicationConfig.timespanScheduleService(), communicationConfig.suspensionScheduleEntityService(), userSessionConfig.userSessionContext(), apiPaginationMaxLimit, apiPaginationDefaultLimit);
     }
 
     @Bean

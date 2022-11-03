@@ -150,6 +150,8 @@ import com.vmturbo.common.protobuf.suspension.SuspensionEntityServiceGrpc;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityServiceGrpc.SuspensionEntityServiceBlockingStub;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggleServiceGrpc;
 import com.vmturbo.common.protobuf.suspension.SuspensionToggleServiceGrpc.SuspensionToggleServiceBlockingStub;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntityServiceGrpc;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntityServiceGrpc.SuspensionScheduleEntityServiceBlockingStub;
 
 /**
  * Configuration for the communication between the API component
@@ -279,6 +281,11 @@ public class CommunicationConfig {
     @Bean
     public SuspensionTimespanScheduleServiceBlockingStub timespanScheduleService() {
         return SuspensionTimespanScheduleServiceGrpc.newBlockingStub(suspensionRpcConfig.suspensionChannel());
+    }
+
+    @Bean
+    public SuspensionScheduleEntityServiceBlockingStub suspensionScheduleEntityService() {
+        return SuspensionScheduleEntityServiceGrpc.newBlockingStub(suspensionRpcConfig.suspensionChannel());
     }
 
     @Bean

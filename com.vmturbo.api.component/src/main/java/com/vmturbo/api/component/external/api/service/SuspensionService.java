@@ -15,9 +15,11 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.external.api.mapper.SuspensionMapper;
 import com.vmturbo.api.dto.suspension.BulkActionRequestApiDTO;
 import com.vmturbo.api.dto.suspension.BulkActionRequestInputDTO;
+import com.vmturbo.api.dto.suspension.ScheduleEntityResponseApiDTO;
 import com.vmturbo.api.dto.suspension.ScheduleTimeSpansApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityInputDTO;
+import com.vmturbo.api.dto.suspension.SuspendableEntityUUIDSetDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.ScheduleTimeSpansOrderBy;
 import com.vmturbo.api.pagination.ScheduleTimeSpansPaginationRequest;
@@ -28,6 +30,9 @@ import com.vmturbo.api.serviceinterfaces.ISuspensionService;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityResponse;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityServiceGrpc.SuspensionEntityServiceBlockingStub;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionAttachEntitiesResponse;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionUpdateEntitiesResponse;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntityServiceGrpc.SuspensionScheduleEntityServiceBlockingStub;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.DeleteTimespanScheduleResponse;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.ListTimespanScheduleResponse;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.TimespanSchedule;
@@ -52,6 +57,9 @@ public class SuspensionService implements ISuspensionService {
     @Nonnull
     private final SuspensionTimespanScheduleServiceBlockingStub timeSpanScheduleService;
 
+    @Nonnull
+    private final SuspensionScheduleEntityServiceBlockingStub suspensionScheduleEntityService;
+
     private final UserSessionContext userSessionContext;
 
     private final int apiPaginationDefaultLimit;
@@ -66,6 +74,7 @@ public class SuspensionService implements ISuspensionService {
     public SuspensionService(@Nonnull final SuspensionEntityServiceBlockingStub entityService,
                              @Nonnull final SuspensionToggleServiceBlockingStub toggleService,
                              @Nonnull final SuspensionTimespanScheduleServiceBlockingStub timeSpanScheduleService,
+                             @Nonnull final SuspensionScheduleEntityServiceBlockingStub suspensionScheduleEntityService,
                              @Nonnull final UserSessionContext userSessionContext,
                              @Nullable final int apiPaginationMaxLimit,
                              @Nullable final int apiPaginationDefaultLimit) {
@@ -73,6 +82,7 @@ public class SuspensionService implements ISuspensionService {
         this.userSessionContext = userSessionContext;
         this.toggleService = toggleService;
         this.timeSpanScheduleService = timeSpanScheduleService;
+        this.suspensionScheduleEntityService = suspensionScheduleEntityService;
         this.apiPaginationMaxLimit = apiPaginationMaxLimit;
         this.apiPaginationDefaultLimit = apiPaginationDefaultLimit;
     }
@@ -239,5 +249,45 @@ public class SuspensionService implements ISuspensionService {
             throw new OperationFailedException("get time span based schedule failed. ", e);
         }
         return mapper.toApiScheduleTimeSpansApiDTO(response);
+    }
+
+    /**
+     * Attach one or more suspendable entities to time span based schedule.
+     *
+     * @param timeSpanSchedule_Uuid uuid of the time span based schedule.
+     * @param entityUuids suspendable entity uuids to .
+     * @return list of ScheduleEntityResponseApiDTO class representing the partial failure per entity or success of the operation.
+     * @throws Exception in case of error while attached suspendable entities to time span based schedule.
+     */
+    @Override
+    public List<ScheduleEntityResponseApiDTO> attachTimeSpanSchedule(String timeSpanSchedule_Uuid, SuspendableEntityUUIDSetDTO entityUuids) throws Exception {
+        SuspensionMapper mapper = new SuspensionMapper();
+        final SuspensionAttachEntitiesResponse response;
+        try {
+            response = suspensionScheduleEntityService.attachEntities(mapper.toSuspensionAttachEntitiesRequest(timeSpanSchedule_Uuid, entityUuids));
+        } catch (Exception e) {
+            throw new OperationFailedException("attaching suspendable entities to time span schedule failed. ", e);
+        }
+        return mapper.toScheduleEntityResponseApiDTOForAttach(response);
+    }
+
+    /**
+     * Replaces existing suspendable entities attached to time span based schedule.
+     *
+     * @param timeSpanSchedule_Uuid UUID of the time span schedule to replace existing suspendable entities attached.
+     * @param entityUuids The SuspendableEntityUUIDSetDTO representing the array of suspendable entity_Uuid to replace the existing suspendable entities attached to time span based schedule.
+     * @return list of ScheduleEntityResponseApiDTO class representing the partial failure per entity or success of the operation.
+     * @throws Exception in case of error while replacing existing suspendable entities attached to a time span based schedule.
+     */
+    @Override
+    public List<ScheduleEntityResponseApiDTO> updateTimeSpanScheduleAttachment(String timeSpanSchedule_Uuid, SuspendableEntityUUIDSetDTO entityUuids) throws Exception {
+        SuspensionMapper mapper = new SuspensionMapper();
+        final SuspensionUpdateEntitiesResponse response;
+        try {
+            response = suspensionScheduleEntityService.updateEntities(mapper.toSuspensionUpdateEntitiesRequest(timeSpanSchedule_Uuid, entityUuids));
+        } catch (Exception e) {
+            throw new OperationFailedException("replacing existing suspendable entities to time span schedule failed. ", e);
+        }
+        return mapper.toScheduleEntityResponseApiDTOForUpdate(response);
     }
 }
