@@ -35,6 +35,14 @@ data:
         healthverifiers:
           - cadence: 10s
             type: ping
+      enforcer:
+        workers: 1
+        schedulesperworkitem: 3
+        timeout: 60s
+        topic: {{ .Release.Namespace }}.effective-suspend-schedules
+        healthverifiers:
+          - cadence: 10s
+            type: ping
     redis:
       address: xl-release-redis-master:6379
       cluster: true
