@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,10 +20,12 @@ import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.suspension.BulkActionRequestApiDTO;
 import com.vmturbo.api.dto.suspension.BulkActionRequestInputDTO;
+import com.vmturbo.api.dto.suspension.ScheduleEntityResponseApiDTO;
 import com.vmturbo.api.dto.suspension.ScheduleTimeSpansApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendItemApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityInputDTO;
+import com.vmturbo.api.dto.suspension.SuspendableEntityUUIDSetDTO;
 import com.vmturbo.api.dto.suspension.TimeSpanApiDTO;
 import com.vmturbo.api.dto.suspension.WeekDayTimeSpansApiDTO;
 import com.vmturbo.api.enums.CloudType;
@@ -42,6 +45,11 @@ import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.Suspens
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityRequest.Builder;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityTags;
 import com.vmturbo.common.protobuf.suspension.SuspensionFilter;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionAttachEntitiesRequest;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionAttachEntitiesResponse;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionScheduleEntityError;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionUpdateEntitiesRequest;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionUpdateEntitiesResponse;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.CreateTimespanScheduleRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.DeleteTimespanScheduleRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.ListTimespanScheduleRequest;
@@ -726,5 +734,129 @@ public class SuspensionMapperTest extends TestCase {
         } catch (Exception e) {
             TestCase.fail();
         }
+    }
+
+    /**
+     * verifies the conversion of path params and body of attach entity to schedule api to grpc request for attach time span based schedule.
+     */
+    @Test
+    public void testToSuspensionAttachEntitiesRequest() {
+        String scheduleUuid = "1234";
+        String entityUuid = "5678";
+        SuspensionAttachEntitiesRequest.Builder want = SuspensionAttachEntitiesRequest.getDefaultInstance().newBuilder();
+        want.setScheduleOid(Long.parseLong(scheduleUuid));
+        want.addEntityOids(Long.parseLong(entityUuid));
+
+        SuspendableEntityUUIDSetDTO suspendableEntityUUIDSetDTO = new SuspendableEntityUUIDSetDTO();
+        suspendableEntityUUIDSetDTO.setEntityUuids(Arrays.asList(entityUuid));
+
+        try {
+            SuspensionAttachEntitiesRequest got = testSuspensionMapper.toSuspensionAttachEntitiesRequest(scheduleUuid, suspendableEntityUUIDSetDTO);
+            assertEquals(want.build(), got);
+        } catch (Exception e) {
+            TestCase.fail();
+        }
+    }
+
+    /**
+     * verifies the conversion of path params and body of attach schedule to entity api to grpc request for attach time span based schedule.
+     * With entity empty error
+     */
+    @Test
+    public void testToSuspensionAttachEntitiesRequestEntityError() throws Exception {
+        String scheduleUuid = "5678";
+        SuspensionAttachEntitiesRequest.Builder want = SuspensionAttachEntitiesRequest.getDefaultInstance().newBuilder();
+        want.setScheduleOid(Long.parseLong(scheduleUuid));
+        SuspendableEntityUUIDSetDTO suspendableEntityUUIDSetDTO = new SuspendableEntityUUIDSetDTO();
+
+        try {
+            SuspensionAttachEntitiesRequest got = testSuspensionMapper.toSuspensionAttachEntitiesRequest(scheduleUuid, suspendableEntityUUIDSetDTO);
+            TestCase.fail("IllegalArgumentException should have been thrown");
+        } catch (SuspensionMapper.InvalidRequest e) {
+            assertEquals("entity uuids list cannot be empty", e.getMessage());
+        }
+    }
+
+    /**
+     * verifies the response of attach schedule grpc method to api response.
+     */
+    @Test
+    public void testToScheduleEntityResponseApiDTOForAttach() {
+        List<ScheduleEntityResponseApiDTO> scheduleEntityList = new ArrayList<ScheduleEntityResponseApiDTO>();
+        ScheduleEntityResponseApiDTO scheduleEntity = new ScheduleEntityResponseApiDTO();
+        scheduleEntity.setEntityUUID("1234");
+        scheduleEntity.setError("test");
+
+        scheduleEntityList.add(scheduleEntity);
+        SuspensionAttachEntitiesResponse.Builder input = SuspensionAttachEntitiesResponse.getDefaultInstance().newBuilder();
+        SuspensionScheduleEntityError data = SuspensionScheduleEntityError.getDefaultInstance().newBuilder().setEntityOid(1234).setError("test").build();
+        input.addError(data);
+        List<ScheduleEntityResponseApiDTO> apiDtos = testSuspensionMapper.toScheduleEntityResponseApiDTOForAttach(input.build());
+        assertEquals(1, apiDtos.size());
+        assertEquals("1234", apiDtos.get(0).getEntityUUID());
+        assertEquals("test", apiDtos.get(0).getError());
+
+    }
+
+    /**
+     * verifies the conversion of path params and body of put schedule entity api to grpc request for update time span based schedule.
+     */
+    @Test
+    public void testToSuspensionUpdateEntitiesRequest() {
+        String scheduleUuid = "1234";
+        String entityUuid = "5678";
+        SuspensionUpdateEntitiesRequest.Builder want = SuspensionUpdateEntitiesRequest.getDefaultInstance().newBuilder();
+        want.setScheduleOid(Long.parseLong(scheduleUuid));
+        want.addEntityOids(Long.parseLong(entityUuid));
+
+        SuspendableEntityUUIDSetDTO suspendableEntityUUIDSetDTO = new SuspendableEntityUUIDSetDTO();
+        suspendableEntityUUIDSetDTO.setEntityUuids(Arrays.asList(entityUuid));
+
+        try {
+            SuspensionUpdateEntitiesRequest got = testSuspensionMapper.toSuspensionUpdateEntitiesRequest(scheduleUuid, suspendableEntityUUIDSetDTO);
+            assertEquals(want.build(), got);
+        } catch (Exception e) {
+            TestCase.fail();
+        }
+    }
+
+    /**
+     * verifies the conversion of path params and body of update schedule entity api to grpc request for update time span based schedule.
+     * With entity empty error
+     */
+    @Test
+    public void testToSuspensionUpdateEntitiesRequestEntityError() throws Exception {
+        String scheduleUuid = "5678";
+        SuspensionUpdateEntitiesRequest.Builder want = SuspensionUpdateEntitiesRequest.getDefaultInstance().newBuilder();
+        want.setScheduleOid(Long.parseLong(scheduleUuid));
+        SuspendableEntityUUIDSetDTO suspendableEntityUUIDSetDTO = new SuspendableEntityUUIDSetDTO();
+
+        try {
+            SuspensionUpdateEntitiesRequest got = testSuspensionMapper.toSuspensionUpdateEntitiesRequest(scheduleUuid, suspendableEntityUUIDSetDTO);
+            TestCase.fail("IllegalArgumentException should have been thrown");
+        } catch (SuspensionMapper.InvalidRequest e) {
+            assertEquals("entity uuids list cannot be empty", e.getMessage());
+        }
+    }
+
+    /**
+     * verifies the response of update time span based schedule attached to entities grpc method to api response.
+     */
+    @Test
+    public void testToScheduleEntityResponseApiDTOForUpdate() {
+        List<ScheduleEntityResponseApiDTO> scheduleEntityList = new ArrayList<ScheduleEntityResponseApiDTO>();
+        ScheduleEntityResponseApiDTO scheduleEntity = new ScheduleEntityResponseApiDTO();
+        scheduleEntity.setEntityUUID("1234");
+        scheduleEntity.setError("test");
+
+        scheduleEntityList.add(scheduleEntity);
+        SuspensionUpdateEntitiesResponse.Builder input = SuspensionUpdateEntitiesResponse.getDefaultInstance().newBuilder();
+        SuspensionScheduleEntityError data = SuspensionScheduleEntityError.getDefaultInstance().newBuilder().setEntityOid(1234).setError("test").build();
+        input.addError(data);
+        List<ScheduleEntityResponseApiDTO> apiDtos = testSuspensionMapper.toScheduleEntityResponseApiDTOForUpdate(input.build());
+        assertEquals(1, apiDtos.size());
+        assertEquals("1234", apiDtos.get(0).getEntityUUID());
+        assertEquals("test", apiDtos.get(0).getError());
+
     }
 }

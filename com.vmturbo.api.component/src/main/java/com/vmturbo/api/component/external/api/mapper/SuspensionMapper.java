@@ -15,11 +15,13 @@ import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.suspension.BulkActionRequestApiDTO;
 import com.vmturbo.api.dto.suspension.BulkActionRequestInputDTO;
+import com.vmturbo.api.dto.suspension.ScheduleEntityResponseApiDTO;
 import com.vmturbo.api.dto.suspension.ScheduleItemApiDTO;
 import com.vmturbo.api.dto.suspension.ScheduleTimeSpansApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendItemApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityInputDTO;
+import com.vmturbo.api.dto.suspension.SuspendableEntityUUIDSetDTO;
 import com.vmturbo.api.dto.suspension.TimeSpanApiDTO;
 import com.vmturbo.api.dto.suspension.WeekDayTimeSpansApiDTO;
 import com.vmturbo.api.enums.CloudType;
@@ -41,6 +43,11 @@ import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.Suspens
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityResolvedScopeRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityTags;
 import com.vmturbo.common.protobuf.suspension.SuspensionFilter;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionAttachEntitiesRequest;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionAttachEntitiesResponse;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionScheduleEntityError;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionUpdateEntitiesRequest;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionUpdateEntitiesResponse;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.CreateTimespanScheduleRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.DeleteTimespanScheduleRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.ListTimespanScheduleRequest;
@@ -909,5 +916,91 @@ public class SuspensionMapper {
     private String toApiTimeOfDay(TimeOfDay tod) {
         return String.format("%02d:%02d", tod.getHours(),
                 tod.getMinutes());
+    }
+
+    /**
+     * converts the SuspendableEntityUUIDSetDTO of class into SuspensionAttachEntitiesRequest class.
+     *
+     * @param entityUuids instance of SuspendableEntityUUIDSetDTO class.
+     * @return SuspensionScheduleEntityRequest class.
+     * @throws InvalidRequest in case of bad request
+     */
+    public SuspensionAttachEntitiesRequest toSuspensionAttachEntitiesRequest(String timeSpanSchedule_Uuid,
+                                                                         SuspendableEntityUUIDSetDTO entityUuids)
+            throws Exception {
+        if (!entityUuids.hasEntityUuids()) {
+            throw new InvalidRequest("entity uuids list cannot be empty");
+        }
+
+        SuspensionAttachEntitiesRequest.Builder requestBuilder = SuspensionAttachEntitiesRequest.getDefaultInstance().newBuilder();
+        requestBuilder.setScheduleOid(Long.parseLong(timeSpanSchedule_Uuid));
+        for (String entityUuid : entityUuids.getEntityUuids()) {
+            requestBuilder.addEntityOids(Long.parseLong(entityUuid));
+        }
+        return requestBuilder.build();
+    }
+
+
+    /**
+     * converts the list of SuspensionAttachEntitiesResponse class into ScheduleEntityResponseApiDTO class.
+     * @param resp of SuspensionAttachEntitiesResponse class.
+     * @return List of ScheduleEntityResponseApiDTO class.
+     */
+    public List<ScheduleEntityResponseApiDTO> toScheduleEntityResponseApiDTOForAttach(SuspensionAttachEntitiesResponse resp) {
+        List<ScheduleEntityResponseApiDTO> list = new ArrayList<ScheduleEntityResponseApiDTO>();
+        for (SuspensionScheduleEntityError entity : resp.getErrorList()) {
+            ScheduleEntityResponseApiDTO data = new ScheduleEntityResponseApiDTO();
+            if (entity.hasEntityOid()) {
+                data.setEntityUUID(Long.toString(entity.getEntityOid()));
+            }
+            if (entity.hasError()) {
+                data.setError(entity.getError());
+            }
+            list.add(data);
+        }
+        return list;
+    }
+
+    /**
+     * converts the SuspendableEntityUUIDSetDTO of class into SuspensionUpdateEntitiesRequest class.
+     *
+     * @param entityUuids instance of SuspendableEntityUUIDSetDTO class.
+     * @return SuspensionScheduleEntityRequest class.
+     * @throws InvalidRequest in case of bad request
+     */
+    public SuspensionUpdateEntitiesRequest toSuspensionUpdateEntitiesRequest(String timeSpanSchedule_Uuid,
+                                                                             SuspendableEntityUUIDSetDTO entityUuids)
+            throws Exception {
+        if (!entityUuids.hasEntityUuids()) {
+            throw new InvalidRequest("entity uuids list cannot be empty");
+        }
+
+        SuspensionUpdateEntitiesRequest.Builder requestBuilder = SuspensionUpdateEntitiesRequest.getDefaultInstance().newBuilder();
+        requestBuilder.setScheduleOid(Long.parseLong(timeSpanSchedule_Uuid));
+        for (String entityUuid : entityUuids.getEntityUuids()) {
+            requestBuilder.addEntityOids(Long.parseLong(entityUuid));
+        }
+        return requestBuilder.build();
+    }
+
+
+    /**
+     * converts the list of SuspensionUpdateEntitiesResponse class into ScheduleEntityResponseApiDTO class.
+     * @param resp of SuspensionUpdateEntitiesResponse class.
+     * @return List of ScheduleEntityResponseApiDTO class.
+     */
+    public List<ScheduleEntityResponseApiDTO> toScheduleEntityResponseApiDTOForUpdate(SuspensionUpdateEntitiesResponse resp) {
+        List<ScheduleEntityResponseApiDTO> list = new ArrayList<ScheduleEntityResponseApiDTO>();
+        for (SuspensionScheduleEntityError entity : resp.getErrorList()) {
+            ScheduleEntityResponseApiDTO data = new ScheduleEntityResponseApiDTO();
+            if (entity.hasEntityOid()) {
+                data.setEntityUUID(Long.toString(entity.getEntityOid()));
+            }
+            if (entity.hasError()) {
+                data.setError(entity.getError());
+            }
+            list.add(data);
+        }
+        return list;
     }
 }

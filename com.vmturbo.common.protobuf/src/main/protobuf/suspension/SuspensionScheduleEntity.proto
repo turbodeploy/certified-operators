@@ -1,0 +1,60 @@
+syntax = "proto2";
+package suspension_schedule_entity;
+
+option java_package = "com.vmturbo.common.protobuf.suspension";
+
+message SuspensionAttachEntitiesRequest {
+  repeated int64 entity_oids = 1;
+  optional int64 schedule_oid = 2;
+}
+
+message SuspensionAttachEntitiesResponse {
+  repeated SuspensionScheduleEntityError error = 1;
+}
+
+message SuspensionDetachEntitiesRequest {
+  // entity_oids are optional
+  // if entity_oids are given, will detach only the specific entities
+  // if not, will delete the entire entities attached with the schedule
+  repeated int64 entity_oids = 1;
+  optional int64 schedule_oid = 2;
+}
+
+message SuspensionDetachEntitiesResponse {
+  repeated SuspensionScheduleEntityError error = 1;
+}
+
+message SuspensionUpdateEntitiesRequest {
+  repeated int64 entity_oids = 1;
+  optional int64 schedule_oid = 2;
+}
+
+message SuspensionUpdateEntitiesResponse {
+  repeated SuspensionScheduleEntityError error = 1;
+}
+
+message SuspensionScheduleEntityError {
+  optional int64 entity_oid = 1;
+  // save the error if entity has problem
+  optional string error = 2;
+}
+
+message SuspensionGetEntitiesRequest {
+  optional int64 schedule_oid = 1;
+}
+
+message SuspensionGetEntitiesResponse {
+  repeated int64 entity_oids = 1;
+}
+
+service SuspensionScheduleEntityService {
+  // AttachEntities add schedule to the entities
+  rpc AttachEntities(SuspensionAttachEntitiesRequest) returns (SuspensionAttachEntitiesResponse);
+  // DetachEntities detach schedule to the entities
+  // here the entities are optional, if the entities are available, delete only those entities attached to the schedule
+  rpc DetachEntities(SuspensionDetachEntitiesRequest) returns (SuspensionDetachEntitiesResponse);
+  rpc GetEntities(SuspensionGetEntitiesRequest) returns (SuspensionGetEntitiesResponse);
+  // UpdateEntities removes the existing entities associations with the schedule
+  // and assigns the schedule to given entities
+  rpc UpdateEntities(SuspensionUpdateEntitiesRequest) returns (SuspensionUpdateEntitiesResponse);
+}
