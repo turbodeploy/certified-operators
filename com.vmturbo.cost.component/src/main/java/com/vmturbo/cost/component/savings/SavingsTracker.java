@@ -214,7 +214,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         // Need this date for delete action savings calculation.
         long lastProcessedDate = savingsTimes.getLastRollupTimes().getLastTimeByDay();
         final Set<Long> statTimes = processSavings(entityIds, billingRecords, actionChains,
-                lastProcessedDate, LocalDateTime.now(clock));
+                lastProcessedDate, TimeUtil.millisToLocalDateTime(lastUpdatedEndTime, clock));
 
         // Save off the day stats timestamps for all stats written this time, used for rollups.
         savingsTimes.addAllDayStatsTimes(statTimes);
