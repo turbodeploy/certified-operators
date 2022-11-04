@@ -68,6 +68,11 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
     IP_PRICE_PROCESSOR("IP Price Processing"),
 
     /**
+     * Process VM Pricing.
+     */
+    INSTANCE_TYPE_PROCESSOR("VM Instance Type Price Processing"),
+
+    /**
      * Add onDemandLicenseOverrides.
      */
     LICENSE_OVERRIDES("Add on demand license overrides"),
@@ -116,6 +121,7 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
             PLAN_FALLBACK,
             REGROUP_METERS,
             IP_PRICE_PROCESSOR,
+            INSTANCE_TYPE_PROCESSOR,
             LICENSE_OVERRIDES,
             LICENSE_PRICE_PROCESSOR,
             ASSIGN_IDENTIFIERS);

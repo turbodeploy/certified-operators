@@ -40,7 +40,9 @@ import com.vmturbo.mediation.azure.pricing.stages.PlanFallbackStage;
 import com.vmturbo.mediation.azure.pricing.stages.RegroupByTypeStage;
 import com.vmturbo.mediation.azure.pricing.stages.SelectZipEntriesStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.IPMeterProcessingStage;
+import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.InstanceTypeProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.LicensePriceProcessingStage;
+import com.vmturbo.mediation.azure.pricing.util.PriceConverter;
 import com.vmturbo.mediation.azure.pricing.util.VmSizeParser;
 import com.vmturbo.mediation.azure.pricing.util.VmSizeParserImpl;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
@@ -164,8 +166,10 @@ public class MCAPricingDiscoveryController extends
             PipelineDefinition.<AzurePricingAccount, DiscoveredPricing,
                             PricingPipelineContext<MCAPricingProbeStage>>newBuilder(context)
                 .initialContextMember(PricingPipelineContextMembers.PROPERTY_PROVIDER,
-                        () -> propertyProvider)
+                    () -> propertyProvider)
                 .initialContextMember(PricingPipelineContextMembers.PRICING_KEY, () -> pricingKey)
+                .initialContextMember(PricingPipelineContextMembers.PRICE_CONVERTER,
+                    () -> new PriceConverter())
                 .addStage(new FetcherStage<AzurePricingAccount, MCAPricingProbeStage>(
                     this.cacher, MCAPricingProbeStage.DOWNLOAD_PRICE_SHEET, MCA_OVERRIDE_PATH
                 ))
@@ -181,6 +185,7 @@ public class MCAPricingDiscoveryController extends
                 .addStage(new PlanFallbackStage(MCAPricingProbeStage.PLAN_FALLBACK, MCA_PLAN_FALLBACK_MAP))
                 .addStage(new RegroupByTypeStage(MCAPricingProbeStage.REGROUP_METERS))
                 .addStage(new IPMeterProcessingStage(MCAPricingProbeStage.IP_PRICE_PROCESSOR))
+                .addStage(new InstanceTypeProcessingStage(MCAPricingProbeStage.INSTANCE_TYPE_PROCESSOR))
                 .addStage(new LicenseOverridesStage(MCAPricingProbeStage.LICENSE_OVERRIDES, this.parser, propertyProvider))
                 .addStage(new LicensePriceProcessingStage(MCAPricingProbeStage.LICENSE_PRICE_PROCESSOR))
                 .finalStage(new AssignPricingIdentifiersStage(MCAPricingProbeStage.ASSIGN_IDENTIFIERS,
