@@ -3,6 +3,7 @@ package com.vmturbo.mediation.azure.pricing.pipeline;
 import java.util.zip.ZipFile;
 
 import com.vmturbo.components.common.pipeline.PipelineContext.PipelineContextMemberDefinition;
+import com.vmturbo.mediation.azure.pricing.util.PriceConverter;
 import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 
 /**
@@ -34,6 +35,13 @@ public class PricingPipelineContextMembers {
      * The opened zip file.
      */
     public static final PipelineContextMemberDefinition<ZipFile> ZIP_FILE =
-            PipelineContextMemberDefinition.member(ZipFile.class, "Opened Zip File",
-                    zipFile -> null);
+        PipelineContextMemberDefinition.member(ZipFile.class, "Opened Zip File",
+            zipFile -> null);
+
+    /**
+     * The pricing converter.
+     */
+    public static final PipelineContextMemberDefinition<PriceConverter> PRICE_CONVERTER =
+        PipelineContextMemberDefinition.member(PriceConverter.class, "Price Converter",
+            converter -> null);
 }

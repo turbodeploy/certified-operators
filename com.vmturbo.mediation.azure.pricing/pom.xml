@@ -69,6 +69,12 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.platform.sdk.common</artifactId>
+            <version>${revision}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.components.common</artifactId>
             <version>${revision}</version>
             <exclusions>

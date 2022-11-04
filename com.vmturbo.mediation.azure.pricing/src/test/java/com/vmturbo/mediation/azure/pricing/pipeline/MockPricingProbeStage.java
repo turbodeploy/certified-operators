@@ -73,6 +73,11 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     IP_PRICE_PROCESSOR("IP Price Processing"),
 
     /**
+     * Process VM Pricing.
+     */
+    INSTANCE_TYPE_PROCESSOR("VM Instance Type Price Processing"),
+
+    /**
      * IP Meter Processing Stage.
      */
     LICENSE_OVERRIDES("Add On Demand License Override"),
@@ -114,7 +119,17 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
      * The list of stages performed as a part of discovery.
      */
     public static final List<MockPricingProbeStage> DISCOVERY_STAGES = ImmutableList.of(
-            DOWNLOAD_PRICE_SHEET, SELECT_ZIP_ENTRIES, BOM_AWARE_READERS, DESERIALIZE_CSV,
-            EFFECTIVE_DATE_FILTER, RESOLVE_METERS, PLAN_FALLBACK, REGROUP_METERS,
-            IP_PRICE_PROCESSOR, LICENSE_OVERRIDES, LICENSE_PRICE_PROCESSING, ASSIGN_IDENTIFIERS);
+        DOWNLOAD_PRICE_SHEET,
+        SELECT_ZIP_ENTRIES,
+        BOM_AWARE_READERS,
+        DESERIALIZE_CSV,
+        EFFECTIVE_DATE_FILTER,
+        RESOLVE_METERS,
+        PLAN_FALLBACK,
+        REGROUP_METERS,
+        IP_PRICE_PROCESSOR,
+        INSTANCE_TYPE_PROCESSOR,
+        LICENSE_OVERRIDES,
+        LICENSE_PRICE_PROCESSING,
+        ASSIGN_IDENTIFIERS);
 }
