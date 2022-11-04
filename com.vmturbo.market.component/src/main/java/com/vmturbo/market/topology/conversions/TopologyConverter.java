@@ -92,6 +92,7 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterialInfo;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -3456,8 +3457,13 @@ public class TopologyConverter {
                     logger.trace("For context: {}: Skip SL creation for: {} ({}), entity: {}.",
                             topologyInfo.getTopologyContextId(), entityForSL.getDisplayName(),
                             entityForSL.getOid(), topologyEntity.getDisplayName());
-                } else {
-                    shoppingLists.add(createShoppingList(entityForSL, topologyEntity, entityForSL.getEntityType(),
+                    continue;
+                }
+                if (FeatureFlags.ENABLE_RECONFIGURE_ACTION_FOR_NOTREADY_NODE.isEnabled()
+                        && createSpecialShoppingList(entityForSL, commBoughtGrouping, shoppingLists)) {
+                    continue;
+                }
+                shoppingLists.add(createGenericShoppingList(entityForSL, topologyEntity, entityForSL.getEntityType(),
                             topologyEntity.getAnalysisSettings().getShopTogether(), providerId.getFirst(),
                             // Pass scalingGroupUsage down to underlying methods only when creating shoppingList
                             // for topologyEntity. If shoppingList is created for entityForSL(which is different
@@ -3465,7 +3471,6 @@ public class TopologyConverter {
                             commBoughtGroupingForSL, providers,
                             entityForSL == topologyEntity ? scalingGroupUsage : Optional.empty(),
                             additionalCommBought.getOrDefault(providerId.getFirst(), CommoditiesBoughtFromProvider.getDefaultInstance())));
-                }
             }
         }
         return new Pair<>(shoppingLists, computeTierProviderId);
@@ -3596,6 +3601,67 @@ public class TopologyConverter {
     }
 
     /**
+     * A utility function to create a shopping list based on special circumstances that cannot be
+     * generalized.
+     *
+     * @param entityDto Entity DTO for which shopping list creation needs to be checked.
+     * @param commBought commodity bought of entity
+     * @return true if the special circumstance has been handled
+     */
+    @VisibleForTesting
+    boolean createSpecialShoppingList(
+            @Nonnull final TopologyEntityDTO entityDto,
+            @Nonnull final CommoditiesBoughtFromProvider commBought,
+            @Nonnull final List<EconomyDTOs.ShoppingListTO> shoppingLists) {
+        if (entityDto.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                && commBought.hasProviderEntityType()
+                && commBought.getProviderEntityType() == EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE) {
+            createShoppingListBetweenVMAndCntCluster(entityDto, commBought.getProviderId(), commBought)
+                    .ifPresent(shoppingLists::add);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * A utility function to create a shopping list between VM and ContainerCluster to force
+     * Market to generate a Reconfigure action for a k8s node that is in a NotReady status.
+     * When a k8s node becomes NotReady, kubeturbo probe does the following:
+     *   - Let the node buy a keyed CLUSTER commodity with a provider of CONTAINER_PLATFORM_CLUSTER
+     *     entity type.
+     *   - In the meantime, the CONTAINER_PLATFORM_CLUSTER entity does not sell the same CLUSTER
+     *     commodity that the node wants to buy.
+     * This utility function identifies this scenario, and creates a movable shopping list for the
+     * VM such that Market will run a placement algorithm for it and generate a Reconfigure action
+     * because of the mismatch of commodities.
+     *
+     * @param buyer the buyer of the shopping list
+     * @param providerId the provider ID
+     * @param commBoughtGroupingForSL the shopping list to check
+     * @return an optional {@link ShoppingListTO}
+     */
+    private Optional<EconomyDTOs.ShoppingListTO> createShoppingListBetweenVMAndCntCluster(
+            @Nonnull final TopologyEntityDTO buyer,
+            @Nonnull final Long providerId,
+            @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL) {
+        return commBoughtGroupingForSL.getCommodityBoughtList().stream()
+                .filter(commBought -> commBought.getCommodityType().getType() ==
+                        CommodityDTO.CommodityType.CLUSTER_VALUE)
+                .findAny()
+                .map(commBoughtDTO -> {
+                    final long id = shoppingListId++;
+                    return EconomyDTOs.ShoppingListTO
+                            .newBuilder()
+                            .setOid(id)
+                            .setSupplier(providerId)
+                            .addAllCommoditiesBought(createAndValidateCommBoughtTO(
+                                    buyer, commBoughtDTO, providerId, Optional.empty()))
+                            .setMovable(true)
+                            .build();
+                });
+    }
+
+    /**
      * Create a shopping list for a specified buyer and the entity it is buying from.
      *
      * @param entityForSL topology entity used to create shoppingList
@@ -3610,7 +3676,7 @@ public class TopologyConverter {
      * @return a shopping list between the buyer and seller
      */
     @Nonnull
-    private EconomyDTOs.ShoppingListTO createShoppingList(
+    private EconomyDTOs.ShoppingListTO createGenericShoppingList(
             final TopologyEntityDTO entityForSL,
             final TopologyEntityDTO originalEntityAsTrader,
             final int entityType,

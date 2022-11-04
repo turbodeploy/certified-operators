@@ -134,6 +134,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.util.Pair;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 
 /**
  * Unit tests for {@link TopologyConverter}.
@@ -218,6 +219,12 @@ public class TopologyConverterFromMarketTest {
      */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
+
+    /**
+     * Rule to initialize FeatureFlags store.
+     **/
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     @Before
     public void setup() {
@@ -2747,6 +2754,26 @@ public class TopologyConverterFromMarketTest {
                         .setOid(VOLUME_ID).setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                         .build();
         assertFalse(converter.skipShoppingListCreation(nonEphemeralVolume, CommoditiesBoughtFromProvider.getDefaultInstance()));
+    }
+
+    /**
+     * Test special shopping list between virtual machine and container cluster.
+     */
+    @Test
+    public void testCreateSpecialShoppingList() {
+        final TopologyDTO.TopologyEntityDTO vm = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build();
+        final CommoditiesBoughtFromProvider clusterBought = CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                        CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.CLUSTER_VALUE)
+                                .setKey(COMM_KEY1)))
+                .build();
+        final List<ShoppingListTO> shoppingLists = new ArrayList<>();
+        assertTrue(converter.createSpecialShoppingList(vm, clusterBought, shoppingLists));
+        assertEquals(1, shoppingLists.size());
+        assertTrue(shoppingLists.get(0).getMovable());
     }
 
     /**
