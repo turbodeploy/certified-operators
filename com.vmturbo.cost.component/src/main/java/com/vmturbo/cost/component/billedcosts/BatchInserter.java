@@ -148,6 +148,8 @@ public class BatchInserter implements AutoCloseable {
         } catch (final DataAccessException ex) {
             throw new DbException(String.format("Insert of %s records into %s failed", records.size(), table.getName()),
                 ex);
+        } catch (Exception ex) {
+            logger.error("Exception caught while inserting the batch", ex);
         }
         return records.size();
     }

@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.cost.component.db.tables.records.AggregationMetaDataRecord;
 
@@ -71,31 +72,29 @@ public class RollupTimesStore {
      * Get metadata about last time rollup was done.
      *
      * @return Last rollup times.
+     * @throws DataAccessException thrown on any DB related exception .
      */
     @Nonnull
     public LastRollupTimes getLastRollupTimes() {
         final LastRollupTimes rollupTimes = new LastRollupTimes();
-        try {
-            final AggregationMetaDataRecord record = dsl.selectFrom(AGGREGATION_META_DATA)
-                    .where(AGGREGATION_META_DATA.AGGREGATE_TABLE.eq(table.getTableName()))
-                    .fetchOne();
-            if (record == null) {
-                return rollupTimes;
-            }
-            if (record.getLastAggregated() != null) {
-                rollupTimes.setLastTimeUpdated(record.getLastAggregated().getTime());
-            }
-            if (record.getLastAggregatedByHour() != null) {
-                rollupTimes.setLastTimeByHour(record.getLastAggregatedByHour().getTime());
-            }
-            if (record.getLastAggregatedByDay() != null) {
-                rollupTimes.setLastTimeByDay(record.getLastAggregatedByDay().getTime());
-            }
-            if (record.getLastAggregatedByMonth() != null) {
-                rollupTimes.setLastTimeByMonth(record.getLastAggregatedByMonth().getTime());
-            }
-        } catch (Exception e) {
-            logger.warn("Unable to fetch last rollup times from DB.", e);
+
+        final AggregationMetaDataRecord record = dsl.selectFrom(AGGREGATION_META_DATA)
+                .where(AGGREGATION_META_DATA.AGGREGATE_TABLE.eq(table.getTableName()))
+                .fetchOne();
+        if (record == null) {
+            return rollupTimes;
+        }
+        if (record.getLastAggregated() != null) {
+            rollupTimes.setLastTimeUpdated(record.getLastAggregated().getTime());
+        }
+        if (record.getLastAggregatedByHour() != null) {
+            rollupTimes.setLastTimeByHour(record.getLastAggregatedByHour().getTime());
+        }
+        if (record.getLastAggregatedByDay() != null) {
+            rollupTimes.setLastTimeByDay(record.getLastAggregatedByDay().getTime());
+        }
+        if (record.getLastAggregatedByMonth() != null) {
+            rollupTimes.setLastTimeByMonth(record.getLastAggregatedByMonth().getTime());
         }
         return rollupTimes;
     }
