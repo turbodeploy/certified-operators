@@ -45,6 +45,10 @@ import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.Suspens
 import com.vmturbo.common.protobuf.suspension.SuspensionFilter;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionAttachEntitiesRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionAttachEntitiesResponse;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionDetachEntitiesRequest;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionDetachEntitiesResponse;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionGetEntitiesRequest;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionGetEntitiesResponse;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionScheduleEntityError;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionUpdateEntitiesRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionUpdateEntitiesResponse;
@@ -983,7 +987,6 @@ public class SuspensionMapper {
         return requestBuilder.build();
     }
 
-
     /**
      * converts the list of SuspensionUpdateEntitiesResponse class into ScheduleEntityResponseApiDTO class.
      * @param resp of SuspensionUpdateEntitiesResponse class.
@@ -1002,5 +1005,85 @@ public class SuspensionMapper {
             list.add(data);
         }
         return list;
+    }
+
+    /**
+     * converts the SuspendableEntityUUIDSetDTO of class into toSuspensionScheduleEntityRequest class.
+     *
+     * @param entityUuids instance of SuspendableEntityUUIDSetDTO class.
+     * @return SuspensionScheduleEntityRequest class.
+     * @throws InvalidRequest in case of bad request
+     */
+    public SuspensionDetachEntitiesRequest toSuspensionDetachEntitiesRequest(String timeSpanSchedule_Uuid,
+                                                                         SuspendableEntityUUIDSetDTO entityUuids)
+            throws Exception {
+
+        SuspensionDetachEntitiesRequest.Builder requestBuilder = SuspensionDetachEntitiesRequest.getDefaultInstance().newBuilder();
+        requestBuilder.setScheduleOid(Long.parseLong(timeSpanSchedule_Uuid));
+        if (entityUuids.hasEntityUuids()) {
+            for (String entityUuid : entityUuids.getEntityUuids()) {
+                requestBuilder.addEntityOids(Long.parseLong(entityUuid));
+            }
+        }
+        return requestBuilder.build();
+    }
+
+    /**
+     * converts SuspensionDetachEntitiesResponse class into the list of ScheduleEntityResponseApiDTO class.
+     * @param resp of SuspensionDetachEntitiesResponse class.
+     * @return List of ScheduleEntityResponseApiDTO class.
+     */
+    public List<ScheduleEntityResponseApiDTO> toScheduleEntityResponseApiDTOForDetach(SuspensionDetachEntitiesResponse resp) {
+        List<ScheduleEntityResponseApiDTO> list = new ArrayList<ScheduleEntityResponseApiDTO>();
+        for (SuspensionScheduleEntityError entity : resp.getErrorList()) {
+            ScheduleEntityResponseApiDTO data = new ScheduleEntityResponseApiDTO();
+            if (entity.hasEntityOid()) {
+                data.setEntityUUID(Long.toString(entity.getEntityOid()));
+            }
+            if (entity.hasError()) {
+                data.setError(entity.getError());
+            }
+            list.add(data);
+        }
+        return list;
+    }
+
+    /**
+     * converts the timeSpanSchedule_Uuid of string into SuspensionGetEntitiesRequest class.
+     *
+     * @param timeSpanSchedule_Uuid This is representing the unique time span based schedule.
+     * @return SuspensionGetEntitiesRequest the get entities list object.
+     * @throws Exception when any error occurs.
+     */
+    public SuspensionGetEntitiesRequest toGetEntitiesRequest(
+            String timeSpanSchedule_Uuid)
+            throws Exception {
+
+        SuspensionGetEntitiesRequest.Builder requestBuilder = SuspensionGetEntitiesRequest.getDefaultInstance().newBuilder();
+
+        requestBuilder.setScheduleOid(Long.parseLong(timeSpanSchedule_Uuid));
+
+        return requestBuilder.build();
+    }
+
+
+    /**
+     * converts the SuspensionGetEntitiesResponse of class into SuspendableEntityUUIDSetDTO class.
+     */
+    public SuspendableEntityUUIDSetDTO toSuspendableEntityUUIDSetDTO(
+            SuspensionGetEntitiesResponse grpcSchedule)
+            throws Exception {
+
+        SuspendableEntityUUIDSetDTO timespansEntities = new SuspendableEntityUUIDSetDTO();
+
+        List<String> entityUuidsArr = new ArrayList<String>(grpcSchedule.getEntityOidsCount());
+
+        for (long entityUuid : grpcSchedule.getEntityOidsList()) {
+            entityUuidsArr.add(String.valueOf(entityUuid));
+        }
+
+        timespansEntities.setEntityUuids(entityUuidsArr);
+
+        return timespansEntities;
     }
 }

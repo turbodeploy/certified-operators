@@ -31,6 +31,8 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityResponse;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityServiceGrpc.SuspensionEntityServiceBlockingStub;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionAttachEntitiesResponse;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionDetachEntitiesResponse;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionGetEntitiesResponse;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionUpdateEntitiesResponse;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntityServiceGrpc.SuspensionScheduleEntityServiceBlockingStub;
 import com.vmturbo.common.protobuf.suspension.SuspensionTimeSpanSchedule.DeleteTimespanScheduleResponse;
@@ -272,6 +274,26 @@ public class SuspensionService implements ISuspensionService {
     }
 
     /**
+     * Detaches one or more suspendable entities from time span based schedule.
+     *
+     * @param timeSpanSchedule_Uuid UUID of the time span schedule to detach suspendable entities from.
+     * @param entityUuids The SuspendableEntityUUIDSetDTO representing the array of suspendable entity_Uuid to be detached from time span based schedule.
+     * @return list of ScheduleEntityResponseApiDTO class representing the partial failure per entity or success of the operation.
+     * @throws Exception in case of error while detaching one or more suspendable entities to a time span based schedule.
+     */
+    @Override
+    public List<ScheduleEntityResponseApiDTO> detachTimeSpanSchedule(String timeSpanSchedule_Uuid, SuspendableEntityUUIDSetDTO entityUuids) throws Exception {
+        SuspensionMapper mapper = new SuspensionMapper();
+        final SuspensionDetachEntitiesResponse response;
+        try {
+            response = suspensionScheduleEntityService.detachEntities(mapper.toSuspensionDetachEntitiesRequest(timeSpanSchedule_Uuid, entityUuids));
+        } catch (Exception e) {
+            throw new OperationFailedException("detaching suspendable entities to time span schedule failed. ", e);
+        }
+        return mapper.toScheduleEntityResponseApiDTOForDetach(response);
+    }
+
+    /**
      * Replaces existing suspendable entities attached to time span based schedule.
      *
      * @param timeSpanSchedule_Uuid UUID of the time span schedule to replace existing suspendable entities attached.
@@ -289,5 +311,24 @@ public class SuspensionService implements ISuspensionService {
             throw new OperationFailedException("replacing existing suspendable entities to time span schedule failed. ", e);
         }
         return mapper.toScheduleEntityResponseApiDTOForUpdate(response);
+    }
+
+    /**
+     * Fetches list of suspendable entity uuids attached to time span based Schedule.
+     *
+     * @param timeSpanSchedule_Uuid UUID of the time span schedule the suspendable entities are attached to.
+     * @return SuspendableEntityUUIDSetDTO representing the array of suspendable entity uuids attached to time span based schedule
+     * @throws Exception when any error occurs
+     */
+    @Override
+    public SuspendableEntityUUIDSetDTO fetchTimespanEntities(String timeSpanSchedule_Uuid) throws Exception {
+        SuspensionMapper mapper = new SuspensionMapper();
+        final SuspensionGetEntitiesResponse response;
+        try {
+            response = suspensionScheduleEntityService.getEntities(mapper.toGetEntitiesRequest(timeSpanSchedule_Uuid));
+        } catch (Exception e) {
+            throw new OperationFailedException("Fetch of time span schedule failed. ", e);
+        }
+        return mapper.toSuspendableEntityUUIDSetDTO(response);
     }
 }

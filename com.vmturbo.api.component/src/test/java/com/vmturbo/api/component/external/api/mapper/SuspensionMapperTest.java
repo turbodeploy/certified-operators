@@ -47,6 +47,10 @@ import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.Suspens
 import com.vmturbo.common.protobuf.suspension.SuspensionFilter;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionAttachEntitiesRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionAttachEntitiesResponse;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionDetachEntitiesRequest;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionDetachEntitiesResponse;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionGetEntitiesRequest;
+import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionGetEntitiesResponse;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionScheduleEntityError;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionUpdateEntitiesRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionUpdateEntitiesResponse;
@@ -858,5 +862,114 @@ public class SuspensionMapperTest extends TestCase {
         assertEquals("1234", apiDtos.get(0).getEntityUUID());
         assertEquals("test", apiDtos.get(0).getError());
 
+    }
+
+    /**
+     * verifies the conversion of path params and body of detach entity to schedule api to grpc request for detach time span based schedule.
+     */
+    @Test
+    public void testToSuspensionDetachEntitiesRequest() {
+        String scheduleUuid = "1234";
+        String entityUuid = "5678";
+        SuspensionDetachEntitiesRequest.Builder want = SuspensionDetachEntitiesRequest.getDefaultInstance().newBuilder();
+        want.setScheduleOid(Long.parseLong(scheduleUuid));
+        want.addEntityOids(Long.parseLong(entityUuid));
+
+        SuspendableEntityUUIDSetDTO suspendableEntityUUIDSetDTO = new SuspendableEntityUUIDSetDTO();
+        suspendableEntityUUIDSetDTO.setEntityUuids(Arrays.asList(entityUuid));
+
+        try {
+            SuspensionDetachEntitiesRequest got = testSuspensionMapper.toSuspensionDetachEntitiesRequest(scheduleUuid, suspendableEntityUUIDSetDTO);
+            assertEquals(want.build(), got);
+        } catch (Exception e) {
+            TestCase.fail();
+        }
+    }
+
+    /**
+     * verifies the conversion of path params and body of detach schedule to entity api to grpc request for detach time span based schedule.
+     */
+    @Test
+    public void testToSuspensionDetachEntitiesRequestWithNoEntities() throws Exception {
+        String scheduleUuid = "5678";
+        SuspensionDetachEntitiesRequest.Builder want = SuspensionDetachEntitiesRequest.getDefaultInstance().newBuilder();
+        want.setScheduleOid(Long.parseLong(scheduleUuid));
+        SuspendableEntityUUIDSetDTO suspendableEntityUUIDSetDTO = new SuspendableEntityUUIDSetDTO();
+
+        try {
+            SuspensionDetachEntitiesRequest got = testSuspensionMapper.toSuspensionDetachEntitiesRequest(scheduleUuid, suspendableEntityUUIDSetDTO);
+            assertEquals(want.build(), got);
+        } catch (Exception e) {
+            TestCase.fail();
+        }
+    }
+
+    /**
+     * verifies the response of detach schedule grpc method to api response.
+     */
+    @Test
+    public void testToScheduleEntityResponseApiDTOForDetach() {
+        List<ScheduleEntityResponseApiDTO> scheduleEntityList = new ArrayList<ScheduleEntityResponseApiDTO>();
+        ScheduleEntityResponseApiDTO scheduleEntity = new ScheduleEntityResponseApiDTO();
+        scheduleEntity.setEntityUUID("1234");
+        scheduleEntity.setError("test");
+
+        scheduleEntityList.add(scheduleEntity);
+        SuspensionDetachEntitiesResponse.Builder input = SuspensionDetachEntitiesResponse.getDefaultInstance().newBuilder();
+        SuspensionScheduleEntityError data = SuspensionScheduleEntityError.getDefaultInstance().newBuilder().setEntityOid(1234).setError("test").build();
+        input.addError(data);
+        List<ScheduleEntityResponseApiDTO> apiDtos = testSuspensionMapper.toScheduleEntityResponseApiDTOForDetach(input.build());
+        assertEquals(1, apiDtos.size());
+        assertEquals("1234", apiDtos.get(0).getEntityUUID());
+        assertEquals("test", apiDtos.get(0).getError());
+    }
+
+    /**
+     * verifies the conversion of API params based SuspensionGetEntitiesRequest to gRPC request.
+     */
+    @Test
+    public void testToGetEntitiesRequest() {
+        String timeSpanSchedule_Uuid = "22";
+
+        SuspensionGetEntitiesRequest.Builder want = SuspensionGetEntitiesRequest.getDefaultInstance().newBuilder();
+        want.setScheduleOid(Long.parseLong(timeSpanSchedule_Uuid));
+
+        try {
+            SuspensionGetEntitiesRequest got = testSuspensionMapper.toGetEntitiesRequest(timeSpanSchedule_Uuid);
+            assertEquals(want.build(), got);
+        } catch (Exception e) {
+            TestCase.fail();
+        }
+    }
+
+
+    /**
+     * verifies the conversion of API params based SuspensionGetEntitiesRequest to gRPC request.
+     */
+    @Test
+    public void testToSuspendableEntityUUIDSetDTO() {
+
+        long l = 22;
+        java.util.List<java.lang.Long> list = new ArrayList<java.lang.Long>(1);
+        list.add(l);
+
+        SuspensionGetEntitiesResponse.Builder input = SuspensionGetEntitiesResponse.getDefaultInstance().newBuilder();
+        input.addEntityOids(l);
+
+        List<String> entityUuidsArr = new ArrayList<String>(1);
+        entityUuidsArr.add("22");
+
+        SuspendableEntityUUIDSetDTO want = new SuspendableEntityUUIDSetDTO();
+        want.setEntityUuids(entityUuidsArr);
+
+        try {
+            SuspendableEntityUUIDSetDTO got = testSuspensionMapper.toSuspendableEntityUUIDSetDTO(input.build());
+            ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+            String wantJSON = ow.writeValueAsString(want);
+            String gotJSON = ow.writeValueAsString(got);
+            assertEquals(wantJSON, gotJSON);
+        } catch (Exception e) {
+            TestCase.fail();
+        }
     }
 }
