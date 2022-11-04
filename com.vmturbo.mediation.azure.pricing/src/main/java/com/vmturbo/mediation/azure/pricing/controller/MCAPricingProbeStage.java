@@ -83,6 +83,11 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
     LICENSE_PRICE_PROCESSOR("License Price Processing"),
 
     /**
+     * Process Storage Tiers with Fixed Sized.
+     */
+    FIXED_SIZE_STORAGE_TIER_PRICE_PROCESSOR("Fixed Size Storage Tier Price Processing"),
+
+    /**
      * Assign pricing identifiers to plans and return a DiscoveredPricing result.
      */
     ASSIGN_IDENTIFIERS("Assign pricing identifiers");
@@ -124,5 +129,6 @@ public enum MCAPricingProbeStage implements ProbeStageEnum {
             INSTANCE_TYPE_PROCESSOR,
             LICENSE_OVERRIDES,
             LICENSE_PRICE_PROCESSOR,
+            FIXED_SIZE_STORAGE_TIER_PRICE_PROCESSOR,
             ASSIGN_IDENTIFIERS);
 }

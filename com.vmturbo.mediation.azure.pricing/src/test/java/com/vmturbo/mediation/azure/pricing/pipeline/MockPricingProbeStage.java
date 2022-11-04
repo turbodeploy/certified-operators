@@ -93,6 +93,11 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     FAKE_STORAGE_TIER_PROCESSING("Fake Storage Tier Price Processing"),
 
     /**
+     * Fixed Size Storage Tier Pricing Stage.
+     */
+    FIXED_SIZE_STORAGE_TIER_PRICE_PROCESSOR("Fixed Size Storage Tier Price Processing"),
+
+    /**
      * Assign pricing identifiers to plans and return a DiscoveredPricing result.
      */
     ASSIGN_IDENTIFIERS("Assign pricing identifiers");
@@ -131,5 +136,6 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
         INSTANCE_TYPE_PROCESSOR,
         LICENSE_OVERRIDES,
         LICENSE_PRICE_PROCESSING,
+        FIXED_SIZE_STORAGE_TIER_PRICE_PROCESSOR,
         ASSIGN_IDENTIFIERS);
 }

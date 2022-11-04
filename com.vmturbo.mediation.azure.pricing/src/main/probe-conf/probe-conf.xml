@@ -3,7 +3,7 @@
     <full-class-name>com.vmturbo.mediation.azure.pricing.AzurePricingProbe</full-class-name>
     <type>Azure Pricing</type>
     <category>Cost</category>
-    <ui-category>Cloud Management</ui-category>
+    <ui-category>Public Cloud</ui-category>
     <version>1.0.0</version>
     <creation-mode>DERIVED</creation-mode>
     <!-- run every hour -->

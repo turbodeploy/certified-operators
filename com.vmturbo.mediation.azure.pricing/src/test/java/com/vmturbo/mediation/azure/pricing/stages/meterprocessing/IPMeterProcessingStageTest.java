@@ -69,8 +69,8 @@ public class IPMeterProcessingStageTest {
         // need to explicitly create the builders for the result;
         workspace.getBuilders();
 
-        verifyWorkspaceForPlan(workspace, "Azure plan", 0.004d, 51);
-        verifyWorkspaceForPlan(workspace, "Azure plan for DevTest", 0.002d, 51);
+        verifyWorkspaceForPlan(workspace, "azure plan", 0.004d, 51);
+        verifyWorkspaceForPlan(workspace, "azure plan for devtest", 0.002d, 51);
 
         ProbeStageDetails status = tracker.getStageDetails(MockPricingProbeStage.IP_PRICE_PROCESSOR);
         assertEquals(StageStatus.SUCCESS, status.getStatus());
@@ -105,15 +105,15 @@ public class IPMeterProcessingStageTest {
         workspace.getBuilders();
 
         final PriceTable.Builder azurePlanOnDemandPriceTable =
-                workspace.getPriceTableBuilderForPlan("Azure Plan");
+                workspace.getPriceTableBuilderForPlan("azure plan");
         assertNotNull(azurePlanOnDemandPriceTable);
         assertEquals("OnDemandPriceTable for Azure Plan should have no records",
                 0, azurePlanOnDemandPriceTable.getOnDemandPriceTableList().size());
 
         final PriceTable.Builder azurePlanForDevTestOnDemandPriceTable =
-                workspace.getPriceTableBuilderForPlan("Azure Plan for DevTest");
+                workspace.getPriceTableBuilderForPlan("azure plan for devtest");
         assertNotNull(azurePlanForDevTestOnDemandPriceTable);
-        assertEquals("OnDemandPriceTable for Azure Plan For DevTest should have no records",
+        assertEquals("OnDemandPriceTable for azure plan for devTest should have no records",
                 0, azurePlanForDevTestOnDemandPriceTable.getOnDemandPriceTableList().size());
 
         ProbeStageDetails status = tracker.getStageDetails(MockPricingProbeStage.IP_PRICE_PROCESSOR);
