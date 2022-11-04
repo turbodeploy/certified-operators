@@ -39,6 +39,7 @@ import com.vmturbo.mediation.azure.pricing.stages.OpenZipEntriesStage;
 import com.vmturbo.mediation.azure.pricing.stages.PlanFallbackStage;
 import com.vmturbo.mediation.azure.pricing.stages.RegroupByTypeStage;
 import com.vmturbo.mediation.azure.pricing.stages.SelectZipEntriesStage;
+import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.FixedSizeStorageTierProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.IPMeterProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.InstanceTypeProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.LicensePriceProcessingStage;
@@ -188,6 +189,8 @@ public class MCAPricingDiscoveryController extends
                 .addStage(new InstanceTypeProcessingStage(MCAPricingProbeStage.INSTANCE_TYPE_PROCESSOR))
                 .addStage(new LicenseOverridesStage(MCAPricingProbeStage.LICENSE_OVERRIDES, this.parser, propertyProvider))
                 .addStage(new LicensePriceProcessingStage(MCAPricingProbeStage.LICENSE_PRICE_PROCESSOR))
+                // Fixed Size is the first Storage Tier Processing stage as it will process most of the STs.
+                .addStage(new FixedSizeStorageTierProcessingStage(MCAPricingProbeStage.FIXED_SIZE_STORAGE_TIER_PRICE_PROCESSOR))
                 .finalStage(new AssignPricingIdentifiersStage(MCAPricingProbeStage.ASSIGN_IDENTIFIERS,
                     MCA_PLANID_MAP)));
     }
