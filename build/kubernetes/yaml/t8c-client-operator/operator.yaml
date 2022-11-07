@@ -109,6 +109,34 @@ spec:
                       imagePullPolicy:
                         type: string
                     type: object
+                  bareMetal:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  compellent:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
                   datadog:
                     properties:
                       enabled:
@@ -124,6 +152,62 @@ spec:
                         type: string
                     type: object
                   dynatrace:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  flexera:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  hds:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  horizon:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  hpe3par:
                     properties:
                       enabled:
                         type: boolean
@@ -165,6 +249,20 @@ spec:
                       imagePullPolicy:
                         type: string
                     type: object
+                  ibmStorageFlashSystem:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
                   instana:
                     properties:
                       enabled:
@@ -179,7 +277,49 @@ spec:
                       imagePullPolicy:
                         type: string
                     type: object
+                  jBoss:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  jvm:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
                   mssql:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  mysql:
                     properties:
                       enabled:
                         type: boolean
@@ -221,7 +361,49 @@ spec:
                       imagePullPolicy:
                         type: string
                     type: object
+                  nutanix:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  oneView:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
                   oracle:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  powerVM:
                     properties:
                       enabled:
                         type: boolean
@@ -249,6 +431,20 @@ spec:
                       imagePullPolicy:
                         type: string
                     type: object
+                  scaleIO:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
                   serviceNow:
                     properties:
                       enabled:
@@ -263,7 +459,77 @@ spec:
                       imagePullPolicy:
                         type: string
                     type: object
+                  snmp:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  tanium:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  terraform:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  tomcat:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
                   ucs:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  ucsDirector:
                     properties:
                       enabled:
                         type: boolean
@@ -305,6 +571,104 @@ spec:
                           imagePullPolicy:
                             type: string
                         type: object
+                    type: object
+                  vmax:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  vmm:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  vplex:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  webLogic:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  wmi:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  xen:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
+                    type: object
+                  xtremIO:
+                    properties:
+                      enabled:
+                        type: boolean
+                      image:
+                        properties:
+                          name:
+                            type: string
+                          tag:
+                            type: string
+                        type: object
+                      imagePullPolicy:
+                        type: string
                     type: object
                 type: object
               properties:
