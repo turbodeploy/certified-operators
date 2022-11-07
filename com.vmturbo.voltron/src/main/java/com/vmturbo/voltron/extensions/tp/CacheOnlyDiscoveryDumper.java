@@ -93,7 +93,13 @@ public class CacheOnlyDiscoveryDumper implements DiscoveryDumper {
 
     }
 
-    private void dump(
+    /**
+     * Dumps a discovery response to the topology cache directory.
+     * @param tgtId The target ID.
+     * @param discoveryResponse The discovery response.
+     * @param discoveryType The discovery type.
+     */
+    public void dump(
             String tgtId,
             DiscoveryResponse discoveryResponse,
             DiscoveryType discoveryType) {
