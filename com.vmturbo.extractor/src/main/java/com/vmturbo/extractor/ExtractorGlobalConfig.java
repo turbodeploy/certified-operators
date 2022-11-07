@@ -63,6 +63,9 @@ public class ExtractorGlobalConfig {
     @Value("${globalExtractionIntervalMins:#{null}}")
     public Long globalExtractionIntervalMins;
 
+    @Value("${enableKeysAsValues:false}")
+    private boolean enableKeysAsValues;
+
     /**
      * Clock for the component.
      *
@@ -82,7 +85,7 @@ public class ExtractorGlobalConfig {
     public ExtractorFeatureFlags featureFlags() {
         return new ExtractorFeatureFlags(enableSearchApi, enableReporting, enableActionIngestion,
                 enableDataExtraction, enableEntityRelationWhitelist, enableBillingCost,
-                enableIndividualVStorages);
+                enableIndividualVStorages, enableKeysAsValues);
     }
 
     /**
@@ -109,11 +112,12 @@ public class ExtractorGlobalConfig {
          */
         private final boolean enableBillingCost;
         private final boolean enableIndividualVStorages;
+        private final boolean enableKeysAsValues;
 
         private ExtractorFeatureFlags(boolean enableSearchApi, boolean enableReporting,
                 boolean enableReportActionIngestion, boolean enableExtraction,
                 boolean enableEntityRelationWhitelist, boolean enableBillingCost,
-                boolean enableIndividualVStorages) {
+                boolean enableIndividualVStorages, boolean enableKeysAsValues) {
             this.enableSearchApi = enableSearchApi;
             this.enableReporting = enableReporting;
             this.enableReportActionIngestion = enableReportActionIngestion;
@@ -121,6 +125,7 @@ public class ExtractorGlobalConfig {
             this.enableEntityRelationWhitelist = enableEntityRelationWhitelist;
             this.enableBillingCost = enableBillingCost;
             this.enableIndividualVStorages = enableIndividualVStorages;
+            this.enableKeysAsValues = enableKeysAsValues;
         }
 
         public boolean isSearchEnabled() {
@@ -155,6 +160,15 @@ public class ExtractorGlobalConfig {
             return enableIndividualVStorages;
         }
 
+        /**
+         * Keys as values enabled.
+         *
+         * @return if keys as values is true
+         */
+        public boolean enableKeysAsValues() {
+            return enableKeysAsValues;
+        }
+
         @Override
         public String toString() {
             return FormattedString.format("Flags:\n"
@@ -167,7 +181,7 @@ public class ExtractorGlobalConfig {
                             + "Individual vStorage metrics {}", isReportingEnabled(),
                     isReportingActionIngestionEnabled(), isSearchEnabled(), isExtractionEnabled(),
                     isEntityRelationWhitelistEnabled(), isBillingCostEnabled(),
-                    isIndividualVStoragesEnabled());
+                    isIndividualVStoragesEnabled(), enableKeysAsValues());
         }
     }
 }

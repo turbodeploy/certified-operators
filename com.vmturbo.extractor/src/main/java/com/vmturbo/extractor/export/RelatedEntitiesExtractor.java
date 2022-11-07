@@ -117,7 +117,13 @@ public class RelatedEntitiesExtractor {
                         relatedEntities.put(ExportUtils.getGroupTypeJsonKey(groupType), relatedGroups);
                     }
                 });
-
+        if (featureFlags.enableKeysAsValues() && relatedEntities != null) {
+            relatedEntities.forEach((type, relEnts) -> {
+                relEnts.forEach(relEnt -> {
+                    relEnt.setType(type);
+                });
+            });
+        }
         return relatedEntities.isEmpty() ? null : relatedEntities;
     }
 
@@ -130,12 +136,14 @@ public class RelatedEntitiesExtractor {
     public Map<String, List<RelatedEntity>> extractRelatedEntities(long entityOid) {
 
         Optional<SupplyChainEntity> entity = graph.getEntity(entityOid);
+        final Map<String, List<RelatedEntity>> relatedEntities;
         if (entity.isPresent()) {
-            return extractRelatedEntities(entityOid, getRelationsFilter(entity.get()));
+            relatedEntities = extractRelatedEntities(entityOid, getRelationsFilter(entity.get()));
+        } else {
+            logger.debug("Provided entity oid ({}) does not exist in topology graph", entityOid);
+            relatedEntities = extractRelatedEntities(entityOid, INCLUDE_ALL_RELATED_ENTITY_TYPES);
         }
-
-        logger.debug("Provided entity oid ({}) does not exist in topology graph", entityOid);
-        return extractRelatedEntities(entityOid, INCLUDE_ALL_RELATED_ENTITY_TYPES);
+        return relatedEntities;
     }
 
     /**

@@ -46,6 +46,8 @@ public class Action extends ExporterActionAttributes {
     @ExporterField(mapKeyEnum = EntityType.class)
     private Map<String, List<RelatedEntity>> related;
 
+    private List<RelatedEntity> newRelated;
+
     public Long getOid() {
         return oid;
     }
@@ -60,6 +62,14 @@ public class Action extends ExporterActionAttributes {
 
     public void setRelated(Map<String, List<RelatedEntity>> related) {
         this.related = related;
+    }
+
+    public List<RelatedEntity> getNewRelated() {
+        return newRelated;
+    }
+
+    public void setNewRelated(List<RelatedEntity> newRelated) {
+        this.newRelated = newRelated;
     }
 
     public String getCreationTime() {

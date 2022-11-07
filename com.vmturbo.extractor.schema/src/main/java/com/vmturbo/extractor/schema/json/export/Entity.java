@@ -44,6 +44,10 @@ public class Entity {
 
     private EntityCost cost;
 
+    private List<Commodity> newMetric;
+
+    private List<RelatedEntity> newRelated;
+
     public Long getOid() {
         return oid;
     }
@@ -100,12 +104,28 @@ public class Entity {
         this.metric = metric;
     }
 
+    public List<Commodity> getNewMetric() {
+        return newMetric;
+    }
+
+    public void setNewMetric(List<Commodity> newMetric) {
+        this.newMetric = newMetric;
+    }
+
     public Map<String, List<RelatedEntity>> getRelated() {
         return related;
     }
 
     public void setRelated(Map<String, List<RelatedEntity>> related) {
         this.related = related;
+    }
+
+    public List<RelatedEntity> getNewRelated() {
+        return newRelated;
+    }
+
+    public void setNewRelated(List<RelatedEntity> newRelated) {
+        this.newRelated = newRelated;
     }
 
     public AccountExpenses getAccountExpenses() {

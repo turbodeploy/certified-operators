@@ -698,6 +698,7 @@ public class ActionAttributeExtractor {
         shallowCopy.setSavings(action.getSavings());
         shallowCopy.setTarget(action.getTarget());
         shallowCopy.setRelated(action.getRelated());
+        shallowCopy.setNewRelated(action.getNewRelated());
         return shallowCopy;
     }
 }

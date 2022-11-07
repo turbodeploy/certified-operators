@@ -19,6 +19,7 @@ import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 public class CostAmount {
     private String unit;
     private Double amount;
+    private String type;
 
     public String getUnit() {
         return unit;
@@ -34,6 +35,14 @@ public class CostAmount {
 
     public void setAmount(Double amount) {
         this.amount = amount;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
     }
 
     /**

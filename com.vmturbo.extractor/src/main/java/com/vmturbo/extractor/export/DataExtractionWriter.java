@@ -3,6 +3,7 @@ package com.vmturbo.extractor.export;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
 import com.vmturbo.extractor.schema.json.export.Entity;
@@ -46,21 +48,25 @@ public class DataExtractionWriter extends TopologyWriterBase {
     private final GroupPrimitiveFieldsOnGroupingPatcher groupAttrsExtractor;
     private String formattedTopologyCreationTime;
     private long topologyTime;
+    private final ExtractorFeatureFlags featureFlags;
 
     /**
      * Create a new writer instance.
      *
      * @param extractorKafkaSender used to send entities to a kafka topic
      * @param dataExtractionFactory factory for providing instances of different extractors
+     * @param featureFlags providing access to extractor's feature flags
      */
     public DataExtractionWriter(@Nonnull ExtractorKafkaSender extractorKafkaSender,
-            @Nonnull DataExtractionFactory dataExtractionFactory) {
+            @Nonnull DataExtractionFactory dataExtractionFactory,
+            @Nonnull final ExtractorFeatureFlags featureFlags) {
         super(null, null);
         this.extractorKafkaSender = extractorKafkaSender;
         this.dataExtractionFactory = dataExtractionFactory;
         this.metricsExtractor = dataExtractionFactory.newMetricsExtractor();
         this.attrsExtractor = dataExtractionFactory.newAttrsExtractor();
         this.groupAttrsExtractor = dataExtractionFactory.newGroupAttrsExtractor();
+        this.featureFlags = featureFlags;
     }
 
     @Override
@@ -96,6 +102,12 @@ public class DataExtractionWriter extends TopologyWriterBase {
         entity.setState(EntityStateUtils.protoToDb(e.getEntityState()).getLiteral());
         // metrics
         entity.setMetric(metricsExtractor.extractMetrics(e, config.reportingCommodityWhitelist()));
+        // Flatten the metrics mapping into a list containing the metric type for each entry
+        // to be used for creating MVs in redshift.
+        if (featureFlags.enableKeysAsValues() && entity.getMetric() != null) {
+            entity.setNewMetric(entity.getMetric().values().stream().collect(Collectors.toList()));
+            entity.setMetric(null);
+        }
         // attrs
         Map<String, Object> attrs = attrsExtractor.extractAttrs(e);
         // remove vendor_id for data extraction since it is now represented in attrs.targets
@@ -138,8 +150,16 @@ public class DataExtractionWriter extends TopologyWriterBase {
         timer.start(relatedStageLabel);
         final List<ExportedObject> exportedObjects = entities.parallelStream()
                 .map(entity -> {
-                    relatedEntitiesExtractor.ifPresent(extractor -> entity.setRelated(
-                        extractor.extractRelatedEntities(entity.getOid())));
+                    relatedEntitiesExtractor.ifPresent(extractor -> {
+                        entity.setRelated(extractor.extractRelatedEntities(entity.getOid()));
+                        // Flatten the related entity mapping into a list containing the related entity
+                        // type for each entry to be used for creating MVs in redshift.
+                        if (featureFlags.enableKeysAsValues() && entity.getRelated() != null) {
+                            entity.setNewRelated(entity.getRelated().values()
+                                    .stream().flatMap(Collection::stream).collect(Collectors.toList()));
+                            entity.setRelated(null);
+                        }
+                    });
                     topDownCostExtractor.flatMap(extractor -> extractor.getExpenses(entity.getOid()))
                         .ifPresent(entity::setAccountExpenses);
                     // set bottom up cost

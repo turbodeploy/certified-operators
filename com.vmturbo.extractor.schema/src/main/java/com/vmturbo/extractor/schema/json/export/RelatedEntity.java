@@ -13,6 +13,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 public class RelatedEntity {
     private Long oid;
     private String name;
+    private String type;
 
     public Long getOid() {
         return oid;
@@ -28,5 +29,13 @@ public class RelatedEntity {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
     }
 }

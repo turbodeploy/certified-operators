@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.action.RiskUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
@@ -185,6 +186,8 @@ public class ActionConverter {
 
     private final DataExtractionFactory dataExtractionFactory;
 
+    private final ExtractorFeatureFlags featureFlags;
+
     /**
      * Create a new instance of the converter.
      *
@@ -194,17 +197,20 @@ public class ActionConverter {
      * @param dataProvider Used to get the latest topology graph.
      * @param dataExtractionFactory Used to get information about related entities for data extraction.
      * @param objectMapper The {@link ObjectMapper} used to serialize JSON.
+     * @param featureFlags providing access to extractor's feature flags
      */
     public ActionConverter(@Nonnull final ActionAttributeExtractor actionAttributeExtractor,
                            @Nonnull final CachingPolicyFetcher cachingPolicyFetcher,
                            @Nonnull final DataProvider dataProvider,
                            @Nonnull final DataExtractionFactory dataExtractionFactory,
-                           @Nonnull final ObjectMapper objectMapper) {
+                           @Nonnull final ObjectMapper objectMapper,
+                           @Nonnull final ExtractorFeatureFlags featureFlags) {
         this.actionAttributeExtractor = actionAttributeExtractor;
         this.cachingPolicyFetcher = cachingPolicyFetcher;
         this.dataProvider = dataProvider;
         this.dataExtractionFactory = dataExtractionFactory;
         this.objectMapper = objectMapper;
+        this.featureFlags = featureFlags;
     }
 
     @Nonnull
@@ -466,6 +472,13 @@ public class ActionConverter {
                     final Predicate<Integer> relatedEntityFilter = RELATED_ENTITY_FILTER_FOR_ACTION_TARGET_ENTITY.getOrDefault(
                             primaryEntity.getType(), RelatedEntitiesExtractor.INCLUDE_ALL_RELATED_ENTITY_TYPES);
                     action.setRelated(extractor.extractRelatedEntities(primaryEntity.getId(), relatedEntityFilter));
+                    // Flatten the related entity mapping into a list containing the related entity
+                    // type for each entry to be used for creating MVs in redshift.
+                    if (featureFlags.enableKeysAsValues() && action.getRelated() != null) {
+                        action.setNewRelated(action.getRelated().values()
+                            .stream().flatMap(Collection::stream).collect(Collectors.toList()));
+                        action.setRelated(null);
+                    }
                 });
             } catch (UnsupportedActionException e) {
                 // this should not happen

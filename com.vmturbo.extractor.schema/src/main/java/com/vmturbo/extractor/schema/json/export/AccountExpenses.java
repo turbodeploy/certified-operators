@@ -1,7 +1,9 @@
 package com.vmturbo.extractor.schema.json.export;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -25,6 +27,8 @@ public class AccountExpenses {
 
     private Set<String> serviceList;
 
+    private List<CostAmount> newServiceExpenses;
+
     @Nullable
     public String getExpenseDate() {
         return expenseDate;
@@ -47,6 +51,21 @@ public class AccountExpenses {
     public void setServiceExpenses(Map<String, CostAmount> serviceExpenses) {
         this.serviceExpenses = serviceExpenses;
         this.serviceList = serviceExpenses.keySet();
+    }
+
+    @Nullable
+    public List<CostAmount> getNewServiceExpenses() {
+        return newServiceExpenses;
+    }
+
+    /**
+     * Set the expenses as list.
+     *
+     * @param serviceExpenses The expenses.
+     */
+    public void setNewServiceExpenses(Map<String, CostAmount> serviceExpenses) {
+        this.serviceList = serviceExpenses.keySet();
+        this.newServiceExpenses = serviceExpenses.values().stream().collect(Collectors.toList());
     }
 
     @Nullable

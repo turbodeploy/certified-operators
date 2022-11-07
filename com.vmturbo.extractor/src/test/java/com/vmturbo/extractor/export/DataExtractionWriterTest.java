@@ -192,7 +192,7 @@ public class DataExtractionWriterTest {
             }
             return null;
         }).when(extractorKafkaSender).send(any());
-        this.writer = spy(new DataExtractionWriter(extractorKafkaSender, dataExtractionFactory));
+        this.writer = spy(new DataExtractionWriter(extractorKafkaSender, dataExtractionFactory, featureFlags));
         writer.startTopology(info, ExtractorTestUtil.config, timer);
 
         // mock targets

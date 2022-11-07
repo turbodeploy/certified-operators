@@ -77,7 +77,7 @@ public class DataExtractionFactory {
      * @return an instance of {@link MetricsExtractor}
      */
     public MetricsExtractor newMetricsExtractor() {
-        return new MetricsExtractor();
+        return new MetricsExtractor(featureFlags);
     }
 
     /**
@@ -105,7 +105,7 @@ public class DataExtractionFactory {
         TopDownCostData topDownCostData = dataProvider.getTopDownCostData();
         TopologyGraph<SupplyChainEntity> topologyGraph = dataProvider.getTopologyGraph();
         if (topDownCostData != null && topologyGraph != null) {
-            return Optional.of(new TopDownCostExtractor(topDownCostData, topologyGraph));
+            return Optional.of(new TopDownCostExtractor(topDownCostData, topologyGraph, featureFlags));
         } else {
             return Optional.empty();
         }
@@ -156,12 +156,12 @@ public class DataExtractionFactory {
     public DataExtractionWriter newDataExtractionWriter() {
         if (entityExtractionIntervalMillis == null) {
             // no interval defined, default to broadcast schedule, always extract
-            return new DataExtractionWriter(extractorKafkaSender, this);
+            return new DataExtractionWriter(extractorKafkaSender, this, featureFlags);
         }
         final long now = clock.millis();
         final long nextExtractionTime = lastEntityExtractionTime.longValue() + entityExtractionIntervalMillis;
         if (nextExtractionTime <= now) {
-            return new DataExtractionWriter(extractorKafkaSender, this);
+            return new DataExtractionWriter(extractorKafkaSender, this, featureFlags);
         }
         logger.info("Not extracting entities/groups for another {} minutes.",
                 TimeUnit.MILLISECONDS.toMinutes(nextExtractionTime - now));
