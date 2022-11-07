@@ -74,6 +74,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.commons.Pair;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -116,8 +117,10 @@ public class ExplanationComposer {
         "Zero nodes match Pod's node selector";
     private static final String RECONFIGURE_VMPMACCESS_COMMODITY_EXPLANATION =
         "Zero nodes match Pod's affinity or anti-affinity";
-    private static final String  RECONFIGURE_REASON_COMMODITY_EXPLANATION=
+    private static final String  RECONFIGURE_REASON_COMMODITY_EXPLANATION =
         "Configure supplier to update resource(s) ";
+    private static final String RECONFIGURE_REASON_NODE_NOT_READY =
+        "The node is in a NotReady status";
     private static final String REASON_SETTINGS_EXPLANATION =
         "{0} doesn''t comply with {1}";
     private static final String REASON_SETTINGS_VCPU_RECONFIG_EXPLANATION = "{0} out of compliance";
@@ -1174,15 +1177,26 @@ public class ExplanationComposer {
             @Nonnull final Integer targetType) {
 
         if (targetType.equals(EntityType.CONTAINER_POD_VALUE)) {
-            final Map<Integer, Set<String>> mapCommodityTypeReason = categorizeContainerPodCommodityReasons(reasonCommodities);
-            if(mapCommodityTypeReason.size() == 1){
-                Map<String, String> actionExplanationMap = podActionExplanations.get(mapCommodityTypeReason.keySet().iterator().next());
+            final Map<Integer, Set<String>> mapCommodityTypeReason =
+                    categorizeContainerPodCommodityReasons(reasonCommodities);
+            if (mapCommodityTypeReason.size() == 1) {
+                Map<String, String> actionExplanationMap =
+                        podActionExplanations.get(mapCommodityTypeReason.keySet().iterator().next());
                 return actionExplanationMap.get(RECONFIGURE_ACTION);
-            }
-            else if(mapCommodityTypeReason.size() > 1){
+            } else if (mapCommodityTypeReason.size() > 1) {
                 return RECONFIGURE_REASON_COMMODITY_EXPLANATION_FOR_CONTAINER_POD;
             }
         }
+
+        if (FeatureFlags.ENABLE_RECONFIGURE_ACTION_FOR_NOTREADY_NODE.isEnabled()
+                && targetType.equals(EntityType.VIRTUAL_MACHINE_VALUE)
+                && reasonCommodities.stream()
+                        .map(ReasonCommodity::getCommodityType)
+                        .allMatch(comm -> comm.getType() == CommodityDTO.CommodityType.CLUSTER_VALUE
+                                && comm.getKey().contains("NotReady"))) {
+            return RECONFIGURE_REASON_NODE_NOT_READY;
+        }
+
         return RECONFIGURE_REASON_COMMODITY_EXPLANATION + reasonCommodities.stream()
                 .map(reason -> getCommodityDisplayName(reason.getCommodityType()))
                 .collect(Collectors.joining(", "));
