@@ -19,6 +19,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
@@ -68,8 +69,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
 
 /**
@@ -90,6 +93,8 @@ public class ExplanationComposerTest {
             createReasonCommodity(CommodityDTO.CommodityType.LABEL_VALUE, "foo=bar");
     private static final ReasonCommodity TAINT =
             createReasonCommodity(CommodityDTO.CommodityType.TAINT_VALUE, "foo=bar");
+    private static final ReasonCommodity CLUSTER =
+            createReasonCommodity(CommodityDTO.CommodityType.CLUSTER_VALUE, "Node-1-NotReady");
 
     // sometimes we are creating the key in a particular way: by having a prefix with the name of the
     // commodity type, a separation, and the name of the network itself
@@ -103,6 +108,12 @@ public class ExplanationComposerTest {
 
     private final TopologyGraphCreator<ActionGraphEntity.Builder, ActionGraphEntity> graphCreator =
         new TopologyGraphCreator<>();
+
+    /**
+     * Rule to initialize FeatureFlags store.
+     **/
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     @Test
     public void testMoveComplianceReasonCommodityExplanation() {
@@ -650,6 +661,27 @@ public class ExplanationComposerTest {
         assertEquals(Collections.singleton("Misconfiguration"),
                 ExplanationComposer.composeRelatedRisks(reconfigure, Collections.emptyList()));
 
+    }
+
+    /**
+     * Test explanation for Reconfigure for NotReady node action.
+     */
+    @Test
+    public void testReconfigureForNotReadyNodeExplanation() {
+        ActionDTO.Action reconfigure = ActionDTO.Action.newBuilder()
+                .setId(0).setInfo(ActionInfo.newBuilder().setReconfigure(
+                        Reconfigure.newBuilder().setTarget(ActionEntity.newBuilder()
+                                        .setId(1).setType(EntityType.VIRTUAL_MACHINE_VALUE))
+                                .setIsProvider(false)))
+                .setDeprecatedImportance(0)
+                .setExplanation(Explanation.newBuilder()
+                        .setReconfigure(ReconfigureExplanation.newBuilder()
+                                .addReconfigureCommodity(CLUSTER)))
+                .build();
+        featureFlagTestRule.enable(FeatureFlags.ENABLE_RECONFIGURE_ACTION_FOR_NOTREADY_NODE);
+        assertEquals("The node is in a NotReady status",
+                     ExplanationComposer.composeExplanation(reconfigure, Collections.emptyList()));
+        featureFlagTestRule.reset();
     }
 
     /**
