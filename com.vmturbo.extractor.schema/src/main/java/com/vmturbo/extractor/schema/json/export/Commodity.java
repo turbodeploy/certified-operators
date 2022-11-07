@@ -20,6 +20,8 @@ public class Commodity {
     // bought
     private Double consumed;
 
+    private String type;
+
     public Double getCurrent() {
         return current;
     }
@@ -50,5 +52,13 @@ public class Commodity {
 
     public void setConsumed(Double consumed) {
         this.consumed = consumed;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
     }
 }

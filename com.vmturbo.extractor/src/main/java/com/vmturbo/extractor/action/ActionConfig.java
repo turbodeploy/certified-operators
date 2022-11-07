@@ -140,7 +140,7 @@ public class ActionConfig {
         return new ActionConverter(actionAttributeExtractor(), cachingPolicyFetcher(),
                 topologyListenerConfig.dataProvider(),
                 topologyListenerConfig.dataExtractionFactory(),
-                objectMapper);
+                objectMapper, globalConfig.featureFlags());
     }
 
     /**

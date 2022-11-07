@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.schema.json.export.Commodity;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -28,6 +29,17 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 public class MetricsExtractor {
 
     private static final Logger logger = LogManager.getLogger();
+
+    private final ExtractorFeatureFlags featureFlags;
+
+    /**
+     * Constructor.
+     *
+     * @param featureFlags providing access to extractor's feature flags
+     */
+    public MetricsExtractor(@Nonnull final ExtractorFeatureFlags featureFlags) {
+        this.featureFlags = featureFlags;
+    }
 
     /**
      * Extract the required metrics from given entity.
@@ -92,6 +104,11 @@ public class MetricsExtractor {
             }
         });
 
+        if (featureFlags.enableKeysAsValues()) {
+            commodityByType.forEach((type, comm) -> {
+                    comm.setType(type);
+            });
+        }
         return commodityByType.isEmpty() ? null : commodityByType;
     }
 }

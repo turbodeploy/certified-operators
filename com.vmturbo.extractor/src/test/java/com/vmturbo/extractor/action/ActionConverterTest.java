@@ -51,6 +51,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
@@ -146,8 +147,10 @@ public class ActionConverterTest {
 
     private DataExtractionFactory dataExtractionFactory = mock(DataExtractionFactory.class);
 
+    private final ExtractorFeatureFlags featureFlags = mock(ExtractorFeatureFlags.class);
+
     private ActionConverter actionConverter = new ActionConverter(actionAttributeExtractor,
-            cachingPolicyFetcher, dataProvider, dataExtractionFactory, objectMapper);
+            cachingPolicyFetcher, dataProvider, dataExtractionFactory, objectMapper, featureFlags);
 
     private RelatedEntitiesExtractor relatedEntitiesExtractor = mock(RelatedEntitiesExtractor.class);
 

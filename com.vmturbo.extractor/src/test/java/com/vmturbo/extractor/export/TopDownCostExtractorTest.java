@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.schema.json.export.AccountExpenses;
 import com.vmturbo.extractor.schema.json.export.CostAmount;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
@@ -32,8 +33,9 @@ public class TopDownCostExtractorTest {
 
     private TopDownCostData topDownCostData = mock(TopDownCostData.class);
     private TopologyGraph<SupplyChainEntity> supplyChainEntityTopologyGraph = mock(TopologyGraph.class);
+    private final ExtractorFeatureFlags featureFlags = mock(ExtractorFeatureFlags.class);
 
-    private TopDownCostExtractor extractor = new TopDownCostExtractor(topDownCostData, supplyChainEntityTopologyGraph);
+    private TopDownCostExtractor extractor = new TopDownCostExtractor(topDownCostData, supplyChainEntityTopologyGraph, featureFlags);
 
     private final long serviceId1 = 1;
     private final long serviceId2 = 2;
