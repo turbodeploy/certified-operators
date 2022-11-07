@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.util.businessaccount;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -22,11 +21,7 @@ import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.search.SearchableProperties;
 
 /**
  * Factory class for {@link SupplementaryData}, responsible for the heavy lifting of
@@ -88,25 +83,7 @@ public class SupplementaryDataFactory {
                 throw e;
             }
         }
-        final Map<Long, Integer> groupsCountOwnedByAccount =
-                getResourceGroupsCountOwnedByAccount(accountIds);
-        return new SupplementaryData(costsByAccount, groupsCountOwnedByAccount);
-    }
-
-    @Nonnull
-    private Map<Long, Integer> getResourceGroupsCountOwnedByAccount(@Nonnull Set<Long> accountIds) {
-        final Map<Long, Integer> groupsCountOwnedByAccount = new HashMap<>(accountIds.size());
-        accountIds.forEach(account -> {
-            final Integer groupsCount = groupService.countGroups(GetGroupsRequest.newBuilder()
-                    .setGroupFilter(GroupFilter.newBuilder()
-                            .addPropertyFilters(SearchProtoUtil.stringPropertyFilterExact(
-                                    SearchableProperties.ACCOUNT_ID,
-                                    Collections.singletonList(account.toString())))
-                            .build())
-                    .build()).getCount();
-            groupsCountOwnedByAccount.put(account, groupsCount);
-        });
-        return groupsCountOwnedByAccount;
+        return new SupplementaryData(costsByAccount);
     }
 
     @Nonnull
@@ -121,7 +98,6 @@ public class SupplementaryDataFactory {
 
         final GetCurrentAccountExpensesResponse response = costService.getCurrentAccountExpenses(
                 GetCurrentAccountExpensesRequest.newBuilder().setScope(scopeBldr).build());
-
         // Sum the expenses across services for each account.
         //
         // It's not clear whether we should also be adding the per-tier expenses, or if

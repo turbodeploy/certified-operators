@@ -69,7 +69,6 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -554,22 +553,6 @@ public class BusinessAccountRetrieverTest {
                     .addAllAccountIds(targetAccounts)))
             .build());
         Assert.assertEquals(Optional.of(svc1Price + svc2Price), data.getCostPrice(1L));
-    }
-
-    /**
-     * Test supplementary data contains count of resource groups owned by account.
-     */
-    @Test
-    public void testSupplementaryDataFactoryGroupsOwnedByAccount() {
-        final SupplementaryDataFactory supplementaryDataFactory = new SupplementaryDataFactory(
-                CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel()), GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
-        final Integer countGroupsOwnedByAccount = 5;
-        final Long accountID = 1L;
-        final Set<Long> accountIds = Sets.newHashSet(accountID);
-        when(groupServiceMole.countGroups(any())).thenReturn(CountGroupsResponse.newBuilder().setCount(countGroupsOwnedByAccount).build());
-        final SupplementaryData data =
-                supplementaryDataFactory.newSupplementaryData(accountIds, false, defaultFetchCost);
-        Assert.assertEquals(countGroupsOwnedByAccount, data.getResourceGroupCount(accountID));
     }
 
     /**

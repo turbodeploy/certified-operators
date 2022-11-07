@@ -80,7 +80,7 @@ public class BusinessAccountMapper {
         final boolean fetchCost = !(userSessionContext.isUserObserver() && userSessionContext.isUserScoped());
         final boolean userScoped = userSessionContext.isUserScoped();
         final SupplementaryData supplementaryData =
-                supplementaryDataFactory.newSupplementaryData(accountIds, allAccounts, fetchCost );
+                supplementaryDataFactory.newSupplementaryData(accountIds, allAccounts, fetchCost);
         return entities.stream()
                 .map(entity -> buildDiscoveredBusinessUnitApiDTO(entity,
                         supplementaryData))
@@ -109,8 +109,6 @@ public class BusinessAccountMapper {
 
         supplementaryData.getCostPrice(businessAccountOid)
                 .ifPresent(businessUnitApiDTO::setCostPrice);
-        businessUnitApiDTO.setResourceGroupsCount(
-                supplementaryData.getResourceGroupCount(businessAccountOid));
         // discovered account doesn't have discount (yet)
         businessUnitApiDTO.setDiscount(0.0f);
 

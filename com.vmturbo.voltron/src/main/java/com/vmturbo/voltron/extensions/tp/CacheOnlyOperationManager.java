@@ -194,8 +194,11 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
     public Optional<Discovery> startDiscovery(final long targetId, DiscoveryType discoveryType,
             boolean runNow) throws TargetNotFoundException, ProbeException {
         if (!isUserInitiated()) {
+            Target target = targetStore.getTarget(targetId)
+                    .orElseThrow(() -> new TargetNotFoundException(targetId));
             logger.info(
-                    "Cache only discovery mode enabled, ignoring non user initiated discovery request");
+                    "Cache only discovery mode enabled, ignoring non user initiated discovery request for target: {} {}",
+                    target.getDisplayName(), target.getProbeInfo().getProbeType());
             return Optional.empty();
         } else {
             if (shouldReloadCachedDiscovery(targetId)) {

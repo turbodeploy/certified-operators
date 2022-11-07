@@ -40,6 +40,9 @@ public class CacheOnlyPipelineBlockingConfig {
     @Autowired
     private CacheOnlyDiscoveryDumperConfig discoveryDumperConfig;
 
+    @Value("${clearAllTargets:false}")
+    private boolean clearAllTargets;
+
     /**
      * Creates a PipelineUnblockLauncher.
      */
@@ -55,7 +58,8 @@ public class CacheOnlyPipelineBlockingConfig {
                 probeConfig.probeStore(),
                 operationConfig.operationManager(),
                 identityProviderConfig.identityProvider(),
-                discoveryDumperConfig.cacheOnlyDiscoveryDumper());
+                discoveryDumperConfig.cacheOnlyDiscoveryDumper(),
+                clearAllTargets);
 
     }
 }
