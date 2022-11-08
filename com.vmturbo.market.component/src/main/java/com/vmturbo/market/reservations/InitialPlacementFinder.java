@@ -364,7 +364,7 @@ public class InitialPlacementFinder {
                     .getInitialPlacementBuyerList(), slToClusterMap, maxRetry,
                     initialPlacementDTO.getReservationMode(),
                     initialPlacementDTO.getReservationGrouping(),
-                    maxGroupingRetry, initialPlacementDTO.getProvidersList());
+                    maxGroupingRetry, initialPlacementDTO.getScopesList());
             buyerPlacements.putAll(initialPlacementPerReservation);
             // Keep incoming reservation buyers in the existingReservations map
             existingReservations.put(initialPlacementDTO.getId(),

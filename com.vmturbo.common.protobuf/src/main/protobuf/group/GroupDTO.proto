@@ -459,6 +459,7 @@ message GetMembersRequest {
 message GetMembersResponse {
     required int64 group_id = 1;
     repeated int64 member_id = 2;
+    repeated MemberType member_types = 3;
 }
 
 // Information about the target. If the message for a target is not present, this means that

@@ -15,6 +15,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Table;
 
@@ -167,7 +168,7 @@ public class MockGroupStore implements IGroupStore {
 
     @Override
     public Table<Long, MemberType, Boolean> getExpectedMemberTypesForGroup(long groupId) {
-        return null;
+        return HashBasedTable.create();
     }
 
     /**

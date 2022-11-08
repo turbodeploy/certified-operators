@@ -25,6 +25,7 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -586,7 +587,7 @@ public class EconomyCachesTest {
         Map<Long, List<InitialPlacementDecision>> result = economyCaches.findInitialPlacement(
                 buyers, new HashMap(), 0,
                 TopologyDTO.ReservationMode.NO_GROUPING, TopologyDTO.ReservationGrouping.NONE, 5,
-                Arrays.asList(pm1Oid));
+                Arrays.asList(InitialPlacementScope.newBuilder().setEntityType(EntityType.PHYSICAL_MACHINE_VALUE).addProviders(pm1Oid).build()));
         Assert.assertTrue(result.get(buyerOid).stream().allMatch(pl -> pl.supplier.get() == pm1Oid));
         Assert.assertTrue(result.get(buyerOid2).stream().allMatch(pl -> pl.supplier.get() == pm1Oid));
         Assert.assertTrue(result.get(buyerOid3).stream().allMatch(pl -> pl.supplier.get() == pm1Oid));
@@ -632,7 +633,7 @@ public class EconomyCachesTest {
         Map<Long, List<InitialPlacementDecision>> result = economyCaches.findInitialPlacement(
                 buyers, new HashMap(), 0,
                 TopologyDTO.ReservationMode.NO_GROUPING, TopologyDTO.ReservationGrouping.NONE, 5,
-                Arrays.asList(pm1Oid));
+                Arrays.asList(InitialPlacementScope.newBuilder().setEntityType(EntityType.PHYSICAL_MACHINE_VALUE).addProviders(pm1Oid).build()));
         Assert.assertTrue(Arrays.asList(buyerOid, buyerOid2, buyerOid3).stream()
             .anyMatch(sl -> result.get(sl).stream()
                 .allMatch(pl -> !pl.supplier.isPresent())));
@@ -679,7 +680,9 @@ public class EconomyCachesTest {
         Map<Long, List<InitialPlacementDecision>> result = economyCaches.findInitialPlacement(
                 buyers, new HashMap(), 0,
                 TopologyDTO.ReservationMode.AFFINITY, TopologyDTO.ReservationGrouping.CLUSTER, 5,
-                Arrays.asList(pm1Oid, pm2Oid));
+                Arrays.asList(InitialPlacementScope.newBuilder()
+                        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .addProviders(pm1Oid).addProviders(pm2Oid).build()));
         Assert.assertTrue(result.get(buyerOid).stream().allMatch(pl -> pl.supplier.get() == pm1Oid
             || pl.supplier.get() == pm2Oid));
         Assert.assertTrue(result.get(buyerOid2).stream().allMatch(pl -> pl.supplier.get() == pm1Oid
@@ -729,7 +732,9 @@ public class EconomyCachesTest {
         Map<Long, List<InitialPlacementDecision>> result = economyCaches.findInitialPlacement(
                 buyers, new HashMap(), 0,
                 TopologyDTO.ReservationMode.AFFINITY, TopologyDTO.ReservationGrouping.CLUSTER, 5,
-                Arrays.asList(pm1Oid, pm2Oid));
+                Arrays.asList(InitialPlacementScope.newBuilder()
+                        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .addProviders(pm1Oid).addProviders(pm2Oid).build()));
         Assert.assertTrue(Arrays.asList(buyerOid, buyerOid2, buyerOid3).stream()
             .anyMatch(sl -> result.get(sl).stream()
                 .allMatch(pl -> !pl.supplier.isPresent())));

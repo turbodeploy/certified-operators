@@ -18,7 +18,9 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Multimap;
 
 import io.grpc.stub.StreamObserver;
 
@@ -30,9 +32,11 @@ import org.joda.time.DateTimeZone;
 import org.springframework.util.StopWatch;
 
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.market.InitialPlacement;
 import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
@@ -43,7 +47,10 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementScope;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InvalidInfo;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InvalidInfo.InvalidConstraints;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InvalidInfo.MarketConnectivityError;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -75,6 +82,7 @@ import com.vmturbo.components.common.utils.ReservationProtoUtil;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
+import com.vmturbo.plan.orchestrator.reservation.exceptions.InvalidInitialPlacementScopeException;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -332,20 +340,33 @@ public class ReservationManager implements ReservationDeletedListener {
                     buildInitialPlacementRequest(currentReservations);
             response = initialPlacementServiceBlockingStub.findInitialPlacement(
                     initialPlacementRequest);
+        } catch (InvalidInitialPlacementScopeException e) {
+            logger.warn(logPrefix + " Got invalid scope. Exception: {}", e);
+            invalidReservations.addAll(createInvalidReservations(currentReservations,
+                    InvalidInfo.newBuilder().setInvalidConstraints(
+                            InvalidConstraints.getDefaultInstance()).build()));
+            return Optional.empty();
         } catch (Exception e) {
             logger.warn(logPrefix + " Got exception when making GRPC call to market. Exception: {}", e);
-            for (Reservation reservation : currentReservations) {
-                Reservation.Builder invalidResBuilder = reservation.toBuilder();
-                invalidResBuilder.getReservationTemplateCollectionBuilder().getReservationTemplateBuilderList()
-                        .forEach(template -> template.getReservationInstanceBuilderList()
-                                .forEach(instance -> instance.setInvalidInfo(
-                                        InvalidInfo.newBuilder().setMarketConnectivityError(
-                                                InvalidInfo.MarketConnectivityError.getDefaultInstance()).build())));
-                invalidReservations.add(invalidResBuilder.build());
-            }
+            invalidReservations.addAll(createInvalidReservations(currentReservations,
+                    InvalidInfo.newBuilder().setMarketConnectivityError(
+                            MarketConnectivityError.getDefaultInstance()).build()));
             return Optional.empty();
         }
         return Optional.ofNullable(response);
+    }
+
+    private static Set<Reservation> createInvalidReservations(Set<Reservation> currentReservations,
+                                                              InvalidInfo invalidInfo) {
+        Set<Reservation> invalidReservations = new HashSet<>();
+        for (Reservation reservation : currentReservations) {
+            Reservation.Builder invalidResBuilder = reservation.toBuilder();
+            invalidResBuilder.getReservationTemplateCollectionBuilder().getReservationTemplateBuilderList()
+                    .forEach(template -> template.getReservationInstanceBuilderList()
+                            .forEach(instance -> instance.setInvalidInfo(invalidInfo).build()));
+            invalidReservations.add(invalidResBuilder.build());
+        }
+        return invalidReservations;
     }
 
     /**
@@ -519,39 +540,64 @@ public class ReservationManager implements ReservationDeletedListener {
      * @return the constructed initial placement request.
      */
     @Nonnull
-    public FindInitialPlacementRequest buildInitialPlacementRequest(@Nonnull Set<Reservation> reservations) {
+    public FindInitialPlacementRequest buildInitialPlacementRequest(@Nonnull Set<Reservation> reservations)
+            throws InvalidInitialPlacementScopeException {
         FindInitialPlacementRequest.Builder initialPlacementRequestBuilder = FindInitialPlacementRequest.newBuilder();
-        reservations.forEach(reservation -> {
+        for (Reservation reservation : reservations) {
             InitialPlacementDTO.Builder findInitialPlacement = InitialPlacementDTO
                     .newBuilder()
                     .addAllInitialPlacementBuyer(buildInitialPlacementBuyerList(reservation))
                     .setReservationMode(reservation.getReservationMode())
                     .setReservationGrouping(reservation.getReservationGrouping())
-                    .addAllProviders(getProvidersForScope(
+                    .addAllScopes(getProvidersForScope(
                             reservation.getConstraintInfoCollection().getScopeIdsList()))
                     .setId(reservation.getId());
             initialPlacementRequestBuilder.addInitialPlacement(findInitialPlacement.build());
-        });
+        }
         return initialPlacementRequestBuilder.build();
     }
 
     @Nonnull
-    private List<Long> getProvidersForScope(@NotNull List<Long> scopeIdsList) {
+    private List<InitialPlacementScope> getProvidersForScope(@NotNull List<Long> scopeIdsList)
+            throws InvalidInitialPlacementScopeException {
 
         if (scopeIdsList.isEmpty()) {
             return Collections.emptyList();
         }
-
-        Iterator<GetMembersResponse> members = groupServiceBlockingStub.getMembers(
+        Iterator<GetMembersResponse> groupMembersResp = groupServiceBlockingStub.getMembers(
                 GetMembersRequest.newBuilder().addAllId(scopeIdsList).build());
+        Multimap<Integer, Long> scopesByEntityType = ArrayListMultimap.create();
 
-        return ImmutableList
-                .copyOf(members)
-                .stream()
-                .map(GetMembersResponse::getMemberIdList)
-                .flatMap(Collection::stream)
-                .distinct()
-                .collect(Collectors.toList());
+        while (groupMembersResp.hasNext()) {
+            final GetMembersResponse response = groupMembersResp.next();
+            List<GroupDTO.MemberType> memberTypes = response.getMemberTypesList();
+            if (memberTypes.isEmpty()) {
+                throw new InvalidInitialPlacementScopeException(
+                        String.format("Error fetching members of group {}. Did not get member type.", response.getGroupId()));
+            }
+            if (memberTypes.size() != 1) {
+                throw new InvalidInitialPlacementScopeException(
+                        String.format("Error fetching members of group {}. Got more than one member types.", response.getGroupId()));
+            }
+            GroupDTO.MemberType memberType = memberTypes.get(0);
+            if (!memberType.hasEntity()) {
+                throw new InvalidInitialPlacementScopeException(
+                        String.format("Error fetching members of group {}. Member type is not of type entity.", response.getGroupId()));
+            }
+            Integer entityType = memberType.getEntity();
+            scopesByEntityType.putAll(entityType, response.getMemberIdList());
+        }
+
+        List<InitialPlacementScope> initialPlacementScopes = new ArrayList<>();
+        scopesByEntityType.asMap().forEach((type, scopeIds) -> {
+            initialPlacementScopes.add(
+                    InitialPlacementScope.newBuilder()
+                            .setEntityType(type)
+                            .addAllProviders(scopeIds)
+                            .build());
+        });
+
+        return initialPlacementScopes;
     }
 
     /**

@@ -31,6 +31,7 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementScope;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetExistingReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetExistingReservationsResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
@@ -204,6 +205,41 @@ true, 1, 5, diagsCollectorFactory,  5, false);
                         .stream().anyMatch(sl -> sl.getCommoditiesBoughtFromProviderId() == pmSlOid)));
         assertTrue(pf.buyerPlacements.size() == 1);
         assertNotNull(pf.buyerPlacements.get(vmID));
+    }
+
+    /**
+     * The scope of the initial placement request is a host that is in invalid state.
+     * Market does not create traders for hosts in invalid state.
+     * So, this is an invalid scope. In this scenario, we should mark the reservation as invalid.
+     *
+     * @throws InterruptedException        if we're interrupted
+     * @throws ExecutionException          if failure in asynchronous updation
+     */
+    @Test
+    public void testFindPlacementWithInvalidScope() throws ExecutionException, InterruptedException {
+        InitialPlacementHandler handler = new InitialPlacementHandler(Mockito.mock(EconomyCachePersistence.class),
+                reservationServiceBlockingStub, true, 1, 5,
+                diagsCollectorFactory, 5, false);
+        InitialPlacementFinder pf = handler.getPlacementFinder();
+        // Create both economy caches using same economy.
+        Economy originalEconomy = getOriginalEconomy();
+        pf.economyCaches.getState().setReservationReceived(true);
+        handler.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true, new HashMap<>()).get();
+        handler.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false, new HashMap<>()).get();
+        double used = 10;
+        // Unknown host is scope. Unknown hosts are not created as traders in market - so this will not exist in market.
+        InitialPlacementScope scope = InitialPlacementScope.newBuilder()
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .addProviders(3L).build();
+        Table<Long, Long, InitialPlacementFinderResult> result
+                = handler.findPlacement(PlanUtils.setupReservationRequest(Arrays
+                .asList(getTradersToPlace(vmID, pmSlOid, PM_TYPE,
+                        MEM_TYPE, used)), 1L, Arrays.asList(scope)));
+        for (Table.Cell<Long, Long, InitialPlacementFinderResult> cell : result.cellSet()) {
+            assertTrue(cell.getRowKey() == vmID);
+            assertTrue(cell.getColumnKey() == pmSlOid);
+            assertTrue(cell.getValue().getInvalidInfo().isPresent());
+        }
     }
 
     /**
