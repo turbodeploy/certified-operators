@@ -1068,7 +1068,7 @@ spec:
                     enabled:
                       description: Enable Azure infra mediation
                       type: boolean
-                    type: object
+                  type: object
               type: object
             baremetal:
               properties:
@@ -1110,7 +1110,7 @@ spec:
                     enabled:
                       description: Enable GCP infra mediation
                       type: boolean
-                    type: object
+                  type: object
               type: object
             hpe3par:
               properties:
