@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.targets;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.eq;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -13,6 +14,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import io.grpc.stub.StreamObserver;
 
@@ -87,6 +89,8 @@ public class GroupScopeResolverTest {
 
     private static long[] targetId = {233L, 234L};
 
+    private static long[] proxyTargetId = {235L, 236L};
+
     private static String[] displayName = {"VM1", "VM2"};
 
     private static String[] guestLoadDisplayName = {"App1", "App2"};
@@ -97,9 +101,13 @@ public class GroupScopeResolverTest {
 
     private static String[] VSTORAGE_KEY = {"FooBar_Foo_Bar", "NewKey_fubar"};
 
+    private static final String TARGET_ADDRESS = "foo.eng.vmturbo.com";
+
+    private static final String PROXY_TARGET_ADDRESS = "bar.eng.vmturbo.com";
+
     private static String[] VSTORAGE_PREFIX = {
-        "_wK4GWWTbEd-Ea97W1fNhs6\\foo.eng.vmturbo.com\\vm-2",
-        "_wK4GWWTbEd-Ea97W1fNhs6\\foo.eng.vmturbo.com\\vm-22"
+            "_wK4GWWTbEd-Ea97W1fNhs6\\" + TARGET_ADDRESS + "\\vm-2",
+            "_wK4GWWTbEd-Ea97W1fNhs6\\" + TARGET_ADDRESS + "\\vm-22"
     };
 
     private static String[] IP_ADDRESS = {"10.10.150.140", "10.10.150.125"};
@@ -237,8 +245,12 @@ public class GroupScopeResolverTest {
                     .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                     .setOrigin(Origin.newBuilder()
                             .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                    .putDiscoveredTargetData(proxyTargetId[index],
+                                            PerTargetEntityInformation.newBuilder().setOrigin(
+                                                    EntityOrigin.PROXY).build())
                                     .putDiscoveredTargetData(targetId[index],
-                                        PerTargetEntityInformation.getDefaultInstance())))
+                                            PerTargetEntityInformation.getDefaultInstance())
+                            ))
                     .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                             .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                                     .setType(CommodityType.VCPU_VALUE))
@@ -332,8 +344,6 @@ public class GroupScopeResolverTest {
 
     private EntityStore entityStore = Mockito.mock(EntityStore.class);
 
-    private static final String TARGET_ADDRESS = "foo.eng.vmturbo.com";
-
     @Before
     public void setup() throws Exception {
         groupScopeResolver = Mockito.spy(new GroupScopeResolver(groupServer.getChannel(),
@@ -347,7 +357,15 @@ public class GroupScopeResolverTest {
                 .thenReturn(Optional.of(validProbeType));
         Mockito.when(targetStore.getProbeCategoryForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.of(validProbeCategory));
-        Mockito.when(targetStore.getTargetDisplayName(Mockito.anyLong())).thenReturn(Optional.of(TARGET_ADDRESS));
+        Mockito.when(targetStore.getTargetDisplayName(eq(targetId[0])))
+                .thenReturn(Optional.of(TARGET_ADDRESS));
+        Mockito.when(targetStore.getTargetDisplayName(eq(targetId[1])))
+                .thenReturn(Optional.of(TARGET_ADDRESS));
+        Mockito.when(targetStore.getTargetDisplayName(eq(proxyTargetId[0])))
+                .thenReturn(Optional.of(PROXY_TARGET_ADDRESS));
+        Mockito.when(targetStore.getTargetDisplayName(eq(proxyTargetId[1])))
+                .thenReturn(Optional.of(PROXY_TARGET_ADDRESS));
+
         Mockito.when(entityStore.chooseEntityDTO(2)).thenReturn(EntityDTO.newBuilder()
             .setId("fakeId1")
             .setEntityType(EntityType.VIRTUAL_MACHINE)
