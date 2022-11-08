@@ -2,8 +2,10 @@ package com.vmturbo.topology.processor.targets;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -39,6 +41,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
@@ -395,9 +398,18 @@ public class GroupScopeResolver {
                 guestLoadOid = Optional.empty();
             }
 
+            //sorting by origin(DISCOVERED < PROXY < REPLACEABLE) and target id
+            Comparator<Entry<Long, TopologyDTO.PerTargetEntityInformation>> targetEntityComparator =
+                    Comparator.comparing(
+                            (Entry<Long, TopologyDTO.PerTargetEntityInformation> e) -> e.getValue()
+                                    .getOrigin()
+                                    .getNumber()).thenComparing(e -> e.getKey());
+
             final Optional<String> targetAddress = scopedEntityDTO.getOrigin().getDiscoveryOrigin()
-                    .getDiscoveredTargetDataMap().keySet().stream()
-                    .findAny()
+                    .getDiscoveredTargetDataMap().entrySet().stream()
+                    .sorted(targetEntityComparator)
+                    .findFirst()
+                    .map(Entry::getKey)
                     .flatMap(targetStore::getTargetDisplayName);
             Optional<String> localName = Optional.empty();
             try {
