@@ -39,6 +39,7 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
@@ -46,6 +47,7 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementR
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementFailure;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementScope;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementSuccess;
 import com.vmturbo.common.protobuf.market.InitialPlacementMoles.InitialPlacementServiceMole;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc;
@@ -73,7 +75,9 @@ import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
+import com.vmturbo.plan.orchestrator.reservation.exceptions.InvalidInitialPlacementScopeException;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -372,7 +376,7 @@ public class ReservationManagerTest {
      * Test checkAndStartReservationPlan method with no in progress reservation.
      */
     @Test
-    public void testCheckAndStartReservationPlanSuccess() {
+    public void testCheckAndStartReservationPlanSuccess() throws InvalidInitialPlacementScopeException {
         ReservationManager reservationManagerSpy = spy(reservationManager);
         Mockito.doNothing().when(reservationManagerSpy).updateReservationResult(anySet());
         when(reservationDao.getAllReservations())
@@ -510,7 +514,7 @@ public class ReservationManagerTest {
      * test ExistingInitialPlacementBuyersRequest creation.
      */
     @Test
-    public void testSendExistingReservation() {
+    public void testSendExistingReservation() throws InvalidInitialPlacementScopeException {
         Reservation reservation = Reservation.newBuilder()
                 .setId(1003)
                 .setName("test-reservation")
@@ -805,17 +809,18 @@ public class ReservationManagerTest {
      * Tests that groups specified in scopeIds are correctly replaced by their members.
      */
     @Test
-    public void testThatScopeAreMappedCorrectlyToProviders() {
+    public void testThatScopeAreCompressedCorrectlyToProviders() throws InvalidInitialPlacementScopeException {
 
         // ARRANGE
         List<Long> scope = ImmutableList.of(1L, 2L);
         Set<Reservation> reservations = Collections.singleton(testReservationWithScopeIds(scope));
         Set<Long> providers1 = ImmutableSet.of(11L, 12L, 13L);
         Set<Long> providers2 = ImmutableSet.of(21L, 22L);
+        MemberType pmType = MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE).build();
 
         when(groupRpcService.getMembers(any(GetMembersRequest.class))).thenReturn(ImmutableList.of(
-                GetMembersResponse.newBuilder().setGroupId(1L).addAllMemberId(providers1).build(),
-                GetMembersResponse.newBuilder().setGroupId(2L).addAllMemberId(providers2).build()));
+                GetMembersResponse.newBuilder().setGroupId(1L).addAllMemberId(providers1).addMemberTypes(pmType).build(),
+                GetMembersResponse.newBuilder().setGroupId(2L).addAllMemberId(providers2).addMemberTypes(pmType).build()));
 
         // ACT
         FindInitialPlacementRequest request =
@@ -824,17 +829,115 @@ public class ReservationManagerTest {
         // ASSERT
         assertEquals("should only get one initial placement", 1,
                 request.getInitialPlacementCount());
-        Set<Long> returnedProviders =
-                ImmutableSet.copyOf(request.getInitialPlacement(0).getProvidersList());
-        assertThat("providers of cluster 1 exist", returnedProviders.containsAll(providers1));
-        assertThat("providers of cluster 2 exist", returnedProviders.containsAll(providers2));
+        assertEquals("should only get one scope", 1,
+                request.getInitialPlacement(0).getScopesCount());
+        InitialPlacementScope resultScope = request.getInitialPlacement(0).getScopes(0);
+        assertThat("providers of cluster 1 exist", resultScope.getProvidersList().containsAll(providers1));
+        assertThat("providers of cluster 2 exist", resultScope.getProvidersList().containsAll(providers2));
+        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, resultScope.getEntityType());
+    }
+
+    /**
+     * Tests that groups specified in scopeIds are correctly replaced by their members.
+     */
+    @Test
+    public void testThatScopeAreMappedCorrectlyToProviders() throws InvalidInitialPlacementScopeException {
+
+        // ARRANGE
+        List<Long> scope = ImmutableList.of(1L, 2L);
+        Set<Reservation> reservations = Collections.singleton(testReservationWithScopeIds(scope));
+        Set<Long> providers1 = ImmutableSet.of(11L, 12L, 13L);
+        Set<Long> providers2 = ImmutableSet.of(21L, 22L);
+        MemberType pmType = MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE).build();
+        MemberType stType = MemberType.newBuilder().setEntity(EntityType.STORAGE_VALUE).build();
+
+        when(groupRpcService.getMembers(any(GetMembersRequest.class))).thenReturn(ImmutableList.of(
+                GetMembersResponse.newBuilder().setGroupId(1L).addAllMemberId(providers1).addMemberTypes(pmType).build(),
+                GetMembersResponse.newBuilder().setGroupId(2L).addAllMemberId(providers2).addMemberTypes(stType).build()));
+
+        // ACT
+        FindInitialPlacementRequest request =
+                reservationManager.buildInitialPlacementRequest(reservations);
+
+        // ASSERT
+        assertEquals("should only get one initial placement", 1,
+                request.getInitialPlacementCount());
+        assertEquals("should only get two scopes, one for PM one for St", 2,
+                request.getInitialPlacement(0).getScopesCount());
+        List<InitialPlacementScope> resultScopes = request.getInitialPlacement(0).getScopesList();
+        InitialPlacementScope pmScope = resultScopes.stream()
+                .filter(s -> s.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE).findFirst().get();
+        InitialPlacementScope stScope = resultScopes.stream()
+                .filter(s -> s.getEntityType() == EntityType.STORAGE_VALUE).findFirst().get();
+        assertThat("providers of cluster 1 exist", pmScope.getProvidersList().containsAll(providers1));
+        assertThat("providers of cluster 2 exist", stScope.getProvidersList().containsAll(providers2));
+    }
+
+    /**
+     * Test that scope without member types throws exception.
+     * @throws InvalidInitialPlacementScopeException invalid scope exception.
+     */
+    @Test(expected = InvalidInitialPlacementScopeException.class)
+    public void testThatScopeWithoutMemberTypesThrowException() throws InvalidInitialPlacementScopeException {
+
+        // ARRANGE
+        List<Long> scope = ImmutableList.of(1L, 2L);
+        Set<Reservation> reservations = Collections.singleton(testReservationWithScopeIds(scope));
+        Set<Long> providers1 = ImmutableSet.of(11L, 12L, 13L);
+        when(groupRpcService.getMembers(any(GetMembersRequest.class))).thenReturn(ImmutableList.of(
+                GetMembersResponse.newBuilder().setGroupId(1L).addAllMemberId(providers1).build()));
+
+        // ACT
+        FindInitialPlacementRequest request =
+                reservationManager.buildInitialPlacementRequest(reservations);
+    }
+
+    /**
+     * Test that scope with multiple member types throws exception.
+     * @throws InvalidInitialPlacementScopeException invalid scope exception.
+     */
+    @Test(expected = InvalidInitialPlacementScopeException.class)
+    public void testThatScopeWithMultipleMemberTypesThrowException() throws InvalidInitialPlacementScopeException {
+        // ARRANGE
+        List<Long> scope = ImmutableList.of(1L, 2L);
+        Set<Reservation> reservations = Collections.singleton(testReservationWithScopeIds(scope));
+        Set<Long> providers1 = ImmutableSet.of(11L, 12L, 13L);
+        MemberType pmType = MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE).build();
+        MemberType stType = MemberType.newBuilder().setEntity(EntityType.STORAGE_VALUE).build();
+        when(groupRpcService.getMembers(any(GetMembersRequest.class))).thenReturn(ImmutableList.of(
+                GetMembersResponse.newBuilder().setGroupId(1L).addAllMemberId(providers1)
+                        .addMemberTypes(pmType).addMemberTypes(stType).build()));
+
+        // ACT
+        FindInitialPlacementRequest request =
+                reservationManager.buildInitialPlacementRequest(reservations);
+    }
+
+    /**
+     * Test that scope with group member types throws exception.
+     * @throws InvalidInitialPlacementScopeException invalid scope exception.
+     */
+    @Test(expected = InvalidInitialPlacementScopeException.class)
+    public void testThatScopeWithGroupMemberTypesThrowException() throws InvalidInitialPlacementScopeException {
+        // ARRANGE
+        List<Long> scope = ImmutableList.of(1L, 2L);
+        Set<Reservation> reservations = Collections.singleton(testReservationWithScopeIds(scope));
+        Set<Long> providers1 = ImmutableSet.of(11L, 12L, 13L);
+        MemberType pmType = MemberType.newBuilder().setGroup(CommonDTO.GroupDTO.GroupType.COMPUTE_HOST_CLUSTER).build();
+        when(groupRpcService.getMembers(any(GetMembersRequest.class))).thenReturn(ImmutableList.of(
+                GetMembersResponse.newBuilder().setGroupId(1L).addAllMemberId(providers1)
+                        .addMemberTypes(pmType).build()));
+
+        // ACT
+        FindInitialPlacementRequest request =
+                reservationManager.buildInitialPlacementRequest(reservations);
     }
 
     /**
      * Tests that if no groups are specified in scopeIds the mapping is not performed.
      */
     @Test
-    public void testEmptyScopeDoesNotCallGroup() {
+    public void testEmptyScopeDoesNotCallGroup() throws InvalidInitialPlacementScopeException {
 
         // ARRANGE
         List<Long> scope = Collections.emptyList();
@@ -848,8 +951,8 @@ public class ReservationManagerTest {
         verify(groupRpcService, never()).getMembers(any());
         assertEquals("should only get one initial placement", 1,
                 request.getInitialPlacementCount());
-        Set<Long> returnedProviders =
-                ImmutableSet.copyOf(request.getInitialPlacement(0).getProvidersList());
+        Set<InitialPlacementScope> returnedProviders =
+                ImmutableSet.copyOf(request.getInitialPlacement(0).getScopesList());
         assertThat("no providers should exist", returnedProviders.isEmpty());
     }
 
@@ -857,18 +960,20 @@ public class ReservationManagerTest {
      * Tests that if a group in scope does not have any members the mapping still works as expected.
      */
     @Test
-    public void testThatIfAGroupInScopeDoesNotHaveMembersItIsOk() {
+    public void testThatIfAGroupInScopeDoesNotHaveMembersItIsOk() throws InvalidInitialPlacementScopeException {
 
         // ARRANGE
         List<Long> scope = ImmutableList.of(1L, 2L);
         Set<Reservation> reservations = Collections.singleton(testReservationWithScopeIds(scope));
         Set<Long> providers1 = ImmutableSet.of(11L, 12L, 13L);
+        MemberType pmType = MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE).build();
 
         when(groupRpcService.getMembers(any(GetMembersRequest.class))).thenReturn(
                 Collections.singletonList(GetMembersResponse
                         .newBuilder()
                         .setGroupId(1L)
                         .addAllMemberId(providers1)
+                        .addMemberTypes(pmType)
                         .build()));
 
         // ACT
@@ -879,7 +984,9 @@ public class ReservationManagerTest {
         assertEquals("should only get one initial placement", 1,
                 request.getInitialPlacementCount());
         Set<Long> returnedProviders =
-                ImmutableSet.copyOf(request.getInitialPlacement(0).getProvidersList());
+                ImmutableSet.copyOf(request.getInitialPlacement(0).getScopesList()
+                        .stream().map(s -> s.getProvidersList()).flatMap(List::stream)
+                        .collect(Collectors.toSet()));
         assertThat("providers of cluster 1 exist", returnedProviders.containsAll(providers1));
         assertEquals("no more providers exist", providers1.size(), returnedProviders.size());
     }

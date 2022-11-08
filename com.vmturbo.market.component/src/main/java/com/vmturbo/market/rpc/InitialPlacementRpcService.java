@@ -1,5 +1,6 @@
 package com.vmturbo.market.rpc;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 
@@ -80,7 +81,7 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
                     initialPlacement.getInitialPlacementBuyerCount(),
                     initialPlacement.getReservationMode(),
                     initialPlacement.getReservationGrouping(),
-                    initialPlacement.getProvidersList().size());
+                    initialPlacement.getScopesList().stream().map(s -> s.getProvidersList()).flatMap(List::stream).count());
         });
         Table<Long, Long, InitialPlacementFinderResult> result = null;
         try {

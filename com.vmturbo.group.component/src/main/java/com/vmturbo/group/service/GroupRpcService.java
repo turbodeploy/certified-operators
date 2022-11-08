@@ -669,11 +669,12 @@ public class GroupRpcService extends GroupServiceImplBase {
         return scopes.isEmpty() || (scopes.size() == 1 && scopes.get(0).equals(realtimeTopologyContextId));
     }
 
-    private GetMembersResponse makeMembersResponse(final long groupId, Set<Long> members) {
+    private GetMembersResponse makeMembersResponse(final long groupId, Set<Long> members, Set<MemberType> memberTypes) {
         members.remove(groupId);
         final GetMembersResponse response = GetMembersResponse.newBuilder()
                 .setGroupId(groupId)
                 .addAllMemberId(members)
+                .addAllMemberTypes(memberTypes)
                 .build();
         return response;
     }
@@ -788,6 +789,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                                             Grouping group) throws StoreOperationException {
         final Set<Long> members = memberCalculator.getGroupMembers(groupStore, group.getDefinition(),
                                                                    request.getExpandNestedGroups());
+        Set<MemberType> memberTypes = groupStore.getExpectedMemberTypesForGroup(group.getId()).columnKeySet();
         // verify the user has access to all of the group members before returning any of them.
         if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
             if (!request.getExpandNestedGroups()) {
@@ -800,7 +802,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
         // return members
         logger.trace("Returning group ({}) with {} members", group.getId(), members.size());
-        return makeMembersResponse(group.getId(), members);
+        return makeMembersResponse(group.getId(), members, memberTypes);
     }
 
     /**
@@ -817,6 +819,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         final Set<Long> members = memberCalculator.getGroupMembers(groupStore, Collections.singleton(
                         groupId),
                                                                    request.getExpandNestedGroups());
+        Set<MemberType> memberTypes = groupStore.getExpectedMemberTypesForGroup(groupId).columnKeySet();
         // verify the user has access to all of the group members before returning any of them.
         if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
             if (!request.getExpandNestedGroups()) {
@@ -829,7 +832,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
         // return members
         logger.trace("Returning group ({}) with {} members", groupId, members.size());
-        return makeMembersResponse(groupId, members);
+        return makeMembersResponse(groupId, members, memberTypes);
     }
 
     /**

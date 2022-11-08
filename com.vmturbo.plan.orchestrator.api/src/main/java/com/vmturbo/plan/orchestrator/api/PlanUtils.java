@@ -1,5 +1,6 @@
 package com.vmturbo.plan.orchestrator.api;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -10,6 +11,7 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 
 /**
@@ -59,9 +61,22 @@ public class PlanUtils {
      */
     @Nonnull
     public static FindInitialPlacementRequest setupReservationRequest(@Nonnull List<InitialPlacementBuyer> newBuyers,
-            Long reservationId) {
+                                                                      Long reservationId) {
+        return setupReservationRequest(newBuyers, reservationId, new ArrayList<>());
+    }
+
+    /**
+     * Sets up a reservation request for testing.
+     *
+     * @param newBuyers the buyers to find placement for.
+     * @param reservationId the reservation id.
+     * @return the request.
+     */
+    @Nonnull
+    public static FindInitialPlacementRequest setupReservationRequest(@Nonnull List<InitialPlacementBuyer> newBuyers,
+            Long reservationId, List<InitialPlacementScope> scopes) {
         FindInitialPlacementRequest.Builder findInitialPlacementRequest = FindInitialPlacementRequest.newBuilder();
-        findInitialPlacementRequest.addInitialPlacement(setupInitialPlacement(newBuyers, reservationId));
+        findInitialPlacementRequest.addInitialPlacement(setupInitialPlacement(newBuyers, reservationId, scopes));
         return findInitialPlacementRequest.build();
     }
 
@@ -75,7 +90,21 @@ public class PlanUtils {
     @Nonnull
     public static InitialPlacementDTO setupInitialPlacement(@Nonnull List<InitialPlacementBuyer> newBuyers,
             Long reservationId) {
+        return setupInitialPlacement(newBuyers, reservationId, new ArrayList<>());
+    }
+
+    /**
+     * Sets up an InitialPlacementDTO.
+     *
+     * @param newBuyers the buyers to find placement for.
+     * @param reservationId the reservation id.
+     * @return the InitialPlacementDTO.
+     */
+    @Nonnull
+    public static InitialPlacementDTO setupInitialPlacement(@Nonnull List<InitialPlacementBuyer> newBuyers,
+                                                            Long reservationId, List<InitialPlacementScope> scopes) {
         InitialPlacementDTO.Builder initialPlacement = InitialPlacementDTO.newBuilder();
-        return initialPlacement.addAllInitialPlacementBuyer(newBuyers).setId(reservationId).build();
+        return initialPlacement.addAllInitialPlacementBuyer(newBuyers).setId(reservationId)
+                .addAllScopes(scopes).build();
     }
 }

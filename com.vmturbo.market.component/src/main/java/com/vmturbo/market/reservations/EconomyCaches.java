@@ -30,6 +30,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementScope;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InvalidInfo.InvalidConstraints;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -589,7 +590,7 @@ public class EconomyCaches {
             Map<Long, List<InitialPlacementDecision>> newPlacementResult =
                 placeBuyerInCachedEconomy(tradersOfRes.getValue(), economy, commTypeToSpecMap,
                     ReservationMode.NO_GROUPING, ReservationGrouping.NONE, 1,
-                    existingReservations.get(tradersOfRes.getKey()).getProvidersList(), isRealtimeCache);
+                    existingReservations.get(tradersOfRes.getKey()).getScopesList(), isRealtimeCache);
             if (newPlacementResult.values().stream().flatMap(List::stream)
                     .allMatch(i -> i.supplier.isPresent())) {
                 // All buyers in a given reservation can still find providers in the chosen cluster.
@@ -746,7 +747,7 @@ public class EconomyCaches {
      * @param grouping the grouping of the reservation.
      * @param maxGroupingRetry The max number of attempts to fit all buyers of a reservation
      *          within a certain grouping.
-     * @param scopeIds ids of entities that the buyers should place on of those entity types.
+     * @param scopes ids of entities that the buyers should place on of those entity types.
      * @return a map of {@link InitialPlacementBuyer} oid to its placement decisions.
      */
     @Nonnull
@@ -754,7 +755,7 @@ public class EconomyCaches {
             @Nonnull final List<InitialPlacementBuyer> buyers,
             @Nonnull final Map<Long, CommodityType> slToClusterMap,
             final int maxRetry, @Nonnull ReservationMode mode, @Nonnull ReservationGrouping grouping,
-            final int maxGroupingRetry, @Nonnull final List<Long> scopeIds) {
+            final int maxGroupingRetry, @Nonnull final List<InitialPlacementScope> scopes) {
         if (!getState().isEconomyReady()) {
             logger.warn(logPrefix + "Market is not ready to run reservation yet, wait for another broadcast to retry");
             return new HashMap<>();
@@ -780,7 +781,7 @@ public class EconomyCaches {
                 }
             }
             firstRoundPlacement = placeBuyerInCachedEconomy(traderTOs, historicalCachedEconomy,
-                    historicalCachedCommTypeMap, mode, grouping, maxGroupingRetry, scopeIds, false);
+                    historicalCachedCommTypeMap, mode, grouping, maxGroupingRetry, scopes, false);
             logger.info(logPrefix + "Placing reservation buyers on historical economy cache");
             InitialPlacementUtils.printPlacementDecisions(firstRoundPlacement);
             clusterCommPerSl.putAll(InitialPlacementUtils.extractClusterBoundary(historicalCachedEconomy,
@@ -820,7 +821,7 @@ public class EconomyCaches {
         Map<Long, List<InitialPlacementDecision>> secondRoundPlacement
             = placeBuyerInCachedEconomy(placedBuyerTOs, realtimeCachedEconomy,
                 realtimeCachedCommTypeMap, historicalReady ? ReservationMode.NO_GROUPING : mode,
-                historicalReady ? ReservationGrouping.NONE : grouping, maxGroupingRetry, scopeIds, true);
+                historicalReady ? ReservationGrouping.NONE : grouping, maxGroupingRetry, scopes, true);
         logger.info(logPrefix + "Placing reservation buyers on realtime economy cache");
         InitialPlacementUtils.printPlacementDecisions(secondRoundPlacement);
         Set<Long> failedBuyerOids = new HashSet<>();
@@ -842,7 +843,7 @@ public class EconomyCaches {
             Map<Long, List<InitialPlacementDecision>> retryResult = retryPlacement(buyers.stream()
                     .filter(b -> failedBuyerOids.contains(b.getBuyerId())).collect(Collectors.toList()),
                     clusterCommPerSl, slToClusterMap, maxRetry - 1, mode, grouping, maxGroupingRetry,
-                    scopeIds);
+                    scopes);
             if (retryResult.values().stream().flatMap(List::stream)
                     .anyMatch(pl -> !pl.supplier.isPresent())) {
                 // Retry still contains some no placements, unplace and clear all the buyers
@@ -892,7 +893,7 @@ public class EconomyCaches {
      * @param grouping the grouping of the reservation.
      * @param maxGroupingRetry The max number of attempts to fit all buyers of a reservation
      *          within a certain grouping.
-     * @param scopeIds ids of entities that the buyers should place on of those entity types.
+     * @param scopes ids of entities that the buyers should place on of those entity types.
      * @return a map of {@link InitialPlacementBuyer} oid to its placement decisions.
      */
     @Nonnull
@@ -901,7 +902,7 @@ public class EconomyCaches {
             @Nonnull final Map<Long, CommodityType> clusterCommPerSl,
             @Nonnull final Map<Long, CommodityType> slToClusterMap,
             final int maxRetry, @Nonnull ReservationMode mode, @Nonnull ReservationGrouping grouping,
-            final int maxGroupingRetry, @Nonnull final List<Long> scopeIds) {
+            final int maxGroupingRetry, @Nonnull final List<InitialPlacementScope> scopes) {
         if (buyersToRetry.isEmpty()) {
             return new HashMap<>();
         }
@@ -916,7 +917,7 @@ public class EconomyCaches {
         Set<Long> failedClusterSellers = InitialPlacementUtils.setSellersNotAcceptCustomers(
                 historicalCachedEconomy, historicalCachedCommTypeMap, clusterCommPerSl);
         Map<Long, List<InitialPlacementDecision>> result = findInitialPlacement(buyersToRetry,
-                slToClusterMap, maxRetry, mode, grouping, maxGroupingRetry, scopeIds);
+                slToClusterMap, maxRetry, mode, grouping, maxGroupingRetry, scopes);
         // Reset back sellers after rerun the placement.
         InitialPlacementUtils.restoreCanNotAcceptNewCustomerSellers(historicalCachedEconomy,
                 failedClusterSellers);
@@ -942,11 +943,11 @@ public class EconomyCaches {
             @Nonnull final List<TraderTO> traderTOs, @Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull ReservationMode mode, @Nonnull ReservationGrouping grouping,
-            final int maxGroupingRetry, @Nonnull final List<Long> scopeIds, final boolean isRealtimeCache) {
+            final int maxGroupingRetry, @Nonnull final List<InitialPlacementScope> scopes, final boolean isRealtimeCache) {
         Set<Long> unplacedBuyer = new HashSet<>();
         Map<Long, List<InitialPlacementDecision>> traderIdToPlacement = new HashMap<>();
         Set<Long> updateCanAcceptEntities = new HashSet<>();
-        Map<Integer, Set<Long>> scopeTypeMap = convertScopeIdsToTypeMap(economy, scopeIds);
+        Map<Integer, Set<Long>> scopeTypeMap = convertScopesToTypeMap(scopes);
         final PlacementResults placementResults;
         if (isClusterAffinity(mode, grouping)) {
             placementResults = processAffinityGrouping(traderTOs, economy, unplacedBuyer,
@@ -1130,16 +1131,9 @@ public class EconomyCaches {
     }
 
     @Nonnull
-    private Map<Integer, Set<Long>> convertScopeIdsToTypeMap(@Nonnull Economy economy,
-            @Nonnull List<Long> scopeIds) {
+    private static Map<Integer, Set<Long>> convertScopesToTypeMap(List<InitialPlacementScope> scopes) {
         Map<Integer, Set<Long>> scopeTypeMap = new HashMap<>();
-        scopeIds.forEach(id -> {
-            Map<Long, Trader> topologyOids = economy.getTopology().getTradersByOid();
-            Trader trader = topologyOids.get(id);
-            if (trader != null) {
-                scopeTypeMap.computeIfAbsent(trader.getType(), set -> new HashSet<>()).add(id);
-            }
-        });
+        scopes.forEach(scope -> scopeTypeMap.put(scope.getEntityType(), Sets.newHashSet(scope.getProvidersList())));
         return scopeTypeMap;
     }
 

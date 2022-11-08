@@ -15,19 +15,36 @@ message InitialPlacementDTO {
     // List of buyers.
     repeated InitialPlacementBuyer initialPlacementBuyer = 1;
 
-  // Specification to determine what the type of behavior Placement entities should take.
-  optional .topology.ReservationMode reservation_mode = 2;
+    // Specification to determine what the type of behavior Placement entities should take.
+    optional .topology.ReservationMode reservation_mode = 2;
 
-  // Specification to determine what group type entities should be placed on corresponding to
-  // the Mode of the reservation.
-  optional .topology.ReservationGrouping reservation_grouping = 3;
+    // Specification to determine what group type entities should be placed on corresponding to
+    // the Mode of the reservation.
+    optional .topology.ReservationGrouping reservation_grouping = 3;
 
-  // The reservation id.
-  optional int64 id = 4;
+    // The reservation id.
+    optional int64 id = 4;
 
-  // The potential providers for this placement restricting initial placement to these providers
-  // based on the passed providers' entity type.
-  repeated int64 providers = 5;
+    // The potential providers for this placement restricting initial placement to these providers
+    // based on the passed providers' entity type.
+    repeated int64 __deprecated_providers = 5 [deprecated = true];
+
+    // The potential providers for this placement restricting initial placement to these providers.
+    // Ex 1: let's say this has 1 entry - PHYSICAL_MACHINE and some PM providers. So only the
+    // compute Shopping list will be restricted, while the storage shopping list will be unrestricted.
+    // But needless to say, the Storages connected to those PMs only will be considered.
+    // Ex 2: let's say this has 2 entries - one for PHYSICAL_MACHINE and one for STORAGE. Then,
+    // the compute and storage shopping list will be restricted.
+    repeated InitialPlacementScope scopes = 6;
+}
+
+// The scope for the initial placement
+message InitialPlacementScope {
+    // The entity type of the scope
+    optional int32 entity_type = 1;
+
+    // The providers of the entity_type that are in scope
+    repeated int64 providers = 2;
 }
 
 message InitialPlacementBuyer {
