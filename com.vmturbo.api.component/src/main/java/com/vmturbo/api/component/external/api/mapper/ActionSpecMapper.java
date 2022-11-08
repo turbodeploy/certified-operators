@@ -2,7 +2,6 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static com.vmturbo.common.protobuf.CostProtoUtil.CATEGORIES_TO_INCLUDE_FOR_ON_DEMAND_COST;
 import static com.vmturbo.common.protobuf.CostProtoUtil.SOURCES_TO_EXCLUDE_FOR_ON_DEMAND_COST;
-import static com.vmturbo.common.protobuf.utils.StringConstants.COMPUTE_TIER;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -906,41 +905,21 @@ public class ActionSpecMapper {
                 AspectName.CONTAINER_PLATFORM_CONTEXT, cnpAspect));
         targetEntity.setAspectsByName(aspects);
 
-        if (newEntity == null && actionApiDTO.getActionType().equals(ActionType.DELETE)) {
-            final String className = actionApiDTO.getTarget().getClassName();
-            // add volume aspects if delete volume action
-            if (ApiEntityType.VIRTUAL_VOLUME.apiStr().equals(className)) {
-                final Map<AspectName, EntityAspect> aspectMap = new HashMap<>();
-                List<VirtualDiskApiDTO> volumeAspectsList = context.getVolumeAspects(targetEntityId);
-                if (!volumeAspectsList.isEmpty()) {
-                    VirtualDisksAspectApiDTO virtualDisksAspectApiDTO = new VirtualDisksAspectApiDTO();
-                    virtualDisksAspectApiDTO.setVirtualDisks(volumeAspectsList);
-                    aspectMap.put(AspectName.VIRTUAL_VOLUME, virtualDisksAspectApiDTO);
-                }
-                // add cloud aspect for delete volume action
-                context.getCloudAspect(targetEntityId).ifPresent(
-                        cloudAspect -> aspectMap.put(AspectName.CLOUD, cloudAspect));
-                if (!aspectMap.isEmpty()) {
-                    actionApiDTO.getTarget().setAspectsByName(aspectMap);
-                }
-            } else if (ApiEntityType.VIRTUAL_MACHINE_SPEC.apiStr().equals(className)) {
-                // add template with current compute tier
-                final Optional<ServiceEntityApiDTO> actionEntity = context.getEntity(ActionDTOUtil.getPrimaryEntityId(action));
-
-                if (actionEntity.isPresent()) {
-                    final ServiceEntityApiDTO entity = actionEntity.get();
-                    final List<BaseApiDTO> providers = entity.getProviders();
-
-                    final BaseApiDTO computeTier = providers.stream().filter(provider -> COMPUTE_TIER.equals(provider.getClassName())).findAny().orElse(null);
-
-                    if (computeTier != null) {
-                        TemplateApiDTO templateApiDTO = new TemplateApiDTO();
-                        templateApiDTO.setUuid(computeTier.getUuid());
-                        templateApiDTO.setDisplayName(computeTier.getDisplayName());
-                        templateApiDTO.setClassName(computeTier.getClassName());
-                        actionApiDTO.setTemplate(templateApiDTO);
-                    }
-                }
+        // add volume aspects if delete volume action
+        if (newEntity == null && targetEntity.getClassName().equals(ApiEntityType.VIRTUAL_VOLUME.apiStr())
+                && actionApiDTO.getActionType().equals(ActionType.DELETE)) {
+            final Map<AspectName, EntityAspect> aspectMap = new HashMap<>();
+            List<VirtualDiskApiDTO> volumeAspectsList = context.getVolumeAspects(targetEntityId);
+            if (!volumeAspectsList.isEmpty()) {
+                VirtualDisksAspectApiDTO virtualDisksAspectApiDTO = new VirtualDisksAspectApiDTO();
+                virtualDisksAspectApiDTO.setVirtualDisks(volumeAspectsList);
+                aspectMap.put(AspectName.VIRTUAL_VOLUME, virtualDisksAspectApiDTO);
+            }
+            // add cloud aspect for delete volume action
+            context.getCloudAspect(targetEntityId).ifPresent(cloudAspect ->
+                    aspectMap.put(AspectName.CLOUD, cloudAspect));
+            if (!aspectMap.isEmpty()) {
+                actionApiDTO.getTarget().setAspectsByName(aspectMap);
             }
         }
 

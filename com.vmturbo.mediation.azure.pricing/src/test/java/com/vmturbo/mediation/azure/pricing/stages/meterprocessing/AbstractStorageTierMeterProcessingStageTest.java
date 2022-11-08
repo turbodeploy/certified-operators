@@ -10,6 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 
 import com.vmturbo.mediation.azure.common.storage.StorageTier;
@@ -24,16 +26,7 @@ import com.vmturbo.mediation.cost.parser.azure.AzureMeterDescriptors.AzureMeterD
  */
 public class AbstractStorageTierMeterProcessingStageTest {
 
-    /**
-     * Test {@link AbstractStorageTierMeterProcessingStage#formatStorageTierId(String)}.
-     */
-    @Test
-    public void testFormatStorageTierId() {
-        FakeStorageTierMeterProcessingStage fakeStProcessingStage = new FakeStorageTierMeterProcessingStage(
-                MockPricingProbeStage.FAKE_STORAGE_TIER_PROCESSING);
-        assertEquals("azure::ST::TESTING_TIER", fakeStProcessingStage.formatStorageTierId("testing_tier"));
-    }
-
+    private static final Logger LOGGER = LogManager.getLogger();
 
     /**
      * Test {@link AbstractStorageTierMeterProcessingStage#addPricingForResolvedMeters(PricingWorkspace, Collection)}.

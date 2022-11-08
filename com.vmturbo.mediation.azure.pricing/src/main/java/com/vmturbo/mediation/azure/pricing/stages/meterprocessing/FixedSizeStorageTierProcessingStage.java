@@ -91,7 +91,7 @@ public class FixedSizeStorageTierProcessingStage<E extends ProbeStageEnum> exten
 
                    final EntityDTO storageTierEntity = EntityDTO.newBuilder()
                            .setEntityType(EntityType.STORAGE_TIER)
-                           .setId(formatStorageTierId(storageTier.name())).build();
+                           .setId(storageTier.name().toLowerCase()).build();
                    final StorageTierPriceList storageTierPriceList = createStorageTierPriceList(planId, storageTier, rms);
                    onDemandPriceTableForRegion.addStoragePriceTable(
                            StoragePriceTableByTierEntry.newBuilder()
