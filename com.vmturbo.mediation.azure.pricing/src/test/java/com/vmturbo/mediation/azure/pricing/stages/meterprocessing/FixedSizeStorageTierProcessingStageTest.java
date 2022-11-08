@@ -86,6 +86,7 @@ public class FixedSizeStorageTierProcessingStageTest {
 
         OnDemandPriceTableByRegionEntryOrBuilder eastusInAzurePlan = workspace.getOnDemandBuilder("azure plan", "eastus");
         assertEquals(1, eastusInAzurePlan.getStoragePriceTableCount());
+        assertEquals("azure::ST::MANAGED_STANDARD_SSD", eastusInAzurePlan.getStoragePriceTable(0).getRelatedStorageTier().getId());
         final StorageTierPrice storageTierPriceInAzurePlanEastus = eastusInAzurePlan.getStoragePriceTable(0).getStorageTierPriceList().getCloudStoragePrice(0);
         assertEquals(7, storageTierPriceInAzurePlanEastus.getPricesCount());
         assertEquals(RedundancyType.LRS, storageTierPriceInAzurePlanEastus.getRedundancyType());
@@ -100,6 +101,7 @@ public class FixedSizeStorageTierProcessingStageTest {
 
         OnDemandPriceTableByRegionEntryOrBuilder eastus2InAzurePlan = workspace.getOnDemandBuilder("azure plan", "eastus2");
         assertEquals(1, eastus2InAzurePlan.getStoragePriceTableCount());
+        assertEquals("azure::ST::MANAGED_STANDARD_SSD", eastus2InAzurePlan.getStoragePriceTable(0).getRelatedStorageTier().getId());
         final StorageTierPrice storageTierPriceInAzurePlanEastus2 = eastus2InAzurePlan.getStoragePriceTable(0).getStorageTierPriceList().getCloudStoragePrice(0);
         assertEquals(7, storageTierPriceInAzurePlanEastus2.getPricesCount());
         assertEquals(RedundancyType.LRS, storageTierPriceInAzurePlanEastus2.getRedundancyType());

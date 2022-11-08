@@ -25,6 +25,8 @@ import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
  */
 public abstract class AbstractStorageTierMeterProcessingStage<E extends ProbeStageEnum> extends AbstractMeterProcessingStage<E> {
 
+    private static final String AZURE_STORAGE_PREFIX = "azure::ST::";
+
     /**
      * Set of {@link StorageTier} the StorageTierMeter will handle.
      */
@@ -42,6 +44,11 @@ public abstract class AbstractStorageTierMeterProcessingStage<E extends ProbeSta
             @Nonnull Logger logger) {
         super(probeStage, MeterType.Storage, logger);
         this.storageTierSkuIds = storageTierSkuIds;
+    }
+
+    @Nonnull
+    String formatStorageTierId(@Nonnull final String localStorageTierName) {
+        return AZURE_STORAGE_PREFIX + localStorageTierName.toUpperCase();
     }
 
     @NotNull
