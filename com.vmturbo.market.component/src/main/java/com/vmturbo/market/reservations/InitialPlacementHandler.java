@@ -59,13 +59,18 @@ public class InitialPlacementHandler {
      * @param maxGroupingRetry The max number of attempts to fit all buyers of a reservation
      *          within a certain grouping.
      * @param analysisDiagnosticsCollectorFactory is the factory used for saving diags.
+     * @param enableOP use cluster entity in placement decisions
+     * @param numPlacementDiagsToRetain number of diags to retain
+     * @param disableHistoricalCache disable historical cache and use only real time economy
      */
     public InitialPlacementHandler(@Nonnull EconomyCachePersistence economyCachePersistence,
             @Nonnull final ReservationServiceBlockingStub stub,
             final boolean prepareReservationCache, int maxRetry, final int maxGroupingRetry,
-            AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory, int numPlacementDiagsToRetain, boolean enableOP) {
+            AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory, int numPlacementDiagsToRetain, boolean enableOP,
+            boolean disableHistoricalCache) {
         this.placementFinder = new InitialPlacementFinder(economyCachePersistence, stub,
-            prepareReservationCache, maxRetry, maxGroupingRetry, analysisDiagnosticsCollectorFactory, numPlacementDiagsToRetain, enableOP);
+            prepareReservationCache, maxRetry, maxGroupingRetry, analysisDiagnosticsCollectorFactory, numPlacementDiagsToRetain, enableOP,
+                disableHistoricalCache);
         this.cacheAccessService = Executors.newFixedThreadPool(1,
                 new ThreadFactoryBuilder().setNameFormat("Economy-cache-accessor").build());
     }

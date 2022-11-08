@@ -53,6 +53,10 @@ public class MarketRpcConfig {
     @Value("${enableOP:false}")
     private boolean enableOP;
 
+    @Value("${disableHistoricalCache:false}")
+    private boolean disableHistoricalCache;
+
+
     @Autowired
     private PlanOrchestratorClientConfig planClientConfig;
 
@@ -111,7 +115,7 @@ public class MarketRpcConfig {
         try {
             return new InitialPlacementHandler(new EconomyCachePersistence(dbAccessConfig.dsl()), getReservationService(),
                     prepareReservationCache, maxRetry, maxGroupingRetry, analysisDiagnosticsCollectorFactory(),
-                    numPlacementDiagsToRetain, enableOP);
+                    numPlacementDiagsToRetain, enableOP, disableHistoricalCache);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();

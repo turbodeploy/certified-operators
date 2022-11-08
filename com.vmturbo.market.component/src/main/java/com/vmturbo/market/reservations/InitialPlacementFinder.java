@@ -86,6 +86,8 @@ public class InitialPlacementFinder {
 
     private final boolean enableOP;
 
+    private final boolean disableHistoricalCache;
+
     private final AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory;
 
     public EconomyCaches getEconomyCaches() {
@@ -116,12 +118,14 @@ public class InitialPlacementFinder {
      * @param maxGroupingRetry The max number of attempts to fit all buyers of a reservation
      *          within a certain grouping.
      * @param analysisDiagnosticsCollectorFactory is the factory used for saving diags.
+     * @param disableHistoricalCache disable historical cache and use only real time economy
      */
     public InitialPlacementFinder(@Nonnull EconomyCachePersistence economyCachePersistence,
             @Nonnull final ReservationServiceBlockingStub stub,
             final boolean prepareReservationCache, int maxRetry, final int maxGroupingRetry,
             AnalysisDiagnosticsCollectorFactory analysisDiagnosticsCollectorFactory,
-            int numPlacementDiagsToRetain, boolean enableOP) {
+            int numPlacementDiagsToRetain, boolean enableOP,
+            boolean disableHistoricalCache) {
         economyCaches = new EconomyCaches(economyCachePersistence);
         this.blockingStub = stub;
         this.prepareReservationCache = prepareReservationCache;
@@ -130,6 +134,7 @@ public class InitialPlacementFinder {
         this.analysisDiagnosticsCollectorFactory = analysisDiagnosticsCollectorFactory;
         this.numPlacementDiagsToRetain = numPlacementDiagsToRetain;
         this.enableOP = enableOP;
+        this.disableHistoricalCache = disableHistoricalCache;
     }
 
     /**
@@ -141,9 +146,11 @@ public class InitialPlacementFinder {
     public void restoreEconomyCaches(final long maxRequestTimeout) {
         // If the reservation feature is enabled, then load data from table.
         if (shouldConstructEconomyCache()) {
-            // Load the BLOB persisted in table and build an economy with reservation buyers,
-            // hosts and storages.
-            economyCaches.loadHistoricalEconomyCache();
+            if (!disableHistoricalCache) {
+                // Load the BLOB persisted in table and build an economy with reservation buyers,
+                // hosts and storages.
+                economyCaches.loadHistoricalEconomyCache();
+            }
             // Get the list reservation from plan orchestrator.
             queryExistingReservations(maxRequestTimeout);
             if (economyCaches.getState().isReservationReceived()
@@ -219,7 +226,7 @@ public class InitialPlacementFinder {
             // recorded in buyerPlacements.
             economyCaches.updateRealtimeCachedEconomy(clonedEconomy, commTypeToSpecMap,
                         buyerPlacements, existingReservations);
-        } else {
+        } else if (!disableHistoricalCache) {
             // Update the providers with providers generated in headroom plan in historical economy
             // cache. Rerun all successfully placed reservations and update the providers in
             // buyerPlacements.
