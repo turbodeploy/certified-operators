@@ -58,7 +58,6 @@ public class TopDownCostExtractor {
                                     CostAmount.newAmount(serviceExpenses.getExpenses()));
                         }));
                 if (!expensesBySvc.isEmpty()) {
-                    exportExpenses.setServiceExpenses(expensesBySvc);
                     // Flatten the service expenses mapping into a list containing the cost amount
                     // type for each entry to be used for creating MVs in redshift.
                     if (featureFlags.enableKeysAsValues()) {
@@ -66,7 +65,8 @@ public class TopDownCostExtractor {
                             costAmount.setType(serviceExpense);
                         });
                         exportExpenses.setNewServiceExpenses(expensesBySvc);
-                        exportExpenses.setServiceExpenses(null);
+                    } else {
+                        exportExpenses.setServiceExpenses(expensesBySvc);
                     }
                 }
                 return exportExpenses;
