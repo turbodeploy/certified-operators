@@ -220,7 +220,7 @@ public class AnalysisDiagnosticsCollectorTest {
                 ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
         InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(EconomyCachePersistence.class),
                 reservationServiceBlockingStub, true, 1, 5,
-                diagsCollectorFactory, 5, false);
+                diagsCollectorFactory, 5, false, false);
         BiMap<CommodityType, Integer> realtimeCachedCommTypeMap = HashBiMap.create();
         BiMap<CommodityType, Integer> historicalCachedCommTypeMap = HashBiMap.create();
         realtimeCachedCommType.stream().forEach(entry -> realtimeCachedCommTypeMap.put(entry.commodityType, entry.type));
