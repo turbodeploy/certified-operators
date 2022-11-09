@@ -19,7 +19,6 @@ import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.probes.ProbeException;
@@ -34,14 +33,14 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * It adds a new boolean flag `collectVmMetrics` that is responsible for
  * enabling/disabling the collection of virtual machines metrics.
  */
-public class AbstractCollectVmMetricFlagMigration extends AbstractMigration {
+public abstract class AbstractCollectVmMetricFlagMigration extends AbstractMigration {
 
     private final Logger logger = LogManager.getLogger();
 
     private static final String PROPERTY_NAME = "collectVmMetrics";
     private static final String PROPERTY_DISPLAY_NAME = "Collect Virtual Machine Metrics";
     private static final String PROPERTY_DESCRIPTION =
-                    "Overwrite Hypervisor or Cloud Provider Virtual Machine metrics with "
+            "Overwrite Hypervisor or Cloud Provider Virtual Machine metrics with "
                     + "data from the target";
 
     /**
@@ -51,17 +50,17 @@ public class AbstractCollectVmMetricFlagMigration extends AbstractMigration {
      */
     private static final Boolean PROPERTY_DEFAULT = Boolean.TRUE;
 
-    private final TargetStore targetStore;
-    private final ProbeStore probeStore;
+    protected final TargetStore targetStore;
+    protected final ProbeStore probeStore;
 
-    private final String probeType;
+    protected String probeType;
 
     /**
      * Constructor.
      *
      * @param targetStore target store.
      * @param probeStore  probe store.
-     * @param probeType probe type.
+     * @param probeType   probe type.
      */
     protected AbstractCollectVmMetricFlagMigration(TargetStore targetStore,
                                                    ProbeStore probeStore,
@@ -69,6 +68,7 @@ public class AbstractCollectVmMetricFlagMigration extends AbstractMigration {
         this.targetStore = targetStore;
         this.probeStore = probeStore;
         this.probeType = probeType;
+
     }
 
     @Override
@@ -86,11 +86,12 @@ public class AbstractCollectVmMetricFlagMigration extends AbstractMigration {
             final String msg = "Cannot update " + probeType + " ProbeInfo: " + e;
             return updateMigrationProgress(MigrationStatus.FAILED, 0, msg);
         } catch (InvalidTargetException | TargetNotFoundException
-                        | IdentityStoreException | IdentifierConflictException e) {
+                 | IdentityStoreException | IdentifierConflictException e) {
             final String msg = "Cannot update " + probeType + " TargetInfo: " + e;
             return updateMigrationProgress(MigrationStatus.FAILED, 0, msg);
         }
     }
+
 
     private void updateTargetInfo()
             throws InvalidTargetException, TargetNotFoundException, IdentityStoreException,
@@ -105,16 +106,16 @@ public class AbstractCollectVmMetricFlagMigration extends AbstractMigration {
                     logger.debug("{} migration: target id doesnt have flag {}", probeType, target.getId());
                     final long id = target.getId();
                     final List<AccountValue> accountValues
-                                    = new ArrayList<>(target.getSpec().getAccountValueList());
+                            = new ArrayList<>(target.getSpec().getAccountValueList());
                     accountValues.add(createVmMetricsAccountValue());
                     final TargetSpec targetSpec = target.getSpec()
-                                .toBuilder()
-                                .clearAccountValue()
-                                .addAllAccountValue(accountValues)
-                                .build();
+                            .toBuilder()
+                            .clearAccountValue()
+                            .addAllAccountValue(accountValues)
+                            .build();
                     targetStore.restoreTarget(id, targetSpec);
                     targetStore.updateTarget(id, Collections.emptySet(), Optional.empty(),
-                                         target.getNoSecretDto().getSpec().getLastEditingUser());
+                            target.getNoSecretDto().getSpec().getLastEditingUser());
                 }
             }
         } else {
@@ -136,42 +137,43 @@ public class AbstractCollectVmMetricFlagMigration extends AbstractMigration {
     }
 
     @Nonnull
-    private AccountValue createVmMetricsAccountValue() {
+    protected AccountValue createVmMetricsAccountValue() {
         logger.debug("{} migration: create property {}", probeType, PROPERTY_NAME);
         return AccountValue.newBuilder()
-                        .setKey(PROPERTY_NAME)
-                        .setStringValue(String.valueOf(PROPERTY_DEFAULT))
-                        .build();
+                .setKey(PROPERTY_NAME)
+                .setStringValue(String.valueOf(PROPERTY_DEFAULT))
+                .build();
     }
 
     @Nonnull
-    private Discovery.AccountDefEntry createVmMetricsFlagDefEntry() {
+    protected Discovery.AccountDefEntry createVmMetricsFlagDefEntry() {
         return Discovery.AccountDefEntry
-                        .newBuilder()
-                        .setCustomDefinition(CustomAccountDefEntry.newBuilder()
-                             .setName(PROPERTY_NAME)
-                             .setPrimitiveValue(CustomAccountDefEntry.PrimitiveValue.BOOLEAN)
-                             .setDisplayName(PROPERTY_DISPLAY_NAME)
-                             .setDescription(PROPERTY_DESCRIPTION)
-                             .setIsSecret(Boolean.FALSE)
-                             .setVerificationRegex("(true|false)")
-                             .build())
-                        .build();
+                .newBuilder()
+                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                        .setName(PROPERTY_NAME)
+                        .setPrimitiveValue(CustomAccountDefEntry.PrimitiveValue.BOOLEAN)
+                        .setDisplayName(PROPERTY_DISPLAY_NAME)
+                        .setDescription(PROPERTY_DESCRIPTION)
+                        .setIsSecret(Boolean.FALSE)
+                        .setVerificationRegex("(true|false)")
+                        .build())
+                .build();
     }
 
-    private boolean hasVmMetricFlag(@Nonnull Target target) {
+    protected boolean hasVmMetricFlag(@Nonnull Target target) {
         return target.getSpec().getAccountValueList()
-                        .stream()
-                        .map(TopologyProcessorDTO.AccountValue::getKey)
-                        .anyMatch(PROPERTY_NAME::equals);
+                .stream()
+                .map(AccountValue::getKey)
+                .anyMatch(PROPERTY_NAME::equals);
     }
 
-    private boolean hasVmMetricFlag(@Nonnull ProbeInfo probeInfo) {
+    protected boolean hasVmMetricFlag(@Nonnull ProbeInfo probeInfo) {
         return probeInfo.getAccountDefinitionList()
-                        .stream()
-                        .filter(Discovery.AccountDefEntry::hasCustomDefinition)
-                        .map(Discovery.AccountDefEntry::getCustomDefinition)
-                        .map(Discovery.CustomAccountDefEntry::getName)
-                        .anyMatch(PROPERTY_NAME::equals);
+                .stream()
+                .filter(Discovery.AccountDefEntry::hasCustomDefinition)
+                .map(Discovery.AccountDefEntry::getCustomDefinition)
+                .map(CustomAccountDefEntry::getName)
+                .anyMatch(PROPERTY_NAME::equals);
     }
+
 }

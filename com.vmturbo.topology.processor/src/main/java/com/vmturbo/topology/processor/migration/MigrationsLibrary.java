@@ -16,6 +16,7 @@ import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
+
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.TargetDao;
@@ -122,7 +123,13 @@ public class MigrationsLibrary {
             .put("V_01_01_18__GCP_BillingProbe_RenameStandardDatasetTable_Names",
                     new V_01_01_18__GCP_BillingProbe_RenameStandardDatasetTable_Names(keyValueStore))
             .put("V_01_01_19__GCP_Billing_Probe_Resource_Level_Flag",
-                    new V_01_01_19__GCP_Billing_Probe_Resource_Level_Flag(keyValueStore));
+                    new V_01_01_19__GCP_Billing_Probe_Resource_Level_Flag(keyValueStore))
+            .put("V_01_01_20__OracleProbes_Remove_Vm_Metrics_Flag",
+                new V_01_01_20__OracleProbes_Remove_Vm_Metrics_Flag(targetStore, probeStore))
+            .put("V_01_01_21__MysqlProbes_Remove_Vm_Metrics_Flag",
+                new V_01_01_21__MysqlProbes_Remove_Vm_Metrics_Flag(targetStore, probeStore))
+            .put("V_01_01_22__MssqlProbes_Remove_Vm_Metrics_Flag",
+                new V_01_01_22__MssqlProbes_Remove_Vm_Metrics_Flag(targetStore, probeStore));
         return builder.build();
     }
 }
