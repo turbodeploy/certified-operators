@@ -7,11 +7,11 @@ spec:
     version: __VERSION__
   probes:
     actionScript:
-      enabled: false
+      enabled: true
     appDynamics:
-      enabled: false
+      enabled: true
     appInsights:
-      enabled: false
+      enabled: true
     bareMetal:
       enabled: false
     compellent:
@@ -19,7 +19,7 @@ spec:
     datadog:
       enabled: false
     dynatrace:
-      enabled: false
+      enabled: true
     flexera:
       enabled: false
     hds:
@@ -27,43 +27,43 @@ spec:
     horizon:
       enabled: false
     hpe3par:
-      enabled: false
+      enabled: true
     hyperFlex:
       enabled: false
     hyperV:
-      enabled: false
+      enabled: true
     ibmStorageFlashSystem:
-      enabled: false
+      enabled: true
     instana:
-      enabled: false
+      enabled: true
     jBoss:
       enabled: false
     jvm:
       enabled: false
     mssql:
-      enabled: false
+      enabled: true
     mysql:
       enabled: false
     netApp:
-      enabled: false
+      enabled: true
     newRelic:
-      enabled: false
+      enabled: true
     nutanix:
-      enabled: false
+      enabled: true
     oneView:
-      enabled: false
+      enabled: true
     oracle:
       enabled: false
     powerVM:
       enabled: false
     pure:
-      enabled: false
+      enabled: true
     scaleIO:
       enabled: false
     serviceNow:
       enabled: false
     snmp:
-      enabled: false
+      enabled: true
     tanium:
       enabled: false
     terraform:
@@ -71,21 +71,21 @@ spec:
     tomcat:
       enabled: false
     ucs:
-      enabled: false
+      enabled: true
     ucsDirector:
       enabled: false
     vCenter:
       enabled: true
     vmax:
-      enabled: false
+      enabled: true
     vmm:
-      enabled: false
+      enabled: true
     vplex:
       enabled: false
     webLogic:
       enabled: false
     wmi:
-      enabled: false
+      enabled: true
     xen:
       enabled: false
     xtremIO:
