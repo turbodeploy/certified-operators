@@ -952,14 +952,12 @@ public class ActionDescriptionBuilder {
                     entitiesSnapshot.getOwnerAccountOfEntity(targetEntityId);
             if (entitiesSnapshot.getEntityFromOid(sourceEntityId).isPresent()
                     && businessAccountTopologyEntityOpt.isPresent()) {
-                String family = entitiesSnapshot.getEntityFromOid(sourceEntityId)
+                String tier = entitiesSnapshot.getEntityFromOid(sourceEntityId)
                         .get()
-                        .getTypeSpecificInfo()
-                        .getComputeTier()
-                        .getFamily();
+                        .getDisplayName();
                 String subscription = businessAccountTopologyEntityOpt.get().getDisplayName();
                 return ActionMessageFormat.ACTION_DESCRIPTION_DELETE_APPLICATION_SERVICE.format(
-                        family, targetEntity.getDisplayName(), subscription);
+                        tier, targetEntity.getDisplayName(), subscription);
             } else {
                 // Default to generic delete message for ASP in case we don't have subscription or family.
                 return ActionMessageFormat.ACTION_DESCRIPTION_DELETE_APPLICATION_SERVICE_DEFAULT.format(
