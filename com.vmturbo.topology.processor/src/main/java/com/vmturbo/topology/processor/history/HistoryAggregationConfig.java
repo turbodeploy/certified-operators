@@ -8,7 +8,10 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -244,7 +247,12 @@ public class HistoryAggregationConfig {
      */
     @Bean
     protected ExecutorService backgroundHistoryLoadingPool() {
-        return Executors.newCachedThreadPool();
+        ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("history-aggregation-bg-loader-%d")
+                .build();
+        // like Executors.newCachedThreadPool() but with a cap on pool size
+        return new ThreadPoolExecutor(0, historyAggregationMaxPoolSize, 60L, TimeUnit.SECONDS,
+                new SynchronousQueue<Runnable>(), threadFactory);
     }
 
     /**
