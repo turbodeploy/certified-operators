@@ -111,16 +111,18 @@ public class AbstractCollectVmMetricFlagDbMigration extends AbstractCollectVmMet
 
     protected void updateProbeInfo(String probeType) throws ProbeException {
         final Optional<MediationMessage.ProbeInfo> infoOpt = probeStore.getProbeInfoForType(probeType);
-        final MediationMessage.ProbeInfo probeInfo = infoOpt.get();
-            if (infoOpt.isPresent() && hasVmMetricFlag(probeInfo)) {
-                List<Discovery.AccountDefEntry> accountDefinitionList = probeInfo.getAccountDefinitionList().stream()
-                        .filter(x -> !x.getCustomDefinition().getName().equals(propertyName))
-                        .collect(Collectors.toList());
-                probeInfo.getAccountDefinitionList().clear();
-                probeInfo.getAccountDefinitionList().addAll(accountDefinitionList);
-                probeStore.updateProbeInfo(
-                        probeInfo.toBuilder().build()
-                );
-            }
+        if (infoOpt.isPresent()) {
+            final MediationMessage.ProbeInfo probeInfo = infoOpt.get();
+                if (infoOpt.isPresent() && hasVmMetricFlag(probeInfo)) {
+                    List<Discovery.AccountDefEntry> accountDefinitionList = probeInfo.getAccountDefinitionList().stream()
+                            .filter(x -> !x.getCustomDefinition().getName().equals(propertyName))
+                            .collect(Collectors.toList());
+                    probeInfo.getAccountDefinitionList().clear();
+                    probeInfo.getAccountDefinitionList().addAll(accountDefinitionList);
+                    probeStore.updateProbeInfo(
+                            probeInfo.toBuilder().build()
+                    );
+                }
+        }
     }
 }
