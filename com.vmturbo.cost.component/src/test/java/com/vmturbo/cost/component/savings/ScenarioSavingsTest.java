@@ -140,6 +140,7 @@ public class ScenarioSavingsTest {
 
     @BeforeClass
     public static void setup() throws IOException {
+        // Set this to TRACE and Change trax verbosity level manually to get see the trax output.
         Configurator.setAllLevels("com.vmturbo.cost.component.savings", Level.INFO);
         int chunkSize = 1000;
         DSLContext dsl = dbConfig.getDslContext();
@@ -172,17 +173,23 @@ public class ScenarioSavingsTest {
         final Builder standHdd = StorageTierPriceList.newBuilder();
         assertTrue(TestUtils.loadProtobufBuilder("/savings/storageTierPriceStandardHDD.json",
                 standHdd, null));
-        priceListMap.put(STANDARD_HDD_DISK_TIER_OID, (StorageTierPriceList)(standHdd.build()));
+
+        priceListMap.put(ScenarioGenerator.volumeNameToProviderId.get("STANDARDHDD"), (StorageTierPriceList)(standHdd.build()));
+        final Builder standardSsd = StorageTierPriceList.newBuilder();
+        assertTrue(TestUtils.loadProtobufBuilder("/savings/storageTierPriceStandardSSD.json",
+                standardSsd, null));
+        priceListMap.put(ScenarioGenerator.volumeNameToProviderId.get("STANDARDSDD"), (StorageTierPriceList)(standardSsd.build()));
 
         final Builder ultra = StorageTierPriceList.newBuilder();
-        assertTrue(TestUtils.loadProtobufBuilder("/savings/storageTierPriceNoEndRange.json",
+        assertTrue(TestUtils.loadProtobufBuilder("/savings/storageTierPriceUltra.json",
                 ultra, null));
-        priceListMap.put(ULTRA_DISK_TIER_OID, (StorageTierPriceList)(ultra.build()));
+        priceListMap.put(ScenarioGenerator.volumeNameToProviderId.get("ULTRA"), (StorageTierPriceList)(ultra.build()));
 
         final Builder premium = StorageTierPriceList.newBuilder();
-        assertTrue(TestUtils.loadProtobufBuilder("/savings/storageTierPriceNoEndRange.json",
-                premium, null));
-        priceListMap.put(PREMIUM_DISK_TIER_OID, (StorageTierPriceList)(premium.build()));
+        final Builder premiumSsd = StorageTierPriceList.newBuilder();
+        assertTrue(TestUtils.loadProtobufBuilder("/savings/storageTierPricePremiumSSD.json",
+                premiumSsd, null));
+        priceListMap.put(ScenarioGenerator.volumeNameToProviderId.get("PREMIUM"), (StorageTierPriceList)(premiumSsd.build()));
     }
 
     /**

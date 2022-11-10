@@ -1,0 +1,90 @@
+{
+    "cloudStoragePrice": [{
+    "prices": [{
+      "unit": "MONTH",
+      "endRangeInUnits": "64",
+      "priceAmount": {
+        "amount": 4.800000190734863
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "128",
+      "priceAmount": {
+        "amount": 9.600000381469727
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "16384",
+      "priceAmount": {
+        "amount": 1228.800048828125
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "4096",
+      "priceAmount": {
+        "amount": 307.20001220703125
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "8192",
+      "priceAmount": {
+        "amount": 614.4000244140625
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "256",
+      "priceAmount": {
+        "amount": 19.200000762939453
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "2048",
+      "priceAmount": {
+        "amount": 153.60000610351562
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "512",
+      "priceAmount": {
+        "amount": 38.400001525878906
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "1024",
+      "priceAmount": {
+        "amount": 76.80000305175781
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "4",
+      "priceAmount": {
+        "amount": 0.3
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "8",
+      "priceAmount": {
+        "amount": 0.6
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "16",
+      "priceAmount": {
+        "amount": 1.2000000000000002
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "32",
+      "priceAmount": {
+        "amount": 2.4000000953674316
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "32767",
+      "priceAmount": {
+        "amount": 2457.60009765625
+      }
+    }],
+    "redundancyType": "LRS"
+  }]
+}

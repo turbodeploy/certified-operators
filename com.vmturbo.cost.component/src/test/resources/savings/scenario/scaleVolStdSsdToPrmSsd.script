@@ -1,0 +1,4 @@
+start 8-28 0:00
+0 11:00 create-vol vol-1 volume_type=STANDARDSDD storage_amount=16,0.0164
+1 10:00 resize-vol vol-1 volume_type=PREMIUM storage_amount=64,0.0140
+2 15:00 stop
