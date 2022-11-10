@@ -1,0 +1,448 @@
+{
+    "cloudStoragePrice": [{
+    "prices": [{
+      "unit": "MONTH",
+      "endRangeInUnits": "30720",
+      "priceAmount": {
+        "amount": 3657.299906015396
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "36864",
+      "priceAmount": {
+        "amount": 4388.759887218475
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "17408",
+      "priceAmount": {
+        "amount": 2072.469946742058
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "19456",
+      "priceAmount": {
+        "amount": 2316.2899404764175
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "24576",
+      "priceAmount": {
+        "amount": 2925.839924812317
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "20480",
+      "priceAmount": {
+        "amount": 2438.1999373435974
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "21504",
+      "priceAmount": {
+        "amount": 2560.1099342107773
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "22528",
+      "priceAmount": {
+        "amount": 2682.019931077957
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "23552",
+      "priceAmount": {
+        "amount": 2803.929927945137
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "25600",
+      "priceAmount": {
+        "amount": 3047.7499216794968
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "26624",
+      "priceAmount": {
+        "amount": 3169.6599185466766
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "27648",
+      "priceAmount": {
+        "amount": 3291.5699154138565
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "28672",
+      "priceAmount": {
+        "amount": 3413.4799122810364
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "29696",
+      "priceAmount": {
+        "amount": 3535.3899091482162
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "18432",
+      "priceAmount": {
+        "amount": 2194.3799436092377
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "15360",
+      "priceAmount": {
+        "amount": 1828.649953007698
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "14336",
+      "priceAmount": {
+        "amount": 1706.7399561405182
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "12288",
+      "priceAmount": {
+        "amount": 1462.9199624061584
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "10240",
+      "priceAmount": {
+        "amount": 1219.0999686717987
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "11264",
+      "priceAmount": {
+        "amount": 1341.0099655389786
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "13312",
+      "priceAmount": {
+        "amount": 1584.8299592733383
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "9216",
+      "priceAmount": {
+        "amount": 1097.1899718046188
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "2048",
+      "priceAmount": {
+        "amount": 243.81999373435974
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "8192",
+      "priceAmount": {
+        "amount": 975.279974937439
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "6144",
+      "priceAmount": {
+        "amount": 731.4599812030792
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "5120",
+      "priceAmount": {
+        "amount": 609.5499843358994
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "3072",
+      "priceAmount": {
+        "amount": 365.7299906015396
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "4096",
+      "priceAmount": {
+        "amount": 487.6399874687195
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "7168",
+      "priceAmount": {
+        "amount": 853.3699780702591
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "1024",
+      "priceAmount": {
+        "amount": 121.90999686717987
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "256",
+      "priceAmount": {
+        "amount": 30.477499216794968
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "128",
+      "priceAmount": {
+        "amount": 15.238749608397484
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "512",
+      "priceAmount": {
+        "amount": 60.954998433589935
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "16384",
+      "priceAmount": {
+        "amount": 1950.559949874878
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "34816",
+      "priceAmount": {
+        "amount": 4144.939893484116
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "31744",
+      "priceAmount": {
+        "amount": 3779.209902882576
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "32768",
+      "priceAmount": {
+        "amount": 3901.119899749756
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "33792",
+      "priceAmount": {
+        "amount": 4023.0298966169357
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "35840",
+      "priceAmount": {
+        "amount": 4266.8498903512955
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "37888",
+      "priceAmount": {
+        "amount": 4510.669884085655
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "38912",
+      "priceAmount": {
+        "amount": 4632.579880952835
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "39936",
+      "priceAmount": {
+        "amount": 4754.489877820015
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "40960",
+      "priceAmount": {
+        "amount": 4876.399874687195
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "41984",
+      "priceAmount": {
+        "amount": 4998.309871554375
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "43008",
+      "priceAmount": {
+        "amount": 5120.219868421555
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "44032",
+      "priceAmount": {
+        "amount": 5242.129865288734
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "45056",
+      "priceAmount": {
+        "amount": 5364.039862155914
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "46080",
+      "priceAmount": {
+        "amount": 5485.949859023094
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "47104",
+      "priceAmount": {
+        "amount": 5607.859855890274
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "53248",
+      "priceAmount": {
+        "amount": 6339.319837093353
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "51200",
+      "priceAmount": {
+        "amount": 6095.4998433589935
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "48128",
+      "priceAmount": {
+        "amount": 5729.769852757454
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "49152",
+      "priceAmount": {
+        "amount": 5851.679849624634
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "50176",
+      "priceAmount": {
+        "amount": 5973.589846491814
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "52224",
+      "priceAmount": {
+        "amount": 6217.409840226173
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "54272",
+      "priceAmount": {
+        "amount": 6461.229833960533
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "55296",
+      "priceAmount": {
+        "amount": 6583.139830827713
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "56320",
+      "priceAmount": {
+        "amount": 6705.049827694893
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "57344",
+      "priceAmount": {
+        "amount": 6826.959824562073
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "58368",
+      "priceAmount": {
+        "amount": 6948.869821429253
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "59392",
+      "priceAmount": {
+        "amount": 7070.7798182964325
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "60416",
+      "priceAmount": {
+        "amount": 7192.689815163612
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "61440",
+      "priceAmount": {
+        "amount": 7314.599812030792
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "62464",
+      "priceAmount": {
+        "amount": 7436.509808897972
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "63488",
+      "priceAmount": {
+        "amount": 7558.419805765152
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "64512",
+      "priceAmount": {
+        "amount": 7680.329802632332
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "65536",
+      "priceAmount": {
+        "amount": 7802.239799499512
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "4",
+      "priceAmount": {
+        "amount": 0.47621092526242137
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "8",
+      "priceAmount": {
+        "amount": 0.9524218505248427
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "16",
+      "priceAmount": {
+        "amount": 1.9048437010496855
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "32",
+      "priceAmount": {
+        "amount": 3.809687402099371
+      }
+    }, {
+      "unit": "MONTH",
+      "endRangeInUnits": "64",
+      "priceAmount": {
+        "amount": 7.619374804198742
+      }
+    }, {
+      "unit": "MBPS_MONTH",
+      "priceAmount": {
+        "amount": 0.3430999991297722
+      }
+    }, {
+      "unit": "MILLION_IOPS",
+      "priceAmount": {
+        "amount": 0.049640001392364505
+      }
+    }],
+    "redundancyType": "LRS"
+  }]
+}

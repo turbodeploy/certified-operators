@@ -1,104 +1,104 @@
 [
   {
-    "eventType":"CREATE-VOL",
-    "uuid":"vol-1",
-    "destinationVolumeType":"ULTRA",
-    "commodities":[
+    "eventType": "CREATE-VOL",
+    "uuid": "my-vol1",
+    "destinationVolumeType": "ULTRA",
+    "commodities": [
       {
-        "commType":"STORAGE_ACCESS",
-        "sourceCapacity":"0",
-        "sourceRate":"0.0",
-        "destinationCapacity":"2000",
-        "destinationRate":"0.7"
+        "commType": "STORAGE_ACCESS",
+        "sourceCapacity": "0",
+        "sourceRate": "0.0",
+        "destinationCapacity": "2000",
+        "destinationRate": "0.7"
       },
       {
-        "commType":"STORAGE_AMOUNT",
-        "sourceCapacity":"0",
-        "sourceRate":"0.0",
-        "destinationCapacity":"5",
-        "destinationRate":"0.8"
+        "commType": "STORAGE_AMOUNT",
+        "sourceCapacity": "0",
+        "sourceRate": "0.0",
+        "destinationCapacity": "5",
+        "destinationRate": "0.8"
       },
       {
-        "commType":"IO_THROUGHPUT",
-        "sourceCapacity":"0",
-        "sourceRate":"0.0",
-        "destinationCapacity":"7",
-        "destinationRate":"9.1"
+        "commType": "IO_THROUGHPUT",
+        "sourceCapacity": "0",
+        "sourceRate": "0.0",
+        "destinationCapacity": "7",
+        "destinationRate": "9.1"
       }
     ],
-    "timestamp":1662202800000,
-    "expirationTimestamp":1725361200000
+    "timestamp": 1662202800000,
+    "expirationTimestamp": 1725361200000
   },
   {
-    "eventType":"RESIZE-VOL",
-    "uuid":"vol-1",
-    "sourceVolumeType":"ULTRA",
-    "destinationVolumeType":"ULTRA",
-    "commodities":[
+    "eventType": "RESIZE-VOL",
+    "uuid": "my-vol1",
+    "sourceVolumeType": "ULTRA",
+    "destinationVolumeType": "ULTRA",
+    "commodities": [
       {
-        "commType":"STORAGE_ACCESS",
-        "sourceCapacity":"2000",
-        "sourceRate":"0.7",
-        "destinationCapacity":"3000",
-        "destinationRate":"0.9"
+        "commType": "STORAGE_ACCESS",
+        "sourceCapacity": "2000",
+        "sourceRate": "0.7",
+        "destinationCapacity": "3000",
+        "destinationRate": "0.9"
       },
       {
-        "commType":"STORAGE_AMOUNT",
-        "sourceCapacity":"5",
-        "sourceRate":"0.8",
-        "destinationCapacity":"40",
-        "destinationRate":"1.7"
+        "commType": "STORAGE_AMOUNT",
+        "sourceCapacity": "5",
+        "sourceRate": "0.8",
+        "destinationCapacity": "40",
+        "destinationRate": "1.7"
       },
       {
-        "commType":"IO_THROUGHPUT",
-        "sourceCapacity":"7",
-        "sourceRate":"9.1",
-        "destinationCapacity":"6",
-        "destinationRate":"3.1"
+        "commType": "IO_THROUGHPUT",
+        "sourceCapacity": "7",
+        "sourceRate": "9.1",
+        "destinationCapacity": "6",
+        "destinationRate": "3.1"
       }
     ],
-    "timestamp":1662285600000,
-    "expirationTimestamp":1725444000000
+    "timestamp": 1662285600000,
+    "expirationTimestamp": 1725444000000
   },
   {
-    "eventType":"RESIZE-VOL",
-    "uuid":"vol-1",
-    "sourceVolumeType":"ULTRA",
-    "destinationVolumeType":"PREMIUM",
-    "commodities":[
+    "eventType": "RESIZE-VOL",
+    "uuid": "my-vol1",
+    "sourceVolumeType": "ULTRA",
+    "destinationVolumeType": "PREMIUM",
+    "commodities": [
       {
-        "commType":"STORAGE_AMOUNT",
-        "sourceCapacity":"40",
-        "sourceRate":"1.7",
-        "destinationCapacity":"80",
-        "destinationRate":"2.0"
+        "commType": "STORAGE_AMOUNT",
+        "sourceCapacity": "40",
+        "sourceRate": "1.7",
+        "destinationCapacity": "80",
+        "destinationRate": "2.0"
       }
     ],
-    "timestamp":1662372000000,
-    "expirationTimestamp":1725530400000
+    "timestamp": 1662372000000,
+    "expirationTimestamp": 1725530400000
   },
   {
-    "eventType":"RESIZE-VOL",
-    "uuid":"vol-1",
-    "sourceVolumeType":"PREMIUM",
-    "destinationVolumeType":"STANDARD",
-    "commodities":[
+    "eventType": "RESIZE-VOL",
+    "uuid": "my-vol1",
+    "sourceVolumeType": "PREMIUM",
+    "destinationVolumeType": "STANDARD",
+    "commodities": [
       {
-        "commType":"STORAGE_AMOUNT",
-        "sourceCapacity":"80",
-        "sourceRate":"2.0",
-        "destinationCapacity":"20",
-        "destinationRate":"1.0"
+        "commType": "STORAGE_AMOUNT",
+        "sourceCapacity": "80",
+        "sourceRate": "2.0",
+        "destinationCapacity": "20",
+        "destinationRate": "1.0"
       }
     ],
-    "timestamp":1662472800000,
-    "expirationTimestamp":1725631200000
+    "timestamp": 1662472800000,
+    "expirationTimestamp": 1725631200000
   },
   {
-    "eventType":"STOP",
-    "uuid":"0",
-    "purgeState":false,
-    "timestamp":1662562800000,
-    "expirationTimestamp":1725721200000
+    "eventType": "STOP",
+    "uuid": "0",
+    "purgeState": false,
+    "timestamp": 1662562800000,
+    "expirationTimestamp": 1725721200000
   }
 ]

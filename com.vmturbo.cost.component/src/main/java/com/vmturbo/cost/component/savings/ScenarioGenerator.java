@@ -164,15 +164,17 @@ public class ScenarioGenerator {
                 actionChains.computeIfAbsent(oid, c -> new TreeSet<>(GrpcActionChainStore.changeWindowComparator))
                         .add(action);
             } else if ("RESIZE-VOL".equals(event.eventType)) {
+                final double sourceRate = event.commodities.stream().mapToDouble(sR -> sR.sourceRate).sum();
+                final double destinationRate = event.commodities.stream().mapToDouble(dR -> dR.destinationRate).sum();
                 ExecutedActionsChangeWindow action = createVolumeActionChangeWindow(oid, actionDateTime,
-                        event.sourceOnDemandRate, event.destinationOnDemandRate,
+                        sourceRate, destinationRate,
                         generateProviderIdFromVolumeType(event.sourceVolumeType),
                         generateProviderIdFromVolumeType(event.destinationVolumeType), null,
                         LivenessState.LIVE, createResizeInfoList(event.commodities));
                 logger.info("{} Scale action time: {}, entity OID: {}, source rate: {}, "
                                 + "destination rate: {} source provider: {}, destination provider: {}, "
                         + "commodities: {}, expected RI coverage: {}", event.eventType,
-                        actionDateTime, oid, event.sourceOnDemandRate, event.destinationOnDemandRate,
+                        actionDateTime, oid, sourceRate, destinationRate,
                         generateProviderIdFromVolumeType(event.sourceVolumeType),
                         generateProviderIdFromVolumeType(event.destinationVolumeType), event.commodities, 0);
                 actionChains.computeIfAbsent(oid, c -> new TreeSet<>(GrpcActionChainStore.changeWindowComparator))

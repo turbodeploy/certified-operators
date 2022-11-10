@@ -1,88 +1,87 @@
 [
   {
-    "eventType":"CREATE-VOL",
-    "uuid":"vol-1",
-    "sourceVolumeType":"ULTRA",
-    "destinationVolumeType":"ULTRA",
-    "commodities":[
+    "eventType": "CREATE-VOL",
+    "uuid": "my-vol1",
+    "destinationVolumeType": "ULTRA",
+    "commodities": [
       {
-        "commType":"STORAGE_ACCESS",
-        "sourceCapacity":"0",
-        "sourceRate":"0.0",
-        "destinationCapacity":"2000",
-        "destinationRate":"0.7"
+        "commType": "STORAGE_ACCESS",
+        "sourceCapacity": "0",
+        "sourceRate": "0.0",
+        "destinationCapacity": "2000",
+        "destinationRate": "0.7"
       },
       {
-        "commType":"STORAGE_AMOUNT",
-        "sourceCapacity":"0",
-        "sourceRate":"0.0",
-        "destinationCapacity":"5",
-        "destinationRate":"0.8"
+        "commType": "STORAGE_AMOUNT",
+        "sourceCapacity": "0",
+        "sourceRate": "0.0",
+        "destinationCapacity": "5",
+        "destinationRate": "0.8"
       },
       {
-        "commType":"IO_THROUGHPUT",
-        "sourceCapacity":"0",
-        "sourceRate":"0.0",
-        "destinationCapacity":"7",
-        "destinationRate":"9.1"
+        "commType": "IO_THROUGHPUT",
+        "sourceCapacity": "0",
+        "sourceRate": "0.0",
+        "destinationCapacity": "7",
+        "destinationRate": "9.1"
       }
     ],
-    "timestamp":1661770800000,
-    "expirationTimestamp":1725361200000
+    "timestamp": 1661770800000,
+    "expirationTimestamp": 1724929200000
   },
   {
-    "eventType":"RESIZE-VOL",
-    "uuid":"vol-1",
-    "sourceVolumeType":"ULTRA",
-    "destinationVolumeType":"PREMIUM",
-    "commodities":[
+    "eventType": "RESIZE-VOL",
+    "uuid": "my-vol1",
+    "sourceVolumeType": "ULTRA",
+    "destinationVolumeType": "PREMIUM",
+    "commodities": [
       {
-        "commType":"STORAGE_AMOUNT",
-        "sourceCapacity":"5",
-        "sourceRate":"0.8",
-        "destinationCapacity":"40",
-        "destinationRate":"1.7"
+        "commType": "STORAGE_AMOUNT",
+        "sourceCapacity": "5",
+        "sourceRate": "0.8",
+        "destinationCapacity": "40",
+        "destinationRate": "1.7"
       },
       {
-        "commType":"IO_THROUGHPUT",
-        "sourceCapacity":"7",
-        "sourceRate":"9.1",
-        "destinationCapacity":"6",
-        "destinationRate":"3.1"
+        "commType": "IO_THROUGHPUT",
+        "sourceCapacity": "7",
+        "sourceRate": "9.1",
+        "destinationCapacity": "6",
+        "destinationRate": "3.1"
       }
     ],
-    "timestamp":1661853600000,
-    "expirationTimestamp":1725530400000
+    "timestamp": 1661853600000,
+    "expirationTimestamp": 1725012000000
   },
   {
-    "eventType":"RESIZE-VOL",
-    "uuid":"vol-1",
-    "sourceVolumeType":"PREMIUM",
-    "destinationVolumeType":"STANDARD",
-    "commodities":[
+    "eventType": "RESIZE-VOL",
+    "uuid": "my-vol1",
+    "sourceVolumeType": "PREMIUM",
+    "destinationVolumeType": "STANDARD",
+    "commodities": [
       {
-        "commType":"STORAGE_ACCESS",
-        "sourceCapacity":"2000",
-        "sourceRate":"0.7",
-        "destinationCapacity":"9000",
-        "destinationRate":"3.7"
+        "commType": "STORAGE_ACCESS",
+        "sourceCapacity": "2000",
+        "sourceRate": "0.7",
+        "destinationCapacity": "9000",
+        "destinationRate": "3.7"
       }
     ],
-    "timestamp":1661954400000,
-    "expirationTimestamp":1725631200000
+    "timestamp": 1661954400000,
+    "expirationTimestamp": 1725112800000
   },
   {
-    "eventType":"DELVOL",
-    "uuid":"vol-1",
-    "sourceOnDemandRate":0.15,
-    "timestamp":1662026400000,
-    "expirationTimestamp":1725703200000
+    "eventType": "DELVOL",
+    "uuid": "my-vol1",
+    "sourceOnDemandRate": 0.15,
+    "timestamp": 1662026400000,
+    "expirationTimestamp": 1725184800000
   },
   {
-    "eventType":"STOP",
-    "uuid":"0",
-    "purgeState":false,
-    "timestamp":1662130800000,
-    "expirationTimestamp":1725721200000
+    "eventType": "STOP",
+    "uuid": "0",
+    "purgeState": false,
+    "timestamp": 1662130800000,
+    "expirationTimestamp": 1725289200000
   }
 ]
