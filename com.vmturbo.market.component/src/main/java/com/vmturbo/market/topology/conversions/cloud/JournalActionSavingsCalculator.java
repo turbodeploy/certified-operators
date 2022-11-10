@@ -448,8 +448,12 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
                     CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.ON_DEMAND_RATE);
             TraxNumber license =  costJournal.getHourlyCostFilterEntries(
                     CostCategory.ON_DEMAND_LICENSE, CostSourceFilter.ON_DEMAND_RATE);
-            onDemandRate = Stream.of(compute, license)
-                    .collect(TraxCollectors.sum(cloudTier.getDisplayName() + "On-demand Cost"));
+            TraxNumber storage = ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES.contains(entityMoving.getEntityType())
+                    ? costJournal.getHourlyCostFilterEntries(
+                            CostCategory.STORAGE, CostSourceFilter.ON_DEMAND_RATE)
+                    : Trax.trax(0.0);
+            onDemandRate = Stream.of(compute, license, storage)
+                    .collect(TraxCollectors.sum(cloudTier.getDisplayName() + "On-demand Rate"));
         }
 
         final TraxTierCostDetails.Builder tierCostDetails = TraxTierCostDetails.builder()
