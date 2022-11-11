@@ -113,14 +113,16 @@ public class AbstractCollectVmMetricFlagDbMigration extends AbstractCollectVmMet
         final Optional<MediationMessage.ProbeInfo> infoOpt = probeStore.getProbeInfoForType(probeType);
         if (infoOpt.isPresent()) {
             final MediationMessage.ProbeInfo probeInfo = infoOpt.get();
-                if (infoOpt.isPresent() && hasVmMetricFlag(probeInfo)) {
+                if (hasVmMetricFlag(probeInfo)) {
                     List<Discovery.AccountDefEntry> accountDefinitionList = probeInfo.getAccountDefinitionList().stream()
                             .filter(x -> !x.getCustomDefinition().getName().equals(propertyName))
                             .collect(Collectors.toList());
-                    probeInfo.getAccountDefinitionList().clear();
-                    probeInfo.getAccountDefinitionList().addAll(accountDefinitionList);
+
                     probeStore.updateProbeInfo(
-                            probeInfo.toBuilder().build()
+                            probeInfo.toBuilder()
+                                     .clearAccountDefinition()
+                                     .addAllAccountDefinition(accountDefinitionList)
+                                     .build()
                     );
                 }
         }
