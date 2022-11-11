@@ -25,7 +25,7 @@
         <ux.mt.branch.version>8.7.2-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.3.62</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.3.63</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.5.7</cpu.capacity.version>
@@ -37,7 +37,7 @@
 
         <spring.version>5.3.20</spring.version>
         <spring.retry.version>1.2.4.RELEASE</spring.retry.version>
-        <spring.security.version>5.5.8</spring.security.version>
+        <spring.security.version>5.7.5</spring.security.version>
         <!-- Upgraded to fix CVE error. See bug OM-86833-->
         <spring.session.jdbc.version>2.7.0</spring.session.jdbc.version>
         <guava.version>31.1-jre</guava.version>
