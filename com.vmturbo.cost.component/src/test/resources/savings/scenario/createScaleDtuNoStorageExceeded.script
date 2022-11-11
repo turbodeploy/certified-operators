@@ -1,0 +1,4 @@
+start 8-28 0:00
+0 11:00 create-db db-1 type=P2 on_demand_rate=1 license_rate=0.22
+1 10:00 resize-db db-1 type=p4 on_demand_rate=1.5 license_rate=0.25
+2 0:00 stop

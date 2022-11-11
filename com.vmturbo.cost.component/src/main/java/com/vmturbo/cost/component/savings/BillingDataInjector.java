@@ -67,14 +67,19 @@ public class BillingDataInjector implements ScenarioDataInjector {
      * Event format passed between the data generator and the event injector.
      */
     public static class BillingScriptEvent extends ScriptEvent {
+        // on-demand rates hold the compute rates for VMs and the compute portion rates for DBs.
         double sourceOnDemandRate;
         double destinationOnDemandRate;
         boolean purgeState;
         boolean state;
         double expectedCloudCommitment;
         List<Commodity> commodities;
-        String sourceVolumeType;
-        String destinationVolumeType;
+        String sourceType;
+        String destinationType;
+        int sourceNumVCores;
+        int destinationNumVCores;
+        double sourceLicenseRate;
+        double destinationLicenseRate;
 
         /**
          * Return string representation of event.
@@ -93,8 +98,12 @@ public class BillingDataInjector implements ScenarioDataInjector {
             sb.append(", eventType='").append(this.eventType).append('\'');
             sb.append(", uuid='").append(uuid).append('\'');
             sb.append(", expectedCloudCommitment='").append(this.expectedCloudCommitment).append('\'');
-            sb.append(", sourceVolumeType='").append(sourceVolumeType).append('\'');
-            sb.append(", destinationVolumeType='").append(destinationVolumeType).append('\'');
+            sb.append(", sourceType='").append(sourceType).append('\'');
+            sb.append(", destinationType='").append(destinationType).append('\'');
+            sb.append(", sourceNumVCores='").append(sourceNumVCores).append('\'');
+            sb.append(", destinationNumVCores='").append(destinationNumVCores).append('\'');
+            sb.append(", sourceLicenseRate='").append(sourceLicenseRate).append('\'');
+            sb.append(", destinationLicenseRate='").append(destinationLicenseRate).append('\'');
             sb.append('}');
             return sb.toString();
         }

@@ -1,0 +1,4 @@
+start 8-28 0:00
+0 11:00 create-db db-1 type=GP_GEN5_2 on_demand_rate=1 license_rate=0.20 storage_amount=16,0.0164
+1 10:00 resize-db db-1 type=BC_GEN5_16 on_demand_rate=1.5 license_rate=0.25 storage_amount=32,0.0246
+3 0:00 stop
