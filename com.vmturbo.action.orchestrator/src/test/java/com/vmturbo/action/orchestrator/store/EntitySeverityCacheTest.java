@@ -487,6 +487,14 @@ public class EntitySeverityCacheTest {
                 ImmutableMap.of(Severity.MAJOR, 1L));
         checkSeverityBreakdown(severityBreakdownScenario.containerSpec62Oid,
                 ImmutableMap.of(Severity.NORMAL, 1L));
+        checkSupplyChainSeverityCount(Collections.singletonList(
+                        severityBreakdownScenario.virtualMachineSpec3006id),
+                ImmutableMap.of(
+                        Severity.MINOR, 1L));
+        checkSupplyChainSeverityCount(Collections.singletonList(
+                        severityBreakdownScenario.appComponentSpec4605id),
+                ImmutableMap.of(
+                        Severity.MINOR, 1L));
     }
 
     /**
@@ -603,6 +611,8 @@ public class EntitySeverityCacheTest {
         public final long businessApp2Oid = 8002L;
         public final long virtualVolume4Oid = 9004L;
         public final long virtualVolume5Oid = 9005L;
+        public final long appComponentSpec4605id = 4605L;
+        public final long virtualMachineSpec3006id = 3006L;
         public final long missingId = 9999L;
 
         /**
@@ -626,7 +636,8 @@ public class EntitySeverityCacheTest {
                 actionView(executableMove(5, storage2Oid, 1, 2, 1, Severity.MINOR)),
                 actionView(executableMove(5, storage2Oid, 1, 2, 1, Severity.MAJOR)),
                 actionView(executableMove(5, storage4Oid, 1, 2, 1, Severity.MAJOR)),
-                actionView(executableMove(5, physicalMachine4Oid, 1, 2, 1, Severity.MINOR))
+                actionView(executableMove(5, physicalMachine4Oid, 1, 2, 1, Severity.MINOR)),
+                actionView(executableMove(5, virtualMachineSpec3006id, 1, 2, 1, Severity.MINOR))
             );
 
             // refresh cache using the above actions
@@ -708,6 +719,12 @@ public class EntitySeverityCacheTest {
             makeEntity(EntityType.STORAGE, storage1Oid, graphCreator);
             makeEntity(EntityType.STORAGE, storage2Oid, graphCreator);
             makeEntity(EntityType.STORAGE, storage4Oid, graphCreator);
+
+            makeEntity(EntityType.VIRTUAL_MACHINE_SPEC, virtualMachineSpec3006id, graphCreator);
+            makeEntity(EntityType.APPLICATION_COMPONENT_SPEC, appComponentSpec4605id, graphCreator);
+            makeEntity(EntityType.APPLICATION_COMPONENT_SPEC, appComponentSpec4605id, graphCreator, ImmutableList.of(
+                            newConnectedEntity(ConnectionType.NORMAL_CONNECTION, EntityType.VIRTUAL_MACHINE_SPEC,
+                                    virtualMachineSpec3006id)));
 
             ActionRealtimeTopology actionRealtimeTopology = mock(ActionRealtimeTopology.class);
             when(actionRealtimeTopology.entityGraph())
