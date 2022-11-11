@@ -174,22 +174,22 @@ public class ScenarioSavingsTest {
         assertTrue(TestUtils.loadProtobufBuilder("/savings/storageTierPriceStandardHDD.json",
                 standHdd, null));
 
-        priceListMap.put(ScenarioGenerator.volumeNameToProviderId.get("STANDARDHDD"), (StorageTierPriceList)(standHdd.build()));
+        priceListMap.put(ScenarioGenerator.providerTypeToProviderId.get("STANDARDHDD"), (StorageTierPriceList)(standHdd.build()));
         final Builder standardSsd = StorageTierPriceList.newBuilder();
         assertTrue(TestUtils.loadProtobufBuilder("/savings/storageTierPriceStandardSSD.json",
                 standardSsd, null));
-        priceListMap.put(ScenarioGenerator.volumeNameToProviderId.get("STANDARDSDD"), (StorageTierPriceList)(standardSsd.build()));
+        priceListMap.put(ScenarioGenerator.providerTypeToProviderId.get("STANDARDSDD"), (StorageTierPriceList)(standardSsd.build()));
 
         final Builder ultra = StorageTierPriceList.newBuilder();
         assertTrue(TestUtils.loadProtobufBuilder("/savings/storageTierPriceUltra.json",
                 ultra, null));
-        priceListMap.put(ScenarioGenerator.volumeNameToProviderId.get("ULTRA"), (StorageTierPriceList)(ultra.build()));
+        priceListMap.put(ScenarioGenerator.providerTypeToProviderId.get("ULTRA"), (StorageTierPriceList)(ultra.build()));
 
         final Builder premium = StorageTierPriceList.newBuilder();
         final Builder premiumSsd = StorageTierPriceList.newBuilder();
         assertTrue(TestUtils.loadProtobufBuilder("/savings/storageTierPricePremiumSSD.json",
                 premiumSsd, null));
-        priceListMap.put(ScenarioGenerator.volumeNameToProviderId.get("PREMIUM"), (StorageTierPriceList)(premiumSsd.build()));
+        priceListMap.put(ScenarioGenerator.providerTypeToProviderId.get("PREMIUM"), (StorageTierPriceList)(premiumSsd.build()));
     }
 
     /**

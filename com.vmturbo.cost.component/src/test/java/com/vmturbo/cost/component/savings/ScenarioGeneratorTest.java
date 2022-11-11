@@ -36,9 +36,10 @@ public class ScenarioGeneratorTest {
 
     private static final String vm1 = "vm1";
     private static final String vol1 = "vol1";
+    private static final String db1 = "db1";
 
     private static final Map<String, Long> uuidMap = ImmutableMap.of(vm1, 70000L,
-            vol1, 10000L);
+            vol1, 10000L, db1, 20000L);
 
     /**
      * Test the logic of subtracting an interval from another. It is used for adjusting the segment
@@ -54,7 +55,7 @@ public class ScenarioGeneratorTest {
 
         long start = getMillis(2022, 4, 10, 7, 0);
         long end = getMillis(2022, 4, 10, 8, 0);
-        Segment s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM");
+        Segment s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM", 0, 0.0);
         List<Segment> segments = s1.exclude(powerOffInterval);
         Assert.assertEquals(1, segments.size());
         Assert.assertEquals(start, segments.get(0).start);
@@ -62,7 +63,7 @@ public class ScenarioGeneratorTest {
 
         start = getMillis(2022, 4, 10, 7, 0);
         end = getMillis(2022, 4, 10, 11, 0);
-        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM");
+        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM",  0, 0.0);
         segments = s1.exclude(powerOffInterval);
         Assert.assertEquals(1, segments.size());
         Assert.assertEquals(start, segments.get(0).start);
@@ -70,7 +71,7 @@ public class ScenarioGeneratorTest {
 
         start = getMillis(2022, 4, 10, 7, 0);
         end = getMillis(2022, 4, 10, 22, 0);
-        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM");
+        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM",  0, 0.0);
         segments = s1.exclude(powerOffInterval);
         Assert.assertEquals(2, segments.size());
         Assert.assertEquals(start, segments.get(0).start);
@@ -80,13 +81,13 @@ public class ScenarioGeneratorTest {
 
         start = getMillis(2022, 4, 10, 13, 0);
         end = getMillis(2022, 4, 10, 14, 0);
-        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM");
+        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM",  0, 0.0);
         segments = s1.exclude(powerOffInterval);
         Assert.assertEquals(0, segments.size());
 
         start = getMillis(2022, 4, 10, 13, 0);
         end = getMillis(2022, 4, 10, 22, 0);
-        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM");
+        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM",  0, 0.0);
         segments = s1.exclude(powerOffInterval);
         Assert.assertEquals(1, segments.size());
         Assert.assertEquals(powerOnTimeMillis, segments.get(0).start);
@@ -94,7 +95,7 @@ public class ScenarioGeneratorTest {
 
         start = getMillis(2022, 4, 10, 21, 0);
         end = getMillis(2022, 4, 10, 22, 0);
-        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM");
+        s1 = new Segment(start, end, 2, 1000L, Collections.emptyList(), 0, "VM",  0, 0.0);
         segments = s1.exclude(powerOffInterval);
         Assert.assertEquals(1, segments.size());
         Assert.assertEquals(start, segments.get(0).start);
@@ -274,7 +275,6 @@ public class ScenarioGeneratorTest {
                 7 * 32 + 15 * 64, 7 * 0.6 + 15 * 0.8, CommodityType.STORAGE_AMOUNT_VALUE);
 
         expectedRecords.add(record1);
-        System.out.println("Expected: " + expectedRecords);
         assertTrue(CollectionUtils.isEqualCollection(expectedRecords, result.get(uuidMap.get(vol1))));
     }
 
@@ -617,6 +617,233 @@ public class ScenarioGeneratorTest {
     }
 
     /**
+     * Test creation of One Billing Record per tier, for DTU DB involving tier change only .(storage for tier not exceeded)
+     */
+    @Test
+    public void testGenerateDtuDbBillRecordStorageNotExceeded() {
+        // In this test source and destination tier OID are the same, but commodities are different.
+        List<BillingScriptEvent> events = new ArrayList<>();
+
+        BillingScriptEvent event1 = createDbEvent(getMillis(2022, 4, 25, 0, 0),
+                db1, Collections.emptyList(), "CREATE-DB", "BASICD", 0.0);
+        BillingScriptEvent event2 = createScaleDbEvent(getMillis(2022, 4, 25, 7, 0),
+                db1, "BASIC", "S0", 0.0, 0.0,
+                Collections.emptyList(), 0, "RESIZE-DB");
+        events.add(event1);
+        events.add(event2);
+        events.add(createPowerEvent(getMillis(2022, 4, 25, 22, 0),
+                db1, false));
+
+        LocalDateTime scenarioStart = LocalDateTime.of(2022, 4, 25, 0, 0);
+        LocalDateTime scenarioEnd = LocalDateTime.of(2022, 4, 27, 0, 0);
+        Map<Long, Set<BillingRecord>> result =
+                ScenarioGenerator.generateBillRecords(events, uuidMap, scenarioStart, scenarioEnd);
+        Assert.assertEquals(1, result.size());
+        // For the purposes of simulation rate is a function of provider type in the scale event.  Reverse compute expected on-demand rates.
+        final double expectedSrcOnDemandRate = (double)ScenarioGenerator.generateProviderIdFromType("BASIC") / 10000;
+        final double expectedDestOnDemandRate = (double)ScenarioGenerator.generateProviderIdFromType("S0") / 10000;
+        Set<BillingRecord> expectedRecords = new HashSet<>();
+        BillingRecord record1 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "BASIC",
+                7.0, 7 * expectedSrcOnDemandRate, CommodityType.UNKNOWN_VALUE, CostCategory.COMPUTE_LICENSE_BUNDLE);
+        BillingRecord record2 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "S0",
+                15.0, 15 * expectedDestOnDemandRate, CommodityType.UNKNOWN_VALUE, CostCategory.COMPUTE_LICENSE_BUNDLE);
+
+        expectedRecords.add(record1);
+        expectedRecords.add(record2);
+        assertTrue(CollectionUtils.isEqualCollection(expectedRecords, result.get(uuidMap.get(db1))));
+    }
+
+    /**
+     * Test creation of Billing Records, for DTU DB involving tier change and excess storage.(storage for tier exceeded)
+     */
+    @Test
+    public void testGenerateDtuDbBillRecordStorageExceeded() {
+        // In this test source and destination tier OID are the same, but commodities are different.
+        List<BillingScriptEvent> events = new ArrayList<>();
+
+        // Initial commodities for  the entity are the same at source and destination (no scaling has happened yet in this case).
+        List<Commodity> initiaCommodities = new ArrayList<Commodity>(Arrays.asList(
+                new Commodity("STORAGE_AMOUNT", 0, 0.0, 0, 0.0)));
+        List<Commodity> scaleCommodities = new ArrayList<Commodity>(Arrays.asList(
+                new Commodity("STORAGE_AMOUNT", 0, 0.0, 16, 3.0)));
+        BillingScriptEvent event1 = createDbEvent(getMillis(2022, 4, 25, 0, 0),
+                db1, initiaCommodities, "CREATE-DB", "BASIC", 0.0);
+        BillingScriptEvent event2 = createScaleDbEvent(getMillis(2022, 4, 25, 7, 0),
+                db1, "BASIC", "S4",
+                0, 0,
+                scaleCommodities, 0, "RESIZE-DB");
+        events.add(event1);
+        events.add(event2);
+        events.add(createPowerEvent(getMillis(2022, 4, 25, 22, 0),
+                db1, false));
+
+        LocalDateTime scenarioStart = LocalDateTime.of(2022, 4, 25, 0, 0);
+        LocalDateTime scenarioEnd = LocalDateTime.of(2022, 4, 27, 0, 0);
+        Map<Long, Set<BillingRecord>> result =
+                ScenarioGenerator.generateBillRecords(events, uuidMap, scenarioStart, scenarioEnd);
+        Assert.assertEquals(1, result.size());
+        // For the purposes of simulation rate is a function of provider type in the scale event.  Reverse compute expected on-demand rates.
+        final double expectedSrcOnDemandRate = (double)ScenarioGenerator.generateProviderIdFromType("BASIC") / 10000;
+        final double expectedDestOnDemandRate = (double)ScenarioGenerator.generateProviderIdFromType("S4") / 10000;
+        Set<BillingRecord> expectedRecords = new HashSet<>();
+        BillingRecord record1 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "BASIC",
+                7, 7 * expectedSrcOnDemandRate, CommodityType.UNKNOWN_VALUE, CostCategory.COMPUTE_LICENSE_BUNDLE);
+        BillingRecord record2 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "S4",
+                15, 15 * expectedDestOnDemandRate, CommodityType.UNKNOWN_VALUE, CostCategory.COMPUTE_LICENSE_BUNDLE);
+        BillingRecord record3 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "NONE",
+                7 * 0 +  15 * 16, 7 * 0 +  15 * 3.0, CommodityType.STORAGE_AMOUNT_VALUE, CostCategory.STORAGE);
+
+        expectedRecords.add(record1);
+        expectedRecords.add(record2);
+        expectedRecords.add(record3);
+        assertTrue(CollectionUtils.isEqualCollection(expectedRecords, result.get(uuidMap.get(db1))));
+    }
+
+    /**
+     * Test creation of Billing Records, for DTU DB involving Premium tier (no change in tier) and excess storage.(storage for tier exceeded)
+     * For example P2 --> P4
+     */
+    @Test
+    public void testGenerateDtuDbPremiumTierBillRecordStorageExceeded() {
+        // In this test source and destination tier OID are the same, but commodities are different.
+        List<BillingScriptEvent> events = new ArrayList<>();
+
+        // Initial commodities for  the entity are the same at source and destination (no scaling has happened yet in this case).
+        List<Commodity> initiaCommodities = new ArrayList<Commodity>(Arrays.asList(
+                new Commodity("STORAGE_AMOUNT", 0, 0.0, 0, 0.0)));
+        List<Commodity> scaleCommodities = new ArrayList<Commodity>(Arrays.asList(
+                new Commodity("STORAGE_AMOUNT", 0, 0.0, 24, 1.0)));
+        BillingScriptEvent event1 = createDbEvent(getMillis(2022, 4, 25, 0, 0),
+                db1, initiaCommodities, "CREATE-DB", "P6", 0.0);
+        // P2 to S4 where storage amount is exceeded for example
+        BillingScriptEvent event2 = createScaleDbEvent(getMillis(2022, 4, 25, 7, 0),
+                db1, "P6", "P6",
+                0, 0,
+                scaleCommodities, 0, "RESIZE-DB");
+        events.add(event1);
+        events.add(event2);
+        events.add(createPowerEvent(getMillis(2022, 4, 25, 22, 0),
+                db1, false));
+
+        LocalDateTime scenarioStart = LocalDateTime.of(2022, 4, 25, 0, 0);
+        LocalDateTime scenarioEnd = LocalDateTime.of(2022, 4, 27, 0, 0);
+        Map<Long, Set<BillingRecord>> result =
+                ScenarioGenerator.generateBillRecords(events, uuidMap, scenarioStart, scenarioEnd);
+        Assert.assertEquals(1, result.size());
+        // src and destination on demand rates would be the same in this scenario.
+        // For the purposes of simulation rate is a function of provider type in the scale event.  Reverse compute expected on-demand rates.
+        final double expectedSrcAndDestOnDemandRate = (double)ScenarioGenerator.generateProviderIdFromType("P6") / 10000;
+        Set<BillingRecord> expectedRecords = new HashSet<>();
+        BillingRecord record1 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "P6",
+                7 + 15, (7 + 15) * expectedSrcAndDestOnDemandRate, CommodityType.UNKNOWN_VALUE, CostCategory.COMPUTE_LICENSE_BUNDLE);
+        BillingRecord record2 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "NONE",
+                7 * 0 + 15 * 24, 7 * 0 + 15 * 1.0, CommodityType.STORAGE_AMOUNT_VALUE, CostCategory.STORAGE);
+        expectedRecords.add(record1);
+        expectedRecords.add(record2);
+        assertTrue(CollectionUtils.isEqualCollection(expectedRecords, result.get(uuidMap.get(db1))));
+    }
+
+    /**
+     * Test creation of Billing Records, for VCORE GP DB involving tier change and storage amount change.
+     * For example GP_Gen5_8 to GP_Gen5_4
+     */
+    @Test
+    public void testGenerateVcoreGPDbBillRecord() {
+        // In this test source and destination tier OID are the same, but commodities are different.
+        List<BillingScriptEvent> events = new ArrayList<>();
+
+        // Initial commodities for  the entity are the same at source and destination (no scaling has happened yet in this case).
+        List<Commodity> initiaCommodities = new ArrayList<Commodity>(Arrays.asList(
+                new Commodity("STORAGE_AMOUNT", 72, 2.0, 72, 2.0)));
+        List<Commodity> scaleCommodities = new ArrayList<Commodity>(Arrays.asList(
+                new Commodity("STORAGE_AMOUNT", 72, 2.0, 24, 1.8)));
+        BillingScriptEvent event1 = createDbEvent(getMillis(2022, 4, 25, 0, 0),
+                db1, initiaCommodities, "CREATE-DB", "GP_GEN5_8", 0.02);
+        // S2 to S3 where storage amount is exceeded for example
+        BillingScriptEvent event2 = createScaleDbEvent(getMillis(2022, 4, 25, 7, 0),
+                db1, "GP_GEN5_8", "GP_GEN5_4",
+                0.02, 0.01,
+                scaleCommodities, 0, "RESIZE-DB");
+        events.add(event1);
+        events.add(event2);
+        events.add(createPowerEvent(getMillis(2022, 4, 25, 22, 0),
+                db1, false));
+
+        LocalDateTime scenarioStart = LocalDateTime.of(2022, 4, 25, 0, 0);
+        LocalDateTime scenarioEnd = LocalDateTime.of(2022, 4, 26, 0, 0);
+        Map<Long, Set<BillingRecord>> result =
+                ScenarioGenerator.generateBillRecords(events, uuidMap, scenarioStart, scenarioEnd);
+        Assert.assertEquals(1, result.size());
+        Set<BillingRecord> expectedRecords = new HashSet<>();
+        // For the purposes of simulation rate is a function of provider type in the scale event.  Reverse compute expected on-demand rates.
+        final double expectedSrcOnDemandRate = (double)ScenarioGenerator.generateProviderIdFromType("GP_GEN5_8") / 10000;
+        final double expectedDestOnDemandRate = (double)ScenarioGenerator.generateProviderIdFromType("GP_GEN5_4") / 10000;
+        BillingRecord record2 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "GP_GEN5_8",
+                7.0, 7 * expectedSrcOnDemandRate, CommodityType.UNKNOWN_VALUE, CostCategory.COMPUTE);
+        BillingRecord record1 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "GP_GEN5_4",
+                15.0, 15 * expectedDestOnDemandRate, CommodityType.UNKNOWN_VALUE, CostCategory.COMPUTE);
+        BillingRecord record3 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "NONE",
+                7 * 72 + 15 * 24, 7 * 2.0 + 15 * 1.8, CommodityType.STORAGE_AMOUNT_VALUE, CostCategory.STORAGE);
+        BillingRecord record4 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "NONE",
+                7 * 8 + 15 * 4, 7 * 0.02 + 15 * 0.01, CommodityType.UNKNOWN_VALUE, CostCategory.LICENSE);
+        expectedRecords.add(record1);
+        expectedRecords.add(record2);
+        expectedRecords.add(record3);
+        expectedRecords.add(record4);
+        assertTrue(CollectionUtils.isEqualCollection(expectedRecords, result.get(uuidMap.get(db1))));
+    }
+
+    /**
+     * Test creation of Billing Records, for VCORE HP Hyperscale  DB involving tier change and storage amount change.
+     * For example HS_Gen5_2 to HS_Gen5_4
+     */
+    @Test
+    public void testGenerateVcoreHSDbBillRecord() {
+        // In this test source and destination tier OID are the same, but commodities are different.
+        List<BillingScriptEvent> events = new ArrayList<>();
+
+        // Initial commodities for  the entity are the same at source and destination (no scaling has happened yet in this case).
+        List<Commodity> initiaCommodities = new ArrayList<Commodity>(Arrays.asList(
+                new Commodity("STORAGE_AMOUNT", 72, 2.0, 72, 2.0)));
+        List<Commodity> scaleCommodities = new ArrayList<Commodity>(Arrays.asList(
+                new Commodity("STORAGE_AMOUNT", 72, 2.0, 24, 1.8)));
+        BillingScriptEvent event1 = createDbEvent(getMillis(2022, 4, 25, 0, 0),
+                db1, initiaCommodities, "CREATE-DB", "HS_GEN5_2", 0.02);
+        // S2 to S3 where storage amount is exceeded for example
+        BillingScriptEvent event2 = createScaleDbEvent(getMillis(2022, 4, 25, 7, 0),
+                db1, "HS_GEN5_2", "HS_GEN5_4",
+                0.02, 0.01,
+                scaleCommodities, 0, "RESIZE-DB");
+        events.add(event1);
+        events.add(event2);
+        events.add(createPowerEvent(getMillis(2022, 4, 25, 22, 0),
+                db1, false));
+
+        LocalDateTime scenarioStart = LocalDateTime.of(2022, 4, 25, 0, 0);
+        LocalDateTime scenarioEnd = LocalDateTime.of(2022, 4, 26, 0, 0);
+        Map<Long, Set<BillingRecord>> result =
+                ScenarioGenerator.generateBillRecords(events, uuidMap, scenarioStart, scenarioEnd);
+        Assert.assertEquals(1, result.size());
+        Set<BillingRecord> expectedRecords = new HashSet<>();
+
+        // Assume total cost of compute 101.3 (7 * 4.4 + 15 * 4.7), rates divided up proportionally for test.
+        // Where 4.4 and 4.7 are source and destination on-demand rates computed from provider type for purposes of simulation;
+        BillingRecord record1 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "HS_GEN5_2",
+                7 * 2, (101.3  * 7 * 2) / (7 * 2 + 15 * 4), CommodityType.UNKNOWN_VALUE, CostCategory.COMPUTE);
+        BillingRecord record2 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "HS_GEN5_4",
+                15 * 4, (101.3 * 15 * 4) / (7 * 2 + 15 * 4), CommodityType.UNKNOWN_VALUE, CostCategory.COMPUTE);
+        BillingRecord record3 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "NONE",
+                7 * 72 + 15 * 24, 7 * 2.0 + 15 * 1.8, CommodityType.STORAGE_AMOUNT_VALUE, CostCategory.STORAGE);
+        BillingRecord record4 = createDbBillingRecord(scenarioStart, uuidMap.get(db1), "NONE",
+                7 * 2 + 15 * 4, 7 * 0.02 + 15 * 0.01, CommodityType.UNKNOWN_VALUE, CostCategory.LICENSE);
+        expectedRecords.add(record1);
+        expectedRecords.add(record2);
+        expectedRecords.add(record3);
+        expectedRecords.add(record4);
+        validateResults(expectedRecords, result.get(uuidMap.get(db1)));
+    }
+
+    /**
      * Scenario:
      * Execute a scale action that expects an RI coverage in the destination tier.
      * Expect 2 bill records to be generated after the action, one for the on-demand cost, and one
@@ -762,7 +989,24 @@ public class ScenarioGeneratorTest {
         BillingScriptEvent event = new BillingScriptEvent();
         event.timestamp = timestamp;
         event.eventType = createType;
-        event.sourceVolumeType = initialVolumeType;
+        event.sourceType = initialVolumeType;
+        event.uuid = uuid;
+        event.commodities = new ArrayList<>();
+        if (initialCommodities != null) {
+            event.commodities.addAll(initialCommodities);
+        }
+        event.expectedCloudCommitment = 0;
+        return event;
+    }
+
+    private BillingScriptEvent createDbEvent(long timestamp, String uuid, List<Commodity> initialCommodities,
+                                                 String createType, String initialDbType, double sourceLicenseRate) {
+        BillingScriptEvent event = new BillingScriptEvent();
+        event.timestamp = timestamp;
+        event.eventType = createType;
+        event.sourceType = initialDbType;
+        event.sourceNumVCores = ScenarioGenerator.getNumVcores(initialDbType);
+        event.sourceLicenseRate = sourceLicenseRate;
         event.uuid = uuid;
         event.commodities = new ArrayList<>();
         if (initialCommodities != null) {
@@ -795,8 +1039,32 @@ public class ScenarioGeneratorTest {
         event.timestamp = timestamp;
         event.eventType = scaleType;
         event.uuid = uuid;
-        event.sourceVolumeType = sourceVolumeType;
-        event.destinationVolumeType = destinationVolumeType;
+        event.sourceType = sourceVolumeType;
+        event.destinationType = destinationVolumeType;
+        event.commodities = new ArrayList<>();
+        if (scaleCommodities != null) {
+            event.commodities.addAll(scaleCommodities);
+        }
+        event.expectedCloudCommitment = expectedRICoverage;
+        return event;
+    }
+
+    private BillingScriptEvent createScaleDbEvent(long timestamp, String uuid, String sourceDbType, String destinationDbType,
+                                                  double sourceLicenseRate, double destinationLicenseRate,
+                                                  List<Commodity> scaleCommodities,
+                                                      double expectedRICoverage, String scaleType) {
+        BillingScriptEvent event = new BillingScriptEvent();
+        event.timestamp = timestamp;
+        event.eventType = scaleType;
+        event.uuid = uuid;
+        event.sourceType = sourceDbType;
+        event.destinationType = destinationDbType;
+        event.sourceOnDemandRate = (double)ScenarioGenerator.generateProviderIdFromType(sourceDbType) / 10000;
+        event.destinationOnDemandRate = (double)ScenarioGenerator.generateProviderIdFromType(destinationDbType) / 10000;
+        event.sourceNumVCores = ScenarioGenerator.getNumVcores(sourceDbType);
+        event.destinationNumVCores = ScenarioGenerator.getNumVcores(destinationDbType);
+        event.sourceLicenseRate = sourceLicenseRate;
+        event.destinationLicenseRate = destinationLicenseRate;
         event.commodities = new ArrayList<>();
         if (scaleCommodities != null) {
             event.commodities.addAll(scaleCommodities);
@@ -871,8 +1139,35 @@ public class ScenarioGeneratorTest {
                 .entityType(EntityType.VIRTUAL_VOLUME_VALUE)
                 .priceModel(priceModel)
                 .costCategory(costCategory)
-                .providerId(ScenarioGenerator.generateProviderIdFromVolumeType(tierName))
+                .providerId(ScenarioGenerator.generateProviderIdFromType(tierName))
                 .providerType(EntityType.STORAGE_TIER_VALUE)
+                .commodityType(commTypeValue)
+                .usageAmount(usageAmount)
+                .cost(cost)
+                .regionId(2L)
+                .accountId(1L)
+                .serviceProviderId(100L)
+                .build();
+    }
+
+    private BillingRecord createDbBillingRecord(LocalDateTime date, long entityId, String tierName,
+                                                double usageAmount, double cost, int commTypeValue,
+                                                CostCategory costCategory) {
+        return createDbBillingRecord(date, entityId, tierName, usageAmount, cost, commTypeValue,
+                PriceModel.ON_DEMAND, costCategory);
+    }
+
+    private BillingRecord createDbBillingRecord(LocalDateTime date, long entityId, String tierName,
+                                                double usageAmount, double cost, int commTypeValue, PriceModel priceModel,
+                                                CostCategory costCategory) {
+        return new BillingRecord.Builder()
+                .sampleTime(date)
+                .entityId(entityId)
+                .entityType(EntityType.DATABASE_VALUE)
+                .priceModel(priceModel)
+                .costCategory(costCategory)
+                .providerId(ScenarioGenerator.generateProviderIdFromType(tierName))
+                .providerType(EntityType.DATABASE_TIER_VALUE)
                 .commodityType(commTypeValue)
                 .usageAmount(usageAmount)
                 .cost(cost)
@@ -899,18 +1194,21 @@ public class ScenarioGeneratorTest {
     }
 
     private BillRecordKey getBillRecordKey(BillingRecord record) {
-        return new BillRecordKey(record.getProviderId(), record.getSampleTime(), record.getPriceModel());
+        return new BillRecordKey(record.getProviderId(), record.getSampleTime(), record.getPriceModel(),
+                record.getCostCategory());
     }
 
     static class BillRecordKey {
         long providerId;
         LocalDateTime sampleTime;
         PriceModel priceModel;
+        CostCategory costCategory;
 
-        BillRecordKey(long providerId, LocalDateTime sampleTime, PriceModel priceModel) {
+        BillRecordKey(long providerId, LocalDateTime sampleTime, PriceModel priceModel, CostCategory costCategory) {
             this.providerId = providerId;
             this.sampleTime = sampleTime;
             this.priceModel = priceModel;
+            this.costCategory = costCategory;
         }
 
         @Override
@@ -923,12 +1221,12 @@ public class ScenarioGeneratorTest {
             }
             BillRecordKey that = (BillRecordKey)o;
             return providerId == that.providerId && sampleTime.equals(that.sampleTime)
-                    && priceModel == that.priceModel;
+                    && priceModel == that.priceModel && costCategory == that.costCategory;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(providerId, sampleTime, priceModel);
+            return Objects.hash(providerId, sampleTime, priceModel, costCategory);
         }
     }
 }

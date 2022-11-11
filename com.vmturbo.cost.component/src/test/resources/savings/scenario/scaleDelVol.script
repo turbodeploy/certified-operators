@@ -1,7 +1,8 @@
-# Scale and Delete the Vol
+# Scale and Delete the Vol.
+# This is only an example, in practice it may not be possible to scale down from ULTRA.
 start 8-28 0:00
 1 11:00 create-vol vol-1 volume_type=ULTRA storage_access=2000,0.7 storage_amount=5,0.8 io_throughput=7,9.1
 2 10:00 resize-vol vol-1 volume_type=PREMIUM storage_amount=40,1.7 io_throughput=6,3.1
-3 14:00 resize-vol vol-1 volume_type=STANDARD storage_access=9000,3.7
+3 14:00 resize-vol vol-1 volume_type=STANDARDSDD storage_access=9000,3.7
 4 10:00 delvol vol-1 0.15
 5 15:00 stop

@@ -1,9 +1,9 @@
 [
   {
-    "eventType": "CREATE-VOL",
-    "uuid": "my-vol1",
-    "destinationVolumeType": "ULTRA",
-    "commodities": [
+    "eventType":"CREATE-VOL",
+    "uuid":"my-vol1",
+    "destinationType":"ULTRA",
+    "commodities":[
       {
         "commType": "STORAGE_ACCESS",
         "sourceCapacity": "0",
@@ -30,11 +30,11 @@
     "expirationTimestamp": 1724929200000
   },
   {
-    "eventType": "RESIZE-VOL",
-    "uuid": "my-vol1",
-    "sourceVolumeType": "ULTRA",
-    "destinationVolumeType": "PREMIUM",
-    "commodities": [
+    "eventType":"RESIZE-VOL",
+    "uuid":"my-vol1",
+    "sourceType":"ULTRA",
+    "destinationType":"PREMIUM",
+    "commodities":[
       {
         "commType": "STORAGE_AMOUNT",
         "sourceCapacity": "5",
@@ -54,11 +54,11 @@
     "expirationTimestamp": 1725012000000
   },
   {
-    "eventType": "RESIZE-VOL",
-    "uuid": "my-vol1",
-    "sourceVolumeType": "PREMIUM",
-    "destinationVolumeType": "STANDARD",
-    "commodities": [
+    "eventType":"RESIZE-VOL",
+    "uuid":"my-vol1",
+    "sourceType":"PREMIUM",
+    "destinationType":"STANDARDSDD",
+    "commodities":[
       {
         "commType": "STORAGE_ACCESS",
         "sourceCapacity": "2000",
