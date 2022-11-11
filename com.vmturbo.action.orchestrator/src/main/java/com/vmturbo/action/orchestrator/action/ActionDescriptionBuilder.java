@@ -141,7 +141,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_ALLOCATE("Increase RI coverage for {0} ({1}) in {2}"),
         CONTAINER_VCPU_MILLICORES(String.format("{0,number,integer} %s", CommodityTypeMapping.CPU_MILLICORE)),
         VCPU_CORES(String.format("{0,number,integer} %s", CommodityTypeMapping.CPU_CORE)),
-        PROCESSING_UNIT(String.format("{0,number,integer} %s", CommodityTypeMapping.PROCESSING_UNIT)),
+        PROCESSING_UNIT(String.format("{0} %s", CommodityTypeMapping.PROCESSING_UNIT)),
         STORAGE_ACCESS_IOPS("{0,number,integer} IOPS"),
         IO_THROUGHPUT_MBPS("{0,number,integer} MB/s"),
         SIMPLE("{0, number, integer}"),
