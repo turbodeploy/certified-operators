@@ -10,9 +10,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.Result;
@@ -29,7 +33,11 @@ import com.vmturbo.sql.utils.DbException;
  */
 public class TagStore {
 
+    private static final Logger logger = LogManager.getLogger();
+
     private final DSLContext dslContext;
+
+    private final int persistenceBatchSIze;
 
     private final Map<Long, TagIdentity> tagIdentityCache = new ConcurrentHashMap<>();
 
@@ -37,9 +45,13 @@ public class TagStore {
      * Creates an instance of TagStore.
      *
      * @param dslContext instance for executing queries.
+     * @param persistenceBatchSize Batch size for store operations.
      */
-    public TagStore(@Nonnull final DSLContext dslContext) {
+    public TagStore(@Nonnull final DSLContext dslContext,
+                    int persistenceBatchSize) {
+
         this.dslContext = Objects.requireNonNull(dslContext);
+        this.persistenceBatchSIze = persistenceBatchSize;
     }
 
     /**
@@ -109,12 +121,20 @@ public class TagStore {
 
             if (!unseenIdentities.isEmpty()) {
 
-                final List<CostTagRecord> unseenRecords =
-                        unseenIdentities.stream().map(this::createRecordFromIdentity).collect(ImmutableList.toImmutableList());
+                final Stopwatch stopwatch = Stopwatch.createStarted();
+                Iterables.partition(unseenIdentities, persistenceBatchSIze).forEach(unseenIdentityBatch -> {
 
-                dslContext.batch(unseenRecords.stream()
-                        .map(unseenRecord -> dslContext.insertInto(CostTag.COST_TAG).set(unseenRecord).onDuplicateKeyIgnore())
-                        .toArray(Query[]::new)).execute();
+                    final List<CostTagRecord> unseenRecords = unseenIdentityBatch.stream()
+                            .map(this::createRecordFromIdentity)
+                            .collect(ImmutableList.toImmutableList());
+
+                    dslContext.batch(unseenRecords.stream()
+                            .map(unseenRecord -> dslContext.insertInto(CostTag.COST_TAG).set(unseenRecord).onDuplicateKeyIgnore())
+                            .toArray(Query[]::new)).execute();
+                });
+
+                logger.info("Inserted {} unseen tag identities in {}", unseenIdentities.size(), stopwatch);
+
             }
 
             // update the cache to avoid attempting persistence
