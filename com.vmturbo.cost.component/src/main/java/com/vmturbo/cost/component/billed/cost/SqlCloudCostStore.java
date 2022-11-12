@@ -52,7 +52,6 @@ public class SqlCloudCostStore implements CloudCostStore {
      * @param timeFrameCalculator The stats query executor.
      * @param dsl The DSL context.
      * @param persistenceConfig The cost data persistence config.
-     * @param persistenceBatchSize Batch store size.
      */
     public SqlCloudCostStore(@Nonnull IPartitioningManager partitioningManager,
                              @Nonnull TagGroupIdentityService tagGroupIdentityService,
@@ -60,11 +59,10 @@ public class SqlCloudCostStore implements CloudCostStore {
                              @Nonnull DataQueueFactory dataQueueFactory,
                              @Nonnull TimeFrameCalculator timeFrameCalculator,
                              @Nonnull DSLContext dsl,
-                             @Nonnull BilledCostPersistenceConfig persistenceConfig,
-                             int persistenceBatchSize) {
+                             @Nonnull BilledCostPersistenceConfig persistenceConfig) {
 
         this.dsl = Objects.requireNonNull(dsl);
-        this.costWriter = new BilledCostWriter(partitioningManager, tagGroupIdentityService, scopeIdentityProvider, dsl, persistenceBatchSize);
+        this.costWriter = new BilledCostWriter(partitioningManager, tagGroupIdentityService, scopeIdentityProvider, dsl);
         this.tagGroupIdentityService = Objects.requireNonNull(tagGroupIdentityService);
         this.statsQueryExecutor = new SqlCostStatsQueryExecutor(dsl, tagGroupIdentityService, timeFrameCalculator);
         persistenceSessionFactory = new SqlBilledCostPersistenceSession.Factory(

@@ -147,21 +147,16 @@ public class ConcurrentDataQueue<DataTypeT, DataStatsT, DataSummaryT> implements
         }
 
         final Instant timeoutBarrier = Instant.now().plus(timeout);
+        while (pendingOperations.get() > 0) {
 
-        synchronized (jobCompletionSignal) {
-
-            long pendingOpCount;
-            while ((pendingOpCount = pendingOperations.get()) > 0) {
-
-                final Duration waitTime = Duration.between(Instant.now(), timeoutBarrier);
-                if (!waitTime.isNegative()) {
-
-                    logger.debug("Waiting {} for {} pending operations to complete", waitTime, pendingOpCount);
+            final Duration waitTime = Duration.between(Instant.now(), timeoutBarrier);
+            if (!waitTime.isNegative()) {
+                synchronized (jobCompletionSignal) {
                     jobCompletionSignal.wait(waitTime.toMillis());
-                } else {
-                    forceClose();
-                    throw new TimeoutException("Timed out waiting for data queue operation completion");
                 }
+            } else {
+                forceClose();
+                throw new TimeoutException("Timed out waiting for data queue operation completion");
             }
         }
 
@@ -225,8 +220,6 @@ public class ConcurrentDataQueue<DataTypeT, DataStatsT, DataSummaryT> implements
         final List<DataOperation> retryList = new ArrayList<>();
         failedJobs.drainTo(retryList);
 
-        logger.info("Retrying {} failed jobs sequentially", retryList.size());
-
         final ExecutorService executor = Executors.newSingleThreadExecutor();
         try (AutoCloseable executorShutdown = executor::shutdownNow) {
             for (DataOperation operationRetry : retryList) {
@@ -251,6 +244,8 @@ public class ConcurrentDataQueue<DataTypeT, DataStatsT, DataSummaryT> implements
         private final Stopwatch runtime = Stopwatch.createUnstarted();
 
         private final SetOnce<DataStatsT> operationStats = new SetOnce<>();
+
+
 
         private final String operationId;
 

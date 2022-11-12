@@ -132,7 +132,7 @@ public class BilledCostUploadRpcServiceTest extends MultiDbTestBase {
         rollupTimesStore = mock(RollupTimesStore.class);
         when(rollupTimesStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
         batchInserter = spy(new BatchInserter(BATCH_SIZE, 1, rollupTimesStore));
-        tagStore = spy(new TagStore(context, 1000));
+        tagStore = spy(new TagStore(context));
         tagGroupStore = spy(new TagGroupStore(context));
         final BilledCostStore billedCostStore = createBilledCostStore(false);
         initializeUploadClientAndService(billedCostStore);

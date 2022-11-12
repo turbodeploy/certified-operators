@@ -10,11 +10,9 @@ import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 
 import org.apache.commons.lang3.mutable.MutableLong;
 import org.apache.logging.log4j.LogManager;
@@ -56,19 +54,15 @@ class BilledCostWriter {
 
     private final DSLContext dsl;
 
-    private final int persistenceBatchSize;
-
     protected BilledCostWriter(@Nonnull IPartitioningManager partitioningManager,
                                @Nonnull TagGroupIdentityService tagGroupIdentityService,
                                @Nonnull CloudScopeIdentityProvider scopeIdentityProvider,
-                               @Nonnull DSLContext dsl,
-                               int persistenceBatchSize) {
+                               @Nonnull DSLContext dsl) {
 
         this.partitioningManager = Objects.requireNonNull(partitioningManager);
         this.tagGroupIdentityService = Objects.requireNonNull(tagGroupIdentityService);
         this.scopeIdentityProvider = Objects.requireNonNull(scopeIdentityProvider);
         this.dsl = Objects.requireNonNull(dsl);
-        this.persistenceBatchSize = persistenceBatchSize;
     }
 
     protected void persistCostData(@Nonnull BilledCostData costData)
@@ -90,7 +84,6 @@ class BilledCostWriter {
         final Set<CloudScope> cloudScopes = expandedCostItems.stream()
                 .map(ExpandedCostItem::scope)
                 .collect(ImmutableSet.toImmutableSet());
-
         final Map<CloudScope, CloudScopeIdentity> scopeIdentityMap =
                 scopeIdentityProvider.getOrCreateScopeIdentities(cloudScopes);
 
@@ -186,42 +179,37 @@ class BilledCostWriter {
 
         logger.debug("Persisting {} cost items to {}", costItems.size(), tableAccessor.table().getName());
 
-        final Stopwatch stopwatch = Stopwatch.createStarted();
+        dsl.transaction(configuration -> {
+            final DSLContext context = DSL.using(configuration);
 
-        Iterables.partition(costItems, persistenceBatchSize).forEach(costItemBatch ->
-            dsl.transaction(configuration -> {
-                final DSLContext context = DSL.using(configuration);
+            final List<Insert<?>> recordUpsertStatements = costItems.stream()
+                    .filter(expandedItem -> scopeIdentityMap.containsKey(expandedItem.scope()))
+                    .map(expandedItem -> {
+                        final CloudScopeIdentity scopeIdentity = scopeIdentityMap.get(expandedItem.scope());
+                        final long costTagGroupId = expandedItem.hasCostTagGroup()
+                                ? tagGroupIdMap.get(expandedItem.costTagGroup())
+                                // If a cost item does not have a tag group, set the tag group ID to zero (indicative of null).
+                                // MySQL does not allow nullable primary key columns
+                                : 0L;
 
-                final List<Insert<?>> recordUpsertStatements = costItemBatch.stream()
-                        .filter(expandedItem -> scopeIdentityMap.containsKey(expandedItem.scope()))
-                        .map(expandedItem -> {
-                            final CloudScopeIdentity scopeIdentity = scopeIdentityMap.get(expandedItem.scope());
-                            final long costTagGroupId = expandedItem.hasCostTagGroup()
-                                    ? tagGroupIdMap.get(expandedItem.costTagGroup())
-                                    // If a cost item does not have a tag group, set the tag group ID to zero (indicative of null).
-                                    // MySQL does not allow nullable primary key columns
-                                    : 0L;
+                        // Skip adding the item.
+                        if (expandedItem.hasCostTagGroup() && costTagGroupId == 0L) {
+                            logger.warn("Unable to resolve tag group persistent ID for the following group:\n{}", expandedItem.costTagGroup());
+                            return null;
+                        } else {
+                            final TableRecord<?> tableRecord =
+                                    tableAccessor.createTableRecord(expandedItem.costItem(), expandedItem.sampleTs(), expandedItem.billingFamilyId(),
+                                            scopeIdentity.scopeId(), costTagGroupId);
+                            return context.insertInto(tableAccessor.table())
+                                    .set(tableRecord)
+                                    .onDuplicateKeyUpdate()
+                                    .set(tableAccessor.usageAmount(), expandedItem.costItem().getUsageAmount())
+                                    .set(tableAccessor.cost(), expandedItem.costItem().getCost().getAmount());
+                        }
+                    }).filter(Objects::nonNull)
+                    .collect(ImmutableList.toImmutableList());
 
-                            // Skip adding the item.
-                            if (expandedItem.hasCostTagGroup() && costTagGroupId == 0L) {
-                                logger.warn("Unable to resolve tag group persistent ID for the following group:\n{}", expandedItem.costTagGroup());
-                                return null;
-                            } else {
-                                final TableRecord<?> tableRecord =
-                                        tableAccessor.createTableRecord(expandedItem.costItem(), expandedItem.sampleTs(), expandedItem.billingFamilyId(),
-                                                scopeIdentity.scopeId(), costTagGroupId);
-                                return context.insertInto(tableAccessor.table())
-                                        .set(tableRecord)
-                                        .onDuplicateKeyUpdate()
-                                        .set(tableAccessor.usageAmount(), expandedItem.costItem().getUsageAmount())
-                                        .set(tableAccessor.cost(), expandedItem.costItem().getCost().getAmount());
-                            }
-                        }).filter(Objects::nonNull)
-                        .collect(ImmutableList.toImmutableList());
-
-                context.batch(recordUpsertStatements).execute();
-            }));
-
-        logger.debug("Persisted {} cost items in {}", costItems.size(), stopwatch);
+            context.batch(recordUpsertStatements).execute();
+        });
     }
 }

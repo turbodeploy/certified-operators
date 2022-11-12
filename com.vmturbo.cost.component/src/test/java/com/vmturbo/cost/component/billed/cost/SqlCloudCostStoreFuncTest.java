@@ -140,7 +140,7 @@ public class SqlCloudCostStoreFuncTest extends MultiDbTestBase {
         cloudScopeIdentityProvider.initialize();
 
         // set up the tag store and identity service
-        final TagStore tagStore = new TagStore(dsl, 1000);
+        final TagStore tagStore = new TagStore(dsl);
         final TagIdentityService tagIdentityService = new TagIdentityService(tagStore, identityProvider, 10);
         tagGroupStore = new TagGroupStore(dsl);
         tagGroupIdentityService = new TagGroupIdentityService(tagGroupStore, tagIdentityService, identityProvider, 10);
@@ -393,8 +393,7 @@ public class SqlCloudCostStoreFuncTest extends MultiDbTestBase {
                 dataQueueFactory,
                 timeFrameCalculator,
                 dsl,
-                persistenceConfig,
-                1000);
+                persistenceConfig);
     }
 
     private BilledCostData loadCostData(@Nonnull String costDataProtoFilepath) throws Exception {
