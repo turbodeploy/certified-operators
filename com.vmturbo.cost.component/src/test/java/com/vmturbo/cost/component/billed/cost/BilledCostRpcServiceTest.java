@@ -156,7 +156,7 @@ public class BilledCostRpcServiceTest extends MultiDbTestBase {
         cloudScopeIdentityProvider.initialize();
 
         // set up the tag store and identity service
-        final TagStore tagStore = new TagStore(dsl);
+        final TagStore tagStore = new TagStore(dsl, 1000);
         final TagIdentityService tagIdentityService =
                 new TagIdentityService(tagStore, identityProvider, 10);
         final TagGroupStore tagGroupStore = new TagGroupStore(dsl);
@@ -174,7 +174,7 @@ public class BilledCostRpcServiceTest extends MultiDbTestBase {
 
         sqlCloudCostStore = new SqlCloudCostStore(partitioningManager, tagGroupIdentityService,
                 cloudScopeIdentityProvider, dataQueueFactory, timeFrameCalculator,
-                super.getDslContext(), billedCostPersistenceConfig);
+                super.getDslContext(), billedCostPersistenceConfig, 1000);
 
         billedCostRpcService = new BilledCostRpcService(sqlCloudCostStore);
     }

@@ -30,6 +30,16 @@ public interface DataQueueConfiguration {
     int concurrency();
 
     /**
+     * The maximum number of times to log operation failures at error level. Any failures above this limit
+     * will be logged at debug level.
+     * @return The max failure error log limit
+     */
+    @Default
+    default int failureErrorLogLimit() {
+        return 10;
+    }
+
+    /**
      * If enabled, all failed data sink operations will be retried sequentially prior to closing the queue,
      * in order to avoid concurrent conflicts (e.g. lock timeouts).
      * @return Whether to retry failed data sink operations prior to queue shutdown.
