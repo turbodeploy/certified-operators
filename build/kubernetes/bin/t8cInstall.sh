@@ -479,7 +479,7 @@ chmod -R 777 $localStorageDataDirectory
 
 # Create the operator
 kubectl create -f ${serviceAccountFile} -n ${nameSpace}
-kubectl create -f ${roleFile} -n ${turbonomic}
+kubectl create -f ${roleFile} -n ${nameSpace}
 kubectl create -f ${roleBindingFile} -n ${nameSpace}
 kubectl create -f ${crdsFile} -n ${nameSpace}
 kubectl create -f ${operatorFile} -n ${nameSpace}
