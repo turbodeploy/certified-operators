@@ -98,6 +98,11 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
     FIXED_SIZE_STORAGE_TIER_PRICE_PROCESSOR("Fixed Size Storage Tier Price Processing"),
 
     /**
+     * Process Ultra Disk Storage Tier.
+     */
+    ULTRA_DISK_STORAGE_TIER("Ultra Disk Storage Tier Processing"),
+
+    /**
      * Assign pricing identifiers to plans and return a DiscoveredPricing result.
      */
     ASSIGN_IDENTIFIERS("Assign pricing identifiers");
@@ -137,5 +142,6 @@ public enum MockPricingProbeStage implements ProbeStageEnum {
         LICENSE_OVERRIDES,
         LICENSE_PRICE_PROCESSING,
         FIXED_SIZE_STORAGE_TIER_PRICE_PROCESSOR,
+        ULTRA_DISK_STORAGE_TIER,
         ASSIGN_IDENTIFIERS);
 }
