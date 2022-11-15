@@ -64,6 +64,7 @@ import com.vmturbo.stitching.poststitching.GuestLoadAppPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageAccessCapacityPostStitchingOperation;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.stitching.utilities.CopyActionEligibility;
+import com.vmturbo.topology.processor.conversions.typespecific.CloudApplicationInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ApplicationInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ApplicationServiceInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessAccountInfoMapper;
@@ -113,6 +114,7 @@ public class SdkToTopologyEntityConverter {
             ImmutableMap.<EntityType, TypeSpecificInfoMapper>builder()
                     .put(EntityType.APPLICATION, new ApplicationInfoMapper())
                     .put(EntityType.APPLICATION_COMPONENT, new ApplicationInfoMapper())
+                    .put(EntityType.APPLICATION_COMPONENT_SPEC, new CloudApplicationInfoMapper())
                     .put(EntityType.VIRTUAL_MACHINE_SPEC, new ApplicationServiceInfoMapper())
                     // Databases get their type-specific info sent via application data
                     .put(EntityType.DATABASE_SERVER, new DatabaseInfoMapper())
