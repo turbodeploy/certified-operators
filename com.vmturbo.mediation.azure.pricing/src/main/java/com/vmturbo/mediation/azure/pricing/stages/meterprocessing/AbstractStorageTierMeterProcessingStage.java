@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
@@ -30,7 +31,7 @@ public abstract class AbstractStorageTierMeterProcessingStage<E extends ProbeSta
     /**
      * Set of {@link StorageTier} the StorageTierMeter will handle.
      */
-    private Set<StorageTier> storageTierSkuIds;
+    private Set<String> storageTierSkuIds;
 
     /**
      * Constructor.
@@ -40,7 +41,7 @@ public abstract class AbstractStorageTierMeterProcessingStage<E extends ProbeSta
      * @param logger Logger
      */
     public AbstractStorageTierMeterProcessingStage(@NotNull E probeStage,
-            @NotNull Set<StorageTier> storageTierSkuIds,
+            @NotNull Set<String> storageTierSkuIds,
             @Nonnull Logger logger) {
         super(probeStage, MeterType.Storage, logger);
         this.storageTierSkuIds = storageTierSkuIds;
@@ -57,15 +58,19 @@ public abstract class AbstractStorageTierMeterProcessingStage<E extends ProbeSta
             @NotNull PricingWorkspace pricingWorkspace,
             @Nonnull Collection<ResolvedMeter> resolvedMeters) {
 
-        final Predicate<ResolvedMeter> selectResolvedMeterPredicate = resolvedMeter -> storageTierSkuIds.stream()
-                .map(st -> st.toString())
-                .collect(Collectors.toList())
-                .contains(resolvedMeter.getDescriptor().getSkus().get(0));
+        final Predicate<ResolvedMeter> selectResolvedMeterPredicate = resolvedMeter ->
+            CollectionUtils.containsAny(resolvedMeter.getDescriptor().getSkus(), storageTierSkuIds);
 
         final Map<Boolean, List<ResolvedMeter>> separatedResolvedMeters =
-                resolvedMeters.stream().collect(Collectors.partitioningBy(selectResolvedMeterPredicate));
+            resolvedMeters.stream().collect(Collectors.partitioningBy(selectResolvedMeterPredicate));
 
-        pricingWorkspace.addResolvedMeterByMeterType(MeterType.Storage, separatedResolvedMeters.get(Boolean.FALSE));
+        // Put back any resolved storage meters not handled by this stage, so that another stage
+        // can handle them.
+
+        if (!separatedResolvedMeters.get(Boolean.FALSE).isEmpty()) {
+            pricingWorkspace.addResolvedMeterByMeterType(MeterType.Storage,
+                separatedResolvedMeters.get(Boolean.FALSE));
+        }
 
         return this.processSelectedMeters(pricingWorkspace, separatedResolvedMeters.get(Boolean.TRUE));
     }

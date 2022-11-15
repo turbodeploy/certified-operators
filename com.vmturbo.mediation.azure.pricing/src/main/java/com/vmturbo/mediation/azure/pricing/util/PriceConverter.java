@@ -1,6 +1,11 @@
 package com.vmturbo.mediation.azure.pricing.util;
 
-import java.util.TreeMap;
+import static java.lang.Math.ceil;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map.Entry;
+import java.util.NavigableMap;
 
 import javax.annotation.Nonnull;
 
@@ -43,7 +48,7 @@ public class PriceConverter {
      * @throws PriceConversionException if the units are incompatible, or if the map doesn't
      *  contain a single entry with a minimum qualifying quantity of 0.
      */
-    public double getPriceAmount(@Nonnull Unit unit, @Nonnull TreeMap<Double, AzureMeter> pricing)
+    public double getPriceAmount(@Nonnull Unit unit, @Nonnull NavigableMap<Double, AzureMeter> pricing)
         throws PriceConversionException {
 
         if (pricing.size() != 1) {
@@ -73,7 +78,7 @@ public class PriceConverter {
     public double getPriceAmount(@Nonnull Unit unit, @Nonnull ResolvedMeter resolvedMeter, @Nonnull String planId)
             throws PriceConversionException {
 
-        TreeMap<Double, AzureMeter> pricing = resolvedMeter.getPricing().get(planId);
+        NavigableMap<Double, AzureMeter> pricing = resolvedMeter.getPricing().get(planId);
         if (pricing != null) {
             return getPriceAmount(unit, pricing);
         } else {
@@ -92,7 +97,8 @@ public class PriceConverter {
      * @throws PriceConversionException if the units are incompatible, or if the map doesn't
      *  contain a single entry with a minimum qualifying quantity of 0.
      */
-    public Price getPrice(@Nonnull Unit unit, @Nonnull TreeMap<Double, AzureMeter> pricing)
+    @Nonnull
+    public Price getPrice(@Nonnull Unit unit, @Nonnull NavigableMap<Double, AzureMeter> pricing)
             throws PriceConversionException {
         return amountToPrice(unit, getPriceAmount(unit, pricing));
     }
@@ -110,9 +116,75 @@ public class PriceConverter {
      * @throws PriceConversionException if the units are incompatible, or if the map doesn't
      *  contain a single entry with a minimum qualifying quantity of 0.
      */
+    @Nonnull
     public Price getPrice(@Nonnull Unit unit, @Nonnull ResolvedMeter resolvedMeter, @Nonnull String planId)
         throws PriceConversionException {
         return amountToPrice(unit, getPriceAmount(unit, resolvedMeter, planId));
+    }
+
+    /**
+     * Given a map of meters organized by minimum quantity needed to qualify for a price, return a
+     * list of prices in the desired units, organized by maximum qualifying quantity.
+     *
+     * @param unit The unit in which to report the prices
+     * @param pricing A map of pricing by minimum qualifying quantity
+     * @return the price (currently in USD)
+     * @throws PriceConversionException if the units are incompatible, or if the plan is not found
+     */
+    @Nonnull
+    public List<Price> getPrices(@Nonnull Unit unit, @Nonnull NavigableMap<Double, AzureMeter> pricing)
+        throws PriceConversionException {
+        //      getPriceAmount(@Nonnull Unit unit, AzureMeter meter)
+        List<Price> prices = new ArrayList<>();
+        Entry<Double, AzureMeter> thisEntry = pricing.firstEntry();
+        Entry<Double, AzureMeter> nextEntry;
+
+        if (thisEntry == null) {
+            // This should not happen
+            throw new PriceConversionException("No pricing found for resolved meter?");
+        }
+
+        while (thisEntry != null) {
+            nextEntry = pricing.higherEntry(thisEntry.getKey());
+            double amount = getPriceAmount(unit, thisEntry.getValue());
+
+            if (nextEntry == null) {
+                // This is the highest entry -- it's quantity range starts at thisEntry.getKey()
+                // and has no upper limit.
+                prices.add(amountToPrice(unit, amount));
+            } else {
+                // This entry goes from wherever the previous entry started (0, for the first)
+                // up to just below the starting quantity for the next entry.
+
+                prices.add(amountToPrice(unit, amount, (long)ceil(nextEntry.getKey() - 1.0)));
+            }
+
+            thisEntry = nextEntry;
+        }
+
+        return prices;
+    }
+
+    /**
+     * Given a resolvedMeter containing a map of meters organized by minimum quantity needed to
+     *  qualify for a price, return a list of prices in the desired units, organized by maximum
+     *  qualifying quantity.
+     *
+     * @param unit The unit in which to report the prices
+     * @param resolvedMeter Contains a map of pricing by minimum qualifying quantity
+     * @param planId the plan for which to convert pricing
+     * @return the price (currently in USD)
+     * @throws PriceConversionException if the units are incompatible, or if the plan is not found
+     */
+    @Nonnull
+    public List<Price> getPrices(@Nonnull Unit unit, @Nonnull ResolvedMeter resolvedMeter,
+            @Nonnull String planId) throws PriceConversionException {
+        NavigableMap<Double, AzureMeter> pricing = resolvedMeter.getPricing().get(planId);
+        if (pricing != null) {
+            return getPrices(unit, pricing);
+        } else {
+            throw new PriceConversionException("No pricing found for plan " + planId);
+        }
     }
 
     /**

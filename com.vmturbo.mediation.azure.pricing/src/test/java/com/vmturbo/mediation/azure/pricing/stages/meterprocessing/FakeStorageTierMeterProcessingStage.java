@@ -21,7 +21,7 @@ import com.vmturbo.mediation.util.target.status.ProbeStageEnum;
  */
 public class FakeStorageTierMeterProcessingStage<E extends ProbeStageEnum> extends AbstractStorageTierMeterProcessingStage<E> {
 
-    private static final Set<StorageTier> SKU_IDS = Sets.newHashSet(StorageTier.MANAGED_STANDARD);
+    private static final Set<String> SKU_IDS = Sets.newHashSet(StorageTier.MANAGED_STANDARD.toString());
     private static final Logger logger = LogManager.getLogger();
 
     /**
