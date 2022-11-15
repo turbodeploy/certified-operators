@@ -70,7 +70,8 @@ public class SupplyChainStatistician {
             ApiEntityType.VIRTUAL_MACHINE, ApiEntityType.COMPUTE_TIER,
             ApiEntityType.DATABASE, ApiEntityType.DATABASE_TIER,
             ApiEntityType.DATABASE_SERVER, ApiEntityType.DATABASE_SERVER_TIER,
-            ApiEntityType.VIRTUAL_VOLUME, ApiEntityType.STORAGE_TIER
+            ApiEntityType.VIRTUAL_VOLUME, ApiEntityType.STORAGE_TIER,
+            ApiEntityType.VIRTUAL_MACHINE_SPEC, ApiEntityType.COMPUTE_TIER
         );
 
     /**
