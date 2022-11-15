@@ -2710,4 +2710,19 @@ public class GroupsServiceTest {
     public void testDeleteTagsEmptyKey() throws Exception {
         groupsService.deleteTagsByGroupUuid("");
     }
+
+    /**
+     * Test GetGroupCloudCostStats when we have an empty group with no members.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetEmptyGroupCloudCostStats() throws Exception {
+        final Grouping emptyBillingFamily = Grouping.newBuilder().setId(10L).build();
+        GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder().group(emptyBillingFamily).members(Collections.emptyList()).entities(Collections.emptyList()).build();
+        Mockito.when(groupExpanderMock.getGroup("10")).thenReturn(Optional.of(emptyBillingFamily));
+        Mockito.when(groupExpanderMock.getMembersForGroup(emptyBillingFamily)).thenReturn(groupAndMembers);
+        List<StatSnapshotApiDTO> groupCloudCostStats = groupsService.getGroupCloudCostStats("10", null);
+        assertTrue(groupCloudCostStats.isEmpty());
+    }
 }

@@ -2114,6 +2114,9 @@ public class GroupsService implements IGroupsService {
             throw new IllegalArgumentException(String.format(ILLEGAL_GROUP_UUID_MESSAGE, groupUuid));
         }
         final GroupAndMembers groupAndMembers = groupExpander.getMembersForGroup(group.get());
+        if (groupAndMembers.members().isEmpty()) {
+            return Collections.emptyList();
+        }
         return costStatsQueryExecutor.getGroupCostStats(groupUuid, groupAndMembers, costInputApiDTO);
     }
 }
