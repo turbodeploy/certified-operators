@@ -47,6 +47,7 @@ message TypeSpecificInfo {
         ContainerPodInfo container_pod = 84;
         ServiceInfo service = 85;
         ApplicationServiceInfo application_service = 86;
+        CloudApplicationInfo cloud_application = 87;
     }
 
     message ApplicationInfo {
@@ -60,6 +61,11 @@ message TypeSpecificInfo {
         // application is reported without the cloud native entities.
         optional double hostingNodeCpuFrequency = 2;
 
+    }
+
+    message CloudApplicationInfo {
+        // Number of deployment slots.
+        optional int32 deployment_slot_count = 1;
     }
 
     message ApplicationServiceInfo {

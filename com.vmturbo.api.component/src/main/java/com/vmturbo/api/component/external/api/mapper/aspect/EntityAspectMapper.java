@@ -63,6 +63,7 @@ public class EntityAspectMapper {
                               @Nonnull final CloudCommitmentAspectMapper cloudCommitmentAspectMapper,
                               @Nonnull final ContainerPlatformContextAspectMapper containerPlatformContextAspectMapper,
                               @Nonnull final ApplicationServiceAspectMapper appServiceAspectMapper,
+                              @Nonnull final CloudApplicationAspectMapper cloudApplicationAspectMapper,
                               final long realtimeTopologyContextId) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         aspectMappers = new ImmutableMap.Builder<Integer, List<IAspectMapper>>()
@@ -138,7 +139,7 @@ public class EntityAspectMapper {
             .put(EntityType.CLOUD_COMMITMENT_VALUE, ImmutableList.of(
                     cloudCommitmentAspectMapper))
             .put(EntityType.APPLICATION_COMPONENT_SPEC_VALUE, ImmutableList.of(
-                    cloudAspectMapper))
+                    cloudAspectMapper, cloudApplicationAspectMapper))
             .put(EntityType.VIRTUAL_MACHINE_SPEC_VALUE, ImmutableList.of(
                     cloudAspectMapper, appServiceAspectMapper))
             .build();

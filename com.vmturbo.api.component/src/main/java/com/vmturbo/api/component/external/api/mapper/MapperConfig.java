@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.Feature;
+import com.vmturbo.api.component.external.api.mapper.aspect.CloudApplicationAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.ApplicationServiceAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.BusinessUserAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
@@ -390,6 +391,11 @@ public class MapperConfig {
     }
 
     @Bean
+    public CloudApplicationAspectMapper cloudApplicationAspectMapper() {
+        return new CloudApplicationAspectMapper();
+    }
+
+    @Bean
     public VirtualMachineAspectMapper virtualMachineMapper() {
         return new VirtualMachineAspectMapper(communicationConfig.repositoryApi(), businessUserAspectMapper());
     }
@@ -519,7 +525,7 @@ public class MapperConfig {
                 computeTierAspectMapper(), databaseServerTierAspectMapper(), databaseTierAspectMapper(),
                 businessUserAspectMapper(), virtualVolumeEntityAspectMapper(),
                 cloudCommitmentAspectMapper(), cloudNativeAspectMapper(),
-                applicationServiceAspectMapper(),
+                applicationServiceAspectMapper(), cloudApplicationAspectMapper(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 
