@@ -43,6 +43,7 @@ import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.FixedSizeStora
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.IPMeterProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.InstanceTypeProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.LicensePriceProcessingStage;
+import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.LinearSizeStorageTierProcessingStage;
 import com.vmturbo.mediation.azure.pricing.stages.meterprocessing.UltraDiskStorageTierMeterProcessingStage;
 import com.vmturbo.mediation.azure.pricing.util.PriceConverter;
 import com.vmturbo.mediation.azure.pricing.util.VmSizeParser;
@@ -132,9 +133,9 @@ public class MCAPricingDiscoveryController extends
 
         this.mcaFetcher = new MCAPricesheetFetcher(downloadDir);
         this.cacher = CachingPricingFetcher.<AzurePricingAccount>newBuilder()
-                .refreshAfter(propertyProvider.getProperty(MCA_REFRESH_TIME))
-                .expireAfter(propertyProvider.getProperty(MCA_EXPIRE_TIME))
-                .build(mcaFetcher);
+            .refreshAfter(propertyProvider.getProperty(MCA_REFRESH_TIME))
+            .expireAfter(propertyProvider.getProperty(MCA_EXPIRE_TIME))
+            .build(mcaFetcher);
         this.parser = new VmSizeParserImpl();
     }
 
@@ -192,6 +193,7 @@ public class MCAPricingDiscoveryController extends
                 .addStage(new LicensePriceProcessingStage(MCAPricingProbeStage.LICENSE_PRICE_PROCESSOR))
                 // Fixed Size is the first Storage Tier Processing stage as it will process most of the STs.
                 .addStage(new FixedSizeStorageTierProcessingStage(MCAPricingProbeStage.FIXED_SIZE_STORAGE_TIER_PRICE_PROCESSOR))
+                .addStage(new LinearSizeStorageTierProcessingStage(MCAPricingProbeStage.LINEAR_SIZE_STORAGE_TIER_PRICE_PROCESSOR))
                 .addStage(new UltraDiskStorageTierMeterProcessingStage(MCAPricingProbeStage.ULTRA_DISK_STORAGE_TIER))
                 .finalStage(new AssignPricingIdentifiersStage(MCAPricingProbeStage.ASSIGN_IDENTIFIERS,
                     MCA_PLANID_MAP)));

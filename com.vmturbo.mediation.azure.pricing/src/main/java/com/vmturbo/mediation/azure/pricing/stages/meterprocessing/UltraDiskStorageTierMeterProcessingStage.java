@@ -65,7 +65,7 @@ public class UltraDiskStorageTierMeterProcessingStage<E extends ProbeStageEnum>
      *         detailed discovery status.
      */
     public UltraDiskStorageTierMeterProcessingStage(@Nonnull E probeStage) {
-        super(probeStage, Collections.singleton(StorageTier.MANAGED_ULTRA_SSD), LOGGER);
+        super(probeStage, Collections.singleton(StorageTier.MANAGED_ULTRA_SSD.name()), LOGGER);
     }
 
     @Override

@@ -1,8 +1,12 @@
 package com.vmturbo.mediation.azure.pricing.util;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
+
+import java.util.List;
 
 import javax.annotation.Nonnull;
 
@@ -25,6 +29,7 @@ public class PriceConverterTest {
     private PriceConverter converter = new PriceConverter();
     private AzureMeter dollarPerHour = makeMeter("1/Hour", 1.0, 0.0);
     private AzureMeter ninetyCentsPerHourForTen = makeMeter("1/Hour", 0.9, 10.0);
+    private AzureMeter eightyCentsPerHourForAHundred = makeMeter("1/Hour", 0.8, 100.0);
 
     /**
      * Test handling of methods that require a single price, when that condition is not
@@ -115,6 +120,105 @@ public class PriceConverterTest {
         Price price2 = converter.getPrice(Unit.HOURS, resolvedMeter, PLAN_NAME);
         assertEquals(Unit.HOURS, price2.getUnit());
         assertEquals(1.0, price2.getPriceAmount().getAmount(), 0.001);
+    }
+
+    /**
+     * Test getPrices() methods, which return a list of one or more Price DTOs representing
+     * price ranges based on quantities.
+     *
+     * @throws PriceConversionException if the test fails.
+     */
+    @Test
+    public void testMultiPrice() throws PriceConversionException {
+        AzureMeterDescriptor descriptor = Mockito.mock(AzureMeterDescriptor.class);
+
+        final ResolvedMeter resolvedMeter1 = new ResolvedMeter(descriptor);
+        resolvedMeter1.putPricing(dollarPerHour);
+
+        PriceConversionException ex1 = assertThrows(PriceConversionException.class, () -> {
+            converter.getPriceAmount(Unit.HOURS, resolvedMeter1, NO_SUCH_PLAN_NAME);
+        });
+
+        List<Price> prices1 = converter.getPrices(Unit.HOURS, resolvedMeter1, PLAN_NAME);
+        assertEquals(1, prices1.size());
+
+        assertEquals(1.0, prices1.get(0).getPriceAmount().getAmount(), 0.001);
+        assertEquals(Unit.HOURS, prices1.get(0).getUnit());
+        assertFalse(prices1.get(0).hasEndRangeInUnits());
+
+        prices1 = converter.getPrices(Unit.HOURS, resolvedMeter1.getPricingByMinimumQuantity(PLAN_NAME));
+        assertEquals(1, prices1.size());
+
+        assertEquals(1.0, prices1.get(0).getPriceAmount().getAmount(), 0.001);
+        assertEquals(Unit.HOURS, prices1.get(0).getUnit());
+        assertFalse(prices1.get(0).hasEndRangeInUnits());
+
+        final ResolvedMeter resolvedMeter2 = new ResolvedMeter(descriptor);
+        resolvedMeter2.putPricing(dollarPerHour);
+        resolvedMeter2.putPricing(ninetyCentsPerHourForTen);
+
+        List<Price> prices2 = converter.getPrices(Unit.HOURS, resolvedMeter2, PLAN_NAME);
+        assertEquals(2, prices2.size());
+
+        assertEquals(1.0, prices2.get(0).getPriceAmount().getAmount(), 0.001);
+        assertEquals(Unit.HOURS, prices2.get(0).getUnit());
+        assertTrue(prices2.get(0).hasEndRangeInUnits());
+        assertEquals(9, prices2.get(0).getEndRangeInUnits());
+
+        assertEquals(0.9, prices2.get(1).getPriceAmount().getAmount(), 0.001);
+        assertEquals(Unit.HOURS, prices2.get(1).getUnit());
+        assertFalse(prices2.get(1).hasEndRangeInUnits());
+
+        prices2 = converter.getPrices(Unit.HOURS, resolvedMeter2.getPricingByMinimumQuantity(PLAN_NAME));
+        assertEquals(2, prices2.size());
+
+        assertEquals(1.0, prices2.get(0).getPriceAmount().getAmount(), 0.001);
+        assertEquals(Unit.HOURS, prices2.get(0).getUnit());
+        assertTrue(prices2.get(0).hasEndRangeInUnits());
+        assertEquals(9, prices2.get(0).getEndRangeInUnits());
+
+        assertEquals(0.9, prices2.get(1).getPriceAmount().getAmount(), 0.001);
+        assertEquals(Unit.HOURS, prices2.get(1).getUnit());
+        assertFalse(prices2.get(1).hasEndRangeInUnits());
+
+        final ResolvedMeter resolvedMeter3 = new ResolvedMeter(descriptor);
+        resolvedMeter3.putPricing(dollarPerHour);
+        resolvedMeter3.putPricing(ninetyCentsPerHourForTen);
+        resolvedMeter3.putPricing(eightyCentsPerHourForAHundred);
+
+        List<Price> prices3 = converter.getPrices(Unit.HOURS, resolvedMeter3, PLAN_NAME);
+        assertEquals(3, prices3.size());
+
+        assertEquals(1.0, prices3.get(0).getPriceAmount().getAmount(), 0.001);
+        assertEquals(Unit.HOURS, prices3.get(0).getUnit());
+        assertTrue(prices3.get(0).hasEndRangeInUnits());
+        assertEquals(9, prices3.get(0).getEndRangeInUnits());
+
+        assertEquals(0.9, prices3.get(1).getPriceAmount().getAmount(), 0.001);
+        assertEquals(Unit.HOURS, prices3.get(1).getUnit());
+        assertTrue(prices3.get(1).hasEndRangeInUnits());
+        assertEquals(99, prices3.get(1).getEndRangeInUnits());
+
+        assertEquals(0.8, prices3.get(2).getPriceAmount().getAmount(), 0.001);
+        assertEquals(Unit.HOURS, prices3.get(2).getUnit());
+        assertFalse(prices3.get(2).hasEndRangeInUnits());
+
+        prices3 = converter.getPrices(Unit.HOURS, resolvedMeter3.getPricingByMinimumQuantity(PLAN_NAME));
+        assertEquals(3, prices3.size());
+
+        assertEquals(1.0, prices3.get(0).getPriceAmount().getAmount(), 0.001);
+        assertEquals(Unit.HOURS, prices3.get(0).getUnit());
+        assertTrue(prices3.get(0).hasEndRangeInUnits());
+        assertEquals(9, prices3.get(0).getEndRangeInUnits());
+
+        assertEquals(0.9, prices3.get(1).getPriceAmount().getAmount(), 0.001);
+        assertEquals(Unit.HOURS, prices3.get(1).getUnit());
+        assertTrue(prices3.get(1).hasEndRangeInUnits());
+        assertEquals(99, prices3.get(1).getEndRangeInUnits());
+
+        assertEquals(0.8, prices3.get(2).getPriceAmount().getAmount(), 0.001);
+        assertEquals(Unit.HOURS, prices3.get(2).getUnit());
+        assertFalse(prices3.get(2).hasEndRangeInUnits());
     }
 
     private AzureMeter makeMeter(@Nonnull final String units, double price, double minUnits) {

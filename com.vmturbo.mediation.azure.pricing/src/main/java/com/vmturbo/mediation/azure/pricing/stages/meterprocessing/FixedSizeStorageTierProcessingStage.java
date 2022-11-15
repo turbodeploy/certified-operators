@@ -4,8 +4,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
 
@@ -52,7 +54,7 @@ public class FixedSizeStorageTierProcessingStage<E extends ProbeStageEnum> exten
      * @param probeStage a {@link ProbeStageEnum}
      */
     public FixedSizeStorageTierProcessingStage(@NotNull E probeStage) {
-        super(probeStage, SKU_IDS, LOGGER);
+        super(probeStage, SKU_IDS.stream().map(Objects::toString).collect(Collectors.toSet()), LOGGER);
     }
 
     @Override
