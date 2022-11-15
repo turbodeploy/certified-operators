@@ -23,8 +23,6 @@ class DataQueueJournal<DataStatsT, DataSummaryT> {
 
     private final DataSpecificStatsCollector<DataStatsT, DataSummaryT> dataStatsCollector;
 
-    private final int failureErrorLogLimit;
-
     private final DurationStatistics.Collector runtimeCollector = DurationStatistics.collector();
 
     private final AtomicLong createdOperations = new AtomicLong();
@@ -36,28 +34,23 @@ class DataQueueJournal<DataStatsT, DataSummaryT> {
     /**
      * Constructs a new {@link DataQueueJournal} instance.
      * @param dataStatsCollector The data-types-specific stats collector.
-     * @param failureErrorLogLimit Max number of times to log operation failures at error level.
      */
-    DataQueueJournal(@Nonnull final DataSpecificStatsCollector<DataStatsT, DataSummaryT> dataStatsCollector,
-                     int failureErrorLogLimit) {
+    DataQueueJournal(@Nonnull final DataSpecificStatsCollector<DataStatsT, DataSummaryT> dataStatsCollector) {
         this.dataStatsCollector = Objects.requireNonNull(dataStatsCollector);
-        this.failureErrorLogLimit = failureErrorLogLimit;
     }
 
     /**
      * Creates a new {@link DataQueueJournal} instance.
      * @param dataStatsCollector The data-types-specific stats collector.
-     * @param failureErrorLogLimit The failure error log limit.
      * @param <DataStatsT> The data-types-specific stats.
      * @param <DataSummaryT> The summary type of {@link DataStatsT}.
      * @return the newly created {@link DataQueueJournal} instance.
      */
     @Nonnull
     public static <DataStatsT, DataSummaryT> DataQueueJournal<DataStatsT, DataSummaryT> create(
-            @Nonnull final DataSpecificStatsCollector<DataStatsT, DataSummaryT> dataStatsCollector,
-            int failureErrorLogLimit) {
+            @Nonnull final DataSpecificStatsCollector<DataStatsT, DataSummaryT> dataStatsCollector) {
 
-        return new DataQueueJournal<>(dataStatsCollector, failureErrorLogLimit);
+        return new DataQueueJournal<>(dataStatsCollector);
     }
 
     /**
@@ -92,7 +85,7 @@ class DataQueueJournal<DataStatsT, DataSummaryT> {
     public void recordFailedOperation(@Nonnull final ConcurrentDataQueue<?, DataStatsT, ?>.DataOperation dataOperation,
                                       @Nonnull Throwable t) {
 
-        if (failedOperations.incrementAndGet() < failureErrorLogLimit) {
+        if (failedOperations.incrementAndGet() < 10) {
             logger.warn("{} completed exceptionally", dataOperation.operationId(), t);
         } else {
             logger.debug("{} completed exceptionally", dataOperation.operationId(), t);

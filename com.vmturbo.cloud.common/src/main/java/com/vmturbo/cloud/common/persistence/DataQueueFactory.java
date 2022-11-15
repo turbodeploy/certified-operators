@@ -39,8 +39,7 @@ public interface DataQueueFactory {
                 @Nonnull DataSpecificStatsCollector<DataStatsT, DataSummaryT> dataStatsCollector,
                 @Nonnull DataQueueConfiguration queueConfiguration) {
 
-            final DataQueueJournal<DataStatsT, DataSummaryT> queueJournal =
-                    DataQueueJournal.create(dataStatsCollector, queueConfiguration.failureErrorLogLimit());
+            final DataQueueJournal<DataStatsT, DataSummaryT> queueJournal = DataQueueJournal.create(dataStatsCollector);
             return new ConcurrentDataQueue<>(dataSink, dataBatcher, queueJournal, queueConfiguration);
         }
     }

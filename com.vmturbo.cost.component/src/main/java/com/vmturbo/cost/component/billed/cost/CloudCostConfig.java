@@ -63,9 +63,6 @@ public class CloudCostConfig {
     @Value("${cloud.scope.cacheInitializationDuration:PT10M}")
     private String scopeCacheInitializationDuration;
 
-    @Value("${cloud.cost.batchStoreSize:1000}")
-    private int costBatchStoreSize;
-
     @Value("${cloud.scope.persistenceMaxRetries:3}")
     private int scopePersistenceMaxRetries;
 
@@ -150,8 +147,7 @@ public class CloudCostConfig {
                     dataQueueFactory(),
                     timeFrameCalculator,
                     dbAccessConfig.dsl(),
-                    persistenceConfig,
-                    costBatchStoreSize);
+                    persistenceConfig);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             throw new BeanCreationException("Failed to create CloudCostStore", e);
         }
