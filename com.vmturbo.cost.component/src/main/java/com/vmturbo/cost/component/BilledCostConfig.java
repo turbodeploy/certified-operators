@@ -61,6 +61,9 @@ public class BilledCostConfig {
     @Autowired
     private TimeFrameCalculator timeFrameCalculator;
 
+    @Value("${tagPersistence.batchSize:1000}")
+    private int tagPersistenceBatchSize;
+
     @Value("${billedCostDataBatchSize:800}")
     private int billedCostDataBatchSize;
 
@@ -141,7 +144,7 @@ public class BilledCostConfig {
     @Bean
     public TagStore tagStore() {
         try {
-            return new TagStore(dbAccessConfig.dsl());
+            return new TagStore(dbAccessConfig.dsl(), tagPersistenceBatchSize);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
