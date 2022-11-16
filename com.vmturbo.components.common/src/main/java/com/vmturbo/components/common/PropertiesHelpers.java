@@ -1,5 +1,6 @@
 package com.vmturbo.components.common;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
@@ -9,7 +10,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang.StringUtils;
@@ -25,7 +28,8 @@ public class PropertiesHelpers {
     private static final Logger logger = LogManager.getLogger();
 
     // Valid duration units for Duration objects.
-    private static final Set<String> durationUnits =
+    @VisibleForTesting
+    static final Set<String> durationUnits =
             new HashSet<>(Arrays.asList("D", "H", "M", "S"));
 
     // Units that represent time (Hours, Minutes, Seconds).
@@ -38,6 +42,8 @@ public class PropertiesHelpers {
     private static <T> Predicate<T> not(Predicate<T> t) {
         return t.negate();
     }
+
+    private static final Pattern validCharsPattern = Pattern.compile("[a-zA-Z0-9.]");
 
     /**
      * Converts a duration property to a {@link Duration}. This method allows the developer to
@@ -87,16 +93,18 @@ public class PropertiesHelpers {
                     durationPrefix + propertyValue + chronoUnitToIdentifier.get(propertyUnit));
         }
 
-        // Warn about ignoring any non-alphanumeric character and filter them out.
-        if (!StringUtils.isAlphanumeric(propertyValue)) {
-            logger.warn("Ignoring any non-alphanumeric characters contained in {}", propertyName);
-            propertyValue = propertyValue.replaceAll("[^A-Za-z0-9]", "");
+        // Warn about ignoring any non-alphanumeric character except period (for fractional seconds)
+        // and filter them out.
+        if (!validCharsPattern.matcher(propertyName).matches()) {
+            logger.warn("Ignoring any non-alphanumeric characters except period contained in {}",
+                    propertyName);
+            propertyValue = propertyValue.replaceAll("[^A-Za-z0-9.]", "");
         }
 
-        int[] numbers =
-                Arrays.stream(propertyValue.split("[^0-9]+")).mapToInt(Integer::parseInt).toArray();
-        String[] units = Arrays
-                .stream(propertyValue.split("[0-9]+"))
+        BigDecimal[] numbers = Arrays.stream(propertyValue.split("[^0-9.]+"))
+                .map(BigDecimal::new)
+                .toArray(BigDecimal[]::new);
+        String[] units = Arrays.stream(propertyValue.split("[0-9.]+"))
                 .filter(not(String::isEmpty))
                 .map(String::toUpperCase)
                 .toArray(String[]::new);
@@ -111,18 +119,27 @@ public class PropertiesHelpers {
             if (unit.length() > 1) {
                 throw new IllegalArgumentException("Each time unit should be prefixed by a number");
             }
-            // If a specified time unit is neither of "H", "D" or "M".
+            // If a specified time unit is neither of "H", "D", "M", or "S".
             if (!durationUnits.contains(unit)) {
                 throw new IllegalArgumentException(unit + " is not a valid duration unit.");
             }
         }
 
         // Map associating time units with their value.
-        Map<String, Integer> durations = new HashMap<>();
+        Map<String, BigDecimal> durations = new HashMap<>();
         for (int i = 0; i < units.length; i++) {
             if (durations.containsKey(units[i])) {
                 throw new IllegalArgumentException(
                         "Property " + propertyName + " contains duplicate time unit: " + units[i]);
+            }
+            // only seconds are allowed to include decimal points
+            if (numbers[i].scale() > 0 && !units[i].equals("S")) {
+                throw new IllegalArgumentException(
+                        "Fractional values are allowed only for seconds, not " + units[i]);
+            }
+            // seconds can have up to 9 fractional digits
+            if (units[i].equals("S") && numbers[i].scale() > 9) {
+                throw new IllegalArgumentException("Seconds may have no more than 9 fractional digits");
             }
             durations.put(units[i], numbers[i]);
         }
