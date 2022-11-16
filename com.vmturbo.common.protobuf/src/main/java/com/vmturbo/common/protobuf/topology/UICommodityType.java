@@ -227,6 +227,8 @@ public enum UICommodityType {
     SERVICE_LEVEL_CLUSTER(CommodityType.SERVICE_LEVEL_CLUSTER, "Service Level Cluster"),
     /** The commodity PROCESSING_UNITS. */
     PROCESSING_UNITS(CommodityType.PROCESSING_UNITS, "Processing Units"),
+    /** The commodity PROCESSING_UNITS_PROVISIONED. */
+    PROCESSING_UNITS_PROVISIONED(CommodityType.PROCESSING_UNITS_PROVISIONED, "Processing Units Provisioned"),
     /** The commodity TENANCY_ACCESS. */
     TENANCY_ACCESS(CommodityType.TENANCY_ACCESS, "Tenancy Access"),
     /** The commodity TEMPLATE_ACCESS. */

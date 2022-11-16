@@ -170,6 +170,7 @@ public class CommodityTypeMapping {
             .put(CommodityType.NETWORK_POLICY, CommodityInfo.of("NetworkPolicy", "NetworkPolicy", ""))
             .put(CommodityType.SERVICE_LEVEL_CLUSTER, CommodityInfo.of("ServiceLevelCluster", "ServiceLevelCluster", ""))
             .put(CommodityType.PROCESSING_UNITS, CommodityInfo.of("ProcessingUnits", "ProcessingUnits", PROCESSING_UNIT))
+            .put(CommodityType.PROCESSING_UNITS_PROVISIONED, CommodityInfo.of("ProcessingUnitsProvisioned", "ProcessingUnitsProvisioned", PROCESSING_UNIT))
             .put(CommodityType.TENANCY_ACCESS, CommodityInfo.of("TenancyAccess", "TenancyAccess", ""))
             .put(CommodityType.TEMPLATE_ACCESS, CommodityInfo.of("TemplateAccess", "TemplateAccess", ""))
             .put(CommodityType.BURST_BALANCE, CommodityInfo.of("BurstBalance", "BurstBalance", ""))
