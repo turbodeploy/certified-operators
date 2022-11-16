@@ -1252,7 +1252,7 @@ public class TopologyConverterToMarketTest {
             } else if (t.getType() == pmEntityDTO.getEntityType()) {
                 assertFalse(t.getSettings().getCanAcceptNewCustomers());
                 assertFalse(t.getSettings().getClonable());
-                assertTrue(t.getSettings().getSuspendable());
+                assertFalse(t.getSettings().getSuspendable());
                 assertFalse(t.getShoppingLists(0).getMovable());
             }
         }
