@@ -3200,7 +3200,7 @@ public class TopologyConverter {
                     // cloud providers do not come here. We will hence be setting this to true just for
                     // on-prem storages
                     .setCanSimulateAction(entityType == EntityType.STORAGE_VALUE)
-                    .setSuspendable(suspendable)
+                    .setSuspendable(suspendable && controllable)
                     .setCanAcceptNewCustomers(topologyDTO.getAnalysisSettings().getIsAvailableAsProvider()
                                               && controllable)
                     .setIsEligibleForResizeDown(isPlan() ||
