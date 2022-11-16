@@ -44,6 +44,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersList;
 import com.vmturbo.platform.common.dto.Discovery.DerivedTargetSpecificationDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
@@ -430,10 +431,27 @@ public class CacheDiscoveryModeUnblock implements PipelineUnblock {
         List<EntityDTO> entities = drBuilder.getEntityDTOList();
         Pair<EntityDTO, Integer> bizAccountPair = getBusinessAccount(entities);
         EntityDTO.Builder bizAccountBuilder = bizAccountPair.getLeft().toBuilder();
-        createNewEntities(extraEntityInfo.getExtraVmsPerAccount() * ctx.getDupeIndex(), drBuilder,
-                EntityType.VIRTUAL_MACHINE, entities, bizAccountBuilder);
-        createNewEntities(extraEntityInfo.getExtraVmSpecsPerAccount() * ctx.getDupeIndex(),
-                drBuilder, EntityType.VIRTUAL_MACHINE_SPEC, entities, bizAccountBuilder);
+        if (extraEntityInfo.getExtraVmsPerAccount() > 0) {
+            int count = extraEntityInfo.getExtraVmsPerAccount();
+            if (extraEntityInfo.incrementPerAccount()) {
+                count = count + ctx.getDupeIndex();
+            }
+            createNewEntities(count, drBuilder, EntityType.VIRTUAL_MACHINE, entities, bizAccountBuilder);
+        }
+        if (extraEntityInfo.getExtraVmSpecsPerAccount() > 0) {
+            int count = extraEntityInfo.getExtraVmSpecsPerAccount();
+            if (extraEntityInfo.incrementPerAccount()) {
+                count = count + ctx.getDupeIndex();
+            }
+            createNewEntities(count, drBuilder, EntityType.VIRTUAL_MACHINE_SPEC, entities, bizAccountBuilder);
+        }
+        if (extraEntityInfo.getExtraResourceGroupsPerAccount() > 0) {
+            int count = extraEntityInfo.getExtraResourceGroupsPerAccount();
+            if (extraEntityInfo.incrementPerAccount()) {
+                count = count + ctx.getDupeIndex();
+            }
+            createNewResourceGroups(count, drBuilder, ctx);
+        }
         drBuilder.removeEntityDTO(bizAccountPair.getRight());
         drBuilder.addEntityDTO(bizAccountPair.getRight(), bizAccountBuilder.build());
         return drBuilder.build();
@@ -472,6 +490,47 @@ public class CacheDiscoveryModeUnblock implements PipelineUnblock {
         }
     }
 
+    /**
+     * Creates a resource group like the following.
+     *
+     * <p><pre><code>
+     * discoveredGroup {
+     *     entity_type: UNKNOWN
+     *     display_name: "[name]"
+     *     group_name: "/subscriptions/[subscription]/resourceGroups/[name]"
+     *     member_list {
+     *     }
+     *     groupType: RESOURCE
+     *     owner: "[subscription]"
+     * }
+     * </code></pre></p>
+     * @param count the count
+     * @param drBuilder the builder.
+     * @param ctx the context.
+     */
+    private void createNewResourceGroups(int count, DiscoveryResponse.Builder drBuilder, DupeDiscoveryResponseContext ctx) {
+        String subId = getTargetSubscriptionId(ctx.getDupeParentDr());
+        String groupNameTemplate = "/subscriptions/" + subId + "/resourceGroups/%s";
+        for (int i = 0; i < count; i++) {
+            String displayName = "group_" + (i + 1) + ctx.getDupeAppendage();
+            String groupName = String.format(groupNameTemplate, displayName);
+            GroupDTO.Builder gBuilder = GroupDTO.newBuilder();
+            gBuilder.setEntityType(EntityType.UNKNOWN);
+            gBuilder.setDisplayName(displayName);
+            gBuilder.setGroupName(groupName);
+            gBuilder.setGroupType(GroupType.RESOURCE);
+            gBuilder.setOwner(subId);
+            MembersList.Builder mBuilder = MembersList.newBuilder();
+            gBuilder.setMemberList(mBuilder.build());
+            drBuilder.addDiscoveredGroup(gBuilder.build());
+        }
+    }
+
+    /**
+     * Finds the business account entity given a list of entities.
+     * @param entities all entities.
+     * @return The business account entity and its index.
+     */
     private Pair<EntityDTO, Integer> getBusinessAccount(List<EntityDTO> entities) {
         int index = -1;
         for (EntityDTO entity : entities) {
@@ -1139,8 +1198,18 @@ public class CacheDiscoveryModeUnblock implements PipelineUnblock {
      * Contains info about creation of extra entities.
      */
     private static class ExtraEntityInfo {
+        boolean incrementPerAccount;
         private int extraVmsPerAccount;
         private int extraVmSpecsPerAccount;
+        private int extraResourceGroupsPerAccount;
+
+        public boolean incrementPerAccount() {
+            return incrementPerAccount;
+        }
+
+        public void setIncrementPerAccount(boolean incrementPerAccount) {
+            this.incrementPerAccount = incrementPerAccount;
+        }
 
         int getExtraVmsPerAccount() {
             return extraVmsPerAccount;
@@ -1158,8 +1227,16 @@ public class CacheDiscoveryModeUnblock implements PipelineUnblock {
             this.extraVmSpecsPerAccount = extraVmSpecsPerAccount;
         }
 
+        public int getExtraResourceGroupsPerAccount() {
+            return extraResourceGroupsPerAccount;
+        }
+
+        public void setExtraResourceGroupsPerAccount(int extraResourceGroupsPerAccount) {
+            this.extraResourceGroupsPerAccount = extraResourceGroupsPerAccount;
+        }
+
         int getTotalExtraCopies() {
-            return extraVmSpecsPerAccount + extraVmSpecsPerAccount;
+            return extraVmsPerAccount + extraVmSpecsPerAccount + extraResourceGroupsPerAccount;
         }
     }
 }
