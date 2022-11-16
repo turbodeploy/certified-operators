@@ -66,10 +66,12 @@ public class PostgresPartitionAdapter implements IPartitionAdapter {
                         + "  c.relname AS %3$s, "
                         + "  pg_get_expr(c.relpartbound, c.oid) AS %4$s "
                         + "FROM pg_class c, pg_namespace n, pg_inherits i  "
+                        + "JOIN pg_partitioned_table p ON i.inhparent=p.partrelid "
                         + "WHERE c.relispartition "
                         + "  AND c.relnamespace = n.oid "
                         + "  AND n.nspname='%5$s' "
                         + "  AND i.inhrelid = c.oid "
+                        + "  AND p.partstrat='r' "
                         + "  AND c.relkind='r') "
                         + "SELECT * FROM partitions WHERE %4$s != 'DEFAULT' ORDER BY %4$s";
         String sql = String.format(sqlFormat,
