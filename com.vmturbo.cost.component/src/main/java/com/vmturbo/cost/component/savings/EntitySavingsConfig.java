@@ -255,6 +255,12 @@ public class EntitySavingsConfig {
     private String supportedBillingEntityTypes;
 
     /**
+     * CSPs supported by bill-based savings.
+     */
+    @Value("${supportedBillingCSPs:Azure}")
+    private String supportedBillingCSPs;
+
+    /**
      * Entity types (cloud only) for which Savings feature is currently supported.
      */
     private static final Set<EntityType> supportedEntityTypes = Stream.concat(
@@ -601,13 +607,18 @@ public class EntitySavingsConfig {
      * @return Set of supported types.
      */
     public Set<EntityType> getSupportedBillingEntityTypes() {
-        try {
-            return Arrays.stream((supportedBillingEntityTypes.trim().split("\\s*,\\s*")))
-                    .map(EntityType::valueOf).collect(Collectors.toSet());
-        } catch (IllegalArgumentException ex) {
-            logger.warn("Incorrect configuration of supportedBillingEntityTypes, defaulting to Volumes and DBs", supportedBillingEntityTypes, ex);
-            return ImmutableSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE);
-        }
+        return Arrays.stream((supportedBillingEntityTypes.trim().split("\\s*,\\s*")))
+                .map(EntityType::valueOf).collect(Collectors.toSet());
+    }
+
+    /**
+     * Get the CSPs supported by the bill-based savings feature.
+     *
+     * @return Set of supported types.
+     */
+    public Set<String> getSupportedBillingCSPs() {
+        return Arrays.stream((supportedBillingCSPs.trim().split("\\s*,\\s*")))
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -651,6 +662,7 @@ public class EntitySavingsConfig {
             return new SavingsTracker(new SqlBillingRecordStore(dbAccessConfig.dsl()),
                     new GrpcActionChainStore(actionsService()),
                     (SavingsStore)entitySavingsStore(), getSupportedBillingEntityTypes(),
+                    getSupportedBillingCSPs(),
                     getEntitySavingsRetentionConfig().getVolumeDeleteRetentionMs(), getClock(),
                     cloudTopologyFactory(), repositoryClient, dbAccessConfig.dsl(),
                     pricingConfig.businessAccountPriceTableKeyStore(), pricingConfig.priceTableStore(),

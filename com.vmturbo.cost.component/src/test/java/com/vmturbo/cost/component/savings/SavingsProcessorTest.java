@@ -170,6 +170,8 @@ public class SavingsProcessorTest extends MultiDbTestBase {
 
     private final Set<EntityType> supportedEntityTypes = ImmutableSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE);
 
+    private final Set<String> supportedCSPs = ImmutableSet.of("Azure");
+
     private final SearchServiceMole searchServiceMole = spy(new SearchServiceMole());
 
     /**
@@ -294,6 +296,7 @@ public class SavingsProcessorTest extends MultiDbTestBase {
                 actionChainStore,
                 savingsStore,
                 supportedEntityTypes,
+                supportedCSPs,
                 TimeUnit.DAYS.toMillis(365),
                 clock, mock(TopologyEntityCloudTopologyFactory.class),
                 null, dsl, mock(BusinessAccountPriceTableKeyStore.class),

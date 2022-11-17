@@ -126,6 +126,8 @@ public class ScenarioSavingsTest {
 
     private static final Set<EntityType> supportedEntityTypes = ImmutableSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE);
 
+    private static final Set<String> supportedCSPs = ImmutableSet.of("Azure");
+
     Set<Long> participatingUuids = new HashSet<>();
     Set<Long> expectedUuids = new HashSet<>();
     private static Map<Long, StorageTierPriceList> priceListMap = new HashMap<>();
@@ -160,6 +162,7 @@ public class ScenarioSavingsTest {
                 mock(GrpcActionChainStore.class),
                 savingsStore,
                 supportedEntityTypes,
+                supportedCSPs,
                 deleteActionRetentionMs,
                 clock, mock(TopologyEntityCloudTopologyFactory.class),
                 null, dsl, priceTableKeyStore,

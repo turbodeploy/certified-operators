@@ -56,6 +56,8 @@ public class SavingsTrackerTest {
 
     private final Set<EntityType> supportedEntityTypes = ImmutableSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE);
 
+    private final Set<String> supportedCSPs = ImmutableSet.of("Azure");
+
     /**
      * Test the initialization of the supported CSP OID list is called when isSupportedCSP is called
      * for the first time. Also test the return value of the isSupportedCSP method.
@@ -82,6 +84,7 @@ public class SavingsTrackerTest {
                 actionChainStore,
                 savingsStore,
                 supportedEntityTypes,
+                supportedCSPs,
                 TimeUnit.DAYS.toMillis(365),
                 clock, mock(TopologyEntityCloudTopologyFactory.class),
                 repositoryClient, dsl, mock(BusinessAccountPriceTableKeyStore.class),
