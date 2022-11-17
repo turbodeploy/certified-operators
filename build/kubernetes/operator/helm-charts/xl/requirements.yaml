@@ -177,6 +177,12 @@ dependencies:
     version: 0.1.0
     condition: datacloud.enabled
 
+# Data extraction dependencies
+  - name: kinesis-kafka-connect
+    repository: file://../base/kinesis-kafka-connect
+    version: 1.0.0
+    condition: kinesis-kafka-connect.enabled
+
 # Integration dependencies
   - name: intersight-integration
     repository: file://../services/intersight-integration
