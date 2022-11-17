@@ -134,18 +134,19 @@ public class TopologyIngesterBase<T>
                 .mapToInt(String::length)
                 .max().orElse(5);
         String statsSummary =
-                String.format("  %-" + width + "s %11s %7s %5s\n",
-                        "TABLE", "RECORDS", "BATCHES", "FAILS")
+                String.format("  %-" + width + "s %11s %7s %5s %11s\n",
+                        "TABLE", "RECORDS", "BATCHES", "FAILS", "DISCARDED")
                         + stats.getKeys().stream()
                         .filter(key -> !stats.getByKey(key).isEmpty())
                         .sorted(Comparator.comparing(BulkInserterFactory::getKeyLabel))
                         .map(key -> {
                             BulkInserterStats stat = stats.getByKey(key);
-                            return String.format("  %-" + width + "s %,11d %,7d %,5d%s",
+                            return String.format("  %-" + width + "s %,11d %,7d %,5d %,11d%s",
                                     BulkInserterFactory.getKeyLabel(key),
                                     stat.getWritten(),
                                     stat.getBatches(),
                                     stat.getFailedBatches(),
+                                    stat.getDiscardedRecords(),
                                     stat.mayBePartial() ? " (partial)" : "");
                         })
                         .collect(Collectors.joining("\n"));

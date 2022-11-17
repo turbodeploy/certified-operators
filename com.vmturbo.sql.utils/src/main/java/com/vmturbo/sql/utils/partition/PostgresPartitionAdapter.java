@@ -82,9 +82,15 @@ public class PostgresPartitionAdapter implements IPartitionAdapter {
                 InformationSchemaConstants.PARTITION_NAME.getName(),
                 InformationSchemaConstants.PARTITION_DESCRIPTION.getName(),
                 schemaName);
-        Map<String, List<Record>> tableParts = dsl.fetch(sql).stream()
-                .collect(Collectors.groupingBy(
-                        r -> r.getValue(InformationSchemaConstants.TABLE_NAME)));
+        Map<String, List<Record>> tableParts;
+        try {
+            tableParts = dsl.fetch(sql).stream()
+                    .collect(Collectors.groupingBy(r -> r.getValue(InformationSchemaConstants.TABLE_NAME)));
+        } catch (DataAccessException | org.springframework.dao.DataAccessException e) {
+            throw new PartitionProcessingException(
+                    String.format("Failed to retrieve partition information for schema %s",
+                            schemaName), e);
+        }
         Map<String, List<Partition<Instant>>> result = new HashMap<>();
         for (Entry<String, List<Record>> entry : tableParts.entrySet()) {
             String key = entry.getKey();
@@ -178,7 +184,7 @@ public class PostgresPartitionAdapter implements IPartitionAdapter {
                     partitionName, fromInclusive, toExclusive, schemaName, tableName);
             return new Partition<>(
                     schemaName, tableName, partitionName, fromInclusive, toExclusive);
-        } catch (DataAccessException e) {
+        } catch (DataAccessException | org.springframework.dao.DataAccessException e) {
             throw new PartitionProcessingException(
                     String.format("Failed to create partition %s in table %s.%s",
                             partitionName, schemaName, tableName), e);
@@ -207,7 +213,7 @@ public class PostgresPartitionAdapter implements IPartitionAdapter {
         try {
             dsl.execute(String.format("DROP TABLE \"%s\".\"%s\"", schemaName, partitionName));
             logger.info("Dropped partition {} from table {}.{}", partition, schemaName, tableName);
-        } catch (DataAccessException e) {
+        } catch (DataAccessException | org.springframework.dao.DataAccessException e) {
             throw new PartitionProcessingException(
                     String.format("Failed to drop partition %s from table %s.%s",
                             partitionName, schemaName, tableName), e);

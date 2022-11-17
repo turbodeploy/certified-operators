@@ -28,6 +28,8 @@ public class BulkInserterStats {
     private int batches = 0;
     // total number of failed batches
     private int failedBatches = 0;
+    // total number of discarded records
+    private int discardedRecords = 0;
 
     // total nanoseconds spent working on database operations for this writer, including failed
     // attempts
@@ -97,12 +99,22 @@ public class BulkInserterStats {
     }
 
     /**
-     * Check if this stats object shows no insertions or failed insertion attempts.
+     * Get number of discarded records. Records are discarded if the inserter is disabled.
+     *
+     * @return number of discarded records
+     */
+    public synchronized int getDiscardedRecords() {
+        return discardedRecords;
+    }
+
+    /**
+     * Check if this stats object shows no insertions, failed insertion attempts or discarded
+     * records.
      *
      * @return true if no (attempted) insertions were recorded.
      */
     public boolean isEmpty() {
-        return batches == 0 && failedBatches == 0;
+        return batches == 0 && failedBatches == 0 && discardedRecords == 0;
     }
 
     /**
@@ -203,6 +215,13 @@ public class BulkInserterStats {
     }
 
     /**
+     * Increment discarded records.
+     */
+    synchronized void updateDiscardedRecords() {
+        this.discardedRecords += 1;
+    }
+
+    /**
      * Report overall statistics for the associated writer.
      *
      * @param logger a logger to use in making the report
@@ -217,9 +236,9 @@ public class BulkInserterStats {
         String workTimeString = formatNanos(workTimeNanos);
         String lostTimeString = formatNanos(lostTimeNanos);
         logger.info("Table {}: wrote {} recs ({}/sec) in {} batches in {} ({} parallel); "
-                        + "{} lost in retries; {} failed batches",
+                        + "{} lost in retries; {} failed batches; {} discarded records",
                 inTable != null ? inTable.getName() : "(unknown)", written, ratePerSec, batches,
-                elapsedTimeString, workTimeString, lostTimeString, failedBatches);
+                elapsedTimeString, workTimeString, lostTimeString, failedBatches, discardedRecords);
     }
 
     private @Nonnull

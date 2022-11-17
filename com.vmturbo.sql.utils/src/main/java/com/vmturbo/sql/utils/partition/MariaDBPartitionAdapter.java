@@ -53,8 +53,16 @@ public class MariaDBPartitionAdapter implements IPartitionAdapter {
     }
 
     @Override
-    public Map<String, List<Partition<Instant>>> getSchemaPartitions(String schemaName) {
-        Map<String, List<Record>> tableParts = InformationSchema.getPartitions(schemaName, dsl);
+    public Map<String, List<Partition<Instant>>> getSchemaPartitions(String schemaName)
+            throws PartitionProcessingException {
+        Map<String, List<Record>> tableParts;
+        try {
+            tableParts = InformationSchema.getPartitions(schemaName, dsl);
+        } catch (DataAccessException | org.springframework.dao.DataAccessException e) {
+            throw new PartitionProcessingException(
+                    String.format("Failed to retrieve partition information for schema %s",
+                            schemaName), e);
+        }
         Map<String, List<Partition<Instant>>> result = new HashMap<>();
         for (Entry<String, List<Record>> entry : tableParts.entrySet()) {
             String key = entry.getKey();
@@ -83,7 +91,7 @@ public class MariaDBPartitionAdapter implements IPartitionAdapter {
                     toExclusive, schemaName, tableName);
             return new Partition<>(
                     schemaName, tableName, partitionName, fromInclusive, toExclusive);
-        } catch (DataAccessException e) {
+        } catch (DataAccessException | org.springframework.dao.DataAccessException e) {
             throw new PartitionProcessingException(
                     String.format("Failed to create partition %s in table %s.%s",
                             partitionName, schemaName, tableName), e);
@@ -100,7 +108,7 @@ public class MariaDBPartitionAdapter implements IPartitionAdapter {
                     schemaName, tableName, partitionName));
             logger.info("Dropped partition {} from table {}.{}", partitionName,
                     schemaName, tableName);
-        } catch (DataAccessException e) {
+        } catch (DataAccessException | org.springframework.dao.DataAccessException e) {
             throw new PartitionProcessingException(
                     String.format("Failed to drop partition %s from table %s.%s",
                             partitionName, schemaName, tableName), e);
