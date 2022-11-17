@@ -47,7 +47,7 @@
         <wireMockVersion>2.34.0</wireMockVersion>
         <!-- This must match protobuf from SDK because we are using dependency
              protobuf-java libraries from SDK framework -->
-        <protobuf.version>3.19.6</protobuf.version>
+        <protobuf.version>3.21.7</protobuf.version>
 
         <!-- Integration Testing -->
         <!-- this is needed so robot-docker container is created locally rather than remote machine,
