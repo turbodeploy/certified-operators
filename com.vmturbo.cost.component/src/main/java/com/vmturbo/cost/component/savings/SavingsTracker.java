@@ -116,6 +116,8 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
 
     private final Set<EntityType> supportedBillingEntityTypes;
 
+    private final int savingsDaysToSkip;
+
     /**
      * Creates a new tracker.
      *
@@ -132,6 +134,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
      * @param priceTableKeyStore price table key store
      * @param priceTableStore price table store
      * @param searchServiceStub search service
+     * @param savingsDaysToSkip number of days savings calculation to skip prior to the current day.
      * @param realtimeTopologyContextId realtime topology context ID
      * @param chunkSize chunk size
      */
@@ -148,6 +151,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
             @Nonnull BusinessAccountPriceTableKeyStore priceTableKeyStore,
             @Nonnull PriceTableStore priceTableStore,
             @Nonnull SearchServiceBlockingStub searchServiceStub,
+            int savingsDaysToSkip,
             long realtimeTopologyContextId,
             final int chunkSize) {
         super(dsl, chunkSize);
@@ -163,6 +167,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         this.calculator = new Calculator(deleteActionRetentionMs, clock, storageAmountResolver);
         this.supportedBillingEntityTypes = supportedBillingEntityTypes;
         this.supportedCSPs = supportedBillingCSPs;
+        this.savingsDaysToSkip = savingsDaysToSkip;
     }
 
     /**
@@ -186,17 +191,21 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
             @Nonnull final SavingsTimes savingsTimes, @Nonnull final AtomicInteger chunkCounter)
             throws EntitySavingsException {
         long previousLastUpdated = savingsTimes.getPreviousLastUpdatedTime();
-        long lastUpdatedEndTime = savingsTimes.getLastUpdatedEndTime();
+        // Only retrieve bill records from days that are before the endTime.
+        // E.g. If daysToSkip is 1, we won't get bill records from yesterday.
+        final LocalDateTime endTime = SavingsUtil.getCurrentDateTime(clock)
+                .truncatedTo(ChronoUnit.DAYS).minusDays(savingsDaysToSkip);
+
         logger.trace("{}: Processing savings for a chunk of {} entities with last updated time between {} and {}.",
-                () -> chunkCounter, entityIds::size, () -> previousLastUpdated,
-                () -> lastUpdatedEndTime);
+                () -> chunkCounter, entityIds::size, () -> TimeUtil.millisToLocalDateTime(previousLastUpdated, clock),
+                () -> endTime);
 
         // Get billing records in this time range, mapped by entity id.
         final Map<Long, Set<BillingRecord>> billingRecords = new HashMap<>();
 
         // For this set of billing records, see if we have any last_updated times that are newer.
         final AtomicLong newLastUpdated = new AtomicLong(savingsTimes.getCurrentLastUpdatedTime());
-        billingRecordStore.getUpdatedBillRecords(previousLastUpdated, lastUpdatedEndTime, entityIds)
+        billingRecordStore.getUpdatedBillRecords(previousLastUpdated, endTime, entityIds)
                 .filter(BillingRecord::isValid)
                 .filter(this::isSupportedBillingEntityType)
                 .filter(this::isSupportedCSP)
@@ -218,7 +227,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         // Need this date for delete action savings calculation.
         long lastProcessedDate = savingsTimes.getLastRollupTimes().getLastTimeByDay();
         final Set<Long> statTimes = processSavings(entityIds, billingRecords, actionChains,
-                lastProcessedDate, TimeUtil.millisToLocalDateTime(lastUpdatedEndTime, clock));
+                lastProcessedDate, endTime);
 
         // Save off the day stats timestamps for all stats written this time, used for rollups.
         savingsTimes.addAllDayStatsTimes(statTimes);

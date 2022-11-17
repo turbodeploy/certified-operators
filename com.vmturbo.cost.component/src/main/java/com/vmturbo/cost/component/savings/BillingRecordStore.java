@@ -18,15 +18,12 @@ public interface BillingRecordStore {
      * @param lastUpdatedStartTime Previous max value of last_updated when we queried during last
      *      processing. During the current processing, want to get all changes that happened since
      *      that previous time.
-     * @param lastUpdatedEndTime End time to use for last_updated as we don't want to risk getting
-     *      records that might be getting updated currently (in case billing update is happening
-     *      while we are querying, we would get partial incorrect results otherwise). So get only
-     *      records that have been updated at least 10 minutes back.
+     * @param endTime get records with timestamps before the end time.
      * @param entityIds List of entity ids to get records for.
      * @return Stream of bill records.
      */
     Stream<BillingRecord> getUpdatedBillRecords(long lastUpdatedStartTime,
-            long lastUpdatedEndTime, @Nonnull Set<Long> entityIds);
+            LocalDateTime endTime, @Nonnull Set<Long> entityIds);
 
     /**
      * Get all bill records for a specified set of entities within a specified period.

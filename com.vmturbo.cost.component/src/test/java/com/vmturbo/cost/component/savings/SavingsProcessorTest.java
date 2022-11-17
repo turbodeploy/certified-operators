@@ -300,7 +300,7 @@ public class SavingsProcessorTest extends MultiDbTestBase {
                 TimeUnit.DAYS.toMillis(365),
                 clock, mock(TopologyEntityCloudTopologyFactory.class),
                 null, dsl, mock(BusinessAccountPriceTableKeyStore.class),
-                mock(PriceTableStore.class), searchService, 777777, chunkSize));
+                mock(PriceTableStore.class), searchService, 0, 777777, chunkSize));
         doReturn(true).when(tracker).isSupportedCSP(any());
 
         this.savingsProcessor = new SavingsProcessor(clock,
