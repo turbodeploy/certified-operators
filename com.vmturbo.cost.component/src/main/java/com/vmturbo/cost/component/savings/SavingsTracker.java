@@ -100,9 +100,9 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
     private final long realtimeTopologyContextId;
 
     /**
-     * List of supported cloud service providers. Currently, we only support Azure.
+     * Set of supported cloud service providers.
      */
-    private final Set<String> supportedCsps = ImmutableSet.of("Azure");
+    private final Set<String> supportedCSPs;
 
     /**
      * OIDs of supported cloud service providers.
@@ -122,6 +122,8 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
      * @param billingRecordStore Store for billing records.
      * @param actionChainStore Action chain store.
      * @param savingsStore Writer for final stats.
+     * @param supportedBillingEntityTypes supports entity types
+     * @param supportedBillingCSPs supported CPSs
      * @param deleteActionRetentionMs length of time for accruing savings for delete actions in milliseconds
      * @param clock clock
      * @param cloudTopologyFactory cloud topology factory
@@ -137,6 +139,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
             @Nonnull ActionChainStore actionChainStore,
             @Nonnull final SavingsStore savingsStore,
             @Nonnull Set<EntityType> supportedBillingEntityTypes,
+            @Nonnull Set<String> supportedBillingCSPs,
             long deleteActionRetentionMs,
             @Nonnull Clock clock,
             @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
@@ -159,6 +162,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         StorageAmountResolver storageAmountResolver = new StorageAmountResolver(priceTableKeyStore, priceTableStore);
         this.calculator = new Calculator(deleteActionRetentionMs, clock, storageAmountResolver);
         this.supportedBillingEntityTypes = supportedBillingEntityTypes;
+        this.supportedCSPs = supportedBillingCSPs;
     }
 
     /**
@@ -470,7 +474,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         PropertyFilter entityTypeFilter = SearchProtoUtil.entityTypeFilter(entityTypes);
 
         PropertyFilter cspFilter = SearchProtoUtil
-                .stringPropertyFilterExact(SearchableProperties.DISPLAY_NAME, supportedCsps);
+                .stringPropertyFilterExact(SearchableProperties.DISPLAY_NAME, supportedCSPs);
         SearchFilter searchFilter = SearchProtoUtil.searchFilterProperty(cspFilter);
 
         SearchParameters.Builder parametersBuilder = SearchParameters.newBuilder()
