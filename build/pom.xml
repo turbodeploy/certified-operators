@@ -25,7 +25,7 @@
         <ux.mt.branch.version>8.7.2-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.3.65</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.3.66</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.5.7</cpu.capacity.version>
@@ -47,7 +47,7 @@
         <grpc.version>1.44.0</grpc.version>
         <grpc.prometheus.version>0.3.0</grpc.prometheus.version>
 
-        <protobuf.version>3.19.6</protobuf.version>
+        <protobuf.version>3.21.7</protobuf.version>
         <protobuf.maven.plugin.version>0.6.1</protobuf.maven.plugin.version>
         <maven-enforcer-plugin.version>3.0.0</maven-enforcer-plugin.version>
         <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
