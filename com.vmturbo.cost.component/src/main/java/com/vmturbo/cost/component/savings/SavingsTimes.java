@@ -145,16 +145,6 @@ public class SavingsTimes {
     }
 
     /**
-     * Only process savings for bill records more than 1 day old.
-     * @return Now minus 1 day.
-     */
-    public long getLastUpdatedEndTime() {
-        final LocalDateTime nowMinutesBefore = SavingsUtil.getCurrentDateTime(clock)
-                .truncatedTo(ChronoUnit.DAYS).minusDays(1);
-        return TimeUtil.localDateTimeToMilli(nowMinutesBefore, clock);
-    }
-
-    /**
      * Gets time up to which savings processing was successfully done last time. If no last time
      * found in DB, returns timestamp a day back. Can be run multiple times in a day if needed,
      * will process from previous last_updated onwards.

@@ -36,7 +36,7 @@ public class SqlBillingRecordStore implements BillingRecordStore {
 
     @Override
     public Stream<BillingRecord> getUpdatedBillRecords(long lastUpdatedStartTime,
-            long lastUpdatedEndTime, @Nonnull final Set<Long> entityIds) {
+            LocalDateTime endTime, @Nonnull final Set<Long> entityIds) {
         final BilledCostDaily t1 = BilledCostDaily.BILLED_COST_DAILY.as("t1");
         final BilledCostDaily t2 = BilledCostDaily.BILLED_COST_DAILY.as("t2");
 
@@ -48,7 +48,7 @@ public class SqlBillingRecordStore implements BillingRecordStore {
                                 .from(t2)
                         .where(t1.ENTITY_ID.eq(t2.ENTITY_ID)
                                 .and(t2.LAST_UPDATED.greaterOrEqual(lastUpdatedStartTime))
-                                .and(t2.LAST_UPDATED.lessThan(lastUpdatedEndTime)))
+                                .and(t2.SAMPLE_TIME.lessThan(endTime)))
                 ));
         return dsl.select(t1.SAMPLE_TIME,
                         t1.ENTITY_ID,

@@ -261,6 +261,14 @@ public class EntitySavingsConfig {
     private String supportedBillingCSPs;
 
     /**
+     * This setting is only used by bill-based savings. It specifies number of days of savings
+     * before the current day that should be excluded from the process. If the number is 1, the
+     * savings from yesterday will not be calculated.
+     */
+    @Value("${savingsDaysToSkip:1}")
+    private int savingsDaysToSkip;
+
+    /**
      * Entity types (cloud only) for which Savings feature is currently supported.
      */
     private static final Set<EntityType> supportedEntityTypes = Stream.concat(
@@ -622,6 +630,16 @@ public class EntitySavingsConfig {
     }
 
     /**
+     * Returns the number of days of savings before the current day that should be excluded from
+     * the process. If the number is 1, the savings from yesterday will not be calculated.
+     *
+     * @return number of days to skip.
+     */
+    public int getSavingsDaysToSkip() {
+        return savingsDaysToSkip;
+    }
+
+    /**
      * Supported action types - SCALE, and DELETE volumes later.
      * @return Set of supported actions.
      */
@@ -666,7 +684,8 @@ public class EntitySavingsConfig {
                     getEntitySavingsRetentionConfig().getVolumeDeleteRetentionMs(), getClock(),
                     cloudTopologyFactory(), repositoryClient, dbAccessConfig.dsl(),
                     pricingConfig.businessAccountPriceTableKeyStore(), pricingConfig.priceTableStore(),
-                    searchServiceBlockingStub, realtimeTopologyContextId, persistEntityCostChunkSize);
+                    searchServiceBlockingStub, getSavingsDaysToSkip(), realtimeTopologyContextId,
+                    persistEntityCostChunkSize);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();

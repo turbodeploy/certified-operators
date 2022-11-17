@@ -166,7 +166,7 @@ public class ScenarioSavingsTest {
                 deleteActionRetentionMs,
                 clock, mock(TopologyEntityCloudTopologyFactory.class),
                 null, dsl, priceTableKeyStore,
-                priceTableStore, searchService, 777777, chunkSize));
+                priceTableStore, searchService, 0, 777777, chunkSize));
         savingsTracker.setCalculator(new Calculator(deleteActionRetentionMs, clock, storageAmountResolver));
         doReturn(priceListMap).when(storageAmountResolver).getStoragePriceTiers(anyLong(), anyLong());
 
