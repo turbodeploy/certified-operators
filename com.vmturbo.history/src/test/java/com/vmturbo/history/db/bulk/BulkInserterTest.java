@@ -279,7 +279,7 @@ public class BulkInserterTest extends MultiDbTestBase {
             future.get();
         }
         loaders.close();
-        verifyInserts(NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(4000));
+        verifyInserts(NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(4000), 0);
     }
 
     List<EntitiesRecord> entitiesSet1 = ImmutableList.of(
@@ -317,7 +317,7 @@ public class BulkInserterTest extends MultiDbTestBase {
         entitiesLoader.insertAll(entitiesSet1);
         loaders.flushAll();
         verifyInserts(ENTITIES, ENTITIES.ID,
-                entitiesSet1.stream().map(EntitiesRecord::getId).collect(Collectors.toList()));
+                entitiesSet1.stream().map(EntitiesRecord::getId).collect(Collectors.toList()), 0);
         // load these records and make modifications
         final List<EntitiesRecord> mixedRecords = getRecords(ENTITIES);
         mixedRecords.forEach(r -> r.set(ENTITIES.DISPLAY_NAME,
@@ -365,7 +365,7 @@ public class BulkInserterTest extends MultiDbTestBase {
                         DbInserters.batchInserter());
         performInserts(loader, NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(10));
         loaders.close();
-        verifyInserts(NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(10));
+        verifyInserts(NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(10), 0);
     }
 
     /**
@@ -415,6 +415,31 @@ public class BulkInserterTest extends MultiDbTestBase {
     }
 
     /**
+     * Make sure the batch inserter is disabled in case pre-insertion hook returns false.
+     *
+     * <p>We test this by first inserting a set of entities when the pre-insertion hook is null.
+     * Then, we set the pre-insertion hook to always return false, simulating a corruption in the
+     * partition. We expect the table to only contain entities from the first set and the count of
+     * the discarded records to equal the size of the second set of entities.</p>
+     *
+     * @throws InterruptedException if interrupted
+     */
+    @Test
+    public void testDisabledInserter() throws InterruptedException {
+        dsl.deleteFrom(ENTITIES).execute();
+        BulkInserter<EntitiesRecord, EntitiesRecord> loader =
+                loaders.getFactory().getInserter(ENTITIES, ENTITIES, RecordTransformer.IDENTITY,
+                        DbInserters.valuesInserter());
+        loader.insertAll(entitiesSet1);
+        loader.setPreInsertionHook(r -> false);
+        loader.insertAll(entitiesSet2);
+        loader.close(null);
+        verifyInserts(ENTITIES, ENTITIES.ID,
+                entitiesSet1.stream().map(EntitiesRecord::getId).collect(Collectors.toList()),
+                entitiesSet2.size());
+    }
+
+    /**
      * Method to load a collection of records into a table, read them back, and check to make
      * sure the load succeeded.
      *
@@ -433,7 +458,7 @@ public class BulkInserterTest extends MultiDbTestBase {
 
         performInserts(table, field, values, failingBatches);
         loaders.close();
-        verifyInserts(table, field, values, failingBatches);
+        verifyInserts(table, field, values, 0, failingBatches);
     }
 
     /**
@@ -450,6 +475,7 @@ public class BulkInserterTest extends MultiDbTestBase {
     private <R extends Record, T> void verifyInserts(final Table<R> table,
             final TableField<R, T> field,
             final List<T> values,
+            final Integer discardedRecords,
             final Integer... failingBatches) throws DataAccessException {
         // verify that the records have the correct field values
         verifyValues(table, field, values, failingBatches);
@@ -458,6 +484,7 @@ public class BulkInserterTest extends MultiDbTestBase {
         final long batchCount = (long)Math.ceil((values.size() + 0.0) / config.batchSize());
         assertEquals(batchCount - failingBatches.length, stats.getBatches());
         assertEquals(failingBatches.length, stats.getFailedBatches());
+        assertEquals((long)discardedRecords, stats.getDiscardedRecords());
         final int written = getRecordCount(table);
         assertEquals(written, stats.getWritten());
     }

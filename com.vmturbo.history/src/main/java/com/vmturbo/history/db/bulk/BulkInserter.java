@@ -109,6 +109,15 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
     // true once this inserter has been closed; inserts are then disallowed
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
+    /*
+     * True once this inserter has been disabled; inserts are then ignored.
+     *
+     * The inserter is disabled if the pre-insertion hook returns false, which can happen in case
+     * the target table is corrupted. In this case, any records will get discarded to avoid raising
+     * an exception all the way up to the writer, affecting other non-corrupted tables as well.
+     */
+    private final AtomicBoolean disabled = new AtomicBoolean(false);
+
     // Number of executions that have been submitted for execution but have not yet completed.
     // This is mostly used in close processing so we can complain if,
     // after allowing the throttling executor to quiesce, we still have outstanding tasks.
@@ -180,10 +189,15 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
             if (firstInsertionAttempt && preInsertionHook != null) {
                 firstInsertionAttempt = false;
                 if (!preInsertionHook.apply(record)) {
-                    logger.error("Pre-insertion hook failed; insertions disallowed");
-                    closed.set(true);
-                    checkClosed();
+                    if (!disabled.get()) {
+                        logger.error("Pre-insertion hook failed; insertions disallowed");
+                        disabled.set(true);
+                    }
                 }
+            }
+            if (disabled.get()) {
+                inserterStats.updateDiscardedRecords();
+                return;
             }
         }
         synchronized (pendingRecords) {
