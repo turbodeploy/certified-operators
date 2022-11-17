@@ -513,6 +513,12 @@ spec:
                     description: component serviceAccountName
                     type: string
                 type: object
+              kinesis-kafka-connect:
+                properties:
+                  enabled:
+                    description: Enable the Kinesis connector
+                    type: boolean
+                type: object
               influxdb:
                 properties:
                   annotations:

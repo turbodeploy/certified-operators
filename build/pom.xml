@@ -387,6 +387,13 @@
         </profile>
 
         <profile>
+            <id>kinesis-kafka-connect</id>
+            <modules>
+                <module>../kinesis-kafka-connect</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>topology-processor</id>
             <modules>
                 <module>../com.vmturbo.auth.api</module>
@@ -1480,6 +1487,7 @@
                 <module>../com.vmturbo.extractor</module>
                 <module>../com.vmturbo.extractor.schema</module>
                 <module>../com.vmturbo.extractor.api</module>
+                <module>../kinesis-kafka-connect</module>
                 <module>../com.vmturbo.prometheus.config.manager</module>
                 <module>../com.vmturbo.search.metadata</module>
                 <module>../com.vmturbo.integrations.intersight</module>

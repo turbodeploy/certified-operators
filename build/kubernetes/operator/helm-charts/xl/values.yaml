@@ -229,6 +229,8 @@ intersight-integration:
   enabled: false
 extractor:
   enabled: false
+kinesis-kafka-connect:
+  enabled: false
 hydra:
   enabled: false
 

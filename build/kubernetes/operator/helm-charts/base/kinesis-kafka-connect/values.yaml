@@ -1,0 +1,18 @@
+image:
+  repository: turbonomic
+  tag: latest
+  pullPolicy: IfNotPresent
+
+connector:
+  config:
+    bootstrap_servers:
+    connector_name: turbo-saas-reporting-connector
+    exporter_topic:
+    kinesis_region:
+    batch_size:
+    batch_size_bytes:
+    kinesis_delivery_stream:
+
+  aws_access_key:
+    aws_access_key_id: foo
+    aws_secret_access_key: blah
