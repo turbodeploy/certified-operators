@@ -106,6 +106,7 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action provisionBySupplyRecommendation;
     private ActionDTO.Action provisionByDemandRecommendation;
     private ActionDTO.Action deleteRecommendation;
+    private ActionDTO.Action deleteVirtualMachineSpecRecommendation;
     private ActionDTO.Action deleteCloudStorageRecommendation;
     private ActionDTO.Action deleteCloudStorageRecommendationWithNoSourceEntity;
     private ActionDTO.Action buyRIRecommendation;
@@ -190,6 +191,10 @@ public class ActionDescriptionBuilderTest {
     private static final String NAMESPACE_DISPLAY_NAME = "namespace_test";
     private static final long BUSINESS_ACCOUNT_OID = 88L;
     private static final String BUSINESS_ACCOUNT_NAME = "Development";
+    private static final Long CT_SOURCE_ID = 77L;
+    private static final String CT_SOURCE_DISPLAY_NAME = "compute_source_test";
+    private static final long VM_SPEC_ID = 99L;
+    private static final String VM_SPEC_DISPLAY_NAME = "vm_spec_test";
 
     /**
      * ID of Azure VM being used for cloud->cloud migration.
@@ -428,6 +433,7 @@ public class ActionDescriptionBuilderTest {
         provisionByDemandRecommendation = makeRec(makeProvisionInfo(PM_SOURCE_ID), SupportLevel.SUPPORTED, provisionExplanation2).build();
 
         deleteRecommendation = makeRec(makeDeleteInfo(ST_SOURCE_ID), SupportLevel.SUPPORTED).build();
+        deleteVirtualMachineSpecRecommendation = makeRec(makeDeleteVirtualMachineSpecInfo(VM_SPEC_ID, CT_SOURCE_ID), SupportLevel.SUPPORTED).build();
         deleteCloudStorageRecommendation = makeRec(makeDeleteCloudStorageInfo(VV_ID, Optional.of(ST_SOURCE_ID)),
                 SupportLevel.SUPPORTED).build();
         deleteCloudStorageRecommendationWithNoSourceEntity = makeRec(makeDeleteCloudStorageInfo(VV_ID, Optional.empty()),
@@ -789,6 +795,24 @@ public class ActionDescriptionBuilderTest {
                 .build())
             .setFilePath("/file/to/delete/filename.test")
             .build());
+    }
+
+    private ActionInfo.Builder makeDeleteVirtualMachineSpecInfo(long targetId, long sourceIdOpt) {
+        Delete.Builder deleteBuilder = Delete.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                        .setId(targetId)
+                        .setType(EntityType.VIRTUAL_MACHINE_SPEC_VALUE)
+                        .setEnvironmentType(EnvironmentType.CLOUD)
+                        .build());
+
+
+        deleteBuilder.setSource(ActionEntity.newBuilder()
+                .setId(sourceIdOpt)
+                .setType(EntityType.COMPUTE_TIER_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build());
+
+        return ActionInfo.newBuilder().setDelete(deleteBuilder.build());
     }
 
     private ActionInfo.Builder makeDeleteCloudStorageInfo(long targetId, Optional<Long> sourceIdOpt) {
@@ -2372,6 +2396,34 @@ public class ActionDescriptionBuilderTest {
             entitySettingsCache, deleteRecommendation);
 
         assertEquals(description, "Delete wasted file 'filename.test' from Storage storage_source_test to free up 0 bytes");
+    }
+
+    /**
+     * Test virtual machine spec delete action description.
+     */
+    @Test
+    public void testBuildDeleteVirtualMachineSpecActionDescription() throws UnsupportedActionException {
+        final long businessAccountOid = 88L;
+        final String businessAccountName = "business_account_name";
+        when(entitySettingsCache.getEntityFromOid(eq(VM_SPEC_ID)))
+                .thenReturn((createEntity(VM_SPEC_ID,
+                        EntityType.VIRTUAL_MACHINE_SPEC.getNumber(),
+                        VM_SPEC_DISPLAY_NAME, 0, 0)));
+        when(entitySettingsCache.getEntityFromOid(eq(CT_SOURCE_ID)))
+                .thenReturn((createEntity(CT_SOURCE_ID,
+                        EntityType.COMPUTE_TIER.getNumber(),
+                        CT_SOURCE_DISPLAY_NAME, 0, 0)));
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM_SPEC_ID)))
+                .thenReturn(Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(businessAccountOid)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(businessAccountName)
+                        .build()));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, deleteVirtualMachineSpecRecommendation);
+
+        assertEquals(description, "Delete Empty compute_source_test App Service Plan vm_spec_test from business_account_name");
     }
 
     @Test
