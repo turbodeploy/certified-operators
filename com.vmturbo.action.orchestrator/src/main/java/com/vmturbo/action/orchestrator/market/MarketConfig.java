@@ -94,7 +94,10 @@ public class MarketConfig {
             actionStoreConfig.queryTimeWindowForLastExecutedActionsMins(),
             actionStoreConfig.actionIdentityService(), actionExecutionConfig.actionTargetSelector(),
             actionTranslationConfig.actionTranslator(), actionStatsConfig.actionsStatistician(),
-            auditCommunicationConfig.actionAuditSender(), auditCommunicationConfig.auditedActionsManager());
+            auditCommunicationConfig.actionAuditSender(), auditCommunicationConfig.auditedActionsManager(),
+                                             topologyProcessorConfig.actionTopologyStore(),
+                topologyProcessorConfig.realtimeTopologyContextId(),
+            actionStatsConfig.telemetryChunkSize());
     }
 
     /**

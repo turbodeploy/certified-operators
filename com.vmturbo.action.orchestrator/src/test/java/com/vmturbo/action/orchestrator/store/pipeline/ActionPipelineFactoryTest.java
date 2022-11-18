@@ -17,6 +17,7 @@ import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -77,7 +78,7 @@ public class ActionPipelineFactoryTest {
             maxWaitTimeMinutes, probeCapabilityCache, actionHistoryDao,
             actionFactory, clock, queryTimeWindowForLastExecutedActionsMins,
             actionIdentityService, actionTargetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender, auditedActionsManager);
+            actionAuditSender, auditedActionsManager, mock(ActionTopologyStore.class), 777777L, 100);
 
         // If there is an issue with pipeline context members, attempting to create a pipeline
         // will result in an exception and fail the test.
@@ -95,7 +96,7 @@ public class ActionPipelineFactoryTest {
             maxWaitTimeMinutes, probeCapabilityCache, actionHistoryDao,
             actionFactory, clock, queryTimeWindowForLastExecutedActionsMins,
             actionIdentityService, actionTargetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender, auditedActionsManager);
+            actionAuditSender, auditedActionsManager, mock(ActionTopologyStore.class), 777777L, 100);
 
         // If there is an issue with pipeline context members, attempting to create a pipeline
         // will result in an exception and fail the test.
