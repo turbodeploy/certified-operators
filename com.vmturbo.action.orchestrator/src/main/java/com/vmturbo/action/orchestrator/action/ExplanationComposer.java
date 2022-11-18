@@ -74,7 +74,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.commons.Pair;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -1188,8 +1187,7 @@ public class ExplanationComposer {
             }
         }
 
-        if (FeatureFlags.ENABLE_RECONFIGURE_ACTION_FOR_NOTREADY_NODE.isEnabled()
-                && targetType.equals(EntityType.VIRTUAL_MACHINE_VALUE)
+        if (targetType.equals(EntityType.VIRTUAL_MACHINE_VALUE)
                 && reasonCommodities.stream()
                         .map(ReasonCommodity::getCommodityType)
                         .allMatch(comm -> comm.getType() == CommodityDTO.CommodityType.CLUSTER_VALUE
