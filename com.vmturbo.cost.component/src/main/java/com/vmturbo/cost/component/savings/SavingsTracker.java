@@ -89,9 +89,9 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
     private final Clock clock;
 
     /**
-     * StorageAmount Resolver for savings.
+     * Bill-based savings calculator.
      */
-    private StorageAmountResolver storageAmountResolver;
+    private Calculator calculator;
 
     private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
 
@@ -115,8 +115,6 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
     private final SearchServiceBlockingStub searchServiceStub;
 
     private final Set<EntityType> supportedBillingEntityTypes;
-
-    private long deleteActionRetentionMs;
 
     private final int savingsDaysToSkip;
 
@@ -165,20 +163,20 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.repositoryClient = repositoryClient;
         this.searchServiceStub = searchServiceStub;
-        this.storageAmountResolver = new StorageAmountResolver(priceTableKeyStore, priceTableStore);
+        StorageAmountResolver storageAmountResolver = new StorageAmountResolver(priceTableKeyStore, priceTableStore);
+        this.calculator = new Calculator(deleteActionRetentionMs, clock, storageAmountResolver);
         this.supportedBillingEntityTypes = supportedBillingEntityTypes;
         this.supportedCSPs = supportedBillingCSPs;
         this.savingsDaysToSkip = savingsDaysToSkip;
-        this.deleteActionRetentionMs = deleteActionRetentionMs;
     }
 
     /**
      * Allow test cases to pass in a different calculator for mocking purpose.
      *
-     * @param storageAmountResolver storage amount resolver
+     * @param calculator storage amount resolver
      */
-    void setStorageAmountResolver(StorageAmountResolver storageAmountResolver) {
-        this.storageAmountResolver = storageAmountResolver;
+    void setCalculator(Calculator calculator) {
+        this.calculator = calculator;
     }
 
     /**
@@ -190,8 +188,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
      * @throws EntitySavingsException Thrown on DB error.
      */
     void processSavings(@Nonnull final Set<Long> entityIds,
-            @Nonnull final SavingsTimes savingsTimes, @Nonnull final AtomicInteger chunkCounter,
-            final long deleteActionRetentionMs)
+            @Nonnull final SavingsTimes savingsTimes, @Nonnull final AtomicInteger chunkCounter)
             throws EntitySavingsException {
         long previousLastUpdated = savingsTimes.getPreviousLastUpdatedTime();
         // Only retrieve bill records from days that are before the endTime.
@@ -229,9 +226,6 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         // Get the timestamp of the day (beginning of the day) that was last processed.
         // Need this date for delete action savings calculation.
         long lastProcessedDate = savingsTimes.getLastRollupTimes().getLastTimeByDay();
-
-        // set the expiry date for deleted entities to the latest.
-        setDeleteActionRetentionMs(deleteActionRetentionMs);
         final Set<Long> statTimes = processSavings(entityIds, billingRecords, actionChains,
                 lastProcessedDate, endTime);
 
@@ -244,7 +238,6 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
             Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains,
             long lastProcessedDate, LocalDateTime periodEndTime) throws EntitySavingsException {
         final List<SavingsValues> allSavingsValues = new ArrayList<>();
-        final Calculator calculator = new Calculator(deleteActionRetentionMs, clock, storageAmountResolver);
         entityOids.forEach(entityId -> {
             Set<BillingRecord> entityBillingRecords = billingRecords.getOrDefault(entityId,
                     Collections.emptySet());
@@ -516,9 +509,5 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
 
     private boolean isSupportedBillingEntityType(BillingRecord record) {
         return supportedBillingEntityTypes.stream().anyMatch(entityType -> (entityType.getNumber() == record.getEntityType()));
-    }
-
-    private void setDeleteActionRetentionMs(long deleteActionRetentionMs) {
-        this.deleteActionRetentionMs = deleteActionRetentionMs;
     }
 }

@@ -723,8 +723,7 @@ public class EntitySavingsConfig {
                 new SavingsProcessor(getClock(), savingsDataProcessingChunkSize,
                         rollupConfig.billedSavingsRollupTimesStore(),
                         savingsActionStore(), savingsTracker(),
-                        dataRetentionProcessor(isBillSavingsEnabled()),
-                        getEntitySavingsRetentionConfig());
+                        dataRetentionProcessor(isBillSavingsEnabled()));
         if (isBillSavingsEnabled()) {
             int durationMinutes = 60 * billSavingsProcessorFrequencyHours;
             final LocalDateTime now = LocalDateTime.now();
