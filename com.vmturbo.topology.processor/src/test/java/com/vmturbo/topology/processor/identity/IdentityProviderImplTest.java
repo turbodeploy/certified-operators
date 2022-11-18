@@ -557,7 +557,7 @@ public class IdentityProviderImplTest {
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(new MapKeyValueStore(),
             compatibilityChecker, 0, mock(IdentityDatabaseStore.class), 10,
             assignedIdReloadReattemptIntervalSeconds, mock(StaleOidManagerImpl.class), false);
-        providerImpl.restoreDiags(ImmutableList.of("blah", "", ""), null);
+        providerImpl.restoreStringDiags(ImmutableList.of("blah", "", ""), null);
     }
 
     /**
@@ -568,7 +568,7 @@ public class IdentityProviderImplTest {
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(new MapKeyValueStore(),
             compatibilityChecker, 0, mock(IdentityDatabaseStore.class), 10,
             assignedIdReloadReattemptIntervalSeconds, mock(StaleOidManagerImpl.class), false);
-        providerImpl.restoreDiags(ImmutableList.of("{}", "blah", ""), null);
+        providerImpl.restoreStringDiags(ImmutableList.of("{}", "blah", ""), null);
     }
 
     /**
@@ -579,7 +579,7 @@ public class IdentityProviderImplTest {
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(new MapKeyValueStore(),
             compatibilityChecker, 0, mock(IdentityDatabaseStore.class), 10,
             assignedIdReloadReattemptIntervalSeconds, mock(StaleOidManagerImpl.class), false);
-        providerImpl.restoreDiags(Collections.emptyList(), null);
+        providerImpl.restoreStringDiags(Collections.emptyList(), null);
     }
 
     /**
@@ -624,7 +624,7 @@ public class IdentityProviderImplTest {
         // the new providers behaves just like the old one.
         final IdentityProviderImpl newProvider = new IdentityProviderImpl(identityService,
             new MapKeyValueStore(), compatibilityChecker, 0, mock(StaleOidManagerImpl.class));
-        newProvider.restoreDiags(diagsCaptor.getAllValues(), null);
+        newProvider.restoreStringDiags(diagsCaptor.getAllValues(), null);
         verify(identityService).restore(any(), any());
         // It should assign the same ID for the same probe type.
         assertEquals(probeId, newProvider.getProbeId(probeInfo));

@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.identity.cache;
 
 import static com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore.composeKeyFromProperties;
 
+import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -16,6 +17,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Stopwatch;
+import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializer;
@@ -127,7 +129,18 @@ public class OptimizedIdentityRecordsBasedCache implements IdentityCache {
         final GsonBuilder builder = new GsonBuilder();
         builder.registerTypeAdapter(EntityInMemoryProxyDescriptor.class,
                 (JsonSerializer<EntityInMemoryProxyDescriptor>)(descriptor, type, jsonSerializationContext) -> new JsonPrimitive(converter.to(descriptor)));
-        builder.create().toJson(new ArrayList<>(oidToIdentity.values()), writer);
+        Gson gson =  builder.create();
+        try {
+            writer.append("[");
+            String separator = "";
+            for (Object record : oidToIdentity.values()) {
+                writer.append(separator + gson.toJson(record));
+                separator = ",";
+            }
+            writer.append("]");
+        } catch (IOException e) {
+            logger.error("Failed to append oidToIdentity data to dump file. Error: {}", e.getMessage());
+        }
     }
 
     @Override

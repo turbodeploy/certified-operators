@@ -1,7 +1,16 @@
 package com.vmturbo.topology.processor.identity;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,8 +36,10 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
+import org.apache.commons.io.output.CloseShieldOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -367,8 +378,12 @@ public class IdentityProviderImpl implements IdentityProvider {
         return IdentityGenerator.next();
     }
 
-    @Nonnull
-    @Override
+    /**
+     * Backward compatible implementation of collect method which appends String diags.
+     *
+     * @param appender appender for the Identity properties.
+     * @throws DiagnosticsException if unable to append the identity properties.
+     */
     public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         logger.info("Collecting diagnostics from the Identity Provider...");
         // No-pretty-print is important, because we want one line per item so that we
@@ -390,7 +405,69 @@ public class IdentityProviderImpl implements IdentityProvider {
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> diagsLines, @Nullable Void context) {
+    public void collectDiags(@NotNull OutputStream appender)
+            throws DiagnosticsException, IOException {
+        logger.info("Collecting diagnostics from the Identity Provider...");
+        // No-pretty-print is important, because we want one line per item so that we
+        // can restore properly.
+        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
+
+        try {
+            Writer writer = new OutputStreamWriter(new CloseShieldOutputStream(appender),
+                    StandardCharsets.UTF_8);
+            // Synchronize on the probeIdLock so that probes that register
+            // during a diags dump don't cause any issues or inconsistencies.
+            synchronized (probeIdLock) {
+                gson.toJson(probeTypeToId, writer);
+                writer.append("\n");
+                gson.toJson(perProbeMetadata, writer);
+                writer.append("\n");
+                identityService.backup(writer);
+                writer.append("\n");
+            }
+        } catch (Exception e) {
+            logger.error("Failed to collect diagnostics from the Identity Provider: ", e);
+        }
+        logger.info("Finished collecting diagnostics from the Identity Provider.");
+    }
+
+    @Override
+    public void restoreDiags(@NotNull byte[] bytes, @Nullable Void context)
+            throws DiagnosticsException {
+        logger.info("Restoring diagnostics to the Identity Provider...");
+        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
+        synchronized (probeIdLock) {
+            try {
+                InputStream inputStream = new ByteArrayInputStream(bytes);
+                BufferedReader bfReader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+                String diagLine = null;
+                int lineCounter = -1;
+                while ((diagLine = bfReader.readLine()) != null) {
+                    lineCounter++;
+                    switch (lineCounter) {
+                        case(DIAGS_PROBE_TYPE_IDX):
+                            restoreDiagsProbeType(gson, diagLine);
+                            break;
+                        case(DIAGS_PROBE_METADATA_IDX):
+                            restoreDiagsProbeMetadata(gson, diagLine);
+                            break;
+                        case(DIAGS_ID_SVC_IDX):
+                            restoreDiagsIdSvc(diagLine);
+                            break;
+                        default:
+                            logger.error("Line {} not mapped to Identity Diags property.", lineCounter);
+                            break;
+                    }
+                }
+            } catch (IOException e) {
+                logger.error("Failed to restore diagnostics to the Identity Provider: ", e);
+            }
+        }
+        logger.info("Successfully restored the Identity Provider!");
+    }
+
+    @Override
+    public void restoreStringDiags(@Nonnull final List<String> diagsLines, @Nullable Void context) {
         logger.info("Restoring diagnostics to the Identity Provider...");
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         synchronized (probeIdLock) {
@@ -400,40 +477,48 @@ public class IdentityProviderImpl implements IdentityProvider {
                 throw new IllegalArgumentException("Unexpected size of diags to restore from.");
             }
 
-            try {
-                final Map<String, Long> newProbeTypeToId = gson.fromJson(
-                    diagsLines.get(DIAGS_PROBE_TYPE_IDX),
-                    new TypeToken<Map<String, Long>>(){}.getType());
-                probeTypeToId.clear();
-                probeTypeToId.putAll(newProbeTypeToId);
-                // Keep Consul in sync with the internal cache
-                keyValueStore.removeKeysWithPrefix(PROBE_ID_PREFIX);
-                probeTypeToId.forEach(this::storeProbeId);
-            } catch (JsonSyntaxException e) {
-                throw new IllegalArgumentException(
-                        "Unable to parse probe type to ID input JSON.", e);
-            }
-
-            try {
-                final Map<Long, ServiceEntityIdentityMetadataStore> newPerProbe = gson.fromJson(
-                    diagsLines.get(DIAGS_PROBE_METADATA_IDX),
-                    new TypeToken<Map<Long, ServiceEntityIdentityMetadataStore>>(){}.getType());
-                perProbeMetadata.clear();
-                perProbeMetadata.putAll(newPerProbe);
-            } catch (JsonSyntaxException e) {
-                throw new IllegalArgumentException(
-                        "Unable to parse probe metadata input JSON.", e);
-            }
-
-            try {
-                final StringReader reader = new StringReader(diagsLines.get(DIAGS_ID_SVC_IDX));
-                identityService.restore(reader, perProbeMetadata);
-            } catch (Exception e) {
-                final StringReader reader = new StringReader(diagsLines.get(DIAGS_ID_SVC_IDX));
-                identityService.restoreOldDiags(reader);
-            }
+            restoreDiagsProbeType(gson, diagsLines.get(DIAGS_PROBE_TYPE_IDX));
+            restoreDiagsProbeMetadata(gson, diagsLines.get(DIAGS_PROBE_METADATA_IDX));
+            restoreDiagsIdSvc(diagsLines.get(DIAGS_ID_SVC_IDX));
         }
         logger.info("Successfully restored the Identity Provider!");
+    }
+
+    private void restoreDiagsProbeType(Gson gson, String diagLine) {
+        try {
+            final Map<String, Long> newProbeTypeToId = gson.fromJson(diagLine,
+                    new TypeToken<Map<String, Long>>(){}.getType());
+            probeTypeToId.clear();
+            probeTypeToId.putAll(newProbeTypeToId);
+            // Keep Consul in sync with the internal cache
+            keyValueStore.removeKeysWithPrefix(PROBE_ID_PREFIX);
+            probeTypeToId.forEach(this::storeProbeId);
+        } catch (JsonSyntaxException e) {
+            throw new IllegalArgumentException(
+                    "Unable to parse probe type to ID input JSON.", e);
+        }
+    }
+
+    private void restoreDiagsProbeMetadata(Gson gson, String diagLine) {
+        try {
+            final Map<Long, ServiceEntityIdentityMetadataStore> newPerProbe = gson.fromJson(diagLine,
+                    new TypeToken<Map<Long, ServiceEntityIdentityMetadataStore>>(){}.getType());
+            perProbeMetadata.clear();
+            perProbeMetadata.putAll(newPerProbe);
+        } catch (JsonSyntaxException e) {
+            throw new IllegalArgumentException(
+                    "Unable to parse probe metadata input JSON.", e);
+        }
+    }
+
+    private void restoreDiagsIdSvc(String diagLine) {
+        try {
+            final StringReader reader = new StringReader(diagLine);
+            identityService.restore(reader, perProbeMetadata);
+        } catch (Exception e) {
+            final StringReader reader = new StringReader(diagLine);
+            identityService.restoreOldDiags(reader);
+        }
     }
 
     /**

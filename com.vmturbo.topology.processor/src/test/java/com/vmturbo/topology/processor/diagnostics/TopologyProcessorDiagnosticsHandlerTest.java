@@ -82,6 +82,8 @@ import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.identity.store.PersistentIdentityStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
@@ -303,11 +305,11 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     @Test
     public void testNoTargets() throws IOException {
         ZipInputStream zis = dumpDiags();
-
-
+        String extension = "";
 
         ZipEntry ze = zis.getNextEntry();
-        assertEquals("Identity.diags", ze.getName());
+        String filename = "Identity" + getDiagsExtension(IdentityProvider.class);
+        assertEquals(filename, ze.getName());
 
         ze = zis.getNextEntry();
         assertEquals("Probes.diags", ze.getName());
@@ -400,7 +402,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         final ZipInputStream zis = dumpDiags();
 
         ZipEntry ze = zis.getNextEntry();
-        assertEquals("Identity.diags", ze.getName());
+        String filename = "Identity" + getDiagsExtension(IdentityProvider.class);
+        assertEquals(filename, ze.getName());
 
         ze = zis.getNextEntry();
         assertEquals("Probes.diags", ze.getName());
@@ -518,7 +521,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         final ZipInputStream zis = dumpDiags();
 
         ZipEntry ze = zis.getNextEntry();
-        assertEquals("Identity.diags", ze.getName());
+        String filename = "Identity" + getDiagsExtension(IdentityProvider.class);
+        assertEquals(filename, ze.getName());
 
         ze = zis.getNextEntry();
         assertEquals("Probes.diags", ze.getName());
@@ -719,7 +723,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             assertTrue(profileResult.values().stream().allMatch(set -> set.size() == 1));
 
         }
-        verify(identityProvider).restoreDiags(anyList(), any());
+        verify(identityProvider).restoreStringDiags(anyList(), any());
 
         ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
         verify(probeStore).overwriteProbeInfo(mapCaptor.capture());
@@ -794,6 +798,22 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             assertEquals(HealthState.NORMAL, health.getHealthState());
             assertEquals(TargetHealthSubCategory.DISCOVERY, health.getSubcategory());
         }
+    }
+
+    /**
+     * Get the file extension depending on the class diags implementation
+     *
+     * @param c class that extends the Diagnosable
+     * @return  extension for the diag file
+     */
+    private String getDiagsExtension (Class c) {
+        String extension = "";
+        if (BinaryDiagsRestorable.class.isAssignableFrom(c)) {
+            extension = DiagsZipReader.BINARY_DIAGS_SUFFIX;
+        } else if (DiagsRestorable.class.isAssignableFrom(c)) {
+            extension = DiagsZipReader.TEXT_DIAGS_SUFFIX;
+        }
+        return extension;
     }
 
     /**
