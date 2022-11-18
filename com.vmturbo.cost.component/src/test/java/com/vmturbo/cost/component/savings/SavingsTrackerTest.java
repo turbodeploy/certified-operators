@@ -189,7 +189,7 @@ public class SavingsTrackerTest {
                 .thenReturn(TimeUtil.localTimeToMillis(LocalDateTime.of(2022, 11, 14, 20, 23), clock));
         when(savingsTimes.getLastRollupTimes().getLastTimeByDay())
                 .thenReturn(TimeUtil.localTimeToMillis(LocalDateTime.of(2022, 11, 14, 0, 0), clock));
-        tracker.processSavings(new HashSet<>(), savingsTimes, new AtomicInteger(1));
+        tracker.processSavings(new HashSet<>(), savingsTimes, new AtomicInteger(1), TimeUnit.DAYS.toMillis(365));
         verify(billingRecordStore).getUpdatedBillRecords(startDateCaptor.capture(), endDateCaptor.capture(), anySetOf(Long.class));
 
         // Today is Nov 16, 2022. We want to skip one day of savings, so end date is Nov 15 00:00:00.
