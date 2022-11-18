@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedSet;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -197,6 +198,8 @@ public interface TargetStore extends RequiresDataInitialization {
      */
     @Nonnull
     Set<Long> getParentTargetIds(long derivedTargetId);
+
+    SortedSet<Long> getLinkedTargetIds(long targetId);
 
     /**
      * Get the probe type for a given target id.

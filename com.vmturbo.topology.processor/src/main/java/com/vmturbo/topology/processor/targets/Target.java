@@ -29,6 +29,7 @@ import com.vmturbo.crosstier.common.TargetUtil;
 import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue.PropertyValueList;
+import com.vmturbo.platform.common.dto.Discovery.TargetLinkInfoDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
@@ -153,7 +154,8 @@ public class Target implements ProbeStoreListener {
 
         final TargetSpec.Builder targetSpec = TargetSpec.newBuilder().setProbeId(probeId)
             .addAllAccountValue(inputSpec.getAccountValueList())
-            .addAllDerivedTargetIds(inputSpec.getDerivedTargetIdsList());
+            .addAllDerivedTargetIds(inputSpec.getDerivedTargetIdsList())
+            .putAllParentLinks(inputSpec.getParentLinksMap());
 
         if (updateLastEditTime) {
             targetSpec.setLastEditTime(LocalDateTime.now(clock)
@@ -186,21 +188,20 @@ public class Target implements ProbeStoreListener {
      *
      * @param targetInfo A {@link TargetInfo}.
      * @param values Collection of {@link AccountValue}s.
-     * @param derivedTargetsIds Collection of derived target IDs.
      * @param optionalChannel optional communication binding channel for the target
      * @return A {@link TargetSpec} builder.
      */
     private static TargetSpec.Builder createTargetSpecBuilder(
                                         @Nonnull TargetInfo targetInfo,
                                         @Nonnull Collection<TopologyProcessorDTO.AccountValue> values,
-                                        @Nonnull Collection<Long> derivedTargetsIds,
                                         @Nonnull Optional<String> optionalChannel) {
         final TargetSpec.Builder targetSpec = TargetSpec.newBuilder()
             .setProbeId(targetInfo.getSpec().getProbeId())
             .addAllAccountValue(values)
             .setIsHidden(targetInfo.getSpec().getIsHidden())
             .setReadOnly(targetInfo.getSpec().getReadOnly())
-            .addAllDerivedTargetIds(derivedTargetsIds);
+            .addAllDerivedTargetIds(targetInfo.getSpec().getDerivedTargetIdsList())
+            .putAllParentLinks(targetInfo.getSpec().getParentLinksMap());
 
         if (targetInfo.getSpec().hasLastEditingUser()) {
             targetSpec.setLastEditingUser(targetInfo.getSpec().getLastEditingUser());
@@ -288,8 +289,7 @@ public class Target implements ProbeStoreListener {
                 .collect(Collectors.toList());
 
         final TargetSpec.Builder newSpec = createTargetSpecBuilder(targetInfo,
-                filteredMergedAccountVals, targetInfo.getSpec().getDerivedTargetIdsList(),
-                communicationBindingChannel);
+                filteredMergedAccountVals, communicationBindingChannel);
         if (lastEditingUser != null) {
             newSpec.setLastEditingUser(lastEditingUser);
         }
@@ -310,11 +310,23 @@ public class Target implements ProbeStoreListener {
     public Target withUpdatedDerivedTargetIds(@Nonnull final List<Long> derivedTargetsIds,
                                               @Nonnull final ProbeStore probeStore)
         throws InvalidTargetException {
-        TargetInfo targetInfo = info.targetInfo;
 
-        final TargetSpec.Builder newSpec = createTargetSpecBuilder(targetInfo,
-                targetInfo.getSpec().getAccountValueList(), derivedTargetsIds, Optional.empty());
-        return new Target(getId(), probeStore, newSpec.build(), true, false, clock);
+        final TargetSpec newSpec = info.targetInfo.getSpec().toBuilder()
+                .clearDerivedTargetIds()
+                .addAllDerivedTargetIds(derivedTargetsIds)
+                .build();
+        return new Target(getId(), probeStore, newSpec, true, false, clock);
+    }
+
+    public Target withUpdatedParentLinks(@Nonnull final Map<Long, TargetLinkInfoDTO> parentLinkMap,
+                                         @Nonnull final ProbeStore probeStore) throws InvalidTargetException {
+
+        final TargetSpec newSpec = info.targetInfo.getSpec().toBuilder()
+                .clearParentLinks()
+                .putAllParentLinks(parentLinkMap)
+                .build();
+
+        return new Target(getId(), probeStore, newSpec, true, false, clock);
     }
 
     /**
@@ -360,8 +372,8 @@ public class Target implements ProbeStoreListener {
                 info, info.getSpec().getAccountValueList()
                         .stream()
                         .filter(val -> !secretVals.contains(val.getKey()))
-                        .collect(Collectors.toList()), info.getSpec().getDerivedTargetIdsList(),
-            Optional.empty());
+                        .collect(Collectors.toList()),
+                Optional.empty());
         TargetInfo.Builder targetInfoBuilder = TargetInfo.newBuilder().setId(info.getId())
                 .setSpec(targetSpec);
         if (info.hasDisplayName()) {
@@ -395,7 +407,7 @@ public class Target implements ProbeStoreListener {
         }
 
         final TargetSpec.Builder targetSpec =
-            createTargetSpecBuilder(info, accountValues, info.getSpec().getDerivedTargetIdsList(), Optional.empty());
+            createTargetSpecBuilder(info, accountValues, Optional.empty());
         TargetInfo.Builder targetInfoBuilder = TargetInfo.newBuilder().setId(info.getId())
                 .setSpec(targetSpec);
         if (info.hasDisplayName()) {
@@ -604,8 +616,7 @@ public class Target implements ProbeStoreListener {
                 }
             });
             final TargetSpec.Builder targetSpec =
-                    createTargetSpecBuilder(
-                            targetInfo, values, targetInfo.getSpec().getDerivedTargetIdsList(), Optional.empty());
+                    createTargetSpecBuilder(targetInfo, values, Optional.empty());
             TargetInfo.Builder targetInfoBuilder = TargetInfo.newBuilder().setId(targetInfo.getId())
                     .setSpec(targetSpec);
             if (targetInfo.hasDisplayName()) {
@@ -633,8 +644,7 @@ public class Target implements ProbeStoreListener {
                 }
             });
             final TargetSpec.Builder targetSpec =
-                    createTargetSpecBuilder(
-                            targetInfo, values, targetInfo.getSpec().getDerivedTargetIdsList(), Optional.empty());
+                    createTargetSpecBuilder(targetInfo, values, Optional.empty());
             TargetInfo.Builder targetInfoBuilder = TargetInfo.newBuilder().setId(targetInfo.getId())
                     .setSpec(targetSpec);
             if (targetInfo.hasDisplayName()) {

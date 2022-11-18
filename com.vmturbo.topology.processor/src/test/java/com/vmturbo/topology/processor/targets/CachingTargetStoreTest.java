@@ -2,6 +2,8 @@ package com.vmturbo.topology.processor.targets;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -23,11 +25,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.SortedSet;
 import java.util.TimeZone;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import org.junit.Assert;
@@ -46,6 +51,8 @@ import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
+import com.vmturbo.platform.common.dto.Discovery.TargetLinkInfoDTO;
+import com.vmturbo.platform.common.dto.Discovery.TargetLinkInfoDTO.TargetLinkType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -505,6 +512,50 @@ public class CachingTargetStoreTest {
         verifyDerivedTargetIdsList(
             Lists.newArrayList(derived3.getId()),
             getDerivedTargetIds(derived1));
+    }
+
+    /**
+     * Tests linking of a derived target to the parent.
+     * @throws Exception Not expected to happen.
+     */
+    @Test
+    public void testDerivedTargetLinkedToParent() throws Exception {
+
+        prepareInitialProbe();
+        final Target parent = targetStore.createTarget(createTargetSpec(0L, 666));
+        final TargetSpec derivedTargetSpec = TargetSpec.newBuilder()
+                .setProbeId(DERIVED_PROBE_ID)
+                .setIsHidden(true)
+                .addAllAccountValue(createAccountValue(100))
+                .putParentLinks(parent.getId(), TargetLinkInfoDTO.newBuilder()
+                        .setLinkType(TargetLinkType.PARENT_REFERENCED_BY_DERIVED)
+                        .build())
+                .build();
+
+        targetStore.createOrUpdateDerivedTargets(
+                Lists.newArrayList(derivedTargetSpec), parent.getId());
+
+        // get the derived target ID
+        final Set<Long> derivedTargetIds = targetStore.getDerivedTargetIds(parent.getId());
+        assertThat(derivedTargetIds, hasSize(1));
+
+        final long derivedTargetId = Iterables.getOnlyElement(derivedTargetIds);
+
+        // Check that the derived target is linked to the parent
+        final SortedSet<Long> derivedLinkedTargets = targetStore.getLinkedTargetIds(derivedTargetId);
+        assertThat(derivedLinkedTargets, hasSize(1));
+        assertThat(derivedLinkedTargets.first(), equalTo(parent.getId()));
+
+        // Check that the parent is not linked to the derived target
+        assertThat(targetStore.getLinkedTargetIds(parent.getId()), hasSize(0));
+
+        // Test removal of the derived target
+        targetStore.createOrUpdateDerivedTargets(
+                Lists.newArrayList(), parent.getId());
+
+        // Verify the target no longer exists;
+        assertFalse(targetStore.getTarget(derivedTargetId).isPresent());
+        assertThat(targetStore.getLinkedTargetIds(derivedTargetId), hasSize(0));
     }
 
     /**
