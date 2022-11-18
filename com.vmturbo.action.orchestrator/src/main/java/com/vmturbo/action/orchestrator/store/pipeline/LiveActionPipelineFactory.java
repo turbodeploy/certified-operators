@@ -54,6 +54,7 @@ import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.Trans
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.UpdateAutomationStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.UpdateReRecommendedActionsStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.UpdateSeverityCacheStage;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -98,6 +99,12 @@ public class LiveActionPipelineFactory {
     private final ActionAuditSender actionAuditSender;
     private final AuditedActionsManager auditedActionsManager;
 
+    private final ActionTopologyStore actionTopologyStore;
+
+    private final long realtimeContextId;
+
+    private final int telemetryChunkSize;
+
     /**
      * Create a new {@link LiveActionPipelineFactory}.
      *
@@ -120,6 +127,9 @@ public class LiveActionPipelineFactory {
      * @param actionsStatistician the {@link LiveActionsStatistician}.
      * @param actionAuditSender the {@link ActionAuditSender}.
      * @param auditedActionsManager the {@link AuditedActionsManager}.
+     * @param actionTopologyStore the {@link ActionTopologyStore}.
+     * @param realtimeContextId realtime context ID.
+     * @param telemetryChunkSize the number of entities to process per chunk.
      */
     public LiveActionPipelineFactory(@Nonnull final ActionStorehouse actionStorehouse,
                                      @Nonnull final ActionAutomationManager automationManager,
@@ -136,7 +146,10 @@ public class LiveActionPipelineFactory {
                                      @Nonnull final ActionTranslator actionTranslator,
                                      @Nonnull final LiveActionsStatistician actionsStatistician,
                                      @Nonnull final ActionAuditSender actionAuditSender,
-                                     @Nonnull final AuditedActionsManager auditedActionsManager) {
+                                     @Nonnull final AuditedActionsManager auditedActionsManager,
+                                     @Nonnull final ActionTopologyStore actionTopologyStore,
+                                     final long realtimeContextId,
+                                     final int telemetryChunkSize) {
         Preconditions.checkArgument(liveActionsLockMaxWaitTimeMinutes > 0,
             "Illegal value %s for liveActionsLockMaxWaitTimeMinutes", liveActionsLockMaxWaitTimeMinutes);
         Preconditions.checkArgument(queryTimeWindowForLastExecutedActionsMins > 0,
@@ -158,6 +171,9 @@ public class LiveActionPipelineFactory {
         this.actionsStatistician = Objects.requireNonNull(actionsStatistician);
         this.actionAuditSender = Objects.requireNonNull(actionAuditSender);
         this.auditedActionsManager = Objects.requireNonNull(auditedActionsManager);
+        this.actionTopologyStore = actionTopologyStore;
+        this.realtimeContextId = realtimeContextId;
+        this.telemetryChunkSize = telemetryChunkSize;
     }
 
     /**
@@ -292,12 +308,13 @@ public class LiveActionPipelineFactory {
                         ATOMIC.getActionsToAdd()))
                     .asStage("AtomicActionsSegment"))
                 .addStage(new ActionPipelineStages.CreateRelatedActionsStage())
-                .addStage(new ActionStatisticsStage(actionsStatistician))
                 .addStage(new AuditAndCacheBookkeepingStage(actionAuditSender))
                 .finalStage(new ActionStoreSummaryStage())
             ))
             .addStage(new UpdateAutomationStage(automationManager))
             .addStage(new UpdateSeverityCacheStage())
+            .addStage(new ActionStatisticsStage(actionsStatistician, actionTopologyStore,
+                    entitiesAndSettingsSnapshotFactory, realtimeContextId, telemetryChunkSize))
             .finalStage(new ActionProcessingInfoStage()), clock
         );
     }

@@ -84,6 +84,7 @@ import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
 import com.vmturbo.action.orchestrator.store.identity.IdentityDataStore;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.store.identity.InMemoryIdentityStore;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -149,6 +150,7 @@ public class LiveActionPipelineIntegrationTest {
 
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
     private IdentityServiceImpl<ActionInfo, String, ActionInfoModel> actionIdentityService;
+    private final ActionTopologyStore actionTopologyStore = mock(ActionTopologyStore.class);
 
     /**
      * expected exception for expecting exceptions.
@@ -270,7 +272,7 @@ public class LiveActionPipelineIntegrationTest {
             atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
             actionHistoryDao, spyActionFactory, clock, 10,
             actionIdentityService, targetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender, auditedActionsManager);
+            actionAuditSender, auditedActionsManager, actionTopologyStore, 777777L, 100);
 
         when(targetSelector.getTargetsForActions(any(), any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -281,6 +283,7 @@ public class LiveActionPipelineIntegrationTest {
         });
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(snapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
+        when(actionTopologyStore.getSourceTopology()).thenReturn(Optional.empty());
         setEntitiesOIDs();
         IdentityGenerator.initPrefix(0);
         setUpActionMergeCache();
@@ -559,7 +562,7 @@ public class LiveActionPipelineIntegrationTest {
             atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
             actionHistoryDao, actionFactory, clock, 10,
             actionIdentityService, targetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender, auditedActionsManager);
+            actionAuditSender, auditedActionsManager, actionTopologyStore, 777777L, 100);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
@@ -621,7 +624,7 @@ public class LiveActionPipelineIntegrationTest {
             atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
             actionHistoryDao, actionFactory, clock, 10,
             actionIdentityService, targetSelector, actionTranslator, actionsStatistician,
-            listener, auditedActionsManager);
+            listener, auditedActionsManager, actionTopologyStore, 777777L, 100);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 

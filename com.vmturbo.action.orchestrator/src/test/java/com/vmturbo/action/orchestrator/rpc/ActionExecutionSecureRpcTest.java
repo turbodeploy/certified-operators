@@ -153,7 +153,8 @@ public class ActionExecutionSecureRpcTest {
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     private final Executor executorPool = mock(Executor.class);
     private final ActionExecutionStore actionExecutionStore = new ActionExecutionStore();
-    private final ActionCombiner actionCombiner = new ActionCombiner(mock(ActionTopologyStore.class));
+    private final ActionTopologyStore actionTopologyStore = mock(ActionTopologyStore.class);
+    private final ActionCombiner actionCombiner = new ActionCombiner(actionTopologyStore);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
@@ -316,12 +317,13 @@ public class ActionExecutionSecureRpcTest {
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");
+        when(actionTopologyStore.getSourceTopology()).thenReturn(Optional.empty());
 
         pipelineFactory = new LiveActionPipelineFactory(actionStorehouse, mock(ActionAutomationManager.class),
             atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
             actionHistoryDao, actionFactory, clock, 10,
             actionIdentityService, actionTargetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender, auditedActionsManager);
+            actionAuditSender, auditedActionsManager, actionTopologyStore, 777777L, 100);
     }
 
     @After

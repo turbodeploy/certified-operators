@@ -1680,16 +1680,6 @@ public class Stages {
      */
     public static class BroadcastStage extends Stage<Stream<TopologyEntity>, TopologyBroadcastInfo> {
 
-        /**
-         * Exports the entity count per entity type from broadcast.
-         */
-        static final DataMetricGauge BROADCAST_ENTITIES_GAUGE = DataMetricGauge.builder()
-            .withName(StringConstants.METRICS_TURBO_PREFIX + "broadcast_entities")
-            .withHelp("Number of (post-stitching) entities that were broadcast per entity type.")
-            .withLabelNames("entity_type")
-            .build()
-            .register();
-
         private final Logger logger = LogManager.getLogger();
 
         private final List<TopoBroadcastManager> broadcastManagers;
@@ -1738,10 +1728,6 @@ public class Stages {
                         broadcastInfo = broadcastTopology(broadcastManagers.stream()
                             .<Function<TopologyInfo, TopologyBroadcast>>map(manager -> manager::broadcastLiveTopology)
                             .collect(Collectors.toList()), entities);
-                        BROADCAST_ENTITIES_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
-                        counts.forEach((type, count) ->
-                            BROADCAST_ENTITIES_GAUGE.labels(type.sdkType().toString())
-                                .setData((double)count.getEntityCount()));
                         break;
                     case PLAN:
                         broadcastInfo = broadcastTopology(broadcastManagers.stream()

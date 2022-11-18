@@ -29,6 +29,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Streams;
 
 import org.apache.commons.lang3.mutable.MutableInt;
@@ -64,6 +66,8 @@ import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory.AtomicActionResult;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipeline.RequiredPassthroughStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipeline.Stage;
+import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
@@ -73,10 +77,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.ActionEnvironmentType;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
@@ -86,6 +90,7 @@ import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.components.common.pipeline.PipelineContext.PipelineContextMemberDefinition;
 import com.vmturbo.components.common.pipeline.SegmentStage;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.identity.IdentityService;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -1421,7 +1426,7 @@ public class ActionPipelineStages {
      * The {@link ActionStatisticsStage} records statistics about the actions in the store
      * to the database.
      */
-    public static class ActionStatisticsStage extends RequiredPassthroughStage<LiveActionStore> {
+    public static class ActionStatisticsStage extends RequiredPassthroughStage<ActionStore> {
 
         private static final Logger logger = LogManager.getLogger();
 
@@ -1436,7 +1441,42 @@ public class ActionPipelineStages {
             .build()
             .register();
 
+        /**
+         * Exports the entity count per entity type from broadcast.
+         */
+        static final DataMetricGauge BROADCAST_ENTITIES_GAUGE = DataMetricGauge.builder()
+                .withName(StringConstants.METRICS_TURBO_PREFIX + "broadcast_entities")
+                .withHelp("Number of (post-stitching) entities that were broadcast per "
+                        + "entity type, environment type, entity state, and entity severity.")
+                .withLabelNames("entity_type", "environment", "state", "severity")
+                .build()
+                .register();
+
+        /**
+         * Gauge to track automation levels.
+         */
+        static final DataMetricGauge AUTOMATION_LEVELS = DataMetricGauge.builder()
+                .withName(StringConstants.METRICS_TURBO_PREFIX + "automated_entities")
+                .withHelp("Entity counts grouped by entity type, environment type, entity "
+                        + "state, entity severity, automation type, and automation level.")
+                .withLabelNames("entity_type",
+                        "environment",
+                        "state",
+                        "severity",
+                        "automation_type",
+                        "automation_level")
+                .build()
+                .register();
+
         private final LiveActionsStatistician actionsStatistician;
+
+        private final ActionTopologyStore actionTopologyStore;
+
+        private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
+
+        private long realtimeContextId;
+
+        private int telemetryChunkSize;
 
         private final FromContext<List<ActionView>> completedSinceLastPopulate =
             requiresFromContext(ActionPipelineContextMembers.COMPLETED_SINCE_LAST_POPULATE);
@@ -1447,14 +1487,20 @@ public class ActionPipelineStages {
          * @param actionsStatistician The {@link LiveActionsStatistician} to use to generate and
          *                            persist the action statistics.
          */
-        public ActionStatisticsStage(@Nonnull final LiveActionsStatistician actionsStatistician) {
+        public ActionStatisticsStage(@Nonnull final LiveActionsStatistician actionsStatistician,
+                @Nonnull final ActionTopologyStore actionTopologyStore,
+                @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
+                final long realtimeContextId, final int telemetryChunkSize) {
             this.actionsStatistician = Objects.requireNonNull(actionsStatistician);
+            this.actionTopologyStore = actionTopologyStore;
+            this.entitySettingsCache = entitySettingsCache;
+            this.realtimeContextId = realtimeContextId;
+            this.telemetryChunkSize = telemetryChunkSize;
         }
 
         @Nonnull
         @Override
-        public Status passthrough(LiveActionStore input) {
-            final ActionStore actionStore = input;
+        public Status passthrough(ActionStore actionStore) {
             final TopologyInfo sourceTopologyInfo = getContext()
                 .getActionPlanInfo()
                 .getMarket()
@@ -1472,7 +1518,7 @@ public class ActionPipelineStages {
                 Stream.concat(completedSinceLastPopulate.get().stream(), actions.stream())
                     .filter(actionStore.getVisibilityPredicate()));
 
-            updateActionMetricsDescriptor(actions, actionStore.getVisibilityPredicate());
+            updateActionMetricsDescriptor(actionStore, actionStore.getVisibilityPredicate());
             return Status.success("Recorded statistics and metrics for "
                 + String.format("%,d", actions.size()) + " actions");
         }
@@ -1480,58 +1526,156 @@ public class ActionPipelineStages {
         /**
          * Generate a descriptor string for the action and push to the metrics end point.
          *
-         * @param actions the actions whose metrics should be updated.
+         * @param actionStore action store.
          * @param visibilityPredicate A predicate function to determine which actions are visible
          *                            to the end user. We only track actions for visible actions.
          */
-        private void updateActionMetricsDescriptor(@Nonnull final Collection<Action> actions,
-                                                   @Nonnull final Predicate<ActionView> visibilityPredicate) {
-            // Reset the values in the Gauge.
+        private void updateActionMetricsDescriptor(@Nonnull final ActionStore actionStore,
+                @Nonnull final Predicate<ActionView> visibilityPredicate) {
+            if (!actionTopologyStore.getSourceTopology().isPresent()) {
+                // Topology is not available yet, so skip.
+                return;
+            }
+
+            final Collection<Action> actions = actionStore.getActions().values();
+
+            // Reset the Gauges.
             ACTION_COUNTS_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
+            BROADCAST_ENTITIES_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
+            AUTOMATION_LEVELS.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
+
+            // Build entity oid -> action multimap. This allows us to iterate over the entities list
+            // once while extracting entity information used by all three gauges.
+            Multimap<Long, Action> entityToActionList = ArrayListMultimap.create();
             actions.stream()
-                // filter out invisible actions, same as what we do in LiveActions#get(ActionQueryFilter)
-                // only visible actions are shown in UI
-                .filter(visibilityPredicate)
-                .forEach(this::updateActionMetricsDescriptor);
+                    // filter out invisible actions, same as what we do in LiveActions#get(ActionQueryFilter)
+                    // only visible actions are shown in UI
+                    .filter(visibilityPredicate)
+                    .forEach(action -> findActionTarget(action, entityToActionList));
+
+            // In order to reduce memory footprint, process in fixed-size chunks.
+            Set<Long> oids = actionTopologyStore.getSourceTopology().get()
+                    .entityGraph().oids();
+            Set<Long> oidList = new HashSet<>(telemetryChunkSize);
+            for (Long oid : oids) {
+                oidList.add(oid);
+                if (oidList.size() == telemetryChunkSize) {
+                    updateActionMetricsDescriptor(oidList, entityToActionList, actionStore);
+                    oidList.clear();
+                }
+            }
+            // Flush final partial chunk
+            if (!oidList.isEmpty()) {
+                updateActionMetricsDescriptor(oidList, entityToActionList, actionStore);
+            }
         }
 
-        /**
+        private void updateActionMetricsDescriptor(@Nonnull Set<Long> oidList,
+                @Nonnull Multimap<Long, Action> entityToActionList,
+                @Nonnull ActionStore actionStore) {
+            final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache
+                    .newSnapshot(oidList, realtimeContextId);
+
+            // For each entity, update the broadcast entities and automation levels gauges
+            actionTopologyStore.getSourceTopology().get().entityGraph().getEntities(oidList)
+                    .forEach(entity -> {
+                        final String entityType = EntityType.forNumber(entity.getEntityType()).toString();
+                        final String envType = entity.getEnvironmentType().toString();
+                        final String entityState = entity.getEntityState().toString();
+                        Severity severity = Severity.NORMAL;
+                        if (actionStore.getEntitySeverityCache().isPresent()) {
+                            Optional<Severity> optSeverity =
+                                    actionStore.getEntitySeverityCache().get().getSeverity(entity.getOid());
+                            if (optSeverity.isPresent()) {
+                                severity = optSeverity.get();
+                            }
+                        }
+                        String entitySeverity = severity.toString();
+
+                        // Update the broadcast entities gauge.
+                        updateBroadcastEntitiesGauge(entityType, envType, entityState, entitySeverity);
+                        // Update entity automation level gauge
+                        updateAutomationSettingsGauge(snapshot, entity, entityType, envType,
+                                entityState, entitySeverity);
+                        // For each action that targets this entity, update the action gauge.
+                        Collection<Action> targetingActions = entityToActionList.get(entity.getOid());
+                        for (Action action : targetingActions) {
+                            updateActionMetricsDescriptor(action, entityType, envType);
+                        }
+                    });
+        }
+
+       /**
          * Generate a descriptor string for the action and push to the metrics end point.
          *
          * @param action record the given action
+         * @return optional of the action target's OID, if present.
          */
-        private void updateActionMetricsDescriptor(final Action action) {
+        @Nonnull
+        private Severity updateActionMetricsDescriptor(final Action action,
+                final String entityType, final String env) {
             String actionSeverity  = action.getActionSeverity().name();
             String actionCategory  = action.getActionCategory().name();
             String actionState  = action.getState().name();
-            String entityType = null;
-            String env = null;
+
+            ACTION_COUNTS_GAUGE.labels(action.getTranslationResultOrOriginal().getInfo().getActionTypeCase().name(),
+                entityType, env, actionCategory, actionSeverity, actionState).increment();
+            return action.getActionSeverity();
+        }
+
+        /**
+         * Find the target of the indicated action and add to the entity to actions map.
+         * @param action action to find target for
+         * @param entityToActionList map from entity OID to a list of actions targeting an entity.
+         */
+        private void findActionTarget(Action action, Multimap<Long, Action> entityToActionList) {
             try {
                 final ActionEntity actionTarget = ActionDTOUtil.getPrimaryEntity(
-                    action.getTranslationResultOrOriginal(), false);
+                        action.getTranslationResultOrOriginal(), false);
                 if (actionTarget != null) {
-                    entityType = EntityType.forNumber(actionTarget.getType()).name();
-                }
-
-                final ActionEnvironmentType envType =
-                    ActionEnvironmentType.forAction(action.getTranslationResultOrOriginal());
-                switch (envType) {
-                    case ON_PREM:
-                        env = EnvironmentType.ON_PREM.name();
-                        break;
-                    case CLOUD:
-                        env = EnvironmentType.CLOUD.name();
-                        break;
-                    case ON_PREM_AND_CLOUD:
-                        env = EnvironmentType.HYBRID.name();
-                        break;
+                    entityToActionList.put(actionTarget.getId(), action);
                 }
             } catch (UnsupportedActionException e) {
                 logger.error("Unsupported action {} found in action store: {}", action, e.getMessage());
             }
+        }
 
-            ACTION_COUNTS_GAUGE.labels(action.getTranslationResultOrOriginal().getInfo().getActionTypeCase().name(),
-                entityType, env, actionCategory, actionSeverity, actionState).increment();
+        private void updateAutomationSettingsGauge(final @Nonnull EntitiesAndSettingsSnapshot snapshot,
+                final @Nonnull ActionGraphEntity entity,
+                final @Nonnull String entityType,
+                final @Nonnull String envType,
+                final @Nonnull String entityState,
+                final @Nonnull String severity) {
+            Map<String, Setting> settings = snapshot.getSettingsForEntity(entity.getOid());
+            if (settings == null) {
+                return;
+            }
+            settings.entrySet().stream()
+                    .filter(settingEntry -> ConfigurableActionSettings
+                            .fromSettingName(settingEntry.getKey()) != null)
+                    .forEach(settingEntry ->
+                            AUTOMATION_LEVELS.labels(
+                                    entityType, envType, entityState, severity,
+                                    settingEntry.getKey(),
+                                    settingEntry.getValue().getEnumSettingValue().getValue()
+                            ).increment());
+        }
+
+        /**
+         * Update the broadcast entities gauge.
+         *
+         * @param entityType entity type
+         * @param envType entity environment type
+         * @param actionState action state
+         * @param actionSeverity entity severity
+         */
+        private void updateBroadcastEntitiesGauge(final String entityType,
+                final String envType,
+                final String actionState,
+                final String actionSeverity) {
+            BROADCAST_ENTITIES_GAUGE
+                    .labels(entityType, envType, actionState, actionSeverity)
+                    .increment();
         }
     }
 

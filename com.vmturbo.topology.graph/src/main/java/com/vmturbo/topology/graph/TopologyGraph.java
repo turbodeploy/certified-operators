@@ -124,6 +124,16 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
     }
 
     /**
+     * Get the set of all {@link TopologyGraphEntity} OIDs in the graph.
+     *
+     * @return A stream of all {@link TopologyGraphEntity} OIDs in the graph.
+     */
+    @Nonnull
+    public Set<Long> oids() {
+        return graph.keySet();
+    }
+
+    /**
      * Edges considered for topological sorting are applied in the order specified in this list,
      * meaning that when entities targeted by edges are visited in the order of the edge types
      * appearing here.

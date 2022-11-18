@@ -167,6 +167,14 @@ public class ActionStatsConfig {
     @Value("${enableRollupExport:true}")
     private boolean enableRollupExport;
 
+    /**
+     * The number of entities to process at a time. This limits the amount of memory consumed by
+     * the telemetry gauge update logic. Lower values decrease memory usage at the cost of increased
+     * gRPC calls.
+     */
+    @Value("${telemetry.chunkSize:50000}")
+    private int telemetryChunkSize;
+
     @Bean
     public ClusterActionAggregatorFactory clusterAggregatorFactory() {
         return new ClusterActionAggregatorFactory(groupClientConfig.groupChannel(),
@@ -461,5 +469,14 @@ public class ActionStatsConfig {
         return new RetentionPeriodFetcher(globalConfig.actionOrchestratorClock(),
                 updateRetentionIntervalSeconds, TimeUnit.SECONDS,
                 numRetainedMinutes, SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
+    }
+
+    /**
+     * Return the number of entities to process at a time when updating telemetry gauges.
+     *
+     * @return number of entities to process per chunk.
+     */
+    public int telemetryChunkSize() {
+        return telemetryChunkSize;
     }
 }
