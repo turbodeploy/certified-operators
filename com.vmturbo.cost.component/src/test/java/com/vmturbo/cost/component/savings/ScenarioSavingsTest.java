@@ -72,7 +72,6 @@ import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.savings.DataInjectionMonitor.ScriptEvent;
 import com.vmturbo.cost.component.savings.bottomup.AggregatedSavingsStats;
 import com.vmturbo.cost.component.savings.bottomup.SqlEntitySavingsStore;
-import com.vmturbo.cost.component.savings.calculator.Calculator;
 import com.vmturbo.cost.component.savings.calculator.StorageAmountResolver;
 import com.vmturbo.cost.component.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -167,7 +166,7 @@ public class ScenarioSavingsTest {
                 clock, mock(TopologyEntityCloudTopologyFactory.class),
                 null, dsl, priceTableKeyStore,
                 priceTableStore, searchService, 0, 777777, chunkSize));
-        savingsTracker.setCalculator(new Calculator(deleteActionRetentionMs, clock, storageAmountResolver));
+        savingsTracker.setStorageAmountResolver(storageAmountResolver);
         doReturn(priceListMap).when(storageAmountResolver).getStoragePriceTiers(anyLong(), anyLong());
 
         doReturn(true).when(savingsTracker).isSupportedCSP(any());
