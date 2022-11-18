@@ -9,13 +9,14 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.common.RequiresDataInitialization;
-import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityIdentifyingPropertyValues;
@@ -38,7 +39,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
  * <p>ID assignment for targets, probes, discoveries, actions etc. also
  * happens here.
  */
-public interface IdentityProvider extends DiagsRestorable<Void>, RequiresDataInitialization {
+public interface IdentityProvider extends BinaryDiagsRestorable<Void>, RequiresDataInitialization {
 
     /**
      * Get the target ID for the target described by a given spec.
@@ -178,4 +179,13 @@ public interface IdentityProvider extends DiagsRestorable<Void>, RequiresDataIni
     Map<Long, EntityIdentifyingPropertyValues> getIdsFromIdentifyingPropertiesValues(
         long probeId, List<EntityIdentifyingPropertyValues> identifyingPropertyValues)
         throws IdentityServiceException;
+
+    /**
+     * Restore Identity from string list based diags.
+     * This guarantee backward compatibility for String-extended diagnosable .
+     *
+     * @param diagsLines    list of Strings (lines) from Identity.diags file
+     * @param context       @Nullable context
+     */
+    void restoreStringDiags(List<String> diagsLines, @Nullable Void context);
 }

@@ -459,7 +459,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         final List<String> errors = new ArrayList<>();
         final Map<Long, TargetHealth> targetHealthFromDiags = new HashMap<>();
         for (Diags diags : sortedDiagnostics) {
-            final String diagsName = diags.getName();
+            String diagsPath = diags.getName();
+            final String diagsName = diagsPath.split("/")[diagsPath.split("/").length-1];
             final List<String> diagsLines = diags.getLines() == null ? null : diags.getLines().collect(Collectors.toList());
             final byte[] bytes = diags.getBytes();
             if (Stream.of(diagsLines, bytes).allMatch(Objects::isNull)) {
@@ -469,7 +470,10 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                 switch (diagsName) {
                     // TODO change this switch with mapping from Diagnosable.getFileName()
                     case IdentityProviderImpl.ID_DIAGS_FILE_NAME + DiagsZipReader.TEXT_DIAGS_SUFFIX:
-                        identityProvider.restoreDiags(diagsLines, null);
+                        identityProvider.restoreStringDiags(diagsLines, null);
+                        break;
+                    case IdentityProviderImpl.ID_DIAGS_FILE_NAME + DiagsZipReader.BINARY_DIAGS_SUFFIX:
+                        identityProvider.restoreDiags(bytes, null);
                         break;
                     case PersistentTargetSpecIdentityStore.TARGET_IDENTIFIERS_DIAGS_FILE_NAME +
                             DiagsZipReader.TEXT_DIAGS_SUFFIX:
