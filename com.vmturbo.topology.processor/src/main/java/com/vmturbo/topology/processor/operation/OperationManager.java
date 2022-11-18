@@ -1548,6 +1548,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
                             // these operations only apply to FULL discovery response for now
                             if (discoveryType == DiscoveryType.FULL) {
+
+                                // This must be done before processing discovered groups to support group references across linked targets
+                                if (processDerivedTargets) {
+                                    derivedTargetParser.instantiateDerivedTargets(targetId, responseUsed.getDerivedTargetList());
+                                }
+
                                 discoveredGroupUploader.setTargetDiscoveredGroups(targetId,
                                         responseUsed.getDiscoveredGroupList());
                                 discoveredTemplateDeploymentProfileNotifier.recordTemplateDeploymentInfo(
@@ -1555,9 +1561,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                         responseUsed.getDeploymentProfileList(),
                                         response.getEntityDTOList());
                                 discoveredWorkflowUploader.setTargetWorkflows(targetId, responseUsed.getWorkflowList());
-                                if (processDerivedTargets) {
-                                    derivedTargetParser.instantiateDerivedTargets(targetId, responseUsed.getDerivedTargetList());
-                                }
                                 discoveredCloudCostUploader.recordTargetCostData(targetId,
                                         targetStore.getProbeTypeForTarget(targetId), targetStore.getProbeCategoryForTarget(targetId), discovery,
                                         responseUsed.getNonMarketEntityDTOList(),

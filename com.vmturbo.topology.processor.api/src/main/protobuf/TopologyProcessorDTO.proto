@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.api;
 
 import "topology/TopologyDTO.proto";
 import "action/ActionNotificationDTO.proto";
+import "Discovery.proto";
 
 message TargetSpec {
     // Probe identifier.
@@ -26,6 +27,10 @@ message TargetSpec {
     optional int64 last_edit_time = 9;
     // This field indicates whether the target can be edited by the user.
     optional bool editable = 10 [default = true];
+
+    // These links will only remain valid as long as the parent target spec
+    // has this target as a derived target ID.
+    map<int64, common_dto.TargetLinkInfoDTO> parent_links = 11;
 }
 
 message TargetInfo {

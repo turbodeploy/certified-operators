@@ -12,8 +12,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -22,9 +24,11 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Table;
 
 import org.apache.logging.log4j.LogManager;
@@ -36,6 +40,8 @@ import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.IdentityStoreUpdate;
+import com.vmturbo.platform.common.dto.Discovery.TargetLinkInfoDTO;
+import com.vmturbo.platform.common.dto.Discovery.TargetLinkInfoDTO.TargetLinkType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -89,6 +95,9 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
     @GuardedBy("storeLock")
     private final Table<Long, Long, TargetSpec> targetSpecByParentTargetIdDerivedTargetId;
 
+    @GuardedBy("storeLock")
+    private final Table<Long, Long, TargetLinkInfoDTO> targetLinksByParentToDerivedTargetId;
+
     /**
      * Locks for write operations on target storages.
      */
@@ -126,6 +135,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
         this.derivedTargetIdsByParentId = new ConcurrentHashMap<>();
         this.parentTargetIdsByDerivedTargetId = new ConcurrentHashMap<>();
         this.targetSpecByParentTargetIdDerivedTargetId = HashBasedTable.create();
+        this.targetLinksByParentToDerivedTargetId = HashBasedTable.create();
         this.targetsById = new ConcurrentHashMap<>();
         this.clock = Objects.requireNonNull(clock);
         this.binaryDiscoveryDumper = binaryDiscoveryDumper;
@@ -143,11 +153,16 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
 
         // Check the key-value store for targets backed up
         // by previous incarnations of the store.
-        final List<Target> persistedTargets = this.targetDao.getAll();
-        persistedTargets.forEach(target -> {
+        final Map<Long, Target> persistedTargetById = this.targetDao.getAll().stream()
+                .collect(ImmutableMap.toImmutableMap(
+                        Target::getId,
+                        Function.identity()));
+        persistedTargetById.values().forEach(target -> {
             target.getSpec().getDerivedTargetIdsList().forEach(derivedTargetId ->
-                    addDerivedTargetParent(target.getId(), derivedTargetId,
-                            Optional.empty()));
+                    addDerivedTargetParent(target.getId(),
+                            derivedTargetId,
+                            Optional.ofNullable(persistedTargetById.get(derivedTargetId))
+                                    .map(Target::getSpec)));
             logger.info("Restored existing target '{}' ({}) for probe {}.", target.getDisplayName(),
                     target.getId(), target.getProbeId());
             targetsById.put(target.getId(), target);
@@ -320,8 +335,13 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
                 // Iterate new assigned oids and create new derived targets.
                 targetsToAdd.forEach((spec, oid) -> {
                     try {
+
                         final Target retTarget = new Target(oid, probeStore,
-                            Objects.requireNonNull(spec), true, false, clock);
+                                Objects.requireNonNull(spec), true, false, clock);
+
+                        logger.info("Adding a new derived target for {} with oid {}. Spec:\n{}", parentTargetId, oid,
+                                retTarget.getNoSecretDto().getSpec());
+
                         addDerivedTargetParent(parentTargetId, oid, Optional.of(spec));
                         registerTarget(retTarget);
                     } catch (InvalidTargetException e) {
@@ -380,6 +400,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
 
             final Set<Long> ancestors = parentTargetIdsByDerivedTargetId.get(derivedTargetId);
             targetSpecByParentTargetIdDerivedTargetId.remove(parentTargetId, derivedTargetId);
+            targetLinksByParentToDerivedTargetId.remove(parentTargetId, derivedTargetId);
 
             // Remove parent from ancestors and either update the the derived target with new account
             // values or mark it for removal.
@@ -427,8 +448,17 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
             .add(parentTargetId);
         derivedTargetIdsByParentId.computeIfAbsent(parentTargetId, k -> new HashSet<>())
             .add(derivedTargetId);
-        targetSpec.ifPresent(spec ->
-            targetSpecByParentTargetIdDerivedTargetId.put(parentTargetId, derivedTargetId, spec));
+        targetSpec.ifPresent(spec -> {
+            targetSpecByParentTargetIdDerivedTargetId.put(parentTargetId, derivedTargetId, spec);
+
+            // update the target link info for this (parentTargetId, derivedTargetId) tuple
+            if (spec.getParentLinksMap().containsKey(parentTargetId)) {
+                targetLinksByParentToDerivedTargetId.put(
+                        parentTargetId,
+                        derivedTargetId,
+                        spec.getParentLinksOrThrow(parentTargetId));
+            }
+        });
     }
 
     @GuardedBy("storeLock")
@@ -563,7 +593,8 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
                 oldTarget.withUpdatedFields(updatedFields, probeStore, communicationBindingChannel, lastEditingUser)
                     .withUpdatedDerivedTargetIds(
                         new ArrayList<>(getDerivedTargetIds(targetId)),
-                        probeStore);
+                        probeStore)
+                    .withUpdatedParentLinks(getParentTargetLinks(targetId), probeStore);
 
             // Check if the target with the same identifier have ever existed. If we find that this
             // target was created and exists right now, but it's not the same target,
@@ -791,6 +822,63 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
         synchronized (storeLock) {
             return new HashSet<>(parentTargetIdsByDerivedTargetId.getOrDefault(derivedTargetId,
                     Collections.emptySet()));
+        }
+    }
+
+    @Override
+    public SortedSet<Long> getLinkedTargetIds(long targetId) {
+
+        // Sort linked targets by ID for now. There is no logic ordering of target currently so we order
+        // by ID to make it consistent.
+        final ImmutableSortedSet.Builder<Long> linkedTargetIds = ImmutableSortedSet.naturalOrder();
+
+        getParentTargetLinks(targetId).forEach((parentTargetId, linkInfo) -> {
+
+            if (linkInfo.getLinkType() == TargetLinkType.PARENT_REFERENCED_BY_DERIVED
+                    || linkInfo.getLinkType() == TargetLinkType.BIDIRECTIONAL) {
+                linkedTargetIds.add(parentTargetId);
+            }
+        });
+
+        getDerivedTargetLinks(targetId).forEach((derivedTargetId, linkInfo) -> {
+
+            if (linkInfo.getLinkType() == TargetLinkType.DERIVED_REFERENCED_BY_PARENT
+                    || linkInfo.getLinkType() == TargetLinkType.BIDIRECTIONAL) {
+                linkedTargetIds.add(derivedTargetId);
+            }
+        });
+
+        logger.debug("Linked target for {} are: {}", () -> targetId, () -> Joiner.on(",").join(linkedTargetIds.build()));
+
+        return linkedTargetIds.build();
+    }
+
+    @Nonnull
+    private Map<Long, TargetLinkInfoDTO> getParentTargetLinks(long derivedTargetId) {
+        synchronized (storeLock) {
+
+            // purposefully go through the parent -> derived target ID map to validate that the parent is still
+            // properly linked to the derived target. An alternative would be to check the derived target spec's
+            // parent link map, but this would not verify whether the parent still has a record of the derived target.
+            return parentTargetIdsByDerivedTargetId.getOrDefault(derivedTargetId, Collections.emptySet())
+                    .stream()
+                    .filter(parentTargetId -> targetLinksByParentToDerivedTargetId.contains(parentTargetId, derivedTargetId))
+                    .collect(ImmutableMap.toImmutableMap(
+                            Function.identity(),
+                            parentTargetId -> targetLinksByParentToDerivedTargetId.get(parentTargetId, derivedTargetId)));
+        }
+    }
+
+    @Nonnull
+    private Map<Long, TargetLinkInfoDTO> getDerivedTargetLinks(long parentTargetId) {
+
+        synchronized (storeLock) {
+            return derivedTargetIdsByParentId.getOrDefault(parentTargetId, Collections.emptySet())
+                    .stream()
+                    .filter(derivedTargetId -> targetLinksByParentToDerivedTargetId.contains(parentTargetId, derivedTargetId))
+                    .collect(ImmutableMap.toImmutableMap(
+                            Function.identity(),
+                            derivedTargetId -> targetLinksByParentToDerivedTargetId.get(parentTargetId, derivedTargetId)));
         }
     }
 

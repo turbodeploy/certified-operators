@@ -18,6 +18,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.SortedSet;
 import java.util.StringJoiner;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,6 +38,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Joiner;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -360,7 +362,8 @@ public class EntityStore {
 
     /**
      * For a specific target, return a map of entity ID's discovered
-     * by that target and the OID's they map to.
+     * by that target and the OID's they map to. If the target is linked to other targets, the entity ID
+     * map will be extended to include linked entity IDs.
      *
      * @param targetId The target in question.
      * @return A map where the key is the "id" field of the EntityDTO discovered
@@ -373,7 +376,23 @@ public class EntityStore {
         synchronized (topologyUpdateLock) {
             final TargetEntityIdInfo targetEntityIdInfo = targetEntities.get(targetId);
             if (targetEntityIdInfo != null) {
-                return Optional.of(targetEntityIdInfo.getLocalIdToEntityId());
+
+                final SortedSet<Long> linkedTargetIds = targetStore.getLinkedTargetIds(targetId);
+
+                if (linkedTargetIds.isEmpty()) {
+                    return Optional.of(targetEntityIdInfo.getLocalIdToEntityId());
+                } else {
+                    final Map<String, Long> mergeTargetEntityIdMap = new HashMap<>(targetEntityIdInfo.getLocalIdToEntityId());
+
+                    linkedTargetIds.forEach(linkedTargetId -> {
+                        final TargetEntityIdInfo linkedEntityIdInfo = targetEntities.get(linkedTargetId);
+                        if (linkedEntityIdInfo != null) {
+                            linkedEntityIdInfo.getLocalIdToEntityId().forEach(mergeTargetEntityIdMap::putIfAbsent);
+                        }
+                    });
+
+                    return Optional.of(mergeTargetEntityIdMap);
+                }
             } else {
                 return Optional.empty();
             }
@@ -485,19 +504,25 @@ public class EntityStore {
         }
 
         try (TracingScope scope = Tracing.trace("addEntitiesToContext")) {
-            stitchingDataMap.allStitchingData()
-                .forEach(stitchingEntityData -> {
-                    try {
-                        builder.addEntity(
-                            stitchingEntityData,
-                            stitchingDataMap.getTargetIdToStitchingDataMap(stitchingEntityData.getTargetId()));
-                    } catch (IllegalArgumentException | NullPointerException e) {
-                        // We want to make sure we don't block the whole broadcast if one entity
-                        // encounters an error.
-                        logger.error("Failed to add entity " +
-                            stitchingEntityData + " to stitching context due to error.", e);
-                    }
-                });
+
+            stitchingDataMap.getTargetIds().forEach(targetId -> {
+
+                final Map<String, StitchingEntityData> targetStitchingDataMap = stitchingDataMap.getTargetIdToStitchingDataMap(
+                        targetId, targetStore.getLinkedTargetIds(targetId));
+
+                stitchingDataMap.getStitchingDataForTarget(targetId)
+                        .forEach(stitchingEntityData -> {
+                            try {
+                                builder.addEntity(stitchingEntityData, targetStitchingDataMap);
+                            } catch (IllegalArgumentException | NullPointerException e) {
+                                // We want to make sure we don't block the whole broadcast if one entity
+                                // encounters an error.
+                                logger.error("Failed to add entity " +
+                                        stitchingEntityData + " to stitching context due to error.", e);
+                            }
+                        });
+
+            });
         }
 
         final LogMessageGrouper msgGrouper = LogMessageGrouper.getInstance();
@@ -1309,13 +1334,33 @@ public class EntityStore {
             stitchingDataByLocalId.put(entityData.getEntityDtoBuilder().getId(), entityData);
         }
 
-        public Map<String, StitchingEntityData> getTargetIdToStitchingDataMap(final long targetId) {
-            return targetDataMap.get(targetId);
+        @Nonnull
+        public Map<String, StitchingEntityData> getTargetIdToStitchingDataMap(final long targetId,
+                                                                              final SortedSet<Long> linkedTargetIds) {
+            if (linkedTargetIds.isEmpty()) {
+                return targetDataMap.get(targetId);
+            } else {
+
+                logger.info("Linking target ID {} to the following targets:\n{}", () -> targetId, () -> Joiner.on(",").join(linkedTargetIds));
+
+                final Map<String, StitchingEntityData> mergedTargetDataMap = new HashMap<>(targetDataMap.get(targetId));
+
+                linkedTargetIds.forEach(linkedTargetId ->
+                        // cast to long to avoid using deprecated getOrDefault() method.
+                        targetDataMap.getOrDefault((long)linkedTargetId, Collections.emptyMap())
+                                .forEach(mergedTargetDataMap::putIfAbsent));
+
+
+                return mergedTargetDataMap;
+            }
         }
 
-        public Stream<StitchingEntityData> allStitchingData() {
-            return targetDataMap.values().stream()
-                .flatMap(targetMap -> targetMap.values().stream());
+        public Set<Long> getTargetIds() {
+            return targetDataMap.keySet();
+        }
+
+        public Collection<StitchingEntityData> getStitchingDataForTarget(long targetId) {
+            return targetDataMap.getOrDefault(targetId, Collections.emptyMap()).values();
         }
     }
 

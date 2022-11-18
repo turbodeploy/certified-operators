@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.common.dto.Discovery.DerivedTargetSpecificationDTO;
+import com.vmturbo.platform.common.dto.Discovery.TargetLinkInfoDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue.PropertyValueList;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -124,6 +125,18 @@ public class DerivedTargetParser {
         targetSpec.setReadOnly(derivedTargetDTO.getReadonly());
         targetSpec.setProbeId(probeId);
         targetSpec.setIsHidden(derivedTargetDTO.getHidden());
+
+        if (derivedTargetDTO.hasTargetLinkInfo()) {
+
+            final TargetLinkInfoDTO linkInfoDTO = derivedTargetDTO.getTargetLinkInfo();
+
+            logger.info("Processing link information for probe ID {} from parent target ID {}:\n{}",
+                    probeId, parentTargetId, linkInfoDTO);
+
+
+            targetSpec.putParentLinks(parentTargetId, linkInfoDTO);
+        }
+
         return targetSpec.build();
     }
 }

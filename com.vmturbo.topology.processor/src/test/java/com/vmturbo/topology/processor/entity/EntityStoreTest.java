@@ -12,6 +12,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -45,6 +46,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Lists;
 
 import junitparams.JUnitParamsRunner;
@@ -66,6 +68,7 @@ import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -879,6 +882,63 @@ public class EntityStoreTest {
 
         assertEquals(targetId, entityByLocalId(graph, "foo").getTargetId());
         assertEquals(target2Id, entityByLocalId(graph, "werewolf").getTargetId());
+    }
+
+    /**
+     * Tests target linking in constructing the stitching graph, using a basic cloud infrastructure scenario.
+     *
+     * @throws IdentityServiceException on service exceptions
+     * @throws TargetNotFoundException if target not found
+     * @throws DuplicateTargetException if target is a duplicate of existing target
+     */
+    @Test
+    public void testConstructStitchingGraphLinkedTargets()
+            throws TargetNotFoundException, DuplicateTargetException, IdentityServiceException {
+
+        final Map<Long, EntityDTO> firstTargetEntities = ImmutableMap.of(
+                1L, virtualMachine("vmTestId")
+                        .buying(vCpuMHz().from("computeTierTestId"))
+                        .aggregatedBy("regionTestId")
+                        .build());
+
+        final Map<Long, EntityDTO> secondTargetEntities = ImmutableMap.of(
+                2L, EntityDTO.newBuilder()
+                        .setEntityType(EntityType.COMPUTE_TIER)
+                        .setId("computeTierTestId")
+                        .build(),
+                3L, EntityDTO.newBuilder()
+                        .setEntityType(EntityType.REGION)
+                        .setId("regionTestId")
+                        .build());
+
+        addEntities(firstTargetEntities, targetId, 0L, DiscoveryType.FULL, 0);
+        addEntities(secondTargetEntities, target2Id, 1L, DiscoveryType.FULL, 1);
+
+        // set up target linking
+        when(targetStore.getLinkedTargetIds(targetId)).thenReturn(ImmutableSortedSet.of(target2Id));
+        when(targetStore.getLinkedTargetIds(target2Id)).thenReturn(ImmutableSortedSet.of(targetId));
+        when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(Optional.empty());
+
+        // create the topology stitching graph
+        final TopologyStitchingGraph graph = entityStore.constructStitchingContext()
+                .getStitchingGraph();
+
+        assertThat(graph.entityCount(), equalTo(3));
+
+        final TopologyStitchingEntity vmStitchingEntity = entityByLocalId(graph, "vmTestId");
+        assertThat(vmStitchingEntity.getProviders()
+                .stream()
+                .map(StitchingEntity::getLocalId)
+                .collect(ImmutableList.toImmutableList()),
+                containsInAnyOrder("computeTierTestId"));
+
+        assertThat(vmStitchingEntity.getConnectedToByType()
+                        .getOrDefault(ConnectionType.AGGREGATED_BY_CONNECTION, Collections.emptySet())
+                        .stream()
+                        .map(StitchingEntity::getLocalId)
+                        .collect(ImmutableList.toImmutableList()),
+                containsInAnyOrder("regionTestId"));
+
     }
 
     /**
