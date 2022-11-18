@@ -79,6 +79,7 @@ import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
 import com.vmturbo.cost.component.savings.bottomup.AggregatedSavingsStats;
+import com.vmturbo.cost.component.savings.bottomup.EntitySavingsRetentionConfig;
 import com.vmturbo.cost.component.savings.bottomup.SqlEntitySavingsStore;
 import com.vmturbo.cost.component.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -308,7 +309,8 @@ public class SavingsProcessorTest extends MultiDbTestBase {
                 rollupTimesStore,
                 savingsActionStore,
                 tracker,
-                mock(DataRetentionProcessor.class));
+                mock(DataRetentionProcessor.class),
+                mock(EntitySavingsRetentionConfig.class));
     }
 
     /**
