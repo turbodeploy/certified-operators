@@ -3,11 +3,9 @@ T8C-Operator Changelog
 
 Operator Versions
 ---------------------
-42.20
-1. Add new telemetry gauge: turbo_automated_entities
-
 42.19
 1. Added the AWS Kinesis connector to the helm charts
+2. Add new telemetry gauge: turbo_automated_entities
 
 42.18
 1. Fix IBM PowerVM probe charts
