@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutedActionsChangeWindow.LivenessState;
 import com.vmturbo.cost.component.rollup.LastRollupTimes;
 import com.vmturbo.cost.component.rollup.RollupTimesStore;
+import com.vmturbo.cost.component.savings.bottomup.EntitySavingsRetentionConfig;
 
 /**
  * Called periodically (daily) by ExecutorService and triggers savings processing when called.
@@ -53,6 +54,8 @@ public class SavingsProcessor {
      */
     private final DataRetentionProcessor dataRetentionProcessor;
 
+    private final EntitySavingsRetentionConfig entitySavingsRetentionConfig;
+
     /**
      * Creates a new savings processor instance.
      *
@@ -68,13 +71,15 @@ public class SavingsProcessor {
             @Nonnull final RollupTimesStore rollupTimesStore,
             @Nonnull final SavingsActionStore savingsActionStore,
             @Nonnull final SavingsTracker savingsTracker,
-            @Nonnull final DataRetentionProcessor dataRetentionProcessor) {
+            @Nonnull final DataRetentionProcessor dataRetentionProcessor,
+            @Nonnull EntitySavingsRetentionConfig entitySavingsRetentionConfig) {
         this.clock = clock;
         this.chunkSize = chunkSize;
         this.rollupTimesStore = rollupTimesStore;
         this.savingsActionStore = savingsActionStore;
         this.savingsTracker = savingsTracker;
         this.dataRetentionProcessor = dataRetentionProcessor;
+        this.entitySavingsRetentionConfig = entitySavingsRetentionConfig;
     }
 
     /**
@@ -96,6 +101,9 @@ public class SavingsProcessor {
 
             // Process a chunk of entity states at a time.
             final AtomicBoolean successfullyProcessed = new AtomicBoolean(true);
+
+            // update the expiry of deleted entities with the latest setting
+            entitySavingsRetentionConfig.updateValues();
             savingsActionStore.getActions(LivenessState.LIVE).stream()
                     .map(ExecutedActionsChangeWindow::getEntityOid).forEach(entityOid -> {
                 if (!successfullyProcessed.get()) {
@@ -144,7 +152,8 @@ public class SavingsProcessor {
             @Nonnull final SavingsTimes savingsTimes, @Nonnull final AtomicInteger chunkCounter) {
         boolean processed = true;
         try {
-            savingsTracker.processSavings(entityOids, savingsTimes, chunkCounter);
+            savingsTracker.processSavings(entityOids, savingsTimes, chunkCounter,
+                    entitySavingsRetentionConfig.getVolumeDeleteRetentionMs());
             // Once we process this chunk, we clear the chunk states list, in preparation
             // for it to be filled with the next chunk of states.
             entityOids.clear();
