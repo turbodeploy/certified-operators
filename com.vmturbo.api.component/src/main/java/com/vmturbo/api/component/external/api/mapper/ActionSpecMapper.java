@@ -179,6 +179,9 @@ public class ActionSpecMapper {
      */
     private static final String FORMAT_FOR_ACTION_VALUES = "%.1f";
 
+    private static final Map<Integer, String> COMMODITY_TYPE_TO_FORMAT_FOR_ACTION_VALUES =
+            ImmutableMap.of(CommodityType.PROCESSING_UNITS.getNumber(), "%.2f");
+
     // START - Strings representing action categories in the API.
     // These should be synchronized with the strings in stringUtils.js
     private static final String API_CATEGORY_PERFORMANCE_ASSURANCE = "Performance Assurance";
@@ -1610,8 +1613,8 @@ public class ActionSpecMapper {
                                         ResizeInfo::getCommodityAttribute,
                                         CommodityAttribute.CAPACITY,
                                         actionApiDTO::setResizeAttribute);
-        actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getOldCapacity()));
-        actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
+        actionApiDTO.setCurrentValue(formatActionValues(commodityType.getNumber(), resizeInfo.getOldCapacity()));
+        actionApiDTO.setNewValue(formatActionValues(commodityType.getNumber(), resizeInfo.getNewCapacity()));
         // set units if available
 
         CommodityTypeMapping.getCommodityUnitsForActions(resizeInfo.getCommodityType().getType(),
@@ -1677,10 +1680,11 @@ public class ActionSpecMapper {
                                         Resize::hasCommodityAttribute,
                                         Resize::getCommodityAttribute, CommodityAttribute.CAPACITY,
                                         actionApiDTO::setResizeAttribute);
-        actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getOldCapacity()));
-        actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
+        int commodityType = resize.getCommodityType().getType();
+        actionApiDTO.setCurrentValue(formatActionValues(commodityType, resize.getOldCapacity()));
+        actionApiDTO.setNewValue(formatActionValues(commodityType, resize.getNewCapacity()));
         // set units if available
-        CommodityTypeMapping.getCommodityUnitsForActions(resize.getCommodityType().getType(), null,
+        CommodityTypeMapping.getCommodityUnitsForActions(commodityType, null,
                         commodityAttribute.getNumber()).ifPresent(actionApiDTO::setValueUnits);
 
         // set current location, new location and cloud aspects for cloud resize actions
@@ -2156,6 +2160,12 @@ public class ActionSpecMapper {
         } catch (IllegalArgumentException e) {
             return Optional.empty();
         }
+    }
+
+    private static String formatActionValues(int type, float value) {
+        return String.format(
+                COMMODITY_TYPE_TO_FORMAT_FOR_ACTION_VALUES
+                        .getOrDefault(type, FORMAT_FOR_ACTION_VALUES), value);
     }
 
     /**

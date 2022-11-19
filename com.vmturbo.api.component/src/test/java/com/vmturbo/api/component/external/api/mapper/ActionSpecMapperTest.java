@@ -212,6 +212,8 @@ public class ActionSpecMapperTest {
                     createReasonCommodity(CommodityDTO.CommodityType.VMEM_VALUE, "foo");
     private static final ReasonCommodity HEAP =
                     createReasonCommodity(CommodityDTO.CommodityType.HEAP_VALUE, "foo");
+    private static final ReasonCommodity PROCESSING_UNITS =
+            createReasonCommodity(CommodityDTO.CommodityType.PROCESSING_UNITS_VALUE, "foo");
 
     private static final String TARGET = "Target";
     private static final String SOURCE = "Source";
@@ -1881,6 +1883,48 @@ public class ActionSpecMapperTest {
         // Check that the resize values are formatted in a consistent, API backwards-compatible way.
         assertEquals(String.format("%.1f", oldCapacity), actionApiDTO.getCurrentValue());
         assertEquals(String.format("%.1f", newCapacity), actionApiDTO.getNewValue());
+    }
+
+    /**
+     * Test that Processing Units commodities values in resize actions are formatted in two decimal places.
+     *
+     * @throws Exception when a problem occurs during mapping
+     */
+    @Test
+    public void testResizeProcessingUnits() throws Exception {
+        final long targetId = 1;
+        final float oldCapacity = 1.75f;
+        final float newCapacity = 2.25f;
+        final ActionInfo resizeInfo = ActionInfo.newBuilder()
+                .setResize(Resize.newBuilder()
+                        .setTarget(ApiUtilsTest.createActionEntity(targetId))
+                        .setOldCapacity(oldCapacity)
+                        .setNewCapacity(newCapacity)
+                        .setCommodityType(PROCESSING_UNITS.getCommodityType()))
+                .build();
+        Explanation resize = Explanation.newBuilder()
+                .setResize(ResizeExplanation.newBuilder()
+                        .setDeprecatedStartUtilization(0.2f)
+                        .setDeprecatedEndUtilization(0.4f).build())
+                .build();
+
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
+                topologyEntityDTO(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE)));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(targetId)))
+                .thenReturn(req);
+
+        final ActionApiDTO actionApiDTO =
+                mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), CONTEXT_ID);
+
+        // Verify that we set the context ID on the request.
+        verify(req).contextId(CONTEXT_ID);
+
+        assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
+        assertEquals(1, actionApiDTO.getRisk().getReasonCommodities().size());
+        assertEquals(UICommodityType.PROCESSING_UNITS.apiStr(), actionApiDTO.getRisk().getReasonCommodities().iterator().next());
+        // Check that the resize values are formatted in a consistent, API backwards-compatible way.
+        assertEquals(String.format("%.2f", oldCapacity), actionApiDTO.getCurrentValue());
+        assertEquals(String.format("%.2f", newCapacity), actionApiDTO.getNewValue());
     }
 
     /**
