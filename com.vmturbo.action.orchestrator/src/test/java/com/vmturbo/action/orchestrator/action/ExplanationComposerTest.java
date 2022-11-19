@@ -69,6 +69,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.test.utils.FeatureFlagTestRule;
@@ -107,6 +108,12 @@ public class ExplanationComposerTest {
 
     private final TopologyGraphCreator<ActionGraphEntity.Builder, ActionGraphEntity> graphCreator =
         new TopologyGraphCreator<>();
+
+    /**
+     * Rule to initialize FeatureFlags store.
+     **/
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule();
 
     @Test
     public void testMoveComplianceReasonCommodityExplanation() {
@@ -671,8 +678,10 @@ public class ExplanationComposerTest {
                         .setReconfigure(ReconfigureExplanation.newBuilder()
                                 .addReconfigureCommodity(CLUSTER)))
                 .build();
+        featureFlagTestRule.enable(FeatureFlags.ENABLE_RECONFIGURE_ACTION_FOR_NOTREADY_NODE);
         assertEquals("The node is in a NotReady status",
                      ExplanationComposer.composeExplanation(reconfigure, Collections.emptyList()));
+        featureFlagTestRule.reset();
     }
 
     /**
