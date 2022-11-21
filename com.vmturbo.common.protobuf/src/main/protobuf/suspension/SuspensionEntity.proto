@@ -19,6 +19,12 @@ message SuspensionEntity {
   optional string instance_type = 11;
   repeated SuspensionEntityTags tags = 12;
   optional CurrencyAmount cost = 13;
+  repeated SuspensionEntitySchedule schedules = 14;
+}
+
+message SuspensionEntitySchedule {
+  optional int64 oid = 1;
+  optional string name = 2;
 }
 
 enum SuspensionEntityProvider {
@@ -67,6 +73,7 @@ enum SuspensionEntityOrderBy {
   SUSPENSION_ENTITY_ORDER_BY_REGION_NAME = 6;
   SUSPENSION_ENTITY_ORDER_BY_INSTANCE_TYPE = 7;
   SUSPENSION_ENTITY_ORDER_BY_COST = 8;
+  SUSPENSION_ENTITY_ORDER_BY_SCHEDULE_DISPLAY_NAME = 9;
 }
 
 message SuspensionEntityRequest {
@@ -86,6 +93,7 @@ message SuspensionEntityRequest {
   repeated int64 scopes = 14;
   repeated SuspensionEntityResolvedScope resolved_scopes = 15;
   optional suspension_filter.LogicalOperator logical_operator = 16;
+  repeated suspension_filter.StringFilter schedule_names = 17;
 }
 
 message SuspensionEntityTags {

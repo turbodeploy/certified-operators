@@ -21,6 +21,7 @@ import com.vmturbo.api.dto.suspension.ScheduleTimeSpansApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendItemApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityInputDTO;
+import com.vmturbo.api.dto.suspension.SuspendableEntityScheduleApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityUUIDSetDTO;
 import com.vmturbo.api.dto.suspension.TimeSpanApiDTO;
 import com.vmturbo.api.dto.suspension.WeekDayTimeSpansApiDTO;
@@ -41,6 +42,7 @@ import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.Suspens
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityResolvedScope;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityResolvedScopeRequest;
+import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntitySchedule;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityTags;
 import com.vmturbo.common.protobuf.suspension.SuspensionFilter;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionAttachEntitiesRequest;
@@ -187,7 +189,8 @@ public class SuspensionMapper {
                     SuspensionEntitiesOrderBy.PROVIDER, SuspensionEntityOuterClass.SuspensionEntityOrderBy.SUSPENSION_ENTITY_ORDER_BY_PROVIDER,
                     SuspensionEntitiesOrderBy.REGION_NAME, SuspensionEntityOuterClass.SuspensionEntityOrderBy.SUSPENSION_ENTITY_ORDER_BY_REGION_NAME,
                     SuspensionEntitiesOrderBy.INSTANCE_TYPE, SuspensionEntityOuterClass.SuspensionEntityOrderBy.SUSPENSION_ENTITY_ORDER_BY_INSTANCE_TYPE,
-                    SuspensionEntitiesOrderBy.COST, SuspensionEntityOuterClass.SuspensionEntityOrderBy.SUSPENSION_ENTITY_ORDER_BY_COST);
+                    SuspensionEntitiesOrderBy.COST, SuspensionEntityOuterClass.SuspensionEntityOrderBy.SUSPENSION_ENTITY_ORDER_BY_COST,
+                    SuspensionEntitiesOrderBy.SCHEDULE_NAME, SuspensionEntityOuterClass.SuspensionEntityOrderBy.SUSPENSION_ENTITY_ORDER_BY_SCHEDULE_DISPLAY_NAME);
 
     /**
      * Gets api entity type based on grpc entity type.
@@ -245,6 +248,7 @@ public class SuspensionMapper {
         fieldMap.put("accountName", "string");
         fieldMap.put("regionName", "string");
         fieldMap.put("instanceType", "string");
+        fieldMap.put("scheduleName", "string");
         fieldMap.put("tags", "string");
         fieldMap.put("cost", "double");
 
@@ -287,6 +291,9 @@ public class SuspensionMapper {
         }
         if (protoStringMap.get("instanceType") != null) {
             requestBuilder.addAllInstanceTypes(protoStringMap.get("instanceType"));
+        }
+        if (protoStringMap.get("scheduleName") != null) {
+            requestBuilder.addAllScheduleNames(protoStringMap.get("scheduleName"));
         }
         if (protoStringMap.get("tags") != null) {
             requestBuilder.addAllTags(protoStringMap.get("tags"));
@@ -432,6 +439,9 @@ public class SuspensionMapper {
             if (entity.getTagsCount() > 0) {
                 objt.setTags(convertToTagApiDTO(entity.getTagsList()));
             }
+            if (entity.getSchedulesCount() > 0) {
+                objt.setSchedules(convertToSuspendableEntityScheduleApiDTO(entity.getSchedulesList()));
+            }
             if (entity.hasCost()) {
                 CurrencyAmount costObj = entity.getCost();
                 if (costObj.hasAmount()) {
@@ -464,6 +474,25 @@ public class SuspensionMapper {
         return tagsList;
     }
 
+    /**
+     * Converts list of Schedules from SuspensionEntitySchedule grpc class into SuspendableEntityScheduleApiDTO class.
+     * @param List of Schedules from SuspensionEntitySchedule grpc.
+     * @return List of SuspendableEntityScheduleApiDTO class.
+     */
+    public List<SuspendableEntityScheduleApiDTO> convertToSuspendableEntityScheduleApiDTO(List<SuspensionEntitySchedule> schedules) {
+        List<SuspendableEntityScheduleApiDTO> schedulesList = new ArrayList<SuspendableEntityScheduleApiDTO>();
+        for (SuspensionEntitySchedule schedule: schedules) {
+            SuspendableEntityScheduleApiDTO objt = new SuspendableEntityScheduleApiDTO();
+            if (schedule.hasName()) {
+                objt.setDisplayName(schedule.getName());
+            }
+            if (schedule.hasOid()) {
+                objt.setScheduleUUID(Long.toString(schedule.getOid()));
+            }
+            schedulesList.add(objt);
+        }
+        return schedulesList;
+    }
 
     /**
      * Map with API suspension action to GRPC Toggle Action type.
