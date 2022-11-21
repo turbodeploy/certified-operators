@@ -213,10 +213,13 @@ public class LiveActionsStatistician {
                     Joiner.on(",\n").withKeyValueSeparator(" error count = ").join(aggregatorErrorCounts));
             }
         }
+        ActionSnapshotLatestRecord actionSnapshotLatestRecord = snapshot.toDbRecord();
+        logger.info("Inserting TopologyId: {}, ActionSnapshotTime: {}, topologyCreationTime {} into ACTION_SNAPSHOT_LATEST", sourceTopologyInfo.getTopologyId(),
+                actionSnapshotLatestRecord.getActionSnapshotTime(), topologyCreationTime);
 
         // Record the snapshot.
         final int modifiedRows = dslContext.insertInto(ActionSnapshotLatest.ACTION_SNAPSHOT_LATEST)
-                .set(snapshot.toDbRecord())
+                .set(actionSnapshotLatestRecord)
                 .execute();
         if (modifiedRows != 1) {
             logger.warn("{} rows (expected: 1) modified by insert of snapshot into database." +
