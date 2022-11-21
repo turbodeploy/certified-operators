@@ -8,6 +8,8 @@ spec:
   probes:
     actionScript:
       enabled: true
+    actionStreamKafka:
+      enabled: false
     appDynamics:
       enabled: true
     appInsights:
