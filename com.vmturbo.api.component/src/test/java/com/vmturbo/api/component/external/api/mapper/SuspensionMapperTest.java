@@ -25,6 +25,7 @@ import com.vmturbo.api.dto.suspension.ScheduleTimeSpansApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendItemApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityInputDTO;
+import com.vmturbo.api.dto.suspension.SuspendableEntityScheduleApiDTO;
 import com.vmturbo.api.dto.suspension.SuspendableEntityUUIDSetDTO;
 import com.vmturbo.api.dto.suspension.TimeSpanApiDTO;
 import com.vmturbo.api.dto.suspension.WeekDayTimeSpansApiDTO;
@@ -43,6 +44,7 @@ import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntity;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityRequest;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityRequest.Builder;
+import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntitySchedule;
 import com.vmturbo.common.protobuf.suspension.SuspensionEntityOuterClass.SuspensionEntityTags;
 import com.vmturbo.common.protobuf.suspension.SuspensionFilter;
 import com.vmturbo.common.protobuf.suspension.SuspensionScheduleEntity.SuspensionAttachEntitiesRequest;
@@ -312,6 +314,24 @@ public class SuspensionMapperTest extends TestCase {
         assertEquals(1, tagsApiDTOs.size() );
         assertEquals("testKey", tagsApiDTOs.get(0).getKey());
         assertEquals(values, tagsApiDTOs.get(0).getValues());
+    }
+
+    /**
+     * verifies the conversion of suspension entity schedules from grpc to array of schedules attached to entities in api.
+     */
+    @Test
+    public void testConvertToSuspendableEntityScheduleApiDTO() {
+
+        List<SuspensionEntitySchedule> schedules = new ArrayList<SuspensionEntitySchedule>();
+        SuspensionEntitySchedule schedule = SuspensionEntitySchedule.newBuilder()
+                .setOid(1234)
+                .setName("testName")
+                .build();
+        schedules.add(schedule);
+        List<SuspendableEntityScheduleApiDTO> suspendableEntityScheduleApiDTOs = testSuspensionMapper.convertToSuspendableEntityScheduleApiDTO(schedules);
+        assertEquals(1, suspendableEntityScheduleApiDTOs.size() );
+        assertEquals("testName", suspendableEntityScheduleApiDTOs.get(0).getDisplayName());
+        assertEquals("1234", suspendableEntityScheduleApiDTOs.get(0).getScheduleUUID());
     }
 
     /**
