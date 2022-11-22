@@ -10,9 +10,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
-import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
-import com.vmturbo.common.protobuf.action.ActionDTO.ExecutorInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AllocateExplanation;
@@ -32,9 +29,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.action.ActionDTO.ScheduleDetails;
-import com.vmturbo.common.protobuf.action.ActionDTO.UserDetails;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -284,50 +278,6 @@ public class ActionCategoryExtractorTest {
                 .build();
         assertThat(ActionCategoryExtractor.assignActionCategory(resizeUp),
                 is(ActionCategory.PERFORMANCE_ASSURANCE));
-    }
-
-    /**
-     * For an Deactivate with an Executor info.
-     */
-    @Test
-    public void testDeactivateCategoryForSuspendService() {
-        ActionDTO.Action action = ActionDTO.Action.newBuilder().setId(105).setExecutorInfo(
-                ExecutorInfo.newBuilder().setUser(UserDetails.newBuilder()
-                        .setUserId("123")
-                        .setUserName("test")
-                        .build()).build()).setInfo(ActionInfo.newBuilder()
-                .setDeactivate(Deactivate.newBuilder().setTarget(ActionEntity.newBuilder()
-                        .setId(123)
-                        .setType(60)
-                        .setEnvironmentType(EnvironmentType.CLOUD)
-                        .build()).build())
-                .build()).setDeprecatedImportance(1).setExplanation(Explanation.newBuilder()
-                .setDeactivate(DeactivateExplanation.newBuilder().build())
-                .build()).build();
-        assertThat(ActionCategoryExtractor.assignActionCategory(action),
-                is(ActionDTO.ActionCategory.SAVING));
-    }
-
-    /**
-     * For an activate with an Executor info.
-     */
-    @Test
-    public void testActivateCategoryForSuspendService() {
-        ActionDTO.Action action = ActionDTO.Action.newBuilder().setId(106).setExecutorInfo(
-                ExecutorInfo.newBuilder().setSchedule(ScheduleDetails.newBuilder().setScheduleId(
-                        "1234").setScheduleName("testSchedule").build()).build()).setInfo(
-                ActionInfo.newBuilder()
-                        .setActivate(
-                                Activate.newBuilder().setTarget(ActionEntity.newBuilder()
-                                        .setId(123)
-                                        .setType(60)
-                                        .setEnvironmentType(EnvironmentType.CLOUD)
-                                        .build()).build())
-                        .build()).setDeprecatedImportance(1).setExplanation(Explanation.newBuilder()
-                .setActivate(ActivateExplanation.newBuilder().build())
-                .build()).build();
-        assertThat(ActionCategoryExtractor.assignActionCategory(action),
-                is(ActionCategory.EFFICIENCY_IMPROVEMENT));
     }
 
 }

@@ -87,19 +87,11 @@ public class ActionCategoryExtractor {
                                 .contains(explanation.getActivate().getMostExpensiveCommodity())) {
                     // if activation is due to segmentation commodity(DRS is a subclass of it)
                     return ActionCategory.COMPLIANCE;
-                } else if (action.hasExecutorInfo() && (action.getExecutorInfo().hasUser()
-                        || action.getExecutorInfo().hasSchedule())) {
-                    return ActionCategory.EFFICIENCY_IMPROVEMENT;
                 } else {
                     return ActionCategory.PERFORMANCE_ASSURANCE;
                 }
             case DEACTIVATE:
-                if (action.hasExecutorInfo() && (action.getExecutorInfo().hasUser()
-                        || action.getExecutorInfo().hasSchedule())) {
-                    return ActionCategory.SAVING;
-                } else {
-                    return ActionCategory.EFFICIENCY_IMPROVEMENT;
-                }
+                return ActionCategory.EFFICIENCY_IMPROVEMENT;
             case RECONFIGURE:
                 if (action.getInfo().getReconfigure().getIsProvider()) {
                     return action.getInfo().getReconfigure().getIsAddition()
