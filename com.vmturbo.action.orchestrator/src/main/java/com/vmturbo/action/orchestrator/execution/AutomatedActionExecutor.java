@@ -40,7 +40,6 @@ import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.action.ActionDTO.ExecutorInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 
@@ -200,7 +199,7 @@ public class AutomatedActionExecutor {
 
         List<ConditionalFuture> futures = new ArrayList<>();
         final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
-        StringBuilder executorBuilder = new StringBuilder();
+        StringBuilder userBuilder = new StringBuilder();
         Predicate<Action> completedState = action -> action.getState() == ActionState.SUCCEEDED
                 || action.getState() == ActionState.REJECTED
                 || action.getState() == ActionState.FAILED;
@@ -257,7 +256,7 @@ public class AutomatedActionExecutor {
                             if (action.isExternalAction() && completedState.test(action)) {
                                 continue;
                             }
-                            receiveAutomaticAcceptanceEvent(action, userNameAndUuid, executorBuilder, targetId);
+                            receiveAutomaticAcceptanceEvent(action, userNameAndUuid, userBuilder, targetId);
                         }
                         action.receive(new QueuedEvent());
                         actionList.add(action);
@@ -300,24 +299,18 @@ public class AutomatedActionExecutor {
      *
      * @param action action on which the event needs to be received.
      * @param userNameAndUuid userNameAndUuid from gRPC context.
-     * @param executorBuilder stringBuilder reference.
+     * @param userBuilder stringBuilder reference.
      * @param targetId targetId for the target.
      */
     private void receiveAutomaticAcceptanceEvent(Action action, String userNameAndUuid,
-            StringBuilder executorBuilder, Long targetId) {
-        if (action.getRecommendation().hasExecutorInfo() && (
-                action.getRecommendation().getExecutorInfo().hasSchedule()
-                        || action.getRecommendation().getExecutorInfo().hasUser())) {
-            ExecutorInfo info = action.getRecommendation().getExecutorInfo();
-            if (info.hasUser()) {
-                executorBuilder.append(info.getUser().getUserName()).append("(").append(
-                        info.getUser().getUserId()).append(")");
-            } else {
-                executorBuilder.append(info.getSchedule().getScheduleName()).append("(").append(
-                        info.getSchedule().getScheduleId()).append(")");
-            }
-            action.receive(new AutomaticAcceptanceEvent(executorBuilder.toString(), targetId));
-            executorBuilder.setLength(0);
+            StringBuilder userBuilder, Long targetId) {
+        if (action.isExternalAction() && action.getRecommendation().hasUser()) {
+            userBuilder.append(action.getRecommendation().getUser().getUserName())
+                    .append("(")
+                    .append(action.getRecommendation().getUser().getUserId())
+                    .append(")");
+            action.receive(new AutomaticAcceptanceEvent(userBuilder.toString(), targetId));
+            userBuilder.setLength(0);
         } else {
             action.receive(new AutomaticAcceptanceEvent(userNameAndUuid, targetId));
         }
