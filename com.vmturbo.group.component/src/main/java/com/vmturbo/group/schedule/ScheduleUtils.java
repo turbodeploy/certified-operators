@@ -31,6 +31,8 @@ import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.NextOccurrenc
  */
 public class ScheduleUtils {
 
+    private static final long MILLISECONDS_IN_A_DAY = 24L * 60L * 60L * 1000L;
+    private static final long TWENTY_FIVE_HOURS = 25L * 60L * 60L * 1000L;
     private static final long MAX_END_DATE =
         new GregorianCalendar(2099, Calendar.DECEMBER, 31)
             .getTimeInMillis();
@@ -105,8 +107,32 @@ public class ScheduleUtils {
             return 0L;
         }
 
+        final long userSelectedDuration = schedule.getEndTime() - schedule.getStartTime();
+        final long eventDuration;
+        if (userSelectedDuration == MILLISECONDS_IN_A_DAY
+                && (   "FREQ=DAILY;INTERVAL=1;".equals(schedule.getRecurRule())
+                    || "INTERVAL=1;FREQ=DAILY;".equals(schedule.getRecurRule())
+                )
+        ) {
+            // Use timezone to calculate an entire day to overcome OM-92616 where the
+            // 24 hours was not sufficient to cover the entire day as day light savings
+            // was ending. The day when day light savings ends has 25 hours where 1am
+            // occurs twice!
+            //
+            // For example:
+            // 2022-11-06T01:59-05:00[America/Chicago]    2022-11-06T06:59Z[UTC]
+            // 2022-11-06T01:00-06:00[America/Chicago]    2022-11-06T07:00Z[UTC]
+            // 2022-11-06T01:59-06:00[America/Chicago]    2022-11-06T07:59Z[UTC]
+            // 2022-11-06T02:00-06:00[America/Chicago]    2022-11-06T08:00Z[UTC]
+            //
+            // It's critical that there are no gaps, not even one hour because customers use a
+            // 'All day, every day' schedule to ensure disable actions since schedule policies have
+            // the highest priority when resolving conflicts.
+            eventDuration = TWENTY_FIVE_HOURS;
+        } else {
+            eventDuration = userSelectedDuration;
+        }
 
-        final long eventDuration =  schedule.getEndTime() - schedule.getStartTime();
 
         // if there was an occurrence in the past slice of time equal of duration,
         // it means that the recurring event can still be active
