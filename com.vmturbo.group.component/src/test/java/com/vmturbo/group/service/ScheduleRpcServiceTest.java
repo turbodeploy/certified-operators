@@ -1,14 +1,18 @@
 package com.vmturbo.group.service;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
@@ -645,7 +649,7 @@ public class ScheduleRpcServiceTest {
      * @throws Exception should not be thrown.
      */
     @Test
-    public void testDaylightSavings() {
+    public void testDaylightSavingsStarts() {
         final Schedule daylightSavingsSchedule = Schedule.newBuilder()
                 .setId(284674011001872L)
                 .setDisplayName("Daily 2 Hour Maintenance Window")
@@ -690,6 +694,166 @@ public class ScheduleRpcServiceTest {
                 ),
                 1652770800000L,
                 responseCaptor.getValue().getSchedule().getNextOccurrence().getStartTime());
+    }
+
+    private boolean isScheduleActive(
+            String startTimeUtc,
+            String endTimeUtc,
+            String currentTimeUtc,
+            String recurRule,
+            String timezone
+    ) {
+        ZonedDateTime startdate = LocalDateTime.parse(
+                        startTimeUtc, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.S"))
+                .atZone(ZoneId.of("UTC"));
+        long starttime = startdate.toInstant().toEpochMilli();
+        ZonedDateTime enddate = LocalDateTime.parse(
+                        endTimeUtc, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.S"))
+                .atZone(ZoneId.of("UTC"));
+        long endtime = enddate.toInstant().toEpochMilli();
+
+        long oid = 284721243419056L;
+        final Schedule daylightSavingsSchedule = Schedule.newBuilder()
+                .setId(oid)
+                .setDisplayName("All Time Schedule")
+                .setStartTime(starttime)
+                .setEndTime(endtime)
+                .setPerpetual(Perpetual.getDefaultInstance())
+                .setRecurRule(recurRule)
+                .setTimezoneId(timezone)
+                .setRecurrenceStart(RecurrenceStart.newBuilder()
+                        .setRecurrenceStartTime(starttime)
+                        .build())
+                .build();
+        when(scheduleStore.getSchedule(oid)).thenReturn(Optional.of(daylightSavingsSchedule));
+        final StreamObserver<GetScheduleResponse> responseObserver =
+                (StreamObserver<GetScheduleResponse>)mock(StreamObserver.class);
+
+
+        ZonedDateTime refdate = LocalDateTime.parse(
+                        currentTimeUtc, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss,SSS"))
+                .atZone(ZoneId.of("UTC"));
+        long reftime = refdate.toInstant().toEpochMilli();
+        scheduleRpcService.getSchedule(
+                GetScheduleRequest.newBuilder()
+                        .setOid(oid)
+                        .setRefTime(reftime)
+                        .build(),
+                responseObserver);
+
+        final ArgumentCaptor<GetScheduleResponse> responseCaptor =
+                ArgumentCaptor.forClass(GetScheduleResponse.class);
+        verify(responseObserver).onNext(responseCaptor.capture());
+        verify(responseObserver).onCompleted();
+
+        return responseCaptor.getValue().getSchedule().hasActive();
+    }
+
+    /**
+     * Runs the schedule from https://vmturbo.atlassian.net/browse/OM-92616.
+     * <pre>
+     *     [
+     *       284721243419056,
+     *       "All Time Schedule",
+     *       "2020-08-31 05:00:00.0",
+     *       "2020-09-01 05:00:00.0",
+     *       null,
+     *       "FREQ=DAILY;INTERVAL=1;",
+     *       "America/Chicago",
+     *       null,
+     *       false
+     *     ],
+     *     </pre>
+     * at the provided time and returns whether or not the schedule is active.
+     *
+     * @param currentDateTime the current datetime to check if it's active with the All Day Every Day
+     *                        schedule from OM-OM92616.
+     * @return whether or not the schedule is active at the currentDateTime.
+     */
+    private void runOM92616(String currentDateTime) {
+        assertTrue("When current time is " + currentDateTime + " UTC, the all day every day schedule should be active.", isScheduleActive(
+                "2020-08-31 05:00:00.0", // UTC startTime
+                "2020-09-01 05:00:00.0",  // UTC endTime
+                currentDateTime,
+                "FREQ=DAILY;INTERVAL=1;",   // recurrence pattern
+                "America/Chicago"));         // Timezone
+    }
+
+    /**
+     * Directly reproduces https://vmturbo.atlassian.net/browse/OM-92616.
+     */
+    @Test
+    public void testAllDayEveryDayScheduleSimple() {
+        runOM92616("2022-11-07 04:01:43,007");
+        runOM92616("2022-11-07 05:01:43,007");
+        runOM92616("2022-11-07 06:01:43,007");
+    }
+
+    /**
+     * For every hour in the year H,
+     * <ul>
+     *     <li>H:00        : exact</li>
+     *     <li>H:01        : one minute after </li>
+     *     <li>H:00:01     : one second after </li>
+     *     <li>H:00:00.001 : one millisecond after</li>
+     *     <li>H:59        : one minute before </li>
+     *     <li>H:00:01     : one second before </li>
+     *     <li>H:00:00.001 : one millisecond before</li>
+     * </ul>
+     * the all day every day schedule from https://vmturbo.atlassian.net/browse/OM-92616 should be
+     * active.
+     */
+    @Test
+    public void testAllDayEveryDayScheduleExhaustive() {
+        DateTimeFormatter datetimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss,SSS");
+        ZonedDateTime startOfTheYear = LocalDateTime.parse("2022-01-01 00:00:00,000", datetimeFormatter)
+                .atZone(ZoneId.of("UTC"));
+        ZonedDateTime nextYear = LocalDateTime.parse("2023-01-01 00:00:00,000", datetimeFormatter)
+                .atZone(ZoneId.of("UTC"));
+
+        ZonedDateTime current = startOfTheYear;
+        while (!current.isAfter(nextYear)) {
+            runOM92616(datetimeFormatter.format(current));
+            runOM92616(datetimeFormatter.format(current.plusMinutes(1)));
+            runOM92616(datetimeFormatter.format(current.plusSeconds(1)));
+            runOM92616(datetimeFormatter.format(current.plusNanos(1000000)));
+            runOM92616(datetimeFormatter.format(current.plusNanos(1)));
+
+            current = current.plusHours(1);
+            runOM92616(datetimeFormatter.format(current.minusMinutes(1)));
+            runOM92616(datetimeFormatter.format(current.minusSeconds(1)));
+            runOM92616(datetimeFormatter.format(current.minusNanos(1000000)));
+            runOM92616(datetimeFormatter.format(current.minusNanos(1)));
+        }
+    }
+
+    /**
+     * Depending on how the all day every day solution is implement, it could impact schedules that
+     * are 'all day' but not every day. For instance, suppose you implement it by checking 25 hours,
+     * then all day on Saturday will be active for 1 hour on Friday!
+     */
+    @Test
+    public void testAllDaySaturday() {
+        assertFalse("When current time is 2022-11-19 05:00:00,000 UTC, the all day Saturday schedule should not be active"
+                        + " because it's 1 hour before the schedule begins.",
+            isScheduleActive(
+                "2020-12-01 06:00:00.0", // UTC startTime
+                "2020-12-02 06:00:00.0",  // UTC endTime
+                "2022-11-19 05:00:00,000",
+                "FREQ=WEEKLY;BYDAY=SA;INTERVAL=1",   // recurrence pattern
+                "America/Chicago"           // Timezone
+            )
+        );
+        assertFalse("When current time is 2022-11-20 06:01:00,000 UTC, the all day Saturday schedule should not be active"
+                        + " because it's one hour after the schedule begins.",
+                isScheduleActive(
+                        "2020-12-01 06:00:00.0", // UTC startTime
+                        "2020-12-02 06:00:00.0",  // UTC endTime
+                        "2022-11-20 06:01:00,000",
+                        "FREQ=WEEKLY;BYDAY=SA;INTERVAL=1",   // recurrence pattern
+                        "America/Chicago"           // Timezone
+                )
+        );
     }
 
     private static String generateExplanation(
