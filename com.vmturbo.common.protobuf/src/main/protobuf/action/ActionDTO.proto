@@ -707,6 +707,24 @@ message UserDetails{
     required string user_id = 2;
 }
 
+// Used to specify the Schedule executing an external action such as PMC suspend action.
+// Only to be used for audit purposes. Should never use to provide Authorization.
+message ScheduleDetails{
+    // Used to identify the name of the schedule triggering the action.
+    required string schedule_name = 1;
+
+    // Used to identify the id of the schedule triggering the action.
+    required string schedule_id = 2;
+}
+
+message ExecutorInfo{
+    // Type-specific info depending on what is executing the Action.
+    oneof executor_type{
+        UserDetails user = 1;
+        ScheduleDetails schedule = 2;
+     }
+}
+
 message Action {
     // ID for the action.
     required int64 id = 1;
@@ -814,7 +832,12 @@ message Action {
     // Specifies the user information, because an external action such as a PMC suspend action
     // will not have a security context associated.
     // Only to be used for audit purposes.
-    optional UserDetails user = 11;
+    optional UserDetails __deprecated_user = 11 [deprecated = true];
+
+    // Specifies the user information, because an external action such as a PMC suspend action
+    // will not have a security context associated.
+    // Only to be used for audit purposes.
+    optional ExecutorInfo executor_info = 12;
 }
 
 // Auxiliary information for an action plan.
@@ -1447,6 +1470,9 @@ enum ActionCategory {
     // This action is required in order to comply with a placement policy (e.g. a VM needs
     // to be in a certain cluster).
     COMPLIANCE = 4;
+
+    // This is for the Deactivate Actions triggered by PMC.
+    SAVING = 5;
 }
 
 // An ActionSpec maintains the state of an action in the system.
