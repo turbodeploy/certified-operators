@@ -93,6 +93,7 @@ import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.ExecutorType;
 import com.vmturbo.api.enums.PaymentOption;
 import com.vmturbo.api.enums.Platform;
 import com.vmturbo.api.enums.ReservedInstanceType;
@@ -118,6 +119,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.TierCostDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutorInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AllocateExplanation;
@@ -144,7 +146,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
+import com.vmturbo.common.protobuf.action.ActionDTO.ScheduleDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.ActionDTO.UserDetails;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverage;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
@@ -3358,6 +3362,69 @@ public class ActionSpecMapperTest {
         final ActionQueryFilter actionQueryFilter = mapper.createActionFilter(inputDTO, Optional.empty(), null);
         Assert.assertEquals(Collections.singletonList(Long.parseLong(cspId)),
             actionQueryFilter.getRelatedCloudServiceProviderIdsList());
+    }
+
+    /**
+     * Test the creation of the ExecutorInfoApiDTO for a schedule.
+     */
+    @Test
+    public void testActionExecutorInfoForSchedule() throws Exception {
+        ActionDTO.Action action = ActionDTO.Action.newBuilder().setId(106).setExecutorInfo(
+                ExecutorInfo.newBuilder().setSchedule(ScheduleDetails.newBuilder().setScheduleId(
+                        "1234").setScheduleName("test").build()).build()).setInfo(
+                ActionInfo.newBuilder()
+                        .setActivate(Activate.newBuilder().setTarget(ActionEntity.newBuilder()
+                                .setId(123)
+                                .setType(60)
+                                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                                .build()).build())
+                        .build()).setDeprecatedImportance(1).setExplanation(Explanation.newBuilder()
+                .setActivate(ActivateExplanation.newBuilder().build())
+                .build()).build();
+        final ActionSpec actionSpec = ActionSpec.newBuilder().setActionState(
+                ActionDTO.ActionState.SUCCEEDED).setRecommendation(action).build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet())).thenReturn(dbReq);
+        final ActionExecutionAuditApiDTO executionDto = mapper.mapActionSpecToActionApiDTO(
+                        actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
+                .getExecutionStatus();
+
+        // Assert
+        assertNotNull(executionDto.getExecutorInfo());
+        assertEquals("test", executionDto.getExecutorInfo().getScheduleInfo().getScheduleName());
+        assertEquals(ExecutorType.SCHEDULE, executionDto.getExecutorInfo().getType());
+    }
+
+    /**
+     * Test the creation of the ExecutorInfoApiDTO for a USER.
+     */
+    @Test
+    public void testActionExecutorInfoForUser() throws Exception {
+        Action action = Action.newBuilder().setId(105).setExecutorInfo(
+                ExecutorInfo.newBuilder().setUser(UserDetails.newBuilder()
+                        .setUserId("123")
+                        .setUserName("test")
+                        .build()).build()).setInfo(ActionInfo.newBuilder()
+                .setDeactivate(Deactivate.newBuilder().setTarget(ActionEntity.newBuilder()
+                        .setId(123)
+                        .setType(60)
+                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                        .build()).build())
+                .build()).setDeprecatedImportance(1).setExplanation(Explanation.newBuilder()
+                .setDeactivate(DeactivateExplanation.newBuilder().build())
+                .build()).build();
+        final ActionSpec actionSpec = ActionSpec.newBuilder().setActionState(
+                ActionDTO.ActionState.SUCCEEDED).setRecommendation(action).build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet())).thenReturn(dbReq);
+        final ActionExecutionAuditApiDTO executionDto = mapper.mapActionSpecToActionApiDTO(
+                        actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
+                .getExecutionStatus();
+
+        // Assert
+        assertNotNull(executionDto.getExecutorInfo());
+        assertEquals("test", executionDto.getExecutorInfo().getUserInfo().getUserName());
+        assertEquals(ExecutorType.USER, executionDto.getExecutorInfo().getType());
     }
 
     private void assertActionState(
