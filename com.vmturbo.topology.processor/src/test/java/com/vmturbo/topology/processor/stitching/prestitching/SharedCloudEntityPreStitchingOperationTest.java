@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableSet;
 
 import org.junit.Before;
 import org.junit.Ignore;
@@ -61,7 +62,7 @@ public class SharedCloudEntityPreStitchingOperationTest {
     private static final Collection<PreStitchingOperation> AZURE_OPERATIONS =
             AZURE_ENTITY_TYPES.entrySet().stream()
                     .map(entry -> PreStitchingOperationLibrary.createCloudEntityPreStitchingOperation(
-                            SDKProbeType.AZURE, entry.getKey(), entry.getValue()))
+                            ImmutableSet.of(SDKProbeType.AZURE), entry.getKey(), entry.getValue()))
                     .collect(Collectors.toList());
     private static final long azureProbeId = 100000001L;
     private static final int TARGETS = 400;
