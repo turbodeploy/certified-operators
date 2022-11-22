@@ -5,12 +5,14 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SessionData;
@@ -123,13 +125,14 @@ public class PreStitchingOperationLibrary {
     private static Collection<PreStitchingOperation> createCloudEntityPreStitchingOperations() {
         final Collection<PreStitchingOperation> operations = AWS_ENTITY_TYPES.entrySet().stream()
                 .map(entry -> createCloudEntityPreStitchingOperation(
-                        SDKProbeType.AWS, entry.getKey(), entry.getValue()))
+                        ImmutableSet.of(SDKProbeType.AWS), entry.getKey(), entry.getValue()))
                 .collect(Collectors.toList());
         AZURE_ENTITY_TYPES.forEach((entityType, mergeProperties) -> operations.add(
-                createCloudEntityPreStitchingOperation(SDKProbeType.AZURE, entityType, mergeProperties)));
+                createCloudEntityPreStitchingOperation(
+                        ImmutableSet.of(SDKProbeType.AZURE, SDKProbeType.AZURE_INFRA), entityType, mergeProperties)));
         GCP_ENTITY_TYPES.forEach((entityType, mergeProperties) -> operations.add(
-                createCloudEntityPreStitchingOperation(SDKProbeType.GCP_PROJECT, entityType,
-                        mergeProperties)));
+                createCloudEntityPreStitchingOperation(
+                        ImmutableSet.of(SDKProbeType.GCP_PROJECT), entityType, mergeProperties)));
         return operations;
     }
 
@@ -142,10 +145,14 @@ public class PreStitchingOperationLibrary {
      * @return CloudEntityPreStitchingOperation
      */
     public static PreStitchingOperation createCloudEntityPreStitchingOperation(
-            SDKProbeType probeType, EntityType entityType, boolean mergeProperties) {
+            Set<SDKProbeType> probeTypes, EntityType entityType, boolean mergeProperties) {
+
+        final Set<String> probeNames = probeTypes.stream()
+                .map(SDKProbeType::getProbeType)
+                .collect(ImmutableSet.toImmutableSet());
         return new SharedCloudEntityPreStitchingOperation(
-                stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
-                        probeType.getProbeType(), entityType), mergeProperties);
+                stitchingScopeFactory -> stitchingScopeFactory.multiProbeEntityTypeScope(
+                        probeNames, entityType), mergeProperties);
     }
 
     /**
