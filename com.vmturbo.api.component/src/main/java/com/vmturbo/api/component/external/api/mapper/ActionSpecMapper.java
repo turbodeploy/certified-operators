@@ -63,6 +63,9 @@ import com.vmturbo.api.dto.action.CloudProvisionActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudSuspendActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CpuChangeDetailsApiDTO;
+import com.vmturbo.api.dto.action.ExecutorInfoApiDTO;
+import com.vmturbo.api.dto.action.ExecutorScheduleApiDTO;
+import com.vmturbo.api.dto.action.ExecutorUserApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.action.OnPremResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.RIBuyActionDetailsApiDTO;
@@ -88,6 +91,7 @@ import com.vmturbo.api.enums.ActionReversibility;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.enums.ExecutorType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.Pair;
@@ -112,6 +116,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutorInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
@@ -189,6 +194,7 @@ public class ActionSpecMapper {
     private static final String API_CATEGORY_PREVENTION = "Prevention";
     private static final String API_CATEGORY_COMPLIANCE = "Compliance";
     private static final String API_CATEGORY_UNKNOWN = "Unknown";
+    private static final String API_CATEGORY_SAVINGS = "Savings";
     // END - Strings representing action categories in the API.
 
     private static final Set<String> SCALE_TIER_VALUES = ImmutableSet.of(
@@ -455,6 +461,8 @@ public class ActionSpecMapper {
                 return API_CATEGORY_PREVENTION;
             case COMPLIANCE:
                 return API_CATEGORY_COMPLIANCE;
+            case SAVING:
+                return API_CATEGORY_SAVINGS;
             default:
                 return API_CATEGORY_UNKNOWN;
         }
@@ -681,7 +689,7 @@ public class ActionSpecMapper {
 
         // add the Execution status
         if (ActionDetailLevel.EXECUTION == detailLevel) {
-            actionApiDTO.setExecutionStatus(createActionExecutionAuditApiDTO(actionSpec));
+            actionApiDTO.setExecutionStatus(createActionExecutionAuditApiDTO(actionSpec, actionApiDTO.getUserName()));
         }
 
         // add the action schedule details
@@ -3015,12 +3023,14 @@ public class ActionSpecMapper {
      * Create an ActionExecutionAuditApiDTO for when the Action State is in EXECUTION_ACTION_STATES,
      * otherwise return null.
      *
-     * @param actionSpec                    Action specifications
+     * @param actionSpec Action specifications.
+     * @param userName Name Of the User executed the action.
      * @return ActionExecutionAuditApiDTO   contains details about the execution of the Action,
-     *                                      null if the Action is not executed yet.
+     *         null if the Action is not executed yet.
      */
     @Nullable
-    private ActionExecutionAuditApiDTO createActionExecutionAuditApiDTO(@Nonnull final ActionSpec actionSpec) {
+    private ActionExecutionAuditApiDTO createActionExecutionAuditApiDTO(@Nonnull final ActionSpec actionSpec,
+            String userName) {
         ActionState executionState = mapXlActionStateToExecutionApi(actionSpec.getActionState());
         // If the Action was not executed, return null
         if (executionState == null || actionSpec.getExecutionStep() == null) {
@@ -3045,8 +3055,40 @@ public class ActionSpecMapper {
             final String completionTime = DateTimeUtil.toString(executionStep.getCompletionTime());
             executionDTO.setCompletionTime(completionTime);
         }
-
+        populateExecutorInfo(actionSpec, executionDTO, userName);
         return executionDTO;
+    }
+
+    /**
+     * Creates an ExecutorInfoApiDTO, which will be used to transfer the Executor(User/Schedule)
+     * details.
+     *
+     * @param actionSpec Action specifications.
+     * @param executionDTO contains details about the execution of the Action,
+     *         null if the Action is not executed yet.
+     * @param userName Default user name.
+     */
+    private void populateExecutorInfo(ActionSpec actionSpec,
+            ActionExecutionAuditApiDTO executionDTO, String userName) {
+        ExecutorInfoApiDTO executorInfo = new ExecutorInfoApiDTO();
+        executionDTO.setExecutorInfo(executorInfo);
+        if (actionSpec.getRecommendation().hasExecutorInfo() && (
+                actionSpec.getRecommendation().getExecutorInfo().hasUser()
+                        || actionSpec.getRecommendation().getExecutorInfo().hasSchedule())) {
+            ExecutorInfo info = actionSpec.getRecommendation().getExecutorInfo();
+            if (info.hasSchedule()) {
+                executorInfo.setType(ExecutorType.SCHEDULE);
+                executorInfo.setScheduleInfo(
+                        new ExecutorScheduleApiDTO(info.getSchedule().getScheduleName()));
+                executionDTO.setExecutorInfo(executorInfo);
+            } else {
+                executorInfo.setType(ExecutorType.USER);
+                executorInfo.setUserInfo(new ExecutorUserApiDTO(info.getUser().getUserName()));
+            }
+            return;
+        }
+        executorInfo.setType(ExecutorType.USER);
+        executorInfo.setUserInfo(new ExecutorUserApiDTO(userName));
     }
 
     /**
