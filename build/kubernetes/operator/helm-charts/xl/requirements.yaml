@@ -109,7 +109,7 @@ dependencies:
 # Suspend services dependencies
   - name: redis
     repository: file://../suspend/redis
-    version: 15.7.5
+    version: 0.1.0
     condition: suspend.enabled
   - name: suspend
     repository: file://../suspend/suspend
