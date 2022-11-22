@@ -67,12 +67,14 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.Orig
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.PlanScenarioOriginImpl;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.test.utils.FeatureFlagTestRule;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
@@ -793,6 +795,10 @@ public class PlanTopologyScopeEditorTest {
             .setPlanInfo(optimizeContainerInfo)
             .build();
 
+    @Rule
+    public FeatureFlagTestRule featureFlagTestRule = new FeatureFlagTestRule(
+            FeatureFlags.CROSS_TARGET_LINKING);
+
     @Before
     public void setup() {
         // Mark the pod as not movable on its volume provider and container not movable on its pod
@@ -1000,6 +1006,71 @@ public class PlanTopologyScopeEditorTest {
     private void testScopeCloudTopology(List<Long> oidsList,
             Set<TopologyEntity.Builder> expectedEntities) {
         testScopeCloudTopology(oidsList, expectedEntities, false);
+    }
+
+    /**
+     * Tests cloud scoping with and without cross target linking.
+     */
+    @Test
+    public void getScopedCloudEntitiesWithLinking() {
+        final Long oidVmInUSEastTarget1 = 4007L; // VM from Target-1
+        final Long oidVmInCanadaTarget2 = 4006L; // VM from Target-2
+        final Set<TopologyEntity> cloudConsumers = ImmutableSet.of(
+                        // Target-1
+                        businessAcc1, regionUSEast, azUSEast, vvInUSEast, vmInUSEast, vmInOhio,
+                        computeTier, storageTier,
+                        // Target-2
+                        businessAcc4, vmInCentralUs, vmInCanada, computeTier2, storageTier2,
+                        dbCentralUs, dbsCentralUs, virtualVolumeInCentralUs, regionCentralUs
+        ).stream()
+                .map(TopologyEntity.Builder::build)
+                .collect(Collectors.toSet());
+
+        // With target linking (non-default option).
+        // Both targets in seed, with target-linking - we return all 17.
+        Set<TopologyEntity> scopedEntities = PlanTopologyScopeEditor.getScopedCloudEntities(
+                true, graph, cloudConsumers, ImmutableSet.of(oidVmInUSEastTarget1,
+                                oidVmInCanadaTarget2), PlanProjectType.CLOUD_MIGRATION)
+                .collect(Collectors.toSet());
+        assertEquals(17, scopedEntities.size());
+
+        // Target-1 in seed, with target-linking - we return all 17.
+        scopedEntities = PlanTopologyScopeEditor.getScopedCloudEntities(
+                        true, graph, cloudConsumers, ImmutableSet.of(oidVmInUSEastTarget1),
+                        PlanProjectType.CLOUD_MIGRATION)
+                .collect(Collectors.toSet());
+        assertEquals(17, scopedEntities.size());
+
+        // Target-2 in seed, with target-linking. Non-MCP plan (OCP for cloud). Here we
+        // return 18 (including DBS that is present for this OCP plan but not for MCP).
+        scopedEntities = PlanTopologyScopeEditor.getScopedCloudEntities(
+                        true, graph, cloudConsumers, ImmutableSet.of(oidVmInCanadaTarget2),
+                        PlanProjectType.CONTAINER_MIGRATION)
+                .collect(Collectors.toSet());
+        assertEquals(18, scopedEntities.size());
+
+        // Without target linking (default option).
+        // Both targets in seed, with target-linking - we return all 17.
+        scopedEntities = PlanTopologyScopeEditor.getScopedCloudEntities(
+                        false, graph, cloudConsumers, ImmutableSet.of(oidVmInUSEastTarget1,
+                                oidVmInCanadaTarget2), PlanProjectType.CLOUD_MIGRATION)
+                .collect(Collectors.toSet());
+        assertEquals(17, scopedEntities.size());
+
+        // Target-1 in seed, without target-linking - we return only the 8 entities in Target 1.
+        scopedEntities = PlanTopologyScopeEditor.getScopedCloudEntities(
+                        false, graph, cloudConsumers, ImmutableSet.of(oidVmInUSEastTarget1),
+                        PlanProjectType.CLOUD_MIGRATION)
+                .collect(Collectors.toSet());
+        assertEquals(8, scopedEntities.size());
+
+        // Target-2 in seed, without target-linking. Non-MCP plan (OCP for cloud). Here we
+        // return 10 (including DBS that is present for this OCP plan but not for MCP).
+        scopedEntities = PlanTopologyScopeEditor.getScopedCloudEntities(
+                        false, graph, cloudConsumers, ImmutableSet.of(oidVmInCanadaTarget2),
+                        PlanProjectType.CONTAINER_MIGRATION)
+                .collect(Collectors.toSet());
+        assertEquals(10, scopedEntities.size());
     }
 
     /**

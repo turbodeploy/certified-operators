@@ -63,6 +63,7 @@ import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.Comm
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityImpl.ConnectedEntityImpl;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.InvertedIndex;
+import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -254,12 +255,6 @@ public class PlanTopologyScopeEditor {
         }
         seedIds.addAll(connectedVMsAndVVIds);
 
-        // targets of the seeds
-        final Collection<Long> targetIds = graph.getEntities(seedIds)
-                                                .flatMap(TopologyEntity::getDiscoveringTargetIds)
-                                                .filter(Objects::nonNull)
-                                                .collect(Collectors.toSet());
-
         // applying inclusion transitively will fetch all workloads associated
         // with a business account or region
         // if scoping on a region, it will also bring availability zones
@@ -310,6 +305,42 @@ public class PlanTopologyScopeEditor {
         final Set<TopologyEntity> cloudConsumers =
                 new HashSet<>(TopologyGraphEntity.applyTransitively(workLoadsZonesAndConsumers,
                         TopologyEntity::getAggregatorsAndOwner));
+        final Stream<TopologyEntity> scopedEntityStream = getScopedCloudEntities(
+                FeatureFlags.CROSS_TARGET_LINKING.isEnabled(),
+                graph, cloudConsumers, seedIds, topologyInfo.getPlanInfo().getPlanProjectType());
+
+        resultEntityMap.putAll(Stream.concat(scopedEntityStream,
+                        graph.entitiesOfType(BUSINESS_ACCOUNT_VALUE))
+                .distinct()
+                .map(TopologyEntity::getTopologyEntityImpl)
+                .collect(Collectors.toMap(TopologyEntityImpl::getOid, TopologyEntity::newBuilder)));
+    }
+
+    /**
+     * Gets stream of cloud entities that are in plan scope. Refactored some method calls from
+     * scopeCloudTopology() into here. Separated out enable unit test.
+     *
+     * @param linkTargets Whether targets are linked as part of static infrastructure probes.
+     *      If so, we don't filter based on targets, default false initially.
+     * @param graph Topology graph.
+     * @param cloudConsumers Workloads, regions, zones, accounts etc. that are part of the plan.
+     * @param seedIds Initially selected seed entities in the plan.
+     * @param planProjectType Type of project - either MCP or not (then assumes OCP).
+     * @return Stream of entities that will be added to the plan scope for processing.
+     */
+    @VisibleForTesting
+    @Nonnull
+    static Stream<TopologyEntity> getScopedCloudEntities(boolean linkTargets,
+            @Nonnull final TopologyGraph<TopologyEntity> graph,
+            @Nonnull final Set<TopologyEntity> cloudConsumers,
+            @Nonnull final Set<Long> seedIds,
+            @Nonnull PlanProjectType planProjectType) {
+        // targets of the seeds
+        final Collection<Long> targetIds = linkTargets
+                ? Collections.emptyList() : graph.getEntities(seedIds)
+                .flatMap(TopologyEntity::getDiscoveringTargetIds)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
 
         // calculate all tiers associated with all the regions in cloudConsumers
         // add the owning services
@@ -324,21 +355,18 @@ public class PlanTopologyScopeEditor {
                 .map(Optional::get)
                 .collect(Collectors.toSet());
 
-        final Set<EntityType> validEntityTypes =
-                topologyInfo.getPlanInfo().getPlanProjectType() == PlanProjectType.CLOUD_MIGRATION
+        final Set<EntityType> validEntityTypes = planProjectType == PlanProjectType.CLOUD_MIGRATION
                         ? MIGRATE_CLOUD_SCOPE_ENTITY_TYPES
                         : OPTIMIZE_CLOUD_SCOPE_ENTITY_TYPES;
         Set<TopologyEntity> validCloudConsumersForPlanType = cloudConsumers.stream()
                 .filter(e -> e.getEnvironmentType().equals(EnvironmentType.CLOUD)
                         && validEntityTypes.contains(EntityType.forNumber(e.getEntityType())))
                 .collect(Collectors.toSet());
-        resultEntityMap.putAll(Stream.concat(Stream.of(validCloudConsumersForPlanType, tiers, services)
-                        .flatMap(Collection::stream)
-                        .filter(e -> discoveredBy(e, targetIds)),
-                graph.entitiesOfType(BUSINESS_ACCOUNT_VALUE))
-                .distinct()
-                .map(TopologyEntity::getTopologyEntityImpl)
-                .collect(Collectors.toMap(TopologyEntityImpl::getOid, TopologyEntity::newBuilder)));
+
+        final Stream<TopologyEntity> allEntities = Stream.of(validCloudConsumersForPlanType, tiers, services)
+                .flatMap(Collection::stream);
+        // If we are cross-linking targets, then return as is without checking discoveredBy.
+        return linkTargets ? allEntities : allEntities.filter(e -> discoveredBy(e, targetIds));
     }
 
     /**
