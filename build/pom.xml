@@ -106,6 +106,7 @@
         <jersey-client.version>2.17</jersey-client.version>
         <jersey-media-jaxb.version>2.17</jersey-media-jaxb.version>
         <docker.maven.plugin.version>1.1.1</docker.maven.plugin.version>
+        <io.fabric8.docker-maven-plugin-version>0.38.1</io.fabric8.docker-maven-plugin-version>
         <swagger-annotations.version>1.5.13</swagger-annotations.version>
         <swagger.codegen.plugin.version>2.2.3</swagger.codegen.plugin.version>
         <jackson-datatype-guava.version>2.6.5</jackson-datatype-guava.version>
@@ -2477,7 +2478,7 @@
             <plugin>
                 <groupId>io.fabric8</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
-                <version>0.35.0</version>
+                <version>${io.fabric8.docker-maven-plugin-version}</version>
             </plugin>
             <!-- This plugin is needed to correctly create pom files during install/deploy phase
                  Otherwise, the version '${revision}' would not be replaced properly.
