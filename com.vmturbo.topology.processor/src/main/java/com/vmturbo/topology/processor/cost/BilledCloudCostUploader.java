@@ -738,8 +738,8 @@ public class BilledCloudCostUploader implements DiagsRestorable<Void> {
 
         @Override
         public void onError(@Nonnull final Throwable throwable) {
-            completed.countDown();
             lastError = throwable;
+            completed.countDown();
         }
 
         @Override
