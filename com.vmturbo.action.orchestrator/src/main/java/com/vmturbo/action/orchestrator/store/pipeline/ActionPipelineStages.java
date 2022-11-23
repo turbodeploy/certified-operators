@@ -84,7 +84,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.pipeline.ExclusiveLockedSegmentStage;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
@@ -1574,12 +1573,10 @@ public class ActionPipelineStages {
         private void updateActionMetricsDescriptor(@Nonnull Set<Long> oidList,
                 @Nonnull Multimap<Long, Action> entityToActionList,
                 @Nonnull ActionStore actionStore) {
-            EntitiesAndSettingsSnapshot snapshot = null;
-            if (FeatureFlags.ENABLE_ACTION_AUTOMATION_TELEMETRY.isEnabled()) {
-                snapshot = entitySettingsCache.newSnapshot(oidList, realtimeContextId);
-            }
+            final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache
+                    .newSnapshot(oidList, realtimeContextId);
+
             // For each entity, update the broadcast entities and automation levels gauges
-            EntitiesAndSettingsSnapshot finalSnapshot = snapshot;
             actionTopologyStore.getSourceTopology().get().entityGraph().getEntities(oidList)
                     .forEach(entity -> {
                         final String entityType = EntityType.forNumber(entity.getEntityType()).toString();
@@ -1597,11 +1594,9 @@ public class ActionPipelineStages {
 
                         // Update the broadcast entities gauge.
                         updateBroadcastEntitiesGauge(entityType, envType, entityState, entitySeverity);
-                        if (FeatureFlags.ENABLE_ACTION_AUTOMATION_TELEMETRY.isEnabled()) {
-                            // Update entity automation level gauge
-                            updateAutomationSettingsGauge(finalSnapshot, entity, entityType, envType,
-                                    entityState, entitySeverity);
-                        }
+                        // Update entity automation level gauge
+                        updateAutomationSettingsGauge(snapshot, entity, entityType, envType,
+                                entityState, entitySeverity);
                         // For each action that targets this entity, update the action gauge.
                         Collection<Action> targetingActions = entityToActionList.get(entity.getOid());
                         for (Action action : targetingActions) {

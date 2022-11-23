@@ -132,14 +132,14 @@ public class PreStitchingOperationLibrary {
                         ImmutableSet.of(SDKProbeType.AZURE, SDKProbeType.AZURE_INFRA), entityType, mergeProperties)));
         GCP_ENTITY_TYPES.forEach((entityType, mergeProperties) -> operations.add(
                 createCloudEntityPreStitchingOperation(
-                        ImmutableSet.of(SDKProbeType.GCP_PROJECT, SDKProbeType.GCP_INFRA), entityType, mergeProperties)));
+                        ImmutableSet.of(SDKProbeType.GCP_PROJECT), entityType, mergeProperties)));
         return operations;
     }
 
     /**
      * Create a CloudEntityPreStitchingOperation for the parameters.
      *
-     * @param probeTypes probe types.
+     * @param probeType probe type
      * @param entityType type of entity to merge
      * @param mergeProperties whether to merge properties
      * @return CloudEntityPreStitchingOperation
