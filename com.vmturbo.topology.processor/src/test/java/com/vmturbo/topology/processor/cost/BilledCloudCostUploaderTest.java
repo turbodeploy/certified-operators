@@ -9,7 +9,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
@@ -738,17 +737,9 @@ public class BilledCloudCostUploaderTest {
                 ImmutableList.of(cloudBillingData1, cloudBillingData2));
 
         // Immediately emit an error when any request is received by the RPC service
-        when(billedCostServiceSpy.uploadBilledCloudCost(any())).thenAnswer(uploadInvocation -> {
-            final TestResponseHandler responseHandler = Mockito.spy(
-                    new TestResponseHandler(billedCostServiceSpy,
-                            uploadInvocation.getArgumentAt(0, StreamObserver.class)));
-            doAnswer(onNextInvocation -> {
-                responseHandler.responseObserver.onError(
-                        Status.INTERNAL.withDescription("Remote error").asException());
-                return null;
-            }).when(responseHandler).onNext(any());
-            return responseHandler;
-        });
+        when(billedCostServiceSpy.uploadBilledCloudCost(any())).thenAnswer(
+                uploadInvocation -> new TestResponseHandler(billedCostServiceSpy,
+                        uploadInvocation.getArgumentAt(0, StreamObserver.class), true));
 
         billedCloudCostUploader.processUploadQueue(stitchingContext);
 
@@ -771,7 +762,6 @@ public class BilledCloudCostUploaderTest {
      */
     @Test
     public void testRemoteErrorDuringOneUploadRetriesOnlyOneUpload() {
-
         // Select some test inputs
         final long targetId = 9999L;
         final SDKProbeType probeType = SDKProbeType.AZURE_BILLING;
@@ -807,17 +797,8 @@ public class BilledCloudCostUploaderTest {
 
         // On the first upload, call the real method, but on the next upload, emit an error
         when(billedCostServiceSpy.uploadBilledCloudCost(any())).thenCallRealMethod()
-                .thenAnswer(uploadInvocation -> {
-                    final TestResponseHandler responseHandler = Mockito.spy(
-                            new TestResponseHandler(billedCostServiceSpy,
-                                    uploadInvocation.getArgumentAt(0, StreamObserver.class)));
-                    doAnswer(onNextInvocation -> {
-                        responseHandler.responseObserver.onError(
-                                Status.INTERNAL.withDescription("Remote error").asException());
-                        return null;
-                    }).when(responseHandler).onNext(any());
-                    return responseHandler;
-                });
+                .thenAnswer(uploadInvocation -> new TestResponseHandler(billedCostServiceSpy,
+                        uploadInvocation.getArgumentAt(0, StreamObserver.class), true));
 
         billedCloudCostUploader.processUploadQueue(stitchingContext);
 
@@ -1152,6 +1133,8 @@ public class BilledCloudCostUploaderTest {
 
         private final StreamObserver<UploadBilledCloudCostResponse> responseObserver;
 
+        private final boolean alwaysThrow;
+
         /**
          * Constructor for {@link TestResponseHandler}.
          *
@@ -1159,13 +1142,28 @@ public class BilledCloudCostUploaderTest {
          * @param responseObserver response acceptor
          */
         TestResponseHandler(final TestBilledCostRpcService testBilledCostRpcService,
-                final StreamObserver<UploadBilledCloudCostResponse> responseObserver) {
+                final StreamObserver<UploadBilledCloudCostResponse> responseObserver, final boolean alwaysThrow) {
             this.testBilledCostRpcService = testBilledCostRpcService;
             this.responseObserver = responseObserver;
+            this.alwaysThrow = alwaysThrow;
+        }
+
+        /**
+         * Constructor for a {@link TestResponseHandler} emits and error on every onNext() call.
+         * @param testBilledCostRpcService rpc service
+         * @param responseObserver response acceptor
+         */
+        TestResponseHandler(final TestBilledCostRpcService testBilledCostRpcService,
+                final StreamObserver<UploadBilledCloudCostResponse> responseObserver) {
+            this(testBilledCostRpcService, responseObserver, false);
         }
 
         @Override
         public void onNext(final UploadBilledCloudCostRequest request) {
+            if (alwaysThrow) {
+                responseObserver.onError(Status.INTERNAL.withDescription("Remote error").asException());
+                return;
+            }
             testBilledCostRpcService.requests.add(request);
         }
 
