@@ -10,22 +10,22 @@
     <packaging>pom</packaging>
 
     <properties>
-        <revision>8.7.2-SNAPSHOT</revision>
+        <revision>8.7.3-SNAPSHOT</revision>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
-        <vmturbo.mt.branch.version>8.7.2-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>8.7.3-SNAPSHOT</vmturbo.mt.branch.version>
 
         <!-- Version from the APM PRobes Repository (Newrelic, AppInsights) -->
-        <apm.probes.branch.version>8.7.2-SNAPSHOT</apm.probes.branch.version>
+        <apm.probes.branch.version>8.7.3-SNAPSHOT</apm.probes.branch.version>
 
         <!-- MT Version com.vmturbo.ux -->
-        <ux.mt.branch.version>8.7.2-SNAPSHOT</ux.mt.branch.version>
+        <ux.mt.branch.version>8.7.3-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.3.68</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.3.70-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.5.7</cpu.capacity.version>
