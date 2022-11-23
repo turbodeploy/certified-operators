@@ -50,7 +50,12 @@
             <artifactId>com.vmturbo.mediation.azure</artifactId>
             <version>${revision}</version>
         </dependency>
-
+        <dependency>
+            <!-- https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-31684 -->
+            <groupId>io.projectreactor.netty</groupId>
+            <artifactId>reactor-netty-http</artifactId>
+            <version>1.0.24</version>
+        </dependency>
         <!-- com.microsoft.azure:azure brings in com.fasterxml.woodstox:woodstox-core as a compile dependency.
         Anything older than 6.4.0 is vulnerable. Unfortunately, azure does not provide a version
         with this transitive dependency upgraded. As a result we override the dependency with a safe version.
