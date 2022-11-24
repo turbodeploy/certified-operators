@@ -175,6 +175,7 @@ public class SharedStorageIntegrationTest {
         when(probeStore.getProbeIdForType(SDKProbeType.AWS.getProbeType())).thenReturn(Optional.empty());
         when(probeStore.getProbeIdForType(SDKProbeType.AZURE.getProbeType())).thenReturn(Optional.empty());
         when(probeStore.getProbeIdForType(SDKProbeType.AZURE_INFRA.getProbeType())).thenReturn(Optional.empty());
+        when(probeStore.getProbeIdForType(SDKProbeType.GCP_INFRA.getProbeType())).thenReturn(Optional.empty());
         when(probeStore.getProbeIdForType(SDKProbeType.GCP_PROJECT.getProbeType())).thenReturn(Optional.empty());
         when(probeStore.getProbeIdForType(SDKProbeType.VMWARE_HORIZON_VIEW.getProbeType())).thenReturn(Optional.empty());
         when(targetStore.getProbeTargets(eq(5678L))).thenReturn(Arrays.asList(targetA, targetB));
