@@ -92,7 +92,6 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterialInfo;
-import com.vmturbo.components.common.featureflags.FeatureFlags;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -3459,8 +3458,7 @@ public class TopologyConverter {
                             entityForSL.getOid(), topologyEntity.getDisplayName());
                     continue;
                 }
-                if (FeatureFlags.ENABLE_RECONFIGURE_ACTION_FOR_NOTREADY_NODE.isEnabled()
-                        && createSpecialShoppingList(entityForSL, commBoughtGrouping, shoppingLists)) {
+                if (createSpecialShoppingList(entityForSL, commBoughtGrouping, shoppingLists)) {
                     continue;
                 }
                 shoppingLists.add(createGenericShoppingList(entityForSL, topologyEntity, entityForSL.getEntityType(),
