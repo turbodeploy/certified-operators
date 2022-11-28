@@ -1941,6 +1941,13 @@
                     <groupId>com.spotify</groupId>
                     <artifactId>docker-maven-plugin</artifactId>
                     <version>${docker.maven.plugin.version}</version>
+                    <dependencies>
+                        <dependency>
+                            <groupId>com.github.jnr</groupId>
+                            <artifactId>jnr-unixsocket</artifactId>
+                            <version>0.38.14</version>
+                        </dependency>
+                    </dependencies>
                 </plugin>
                 <plugin>
                     <groupId>com.coderplus.maven.plugins</groupId>
