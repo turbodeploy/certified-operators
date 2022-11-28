@@ -126,6 +126,9 @@ topics:
   - topic: volume-notifications
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
+  - topic: application-service-history-notification
+    properties:
+      retention.ms: 86400000 # 86400k ms = 24 hr
     # This topic in intended for internal use and not exposed to customers directly. A public API
     # endpoint will allow customers to obtain the contents indirectly.
   - topic: telemetry

@@ -184,7 +184,7 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
             case SearchableProperties.ASSOCIATED_TARGET_ID:
                 return PropertyFilter.typeSpecificFilter(
                         BusinessAccountProps::hasAssociatedTargetId, BusinessAccountProps.class);
-            case SearchableProperties.VIRTUAL_MACHINE_SPEC_SERVICE_APP_COUNT:
+            case SearchableProperties.VIRTUAL_MACHINE_SPEC_APP_COUNT:
                 IntPredicate predicate = intPredicate(numericCriteria);
                 return PropertyFilter.typeSpecificFilter(virtualMachineSpecProps -> predicate.test(virtualMachineSpecProps.getAppCount()), VirtualMachineSpecProps.class);
             default:
@@ -790,6 +790,32 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                     default:
                         throw new IllegalArgumentException("Unknown property: " +
                             filter.getPropertyName() + " on " + propertyName);
+                }
+            case SearchableProperties.APP_SVC_INFO_REPO_DTO:
+                filters = objectCriteria.getFiltersList();
+                if (filters.size() != 1) {
+                    throw new IllegalArgumentException("Expecting one PropertyFilter for " +
+                            propertyName + ", but got " + filters.size() + ": " + filters);
+                }
+                filter = objectCriteria.getFilters(0);
+                switch (filter.getPropertyName()) {
+                    case SearchableProperties.VIRTUAL_MACHINE_SPEC_DAYS_EMPTY:
+                        if (filter.getPropertyTypeCase() != PropertyTypeCase.NUMERIC_FILTER) {
+                            throw new IllegalArgumentException("Expecting NumericFilter for " +
+                                    filter.getPropertyName() + ", but got " + filter);
+                        }
+                        IntPredicate intPredicate = intPredicate(filter.getNumericFilter());
+                        Predicate<VirtualMachineSpecProps> daysEmptyPredicate = vmSpecProps -> {
+                            if (!vmSpecProps.getDaysEmpty().isPresent()) {
+                                return false;
+                            }
+                            return vmSpecProps.getDaysEmpty().isPresent()
+                                    && intPredicate.test(vmSpecProps.getDaysEmpty().get());
+                        };
+                        return PropertyFilter.typeSpecificFilter(daysEmptyPredicate, VirtualMachineSpecProps.class);
+                    default:
+                        throw new IllegalArgumentException("Unknown property: " +
+                                filter.getPropertyName() + " on " + propertyName);
                 }
             case SearchableProperties.WC_INFO_REPO_DTO_PROPERTY_NAME:
                 return workloadControllerObjectFilter(propertyName, objectCriteria);

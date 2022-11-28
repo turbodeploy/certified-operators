@@ -46,6 +46,7 @@ import com.vmturbo.history.ingesters.common.ImmutableTopologyIngesterConfig;
 import com.vmturbo.history.ingesters.common.TopologyIngesterConfig;
 import com.vmturbo.history.ingesters.live.ProjectedRealtimeTopologyIngester;
 import com.vmturbo.history.ingesters.live.SourceRealtimeTopologyIngester;
+import com.vmturbo.history.ingesters.live.writers.ApplicationServiceDaysEmptyWriter;
 import com.vmturbo.history.ingesters.live.writers.ClusterStatsWriter;
 import com.vmturbo.history.ingesters.live.writers.EntitiesWriter;
 import com.vmturbo.history.ingesters.live.writers.EntityStatsWriter;
@@ -130,6 +131,9 @@ public class IngestersConfig {
 
     @Value("${ingest.volumeAttachmentHistoryIntervalBetweenInsertsInHours:6}")
     private long volumeAttachmentHistoryIntervalBetweenInsertsInHours;
+
+    @Value("${ingest.appServiceDaysEmptyUpdateIntervalInMinutes:360}")
+    private long appServiceDaysEmptyUpdateIntervalInMinutes;
 
     // T(fqcn) in SpEL evaluates to a class object, which permits invoking static methods
     @Value("#{T(java.time.Duration).parse('${retentionUpdateInterval:PT1H}')}")
@@ -314,7 +318,14 @@ public class IngestersConfig {
                                     groupServiceBlockingStub()
                             ),
                             new VolumeAttachmentHistoryWriter.Factory(
-                                volumeAttachmentHistoryIntervalBetweenInsertsInHours, apiConfig.historyVolumeNotificationSender())
+                                volumeAttachmentHistoryIntervalBetweenInsertsInHours,
+                                    apiConfig.historyVolumeNotificationSender()
+                            ),
+                            new ApplicationServiceDaysEmptyWriter.Factory(
+                                    appServiceDaysEmptyUpdateIntervalInMinutes,
+                                    apiConfig.appServiceHistorySender(),
+                                    dbAccessConfig.dsl()
+                            )
                     ),
                     ingesterConfig(TopologyIngesterType.sourceRealtime),
                     bulkLoaderFactorySupplier()

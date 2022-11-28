@@ -1,10 +1,13 @@
 package com.vmturbo.history.component.api.impl;
 
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.common.protobuf.history.VolAttachmentHistoryOuterClass;
@@ -18,10 +21,11 @@ import com.vmturbo.history.component.api.HistoryNotificationListener;
 public class HistoryComponentImpl extends
         MulticastNotificationReceiver<VolAttachmentHistoryOuterClass.VolAttachmentHistory, HistoryNotificationListener> implements HistoryComponent {
 
+    private static final Logger logger = LogManager.getLogger();
     /**
      * Kafka topic to receive history notification messages (volume unattachedDays updates).
      */
-public static final String HISTORY_VOL_NOTIFICATIONS = "volume-notifications";
+    public static final String HISTORY_VOL_NOTIFICATIONS = "volume-notifications";
 
     /**
      * The constructor of the cost component message receiver.
@@ -35,7 +39,18 @@ public static final String HISTORY_VOL_NOTIFICATIONS = "volume-notifications";
             @Nullable final IMessageReceiver<VolAttachmentHistoryOuterClass.VolAttachmentHistory> historyNotificationMessageReceiver,
             @Nonnull final ExecutorService executorService, int kafkaReceiverTimeoutSeconds) {
         super(historyNotificationMessageReceiver, executorService, kafkaReceiverTimeoutSeconds,
-                msg -> listener -> listener.onHistoryNotificationReceived(msg));
+                msg -> routeMessage(msg));
+    }
+
+    private static Consumer<HistoryNotificationListener> routeMessage(
+            @Nonnull final VolAttachmentHistoryOuterClass.VolAttachmentHistory msg) {
+        return listener -> {
+            logger.info("Invoking HistoryNotificationListener listener, "
+                            + "listener={} lastAttachedMapSize={}, topologyId={}",
+                    listener.getClass().getSimpleName(), msg.getVolIdToLastAttachedDateMap().size(),
+                    msg.getTopologyId());
+            listener.onHistoryNotificationReceived(msg);
+        };
     }
 
     @Override

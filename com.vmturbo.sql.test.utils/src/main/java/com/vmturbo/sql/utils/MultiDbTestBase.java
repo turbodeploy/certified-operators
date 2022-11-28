@@ -2,12 +2,15 @@ package com.vmturbo.sql.utils;
 
 import static org.mockito.Mockito.mock;
 
+import java.lang.reflect.Field;
 import java.sql.SQLException;
 import java.util.function.Function;
 
 import javax.annotation.Nullable;
 import javax.sql.DataSource;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
 import org.jooq.Schema;
@@ -34,6 +37,8 @@ import com.vmturbo.test.utils.FeatureFlagTestRule;
  */
 public class MultiDbTestBase {
 
+    private static final Logger logger = LogManager.getLogger();
+
     // individual parameter sets for legacy, updated/MARIADB, and updated/POSTGRES scenarios
     protected static final Object[] LEGACY_MARIADB_PARAMS =
             new Object[]{false, SQLDialect.MARIADB};
@@ -51,6 +56,14 @@ public class MultiDbTestBase {
             LEGACY_MARIADB_PARAMS, DBENDPOINT_MARIADB_PARAMS};
     protected static final Object[][] POSTGRES_CONVERTED_PARAMS = new Object[][]{
             LEGACY_MARIADB_PARAMS, DBENDPOINT_MARIADB_PARAMS, DBENDPOINT_POSTGRES_PARAMS};
+
+    // Developer override param options
+    protected static final Object[][] LEGACY_MARIADB_ONLY_PARAMS = new Object[][]{
+            LEGACY_MARIADB_PARAMS};
+    protected static final Object[][] MARIADB_ONLY_PARAMS = new Object[][]{
+            DBENDPOINT_MARIADB_PARAMS};
+    protected static final Object[][] POSTGRES_ONLY_PARAMS = new Object[][]{
+            DBENDPOINT_POSTGRES_PARAMS};
 
     protected final FeatureFlagTestRule featureFlagTestRule;
     private final DbConfigurationRule dbConfigurationRule;
@@ -70,6 +83,34 @@ public class MultiDbTestBase {
     protected FeatureFlagTestRule featureFlagTestRule(boolean configurableDbDialect) {
         return configurableDbDialect ? new FeatureFlagTestRule(FeatureFlags.POSTGRES_PRIMARY_DB)
                                      : new FeatureFlagTestRule();
+    }
+
+    /**
+     * By default a MultiDbTestBase test will run once for each DB specified in the parameter array.
+     * Developers can set the 'MultiDbTestParams' system property to override the default value of
+     * POSTGRES_CONVERTED_PARAMS which specifies 1. legacy mariaDB, 2. dbendpoint mariadb, and
+     * 3. dbendpoint postgres.  For example, set -DMultiDbTestParams=LEGACY_MARIADB_ONLY_PARAMS to
+     * run the test once accessing mariaDB with SQLDatabaseConfig, or set as
+     * -DMultiDbTestParams=MARIADB_ONLY_PARAMS to run the test once accessing mariadb
+     * using DbEndpoint, or as DMultiDbTestParams=POSTGRES_ONLY_PARAMS to run the test once
+     * using postgres.
+     *
+     * @return the Junit parameters that determine what DBs are tested.
+     */
+    protected static Object[][] getParameters() {
+        String paramsProp = System.getProperty("MultiDbTestParams");
+        if (paramsProp != null && !paramsProp.isEmpty()) {
+            try {
+                Field field = MultiDbTestBase.class.getDeclaredField(paramsProp.trim());
+                Object[][] params = (Object[][])field.get(new Object[0][0]);
+                logger.info("Using MultiDbTestBase parameter override: {}", paramsProp);
+                return params;
+            } catch (Exception e) {
+                throw new IllegalStateException("Invalid MultiDbTestParams value: " + paramsProp
+                        + ", no Object[][] field found with that name");
+            }
+        }
+        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
     }
 
     /**

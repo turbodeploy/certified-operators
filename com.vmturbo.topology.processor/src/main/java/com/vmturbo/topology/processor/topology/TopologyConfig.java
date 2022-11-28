@@ -37,6 +37,7 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicySca
 import com.vmturbo.topology.processor.historical.HistoricalUtilizationDatabase;
 import com.vmturbo.topology.processor.history.HistoryAggregationConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
+import com.vmturbo.topology.processor.listeners.TpAppSvcHistoryListener;
 import com.vmturbo.topology.processor.ncm.MatrixConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.planexport.PlanDestinationConfig;
@@ -305,7 +306,8 @@ public class TopologyConfig {
                 entityConfig.entityCustomTagsMerger(groupConfig.entityCustomTagsService()),
                 staleDataManager(),
                 supplyChainValidationFrequency,
-                historyVolumeListener()
+                historyVolumeListener(),
+                appServiceHistoryListener()
         );
     }
 
@@ -379,6 +381,18 @@ public class TopologyConfig {
         final HistoryVolumesListener listener = new HistoryVolumesListener();
         historyClientConfig.histComponent(HistorySubscription.forTopic(HistorySubscription.Topic.HISTORY_VOL_NOTIFICATION))
                 .addVolumeHistoryNotificationListener(listener);
+        return listener;
+    }
+
+    /**
+     * Used to create listener for history.
+     *
+     * @return history volumes listener.
+     */
+    @Bean
+    public TpAppSvcHistoryListener appServiceHistoryListener() {
+        final TpAppSvcHistoryListener listener = new TpAppSvcHistoryListener();
+        historyClientConfig.appServiceHistoryNotificationReceiver().addListener(listener);
         return listener;
     }
 
