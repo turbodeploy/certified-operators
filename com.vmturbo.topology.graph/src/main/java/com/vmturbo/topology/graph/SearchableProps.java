@@ -415,6 +415,13 @@ public interface SearchableProps {
          */
 
         Integer getAppCount();
+
+        /**
+         * Get the number of days empty, meaning number of days hosting 0 apps.
+         *
+         * @return The number of days empty
+         */
+        Optional<Integer> getDaysEmpty();
     }
 
     /**

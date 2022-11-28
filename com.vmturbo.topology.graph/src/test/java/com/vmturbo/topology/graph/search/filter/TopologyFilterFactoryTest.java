@@ -788,7 +788,7 @@ public class TopologyFilterFactoryTest {
 
     @Test
     public void testSearchFilterAppCount() {
-        checkObjectIntegerFilterForVirtualMachineSpecs(ApplicationServiceInfo.Builder::setAppCount, SearchableProperties.VIRTUAL_MACHINE_SPEC_SERVICE_APP_COUNT);
+        checkObjectIntegerFilterForVirtualMachineSpecs(ApplicationServiceInfo.Builder::setAppCount, SearchableProperties.VIRTUAL_MACHINE_SPEC_APP_COUNT);
     }
 
     private void checkObjectIntegerFilter(

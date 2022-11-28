@@ -252,6 +252,11 @@ public class DbMock {
         }
 
         private List<Object> getKey(TableRecord record) {
+            if (!keyFields.containsKey(record.getTable())) {
+                throw new IllegalStateException("Unsupported table: "
+                        + record.getTable().getName() + ", "
+                        + "call setTableKeys to set the primary keys for your table");
+            }
             final List<Field<?>> fields = keyFields.get(record.getTable());
             return fields.stream()
                     .map(record::getValue)

@@ -1,10 +1,16 @@
 package com.vmturbo.history.listeners;
 
+import static com.vmturbo.history.listeners.RollupProcessor.APP_SVC_DAYS_EMPTY_RETENTION_PERIOD;
 import static com.vmturbo.history.listeners.RollupProcessor.VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.mock;
 
 import java.sql.Date;
 import java.sql.SQLException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -28,13 +34,16 @@ import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
 import com.vmturbo.history.db.RetentionPolicy;
 import com.vmturbo.history.db.TestHistoryDbEndpointConfig;
 import com.vmturbo.history.db.bulk.BulkInserterConfig;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
+import com.vmturbo.history.ingesters.live.writers.ApplicationServiceDaysEmptyWriterMultiDbTest.ApplicationServiceDaysEmptyDbHelper;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.schema.abstraction.tables.VolumeAttachmentHistory;
+import com.vmturbo.history.schema.abstraction.tables.records.ApplicationServiceDaysEmptyRecord;
 import com.vmturbo.history.stats.readers.VolumeAttachmentHistoryReader;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.MultiDbTestBase;
@@ -52,7 +61,7 @@ public class RollupProcessorTest extends MultiDbTestBase {
      */
     @Parameters
     public static Object[][] parameters() {
-        return MultiDbTestBase.POSTGRES_CONVERTED_PARAMS;
+        return getParameters();
     }
 
     private final DSLContext dsl;
@@ -242,5 +251,37 @@ public class RollupProcessorTest extends MultiDbTestBase {
                 .values(volumeOid, vmOid, new Date(lastAttachedTime),
                         new Date(lastDiscoveredTime))
                 .execute();
+    }
+
+
+    /**
+     * Test that retention processing removes the expired records from the
+     * app service days empty table.
+     *
+     * @throws DataAccessException if error encountered during deletion.
+     */
+    @Test
+    public void testPurgeExpiredAppSvcDaysEmptyRecords() throws DataAccessException {
+        ApplicationServiceDaysEmptyDbHelper dbHelper = new ApplicationServiceDaysEmptyDbHelper(dsl);
+        final ApplicationServiceDaysEmptyRecord inside = dbHelper.newAppSvcDaysEmptyRecord(1L,
+                "insideRetPeriod",
+                Instant.now().minus(APP_SVC_DAYS_EMPTY_RETENTION_PERIOD - 1, ChronoUnit.DAYS));
+        final ApplicationServiceDaysEmptyRecord outside = dbHelper.newAppSvcDaysEmptyRecord(2L,
+                "outsideRetPeriod",
+                Instant.now().minus(APP_SVC_DAYS_EMPTY_RETENTION_PERIOD + 1, ChronoUnit.DAYS));
+        dsl.batchStore(Arrays.asList(inside, outside)).execute();
+        List<ApplicationServiceDaysEmptyRecord> records = dbHelper.selectAllDaysEmptyRecords();
+        assertThat(records.size(), equalTo(2));
+
+        // delete expired records
+        final MultiStageTimer timer = new MultiStageTimer(LogManager.getLogger());
+        int deletionCount = rollupProcessor.purgeExpiredAppServiceDaysEmptyRecords(timer);
+        timer.info("testPurgeExpiredAppSvcDaysEmptyRecords", Detail.STAGE_DETAIL);
+
+        // only the outside record should have been deleted
+        assertThat(deletionCount, equalTo(1));
+        List<ApplicationServiceDaysEmptyRecord> resultsAfterPurge = dbHelper.selectDaysEmptyRecords(inside.getId(), outside.getId());
+        assertThat(resultsAfterPurge.size(), equalTo(1));
+        assertThat(resultsAfterPurge.stream().findFirst().get().getId(), equalTo(inside.getId()));
     }
 }

@@ -31,3 +31,20 @@ message HistoryComponentNotification {
     }
 }
 
+// app service plan days empty notification
+message ApplicationServiceHistoryNotification  {
+
+    enum Type {
+        DAYS_EMPTY = 1;
+    }
+
+    optional Type type = 1;
+    optional int64 topology_id = 2;
+    repeated DaysEmptyInfo days_empty_info = 3;
+
+    message DaysEmptyInfo {
+        required int64 app_svc_oid = 1;
+        optional string app_svc_name = 2;
+        optional int64 first_discovered_time = 4;
+    }
+}

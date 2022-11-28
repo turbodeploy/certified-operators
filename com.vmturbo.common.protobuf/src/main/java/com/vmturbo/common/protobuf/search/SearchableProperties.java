@@ -252,9 +252,19 @@ public class SearchableProperties {
     public static final String VIRTUAL_MACHINE_SPEC_SERVICE_TIER = "tier";
 
     /**
-     * Virtual Machine Spec Service App Count.
+     * Virtual Machine Spec App Count.
      */
-    public static final String VIRTUAL_MACHINE_SPEC_SERVICE_APP_COUNT = "appCount";
+    public static final String VIRTUAL_MACHINE_SPEC_APP_COUNT = "appCount";
+
+    /**
+     * Virtual Machine Spec Days Empty.
+     */
+    public static final String VIRTUAL_MACHINE_SPEC_DAYS_EMPTY = "daysEmpty";
+
+    /**
+     * Property name for DTO containing application service information.
+     */
+    public static final String APP_SVC_INFO_REPO_DTO = "appServiceInfoRepoDTO";
 
     /**
      * Info about a VM, Whether it belongs to an azure VDI instance or not.

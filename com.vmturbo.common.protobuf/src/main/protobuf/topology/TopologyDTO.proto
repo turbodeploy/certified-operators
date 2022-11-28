@@ -81,6 +81,8 @@ message TypeSpecificInfo {
         optional int32 app_count = 5;
         // Whether or not the app service is zone redundant
         optional bool zone_redundant = 6;
+        // Number of days the app service has had no apps.
+        optional int32 days_empty = 7;
 
         enum Platform {
             UNKNOWN = 0;

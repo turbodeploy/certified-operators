@@ -62,6 +62,7 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.listeners.HistoryVolumesListener;
+import com.vmturbo.topology.processor.listeners.TpAppSvcHistoryListener;
 import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
@@ -119,6 +120,7 @@ public class TopologyPipelineFactoryTest {
     private EnvironmentTypeInjector environmentTypeInjector;
     private PolicyManager policyManager;
     private HistoryVolumesListener historyVolumesListener;
+    private TpAppSvcHistoryListener appSvcHistoryListener;
     private EntitySettingsResolver entitySettingsResolver;
     private TopoBroadcastManager topoBroadcastManager;
     private StitchingContext stitchingContext;
@@ -160,6 +162,7 @@ public class TopologyPipelineFactoryTest {
         mockEnvironmentInjector();
         mockPolicyManager();
         mockHistoryVolumesListener();
+        mockTpAppSvcDaysEmptyListener();
         mockEntitySettingsResolver();
         mockBroadcastManager();
         mockReservationManager();
@@ -204,6 +207,11 @@ public class TopologyPipelineFactoryTest {
     private void mockHistoryVolumesListener() {
         historyVolumesListener = mock(HistoryVolumesListener.class);
         when(historyVolumesListener.getVolIdToLastAttachmentTime()).thenReturn(new HashMap<>());
+    }
+
+    private void mockTpAppSvcDaysEmptyListener() {
+        appSvcHistoryListener = mock(TpAppSvcHistoryListener.class);
+        when(appSvcHistoryListener.getDaysEmptyInfosByAppSvc()).thenReturn(new HashMap<>());
     }
 
     private void mockEntitySettingsResolver() {
@@ -350,7 +358,8 @@ public class TopologyPipelineFactoryTest {
             mock(EntityCustomTagsMerger.class),
             stalenessInformationProvider,
             10,
-            historyVolumesListener);
+            historyVolumesListener,
+            appSvcHistoryListener);
     }
 
     private PlanPipelineFactory planPipelineFactory() {

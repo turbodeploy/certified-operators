@@ -446,7 +446,8 @@
         {"inputType": "*", "elements": "Region:displayName:AGGREGATES:VirtualMachineSpec", "filterCategory": "entity", "filterType": "virtualMachineSpecsByRegionName"},
         {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "virtualMachineSpecsByResourceGroup", "loadOptions": true},
         {"inputType": "s", "elements": "ComputeTier:oid:PRODUCES:1", "filterCategory": "entity", "filterType": "virtualMachineSpecsByComputeTier", "loadOptions": true},
-        {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "virtualMachineSpecsByTag", "loadOptions": true}
+        {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "virtualMachineSpecsByTag", "loadOptions": true},
+        {"inputType": "#", "elements": "appServiceInfoRepoDTO.daysEmpty", "filterCategory": "property", "filterType": "virtualMachineSpecsByNumDaysEmpty"}
     ]
   },
 

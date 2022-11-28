@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -12,6 +13,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -23,6 +25,8 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.AbstractMessage;
 
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.ApplicationServiceInfoImpl;
+import com.vmturbo.history.component.api.HistoryComponentNotifications.ApplicationServiceHistoryNotification.DaysEmptyInfo;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.listeners.HistoryVolumesListener;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
@@ -114,6 +118,7 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.group.settings.SettingPolicyEditor;
+import com.vmturbo.topology.processor.listeners.TpAppSvcHistoryListener;
 import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
 import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.reservation.GenerateConstraintMap;
@@ -879,6 +884,61 @@ public class Stages {
                 }
             });
             return Status.success("Updated volume Unattached Days");
+        }
+    }
+
+    /**
+     * Stage which updates the number of days empty for VirtualMachineSpecs in the live topology.
+     */
+    public static class UpdateAppServiceDaysEmptyStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
+
+        private final Map<Long, DaysEmptyInfo> daysEmptyInfoMap;
+
+        public UpdateAppServiceDaysEmptyStage(@Nonnull final TpAppSvcHistoryListener appSvcHistoryListener) {
+            daysEmptyInfoMap = appSvcHistoryListener.getDaysEmptyInfosByAppSvc();
+        }
+
+        @NotNull
+        @Override
+        public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph)
+                throws PipelineStageException, InterruptedException {
+            if (daysEmptyInfoMap.size() == 0) {
+                return Status.success("No empty app services found for days empty update");
+            }
+            logger.info("Found empty app services for days empty update, count={}",
+                    daysEmptyInfoMap.size());
+            final long currentTime = System.currentTimeMillis();
+            final AtomicInteger emptyAspsUpdated = new AtomicInteger(0);
+            final List<String> entsFromDbNotInTopology = logger.isDebugEnabled() ? new ArrayList<>() : null;
+            daysEmptyInfoMap.forEach((entityOid, daysEmptyInfo) -> {
+                final Optional<TopologyEntity> entityOptional = topologyGraph.getEntity(entityOid);
+                if (entityOptional.isPresent()) {
+                    final TopologyEntityImpl entityBuilder = entityOptional.get().getTopologyEntityImpl();
+                    final ApplicationServiceInfoImpl appSvcInfo = entityBuilder.getOrCreateTypeSpecificInfo()
+                            .getOrCreateApplicationService();
+                    long firstDiscoveredEmpty = daysEmptyInfo.getFirstDiscoveredTime();
+                    if (currentTime > firstDiscoveredEmpty) {
+                        int days = (int)TimeUnit.MILLISECONDS.toDays(currentTime - firstDiscoveredEmpty);
+                        appSvcInfo.setDaysEmpty(days);
+                        emptyAspsUpdated.incrementAndGet();
+                    }
+                } else {
+                    // This can happen when empty app services are deleted from the cloud provider/topology
+                    // but not yet aged out of the days empty DB.
+                    if (entsFromDbNotInTopology != null) {
+                        entsFromDbNotInTopology.add(String.format("{}::{}",
+                                daysEmptyInfo.getAppSvcOid(), daysEmptyInfo.getAppSvcName()));
+                    }
+                }
+            });
+            if (entsFromDbNotInTopology != null) {
+                logger.debug("The following entities from the days empty DB are no longer "
+                        + "in the topology:\n{}", entsFromDbNotInTopology);
+            }
+            String msg = String.format("Updated days empty for application services, count={}",
+                    emptyAspsUpdated.get());
+            logger.info(msg);
+            return Status.success(msg);
         }
     }
 

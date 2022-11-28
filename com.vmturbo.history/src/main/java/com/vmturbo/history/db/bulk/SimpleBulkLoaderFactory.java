@@ -3,6 +3,7 @@ package com.vmturbo.history.db.bulk;
 import static com.vmturbo.history.db.bulk.DbInserters.excludeFieldsUpserter;
 import static com.vmturbo.history.db.bulk.DbInserters.simpleUpserter;
 import static com.vmturbo.history.db.bulk.DbInserters.valuesInserter;
+import static com.vmturbo.history.schema.abstraction.Tables.APPLICATION_SERVICE_DAYS_EMPTY;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.ENTITIES;
 import static com.vmturbo.history.schema.abstraction.Tables.HIST_UTILIZATION;
@@ -246,7 +247,8 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
             // Entities table uses upserts so that previously existing entities get any changes
             // to display name that show up in the topology.
             return simpleUpserter();
-        } else if (VOLUME_ATTACHMENT_HISTORY.equals(table)) {
+        } else if (VOLUME_ATTACHMENT_HISTORY.equals(table)
+                || APPLICATION_SERVICE_DAYS_EMPTY.equals(table)) {
             return excludeFieldsUpserter(fieldsToExclude);
         } else {
             // nothing else currently using bulk loader should ever have a primary key collision,

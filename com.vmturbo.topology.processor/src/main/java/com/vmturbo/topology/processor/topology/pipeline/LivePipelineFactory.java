@@ -38,6 +38,7 @@ import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
+import com.vmturbo.topology.processor.listeners.TpAppSvcHistoryListener;
 import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.staledata.StalenessInformationProvider;
@@ -85,6 +86,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingGroupAna
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SupplyChainValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopSortStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.UpdateAppServiceDaysEmptyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadBilledCloudCostDataStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.VolumesDaysUnAttachedCalcStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadActionConstraintsStage;
@@ -187,6 +189,8 @@ public class LivePipelineFactory {
 
     private final HistoryVolumesListener histListener;
 
+    private final TpAppSvcHistoryListener appSvcHistoryListener;
+
     public LivePipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
             @Nonnull final PolicyManager policyManager,
             @Nonnull final StitchingManager stitchingManager,
@@ -225,7 +229,8 @@ public class LivePipelineFactory {
             @Nonnull final EntityCustomTagsMerger entityCustomTagsMerger,
             @Nonnull StalenessInformationProvider stalenessProvider,
             final int supplyChainValidationFrequency,
-            final HistoryVolumesListener histListener) {
+            final HistoryVolumesListener histListener,
+            final TpAppSvcHistoryListener appSvcHistoryListener) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -265,6 +270,7 @@ public class LivePipelineFactory {
         this.entityCustomTagsMerger = entityCustomTagsMerger;
         this.stalenessProvider = stalenessProvider;
         this.histListener = histListener;
+        this.appSvcHistoryListener = appSvcHistoryListener;
     }
 
     /**
@@ -372,6 +378,7 @@ public class LivePipelineFactory {
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
                 .addStage(new EnvironmentTypeStage(environmentTypeInjector))
                 .addStage(new VolumesDaysUnAttachedCalcStage(histListener))
+                .addStage(new UpdateAppServiceDaysEmptyStage(appSvcHistoryListener))
                 .addStage(SegmentDefinition
                     .addStage(new PolicyStage(policyManager))
                     .addStage(new GenerateConstraintMapStage(policyManager, groupServiceClient, reservationService))

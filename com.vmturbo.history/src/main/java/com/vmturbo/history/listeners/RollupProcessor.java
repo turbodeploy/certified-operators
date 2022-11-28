@@ -1,5 +1,6 @@
 package com.vmturbo.history.listeners;
 
+import static com.vmturbo.history.schema.abstraction.Tables.APPLICATION_SERVICE_DAYS_EMPTY;
 import static com.vmturbo.history.schema.abstraction.Tables.AVAILABLE_TIMESTAMPS;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_HOUR;
@@ -86,6 +87,7 @@ import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.RetentionUtil;
 import com.vmturbo.history.schema.abstraction.Routines;
 import com.vmturbo.history.schema.abstraction.routines.MarketAggregate;
+import com.vmturbo.history.schema.abstraction.tables.ApplicationServiceDaysEmpty;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsByDay;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsByHour;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsByMonth;
@@ -115,7 +117,16 @@ public class RollupProcessor {
      * have been deleted from the environment.
      */
     public static final int VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD = 14;
+    /**
+     * application_service_days_empty
+     * If the duration between the last discovered date and the current time for a row in the table
+     * is greater than the retention period, the row will be deleted. This condition means that
+     * the application service entity has not been discovered during the retention period and
+     * most likely has been deleted from the environment.
+     */
+    public static final int APP_SVC_DAYS_EMPTY_RETENTION_PERIOD = 14;
     private static final int MISSING_RECORD_COUNT = 1_000_000;
+    private static final ApplicationServiceDaysEmpty ASDE = APPLICATION_SERVICE_DAYS_EMPTY;
 
     private final ExecutorService executorService;
     private final DSLContext dsl;
@@ -331,6 +342,11 @@ public class RollupProcessor {
         } finally {
             timer.stop();
         }
+        purgeExpiredVolumeAttachmentHistoryRecords(timer);
+        purgeExpiredAppServiceDaysEmptyRecords(timer);
+    }
+
+    private void purgeExpiredVolumeAttachmentHistoryRecords(MultiStageTimer timer) {
         timer.start("Purge expired volume_attachment_history records");
         try {
             final int deletedRowsCount = dsl.delete(VOLUME_ATTACHMENT_HISTORY)
@@ -351,6 +367,33 @@ public class RollupProcessor {
         } finally {
             timer.stop();
         }
+    }
+
+    @VisibleForTesting
+    protected int purgeExpiredAppServiceDaysEmptyRecords(MultiStageTimer timer) {
+        final String tableName = ASDE.getName();
+        timer.start(String.format("Purge expired %s records", tableName));
+        final Timestamp expiredDate = Timestamp.from(
+                Instant.now().minus(APP_SVC_DAYS_EMPTY_RETENTION_PERIOD, ChronoUnit.DAYS)
+        );
+        try {
+            final int deletedRowsCount = dsl.delete(ASDE)
+                    .where(ASDE.ID
+                            .in(dsl.select(ASDE.ID)
+                                    .from(ASDE)
+                                    .where(ASDE.LAST_DISCOVERED.lessThan(expiredDate))))
+                    .execute();
+            if (deletedRowsCount > 0) {
+                logger.info("Number of rows deleted from {} table: {}",
+                        tableName, deletedRowsCount);
+            }
+            return deletedRowsCount;
+        } catch (DataAccessException e) {
+            logger.error(String.format("Failed to delete expired %s records", tableName), e);
+        } finally {
+            timer.stop();
+        }
+        return 0;
     }
 
     /**

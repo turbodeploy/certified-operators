@@ -582,6 +582,7 @@ public class ThinSearchableProps implements SearchableProps {
     public static class ThinVirtualMachineSpecProps extends ThinSearchableProps implements VirtualMachineSpecProps {
         private final String tier;
         private final Integer appCount;
+        private final Integer daysEmpty;
 
         private ThinVirtualMachineSpecProps(@Nonnull final TagIndex tagIndex,
                 @Nonnull final CommodityValueFetcher commodities,
@@ -589,12 +590,12 @@ public class ThinSearchableProps implements SearchableProps {
             super(tagIndex, commodities);
             final TypeSpecificInfo typeSpecificInfo = entityDTO.getTypeSpecificInfo();
             final ApplicationServiceInfo applicationServiceInfo = typeSpecificInfo.getApplicationService();
-
             final boolean hasTier = applicationServiceInfo.hasTier();
             final boolean hasAppCount = applicationServiceInfo.hasAppCount();
-
             tier = hasTier ? applicationServiceInfo.getTier().name() : UNKNOWN;
             appCount = hasAppCount ? applicationServiceInfo.getAppCount() : -1;
+            this.daysEmpty = applicationServiceInfo.hasDaysEmpty()
+                    ? applicationServiceInfo.getDaysEmpty() : null;
         }
 
         @Override
@@ -605,6 +606,12 @@ public class ThinSearchableProps implements SearchableProps {
         @Override
         public Integer getAppCount() {
             return appCount;
+        }
+
+        @Override
+        @Nonnull
+        public Optional<Integer> getDaysEmpty() {
+            return Optional.ofNullable(daysEmpty);
         }
     }
 

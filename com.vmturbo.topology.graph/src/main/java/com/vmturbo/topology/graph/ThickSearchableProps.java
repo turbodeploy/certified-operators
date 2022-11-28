@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldImpl.HotResizeInfoView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.CommoditySoldView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TopologyEntityView;
+import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.ApplicationServiceInfoView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.ServiceInfoView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualMachineInfoView;
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.VirtualVolumeInfoView;
@@ -470,6 +471,15 @@ public class ThickSearchableProps implements SearchableProps {
         public Integer getAppCount() {
             return entity.getTypeSpecificInfo().getApplicationService().getAppCount();
         }
+
+        @Override
+        @Nonnull
+        public Optional<Integer> getDaysEmpty() {
+            ApplicationServiceInfoView appSvcView = entity.getTypeSpecificInfo().getApplicationService();
+            return appSvcView.hasDaysEmpty()
+                    ? Optional.of(appSvcView.getDaysEmpty()) : Optional.empty();
+        }
+
     }
 
     /**

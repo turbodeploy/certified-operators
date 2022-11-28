@@ -23,6 +23,7 @@ import org.springframework.context.annotation.Lazy;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
+import com.vmturbo.history.component.api.HistoryComponentNotifications.ApplicationServiceHistoryNotification;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 
 import javax.annotation.Nonnull;
@@ -66,6 +67,19 @@ public class HistoryClientConfig {
     public HistoryComponentNotificationReceiver historyComponent() {
         return new HistoryComponentNotificationReceiver(historyClientMessageReceiver(),
                 historyClientThreadPool(), kafkaReceiverTimeoutSeconds);
+    }
+
+    @Bean
+    public ApplicationServiceHistoryNotificationReceiver appServiceHistoryNotificationReceiver() {
+        return new ApplicationServiceHistoryNotificationReceiver(appServiceHistoryMessageReceiver(),
+                historyClientThreadPool(), kafkaReceiverTimeoutSeconds);
+    }
+
+    @Bean
+    protected IMessageReceiver<ApplicationServiceHistoryNotification> appServiceHistoryMessageReceiver() {
+        return kafkaConsumerConfig.kafkaConsumer().messageReceiver(
+                ApplicationServiceHistoryNotificationReceiver.NOTIFICATION_TOPIC,
+                ApplicationServiceHistoryNotification::parseFrom);
     }
 
     @Bean(destroyMethod = "shutdownNow")
