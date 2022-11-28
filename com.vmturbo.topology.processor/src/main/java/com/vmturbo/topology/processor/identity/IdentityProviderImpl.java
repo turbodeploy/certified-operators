@@ -412,9 +412,8 @@ public class IdentityProviderImpl implements IdentityProvider {
         // can restore properly.
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
 
-        try {
-            Writer writer = new OutputStreamWriter(new CloseShieldOutputStream(appender),
-                    StandardCharsets.UTF_8);
+        try (Writer writer = new OutputStreamWriter(CloseShieldOutputStream.wrap(appender),
+                    StandardCharsets.UTF_8)) {
             // Synchronize on the probeIdLock so that probes that register
             // during a diags dump don't cause any issues or inconsistencies.
             synchronized (probeIdLock) {
