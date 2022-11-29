@@ -7,6 +7,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentUploadServiceGrpc;
+import com.vmturbo.common.protobuf.cost.AliasedOidsServiceGrpc;
+import com.vmturbo.common.protobuf.cost.AliasedOidsServiceGrpc.AliasedOidsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.BilledCostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BilledCostServiceGrpc.BilledCostServiceStub;
 import com.vmturbo.common.protobuf.cost.BilledCostUploadServiceGrpc;
@@ -76,6 +78,11 @@ public class CloudCostConfig {
     }
 
     @Bean
+    public AliasedOidsServiceBlockingStub aliasedOidsService() {
+        return AliasedOidsServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    @Bean
     public PricingServiceStub priceServiceClient() {
         return PricingServiceGrpc.newStub(costClientConfig.costChannel());
     }
@@ -127,6 +134,11 @@ public class CloudCostConfig {
     @Bean
     public BilledCostUploader billedCostUploader() {
         return new BilledCostUploader(billServiceClient(), maximumUploadBilledCostRequestSizeMB);
+    }
+
+    @Bean
+    public AliasedOidsUploader aliasedOidsUploader() {
+        return new AliasedOidsUploader(aliasedOidsService());
     }
 
     @Bean

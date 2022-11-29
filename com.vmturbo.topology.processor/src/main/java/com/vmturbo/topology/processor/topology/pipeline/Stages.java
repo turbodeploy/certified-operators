@@ -27,6 +27,7 @@ import com.google.protobuf.AbstractMessage;
 
 import com.vmturbo.common.protobuf.topology.TopologyPOJO.TypeSpecificInfoImpl.ApplicationServiceInfoImpl;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.ApplicationServiceHistoryNotification.DaysEmptyInfo;
+import com.vmturbo.topology.processor.cost.AliasedOidsUploader;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.listeners.HistoryVolumesListener;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
@@ -221,6 +222,34 @@ public class Stages {
         public Status passthrough(final StitchingContext context) {
             if (FeatureFlags.PARTITIONED_BILLED_COST_UPLOAD.isEnabled()) {
                 billedCloudCostUploader.processUploadQueue(context);
+            }
+            return Status.success();
+        }
+    }
+
+    public static class UploadAliasedOidsStage extends PassthroughStage<StitchingContext> {
+
+        private final AliasedOidsUploader aliasedOidsUploader;
+
+        public UploadAliasedOidsStage(final AliasedOidsUploader aliasedOidsUploader) {
+            this.aliasedOidsUploader = aliasedOidsUploader;
+        }
+
+        @Nonnull
+        @Override
+        public Status passthrough(final StitchingContext stitchingContext)
+                throws PipelineStageException, InterruptedException {
+            if (FeatureFlags.PARTITIONED_BILLED_COST_UPLOAD.isEnabled()) {
+                final TopologyPipelineContext topologyPipelineContext = getContext();
+                try {
+                    aliasedOidsUploader.uploadOidMapping(topologyPipelineContext, stitchingContext);
+                } catch (final Exception e) {
+                    final TopologyInfo topologyInfo = topologyPipelineContext.getTopologyInfo();
+                    logger.error(
+                            "Exception on uploading aliased OIDs to cost component for topologyId [{}], creationTime [{}].",
+                            topologyInfo.getTopologyId(), topologyInfo.getCreationTime(), e);
+                    return Status.withWarnings(e.getMessage());
+                }
             }
             return Status.success();
         }

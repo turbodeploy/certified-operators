@@ -87,6 +87,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.platform.sdk.common.util.SetOnce;
 import com.vmturbo.proactivesupport.DataMetricGauge;
@@ -98,6 +99,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.S
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ActionRecordNotFoundException;
+import com.vmturbo.topology.processor.cost.AliasedOidsUploader;
 import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
@@ -270,6 +272,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final BilledCloudCostUploader billedCloudCostUploader;
 
+    private final AliasedOidsUploader aliasedOidsUploader;
+
     private DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader;
 
     private final int maxConcurrentTargetDiscoveriesPerProbeCount;
@@ -308,6 +312,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
                             @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
                             @Nonnull final BilledCloudCostUploader billedCloudCostUploader,
+                            @Nonnull final AliasedOidsUploader aliasedOidsUploader,
                             @Nonnull final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader,
                             @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                             @Nonnull final EntityActionDao entityActionDao,
@@ -350,6 +355,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.maxConcurrentTargetIncrementalDiscoveriesPerProbeCount = maxConcurrentTargetIncrementalDiscoveriesPerProbeCount;
         this.discoveredCloudCostUploader = discoveredCloudCostUploader;
         this.billedCloudCostUploader = Objects.requireNonNull(billedCloudCostUploader);
+        this.aliasedOidsUploader = Objects.requireNonNull(aliasedOidsUploader);
         this.probeDiscoveryPermitWaitTimeoutMins = probeDiscoveryPermitWaitTimeoutMins;
         this.probeDiscoveryPermitWaitTimeoutIntervalMins = probeDiscoveryPermitWaitTimeoutIntervalMins;
         this.targetDumpingSettings = targetDumpingSettings;
@@ -1374,6 +1380,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 probe -> Optional.ofNullable(ProbeCategory.create(probe.getProbeCategory())));
         discoveredCloudCostUploader.targetRemoved(targetId, probeCategory);
         billedCloudCostUploader.targetRemoved(targetId);
+        aliasedOidsUploader.removeTarget(targetId);
         discoveredPlanDestinationUploader.targetRemoved(targetId);
     }
 
@@ -1568,10 +1575,20 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                         responseUsed.getPriceTable(),
                                         responseUsed.getCloudBillingDataList());
                                 if (FeatureFlags.PARTITIONED_BILLED_COST_UPLOAD.isEnabled()) {
+                                    final SDKProbeType targetProbeType =
+                                            targetStore.getProbeTypeForTarget(targetId).orElse(
+                                                    null);
                                     billedCloudCostUploader.enqueueTargetBillingData(targetId,
-                                            targetStore.getProbeTypeForTarget(targetId)
-                                                    .orElse(null),
+                                            targetProbeType,
                                             responseUsed.getCloudBillingDataList());
+                                    if (SDKProbeType.AZURE_BILLING.equals(targetProbeType)) {
+                                        aliasedOidsUploader.addBillingTargetId(targetId,
+                                                targetProbeType);
+                                    }
+                                    if (SDKProbeType.AZURE.equals(targetProbeType)) {
+                                        aliasedOidsUploader.addTargetProbeType(targetId,
+                                                targetProbeType);
+                                    }
                                 }
                                 discoveredPlanDestinationUploader.recordPlanDestinations(targetId,
                                     responseUsed.getNonMarketEntityDTOList());
