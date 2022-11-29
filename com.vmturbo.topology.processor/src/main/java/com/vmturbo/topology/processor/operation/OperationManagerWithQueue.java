@@ -26,6 +26,7 @@ import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.communication.queues.IDiscoveryQueueElement;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
+import com.vmturbo.topology.processor.cost.AliasedOidsUploader;
 import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
@@ -73,6 +74,7 @@ public class OperationManagerWithQueue extends OperationManager {
      * @param discoveredGroupUploader DiscoveredGroupUploader where discovered groups go.
      * @param discoveredWorkflowUploader where discovered Workflows go.
      * @param discoveredCloudCostUploader where Cloud Cost goes.
+     * @param aliasedOidsUploader where aliased OIDs mapping goes.
      * @param discoveredPlanDestinationUploader where Plan Destinations data goes.
      * @param discoveredTemplateDeploymentProfileNotifier where discovered templates go.
      * @param entityActionDao where entity actions are persisted.
@@ -101,6 +103,7 @@ public class OperationManagerWithQueue extends OperationManager {
                             @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
                             @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
                             @Nonnull final BilledCloudCostUploader billedCloudCostUploader,
+                            @Nonnull final AliasedOidsUploader aliasedOidsUploader,
                             @Nonnull final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader,
                             @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                             @Nonnull final EntityActionDao entityActionDao,
@@ -120,7 +123,7 @@ public class OperationManagerWithQueue extends OperationManager {
                             final int workflowExecutionTimeoutMillis) {
         super(identityProvider, targetStore, probeStore, remoteMediationServer, operationListener,
                 entityStore, discoveredGroupUploader, discoveredWorkflowUploader,
-                discoveredCloudCostUploader, billedCloudCostUploader,
+                discoveredCloudCostUploader, billedCloudCostUploader, aliasedOidsUploader,
                 discoveredPlanDestinationUploader, discoveredTemplateDeploymentProfileNotifier,
                 entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings,
                 systemNotificationProducer, discoveryTimeoutSeconds, validationTimeoutSeconds,

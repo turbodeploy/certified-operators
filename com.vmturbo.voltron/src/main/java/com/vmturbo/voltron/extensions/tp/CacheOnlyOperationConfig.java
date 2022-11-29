@@ -123,6 +123,7 @@ public class CacheOnlyOperationConfig extends OperationConfig {
                 workflowConfig.discoveredWorkflowUploader(),
                 cloudCostUploaderConfig.discoveredCloudCostUploader(),
                 cloudCostUploaderConfig.billedCloudCostUploader(),
+                cloudCostUploaderConfig.aliasedOidsUploader(),
                 planDestinationConfig.discoveredPlanDestinationUploader(),
                 templateConfig.discoveredTemplatesUploader(),
                 controllableConfig.entityActionDao(),

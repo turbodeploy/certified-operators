@@ -74,6 +74,7 @@ import com.vmturbo.topology.processor.communication.ProbeContainerChooser;
 import com.vmturbo.topology.processor.communication.RemoteMediationServerWithDiscoveryWorkers;
 import com.vmturbo.topology.processor.communication.queues.IDiscoveryQueueElement;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
+import com.vmturbo.topology.processor.cost.AliasedOidsUploader;
 import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
@@ -141,6 +142,7 @@ public class OperationManagerWithQueueTest {
     private final DiscoveredWorkflowUploader discoveredWorkflowUploader = mock(DiscoveredWorkflowUploader.class);
     private final DiscoveredCloudCostUploader discoveredCloudCostUploader = mock(DiscoveredCloudCostUploader.class);
     private final BilledCloudCostUploader billedCloudCostUploader = mock(BilledCloudCostUploader.class);
+    private final AliasedOidsUploader aliasedOidsUploader = mock(AliasedOidsUploader.class);
     private final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader = mock(DiscoveredPlanDestinationUploader.class);
 
     private TrackingOperationListener operationListener = spy(new TrackingOperationListener());
@@ -227,8 +229,8 @@ public class OperationManagerWithQueueTest {
         operationManager = new OperationManagerWithQueue(identityProvider, targetStore,
                 probeStore, remoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
                 discoveredWorkflowUploader, discoveredCloudCostUploader, billedCloudCostUploader,
-                discoveredPlanDestinationUploader, discoveredTemplatesUploader, entityActionDao,
-                derivedTargetParser, groupScopeResolver, targetDumpingSettings,
+                aliasedOidsUploader, discoveredPlanDestinationUploader, discoveredTemplatesUploader,
+                entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings,
                 systemNotificationProducer,
                 discoveryQueue, 10, 10, 10, 10, TheMatrix.instance(), binaryDiscoveryDumper, false,
                 licenseCheckClient, 60000);

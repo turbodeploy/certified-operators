@@ -78,6 +78,7 @@ import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
+import com.vmturbo.topology.processor.cost.AliasedOidsUploader;
 import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
@@ -206,6 +207,11 @@ public class OperationControllerTest {
         }
 
         @Bean
+        AliasedOidsUploader aliasedOidsUploader() {
+            return Mockito.mock(AliasedOidsUploader.class);
+        }
+
+        @Bean
         DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader() {
             return Mockito.mock(DiscoveredPlanDestinationUploader.class);
         }
@@ -288,6 +294,7 @@ public class OperationControllerTest {
                                         workflowRecorder(),
                                         discoveredCloudCostUploader(),
                                         billedCloudCostUploader(),
+                                        aliasedOidsUploader(),
                                         discoveredPlanDestinationUploader(),
                                         discoveredTemplatesUploader(),
                                         controllableDao(),

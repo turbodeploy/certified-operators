@@ -113,6 +113,7 @@ import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp;
+import com.vmturbo.topology.processor.cost.AliasedOidsUploader;
 import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.db.TopologyProcessor;
@@ -214,6 +215,7 @@ public class OperationManagerTest {
     private final DiscoveredWorkflowUploader discoveredWorkflowUploader = Mockito.mock(DiscoveredWorkflowUploader.class);
     private final DiscoveredCloudCostUploader discoveredCloudCostUploader = Mockito.mock(DiscoveredCloudCostUploader.class);
     private final BilledCloudCostUploader billedCloudCostUploader = Mockito.mock(BilledCloudCostUploader.class);
+    private final AliasedOidsUploader aliasedOidsUploader = Mockito.mock(AliasedOidsUploader.class);
     private final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader = Mockito.mock(DiscoveredPlanDestinationUploader.class);
 
     private TrackingOperationListener operationListener = Mockito.spy(new TrackingOperationListener());
@@ -267,8 +269,8 @@ public class OperationManagerTest {
         operationManager = new OperationManager(identityProvider, targetStore, probeStore,
             mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
             discoveredWorkflowUploader, discoveredCloudCostUploader, billedCloudCostUploader,
-            discoveredPlanDestinationUploader, discoveredTemplatesUploader, entityActionDao,
-            derivedTargetParser, groupScopeResolver, targetDumpingSettings,
+            aliasedOidsUploader, discoveredPlanDestinationUploader, discoveredTemplatesUploader,
+            entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings,
             systemNotificationProducer, 10, 10, 10, 10, 5, 10, 1, 1, TheMatrix.instance(),
             binaryDiscoveryDumper, false, licenseCheckClient, 60000);
         IdentityGenerator.initPrefix(0);
@@ -1780,7 +1782,7 @@ public class OperationManagerTest {
         final OperationManager opManger = new OperationManager(identityProvider, targetStore, probeStore,
                 mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
                 discoveredWorkflowUploader, discoveredCloudCostUploader, billedCloudCostUploader,
-                discoveredPlanDestinationUploader, discoveredTemplatesUploader, entityActionDao,
+                aliasedOidsUploader, discoveredPlanDestinationUploader, discoveredTemplatesUploader, entityActionDao,
                 derivedTargetParser, groupScopeResolver, targetDumpingSettings,
                 systemNotificationProducer, 10, 10, 10, 10, 5, 10, 1, 1, TheMatrix.instance(),
                 binaryDiscoveryDumper, false, licenseCheckClient, 500);

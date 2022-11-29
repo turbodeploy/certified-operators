@@ -36,6 +36,7 @@ import com.vmturbo.sdk.server.common.DiscoveryDumper;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
+import com.vmturbo.topology.processor.cost.AliasedOidsUploader;
 import com.vmturbo.topology.processor.cost.BilledCloudCostUploader;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
@@ -93,6 +94,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
     private final DerivedTargetParser derivedTargetParser;
     private final DiscoveredCloudCostUploader discoveredCloudCostUploader;
     private final BilledCloudCostUploader billedCloudCostUploader;
+    private final AliasedOidsUploader aliasedOidsUploader;
     private final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader;
     private final MatrixInterface matrix;
     private DiscoveryDumper discoveryDumper;
@@ -117,6 +119,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
      * @param discoveredWorkflowUploader where discovered Workflows go.
      * @param discoveredCloudCostUploader where Cloud Cost goes.
      * @param billedCloudCostUploader where Cloud Cost goes.
+     * @param aliasedOidsUploader where aliased OIDs mapping goes.
      * @param discoveredPlanDestinationUploader where Plan Destinations data goes.
      * @param discoveredTemplateDeploymentProfileNotifier where discovered templates go.
      * @param entityActionDao where entity actions are persisted.
@@ -144,6 +147,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
             @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
             @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
             @Nonnull final BilledCloudCostUploader billedCloudCostUploader,
+            @Nonnull final AliasedOidsUploader aliasedOidsUploader,
             @Nonnull final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader,
             @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
             @Nonnull final EntityActionDao entityActionDao,
@@ -162,7 +166,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
             final boolean isCacheDiscoveryModeOffline) {
         super(identityProvider, targetStore, probeStore, remoteMediationServer, operationListener,
                 entityStore, discoveredGroupUploader, discoveredWorkflowUploader,
-                discoveredCloudCostUploader, billedCloudCostUploader,
+                discoveredCloudCostUploader, billedCloudCostUploader, aliasedOidsUploader,
                 discoveredPlanDestinationUploader, discoveredTemplateDeploymentProfileNotifier,
                 entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings,
                 systemNotificationProducer, discoveryQueue, discoveryTimeoutSeconds,
@@ -179,6 +183,7 @@ public class CacheOnlyOperationManager extends OperationManagerWithQueue {
         this.derivedTargetParser = derivedTargetParser;
         this.discoveredCloudCostUploader = discoveredCloudCostUploader;
         this.billedCloudCostUploader = billedCloudCostUploader;
+        this.aliasedOidsUploader = aliasedOidsUploader;
         this.discoveredPlanDestinationUploader = discoveredPlanDestinationUploader;
         this.matrix = matrix;
         this.isCacheDiscoveryModeOffline = isCacheDiscoveryModeOffline;

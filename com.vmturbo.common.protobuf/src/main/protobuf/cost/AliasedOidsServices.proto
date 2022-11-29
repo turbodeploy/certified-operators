@@ -1,0 +1,27 @@
+syntax = "proto2";
+package cloud_cost;
+
+option java_package = "com.vmturbo.common.protobuf.cost";
+
+message UploadAliasedOidsRequest {
+
+  // Map of "alias" to "real" OIDs
+  map<int64, int64> alias_id_to_real_id = 1;
+
+  // When the aliases were detected
+  optional int64 broadcast_time_utc_ms = 2;
+
+}
+
+message UploadAliasedOidsResponse {
+  // empty
+}
+
+// Cost component RPCs related to aliased OIDs
+service AliasedOidsService {
+
+  // Upload a mapping of billing probe-derived OID "aliases" to "real", subscription
+  // probe-derived OIDs
+  rpc UploadAliasedOids(UploadAliasedOidsRequest) returns (UploadAliasedOidsResponse);
+
+}
