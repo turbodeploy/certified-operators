@@ -18,6 +18,7 @@ ENV OPENJ9_URL=https://github.com/ibmruntimes/semeru11-binaries/releases/downloa
 # Install rsyslog and OpenJDK java-11 packages
 RUN dnf install -y rsyslog procps-ng python2 net-tools xz gnutls && \
     dnf install -y $OPENJ9_URL && \
+    dnf update -y krb5-libs \
     dnf clean all && rm -rf /var/cache/dnf
 
 COPY entrypoint.sh collect_diags.sh diags.py terminate.sh /
