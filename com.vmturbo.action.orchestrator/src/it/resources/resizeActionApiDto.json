@@ -1,0 +1,534 @@
+{
+  "uuid": "637078747168364",
+  "displayName": "MANUAL",
+  "actionImpactID": 637078747168364,
+  "marketID": 777777,
+  "createTime": "2021-09-07T15:37:32Z",
+  "actionType": "RESIZE",
+  "actionState": "READY",
+  "actionMode": "MANUAL",
+  "details": "Resize down VMem for Virtual Machine cisco-t8c-3.0.1-20210528213002000 (10.10.170.160) from 64 GB to 57 GB",
+  "importance": 0.0,
+  "target":
+  {
+    "uuid": "74123409653296",
+    "displayName": "cisco-t8c-3.0.1-20210528213002000 (10.10.170.160)",
+    "className": "VirtualMachine",
+    "state": "ACTIVE",
+    "discoveredBy":
+    {
+      "uuid": "74123407831648",
+      "displayName": "hp-dl365.corp.vmturbo.com",
+      "type": "vCenter",
+      "readonly": false
+    },
+    "environmentType": "ONPREM",
+    "vendorIds":
+    {
+      "hp-dl365.corp.vmturbo.com": "vm-29601"
+    }
+  },
+  "currentValue": "67108864.0",
+  "newValue": "59768832.0",
+  "resizeToValue": "59768832.0",
+  "valueUnits": "KB",
+  "risk":
+  {
+    "subCategory": "Efficiency Improvement",
+    "description": "Underutilized VMem in Virtual Machine cisco-t8c-3.0.1-20210528213002000 (10.10.170.160)",
+    "severity": "MINOR",
+    "importance": 0.0,
+    "reasonCommodity": "VMem",
+    "reasonCommodities":
+    [
+      "VMem"
+    ]
+  },
+  "currentLocation":
+  {
+    "uuid": "74123409602337",
+    "displayName": "HawthorneDev",
+    "className": "DataCenter",
+    "state": "ACTIVE",
+    "discoveredBy":
+    {
+      "uuid": "74123407831648",
+      "displayName": "hp-dl365.corp.vmturbo.com",
+      "category": "Hypervisor",
+      "type": "vCenter",
+      "readonly": false
+    },
+    "consumers":
+    [
+      {
+        "uuid": "74123409602385",
+        "displayName": "hp-bl453.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602720",
+        "displayName": "hp-dl391.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602416",
+        "displayName": "hp-dl563.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409603024",
+        "displayName": "hp-bl430.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602497",
+        "displayName": "hp-dl573.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602496",
+        "displayName": "hp-dl572.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602768",
+        "displayName": "hp-dl397.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602944",
+        "displayName": "hp-bl446.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602656",
+        "displayName": "hp-dl3181.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602816",
+        "displayName": "hp-bl431.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602480",
+        "displayName": "hp-dl566.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602432",
+        "displayName": "hp-dl564.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602640",
+        "displayName": "hp-dl3180.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602752",
+        "displayName": "hp-dl393.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602384",
+        "displayName": "hp-bl452.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602400",
+        "displayName": "hp-bl447.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602832",
+        "displayName": "hp-bl432.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602880",
+        "displayName": "hp-bl434.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602608",
+        "displayName": "hp-dl377.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602784",
+        "displayName": "hp-dl395.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602576",
+        "displayName": "hp-dl371.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602721",
+        "displayName": "hp-dl392.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602592",
+        "displayName": "hp-dl375.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602624",
+        "displayName": "hp-dl378.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602512",
+        "displayName": "hp-dl574.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602848",
+        "displayName": "hp-bl433.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602976",
+        "displayName": "hp-bl449.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602560",
+        "displayName": "hp-dl373.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602544",
+        "displayName": "hp-dl372.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602528",
+        "displayName": "hp-dl575.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602960",
+        "displayName": "hp-bl448.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602992",
+        "displayName": "hp-bl450.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409603008",
+        "displayName": "hp-bl451.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602896",
+        "displayName": "hp-bl435.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602448",
+        "displayName": "hp-dl565.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602464",
+        "displayName": "hp-dl562.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602672",
+        "displayName": "hp-dl3182.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602928",
+        "displayName": "hp-bl437.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602800",
+        "displayName": "hp-dl396.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602704",
+        "displayName": "hp-dl379.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602912",
+        "displayName": "hp-bl436.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602577",
+        "displayName": "hp-dl374.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602736",
+        "displayName": "hp-dl394.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602688",
+        "displayName": "hp-dl3183.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      }
+    ],
+    "environmentType": "ONPREM",
+    "vendorIds":
+    {
+      "hp-dl365.corp.vmturbo.com": "datacenter-26"
+    }
+  },
+  "newLocation":
+  {
+    "uuid": "74123409602337",
+    "displayName": "HawthorneDev",
+    "className": "DataCenter",
+    "state": "ACTIVE",
+    "discoveredBy":
+    {
+      "uuid": "74123407831648",
+      "displayName": "hp-dl365.corp.vmturbo.com",
+      "category": "Hypervisor",
+      "type": "vCenter",
+      "readonly": false
+    },
+    "consumers":
+    [
+      {
+        "uuid": "74123409602385",
+        "displayName": "hp-bl453.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602720",
+        "displayName": "hp-dl391.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602416",
+        "displayName": "hp-dl563.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409603024",
+        "displayName": "hp-bl430.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602497",
+        "displayName": "hp-dl573.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602496",
+        "displayName": "hp-dl572.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602768",
+        "displayName": "hp-dl397.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602944",
+        "displayName": "hp-bl446.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602656",
+        "displayName": "hp-dl3181.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602816",
+        "displayName": "hp-bl431.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602480",
+        "displayName": "hp-dl566.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602432",
+        "displayName": "hp-dl564.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602640",
+        "displayName": "hp-dl3180.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602752",
+        "displayName": "hp-dl393.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602384",
+        "displayName": "hp-bl452.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602400",
+        "displayName": "hp-bl447.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602832",
+        "displayName": "hp-bl432.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602880",
+        "displayName": "hp-bl434.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602608",
+        "displayName": "hp-dl377.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602784",
+        "displayName": "hp-dl395.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602576",
+        "displayName": "hp-dl371.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602721",
+        "displayName": "hp-dl392.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602592",
+        "displayName": "hp-dl375.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602624",
+        "displayName": "hp-dl378.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602512",
+        "displayName": "hp-dl574.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602848",
+        "displayName": "hp-bl433.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602976",
+        "displayName": "hp-bl449.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602560",
+        "displayName": "hp-dl373.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602544",
+        "displayName": "hp-dl372.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602528",
+        "displayName": "hp-dl575.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602960",
+        "displayName": "hp-bl448.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602992",
+        "displayName": "hp-bl450.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409603008",
+        "displayName": "hp-bl451.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602896",
+        "displayName": "hp-bl435.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602448",
+        "displayName": "hp-dl565.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602464",
+        "displayName": "hp-dl562.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602672",
+        "displayName": "hp-dl3182.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602928",
+        "displayName": "hp-bl437.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602800",
+        "displayName": "hp-dl396.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602704",
+        "displayName": "hp-dl379.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602912",
+        "displayName": "hp-bl436.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602577",
+        "displayName": "hp-dl374.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602736",
+        "displayName": "hp-dl394.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      },
+      {
+        "uuid": "74123409602688",
+        "displayName": "hp-dl3183.eng.vmturbo.com",
+        "className": "PhysicalMachine"
+      }
+    ],
+    "environmentType": "ONPREM",
+    "vendorIds":
+    {
+      "hp-dl365.corp.vmturbo.com": "datacenter-26"
+    }
+  },
+  "actionID": 637078747168364
+}
