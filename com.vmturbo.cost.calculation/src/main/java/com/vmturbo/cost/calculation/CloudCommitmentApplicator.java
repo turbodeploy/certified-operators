@@ -98,12 +98,17 @@ public class CloudCommitmentApplicator<ENTITY_CLASS> {
                 final Map<CloudCommitmentCoverageTypeInfo, Double> usedMap = CommitmentAmountUtils.groupByKey(cloudCommitmentCoverageMapping.getCommitmentAmount());
                 // for each commodity type, write a discount journal entry
                 for (Map.Entry<CloudCommitmentCoverageTypeInfo, Double> usedEntry: usedMap.entrySet()) {
-                    if (usedEntry.getValue() <= 0) {
-                        continue;
-                    }
+
                     final CloudCommitmentCoverageTypeInfo coverageType = usedEntry.getKey();
                     final double usedAmount = usedEntry.getValue();
                     final double capacityAmount = cloudCommitmentTopology.getCoverageCapacityForEntity(entityOid, coverageType);
+
+                    if (usedAmount <= 0.0 || capacityAmount <= 0.0) {
+                        logger.trace("Skipping coverage entry for {} with type {} (amount={}, capacity={})",
+                                entityOid, coverageType, usedAmount, capacityAmount);
+                        continue;
+                    }
+
                     final CloudCommitmentDTO.CloudCommitmentCoverageVector coverageVector = CloudCommitmentDTO.CloudCommitmentCoverageVector.newBuilder()
                             .setCapacity(capacityAmount)
                             .setUsed(usedAmount)
