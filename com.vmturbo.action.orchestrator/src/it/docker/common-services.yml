@@ -1,0 +1,70 @@
+version: '2'
+
+# Define common service definitions for extension. For details see
+# https://docs.docker.com/compose/extends/#extending-services
+services:
+  # A dev-component is a common service definition for a component that will be run in a development environment.
+  # It contains common security configurations, tmpfs, and an environment variable that signals the component
+  # should print its logs to stdout so that they can be seen on the console directly when bringing up the component.
+  # Definitions for development-environment services should consider inheriting from the dev-component service.
+  dev-component:
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ${TEST_PROJECT_DIR}/it/docker/properties.yaml:/etc/turbonomic/properties.yaml:ro
+    environment:
+      clustermgr_host: clustermgr
+      clustermgr_port: 8080
+      clustermgr_retry_delay_sec: 10
+      LOG_TO_STDOUT: "true"
+
+  # A dev-mediation-component is a component definition shared by all the mediation (probe) components
+  # used for development purpose
+  dev-mediation-component:
+    extends:
+      service: dev-component
+    environment:
+      LOG4J_CONTEXT_SELECTOR: com.vmturbo.mediation.common.context.ThreadGroupPrefixContextSelector
+
+  # A prod-component is a common service definition for a component that will be run in a development environment.
+  # It contains common security configurations and tmpfs.
+  # Definitions for development-environment services should consider extending the prod-component service.
+  prod-component:
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ${TEST_PROJECT_DIR}/it/docker/properties.yaml:/etc/turbonomic/properties.yaml:ro
+    environment:
+      clustermgr_host: clustermgr
+      clustermgr_port: 8080
+      clustermgr_retry_delay_sec: 10
+
+  # A prod-mediation-component is a component definition shared by all the mediation (probe) components
+  # used in production
+  prod-mediation-component:
+    extends:
+      service: prod-component
+    environment:
+      LOG4J_CONTEXT_SELECTOR: com.vmturbo.mediation.common.context.ThreadGroupPrefixContextSelector
+
+  # A common-service is a common service definition for a service that is not a fully-fledged component in the
+  # XL system. For example, services such as consul, MariaDB, ArangoDB, etc. do not implement the component
+  # interface. These sorts of services should consider extending the common-service service.
+  common-service:
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges
+    read_only: true
+    tmpfs:
+      - /tmp

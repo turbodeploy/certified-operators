@@ -23,6 +23,10 @@
         <db.schema>action_build_${maven.build.timestamp}</db.schema>
         <db.outputSchema>action</db.outputSchema>
         <db.driver>org.mariadb.jdbc.Driver</db.driver>
+
+        <it.suite.name>ao_it_test</it.suite.name>
+        <pre-integration-test-phase>pre-integration-test</pre-integration-test-phase>
+        <integration-test-phase>integration-test</integration-test-phase>
     </properties>
 
     <build>
