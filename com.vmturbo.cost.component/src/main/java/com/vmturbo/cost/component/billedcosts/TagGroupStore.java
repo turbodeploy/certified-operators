@@ -24,8 +24,15 @@ import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
+import org.jooq.impl.TableImpl;
 
+import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
+import com.vmturbo.cost.component.TableDiagsRestorable;
+import com.vmturbo.cost.component.billed.cost.CloudCostDiags;
 import com.vmturbo.cost.component.billed.cost.tag.TagGroupIdentity;
+import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.CostTagGrouping;
 import com.vmturbo.cost.component.db.tables.records.CostTagGroupingRecord;
 import com.vmturbo.sql.utils.DbException;
@@ -33,13 +40,17 @@ import com.vmturbo.sql.utils.DbException;
 /**
  * An object of this type contains data operations for the Cost tag grouping tables.
  */
-public class TagGroupStore {
+public class TagGroupStore implements MultiStoreDiagnosable, CloudCostDiags {
 
     private static final Logger logger = LogManager.getLogger();
 
     private final DSLContext dslContext;
 
     private final Map<Long, TagGroupIdentity> tagGroupIdentityCache = new ConcurrentHashMap<>();
+
+    private final CostTagGroupingDiagsHelper costTagGroupingDiagsHelper;
+
+    private boolean exportCloudCostDiags = true;
 
     /**
      * Creates an instance of TagGroupStore.
@@ -48,6 +59,7 @@ public class TagGroupStore {
      */
     public TagGroupStore(@Nonnull final DSLContext dslContext) {
         this.dslContext = Objects.requireNonNull(dslContext);
+        this.costTagGroupingDiagsHelper = new CostTagGroupingDiagsHelper(dslContext);
     }
 
     /**
@@ -149,6 +161,63 @@ public class TagGroupStore {
             unseenIdentities.forEach(tagGroupIdentity -> tagGroupIdentityCache.put(tagGroupIdentity.tagGroupId(), tagGroupIdentity));
         } catch (Exception e) {
             throw new DbException("Failed to insert tag groups into the DB", e);
+        }
+    }
+
+    @Override
+    public Set<Diagnosable> getDiagnosables(boolean collectHistoricalStats) {
+        HashSet<Diagnosable> storesToSave = new HashSet<>();
+        storesToSave.add(costTagGroupingDiagsHelper);
+        return storesToSave;
+    }
+
+    @Override
+    public void setExportCloudCostDiags(boolean exportCloudCostDiags) {
+        this.exportCloudCostDiags = exportCloudCostDiags;
+    }
+
+    @Override
+    public boolean getExportCloudCostDiags() {
+        return this.exportCloudCostDiags;
+    }
+
+    /**
+     * Helper class for dumping cost tag grouping db records to exported topology.
+     */
+    private final class CostTagGroupingDiagsHelper implements
+            TableDiagsRestorable<Object, CostTagGroupingRecord> {
+        private static final String costTagGroupingDumpFile = "costTagGrouping_dump";
+
+        private final DSLContext dsl;
+
+        CostTagGroupingDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+
+        @Override
+        public DSLContext getDSLContext() {
+            return dsl;
+        }
+
+        @Override
+        public TableImpl<CostTagGroupingRecord> getTable() {
+            return Tables.COST_TAG_GROUPING;
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return costTagGroupingDumpFile;
+        }
+
+        @Nonnull
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) {
+            if (exportCloudCostDiags) {
+                TableDiagsRestorable.super.collectDiags(appender);
+            } else {
+                return;
+            }
         }
     }
 }

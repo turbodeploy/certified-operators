@@ -11,13 +11,14 @@ import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.cloud.common.scope.CloudScopeIdentity.CloudScopeType;
+import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
 
 /**
  * A store for {@link CloudScopeIdentity}. Note that most classes will interact with the {@link CloudScopeIdentityProvider}
  * to assign identities to cloud scopes and not this class. This store will be used by the provider to persist assigned
  * cloud scope identities.
  */
-public interface CloudScopeIdentityStore {
+public interface CloudScopeIdentityStore extends MultiStoreDiagnosable {
 
     /**
      * Saves the provided {@link CloudScopeIdentity} list.
@@ -32,6 +33,20 @@ public interface CloudScopeIdentityStore {
      */
     @Nonnull
     List<CloudScopeIdentity> getIdentitiesByFilter(@Nonnull CloudScopeIdentityFilter scopeIdentityFilter);
+
+    /**
+     * Set the exportCloudCostDiags feature flag.
+     * @param exportCloudCostDiags The feature flag status.
+     */
+    @Nonnull
+    void setExportCloudCostDiags(boolean exportCloudCostDiags);
+
+    /**
+     * Gets the exportCloudCostDiags feature flag.
+     * @return The feature flag status.
+     */
+    @Nonnull
+    boolean getExportCloudCostDiags();
 
     /**
      * A filter of {@link CloudScopeIdentity} instances.

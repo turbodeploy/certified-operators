@@ -17,9 +17,16 @@ import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
+import org.jooq.impl.TableImpl;
 
+import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
+import com.vmturbo.cost.component.TableDiagsRestorable;
+import com.vmturbo.cost.component.billed.cost.CloudCostDiags;
 import com.vmturbo.cost.component.billed.cost.tag.Tag;
 import com.vmturbo.cost.component.billed.cost.tag.TagIdentity;
+import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.CostTag;
 import com.vmturbo.cost.component.db.tables.records.CostTagRecord;
 import com.vmturbo.sql.utils.DbException;
@@ -27,11 +34,15 @@ import com.vmturbo.sql.utils.DbException;
 /**
  * An object of this type contains data operations for the Cost Tag table.
  */
-public class TagStore {
+public class TagStore implements MultiStoreDiagnosable, CloudCostDiags {
 
     private final DSLContext dslContext;
 
     private final Map<Long, TagIdentity> tagIdentityCache = new ConcurrentHashMap<>();
+
+    private final CostTagDiagsHelper costTagDiagsHelper;
+
+    private boolean exportCloudCostDiags = true;
 
     /**
      * Creates an instance of TagStore.
@@ -40,6 +51,7 @@ public class TagStore {
      */
     public TagStore(@Nonnull final DSLContext dslContext) {
         this.dslContext = Objects.requireNonNull(dslContext);
+        this.costTagDiagsHelper = new CostTagDiagsHelper(dslContext);
     }
 
     /**
@@ -131,5 +143,63 @@ public class TagStore {
         record.setTagValue(tagIdentity.tag().value());
         record.setTagId(tagIdentity.tagId());
         return record;
+    }
+
+    @Override
+    public void setExportCloudCostDiags(boolean exportCloudCostDiags) {
+        this.exportCloudCostDiags = exportCloudCostDiags;
+    }
+
+    @Override
+    public boolean getExportCloudCostDiags() {
+        return this.exportCloudCostDiags;
+    }
+
+    @Override
+    public Set<Diagnosable> getDiagnosables(boolean collectHistoricalStats) {
+        HashSet<Diagnosable> storesToSave = new HashSet<>();
+        storesToSave.add(costTagDiagsHelper);
+        return storesToSave;
+    }
+
+    /**
+     * Helper class for dumping cost tag db records to exported topology.
+     */
+    private final class CostTagDiagsHelper implements
+            TableDiagsRestorable<Object, CostTagRecord> {
+        private static final String costTagDumpFile = "costTag_dump";
+
+        private final DSLContext dsl;
+
+        CostTagDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+
+        @Override
+        public DSLContext getDSLContext() {
+            return dsl;
+        }
+
+        @Override
+        public TableImpl<CostTagRecord> getTable() {
+            return Tables.COST_TAG;
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return costTagDumpFile;
+        }
+
+
+        @Nonnull
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) {
+            if (exportCloudCostDiags) {
+                TableDiagsRestorable.super.collectDiags(appender);
+            } else {
+                return;
+            }
+        }
     }
 }
