@@ -72,7 +72,9 @@ public class ThickSearchableProps implements SearchableProps {
             case DATABASE:
                 return new ThickDatabaseProps(entity);
             case VIRTUAL_MACHINE_SPEC:
-                return  new ThickVirtualMachineSpecProps(entity);
+                return new ThickVirtualMachineSpecProps(entity);
+            case APPLICATION_COMPONENT_SPEC:
+                return new ThickAppComponentSpecProps(entity);
             case SERVICE:
                 return new ThickServiceProps(entity);
             case COMPUTE_TIER:
@@ -479,7 +481,37 @@ public class ThickSearchableProps implements SearchableProps {
             return appSvcView.hasDaysEmpty()
                     ? Optional.of(appSvcView.getDaysEmpty()) : Optional.empty();
         }
+    }
 
+    /**
+     * App/Application Component Spec Properties.
+     */
+    public static class ThickAppComponentSpecProps extends ThickSearchableProps implements AppComponentSpecProps {
+
+        private ThickAppComponentSpecProps(@Nonnull final TopologyEntityView entity) {
+            super(entity);
+        }
+
+        @Override
+        public Integer getHybridConnectionCount() {
+            if (entity.hasTypeSpecificInfo() & entity.getTypeSpecificInfo().hasCloudApplication()) {
+                return entity.getTypeSpecificInfo()
+                        .getCloudApplication()
+                        .getHybridConnectionCount();
+            } else {
+                return 0;
+            }
+        }
+
+        @Override
+        public Integer getDeploymentSlotCount() {
+            if (entity.hasTypeSpecificInfo() && entity.getTypeSpecificInfo()
+                    .hasCloudApplication()) {
+                return entity.getTypeSpecificInfo().getCloudApplication().getDeploymentSlotCount();
+            } else {
+                return 0;
+            }
+        }
     }
 
     /**

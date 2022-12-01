@@ -34,6 +34,9 @@ public class CloudApplicationAspectMapper extends AbstractAspectMapper {
             if (info.hasDeploymentSlotCount()) {
                 aspect.setDeploymentSlotCount(info.getDeploymentSlotCount());
             }
+            if (info.hasHybridConnectionCount()) {
+                aspect.setHybridConnectionCount(info.getHybridConnectionCount());
+            }
         }
         return aspect;
     }

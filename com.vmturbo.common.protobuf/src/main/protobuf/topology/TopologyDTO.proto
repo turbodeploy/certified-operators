@@ -66,6 +66,8 @@ message TypeSpecificInfo {
     message CloudApplicationInfo {
         // Number of deployment slots.
         optional int32 deployment_slot_count = 1;
+        // hybrid connection count
+        optional int32 hybrid_connection_count = 2;
     }
 
     message ApplicationServiceInfo {

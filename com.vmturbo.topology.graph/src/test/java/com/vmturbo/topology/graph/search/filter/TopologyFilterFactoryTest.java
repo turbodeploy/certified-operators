@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -22,12 +23,16 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
@@ -73,6 +78,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationServiceInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CloudApplicationInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CustomControllerInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DeploymentInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StatefulSetInfo;
@@ -115,6 +121,21 @@ public class TopologyFilterFactoryTest {
     private static final long TEN_SECONDS_MILLIS = 10_000L;
 
     private final TopologyFilterFactory<TestGraphEntity> filterFactory = new TopologyFilterFactory<>();
+
+    /**
+     * Map containing operators and their inverse so the inverse operation can be easily fetched ie EQ -> NE, GTE -> LT.
+     */
+    private static final Map<ComparisonOperator, ComparisonOperator> inverseOperator =
+            ImmutableMap.of(
+                    ComparisonOperator.EQ, ComparisonOperator.NE,
+                    ComparisonOperator.NE, ComparisonOperator.EQ,
+                    ComparisonOperator.LT, ComparisonOperator.GTE,
+                    ComparisonOperator.LTE, ComparisonOperator.GT,
+                    ComparisonOperator.GT, ComparisonOperator.LTE,
+                    ComparisonOperator.GTE, ComparisonOperator.LT,
+                    ComparisonOperator.MO, ComparisonOperator.NMO,
+                    ComparisonOperator.NMO, ComparisonOperator.MO
+                    );
 
     @Mock
     private TopologyGraph<TestGraphEntity> graph;
@@ -788,7 +809,38 @@ public class TopologyFilterFactoryTest {
 
     @Test
     public void testSearchFilterAppCount() {
-        checkObjectIntegerFilterForVirtualMachineSpecs(ApplicationServiceInfo.Builder::setAppCount, SearchableProperties.VIRTUAL_MACHINE_SPEC_APP_COUNT);
+        // Test for VirtualMachineSpecs filter by app count. This entity may represent Azure App Service Plans (ASPs) and related/similar entities like Scale Sets/Autoscaling groups
+        Map<TestGraphEntity, Integer> entities = createVirtualMachineSpecsToTest(ApplicationServiceInfo.Builder::setAppCount);
+        // Test that the filter works properly for all of these ops and their inverse op.
+        checkObjectIntegerFilter( SearchableProperties.VIRTUAL_MACHINE_SPEC_APP_COUNT, entities, ComparisonOperator.EQ, 2);
+        checkObjectIntegerFilter( SearchableProperties.VIRTUAL_MACHINE_SPEC_APP_COUNT, entities, ComparisonOperator.GT, 2);
+        checkObjectIntegerFilter( SearchableProperties.VIRTUAL_MACHINE_SPEC_APP_COUNT, entities, ComparisonOperator.GTE, 2);
+        // sanity check NE
+        checkObjectIntegerFilter( SearchableProperties.VIRTUAL_MACHINE_SPEC_APP_COUNT, entities, ComparisonOperator.NE, 2);
+    }
+
+    @Test
+    public void testSearchFilterWebappHybridConnectionCount(){
+        // Test for Application/App Component Specs filter by hybrid conn count. This entity may represent Azure App Service webapps
+        Map<TestGraphEntity, Integer> entities = createAppComponentSpecsToTest(CloudApplicationInfo.Builder::setHybridConnectionCount);
+        // Test that the filter works properly for all of these ops and their inverse op.
+        checkObjectIntegerFilter( SearchableProperties.APP_COMPONENT_SPEC_HYBRID_CONNECTIONS, entities, ComparisonOperator.EQ, 2);
+        checkObjectIntegerFilter( SearchableProperties.APP_COMPONENT_SPEC_HYBRID_CONNECTIONS, entities, ComparisonOperator.GT, 2);
+        checkObjectIntegerFilter( SearchableProperties.APP_COMPONENT_SPEC_HYBRID_CONNECTIONS, entities, ComparisonOperator.GTE, 2);
+        // sanity check NE
+        checkObjectIntegerFilter( SearchableProperties.APP_COMPONENT_SPEC_HYBRID_CONNECTIONS, entities, ComparisonOperator.NE, 2);
+    }
+
+    @Test
+    public void testSearchFilterWebappDeploymentSlotCount(){
+        // Test for Application/App Component Specs filter by staging/deployment slot count. This entity may represent Azure App Service webapps
+        Map<TestGraphEntity, Integer> entities = createAppComponentSpecsToTest(CloudApplicationInfo.Builder::setDeploymentSlotCount);
+        // Test that the filter works properly for all of these ops and their inverse op.
+        checkObjectIntegerFilter( SearchableProperties.APP_COMPONENT_SPEC_DEPLOYMENT_SLOTS, entities, ComparisonOperator.EQ, 2);
+        checkObjectIntegerFilter( SearchableProperties.APP_COMPONENT_SPEC_DEPLOYMENT_SLOTS, entities, ComparisonOperator.GT, 2);
+        checkObjectIntegerFilter( SearchableProperties.APP_COMPONENT_SPEC_DEPLOYMENT_SLOTS, entities, ComparisonOperator.GTE, 2);
+        // sanity check NE
+        checkObjectIntegerFilter( SearchableProperties.APP_COMPONENT_SPEC_DEPLOYMENT_SLOTS, entities, ComparisonOperator.NE, 2);
     }
 
     private void checkObjectIntegerFilter(
@@ -861,27 +913,78 @@ public class TopologyFilterFactoryTest {
         });
     }
 
-    private void checkObjectIntegerFilterForVirtualMachineSpecs(
-            BiFunction<ApplicationServiceInfo.Builder, Integer, ApplicationServiceInfo.Builder> builderConfigurator,
-            String property) {
-        final TestGraphEntity vmSpec1 = createVirtualMachineSpecWithProperty(1L, builderConfigurator, 1);
-        final TestGraphEntity vmSpec2 = createVirtualMachineSpecWithProperty(2L, builderConfigurator, 2);
-        final TestGraphEntity vmSpec3 = createVirtualMachineSpecWithProperty(3L, builderConfigurator, 3);
+    private Map<TestGraphEntity, Integer> createAppComponentSpecsToTest(BiFunction<CloudApplicationInfo.Builder, Integer, CloudApplicationInfo.Builder> builderConfigurator){
+        // Key is entity, value is expected property numeric value (needed to do as we can't really pass around getters and setters like that)
+        Map<TestGraphEntity, Integer> entities = new HashMap<>();
+        final TestGraphEntity acs1 = createAppComponentSpecWithProperty(1L, builderConfigurator, 1);
+        entities.put(acs1, 1);
+        final TestGraphEntity acs2 = createAppComponentSpecWithProperty(2L, builderConfigurator, 2);
+        entities.put(acs2, 2);
+        final TestGraphEntity acs3 = createAppComponentSpecWithProperty(3L, builderConfigurator, 3);
+        entities.put(acs3, 3);
+        return entities;
+    }
+
+    private Map<TestGraphEntity, Integer> createVirtualMachineSpecsToTest(BiFunction<ApplicationServiceInfo.Builder, Integer, ApplicationServiceInfo.Builder> builderConfigurator){
+        // Key is entity, value is expected property numeric value (needed to do as we can't really pass around getters and setters like that)
+        Map<TestGraphEntity, Integer> entities = new HashMap<>();
+        final TestGraphEntity vms1 = createVirtualMachineSpecWithProperty(1L, builderConfigurator, 1);
+        entities.put(vms1, 1);
+        final TestGraphEntity vms2 = createVirtualMachineSpecWithProperty(2L, builderConfigurator, 2);
+        entities.put(vms2, 2);
+        final TestGraphEntity vms3 = createVirtualMachineSpecWithProperty(3L, builderConfigurator, 3);
+        entities.put(vms3, 3);
+        return entities;
+    }
+
+
+    private void checkObjectIntegerFilter(
+            String property, Map<TestGraphEntity, Integer> entities, ComparisonOperator operation, int comparisonValue){
         final ImmutableTable.Builder<ComparisonOperator, TestGraphEntity, Boolean> dataBuilder =
                 ImmutableTable.builder();
-        dataBuilder.put(ComparisonOperator.EQ, vmSpec1, false);
-        dataBuilder.put(ComparisonOperator.EQ, vmSpec2, true);
-        dataBuilder.put(ComparisonOperator.EQ, vmSpec3, false);
+        for(Entry<TestGraphEntity, Integer> entity : entities.entrySet()){
+            dataBuilder.put(operation, entity.getKey(), getExpectedResult(operation, comparisonValue, entity.getValue()));
+        }
         final Table<ComparisonOperator, TestGraphEntity, Boolean> data = dataBuilder.build();
         data.rowMap().forEach((operator, entityToFilterResult) -> {
-            final SearchFilter searchFilter = createSearchFilterForVirtualMachineSpecIntegerProperty(property, operator, 2);
+            final SearchFilter searchFilter = createGenericRegularSearchFilterForNumericValue(property, operator, 2);
+            final SearchFilter reverseFilter = createGenericRegularSearchFilterForNumericValue(property, inverseOperator.get(operator), 2);
+
             final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+            final TopologyFilter<TestGraphEntity> reverse = filterFactory.filterFor(reverseFilter);
+
             assertTrue(filter instanceof PropertyFilter);
+            assertTrue(reverse instanceof PropertyFilter);
+
             final PropertyFilter<TestGraphEntity> propertyFilter =
                     (PropertyFilter<TestGraphEntity>)filter;
-            entityToFilterResult.forEach((entity, result) -> Assert.assertThat(
-                    propertyFilter.test(entity, graph), CoreMatchers.is(result)));
+            final PropertyFilter<TestGraphEntity> reversePropertyFilter =
+                    (PropertyFilter<TestGraphEntity>)reverse;
+            entityToFilterResult.forEach((entity, result) -> {
+                // Test the filter and make sure the inverse operation works too.
+                assertEquals(propertyFilter.test(entity, graph), result);
+                assertNotEquals(reversePropertyFilter.test(entity, graph), result);
+            });
         });
+    }
+
+    private boolean getExpectedResult(ComparisonOperator operation, int comparisonValue, int currentValue){
+        switch(operation){
+            case EQ:
+                return comparisonValue == currentValue;
+            case NE:
+                return comparisonValue != currentValue;
+            case GT:
+                return comparisonValue < currentValue;
+            case GTE:
+                return comparisonValue <= currentValue;
+            case LT:
+                return comparisonValue > currentValue;
+            case LTE:
+                return comparisonValue >= currentValue;
+            default:
+                return false;
+        }
     }
 
     private static SearchFilter createSearchFilterForVolIntegerProperty(String property,
@@ -910,7 +1013,7 @@ public class TopologyFilterFactoryTest {
                                         .build()).build()).build();
     }
 
-    private static SearchFilter createSearchFilterForVirtualMachineSpecIntegerProperty(String property,
+    private static SearchFilter createGenericRegularSearchFilterForNumericValue(String property,
             ComparisonOperator operator, int comparisonValue) {
         return SearchFilter.newBuilder().setPropertyFilter(Search.PropertyFilter.newBuilder()
                 .setPropertyName(property)
@@ -918,6 +1021,7 @@ public class TopologyFilterFactoryTest {
                         .setComparisonOperator(operator).setValue(comparisonValue)
                         .build()).build()).build();
     }
+
 
     private static TestGraphEntity createVmWithProperty(long oid,
                     @Nonnull BiFunction<VirtualMachineInfo.Builder, Integer, VirtualMachineInfo.Builder> propertySetter,
@@ -934,6 +1038,15 @@ public class TopologyFilterFactoryTest {
         return TestGraphEntity.newBuilder(oid, ApiEntityType.VIRTUAL_MACHINE_SPEC).setTypeSpecificInfo(
                 TypeSpecificInfo.newBuilder().setApplicationService(
                         propertySetter.apply(ApplicationServiceInfo.newBuilder(), value)
+                                .build()).build()).build();
+    }
+
+    private static TestGraphEntity createAppComponentSpecWithProperty(long oid,
+            @Nonnull BiFunction<CloudApplicationInfo.Builder, Integer, CloudApplicationInfo.Builder> propertySetter,
+            int value) {
+        return TestGraphEntity.newBuilder(oid, ApiEntityType.APPLICATION_COMPONENT_SPEC).setTypeSpecificInfo(
+                TypeSpecificInfo.newBuilder().setCloudApplication(
+                        propertySetter.apply(CloudApplicationInfo.newBuilder(), value)
                                 .build()).build()).build();
     }
 

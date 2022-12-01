@@ -246,6 +246,18 @@ public class SearchableProperties {
      */
     public static final String DB_SERVICE_TIER = "dbServiceTier";
 
+    // Application component specs are used for services like Azure App Service webapps and related services like Google App Engine & AWS Elastic Beanstalk.
+    /**
+     * Application Component Spec Hybrid Connections.
+     */
+    public static final String APP_COMPONENT_SPEC_HYBRID_CONNECTIONS = "hybridConnectionCount";
+
+    /**
+     * Application Component Spec Deployment Slots.
+     */
+    public static final String APP_COMPONENT_SPEC_DEPLOYMENT_SLOTS = "deploymentSlotCount";
+
+    // Virtual Machine Specs are used for services like Azure App Service Plans and related VMs ie autoscaling groups/scale sets.
     /**
      * Virtual Machine Spec Service Tier.
      */
