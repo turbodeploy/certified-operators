@@ -175,6 +175,7 @@
         "vcpuScaling_coresPerSocket_SocketMode",
         "vcpuScaling_coresPerSocket_SocketValue",
         "vcpuScaling_Vcpus_VcpusIncrementValue",
+        "vmProcessingUnitsIncrement",
         "usedIncrement_VMEM",
         "usedIncrement_Container_VCPU",
         "usedIncrement_Container_VMEM",
