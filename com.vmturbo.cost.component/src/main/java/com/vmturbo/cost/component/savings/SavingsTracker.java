@@ -57,7 +57,7 @@ import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.savings.calculator.Calculator;
 import com.vmturbo.cost.component.savings.calculator.SavingsValues;
-import com.vmturbo.cost.component.savings.calculator.StorageAmountResolver;
+import com.vmturbo.cost.component.savings.calculator.StoragePriceStructure;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -91,7 +91,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
     /**
      * StorageAmount Resolver for savings.
      */
-    private StorageAmountResolver storageAmountResolver;
+    private StoragePriceStructure storagePriceStructure;
 
     private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
 
@@ -165,7 +165,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.repositoryClient = repositoryClient;
         this.searchServiceStub = searchServiceStub;
-        this.storageAmountResolver = new StorageAmountResolver(priceTableKeyStore, priceTableStore);
+        this.storagePriceStructure = new StoragePriceStructure(priceTableKeyStore, priceTableStore);
         this.supportedBillingEntityTypes = supportedBillingEntityTypes;
         this.supportedCSPs = supportedBillingCSPs;
         this.savingsDaysToSkip = savingsDaysToSkip;
@@ -175,10 +175,10 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
     /**
      * Allow test cases to pass in a different calculator for mocking purpose.
      *
-     * @param storageAmountResolver storage amount resolver
+     * @param storagePriceStructure storage amount resolver
      */
-    void setStorageAmountResolver(StorageAmountResolver storageAmountResolver) {
-        this.storageAmountResolver = storageAmountResolver;
+    void setStorageAmountResolver(StoragePriceStructure storagePriceStructure) {
+        this.storagePriceStructure = storagePriceStructure;
     }
 
     /**
@@ -244,7 +244,8 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
             Map<Long, NavigableSet<ExecutedActionsChangeWindow>> actionChains,
             long lastProcessedDate, LocalDateTime periodEndTime) throws EntitySavingsException {
         final List<SavingsValues> allSavingsValues = new ArrayList<>();
-        final Calculator calculator = new Calculator(deleteActionRetentionMs, clock, storageAmountResolver);
+        final Calculator calculator = new Calculator(deleteActionRetentionMs, clock,
+                storagePriceStructure);
         entityOids.forEach(entityId -> {
             Set<BillingRecord> entityBillingRecords = billingRecords.getOrDefault(entityId,
                     Collections.emptySet());

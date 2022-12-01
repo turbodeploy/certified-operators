@@ -12,6 +12,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -19,6 +21,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
 
@@ -30,7 +33,7 @@ import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
  * accounts and region. That is why we can cache the value by storage tier in memory to avoid
  * querying the price table in subsequent calls.
  */
-public class StorageAmountResolver {
+public class StoragePriceStructure {
     private final Logger logger = LogManager.getLogger();
     private final BusinessAccountPriceTableKeyStore priceTableKeyStore;
     private final PriceTableStore priceTableStore;
@@ -40,13 +43,22 @@ public class StorageAmountResolver {
     // have the same price and 4-8 GB will have the same price.
     private final Map<Long, NavigableSet<Long>> cachedProviderPriceTierMap = new HashMap<>();
 
+    // Storage tier OID -> commodity type -> end range of free tier
+    // e.g. If IOPS is free from 0 to 3000 for AWS GP3 (OID 123), you will get 123 -> 64 -> 3000.
+    private final Map<Long, Map<Integer, Long>> cachedFreeCommodityPriceTier = new HashMap<>();
+
+    // Convert price entry unit from the price sheet to commodity type.
+    private final Map<Unit, Integer> unitToCommodityMap = ImmutableMap.of(
+            Unit.MBPS_MONTH, CommodityType.IO_THROUGHPUT_VALUE,
+            Unit.MILLION_IOPS, CommodityType.STORAGE_ACCESS_VALUE);
+
     /**
      * Constructor.
      *
-     * @param priceTableKeyStore price tble key store
+     * @param priceTableKeyStore price table key store
      * @param priceTableStore price table store
      */
-    public StorageAmountResolver(@Nonnull BusinessAccountPriceTableKeyStore priceTableKeyStore,
+    public StoragePriceStructure(@Nonnull BusinessAccountPriceTableKeyStore priceTableKeyStore,
             @Nonnull PriceTableStore priceTableStore) {
         this.priceTableKeyStore = priceTableKeyStore;
         this.priceTableStore = priceTableStore;
@@ -89,6 +101,33 @@ public class StorageAmountResolver {
     }
 
     /**
+     * Get the maximum capacity that will be free for a given commodity type.
+     * For example, AWS GP3 storage has free IOPS up to 3000 and IO Throughput up to 125 MB/s.
+     *
+     * @param accountId account ID
+     * @param regionId region ID
+     * @param providerId provider ID
+     * @param commodityType commodity type
+     * @return end range of the free tier of the given commodity
+     */
+    public double getEndRangeInFreePriceTier(long accountId, long regionId, long providerId, int commodityType) {
+        Map<Integer, Long> freePriceTier = cachedFreeCommodityPriceTier.get(providerId);
+        if (freePriceTier == null) {
+            populatePriceMap(accountId, regionId);
+            freePriceTier = cachedFreeCommodityPriceTier.get(providerId);
+            if (freePriceTier == null) {
+                // Price table is not available.
+                logger.warn("Price table is not available when getting free price tiers "
+                                + "for commodity type {}, account ID {}, region ID {} and provider Id {}.",
+                        commodityType, accountId, regionId, providerId);
+                return 0;
+            }
+        }
+        Long freeTier = freePriceTier.get(commodityType);
+        return freeTier != 0 ? freeTier : 0;
+    }
+
+    /**
      * Keep a copy of the "end range" value of each price tier in memory so that subsequent queries
      * won't require access to the price table.
      *
@@ -105,10 +144,19 @@ public class StorageAmountResolver {
             Long storageTierId = entry.getKey();
             cachedProviderPriceTierMap.computeIfAbsent(storageTierId, p -> new TreeSet<>());
             NavigableSet<Long> priceList = cachedProviderPriceTierMap.get(storageTierId);
+            cachedFreeCommodityPriceTier.computeIfAbsent(storageTierId, p -> new HashMap<>());
+            Map<Integer, Long> freeCommodityTier = cachedFreeCommodityPriceTier.get(storageTierId);
             entry.getValue().getCloudStoragePriceList().forEach(list ->
                     list.getPricesList().forEach(price -> {
                         if (price.getUnit() == Unit.MONTH) {
                             priceList.add(price.getEndRangeInUnits());
+                        }
+                        if (price.hasPriceAmount() && price.getPriceAmount().getAmount() == 0
+                                && price.hasEndRangeInUnits()) {
+                            Integer commodityType = unitToCommodityMap.get(price.getUnit());
+                            if (commodityType != null) {
+                                freeCommodityTier.put(commodityType, price.getEndRangeInUnits());
+                            }
                         }
                     }));
         }
@@ -153,9 +201,14 @@ public class StorageAmountResolver {
     private void printCache() {
         StringBuilder cache = new StringBuilder();
         cachedProviderPriceTierMap.forEach((k, v) ->
-                cache.append("storageTier: ").append(k)
-                        .append("   end ranges: ")
+                cache.append("End ranges for storage tier: ").append(k)
                         .append(v.stream().map(x -> Long.toString(x)).collect(Collectors.joining(",")))
+                        .append("\n"));
+        cachedFreeCommodityPriceTier.forEach((k, v) ->
+                cache.append("Free range for storage tier: ").append(k)
+                        .append(v.entrySet().stream()
+                                .map(e -> "commodity: " + e.getKey() + " free range: " + e.getValue())
+                                .collect(Collectors.joining(", ", "[", "]")))
                         .append("\n"));
         logger.trace(cache);
     }
