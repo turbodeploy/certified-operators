@@ -1,10 +1,14 @@
 package com.vmturbo.sql.utils.partition;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
@@ -25,6 +29,7 @@ import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.threeten.extra.PeriodDuration;
 
@@ -60,7 +65,7 @@ public class PartitionsManagerTest {
                     return part;
                 })
                 .when(adapter).createPartition(anyString(), anyString(),
-                        any(Instant.class), any(Instant.class));
+                        any(Instant.class), any(Instant.class), any(Partition.class));
         //noinspection unchecked
         Mockito.doAnswer(inv -> {
             //noinspection unchecked
@@ -107,6 +112,54 @@ public class PartitionsManagerTest {
                 PeriodDuration.of(Duration.ofMillis(2000L))), is(true));
         assertThat(partmgr.ensurePartition(TEST_SCHEMA_NAME, testTable, Instant.ofEpochMilli(1500L),
                 PeriodDuration.of(Duration.ofMillis(2000L))), is(true));
+    }
+
+    /**
+     * In various scenarios, verify that the next closest ascending partition is correctly identified upon creating a
+     * new partition. The identity of the next partition is only used when creating new partitions, and not every
+     * partition adapter uses it.
+     *
+     * @throws PartitionProcessingException on error
+     */
+    @Test
+    public void testThatTheNextAscendingPartitionIsCorrectlyIdentified() throws PartitionProcessingException {
+        setInitialParts();
+
+        final ArgumentCaptor<Partition> followingPartitionArgCaptor = ArgumentCaptor.forClass(Partition.class);
+
+        assertThat("0[ ][ ][ ][X][ ]5000", partmgr.ensurePartition(TEST_SCHEMA_NAME, testTable, Instant.ofEpochMilli(3000),
+                PeriodDuration.of(Duration.ofMillis(1000))), is(false));
+
+        verify(adapter, times(1)).createPartition(any(), any(), any(), any(), followingPartitionArgCaptor.capture());
+        assertThat("no partition follows the new one because it is the first partition",
+                followingPartitionArgCaptor.getValue(), nullValue());
+
+        assertThat("0[ ][ ][X][X][ ]5000", partmgr.ensurePartition(TEST_SCHEMA_NAME, testTable, Instant.ofEpochMilli(2000),
+                PeriodDuration.of(Duration.ofMillis(1000))), is(false));
+
+        verify(adapter, times(2)).createPartition(any(), any(), any(), any(), followingPartitionArgCaptor.capture());
+        assertThat("the new partition is directly before the [3000, 4000) partition",
+                followingPartitionArgCaptor.getValue().getInclusiveLower(), equalTo(Instant.ofEpochMilli(3000)));
+
+        assertThat("0[X][ ][X][X][ ]5000", partmgr.ensurePartition(TEST_SCHEMA_NAME, testTable, Instant.ofEpochMilli(0),
+                PeriodDuration.of(Duration.ofMillis(1000L))), is(false));
+
+        verify(adapter, times(3)).createPartition(any(), any(), any(), any(), followingPartitionArgCaptor.capture());
+        assertThat("the next closest ascending partition is [2000, 3000)",
+                followingPartitionArgCaptor.getValue().getInclusiveLower(), equalTo(Instant.ofEpochMilli(2000)));
+
+        assertThat("0[X][ ][X][X][X]5000", partmgr.ensurePartition(TEST_SCHEMA_NAME, testTable, Instant.ofEpochMilli(4000),
+                PeriodDuration.of(Duration.ofMillis(1000L))), is(false));
+
+        verify(adapter, times(4)).createPartition(any(), any(), any(), any(), followingPartitionArgCaptor.capture());
+        assertThat("no partition follows the new one", followingPartitionArgCaptor.getValue(), nullValue());
+
+        assertThat("0[X][X][X][X][X]5000", partmgr.ensurePartition(TEST_SCHEMA_NAME, testTable, Instant.ofEpochMilli(1999),
+                PeriodDuration.of(Duration.ofMillis(1000L))), is(false));
+
+        verify(adapter, times(5)).createPartition(any(), any(), any(), any(), followingPartitionArgCaptor.capture());
+        assertThat("the new value is only 1ms before [2000, 3000), so it should be the closest ascending",
+                followingPartitionArgCaptor.getValue().getInclusiveLower(), equalTo(Instant.ofEpochMilli(2000)));
     }
 
     /**

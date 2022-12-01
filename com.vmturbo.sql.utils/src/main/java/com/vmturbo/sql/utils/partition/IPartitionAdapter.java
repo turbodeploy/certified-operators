@@ -5,6 +5,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import javax.annotation.Nullable;
+
 /**
  * Interface for a dialect-specific database partitioning adapter.
  */
@@ -52,11 +54,28 @@ public interface IPartitionAdapter {
      * @param tableName     name of table
      * @param fromInclusive lower bound of partition
      * @param toExclusive   upper bound of partition
+     * @param followingPartition the next closest ascending partition, if one exists, or null
      * @return a {@link Partition} instance representing the new partition
      * @throws PartitionProcessingException if there's a problem creating the partition
      */
     Partition<Instant> createPartition(String schemaName, String tableName,
-            Instant fromInclusive, Instant toExclusive) throws PartitionProcessingException;
+            Instant fromInclusive, Instant toExclusive, @Nullable Partition<Instant> followingPartition)
+            throws PartitionProcessingException;
+
+    /**
+     * Create a new partition. The next closest ascending partition will be assumed <code>null</code>.
+     *
+     * @param schemaName    name of schema containing table
+     * @param tableName     name of table
+     * @param fromInclusive lower bound of partition
+     * @param toExclusive   upper bound of partition
+     * @return a {@link Partition} instance representing the new partition
+     * @throws PartitionProcessingException if there's a problem creating the partition
+     */
+    default Partition<Instant> createPartition(String schemaName, String tableName,
+            Instant fromInclusive, Instant toExclusive) throws PartitionProcessingException {
+        return createPartition(schemaName, tableName, fromInclusive, toExclusive, null);
+    }
 
     /**
      * Drop an existing partition.

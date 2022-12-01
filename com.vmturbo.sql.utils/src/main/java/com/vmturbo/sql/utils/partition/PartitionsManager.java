@@ -13,7 +13,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Table;
@@ -100,10 +104,16 @@ public class PartitionsManager {
         }
         if (existingPart == null) {
             Interval alignedBounds = getAlignedBounds(t, partitionSize);
-            Interval adjustedBounds = adjustBounds(alignedBounds, t, tableParts);
+            // the nearest ascending or descending partitions might actually have contained timestamp t,
+            // but we've already determined that no partition contains timestamp t
+            Pair<Partition<Instant>, Partition<Instant>> nearestAdjacentParts =
+                    findNearestAdjacentPartitions(t, tableParts);
+            Interval adjustedBounds =
+                    adjustBounds(alignedBounds, t, tableParts, nearestAdjacentParts);
             Partition<Instant> newPartition = adapter.createPartition(
                     schemaName, table.getName(),
-                    adjustedBounds.getStart(), adjustedBounds.getEnd());
+                    adjustedBounds.getStart(), adjustedBounds.getEnd(),
+                    nearestAdjacentParts.getRight());
             addPartitionToInfo(newPartition);
         }
         return existingPart != null;
@@ -181,16 +191,14 @@ public class PartitionsManager {
         return Interval.of(Instant.from(start), Instant.from(end));
     }
 
-    private Interval adjustBounds(
-            Interval alignedBounds, Instant t, List<Partition<Instant>> tableParts)
-            throws PartitionProcessingException {
-        Instant start = alignedBounds.getStart();
-        Instant end = alignedBounds.getEnd();
+    @Nonnull
+    private Pair<Partition<Instant>, Partition<Instant>> findNearestAdjacentPartitions(Instant t, @Nullable List<Partition<Instant>> tableParts) {
+        // find the earliest partition that at least partially follows our target time - and
+        // if found, note its immediate predecessor as well
+        // (i.e. if t is in a partition, it will be considered the next "following" partition)
+        Partition<Instant> followingPart = null;
+        Partition<Instant> priorPart = null;
         if (!CollectionUtils.emptyIfNull(tableParts).isEmpty()) {
-            // find the earliest partition that at least partially follows our target time - and
-            // if found, note its immediate predecessor as well
-            Partition<Instant> followingPart = null;
-            Partition<Instant> priorPart = null;
             for (int i = 0; i < tableParts.size(); i++) {
                 if (tableParts.get(i).getExclusiveUpper().isAfter(t)) {
                     followingPart = tableParts.get(i);
@@ -198,6 +206,22 @@ public class PartitionsManager {
                     break;
                 }
             }
+        }
+        return Pair.of(priorPart, followingPart);
+    }
+
+    private Interval adjustBounds(
+            Interval alignedBounds, Instant t, List<Partition<Instant>> tableParts,
+            Pair<Partition<Instant>, Partition<Instant>> nearestAdjacentParts)
+            throws PartitionProcessingException {
+        Instant start = alignedBounds.getStart();
+        Instant end = alignedBounds.getEnd();
+        if (!CollectionUtils.emptyIfNull(tableParts).isEmpty()) {
+            // the earliest partition that at least partially follows our target time,
+            // and that partition's immediate predecessor
+            Partition<Instant> followingPart = nearestAdjacentParts.getRight();
+            Partition<Instant> priorPart = nearestAdjacentParts.getLeft();
+
             if (followingPart == null) {
                 // no partition follows our target point, so we need to go at the end.
                 Partition<Instant> lastPart = tableParts.get(tableParts.size() - 1);
