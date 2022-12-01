@@ -21,6 +21,9 @@ public class CloudApplicationInfoMapper extends TypeSpecificInfoMapper {
      */
     private static final String APP_SERVICE_DEPLOYMENT_SLOTS = "Deployment Slots";
 
+    private static final String APP_SERVICE_HYBRID_CONNECTIONS = "Hybrid Connections";
+
+
     @Override
     public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(
             @Nonnull final EntityDTOOrBuilder sdkEntity,
@@ -35,8 +38,11 @@ public class CloudApplicationInfoMapper extends TypeSpecificInfoMapper {
         Builder builder = CloudApplicationInfo.newBuilder();
 
         for (EntityProperty property : properties) {
-            if (APP_SERVICE_DEPLOYMENT_SLOTS.equals(property.getName())) {
+            String name = property.getName();
+            if (APP_SERVICE_DEPLOYMENT_SLOTS.equals(name)) {
                 builder.setDeploymentSlotCount(Integer.parseInt(property.getValue()));
+            } else if (APP_SERVICE_HYBRID_CONNECTIONS.equals(name)) {
+                builder.setHybridConnectionCount(Integer.parseInt(property.getValue()));
             }
         }
 

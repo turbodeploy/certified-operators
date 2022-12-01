@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationServiceInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CloudApplicationInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ServiceInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
@@ -165,6 +166,8 @@ public class ThinSearchableProps implements SearchableProps {
                 return new ThinDatabaseProps(tagIndex, commodities, entity);
             case VIRTUAL_MACHINE_SPEC:
                 return new ThinVirtualMachineSpecProps(tagIndex, commodities, entity);
+            case APPLICATION_COMPONENT_SPEC:
+                return new ThinAppComponentSpecProps(tagIndex, commodities, entity);
             case SERVICE:
                 return new ThinServiceProps(tagIndex, commodities, info);
             case COMPUTE_TIER:
@@ -593,7 +596,7 @@ public class ThinSearchableProps implements SearchableProps {
             final boolean hasTier = applicationServiceInfo.hasTier();
             final boolean hasAppCount = applicationServiceInfo.hasAppCount();
             tier = hasTier ? applicationServiceInfo.getTier().name() : UNKNOWN;
-            appCount = hasAppCount ? applicationServiceInfo.getAppCount() : -1;
+            appCount = hasAppCount ? applicationServiceInfo.getAppCount() : 0;
             this.daysEmpty = applicationServiceInfo.hasDaysEmpty()
                     ? applicationServiceInfo.getDaysEmpty() : null;
         }
@@ -612,6 +615,37 @@ public class ThinSearchableProps implements SearchableProps {
         @Nonnull
         public Optional<Integer> getDaysEmpty() {
             return Optional.ofNullable(daysEmpty);
+        }
+    }
+
+    /**
+     * App component spec properties.
+     */
+    public static class ThinAppComponentSpecProps extends ThinSearchableProps implements AppComponentSpecProps {
+        private final Integer deploymentSlotCount;
+        private final Integer hybridConnectionCount;
+
+        private ThinAppComponentSpecProps(@Nonnull final TagIndex tagIndex,
+                @Nonnull final CommodityValueFetcher commodities,
+                @Nonnull final TopologyEntityDTO entityDTO) {
+            super(tagIndex, commodities);
+            final TypeSpecificInfo typeSpecificInfo = entityDTO.getTypeSpecificInfo();
+            final CloudApplicationInfo applicationServiceInfo = typeSpecificInfo.getCloudApplication();
+            // Fetch counts. If not present, default to 0.
+            deploymentSlotCount = applicationServiceInfo.hasDeploymentSlotCount()
+                    ? applicationServiceInfo.getDeploymentSlotCount() : 0;
+            hybridConnectionCount = applicationServiceInfo.hasHybridConnectionCount()
+                    ? applicationServiceInfo.getHybridConnectionCount() : 0;
+        }
+
+        @Override
+        public Integer getDeploymentSlotCount() {
+            return deploymentSlotCount;
+        }
+
+        @Override
+        public Integer getHybridConnectionCount() {
+            return hybridConnectionCount;
         }
     }
 

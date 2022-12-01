@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.SearchableProps;
+import com.vmturbo.topology.graph.SearchableProps.AppComponentSpecProps;
 import com.vmturbo.topology.graph.SearchableProps.BusinessAccountProps;
 import com.vmturbo.topology.graph.SearchableProps.ComputeTierProps;
 import com.vmturbo.topology.graph.SearchableProps.DatabaseProps;
@@ -187,6 +188,12 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
             case SearchableProperties.VIRTUAL_MACHINE_SPEC_APP_COUNT:
                 IntPredicate predicate = intPredicate(numericCriteria);
                 return PropertyFilter.typeSpecificFilter(virtualMachineSpecProps -> predicate.test(virtualMachineSpecProps.getAppCount()), VirtualMachineSpecProps.class);
+            case SearchableProperties.APP_COMPONENT_SPEC_DEPLOYMENT_SLOTS:
+                IntPredicate deploymentSlotPredicate = intPredicate(numericCriteria);
+                return PropertyFilter.typeSpecificFilter(appComponentSpecProps -> deploymentSlotPredicate.test(appComponentSpecProps.getDeploymentSlotCount()), AppComponentSpecProps.class);
+            case SearchableProperties.APP_COMPONENT_SPEC_HYBRID_CONNECTIONS:
+                IntPredicate hybridConnectionPredicate = intPredicate(numericCriteria);
+                return PropertyFilter.typeSpecificFilter(appComponentSpecProps -> hybridConnectionPredicate.test(appComponentSpecProps.getHybridConnectionCount()), AppComponentSpecProps.class);
             default:
                 throw new IllegalArgumentException("Unknown numeric property named: " + propertyName);
         }

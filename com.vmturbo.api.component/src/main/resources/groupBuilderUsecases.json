@@ -453,7 +453,11 @@
 
   "ApplicationComponentSpec" : {
     "criteria" : [
-      {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "applicationComponentSpecsByName"}
+      {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appComponentSpecsByName"},
+        {"inputType": "#", "elements": "hybridConnectionCount", "filterCategory": "property", "filterType":
+        "appComponentSpecsByHybridConnectionCount"},
+        {"inputType": "#", "elements": "deploymentSlotCount", "filterCategory": "property", "filterType":
+        "appComponentSpecsByDeploymentSlotCount"}
     ]
   }
 }

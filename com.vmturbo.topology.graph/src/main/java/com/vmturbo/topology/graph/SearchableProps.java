@@ -398,6 +398,25 @@ public interface SearchableProps {
     }
 
     /**
+     * Searchable properties for application component spec.
+     */
+    interface AppComponentSpecProps extends SearchableProps {
+        /**
+         * Get Hybrid Connection Count.
+         *
+         * @return Hybrid Connection
+         */
+        Integer getHybridConnectionCount();
+
+        /**
+         * Get Deployment Slot Count.
+         *
+         * @return Deployment Slot
+         */
+        Integer getDeploymentSlotCount();
+    }
+
+    /**
      * Searchable properties for virtual machine spec.
      */
     interface VirtualMachineSpecProps extends SearchableProps {
