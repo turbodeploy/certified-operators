@@ -65,6 +65,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
@@ -72,11 +73,13 @@ import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.savings.DataInjectionMonitor.ScriptEvent;
 import com.vmturbo.cost.component.savings.bottomup.AggregatedSavingsStats;
 import com.vmturbo.cost.component.savings.bottomup.SqlEntitySavingsStore;
-import com.vmturbo.cost.component.savings.calculator.StorageAmountResolver;
+import com.vmturbo.cost.component.savings.calculator.Calculator;
+import com.vmturbo.cost.component.savings.calculator.StoragePriceStructure;
 import com.vmturbo.cost.component.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
 import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.trax.TraxConfiguration;
 
 /**
  * Pass in files ending with
@@ -117,7 +120,8 @@ public class ScenarioSavingsTest {
 
     private static final BusinessAccountPriceTableKeyStore priceTableKeyStore = mock(BusinessAccountPriceTableKeyStore.class);
     private static final PriceTableStore priceTableStore = mock(PriceTableStore.class);
-    private static final StorageAmountResolver storageAmountResolver = spy(new StorageAmountResolver(priceTableKeyStore, priceTableStore));
+    private static final StoragePriceStructure
+            STORAGE_PRICE_STRUCTURE = spy(new StoragePriceStructure(priceTableKeyStore, priceTableStore));
 
     private static final long STANDARD_HDD_DISK_TIER_OID = 20000L;
     private static final long ULTRA_DISK_TIER_OID = 35000L;
@@ -143,6 +147,8 @@ public class ScenarioSavingsTest {
     public static void setup() throws IOException {
         // Set this to TRACE and Change trax verbosity level manually to get see the trax output.
         Configurator.setAllLevels("com.vmturbo.cost.component.savings", Level.INFO);
+        // Change trax verbosity level manually to get see the trax output.
+        TraxConfiguration.configureTopics(Calculator.TRAX_TOPIC, Verbosity.OFF);
         int chunkSize = 1000;
         DSLContext dsl = dbConfig.getDslContext();
         Clock clock =  Clock.systemUTC();
@@ -166,8 +172,8 @@ public class ScenarioSavingsTest {
                 clock, mock(TopologyEntityCloudTopologyFactory.class),
                 null, dsl, priceTableKeyStore,
                 priceTableStore, searchService, 0, 777777, chunkSize));
-        savingsTracker.setStorageAmountResolver(storageAmountResolver);
-        doReturn(priceListMap).when(storageAmountResolver).getStoragePriceTiers(anyLong(), anyLong());
+        savingsTracker.setStorageAmountResolver(STORAGE_PRICE_STRUCTURE);
+        doReturn(priceListMap).when(STORAGE_PRICE_STRUCTURE).getStoragePriceTiers(anyLong(), anyLong());
 
         doReturn(true).when(savingsTracker).isSupportedCSP(any());
 
@@ -311,7 +317,7 @@ public class ScenarioSavingsTest {
         LocalDateTime startTime = DataInjectionMonitor.makeLocalDateTime(earliestEventTime, false);
         LocalDateTime endTime = DataInjectionMonitor.makeLocalDateTime(latestEventTime, true);
 
-        doReturn(priceListMap).when(storageAmountResolver).getStoragePriceTiers(anyLong(), anyLong());
+        doReturn(priceListMap).when(STORAGE_PRICE_STRUCTURE).getStoragePriceTiers(anyLong(), anyLong());
 
         // Handle the script events.
         final AtomicBoolean purgePreviousTestState = new AtomicBoolean(false);

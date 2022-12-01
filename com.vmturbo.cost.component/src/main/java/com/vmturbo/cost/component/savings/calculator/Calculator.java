@@ -53,12 +53,15 @@ public class Calculator {
 
     // Cost categories of bill records to be excluded from the analysis of time spent on a provider.
     private static final Set<CostCategory> COST_CATEGORIES_EXCLUDE = Collections.singleton(CostCategory.LICENSE);
-    static final String TRAX_TOPIC = "BILL_BASED_SAVINGS";
+    /**
+     * Trax topic name for savings calculations.
+     */
+    public static final String TRAX_TOPIC = "BILL_BASED_SAVINGS";
 
     private final Logger logger = LogManager.getLogger();
     private final long deleteActionExpiryMs;
     private final Clock clock;
-    private final StorageAmountResolver storageAmountResolver;
+    private final StoragePriceStructure storagePriceStructure;
 
     /**
      * Constructor.
@@ -66,10 +69,10 @@ public class Calculator {
      * @param deleteActionExpiryMs Volume expiry time in milliseconds
      * @param clock clock
      */
-    public Calculator(long deleteActionExpiryMs, Clock clock, StorageAmountResolver storageAmountResolver) {
+    public Calculator(long deleteActionExpiryMs, Clock clock, StoragePriceStructure storagePriceStructure) {
         this.deleteActionExpiryMs = deleteActionExpiryMs;
         this.clock = clock;
-        this.storageAmountResolver = storageAmountResolver;
+        this.storagePriceStructure = storagePriceStructure;
     }
 
     /**
@@ -499,7 +502,7 @@ public class Calculator {
                                 long segmentStartTime = Math.max(scaleActionDataPoint.getTimestamp(), startOfDay);
 
                                 // Calculate the product of quantity, duration and rate for entities that have varying rates.
-                                setQdrForSegment(scaleActionDataPoint, commTypeEntry.getValue(), segment);
+                                setQdrForSegment(scaleActionDataPoint, recordsByCommType, segment);
 
                                 TraxNumber newCapacity = trax(commCapMap.get(commType)
                                         .floorEntry(segmentStartTime)
@@ -509,6 +512,12 @@ public class Calculator {
                                             recordsByCommType.get(commType));
                                     if (adjustedStorageAmount != newCapacity.getValue()) {
                                         newCapacity = trax(adjustedStorageAmount).named("Adjusted storage amount");
+                                    }
+                                } else {
+                                    double adjustCommodityAmount = adjustCommodityAmount(billingRecordsForCommType, providerId,
+                                            commType, newCapacity.getValue());
+                                    if (adjustCommodityAmount != newCapacity.getValue()) {
+                                        newCapacity = trax(adjustCommodityAmount).named("Adjusted commodity capacity");
                                     }
                                 }
                                 TraxNumber quantityTimesHours = newCapacity
@@ -589,7 +598,7 @@ public class Calculator {
             // the same provider for the whole segment. Include the time of
             // the previous segment to the time on provider.
             Segment previousSegment = allSegments.lower(segment);
-            if (previousSegment != null && isPrevSegmentSameProvider(segment, previousSegment)) {
+            if (previousSegment != null && isPrevSegTerminationAndSameProvider(segment, previousSegment)) {
                 totalTimeOnProvider += previousSegment.duration;
             }
         }
@@ -639,6 +648,8 @@ public class Calculator {
                     double oldCapacity = commCapMap.get(commType).lowerEntry(firstSegmentTimestamp).getValue();
                     if (commType == CommodityType.STORAGE_AMOUNT_VALUE) {
                         oldCapacity = adjustStorageAmount(oldCapacity, billingRecordsForCommType);
+                    } else {
+                        oldCapacity = adjustCommodityAmount(billingRecordsForCommType, providerId, commType, oldCapacity);
                     }
                     usageRemaining -= oldCapacity * (firstSegmentTimestamp - startOfDay) / MILLIS_IN_HOUR;
                 }
@@ -653,11 +664,13 @@ public class Calculator {
             for (Segment segment : segmentsOfCurrentProvider) {
                 Segment previousSegment = segments.lower(segment);
                 long segmentStartTime = segment.getActionDataPoint().getTimestamp();
-                if (previousSegment != null && isPrevSegmentSameProvider(segment, previousSegment)
+                if (previousSegment != null && isPrevSegTerminationAndSameProvider(segment, previousSegment)
                         && commCapMap.get(commType).lowerEntry(segmentStartTime) != null) {
                     double oldCapacity = commCapMap.get(commType).lowerEntry(segmentStartTime).getValue();
                     if (commType == CommodityType.STORAGE_AMOUNT_VALUE) {
                         oldCapacity = adjustStorageAmount(oldCapacity, billingRecordsForCommType);
+                    } else {
+                        oldCapacity = adjustCommodityAmount(billingRecordsForCommType, providerId, commType, oldCapacity);
                     }
                     usageRemaining -= oldCapacity * previousSegment.getDuration() / MILLIS_IN_HOUR;
                 }
@@ -673,15 +686,15 @@ public class Calculator {
      * cost per hour per GB in the segment. It will be used to calculate the multiplier.
      *
      * @param scaleActionDataPoint action data point
-     * @param recordsForComm records for the entity for the day
+     * @param recordsByCommType records for the entity for the day
      * @param segment the segment
      */
-    private void setQdrForSegment(ScaleActionDataPoint scaleActionDataPoint, List<BillingRecord> recordsForComm, Segment segment) {
+    private void setQdrForSegment(ScaleActionDataPoint scaleActionDataPoint, Map<Integer, List<BillingRecord>> recordsByCommType, Segment segment) {
         try (TraxContext traxContext = Trax.track(TRAX_TOPIC)) {
-            // If the bill only has record for one commodity type and it is storage amount,
+            // If the bill only has record for one commodity type and it is storage amount of a storage tier,
             // store the value of quantity x duration x after-action rate per hour (QDR) in the segment.
-            if (recordsForComm.size() == 1 && recordsForComm.get(0).getProviderType() == EntityType.STORAGE_TIER_VALUE
-                    && recordsForComm.get(0).getCommodityType() == CommodityType.STORAGE_AMOUNT_VALUE
+            if (recordsByCommType.size() == 1 && recordsByCommType.get(CommodityType.STORAGE_AMOUNT_VALUE) != null
+                    && recordsByCommType.get(CommodityType.STORAGE_AMOUNT_VALUE).get(0).getProviderType() == EntityType.STORAGE_TIER_VALUE
                     && scaleActionDataPoint.getSourceProviderOid() == scaleActionDataPoint.getDestinationProviderOid()) {
                 Optional<CommodityResize> storageAmountResize =
                         scaleActionDataPoint.getCommodityResizes().stream().filter(r -> r.getCommodityType()
@@ -740,7 +753,7 @@ public class Calculator {
                         continue;
                     }
                     Segment previousSegment = segments.lower(segment);
-                    if (previousSegment != null && isPrevSegmentSameProvider(segment,
+                    if (previousSegment != null && isPrevSegTerminationAndSameProvider(segment,
                             previousSegment)) {
                         ScaleActionDataPoint scaleActionDataPoint = (ScaleActionDataPoint)segment.getActionDataPoint();
                         TraxNumber duration = trax(previousSegment.duration).named(
@@ -777,7 +790,7 @@ public class Calculator {
      * @return true is previous segment is associated with an action termination event (revert or
      *      * external modification) but the previous segment has the same provider as the current segment.
      */
-    private boolean isPrevSegmentSameProvider(Segment segment, Segment previousSegment) {
+    private boolean isPrevSegTerminationAndSameProvider(Segment segment, Segment previousSegment) {
         if (!(segment.getActionDataPoint() instanceof ScaleActionDataPoint)) {
             return false;
         }
@@ -790,10 +803,35 @@ public class Calculator {
     private double adjustStorageAmount(double capacity, List<BillingRecord> billingRecords) {
         if (billingRecords != null && !billingRecords.isEmpty()) {
             BillingRecord record = billingRecords.get(0);
-            return storageAmountResolver.getEndRangeInPriceTier(capacity,
+            return storagePriceStructure.getEndRangeInPriceTier(capacity,
                     record.getAccountId(), record.getRegionId(), record.getProviderId());
         }
         return capacity;
+    }
+
+    /**
+     * Some commodities are free up to a certain amount before a charge will be applied on the
+     * amount above that free limit. E.g. AWS GP3 IOPS does not have a charge for provisioned IOPS
+     * below 3000.
+     *
+     * @param billingRecords bill records for the given commodity
+     * @param providerId provider ID
+     * @param commType commodity type
+     * @param capacity after-action capacity of the commodity
+     * @return the adjusted (if needed) new capacity
+     */
+    private double adjustCommodityAmount(List<BillingRecord> billingRecords, long providerId,
+            int commType, final double capacity) {
+        double adjustedCapacity = capacity;
+        BillingRecord record = billingRecords.stream().findFirst().orElse(null);
+        if (record != null) {
+            double freeEndRange = storagePriceStructure.getEndRangeInFreePriceTier(
+                    record.getAccountId(), record.getRegionId(), providerId, commType);
+            if (freeEndRange != 0) {
+                adjustedCapacity = capacity > freeEndRange ? capacity - freeEndRange : 0.0;
+            }
+        }
+        return adjustedCapacity;
     }
 
     /**
