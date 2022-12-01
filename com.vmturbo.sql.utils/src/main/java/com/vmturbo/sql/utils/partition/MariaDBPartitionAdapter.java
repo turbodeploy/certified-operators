@@ -10,6 +10,8 @@ import java.util.Map.Entry;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nullable;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -76,26 +78,40 @@ public class MariaDBPartitionAdapter implements IPartitionAdapter {
 
     @Override
     public Partition<Instant> createPartition(
-            String schemaName, String tableName, Instant fromInclusive, Instant toExclusive)
+            String schemaName, String tableName, Instant fromInclusive, Instant toExclusive,
+            @Nullable Partition<Instant> followingPartition)
             throws PartitionProcessingException {
         String partitionName = partitionNameFormat.format(toExclusive.toEpochMilli());
         long bound = instantToSecs(toExclusive);
-        String partSpec = String.format("PARTITION `%s` VALUES LESS THAN (%s)",
+        String newPartitionSpec = String.format("PARTITION `%s` VALUES LESS THAN (%s)",
                 partitionName, bound);
+
+        String partitionToReorganize;
+        String partitionToReorganizeSpec;
+        if (followingPartition == null) {
+            // divide the 'future' partition into two: new partition, future
+            partitionToReorganize = "future";
+            partitionToReorganizeSpec = FUTURE_PARTITION_SPEC;
+        } else {
+            // divide the next closest ascending partition into two: new partition, next
+            partitionToReorganize = followingPartition.getPartitionName();
+            partitionToReorganizeSpec = String.format("PARTITION `%s` VALUES LESS THAN (%s)",
+                    followingPartition.getPartitionName(), instantToSecs(followingPartition.getExclusiveUpper()));
+        }
+
         String sql =
-                String.format("ALTER TABLE `%s`.`%s` REORGANIZE PARTITION `future` INTO (%s, %s)",
-                        schemaName, tableName, partSpec, FUTURE_PARTITION_SPEC);
+                String.format("ALTER TABLE `%s`.`%s` REORGANIZE PARTITION `%s` INTO (%s, %s)", schemaName, tableName,
+                        partitionToReorganize, newPartitionSpec, partitionToReorganizeSpec);
         try {
             dsl.execute(sql);
             logger.info("Created new partition with upper bound {} for table {}.{}",
                     toExclusive, schemaName, tableName);
-            return new Partition<>(
-                    schemaName, tableName, partitionName, fromInclusive, toExclusive);
         } catch (DataAccessException | org.springframework.dao.DataAccessException e) {
             throw new PartitionProcessingException(
                     String.format("Failed to create partition %s in table %s.%s",
                             partitionName, schemaName, tableName), e);
         }
+        return new Partition<>(schemaName, tableName, partitionName, fromInclusive, toExclusive);
     }
 
     @Override

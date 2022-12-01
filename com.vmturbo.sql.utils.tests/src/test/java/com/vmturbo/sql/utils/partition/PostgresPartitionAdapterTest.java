@@ -2,6 +2,7 @@ package com.vmturbo.sql.utils.partition;
 
 import static com.vmturbo.sql.utils.partition.PartitionMatchers.coversInstant;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -12,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
 
+import org.hamcrest.Matchers;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
 import org.junit.After;
@@ -130,6 +132,79 @@ public class PostgresPartitionAdapterTest extends MultiDbTestBase {
         assertThat(tableParts, coversInstant(Instant.ofEpochMilli(39999L)));
         assertThat(tableParts, not(coversInstant(Instant.ofEpochMilli(40_000L))));
         assertThat(tableParts, not(coversInstant(Instant.ofEpochMilli(45_000L))));
+    }
+
+    /**
+     * Create partitions in a variety of cases, verifying that they can be created not strictly in ascending order.
+     *
+     * @throws PartitionProcessingException on error
+     */
+    @Test
+    public void testThatOutOfOrderPartitionCreationWorks() throws PartitionProcessingException {
+
+        // [ ] = uncovered
+        // [X] = covered
+
+        // create an initial partition
+        final Partition<Instant> p12to14 =
+                adapter.createPartition(mappedSchemaName, Tables.PART_TEST.getName(), Instant.ofEpochMilli(12_000),
+                        Instant.ofEpochMilli(14_000), null);
+        assertThat("0[ ][ ][ ][ ][ ][ ][X][ ]16000", getTablePartitions(),
+                both(coversInstant(p12to14.getInclusiveLower())).and(not(coversInstant(p12to14.getExclusiveUpper()))));
+
+        // create a partition out-of-order and directly adjacent to another
+        final Partition<Instant> p10to12 =
+                adapter.createPartition(mappedSchemaName, Tables.PART_TEST.getName(), Instant.ofEpochMilli(10_000),
+                        Instant.ofEpochMilli(12_000), p12to14);
+        assertThat("0[ ][ ][ ][ ][ ][X][X][ ]16000", getTablePartitions(),
+                both(coversInstant(p10to12.getInclusiveLower())).and(not(coversInstant(p12to14.getExclusiveUpper()))));
+
+        // create a partition out-of-order but with a gap in between
+        final Partition<Instant> p4to6 =
+                adapter.createPartition(mappedSchemaName, Tables.PART_TEST.getName(), Instant.ofEpochMilli(4_000),
+                        Instant.ofEpochMilli(6_000), p10to12);
+        assertThat("0[ ][ ][X][ ][ ][X][X][ ]16000", getTablePartitions(),
+                both(coversInstant(p4to6.getInclusiveLower())).and(not(coversInstant(p12to14.getExclusiveUpper()))));
+
+        // fill in a gap in reverse
+        final Partition<Instant> p8to10 =
+                adapter.createPartition(mappedSchemaName, Tables.PART_TEST.getName(), Instant.ofEpochMilli(8_000),
+                        Instant.ofEpochMilli(10_000), p10to12);
+        assertThat("0[ ][ ][X][ ][X][X][X][ ]16000", getTablePartitions(),
+                both(coversInstant(p8to10.getInclusiveLower())).and(not(coversInstant(p12to14.getExclusiveUpper()))));
+        final Partition<Instant> p6to8 =
+                adapter.createPartition(mappedSchemaName, Tables.PART_TEST.getName(), Instant.ofEpochMilli(6_000),
+                        Instant.ofEpochMilli(8_000), p8to10);
+        assertThat("0[ ][ ][X][X][X][X][X][ ]16000", getTablePartitions(),
+                both(coversInstant(p6to8.getInclusiveLower())).and(not(coversInstant(p12to14.getExclusiveUpper()))));
+
+        // fill in a gap going forward
+        final Partition<Instant> p0to2 =
+                adapter.createPartition(mappedSchemaName, Tables.PART_TEST.getName(), Instant.ofEpochMilli(0),
+                        Instant.ofEpochMilli(2_000), p4to6);
+        assertThat("0[X][ ][X][X][X][X][X][ ]16000", getTablePartitions(),
+                both(coversInstant(p0to2.getInclusiveLower())).and(not(coversInstant(p12to14.getExclusiveUpper()))));
+        final Partition<Instant> p2to4 =
+                adapter.createPartition(mappedSchemaName, Tables.PART_TEST.getName(), Instant.ofEpochMilli(2_000),
+                        Instant.ofEpochMilli(4_000), p4to6);
+        assertThat("0[X][X][X][X][X][X][X][ ]16000", getTablePartitions(),
+                both(coversInstant(p2to4.getInclusiveLower())).and(not(coversInstant(p12to14.getExclusiveUpper()))));
+
+        // try an edge case - a new partition when some partitions do exist, but there are no partition after it
+        final Partition<Instant> p14to16 =
+                adapter.createPartition(mappedSchemaName, Tables.PART_TEST.getName(), Instant.ofEpochMilli(14_000),
+                        Instant.ofEpochMilli(16_000), null);
+        assertThat("0[X][X][X][X][X][X][X][X]16000", getTablePartitions(),
+                both(coversInstant(p14to16.getInclusiveLower())).and(not(coversInstant(p14to16.getExclusiveUpper()))));
+
+        assertThat("everything [0-16000) should be covered", getTablePartitions(),
+                Matchers.allOf(coversInstant(p0to2.getInclusiveLower()), coversInstant(p2to4.getInclusiveLower()),
+                        coversInstant(p4to6.getInclusiveLower()), coversInstant(p6to8.getInclusiveLower()),
+                        coversInstant(p8to10.getInclusiveLower()), coversInstant(p10to12.getInclusiveLower()),
+                        coversInstant(p12to14.getInclusiveLower()), coversInstant(p14to16.getInclusiveLower())));
+
+        assertThat("everything [16000, infinity) should not be covered", getTablePartitions(),
+                not(coversInstant(p14to16.getExclusiveUpper())));
     }
 
     /**

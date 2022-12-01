@@ -13,6 +13,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -168,12 +170,14 @@ public class PostgresPartitionAdapter implements IPartitionAdapter {
      * @param tableName     name of table
      * @param fromInclusive lower bound of partition
      * @param toExclusive   upper bound of partition
+     * @param followingPartition the next closest ascending partition (not used by this Postgres adapter)
      * @return a {@link Partition} instance representing the new partition
      * @throws PartitionProcessingException if there's a problem creating the partition
      */
     @Override
     public Partition<Instant> createPartition(String schemaName, String tableName,
-            Instant fromInclusive, Instant toExclusive) throws PartitionProcessingException {
+            Instant fromInclusive, Instant toExclusive, @Nullable Partition<Instant> followingPartition)
+            throws PartitionProcessingException {
         String partitionName = getPartitionName(tableName, fromInclusive, toExclusive);
         String sql = String.format(
                 "CREATE TABLE \"%s\" PARTITION OF \"%s\" FOR VALUES FROM ('%s') TO ('%s')",
