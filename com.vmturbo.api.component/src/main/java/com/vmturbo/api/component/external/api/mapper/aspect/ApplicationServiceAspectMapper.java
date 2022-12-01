@@ -53,9 +53,6 @@ public class ApplicationServiceAspectMapper extends AbstractAspectMapper {
             if (appSvcInfo.hasZoneRedundant()) {
                 aspect.setZoneRedundant(appSvcInfo.getZoneRedundant());
             }
-            if (appSvcInfo.hasDaysEmpty()) {
-                aspect.setDaysEmpty(appSvcInfo.getDaysEmpty());
-            }
         }
         return aspect;
     }

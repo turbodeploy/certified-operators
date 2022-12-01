@@ -43,7 +43,6 @@ public class ApplicationServiceAspectMapperTest extends BaseAspectMapperTest {
     private static final String PLATFORM = "LINUX";
     private static final boolean ZONE_REDUNDANT = true;
     private static final int APP_COUNT = 5;
-    private static final int DAYS_EMPTY = 22;
 
     /**
      * Test standard usage of mapping an entity to app component aspect.
@@ -75,7 +74,6 @@ public class ApplicationServiceAspectMapperTest extends BaseAspectMapperTest {
                                 .setCurrentInstanceCount(INSTANCE_COUNT)
                                 .setAppCount(APP_COUNT)
                                 .setZoneRedundant(ZONE_REDUNDANT)
-                                .setDaysEmpty(DAYS_EMPTY)
                                 .build())
                         .build());
         final ApplicationServiceAspectApiDTO expected = new ApplicationServiceAspectApiDTO();
@@ -85,7 +83,6 @@ public class ApplicationServiceAspectMapperTest extends BaseAspectMapperTest {
         expected.setInstanceCount(INSTANCE_COUNT);
         expected.setAppCount(APP_COUNT);
         expected.setZoneRedundant(ZONE_REDUNDANT);
-        expected.setDaysEmpty(DAYS_EMPTY);
         assertApplicationServiceAspect(tpEntityDtoBuilder.build(), expected);
     }
 
