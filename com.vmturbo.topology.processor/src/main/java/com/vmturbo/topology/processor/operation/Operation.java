@@ -11,6 +11,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
+
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 
@@ -84,7 +86,7 @@ public abstract class Operation {
     private List<ErrorDTO> errorsDTOList;
 
     public List<ErrorDTO> getErrorsDTOList() {
-        return errorsDTOList;
+        return ImmutableList.copyOf(errorsDTOList);
     }
 
     /**
@@ -161,7 +163,7 @@ public abstract class Operation {
 
     @Nonnull
     public List<String> getErrors() {
-        return errors;
+        return ImmutableList.copyOf(errors);
     }
 
     @Nonnull
