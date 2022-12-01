@@ -18,18 +18,23 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.cost.BilledCostServicesREST.BilledCostServiceController;
+import com.vmturbo.common.protobuf.cost.CloudCostServicesREST.CloudCostDiagsServiceController;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsHandlerImportable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
 import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
+import com.vmturbo.cost.component.billed.cost.CloudCostConfig;
+import com.vmturbo.cost.component.billed.cost.CloudCostDiagsRpcService;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
 import com.vmturbo.cost.component.db.DbAccessConfig;
 import com.vmturbo.cost.component.diags.CostDiagnosticsHandler;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
+import com.vmturbo.cost.component.reserved.instance.PlanReservedInstanceRpcService;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.stores.DiagnosableDataStoreCollector;
@@ -40,6 +45,8 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  */
 @Import({CloudCommitmentAnalysisStoreConfig.class,
         EntityCostConfig.class,
+        CloudCostConfig.class,
+        BilledCostConfig.class,
         ReservedInstanceConfig.class,
         ComputeTierDemandStatsConfig.class,
         DbAccessConfig.class,
@@ -53,6 +60,12 @@ public class CostDiagnosticsConfig {
 
     @Autowired
     private EntityCostConfig entityCostConfig;
+
+    @Autowired
+    private CloudCostConfig cloudCostConfig;
+
+    @Autowired
+    private BilledCostConfig billedCostConfig;
 
     @Autowired
     private ReservedInstanceConfig reservedInstanceConfig;
@@ -129,6 +142,29 @@ public class CostDiagnosticsConfig {
     }
 
     /**
+     * Cloud cost diags Rpc service bean.
+     *
+     * @return The {@link CloudCostDiagsRpcService}
+     */
+    @Bean
+    public CloudCostDiagsRpcService cloudCostDiagsRpcService() {
+        return new CloudCostDiagsRpcService(cloudCostConfig.cloudCostStore(),
+                billedCostConfig.tagStore(),
+                billedCostConfig.tagGroupStore(),
+                cloudCostConfig.cloudScopeIdentityStore());
+    }
+
+    /**
+     * Creates a new {@link CloudCostDiagsServiceController} instance. The controller is required
+     * for swagger functionality.
+     * @return The newly created {@link CloudCostDiagsServiceController} instance.
+     */
+    @Bean
+    public CloudCostDiagsServiceController cloudCostDiagsServiceController() {
+        return new CloudCostDiagsServiceController(cloudCostDiagsRpcService());
+    }
+
+    /**
      * Gets the list of all stores we want to dump diags for.
      *
      * @return A collection of stores.
@@ -147,6 +183,12 @@ public class CostDiagnosticsConfig {
 
             // Query the entity cost store. If saveHistoricalStatsDiags is true, we also dump rolled up tables.
             storesToSave.addAll(entityCostConfig.entityCostStore().getDiagnosables(saveHistoricalStatsDiags));
+
+            // Query the cloud cost store.
+            storesToSave.addAll(cloudCostConfig.cloudCostStore().getDiagnosables(true));
+            storesToSave.addAll(billedCostConfig.tagStore().getDiagnosables(true));
+            storesToSave.addAll(billedCostConfig.tagGroupStore().getDiagnosables(true));
+            storesToSave.addAll(cloudCostConfig.cloudScopeIdentityStore().getDiagnosables(true));
 
             // Query the reserved instance coverage store. If saveHistoricalStatsDiags is true, we also dump rolled up tables.
             storesToSave.addAll(reservedInstanceConfig.reservedInstanceCoverageStore().getDiagnosables(saveHistoricalStatsDiags));

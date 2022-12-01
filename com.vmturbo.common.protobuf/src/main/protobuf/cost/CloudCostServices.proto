@@ -1,0 +1,17 @@
+syntax = "proto2";
+package cloud_cost;
+
+option java_package = "com.vmturbo.common.protobuf.cost";
+
+message ExportCloudCostDiagsRequest {
+    optional bool exportCloudCostDiags = 1 [default = true];
+}
+
+message ExportCloudCostDiagsResponse {
+    optional bool exportCloudCostDiags = 1;
+}
+service CloudCostDiagsService {
+    // enable cloud cost table and cost tag table as part of diags export
+    rpc ExportCloudCostDiags(ExportCloudCostDiagsRequest)
+        returns (ExportCloudCostDiagsResponse);
+}

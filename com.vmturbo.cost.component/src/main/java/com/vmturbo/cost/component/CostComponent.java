@@ -33,6 +33,7 @@ import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.cost.component.billed.cost.BilledCostRpcService;
 import com.vmturbo.cost.component.billed.cost.CloudCostConfig;
+import com.vmturbo.cost.component.billed.cost.CloudCostDiagsRpcService;
 import com.vmturbo.cost.component.cleanup.CostCleanupConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentConfig;
 import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentRpcService;
@@ -130,6 +131,10 @@ public class CostComponent extends BaseVmtComponent {
     @Autowired
     private BilledCostRpcService billedCostRpcService;
 
+    // Export cloud cost diags
+    @Autowired
+    private CloudCostDiagsRpcService cloudCostDiagsRpcService;
+
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
 
@@ -156,6 +161,9 @@ public class CostComponent extends BaseVmtComponent {
 
     @Autowired
     private BilledCostConfig billedCostConfig;
+
+    @Autowired
+    private CloudCostConfig cloudCostConfig;
 
     /**
      * Starts the component.
@@ -230,7 +238,8 @@ public class CostComponent extends BaseVmtComponent {
                 cloudCommitmentStatsRpcService,
                 cloudCommitmentRpcService,
                 billedCostConfig.billedCostUploadRpcService(),
-                billedCostRpcService);
+                billedCostRpcService,
+                cloudCostDiagsRpcService);
     }
 
     @Nonnull

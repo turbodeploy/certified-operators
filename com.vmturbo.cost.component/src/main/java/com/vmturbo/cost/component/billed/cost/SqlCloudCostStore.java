@@ -1,7 +1,9 @@
 package com.vmturbo.cost.component.billed.cost;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -12,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Table;
+import org.jooq.impl.TableImpl;
 
 import com.vmturbo.cloud.common.persistence.DataQueueFactory;
 import com.vmturbo.cloud.common.scope.CloudScopeIdentityProvider;
@@ -19,9 +22,13 @@ import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostData;
 import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostQuery;
 import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostStat;
 import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostStatsQuery;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
+import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.billedcosts.TagGroupIdentityService;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.tables.records.CloudCostDailyRecord;
 import com.vmturbo.platform.sdk.common.CostBilling.CloudBillingData.CloudBillingBucket.Granularity;
 import com.vmturbo.sql.utils.partition.IPartitioningManager;
 
@@ -41,6 +48,10 @@ public class SqlCloudCostStore implements CloudCostStore {
     private final TagGroupIdentityService tagGroupIdentityService;
 
     private final SqlCostStatsQueryExecutor statsQueryExecutor;
+
+    private final CloudCostsByDayDiagsHelper cloudCostsByDayDiagsHelper;
+
+    private boolean exportCloudCostDiags = true;
 
     /**
      * Constructs a new {@link SqlCloudCostStore} instance.
@@ -69,6 +80,7 @@ public class SqlCloudCostStore implements CloudCostStore {
                 costWriter,
                 dataQueueFactory,
                 persistenceConfig);
+        this.cloudCostsByDayDiagsHelper = new CloudCostsByDayDiagsHelper(dsl);
     }
 
     @Override
@@ -148,5 +160,63 @@ public class SqlCloudCostStore implements CloudCostStore {
         }
 
         return aggregateTable;
+    }
+
+    @Override
+    public void setExportCloudCostDiags(boolean exportCloudCostDiags) {
+        this.exportCloudCostDiags = exportCloudCostDiags;
+    }
+
+    @Override
+    public boolean getExportCloudCostDiags() {
+        return this.exportCloudCostDiags;
+    }
+
+
+    @Override
+    public Set<Diagnosable> getDiagnosables(boolean collectHistoricalStats) {
+        HashSet<Diagnosable> storesToSave = new HashSet<>();
+        storesToSave.add(cloudCostsByDayDiagsHelper);
+        return storesToSave;
+    }
+
+    /**
+     * Helper class for dumping daily cloud cost db records to exported topology.
+     */
+    private final class CloudCostsByDayDiagsHelper implements
+            TableDiagsRestorable<Object, CloudCostDailyRecord> {
+        private static final String cloudCostByDayDumpFile = "cloudCostByDay_dump";
+
+        private final DSLContext dsl;
+
+        CloudCostsByDayDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+
+        @Override
+        public DSLContext getDSLContext() {
+            return dsl;
+        }
+
+        @Override
+        public TableImpl<CloudCostDailyRecord> getTable() {
+            return Tables.CLOUD_COST_DAILY;
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return cloudCostByDayDumpFile;
+        }
+
+        @Nonnull
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) {
+            if (exportCloudCostDiags) {
+                TableDiagsRestorable.super.collectDiags(appender);
+            } else {
+                return;
+            }
+        }
     }
 }

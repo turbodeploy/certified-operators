@@ -8,11 +8,12 @@ import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostData;
 import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostQuery;
 import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostStat;
 import com.vmturbo.common.protobuf.cost.BilledCost.BilledCostStatsQuery;
+import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
 
 /**
  * A store for {@link BilledCostData}.
  */
-public interface CloudCostStore {
+public interface CloudCostStore extends MultiStoreDiagnosable, CloudCostDiags {
 
     /**
      * Creates a new {@link BilledCostPersistenceSession}. The persistence sessions represents a queue

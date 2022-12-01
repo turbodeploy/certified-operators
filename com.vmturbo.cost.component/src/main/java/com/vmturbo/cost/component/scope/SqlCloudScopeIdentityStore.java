@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.scope;
 
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -21,10 +22,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Query;
+import org.jooq.impl.TableImpl;
 
 import com.vmturbo.cloud.common.scope.CloudScopeIdentity;
 import com.vmturbo.cloud.common.scope.CloudScopeIdentity.CloudScopeType;
 import com.vmturbo.cloud.common.scope.CloudScopeIdentityStore;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.CloudScopeRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -59,6 +64,10 @@ public class SqlCloudScopeIdentityStore implements CloudScopeIdentityStore {
 
     private LocalDate scopeCacheDate = LocalDate.now();
 
+    private final CloudScopeDiagsHelper cloudScopeDiagsHelper;
+
+    private boolean exportCloudCostDiags = true;
+
     /**
      * Constructs a new {@link SqlCloudScopeIdentityStore} instance.
      * @param dslContext The DSL context.
@@ -74,6 +83,7 @@ public class SqlCloudScopeIdentityStore implements CloudScopeIdentityStore {
         this.persistenceRetryPolicy = Objects.requireNonNull(persistenceRetryPolicy);
         this.persistenceCacheEnabled = persistenceCacheEnabled;
         this.batchStoreSize = batchStoreSize;
+        this.cloudScopeDiagsHelper = new CloudScopeDiagsHelper(dslContext);
     }
 
 
@@ -197,5 +207,62 @@ public class SqlCloudScopeIdentityStore implements CloudScopeIdentityStore {
                 .resourceGroupId(scopeRecord.getResourceGroupId())
                 .serviceProviderId(scopeRecord.getServiceProviderId())
                 .build();
+    }
+
+    @Override
+    public Set<Diagnosable> getDiagnosables(boolean collectHistoricalStats) {
+        HashSet<Diagnosable> storesToSave = new HashSet<>();
+        storesToSave.add(cloudScopeDiagsHelper);
+        return storesToSave;
+    }
+
+    @Override
+    public void setExportCloudCostDiags(boolean exportCloudCostDiags) {
+        this.exportCloudCostDiags = exportCloudCostDiags;
+    }
+
+    @Override
+    public boolean getExportCloudCostDiags() {
+        return this.exportCloudCostDiags;
+    }
+
+    /**
+     * Helper class for dumping cloud scope db records to exported topology.
+     */
+    private final class CloudScopeDiagsHelper implements
+            TableDiagsRestorable<Object, CloudScopeRecord> {
+        private static final String cloudScopeDumpFile = "cloudScope_dump";
+
+        private final DSLContext dsl;
+
+        CloudScopeDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+
+        @Override
+        public DSLContext getDSLContext() {
+            return dsl;
+        }
+
+        @Override
+        public TableImpl<CloudScopeRecord> getTable() {
+            return Tables.CLOUD_SCOPE;
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return cloudScopeDumpFile;
+        }
+
+        @Nonnull
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) {
+            if (exportCloudCostDiags) {
+                TableDiagsRestorable.super.collectDiags(appender);
+            } else {
+                return;
+            }
+        }
     }
 }
