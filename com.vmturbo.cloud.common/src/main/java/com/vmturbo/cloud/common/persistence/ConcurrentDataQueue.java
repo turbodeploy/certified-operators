@@ -224,7 +224,7 @@ public class ConcurrentDataQueue<DataTypeT, DataStatsT, DataSummaryT> implements
         try (AutoCloseable executorShutdown = executor::shutdownNow) {
             for (DataOperation operationRetry : retryList) {
 
-                final CompletableFuture<?> retry = CompletableFuture.runAsync(operationRetry, executorService)
+                final CompletableFuture<?> retry = CompletableFuture.runAsync(operationRetry, executor)
                         .whenComplete((r, t) -> onOperationCompletion(operationRetry, t));
                 pendingOperations.incrementAndGet();
 

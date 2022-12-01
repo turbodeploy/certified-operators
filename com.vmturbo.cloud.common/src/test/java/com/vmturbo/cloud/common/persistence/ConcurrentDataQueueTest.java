@@ -92,5 +92,36 @@ public class ConcurrentDataQueueTest {
         assertTrue(sinkCalled.get());
     }
 
+    @Test
+    public void testRetryFailedJobsUseLocalExecutor() throws Exception {
+
+        final AtomicBoolean sinkCalled = new AtomicBoolean(false);
+        final AtomicBoolean sinkCalledInRetry = new AtomicBoolean(false);
+        // first sink call fails, re-try sink call succeeds
+        final DataSink<TestData, Void> dataSink = (testData) -> {
+            if (!sinkCalled.getAndSet(true)) {
+                throw new Exception();
+            } else {
+                sinkCalledInRetry.set(true);
+                return null;
+            }
+        };
+        final DataQueueConfiguration queueConfiguration = DataQueueConfiguration.builder()
+            .queueName("TestQueue")
+            .concurrency(1)
+            .build();
+        final DataQueue<TestData, Void> dataQueue = queueFactory.createQueue(
+            DirectDataBatcher.create(), dataSink, NullStatsCollector.create(), queueConfiguration);
+
+        dataQueue.addData(new TestData());
+        // drain the queue
+        dataQueue.drainAndClose(Duration.ofSeconds(30));
+
+        // check that the data sink was invoked twice
+        assertTrue(sinkCalled.get());
+        assertTrue(sinkCalledInRetry.get());
+    }
+
+
     private static class TestData {}
 }
