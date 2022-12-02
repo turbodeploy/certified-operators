@@ -1,9 +1,11 @@
 package com.vmturbo.cost.component.savings;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.anySetOf;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -168,11 +170,12 @@ public class SavingsTrackerTest {
         SavingsStore savingsStore = mock(SqlEntitySavingsStore.class);
         DSLContext dsl = mock(DSLContext.class);
         BillingRecordStore billingRecordStore = mock(SqlBillingRecordStore.class);
-        when(billingRecordStore.getUpdatedBillRecords(anyLong(), any(LocalDateTime.class), anySet())).thenReturn(Stream.empty());
+        // Set number of days of savings to skip to 1.
+        final int savingsDaysToSkip = 1;
+        when(billingRecordStore.getUpdatedBillRecords(anyLong(), any(LocalDateTime.class), anySet(), anyInt())).thenReturn(Stream.empty());
         long nowMillis = TimeUtil.localTimeToMillis(LocalDateTime.of(2022, 11, 16, 10, 44), Clock.systemUTC());
         Clock clock = Clock.fixed(Instant.ofEpochMilli(nowMillis),
                 ZoneId.from(ZoneOffset.UTC));
-        // Set number of days of savings to skip to 1.
         SavingsTracker tracker = spy(new SavingsTracker(
                 billingRecordStore,
                 actionChainStore,
@@ -182,7 +185,7 @@ public class SavingsTrackerTest {
                 TimeUnit.DAYS.toMillis(365),
                 clock, mock(TopologyEntityCloudTopologyFactory.class),
                 null, dsl, mock(BusinessAccountPriceTableKeyStore.class),
-                mock(PriceTableStore.class), searchService, 1, 777777, 100));
+                mock(PriceTableStore.class), searchService, savingsDaysToSkip, 777777, 100));
 
         SavingsTimes savingsTimes = mock(SavingsTimes.class, RETURNS_DEEP_STUBS);
         when(savingsTimes.getPreviousLastUpdatedTime())
@@ -190,7 +193,7 @@ public class SavingsTrackerTest {
         when(savingsTimes.getLastRollupTimes().getLastTimeByDay())
                 .thenReturn(TimeUtil.localTimeToMillis(LocalDateTime.of(2022, 11, 14, 0, 0), clock));
         tracker.processSavings(new HashSet<>(), savingsTimes, new AtomicInteger(1), TimeUnit.DAYS.toMillis(365));
-        verify(billingRecordStore).getUpdatedBillRecords(startDateCaptor.capture(), endDateCaptor.capture(), anySetOf(Long.class));
+        verify(billingRecordStore).getUpdatedBillRecords(startDateCaptor.capture(), endDateCaptor.capture(), anySetOf(Long.class), eq(savingsDaysToSkip));
 
         // Today is Nov 16, 2022. We want to skip one day of savings, so end date is Nov 15 00:00:00.
         Assert.assertEquals(LocalDateTime.of(2022, 11, 15, 0, 0), endDateCaptor.getValue());

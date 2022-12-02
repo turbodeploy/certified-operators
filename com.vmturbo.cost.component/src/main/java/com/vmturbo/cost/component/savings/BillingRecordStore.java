@@ -23,7 +23,7 @@ public interface BillingRecordStore {
      * @return Stream of bill records.
      */
     Stream<BillingRecord> getUpdatedBillRecords(long lastUpdatedStartTime,
-            LocalDateTime endTime, @Nonnull Set<Long> entityIds);
+            LocalDateTime endTime, @Nonnull Set<Long> entityIds, int savingsDaysToSkip);
 
     /**
      * Get all bill records for a specified set of entities within a specified period.
