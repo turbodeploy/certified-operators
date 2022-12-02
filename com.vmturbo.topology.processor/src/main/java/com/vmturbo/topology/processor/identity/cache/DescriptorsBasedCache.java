@@ -65,6 +65,12 @@ public class DescriptorsBasedCache implements IdentityCache {
     @Override
     @Nullable
     public EntityInMemoryProxyDescriptor addIdentityRecord(IdentityRecord identityRecord) {
+        return addIdentityRecord(identityRecord, null);
+    }
+
+    @Override
+    @Nullable
+    public EntityInMemoryProxyDescriptor addIdentityRecord(IdentityRecord identityRecord, LoadReport report) {
         identifyingPropertiesToOid.put(identityRecord.getDescriptor().getKey(), identityRecord.getDescriptor().getOID());
         return oidToDescriptor.put(identityRecord.getDescriptor().getOID(),
                 identityRecord.getDescriptor());

@@ -72,7 +72,14 @@ public class OptimizedIdentityRecordsBasedCache implements IdentityCache {
     @Nullable
     public synchronized EntityInMemoryProxyDescriptor addIdentityRecord(
             IdentityRecord identityRecord) {
-        final IdentifyingProperties identifyingProperties = extractIdentifyingProperties(identityRecord);
+        return addIdentityRecord(identityRecord, null);
+    }
+
+    @Override
+    @Nullable
+    public synchronized EntityInMemoryProxyDescriptor addIdentityRecord(
+            IdentityRecord identityRecord, LoadReport loadReport) {
+        final IdentifyingProperties identifyingProperties = extractIdentifyingProperties(identityRecord, loadReport);
         final long recordOid = identityRecord.getDescriptor().getOID();
         final String nonVolatileProperties = identifyingProperties.getNonVolatilesProperties();
         final String volatileProperties = identifyingProperties.getVolatilesProperties();
@@ -204,7 +211,8 @@ public class OptimizedIdentityRecordsBasedCache implements IdentityCache {
         return oids;
     }
 
-    private IdentifyingProperties extractIdentifyingProperties(IdentityRecord identityRecord) {
+    private IdentifyingProperties extractIdentifyingProperties(IdentityRecord identityRecord,
+            LoadReport report) {
         List<PropertyDescriptor> nonVolatileProperties = new ArrayList<>();
         List<PropertyDescriptor> volatileProperties = new ArrayList<>();
         if (perProbeMetadata.containsKey(identityRecord.getProbeId())) {
@@ -216,8 +224,9 @@ public class OptimizedIdentityRecordsBasedCache implements IdentityCache {
                 List<PropertyDescriptor> identifyingProperties = new ArrayList<>(
                         identityRecord.getDescriptor().getIdentifyingProperties());
                 if (identifyingProperties.size() == 0) {
-                    logger.error("No identifying properties for the following entity {},"
-                            + "this will result in a new OID assigned after each discovery", identityRecord.getDescriptor().getOID());
+                    if (report != null) {
+                        report.missingIdProps(identityRecord);
+                    }
                 }
                 Set<Integer> nonVolatileRanks = new HashSet<>(entityMetadata.getNonVolatilePropertyRanks());
                 Collection<Integer> volatileRanks = new HashSet<>(entityMetadata.getVolatilePropertyRanks());
@@ -230,13 +239,14 @@ public class OptimizedIdentityRecordsBasedCache implements IdentityCache {
                     }
                 }
             } else {
-                logger.warn("Could not find entity metadata for the following entity type {}, "
-                                + "this can happen if the entity type has been changed on the following probe {}",
-                        identityRecord.getEntityType(), identityRecord.getProbeId());
+                if (report != null) {
+                    report.missingEntityMetadata(identityRecord);
+                }
             }
         } else {
-            logger.error("Could not find the probe metadata for probe {} needed by the following entity {}", identityRecord.getProbeId(),
-                    identityRecord.getDescriptor().getOID());
+            if (report != null) {
+                report.missingProbeMetadata(identityRecord);
+            }
         }
         return new IdentifyingProperties(nonVolatileProperties, volatileProperties);
     }
