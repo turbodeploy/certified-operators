@@ -12,9 +12,6 @@ LABEL name="kafka" \
 # Required Licenses
 COPY licenses /licenses
 
-# This is the release of openj9 to pull in.
-ENV OPENJ9_URL=https://github.com/ibmruntimes/semeru11-binaries/releases/download/jdk-11.0.13%2B8_openj9-0.29.0/ibm-semeru-open-11-jre-11.0.13.8_0.29.0-1.x86_64.rpm
-
 # This is the release of Kafka and Scala to pull in.
 COPY kafka.profile /etc/kafka.profile
 COPY start-kafka /
@@ -25,11 +22,25 @@ COPY start-kafka /
 RUN groupadd -g 1000 kafka && useradd -m -r -d /home/kafka -g 1000 -s /bin/bash -u 101 kafka && \
     passwd -l root
 
-# Install rsyslog and java-11 packages
-RUN dnf install -y rsyslog procps-ng gnutls && \
-    dnf install -y $OPENJ9_URL && \
-    dnf clean all && \
-    rm -rf /var/cache/dnf
+# Install rsyslog and OpenJDK java-11 packages
+# Unfortunately, our build system was built before BuildKit was available.
+# Additionally, we use spotify's docker-maven-plugin for triggering the docker builds.
+# Support for this plugin was dropped before BuildKit was available.
+# For now we use a solution that's good enough for a developer to get stuff running on their laptop.
+# When we want to support multi-architecture builds, we will need to migrate to a different maven
+# plugin in OM-93669.
+RUN case $(uname -m) in \
+      "aarch64")  \
+        ARCH=aarch64 ;; \
+      *) \
+        ARCH=x86_64;  ;; \
+    esac \
+    && OPENJ9_URL=https://github.com/ibmruntimes/semeru11-binaries/releases/download/jdk-11.0.13%2B8_openj9-0.29.0/ibm-semeru-open-11-jre-11.0.13.8_0.29.0-1.$ARCH.rpm \
+    && echo "downloading jdk from $OPENJ9_URL" \
+    && dnf install -y rsyslog procps-ng gnutls \
+    && dnf install -y $OPENJ9_URL \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
 
 RUN source /etc/kafka.profile && \
     cd /tmp && \

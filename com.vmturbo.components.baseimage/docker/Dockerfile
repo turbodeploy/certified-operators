@@ -12,14 +12,26 @@ LABEL name="baseimage" \
 # Required Licenses
 COPY licenses /licenses
 
-# This is the release of openj9 to pull in.
-ENV OPENJ9_URL=https://github.com/ibmruntimes/semeru11-binaries/releases/download/jdk-11.0.13%2B8_openj9-0.29.0/ibm-semeru-open-11-jre-11.0.13.8_0.29.0-1.x86_64.rpm
-
 # Install rsyslog and OpenJDK java-11 packages
-RUN dnf install -y rsyslog procps-ng python2 net-tools xz gnutls && \
-    dnf install -y $OPENJ9_URL && \
-    dnf update -y krb5-libs \
-    dnf clean all && rm -rf /var/cache/dnf
+# Unfortunately, our build system was built before BuildKit was available.
+# Additionally, we use spotify's docker-maven-plugin for triggering the docker builds.
+# Support for this plugin was dropped before BuildKit was available.
+# For now we use a solution that's good enough for a developer to get stuff running on their laptop.
+# When we want to support multi-architecture builds, we will need to migrate to a different maven
+# plugin in OM-93669.
+RUN case $(uname -m) in \
+      "aarch64")  \
+        ARCH=aarch64 ;; \
+      *) \
+        ARCH=x86_64;  ;; \
+    esac \
+    && OPENJ9_URL=https://github.com/ibmruntimes/semeru11-binaries/releases/download/jdk-11.0.13%2B8_openj9-0.29.0/ibm-semeru-open-11-jre-11.0.13.8_0.29.0-1.$ARCH.rpm \
+    && echo "downloading jdk from $OPENJ9_URL" \
+    && dnf install -y rsyslog procps-ng python2 net-tools xz gnutls \
+    && dnf install -y $OPENJ9_URL \
+    && dnf update -y krb5-libs \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
 
 COPY entrypoint.sh collect_diags.sh diags.py terminate.sh /
 RUN chmod 755 /entrypoint.sh && chmod 755 /collect_diags.sh && chmod 755 /terminate.sh && \
