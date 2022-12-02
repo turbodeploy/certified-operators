@@ -348,7 +348,7 @@ public class EntitySavingsConfig {
     @Bean
     public EntityStateStore<DSLContext> entityStateStore() {
         try {
-            return new SqlEntityStateStore(dbAccessConfig.dsl(), persistEntityCostChunkSize);
+            return new SqlEntityStateStore(dbAccessConfig.unpooledDsl(), persistEntityCostChunkSize);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -416,7 +416,7 @@ public class EntitySavingsConfig {
         try {
             return new EntitySavingsTracker(entitySavingsStore(), entityEventsJournal(),
                     entityStateStore(), getClock(), cloudTopologyFactory(), repositoryClient,
-                    dbAccessConfig.dsl(), realtimeTopologyContextId, persistEntityCostChunkSize);
+                    dbAccessConfig.unpooledDsl(), realtimeTopologyContextId, persistEntityCostChunkSize);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -503,7 +503,7 @@ public class EntitySavingsConfig {
     @Bean
     public EntitySavingsStore<DSLContext> entitySavingsStore() {
         try {
-            return new SqlEntitySavingsStore(dbAccessConfig.dsl(), getClock(),
+            return new SqlEntitySavingsStore(dbAccessConfig.unpooledDsl(), getClock(),
                     persistEntityCostChunkSize, viewBillSavingsEnabled());
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
             if (e instanceof InterruptedException) {
@@ -532,6 +532,8 @@ public class EntitySavingsConfig {
     @Bean
     public EntityEventsJournal entityEventsJournal() {
         try {
+            // Keep using pooled connections for events journal and audit writer - these are
+            // short term quick possibly frequent writes and are also disabled by default.
             return FeatureFlags.ENABLE_SAVINGS_TEM.isEnabled()
                     ? new SqlEntityEventsJournal(dbAccessConfig.dsl(), persistEntityCostChunkSize)
                     : new InMemoryEntityEventsJournal(auditLogWriter());
@@ -580,6 +582,8 @@ public class EntitySavingsConfig {
     @Bean
     public AuditLogWriter auditLogWriter() {
         try {
+            // Keep using pooled connections for events journal and audit writer - these are
+            // short term quick possibly frequent writes and are also disabled by default.
             return new SqlAuditLogWriter(dbAccessConfig.dsl(), getClock(),
                     persistEntityCostChunkSize, isBottomUpSavingsEnabled() && entitySavingsAuditLogEnabled);
         } catch (SQLException | UnsupportedDialectException | InterruptedException e) {
@@ -677,12 +681,12 @@ public class EntitySavingsConfig {
     @Bean
     public SavingsTracker savingsTracker() {
         try {
-            return new SavingsTracker(new SqlBillingRecordStore(dbAccessConfig.dsl()),
+            return new SavingsTracker(new SqlBillingRecordStore(dbAccessConfig.unpooledDsl()),
                     new GrpcActionChainStore(actionsService()),
                     (SavingsStore)entitySavingsStore(), getSupportedBillingEntityTypes(),
                     getSupportedBillingCSPs(),
                     getEntitySavingsRetentionConfig().getVolumeDeleteRetentionMs(), getClock(),
-                    cloudTopologyFactory(), repositoryClient, dbAccessConfig.dsl(),
+                    cloudTopologyFactory(), repositoryClient, dbAccessConfig.unpooledDsl(),
                     pricingConfig.businessAccountPriceTableKeyStore(), pricingConfig.priceTableStore(),
                     searchServiceBlockingStub, getSavingsDaysToSkip(), realtimeTopologyContextId,
                     persistEntityCostChunkSize);
