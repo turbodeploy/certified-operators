@@ -7,9 +7,11 @@ import com.google.common.base.Strings;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.platform.sdk.common.util.Pair;
 
 import common.HealthCheck.HealthState;
@@ -52,6 +54,24 @@ public class ProbeVersionFactory {
             return String.format(format, Strings.nullToEmpty(probeVersion), Strings.nullToEmpty(serverVersion));
         }
     }
+
+    /**
+     *  Error messages specific to CLoud Native probes.
+     */
+    enum CloudNativeAdditionalErrorMessage {
+        CPU_THROTTLING_BREAKING_CHANGE_MESSAGE("Container CPU resize actions will be disabled.");
+        private final String message;
+
+        CloudNativeAdditionalErrorMessage(String message) {
+            this.message = message;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+    }
+
+    private static final String CPU_THROTTLING_BREAKING_CHANGE_VERSION = "8.7.5";
 
     /**
      * Error messages related to server version errors.
@@ -102,8 +122,8 @@ public class ProbeVersionFactory {
      * @param serverVersion the version of the server represented by the topology processor
      * @return the health state as well as the error message if any
      */
-    public static Pair<HealthState, String> deduceProbeHealth(
-            @Nullable final String probeVersion, @Nullable final String serverVersion) {
+    public static Pair<HealthState, String>  deduceProbeHealth(
+            @Nullable final String probeVersion, @Nullable final String serverVersion, @Nullable final MediationMessage.ProbeInfo probeInfo) {
         if (Strings.isNullOrEmpty(serverVersion)) {
             return Pair.create(HealthState.MAJOR,
                     ServerVersionErrorMessage.MISSING.getMessage(serverVersion));
@@ -131,12 +151,27 @@ public class ProbeVersionFactory {
         if (probeSemver.isEquivalentTo(serverSemver)) {
             return Pair.create(HealthState.NORMAL, "");
         }
+
         if (probeSemver.isGreaterThan(serverSemver)) {
             return Pair.create(HealthState.MINOR,
                     ProbeVersionErrorMessage.NEWER.getMessage(probeVersion, serverVersion));
         }
-        return Pair.create(HealthState.MAJOR,
-                ProbeVersionErrorMessage.OLDER.getMessage(probeVersion, serverSemver.toString()));
+
+        String msg = ProbeVersionErrorMessage.OLDER.getMessage(probeVersion, serverSemver.toString());
+
+        // append additional message for kubeturbo versions that would cuse Container CPU resize actions to be disabled
+        if (probeInfo != null
+                && probeInfo
+                    .getProbeTargetInfo()
+                    .getInputValuesList()
+                    .stream()
+                    .anyMatch(accountValue -> accountValue.getStringValue().contains("kubeturbo"))
+                && serverSemver.isGreaterThanOrEqualTo(CPU_THROTTLING_BREAKING_CHANGE_VERSION)
+                && probeSemver.isLowerThan(CPU_THROTTLING_BREAKING_CHANGE_VERSION)) {
+            msg = msg + " " + CloudNativeAdditionalErrorMessage.CPU_THROTTLING_BREAKING_CHANGE_MESSAGE.getMessage();
+        }
+
+        return Pair.create(HealthState.MAJOR, msg);
     }
 
     /**

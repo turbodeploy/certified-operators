@@ -670,7 +670,7 @@ public class TargetHealthRetrieverTest {
      */
     private static ProbeRegistrationDescription mockProbe(final String probeVersion) {
         final Pair<HealthState, String> probeHealth = ProbeVersionFactory.deduceProbeHealth(probeVersion,
-                "8.3.6");
+                "8.3.6", null);
         return new ProbeRegistrationDescription(
                 0, 0, "", probeVersion, 0, "", probeHealth.getFirst(), probeHealth.getSecond());
     }

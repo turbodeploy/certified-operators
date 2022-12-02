@@ -3,6 +3,9 @@ package com.vmturbo.topology.processor.probes;
 import java.util.Arrays;
 import java.util.Collection;
 
+import com.vmturbo.platform.common.dto.Discovery;
+import com.vmturbo.platform.sdk.common.MediationMessage;
+import com.vmturbo.topology.processor.api.ProbeInfo;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -47,6 +50,9 @@ public class ProbeVersionToHealthDeducerTest {
                 { "8.3.3-SNAPSHOT", "8.3.2", HealthState.MINOR, ProbeVersionErrorMessage.NEWER.getMessage("8.3.3-SNAPSHOT", "8.3.2") },
                 { "test-version", "8.3.2", HealthState.MINOR, ProbeVersionErrorMessage.CUSTOM.getMessage("test-version", "8.3.2") },
                 { "8.3.9", "8.4.0", HealthState.MAJOR, ProbeVersionErrorMessage.OLDER.getMessage("8.3.9", "8.4.0") },
+                { "8.7.3", "8.7.5", HealthState.MAJOR, ProbeVersionErrorMessage.OLDER.getMessage("8.7.3", "8.7.5") + " " + ProbeVersionFactory.CloudNativeAdditionalErrorMessage.CPU_THROTTLING_BREAKING_CHANGE_MESSAGE.getMessage()},
+                { "8.7.3", "8.7.4", HealthState.MAJOR, ProbeVersionErrorMessage.OLDER.getMessage("8.7.3", "8.7.4") },
+                { "8.7.5", "8.7.6", HealthState.MAJOR, ProbeVersionErrorMessage.OLDER.getMessage("8.7.5", "8.7.6") },
         });
     }
 
@@ -73,8 +79,10 @@ public class ProbeVersionToHealthDeducerTest {
      */
     @Test
     public void testDeduceProbeHealthFromVersion() {
-        final Pair<HealthState, String> health = ProbeVersionFactory.deduceProbeHealth(probeVersion,
-                serverVersion);
+        final Pair<HealthState, String> health = ProbeVersionFactory.deduceProbeHealth(probeVersion, serverVersion,
+            MediationMessage.ProbeInfo.newBuilder().setProbeType("").setProbeCategory("").setProbeTargetInfo(
+                MediationMessage.ProbeTargetInfo.newBuilder().addInputValues(
+                    Discovery.AccountValue.newBuilder().setKey("image").setStringValue("kubeturbo").build()).build()).build());
         Assert.assertEquals(expectedHealthState, health.getFirst());
         Assert.assertEquals(expectedMessage, health.getSecond());
     }

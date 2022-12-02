@@ -607,8 +607,9 @@ public class RemoteProbeStore implements ProbeStore {
         } else {
             displayName = probeInfo.getDisplayName();
         }
-        final String platformVersion = keyValueStore.get(ClusterMgrClient.COMPONENT_VERSION_KEY, "");;
-        final Pair<HealthState, String> health = ProbeVersionFactory.deduceProbeHealth(probeVersion, platformVersion);
+        final String platformVersion = keyValueStore.get(ClusterMgrClient.COMPONENT_VERSION_KEY, "");
+        final Pair<HealthState, String> health = ProbeVersionFactory.deduceProbeHealth(probeVersion, platformVersion, probeInfo);
+
         return new ProbeRegistrationDescription(id, probeId, communicationBindingChannel,
                 probeVersion, registeredTime, displayName, health.getFirst(), health.getSecond());
     }
