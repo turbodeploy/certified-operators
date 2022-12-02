@@ -56,8 +56,7 @@ public final class SettingDTOUtil {
             EntityType.BUSINESS_TRANSACTION,
             EntityType.SERVICE,
             EntityType.APPLICATION_COMPONENT,
-            EntityType.DATABASE_SERVER,
-            EntityType.APPLICATION_COMPONENT_SPEC);
+            EntityType.DATABASE_SERVER);
 
     private SettingDTOUtil() {
     }
