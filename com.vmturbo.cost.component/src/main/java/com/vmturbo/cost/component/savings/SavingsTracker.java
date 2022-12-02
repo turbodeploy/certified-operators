@@ -196,8 +196,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         long previousLastUpdated = savingsTimes.getPreviousLastUpdatedTime();
         // Only retrieve bill records from days that are before the endTime.
         // E.g. If daysToSkip is 1, we won't get bill records from yesterday.
-        final LocalDateTime endTime = SavingsUtil.getCurrentDateTime(clock)
-                .truncatedTo(ChronoUnit.DAYS).minusDays(savingsDaysToSkip);
+        final LocalDateTime endTime = getProcessEndTime();
 
         logger.trace("{}: Processing savings for a chunk of {} entities with last updated time between {} and {}.",
                 () -> chunkCounter, entityIds::size, () -> TimeUtil.millisToLocalDateTime(previousLastUpdated, clock),
@@ -208,7 +207,7 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
 
         // For this set of billing records, see if we have any last_updated times that are newer.
         final AtomicLong newLastUpdated = new AtomicLong(savingsTimes.getCurrentLastUpdatedTime());
-        billingRecordStore.getUpdatedBillRecords(previousLastUpdated, endTime, entityIds)
+        billingRecordStore.getUpdatedBillRecords(previousLastUpdated, endTime, entityIds, savingsDaysToSkip)
                 .filter(BillingRecord::isValid)
                 .filter(this::isSupportedBillingEntityType)
                 .filter(this::isSupportedCSP)
@@ -313,6 +312,43 @@ public class SavingsTracker extends SQLEntityCloudScopedStore implements Scenari
         processSavings(participatingUuids, billRecords, actions,
                 TimeUtil.localTimeToMillis(startTime.truncatedTo(ChronoUnit.DAYS).minusDays(1),
                         Clock.systemUTC()), endTime);
+    }
+
+    /**
+     * Get the end time of the process period.
+     * If savingsDaysToSkip is 0 (i.e. no need to skip), end time is the current time minus 10 minutes.
+     * If savingsDaysToSkip is 1 or higher, end time is the beginning of the day of the first day
+     * to be skipped. If today is Nov 30 and we want to skip 1 days, the end time is Nov 29 00:00:00.
+     *
+     * @return end time of the savings process period
+     */
+    private LocalDateTime getProcessEndTime() {
+        final LocalDateTime endTime;
+        if (savingsDaysToSkip >= 1) {
+            endTime = SavingsUtil.getCurrentDateTime(clock)
+                    .truncatedTo(ChronoUnit.DAYS).minusDays(savingsDaysToSkip);
+        } else {
+            // If savingsDaysToSkip is 0, set endTime to now minus 10 minutes.
+            // Gets time now minus 10 minutes to act as the end time for last_updated query to the billing
+            // tables. This is needed because we want to prevent getting the bill records in the middle of
+            // an upload. So using records which have been updated at least 10 minutes back, just to be on
+            // the safe side. Upload itself should not take more than a minute or two, given it is inserted
+            // via multiple threads, so 10 minutes setting should be a safe bet here.
+            // Consider this scenario:
+            // 1. There are say 100 records that bill updater is updating with a last_updated value of
+            //      current time, say 2000.
+            // 2. Bill updater updates 60 records with new value 2000.
+            // 3. If the savings processor runs and queries for all last_updated values, without an end_time
+            //      that is 10 mins or so back, then we get last_updated 2000 along with 60 new billing
+            //      records. But 40 records haven't yet been written by bill updater, so we missed that.
+            // 4. Bill updater updates the remaining 40 records with new value, but we never queried these
+            //      billing records.
+            // By using a 10 min or so back end time, we are making sure we don't try to query while
+            // bill updater is in the process of updating those same records (with the same last_updated
+            // that we query).
+            endTime = LocalDateTime.now().minusMinutes(10);
+        }
+        return endTime;
     }
 
     /**

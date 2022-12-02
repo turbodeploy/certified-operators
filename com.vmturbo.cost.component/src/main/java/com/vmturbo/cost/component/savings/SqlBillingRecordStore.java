@@ -36,9 +36,21 @@ public class SqlBillingRecordStore implements BillingRecordStore {
 
     @Override
     public Stream<BillingRecord> getUpdatedBillRecords(long lastUpdatedStartTime,
-            LocalDateTime endTime, @Nonnull final Set<Long> entityIds) {
+            LocalDateTime endTime, @Nonnull final Set<Long> entityIds, final int savingsDaysToSkip) {
         final BilledCostDaily t1 = BilledCostDaily.BILLED_COST_DAILY.as("t1");
         final BilledCostDaily t2 = BilledCostDaily.BILLED_COST_DAILY.as("t2");
+
+        // Select records that were updated since the time savings was processed AND
+        // the date of the bill record (sample_time) must be before the endTime.
+        Condition timeCondition = t2.LAST_UPDATED.greaterThan(lastUpdatedStartTime)
+                .and(t2.SAMPLE_TIME.lessThan(endTime));
+        // If we are skipping at least one day of records, the day before the endTime must be
+        // processed because records may have a last_updated timestamp that is older than the
+        // lastUpdatedStartTime.
+        if (savingsDaysToSkip >= 1) {
+            timeCondition = timeCondition.or(t2.SAMPLE_TIME.greaterOrEqual(endTime.minusDays(1))
+                    .and(t2.SAMPLE_TIME.lessThan(endTime)));
+        }
 
         // This inner query is getting the sample times (for the entities in question), that match
         // the last updated times. We need to get ALL the records for any records that match the
@@ -46,9 +58,7 @@ public class SqlBillingRecordStore implements BillingRecordStore {
         final Condition condition = t1.ENTITY_ID.in(entityIds)
                 .and(t1.SAMPLE_TIME.in(dsl.select(t2.SAMPLE_TIME)
                                 .from(t2)
-                        .where(t1.ENTITY_ID.eq(t2.ENTITY_ID)
-                                .and(t2.LAST_UPDATED.greaterOrEqual(lastUpdatedStartTime))
-                                .and(t2.SAMPLE_TIME.lessThan(endTime)))
+                        .where(t1.ENTITY_ID.eq(t2.ENTITY_ID).and(timeCondition))
                 ));
         return dsl.select(t1.SAMPLE_TIME,
                         t1.ENTITY_ID,

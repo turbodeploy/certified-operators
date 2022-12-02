@@ -155,7 +155,7 @@ public class SqlBillingRecordStoreTest extends MultiDbTestBase {
          sample_date  last_updated
          Nov 13       Nov 14 2:00
          Nov 12       Nov 13 3:00
-         Nov 11       Nov 12 2:00
+         Nov 11       Nov 13 4:00  <- older record updated more recently than newer records.
          Nov 10       Nov 11 3:00
          */
         List<BilledCostDailyRecord> records = new ArrayList<>();
@@ -167,7 +167,7 @@ public class SqlBillingRecordStoreTest extends MultiDbTestBase {
                 LocalDateTime.of(2022, 11, 13, 3, 0)));
         records.add(createBillingRecord(3L,
                 LocalDateTime.of(2022, 11, 11, 0, 0),
-                LocalDateTime.of(2022, 11, 12, 2, 0)));
+                LocalDateTime.of(2022, 11, 13, 4, 0)));
         records.add(createBillingRecord(4L,
                 LocalDateTime.of(2022, 11, 10, 0, 0),
                 LocalDateTime.of(2022, 11, 11, 3, 0)));
@@ -189,35 +189,47 @@ public class SqlBillingRecordStoreTest extends MultiDbTestBase {
         result = queryBill(store, clock, lastProcessed, daysToSkip);
         validateResult(result, dates(Arrays.asList(11, 12)));
 
+        // Today is Nov 14. Skip 1 day should include records for Nov 12 and earlier.
+        // The record for Nov 12 was updated before the last processed time, but since it was
+        // skipped, we need to include this record.
+        lastProcessed = LocalDateTime.of(2022, 11, 13, 4, 0);
+        result = queryBill(store, clock, lastProcessed, daysToSkip);
+        validateResult(result, dates(Collections.singletonList(12)));
+
+        daysToSkip = 2;
+        lastProcessed = LocalDateTime.of(2022, 11, 13, 4, 0);
+        result = queryBill(store, clock, lastProcessed, daysToSkip);
+        validateResult(result, dates(Collections.singletonList(11)));
+
+        lastProcessed = LocalDateTime.of(2022, 11, 13, 4, 0);
+
+        // Not including the record for Nov 11 because its last_update time is same as the last
+        // process time. It means it was processed.
+        // Not including Nov 12 because it was updated before the last processed time.
+        daysToSkip = 0;
+        result = queryBill(store, clock, lastProcessed, daysToSkip);
+        validateResult(result, dates(Arrays.asList(13)));
+
+        daysToSkip = 1;
+        result = queryBill(store, clock, lastProcessed, daysToSkip);
+        validateResult(result, dates(Collections.singletonList(12)));
+
         daysToSkip = 2;
         result = queryBill(store, clock, lastProcessed, daysToSkip);
         validateResult(result, dates(Collections.singletonList(11)));
 
-        lastProcessed = LocalDateTime.of(2022, 11, 12, 10, 0);
-        daysToSkip = 0;
-        result = queryBill(store, clock, lastProcessed, daysToSkip);
-        validateResult(result, dates(Arrays.asList(12, 13)));
-
-        daysToSkip = 1;
-        result = queryBill(store, clock, lastProcessed, daysToSkip);
-        validateResult(result, dates(Collections.singletonList(12)));
-
-        daysToSkip = 2;
-        result = queryBill(store, clock, lastProcessed, daysToSkip);
-        validateResult(result, dates(Collections.emptyList()));
-
         lastProcessed = LocalDateTime.of(2022, 11, 13, 0, 0);
         daysToSkip = 0;
         result = queryBill(store, clock, lastProcessed, daysToSkip);
-        validateResult(result, dates(Arrays.asList(12, 13)));
+        validateResult(result, dates(Arrays.asList(11, 12, 13)));
 
         daysToSkip = 1;
         result = queryBill(store, clock, lastProcessed, daysToSkip);
-        validateResult(result, dates(Collections.singletonList(12)));
+        validateResult(result, dates(Arrays.asList(11, 12)));
 
         daysToSkip = 2;
         result = queryBill(store, clock, lastProcessed, daysToSkip);
-        validateResult(result, dates(Collections.emptyList()));
+        validateResult(result, dates(Collections.singletonList(11)));
 
         lastProcessed = LocalDateTime.of(2022, 11, 14, 1, 0);
         daysToSkip = 0;
@@ -232,7 +244,7 @@ public class SqlBillingRecordStoreTest extends MultiDbTestBase {
     private List<BillingRecord> queryBill(SqlBillingRecordStore store, Clock clock, LocalDateTime lastProcessed, int daysToSkip) {
         LocalDateTime endTime = LocalDateTime.now(clock).truncatedTo(ChronoUnit.DAYS).minusDays(daysToSkip);
         Stream<BillingRecord> result = store.getUpdatedBillRecords(TimeUtil.localTimeToMillis(lastProcessed, clock),
-                endTime, Collections.singleton(22222L));
+                endTime, Collections.singleton(22222L), daysToSkip);
         return result.collect(Collectors.toList());
     }
 
