@@ -20,6 +20,7 @@ import java.util.SortedMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
@@ -408,20 +409,27 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                         .sorted(Map.Entry.comparingByValue(Comparator.comparing(RequiresDataInitialization::priority).reversed()))
                         .forEachOrdered(entry -> sortedInitialization.put(entry.getKey(),
                             entry.getValue()));
+                    logger.info("Begin component bean initialization, component={}, beans:\n - {}",
+                            getComponentName(), String.join("\n - ",
+                                    sortedInitialization.entrySet().stream()
+                                            .map(Entry::getKey)
+                                            .collect(Collectors.toList())));
                     for (final Entry<String, RequiresDataInitialization> entry : sortedInitialization.entrySet()) {
                         try {
-                            logger.info("Running initialization for bean: {}", entry.getKey());
+                            logger.info("Running bean initialization, component={}, bean={}",
+                                    getComponentName(), entry.getKey());
                             entry.getValue().initialize();
                         } catch (InitializationException e) {
                             if (!e.isFatal()) {
-                                logger.error("Bean {} failed initialization with non-fatal error.",
-                                    entry.getKey(), e);
+                                logger.error("Bean {} failed initialization with non-fatal error, component={}",
+                                        entry.getKey(), getComponentName(), e);
                             } else {
                                 throw e;
                             }
                         }
                     }
-                    logger.info("Finished running initializations for {} beans.", sortedInitialization.size());
+                    logger.info("Finished component bean initialization, component={}, beans={}",
+                            getComponentName(), sortedInitialization.size());
                 }
                 logInitialAuditMessage();
                 this.onStartComponent();

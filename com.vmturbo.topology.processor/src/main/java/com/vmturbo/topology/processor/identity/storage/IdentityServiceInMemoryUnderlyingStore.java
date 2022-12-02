@@ -40,6 +40,7 @@ import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.identity.PropertyDescriptor;
 import com.vmturbo.topology.processor.identity.cache.DescriptorsBasedCache;
 import com.vmturbo.topology.processor.identity.cache.IdentityCache;
+import com.vmturbo.topology.processor.identity.cache.IdentityCache.LoadReport;
 import com.vmturbo.topology.processor.identity.cache.OptimizedIdentityRecordsBasedCache;
 import com.vmturbo.topology.processor.identity.extractor.PropertyDescriptorImpl;
 import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadataStore;
@@ -129,15 +130,20 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
      */
     @Override
     public void initialize() {
+        Stopwatch stopwatch = Stopwatch.createStarted();
         ExecutorService executor = Executors.newSingleThreadExecutor();
+        LOGGER.info("Begin loading the identity store");
         executor.execute(
             new SavedIdsLoader(identityDatabaseStore, loadIdsInterval, loadIdsTimeUnit,
-                this::addRestoredIds));
+                    this::addRestoredIds));
         executor.shutdown();
         try {
             boolean success = executor.awaitTermination(initializationTimeoutMin, TimeUnit.MINUTES);
+            stopwatch.stop();
             if (!success) {
-                LOGGER.error("Failed to initialize the store due to time out");
+                LOGGER.error("Failed to load the identity store due to time out, elapsed={}", stopwatch);
+            } else {
+                LOGGER.info("Loaded the identity store, elapsed={}", stopwatch);
             }
         } catch (InterruptedException e) {
             LOGGER.error("Identity store initialization interrupted", e);
@@ -301,10 +307,11 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
         Stopwatch stopwatch = Stopwatch.createStarted();
         synchronized (initializationLock) {
             if (!initialized) {
+                LoadReport loadReport = new LoadReport();
                 identityRecordsToProbeId.forEach(identityRecord -> {
                     EntityInMemoryProxyDescriptor descriptor = identityRecord.getDescriptor();
                     EntityInMemoryProxyDescriptor existing =
-                        identityCache.addIdentityRecord(identityRecord);
+                        identityCache.addIdentityRecord(identityRecord, loadReport);
                     if (existing != null && !existing.equals(descriptor)) {
                         // If we don't initialize the IdentityService until the restoration from the
                         // database completes, then this should never happen.
@@ -313,6 +320,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
                     }
                 });
                 LOGGER.info("Identity Cache initialized in {} with {} records", stopwatch, identityRecordsToProbeId.size());
+                LOGGER.info(loadReport.generate());
                 if (LOGGER.isDebugEnabled()) {
                     identityCache.report();
                 }
@@ -418,13 +426,15 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
             // "restore" happens before ID data is re-loaded.
             initialized = true;
             identityCache.clear();
+            LoadReport loadReport = new LoadReport();
             List<IdentityRecord> identityRecords = constructGson()
                     .fromJson(input, new TypeToken<List<IdentityRecord>>() {
                     }.getType());
             identityRecords.forEach(identityRecord -> {
-                identityCache.addIdentityRecord(identityRecord);
+                identityCache.addIdentityRecord(identityRecord, loadReport);
             });
             LOGGER.info("Identity Cache initialized in {} with {} records", stopwatch.stop().elapsed(TimeUnit.SECONDS), identityRecords.size());
+            LOGGER.info(loadReport.generate());
             if (LOGGER.isDebugEnabled()) {
                 identityCache.report();
             }
@@ -571,7 +581,8 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
                     oldIdentityRecords.forEach(identityCache::addIdentityRecord);
                     throw new IdentityServiceStoreOperationException(error, e);
                 }
-                LOGGER.info("Successfully stored {} entity descriptors in {} seconds",
+                LOGGER.info("Successfully stored entity ID assignment descriptors, "
+                                + "count={}, duration={}",
                         identityRecordsToUpdate.size(), stopwatch);
             }
         }
