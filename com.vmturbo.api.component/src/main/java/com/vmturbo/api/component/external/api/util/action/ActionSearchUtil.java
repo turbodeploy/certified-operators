@@ -117,15 +117,18 @@ public class ActionSearchUtil {
         scope = serviceProviderExpander.expand(scope);
 
         final Set<Long> expandedScope;
+        final List<String> relatedEntityTypes = inputDto.getRelatedEntityTypes();
+        final List<ActionType> actionTypeList = inputDto.getActionTypeList();
 
         // If the field "relatedEntityTypes" is not empty, then we need to fetch additional
         // entities from the scoped supply chain. Additionally, if call is being made from the UI,
         // then the boolean "forceExpansionOfAggregatedEntities" will be set to true. In that case we
         // will expand via AggregatedEntities for certain actions.
-        if(!CollectionUtils.isEmpty(inputDto.getRelatedEntityTypes()) && inputDto.getActionTypeList().contains(
-                ActionType.MOVE) && inputDto.getRelatedEntityTypes().contains("VirtualMachine") && paginationRequest.getForceExpansionOfAggregatedEntities()){
+        if(!CollectionUtils.isEmpty(relatedEntityTypes) && relatedEntityTypes.contains("VirtualMachine") && !CollectionUtils.isEmpty(actionTypeList) && actionTypeList.contains(
+                ActionType.MOVE) && paginationRequest.getForceExpansionOfAggregatedEntities()) {
             expandedScope = supplyChainFetcherFactory.expandAggregatedEntities(scope);
         }
+
         // If the field "relatedEntityTypes" is not empty, then we need to fetch additional
         // entities from the scoped supply chain
         else if (!CollectionUtils.isEmpty(inputDto.getRelatedEntityTypes())) {
