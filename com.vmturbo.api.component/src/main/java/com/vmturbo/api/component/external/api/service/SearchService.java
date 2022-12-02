@@ -529,7 +529,7 @@ public class SearchService implements ISearchService {
                         String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(entry.getKey() );
                         return groupsService.getPaginatedGroupApiDTOs(
                                 addNameMatcher(query, Collections.emptyList(), filter, queryType),
-                                paginationRequest, entry.getValue(), null,
+                                ensureSearchPaginationRequestExistsAndConformLimits(paginationRequest), entry.getValue(), null,
                                 environmentType, null, scopes, false, groupOrigin);
                     }
                 }
