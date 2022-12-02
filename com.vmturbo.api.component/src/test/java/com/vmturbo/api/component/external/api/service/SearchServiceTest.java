@@ -474,7 +474,6 @@ public class SearchServiceTest {
     @Test
     public void testGetSearchResultsServiceEntityPaginated() throws Exception {
         final SearchPaginationResponse paginationResponse = Mockito.mock(SearchPaginationResponse.class);
-        final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
 
         final PaginatedSearchRequest mockPaginatedSearchRequest = mock(PaginatedSearchRequest.class);
         when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(mockPaginatedSearchRequest);
@@ -544,7 +543,7 @@ public class SearchServiceTest {
             null,
             EnvironmentType.ONPREM,
             null,
-            paginationRequest,
+            null,
             null,
             null,
             null, null));
@@ -612,8 +611,7 @@ public class SearchServiceTest {
     public void testGetSearchResultsClusterWithQuery() throws Exception {
         final SearchPaginationResponse paginationResponse =
                 Mockito.mock(SearchPaginationResponse.class);
-        final SearchPaginationRequest paginationRequest =
-                Mockito.mock(SearchPaginationRequest.class);
+
         String query = "query";
         when(groupsService.getPaginatedGroupApiDTOs(any(), any(),
                 eq(GroupType.COMPUTE_HOST_CLUSTER), any(), eq(EnvironmentType.ONPREM), any(), any(),
@@ -631,16 +629,20 @@ public class SearchServiceTest {
                 null,
                 EnvironmentType.ONPREM,
                 null,
-                paginationRequest,
+                null,
                 null,
                 null,
                 null, null);
 
         //THEN
         assertEquals(response, paginationResponse);
-        verify(groupsService).getPaginatedGroupApiDTOs(any(), any(),
+        ArgumentCaptor<SearchPaginationRequest> searchPaginationRequestArgumentCaptor = ArgumentCaptor.forClass(
+                SearchPaginationRequest.class);
+        verify(groupsService).getPaginatedGroupApiDTOs(any(), searchPaginationRequestArgumentCaptor.capture(),
                 eq(GroupType.COMPUTE_HOST_CLUSTER), any(), eq(EnvironmentType.ONPREM), any(), any(),
                 eq(false), eq(null));
+        SearchPaginationRequest captured = searchPaginationRequestArgumentCaptor.getValue();
+        assertEquals(DEFAULT_LIMIT, captured.getLimit());
         verify(searchService).addNameMatcher(queryArgCap.capture(), any(), any(), any());
         assertEquals(query, queryArgCap.getValue());
     }
@@ -960,9 +962,13 @@ public class SearchServiceTest {
                paginationRequest, null,  null, null, null);
 
         // Assert
+        ArgumentCaptor<SearchPaginationRequest> searchPaginationRequestArgumentCaptor = ArgumentCaptor.forClass(SearchPaginationRequest.class);
         verify(groupsService).getPaginatedGroupApiDTOs(eq(Collections.EMPTY_LIST),
-                eq(paginationRequest), eq(GroupType.COMPUTE_HOST_CLUSTER), eq(null), eq(null),
+                searchPaginationRequestArgumentCaptor.capture(), eq(GroupType.COMPUTE_HOST_CLUSTER), eq(null), eq(null),
                 eq(null), eq(scopes), eq(false), eq(null));
+
+        SearchPaginationRequest searchPaginationRequestCaptured = searchPaginationRequestArgumentCaptor.getValue();
+        assertEquals(true, searchPaginationRequestCaptured.isAscending());
     }
 
     /**
