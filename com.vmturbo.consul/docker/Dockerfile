@@ -29,6 +29,7 @@ RUN dnf install -y rsyslog procps-ng python2 openssl iproute unzip gnutls && \
     curl -k -s -O https://github.com/Yelp/dumb-init/releases/download/v${DOCKER_DUMBINIT}/dumb-init_${DOCKER_DUMBINIT}_amd64 && \
     mv /tmp/dumb-init_${DOCKER_DUMBINIT}_amd64 /bin/dumb-init && \
     chmod +x /bin/dumb-init && \
+    dnf update -y krb5-libs \
     dnf clean all && \
     rm -rf /var/cache/dnf
 

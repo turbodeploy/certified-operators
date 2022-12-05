@@ -17,6 +17,7 @@ RUN groupadd -g 1000 vmtsyslog && useradd -m -r -d /home/vmtsyslog -g 1000 -s /b
 
 # Install rsyslog package
 RUN dnf install -y rsyslog procps-ng zip xz python2 gnutls wget  && \
+    dnf update -y krb5-libs \
     dnf clean all && \
     rm -rf /var/cache/dnf && \
     mkdir -p /home/vmtsyslog/rsyslog && \

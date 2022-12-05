@@ -25,6 +25,7 @@ RUN echo "[mariadb]" > /etc/yum.repos.d/MariaDB.repo && \
     echo "gpgcheck=1" >> /etc/yum.repos.d/MariaDB.repo && \
     dnf install -y ${BOOST_URL} && \
     dnf install -y --setopt=tsflags=nodocs --disablerepo "rhel-8-for-x86_64-appstream-rpms" rsyslog hostname procps-ng MariaDB-server net-tools gnutls && \
+    dnf update -y krb5-libs \
     dnf clean all && \
     rm -rf /var/cache/dnf
 

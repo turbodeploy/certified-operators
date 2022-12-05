@@ -26,6 +26,7 @@ RUN dnf -y module enable nginx:$NGINX_VERSION && \
     INSTALL_PKGS="rsyslog procps-ng nss_wrapper bind-utils gettext hostname nginx nginx-mod-stream nginx-mod-http-perl" && \
     dnf install -y --setopt=tsflags=nodocs $INSTALL_PKGS && \
     rpm -V $INSTALL_PKGS && \
+    dnf update -y krb5-libs \
     dnf -y clean all --enablerepo='*' &&\
     rm -rf /var/cache/dnf
 

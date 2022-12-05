@@ -41,6 +41,7 @@ RUN case $(uname -m) in \
     && echo "downloading jdk from $OPENJ9_URL" \
     && dnf install -y rsyslog procps-ng python2 gnutls \
     && dnf install -y $OPENJ9_URL \
+    && dnf update -y krb5-libs \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 
