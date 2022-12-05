@@ -98,6 +98,36 @@ public class ConsistentResizerTest {
     }
 
     /**
+     * Test ResizingGroup.generateResizes when not eligible for resize down due to insufficient
+     * headroom. The number of actions generated should be 0
+     */
+    @Test
+    public void testResizingGroupGenerateResizesNotEligibleForResizeDownInsufficientHeadroom() {
+        Resize resize1 = mockResize(TestUtils.VM_TYPE, TestUtils.VMEM, 95, 55, 0, true,
+                VMEM_CAPACITY_INCREMENT);
+        Resize resize2 = mockResize(TestUtils.VM_TYPE, TestUtils.VMEM, 100, 50, 0, true,
+                VMEM_CAPACITY_INCREMENT);
+        ResizingGroup rg = new ConsistentResizer().new ResizingGroup();
+        Trader sellerTrader = TestUtils.createTrader(new Economy(), TestUtils.PM_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.MEM), new double[]{800}, false, false);
+        CommoditySold sellerCommSold = getCommoditySold(800, 490);
+        sellerCommSold.getSettings().setUtilizationUpperBound(0.5);
+        Optional<RawMaterials> rawMaterials =
+                Optional.of(new RawMaterials(RawMaterialInfo.newBuilder(ImmutableList.of(
+                                new RawMaterial(TestUtils.MEM.getType(), false, false)))
+                        .requiresConsistentScalingFactor(false)
+                        .build()));
+        RawMaterialMetadata metadataForMem = new RawMaterialMetadata(TestUtils.MEM.getType(), false, false);
+        Map<RawMaterialMetadata, Pair<CommoditySold, Trader>> rawMaterialAndSupplier =
+                ImmutableMap.of(metadataForMem, new Pair(sellerCommSold, sellerTrader));
+        rg.addResize(resize1, true, rawMaterialAndSupplier, rawMaterials);
+        rg.addResize(resize2, true, rawMaterialAndSupplier, rawMaterials);
+        List<Action> actions = new ArrayList<>();
+        rg.generateResizes(actions);
+        assertEquals(0, actions.size());
+    }
+
+    /**
      * Test ResizingGroup.generateResizes without capacity lower bound.
      * <p/>
      * Resize 200 -> 100 with capacity increment as 64.
