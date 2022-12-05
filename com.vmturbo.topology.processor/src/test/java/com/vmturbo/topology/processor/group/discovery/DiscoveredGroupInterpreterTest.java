@@ -129,8 +129,6 @@ public class DiscoveredGroupInterpreterTest {
     @Test
     public void testGroupConverterMemberList() {
         final EntityStore store = mock(EntityStore.class);
-        when(store.getTargetEntityIdMap(TARGET_ID))
-                .thenReturn(Optional.of(ImmutableMap.of("1", 1L)));
 
         Entity entity = mock(Entity.class);
         when(store.getEntity(1))
@@ -140,7 +138,7 @@ public class DiscoveredGroupInterpreterTest {
         final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
         final GroupInterpretationContext context =
-            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO), ImmutableMap.of("1", 1L));
         InterpretedGroup interpretedGroup = converter.interpretGroup(STATIC_MEMBER_DTO, context);
         assertTrue(interpretedGroup.getGroupDefinition().isPresent());
 
@@ -158,12 +156,10 @@ public class DiscoveredGroupInterpreterTest {
     @Test
     public void testGroupConverterMemberListMissingEntity() {
         final EntityStore store = mock(EntityStore.class);
-        when(store.getTargetEntityIdMap(TARGET_ID))
-                .thenReturn(Optional.of(ImmutableMap.of("2", 2L)));
         final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
         final GroupInterpretationContext context =
-            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO), ImmutableMap.of("2", 2L));
         final Optional<GroupDefinition.Builder> groupDefOpt = converter.sdkToGroupDefinition(
                 STATIC_MEMBER_DTO, context);
         // In the case of a missing entity we still return the group, with the empty
@@ -181,7 +177,7 @@ public class DiscoveredGroupInterpreterTest {
 
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
         final GroupInterpretationContext context =
-            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO), Collections.emptyMap());
         final InterpretedGroup interpretedGroup = converter.interpretGroup(SELECTION_DTO, context);
         assertTrue(interpretedGroup.getGroupDefinition().isPresent());
 
@@ -217,7 +213,7 @@ public class DiscoveredGroupInterpreterTest {
             .clearDisplayName()
             .build();
         final GroupInterpretationContext context = new GroupInterpretationContext(
-                TARGET_ID, Collections.singletonList(group));
+                TARGET_ID, Collections.singletonList(group), Collections.emptyMap());
         final InterpretedGroup interpretedGroup = converter.interpretGroup(group, context);
 
         assertTrue(interpretedGroup.getGroupDefinition().isPresent());
@@ -230,8 +226,6 @@ public class DiscoveredGroupInterpreterTest {
     @Test
     public void testClusterInfo() {
         final EntityStore store = mock(EntityStore.class);
-        when(store.getTargetEntityIdMap(TARGET_ID))
-                .thenReturn(Optional.of(ImmutableMap.of("1", 1L)));
         Entity entity = mock(Entity.class);
         when(store.getEntity(1))
                 .thenReturn(Optional.of(entity));
@@ -260,7 +254,7 @@ public class DiscoveredGroupInterpreterTest {
                 .build())
             .build();
         final GroupInterpretationContext context =
-            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(group));
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(group), ImmutableMap.of("1", 1L));
         Optional<GroupDefinition.Builder> clusterOpt = converter.sdkToGroupDefinition(group, context);
         assertTrue(clusterOpt.isPresent());
 
@@ -280,8 +274,6 @@ public class DiscoveredGroupInterpreterTest {
     @Test
     public void testStorageClusterInfo() {
         final EntityStore store = mock(EntityStore.class);
-        when(store.getTargetEntityIdMap(TARGET_ID))
-                .thenReturn(Optional.of(ImmutableMap.of("1", 1L)));
 
         Entity entity = mock(Entity.class);
         when(store.getEntity(1))
@@ -301,7 +293,7 @@ public class DiscoveredGroupInterpreterTest {
             .setMemberList(MembersList.newBuilder().addMember("1").build())
             .build();
         final GroupInterpretationContext context =
-            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(group));
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(group), ImmutableMap.of("1", 1L));
         Optional<GroupDefinition.Builder> clusterDefOpt = converter.sdkToGroupDefinition(group, context);
         assertTrue(clusterDefOpt.isPresent());
 
@@ -315,8 +307,6 @@ public class DiscoveredGroupInterpreterTest {
     @Test
     public void testGroupFromMergeConstraintInfo() {
         final EntityStore store = mock(EntityStore.class);
-        when(store.getTargetEntityIdMap(TARGET_ID))
-                .thenReturn(Optional.of(ImmutableMap.of("1", 1L)));
         Entity entity = mock(Entity.class);
         when(store.getEntity(1)).thenReturn(Optional.of(entity));
         when(entity.getEntityType()).thenReturn(EntityType.PHYSICAL_MACHINE);
@@ -330,7 +320,7 @@ public class DiscoveredGroupInterpreterTest {
                 .setConstraintName("name"))
             .build();
         final GroupInterpretationContext context2 = new GroupInterpretationContext(
-                TARGET_ID, Collections.singletonList(mergeConstraintGroup));
+                TARGET_ID, Collections.singletonList(mergeConstraintGroup), ImmutableMap.of("1", 1L));
         Optional<GroupDefinition.Builder> group = converter.sdkToGroupDefinition(
                 mergeConstraintGroup, context2);
         assertTrue(group.isPresent());
@@ -346,7 +336,7 @@ public class DiscoveredGroupInterpreterTest {
             .setSelectionSpecList(SelectionSpecList.getDefaultInstance())
             .build();
         final GroupInterpretationContext context =
-            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(selectionSpecCluster));
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(selectionSpecCluster), Collections.emptyMap());
         assertFalse(converter.sdkToGroupDefinition(selectionSpecCluster, context).isPresent());
 
         final GroupDTO sourceGroupCluster = CLUSTER_DTO.toBuilder()
@@ -354,7 +344,7 @@ public class DiscoveredGroupInterpreterTest {
             .setSourceGroupId("sourceGroupId")
             .build();
         final GroupInterpretationContext context2 =
-            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(sourceGroupCluster));
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(sourceGroupCluster), Collections.emptyMap());
         assertFalse(converter.sdkToGroupDefinition(sourceGroupCluster, context2).isPresent());
     }
 
@@ -741,7 +731,7 @@ public class DiscoveredGroupInterpreterTest {
     @Test
     public void testContextCycle() {
         final GroupInterpretationContext context =
-            new GroupInterpretationContext(TARGET_ID, Collections.emptyList());
+            new GroupInterpretationContext(TARGET_ID, Collections.emptyList(), Collections.emptyMap());
         assertFalse(context.inCycle());
         context.pushVisitedGroup("foo");
         // foo
@@ -882,7 +872,7 @@ public class DiscoveredGroupInterpreterTest {
         final DiscoveredGroupInterpreter converter =
                 new DiscoveredGroupInterpreter(store, propConverter);
         final GroupInterpretationContext context = new GroupInterpretationContext(TARGET_ID,
-                Collections.singletonList(RESOURCE_GROUP_DTO));
+                Collections.singletonList(RESOURCE_GROUP_DTO), ImmutableMap.of(SUBSCRIPTION_ID, groupOwnerOID));
         final Optional<GroupDefinition.Builder> groupDefOpt =
                 converter.sdkToGroupDefinition(RESOURCE_GROUP_DTO, context);
         assertEquals(groupDefOpt.get().getOwner(), groupOwnerOID);
@@ -902,7 +892,7 @@ public class DiscoveredGroupInterpreterTest {
         final DiscoveredGroupInterpreter converter =
                 new DiscoveredGroupInterpreter(store, propConverter);
         final GroupInterpretationContext context = new GroupInterpretationContext(TARGET_ID,
-                Collections.singletonList(RESOURCE_GROUP_DTO_WITHOUT_OWNER));
+                Collections.singletonList(RESOURCE_GROUP_DTO_WITHOUT_OWNER), Collections.emptyMap());
         final Optional<GroupDefinition.Builder> groupDefOpt =
                 converter.sdkToGroupDefinition(RESOURCE_GROUP_DTO_WITHOUT_OWNER, context);
         assertFalse(groupDefOpt.get().hasOwner());
@@ -934,8 +924,8 @@ public class DiscoveredGroupInterpreterTest {
                         .addMember(accountId)
                         .addMember(nestedGroupId))
                 .build();
-        final GroupInterpretationContext context =
-                new GroupInterpretationContext(TARGET_ID, Collections.singletonList(group));
+        final GroupInterpretationContext context = new GroupInterpretationContext(
+                TARGET_ID, Collections.singletonList(group), ImmutableMap.of(accountId, accountOid));
         InterpretedGroup interpretedGroup = converter.interpretGroup(group, context);
         assertTrue(interpretedGroup.getGroupDefinition().isPresent());
 
