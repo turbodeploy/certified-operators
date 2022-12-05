@@ -36,6 +36,16 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * or target, and update key-value store with the migration result.
  */
 public abstract class AbstractProbeTargetMigration extends AbstractMigration {
+
+    protected static final String PROBE_ID = "probeId";
+    protected static final String TARGET_ID = "id";
+    protected static final String TARGET_INFO = "targetInfo";
+    protected static final String TARGET_NAME = "displayName";
+    protected static final String TARGET_SPEC = "spec";
+    protected static final String ACCOUNT_VALUE = "accountValue";
+    protected static final String ACCOUNT_VALUE_KEY = "key";
+    protected static final String ACCOUNT_VALUE_VALUE = "stringValue";
+
     protected final Logger logger = LogManager.getLogger(getClass());
     protected final KeyValueStore keyValueStore;
     // map from probe ID to probe type, which is populated in updateProbes and used in updateTargets.
