@@ -22,6 +22,7 @@ import common.HealthCheck.HealthState;
 public class ProbeVersionFactory {
 
     private static final Logger logger = LogManager.getLogger();
+    private static final String CLOUD_NATIVE_PROBE_NAME = "kubeturbo";
 
     /**
      * Error messages related to probe version errors.
@@ -159,13 +160,13 @@ public class ProbeVersionFactory {
 
         String msg = ProbeVersionErrorMessage.OLDER.getMessage(probeVersion, serverSemver.toString());
 
-        // append additional message for kubeturbo versions that would cuse Container CPU resize actions to be disabled
+        // append additional message for kubeturbo versions that would cause Container CPU resize actions to be disabled
         if (probeInfo != null
                 && probeInfo
                     .getProbeTargetInfo()
                     .getInputValuesList()
                     .stream()
-                    .anyMatch(accountValue -> accountValue.getStringValue().contains("kubeturbo"))
+                    .anyMatch(accountValue -> accountValue.getStringValue().contains(CLOUD_NATIVE_PROBE_NAME))
                 && serverSemver.isGreaterThanOrEqualTo(CPU_THROTTLING_BREAKING_CHANGE_VERSION)
                 && probeSemver.isLowerThan(CPU_THROTTLING_BREAKING_CHANGE_VERSION)) {
             msg = msg + " " + CloudNativeAdditionalErrorMessage.CPU_THROTTLING_BREAKING_CHANGE_MESSAGE.getMessage();
