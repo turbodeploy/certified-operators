@@ -37,6 +37,7 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.InsertOnDuplicateSetMoreStep;
 import org.jooq.InsertValuesStepN;
+import org.jooq.Record1;
 import org.jooq.Record3;
 import org.jooq.Record5;
 import org.jooq.Result;
@@ -644,6 +645,19 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext>, Sa
         // Add to the billed savings stats table.
         addDailyStats(dailyStats, this.dsl, true);
         return uniqueDailyTimestamps;
+    }
+
+    @Override
+    public Set<Long> getEntitiesWithoutScopeRecords(final Set<Long> entityOids) {
+        List<Record1<Long>> scopeRecords =
+                dsl.select(ENTITY_CLOUD_SCOPE.ENTITY_OID)
+                        .from(ENTITY_CLOUD_SCOPE)
+                        .where(ENTITY_CLOUD_SCOPE.ENTITY_OID.in(entityOids))
+                        .fetch();
+        Set<Long> entitiesWithScope = scopeRecords.stream().map(Record1::value1).collect(Collectors.toSet());
+        Set<Long> entitiesWithoutScope = new HashSet<>(entityOids);
+        entitiesWithoutScope.removeAll(entitiesWithScope);
+        return entitiesWithoutScope;
     }
 
     @Override

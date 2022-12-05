@@ -21,11 +21,14 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import org.jooq.DSLContext;
@@ -50,6 +53,7 @@ import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.savings.bottomup.SqlEntitySavingsStore;
+import com.vmturbo.cost.component.savings.calculator.SavingsValues;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.PriceModel;
@@ -199,5 +203,47 @@ public class SavingsTrackerTest {
         Assert.assertEquals(LocalDateTime.of(2022, 11, 15, 0, 0), endDateCaptor.getValue());
         final Long expectedStartTimestamp = TimeUtil.localTimeToMillis(LocalDateTime.of(2022, 11, 14, 20, 23), clock);
         Assert.assertEquals(expectedStartTimestamp, startDateCaptor.getValue());
+    }
+
+    /**
+     * Test logic for excluding savings values that belong to entities that don't have scope records.
+     */
+    @Test
+    public void testExcludeEntitiesWithoutScopeRecords() {
+        List<SavingsValues> calculatorResults = ImmutableList.of(createSavingsValues(1L),
+                createSavingsValues(2L), createSavingsValues(3L), createSavingsValues(4L));
+        Set<Long> entitiesWithoutScopeRecords = ImmutableSet.of(4L);
+
+        final SearchServiceBlockingStub searchService = SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        SavingsStore savingsStore = mock(SqlEntitySavingsStore.class);
+        when(savingsStore.getEntitiesWithoutScopeRecords(anySet())).thenReturn(entitiesWithoutScopeRecords);
+        DSLContext dsl = mock(DSLContext.class);
+        BillingRecordStore billingRecordStore = mock(SqlBillingRecordStore.class);
+        SavingsTracker tracker = spy(new SavingsTracker(
+                billingRecordStore,
+                mock(GrpcActionChainStore.class),
+                savingsStore,
+                supportedEntityTypes,
+                supportedCSPs,
+                TimeUnit.DAYS.toMillis(365),
+                Clock.systemUTC(), mock(TopologyEntityCloudTopologyFactory.class),
+                null, dsl, mock(BusinessAccountPriceTableKeyStore.class),
+                mock(PriceTableStore.class), searchService, 1, 777777, 100));
+
+        Set<Long> deletedEntities = ImmutableSet.of(3L, 4L);
+        Set<Long> entitiesWithScopeRecords = ImmutableSet.of(1L, 2L, 3L);
+        List<SavingsValues> result = tracker.excludeSavingsWithoutScopeRecords(calculatorResults, deletedEntities);
+        Assert.assertEquals(3, result.size());
+        Assert.assertTrue(result.stream().map(SavingsValues::getEntityOid).collect(Collectors.toSet())
+                .containsAll(entitiesWithScopeRecords));
+    }
+
+    private SavingsValues createSavingsValues(long entityOid) {
+        return new SavingsValues.Builder()
+                .entityOid(entityOid)
+                .timestamp(LocalDateTime.now())
+                .savings(1)
+                .investments(2)
+                .build();
     }
 }
