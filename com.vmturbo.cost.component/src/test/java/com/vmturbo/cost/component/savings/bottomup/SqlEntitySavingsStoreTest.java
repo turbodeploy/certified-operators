@@ -4,6 +4,7 @@ import static com.vmturbo.cost.component.db.Tables.ENTITY_CLOUD_SCOPE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import java.sql.SQLException;
 import java.time.Clock;
@@ -915,5 +916,19 @@ public class SqlEntitySavingsStoreTest extends MultiDbTestBase {
                 BaseSavingsStats::getValue).sum();
         assertEquals(120.0d, billBasedSavings, EPSILON_PRECISION);
         assertEquals(480.0d, billBasedInvestments, EPSILON_PRECISION);
+    }
+
+    /**
+     * Test finding the entity OIDs that don't have a scope record.
+     */
+    @Test
+    public void testGetEntitiesWithoutScope() {
+        Set<Long> entitiesWithScopeRecords = ImmutableSet.of(vm1Id, vm2Id);
+        Set<Long> entitiesWithoutScopeRecords = ImmutableSet.of(3L, 4L);
+        Set<Long> allEntities = new HashSet<>(entitiesWithScopeRecords);
+        allEntities.addAll(entitiesWithoutScopeRecords);
+        Set<Long> result = billBasedSavingsStore.getEntitiesWithoutScopeRecords(allEntities);
+        assertEquals(2, result.size());
+        assertTrue(result.containsAll(entitiesWithoutScopeRecords));
     }
 }

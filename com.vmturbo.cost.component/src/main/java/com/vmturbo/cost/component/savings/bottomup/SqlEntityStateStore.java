@@ -235,7 +235,7 @@ public class SqlEntityStateStore extends SQLEntityCloudScopedStore implements En
             throw new EntitySavingsException("Error occurred when writing to entity_cloud_scope table.", e);
         }
 
-        scopeRecords.addAll(getScopeRecordsForDeletedEntities(scopeRecords, entityStateMap));
+        scopeRecords.addAll(getScopeRecordsForMissingEntities(scopeRecords, entityStateMap));
 
         Set<Long> scopeRecordEntityIds = scopeRecords.stream()
                 .map(EntityCloudScopeRecord::getEntityOid)
@@ -284,7 +284,7 @@ public class SqlEntityStateStore extends SQLEntityCloudScopedStore implements En
      * @param entityStateMap entity state map
      * @return list of EntityCloudScopeRecord for deleted entities
      */
-    private List<EntityCloudScopeRecord> getScopeRecordsForDeletedEntities(
+    private List<EntityCloudScopeRecord> getScopeRecordsForMissingEntities(
             @Nonnull List<EntityCloudScopeRecord> scopeRecords,
             @Nonnull final Map<Long, EntityState> entityStateMap) {
         Set<Long> scopeRecordEntityIds = scopeRecords.stream()
